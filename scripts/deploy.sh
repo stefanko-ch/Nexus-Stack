@@ -129,6 +129,12 @@ fi
 # Create remote stacks directory
 ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 
+# Generate info page if info stack is enabled
+if echo "$ENABLED_SERVICES" | grep -qw "info"; then
+    echo "  Generating info page..."
+    "$SCRIPT_DIR/generate-info-page.sh"
+fi
+
 # Sync only enabled stacks
 for service in $ENABLED_SERVICES; do
     if [ -d "$STACKS_DIR/$service" ]; then

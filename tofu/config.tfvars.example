@@ -68,6 +68,13 @@ services = {
     port      = 3001
     public    = false
   }
+
+  info = {
+    enabled   = true
+    subdomain = "info"
+    port      = 8090
+    public    = false    # Landing page with service overview
+  }
   
   # Example: Add more services like this:
   # excalidraw = {
