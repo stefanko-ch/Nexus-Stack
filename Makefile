@@ -37,6 +37,24 @@ up:
 # Destroy everything
 down:
 	@echo "💥 Destroying infrastructure..."
+	@echo ""
+	@echo "🔐 Revoking Cloudflare Zero Trust sessions..."
+	@CLOUDFLARE_API_TOKEN=$$(grep -E '^cloudflare_api_token\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+	CLOUDFLARE_ACCOUNT_ID=$$(grep -E '^cloudflare_account_id\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+	ADMIN_EMAIL=$$(grep -E '^admin_email\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+	if [ -n "$$CLOUDFLARE_API_TOKEN" ] && [ -n "$$CLOUDFLARE_ACCOUNT_ID" ] && [ -n "$$ADMIN_EMAIL" ]; then \
+		RESPONSE=$$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$$CLOUDFLARE_ACCOUNT_ID/access/organizations/revoke_user" \
+			-H "Authorization: Bearer $$CLOUDFLARE_API_TOKEN" \
+			-H "Content-Type: application/json" \
+			-d "{\"email\": \"$$ADMIN_EMAIL\"}"); \
+		if echo "$$RESPONSE" | tr -d '\n' | grep -q '"success"[[:space:]]*:[[:space:]]*true'; then \
+			echo "  ✓ Revoked Zero Trust sessions for $$ADMIN_EMAIL"; \
+		else \
+			echo "  ⚠️  Could not revoke sessions (may require additional API permissions)"; \
+		fi; \
+	else \
+		echo "  ⚠️  Could not read config, skipping session revocation"; \
+	fi
 	@DOMAIN=$$(grep -E '^domain\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
 	if [ -n "$$DOMAIN" ]; then \
 		ssh-keygen -R "ssh.$$DOMAIN" 2>/dev/null || true; \

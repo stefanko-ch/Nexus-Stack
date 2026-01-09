@@ -12,6 +12,11 @@
 ![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?logo=opentofu&logoColor=black)
 ![Hetzner](https://img.shields.io/badge/Hetzner-D50C2D?logo=hetzner&logoColor=white)
 
+**Available Stacks:**
+![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
+![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
+![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
+
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated.**
 
 > ⚠️ **Disclaimer:** This project was developed and tested on macOS. Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
@@ -76,6 +81,16 @@ Create a Custom Token with these permissions:
 - **Zone → DNS → Edit**
 - **Account → Cloudflare Tunnel → Edit**
 - **Account → Access: Apps and Policies → Edit**
+
+## Available Stacks
+
+| Stack | Description | Website |
+|-------|-------------|---------||
+| **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
+| **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
+| **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
+
+All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
 
 ## Commands
 
