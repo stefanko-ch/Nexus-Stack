@@ -54,6 +54,13 @@ services = {
     port      = 8080
     public    = false    # false = requires login, true = public access
   }
+
+  portainer = {
+    enabled   = true
+    subdomain = "portainer"
+    port      = 9090
+    public    = false    # Docker management should always be protected
+  }
   
   # Example: Add more services like this:
   # excalidraw = {

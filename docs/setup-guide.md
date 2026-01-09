@@ -63,15 +63,24 @@ ssh-keygen -t ed25519 -C "nexus"
 
 1. Go to **My Profile** → **API Tokens**
 2. Click **"Create Token"**
-3. Use template: **"Edit zone DNS"**
-4. Permissions:
-   - Zone → DNS → Edit
-   - Zone → Zone → Read
-   - Account → Cloudflare Tunnel → Edit
-   - Account → Access: Apps and Policies → Edit
-5. Zone Resources: Include → Specific Zone → Your domain
-6. Click **"Continue to summary"** → **"Create Token"**
-7. **Copy the token!**
+3. Use template: **"Create Custom Token"**
+4. Token name: `nexus-stack`
+5. **Permissions:**
+
+   | Scope | Resource | Permission |
+   |-------|----------|------------|
+   | Account | Cloudflare Tunnel | Edit |
+   | Account | Access: Apps and Policies | Edit |
+   | Account | Access: Organizations, Identity Providers, and Groups | Edit |
+   | Zone | DNS | Edit |
+   | Zone | Zone | Read |
+
+   > **Note:** The "Access: Organizations" permission is required for revoking Zero Trust sessions during `make down`.
+
+6. **Account Resources:** Include → All accounts (or specific)
+7. **Zone Resources:** Include → Specific Zone → Your domain
+8. Click **"Continue to summary"** → **"Create Token"**
+9. **Copy the token!**
 
 ---
 
@@ -81,10 +90,10 @@ ssh-keygen -t ed25519 -C "nexus"
 
 ```bash
 cd tofu
-cp nexus.tfvars.example nexus.tfvars
+cp config.tfvars.example config.tfvars
 ```
 
-### Edit nexus.tfvars
+### Edit config.tfvars
 
 ```hcl
 # Hetzner Cloud
