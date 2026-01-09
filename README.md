@@ -79,6 +79,7 @@ Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-
 ![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
 ![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
+![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
 |-------|-------------|--------|
@@ -86,6 +87,7 @@ Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
+| **Info** | Landing page with service overview dashboard | — |
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
 
