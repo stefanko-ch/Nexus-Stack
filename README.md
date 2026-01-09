@@ -7,15 +7,10 @@
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/stefanko-ch/Nexus-Stack)
 ![GitHub last commit](https://img.shields.io/github/last-commit/stefanko-ch/Nexus-Stack)
 
-![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white)
 ![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?logo=opentofu&logoColor=black)
 ![Hetzner](https://img.shields.io/badge/Hetzner-D50C2D?logo=hetzner&logoColor=white)
-
-**Available Stacks:**
-![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
-![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
-![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated.**
 
@@ -76,21 +71,25 @@ Edit `tofu/config.tfvars`:
 
 ### Cloudflare API Token Permissions
 
-Create a Custom Token with these permissions:
-- **Zone → Zone → Read**
-- **Zone → DNS → Edit**
-- **Account → Cloudflare Tunnel → Edit**
-- **Account → Access: Apps and Policies → Edit**
+Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for the complete list of required permissions.
 
 ## Available Stacks
 
+![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
+![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
+![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
+![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
+
 | Stack | Description | Website |
-|-------|-------------|---------||
+|-------|-------------|--------|
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
+| **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
+
+→ See [docs/stacks.md](docs/stacks.md) for detailed stack documentation.
 
 ## Commands
 
@@ -222,12 +221,6 @@ Host nexus
   User root
   ProxyCommand cloudflared access ssh --hostname %h
 ```
-
-## Cost
-
-- **Hetzner CAX11**: ~€3.79/month (ARM, 2 vCPU, 4GB RAM)
-- **Cloudflare**: Free (including Zero Trust for up to 50 users)
-- **Total**: ~€4/month
 
 ## Security
 
