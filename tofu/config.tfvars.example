@@ -1,0 +1,65 @@
+# =============================================================================
+# Nexus-Stack Configuration
+# =============================================================================
+# Copy this file to config.tfvars and fill in your values
+# =============================================================================
+
+# =============================================================================
+# Hetzner Cloud
+# Get your API token from: https://console.hetzner.cloud/projects
+# =============================================================================
+
+hcloud_token = "YOUR_HCLOUD_TOKEN_HERE"
+
+# Server settings (defaults are fine for testing)
+server_name     = "nexus"
+server_type     = "cax11"         # ~€4/month - 2 vCPU, 4GB RAM (ARM)
+server_location = "fsn1"          # Falkenstein, Germany
+server_image    = "ubuntu-24.04"
+
+# SSH keys (adjust paths if needed)
+ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
+ssh_private_key_path = "~/.ssh/id_ed25519"
+
+# =============================================================================
+# Cloudflare
+# Get these values from your Cloudflare dashboard
+# =============================================================================
+
+cloudflare_api_token  = "YOUR_CLOUDFLARE_API_TOKEN_HERE"
+cloudflare_account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID_HERE"
+cloudflare_zone_id    = "YOUR_CLOUDFLARE_ZONE_ID_HERE"
+
+# Your domain (must be in Cloudflare)
+domain = "your-domain.com"
+
+# Your email for Cloudflare Access (only this email can access services)
+admin_email = "your@email.com"
+
+# =============================================================================
+# Services
+# =============================================================================
+# Add services here - each one gets automatic:
+# - DNS record (subdomain.your-domain.com)
+# - Cloudflare Tunnel routing
+# - Zero Trust Access policy
+#
+# You still need to create stacks/<name>/docker-compose.yml for each service!
+# =============================================================================
+
+services = {
+  it-tools = {
+    enabled   = true
+    subdomain = "it-tools"
+    port      = 8080
+    public    = false    # false = requires login, true = public access
+  }
+  
+  # Example: Add more services like this:
+  # excalidraw = {
+  #   enabled   = true
+  #   subdomain = "draw"
+  #   port      = 8082
+  #   public    = false
+  # }
+}
