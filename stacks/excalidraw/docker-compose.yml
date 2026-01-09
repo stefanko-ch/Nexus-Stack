@@ -1,0 +1,13 @@
+services:
+  excalidraw:
+    image: excalidraw/excalidraw:latest
+    container_name: excalidraw
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
