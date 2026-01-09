@@ -61,6 +61,13 @@ services = {
     port      = 9090
     public    = false    # Docker management should always be protected
   }
+
+  uptime-kuma = {
+    enabled   = true
+    subdomain = "uptime-kuma"
+    port      = 3001
+    public    = false
+  }
   
   # Example: Add more services like this:
   # excalidraw = {
