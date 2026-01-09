@@ -1,0 +1,24 @@
+# =============================================================================
+# Info Dashboard - Nexus Stack Overview
+# =============================================================================
+# A dynamic landing page showing all Nexus services
+# Generated from config.tfvars - shows enabled/disabled status
+# Access via: https://info.your-domain.com
+# Default port: 8090
+# =============================================================================
+
+services:
+  info:
+    image: nginx:alpine
+    container_name: info
+    restart: unless-stopped
+    ports:
+      - "8090:80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
