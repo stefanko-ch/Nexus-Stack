@@ -1,4 +1,4 @@
-.PHONY: up down status ssh logs init plan urls
+.PHONY: up down status ssh logs init plan urls secrets
 
 # =============================================================================
 # Nexus-Stack - Makefile
@@ -82,3 +82,34 @@ plan:
 # Show service URLs
 urls:
 	@cd tofu && tofu output -json service_urls | jq -r 'to_entries | .[] | "\(.key): \(.value)"'
+
+# Show service credentials
+secrets:
+	@echo "🔐 Service Credentials"
+	@echo "======================"
+	@if [ -f tofu/terraform.tfstate ]; then \
+		SECRETS_JSON=$$(cd tofu && tofu output -json secrets 2>/dev/null || echo "{}"); \
+		ADMIN_EMAIL=$$(echo "$$SECRETS_JSON" | jq -r '.admin_email // empty'); \
+		ADMIN_USER=$$(echo "$$SECRETS_JSON" | jq -r '.admin_username // "admin"'); \
+		DOMAIN=$$(grep -E '^domain\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+		echo ""; \
+		echo "Infisical:"; \
+		SUBDOMAIN=$$(grep -A5 'infisical.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
+		echo "  User:     $$ADMIN_EMAIL"; \
+		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.infisical_admin_password')"; \
+		echo ""; \
+		echo "Portainer:"; \
+		SUBDOMAIN=$$(grep -A5 'portainer.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
+		echo "  User:     $$ADMIN_USER"; \
+		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.portainer_admin_password')"; \
+		echo ""; \
+		echo "Uptime Kuma:"; \
+		SUBDOMAIN=$$(grep -A5 'uptime-kuma.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
+		echo "  User:     $$ADMIN_USER"; \
+		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.kuma_admin_password')"; \
+	else \
+		echo "⚠️  No OpenTofu state found. Run 'make up' first."; \
+	fi
