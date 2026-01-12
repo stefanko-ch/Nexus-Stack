@@ -315,6 +315,26 @@ resource "cloudflare_zero_trust_access_short_lived_certificate" "ssh" {
   application_id = cloudflare_zero_trust_access_application.ssh.id
 }
 
+# SSH Service Token for headless/CI authentication (no browser required)
+resource "cloudflare_zero_trust_access_service_token" "ssh" {
+  account_id = var.cloudflare_account_id
+  name       = "${var.server_name}-ssh-token"
+  duration   = "forever"
+}
+
+# Allow Service Token to access SSH
+resource "cloudflare_zero_trust_access_policy" "ssh_service_token" {
+  zone_id        = var.cloudflare_zone_id
+  application_id = cloudflare_zero_trust_access_application.ssh.id
+  name           = "Service Token SSH Access"
+  precedence     = 2
+  decision       = "non_identity"
+
+  include {
+    service_token = [cloudflare_zero_trust_access_service_token.ssh.id]
+  }
+}
+
 # Dynamic Access Applications for all enabled services
 resource "cloudflare_zero_trust_access_application" "services" {
   for_each = local.enabled_services
