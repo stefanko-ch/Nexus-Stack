@@ -1,0 +1,139 @@
+# =============================================================================
+# Grafana Observability Stack
+# =============================================================================
+# Full monitoring solution: Metrics, Logs, Dashboards, Alerting
+#
+# Components:
+#   - Grafana:       Dashboards & Alerting (external 3100 → internal 3000)
+#   - Prometheus:    Metrics collection
+#   - Loki:          Log aggregation
+#   - Promtail:      Log shipping from Docker
+#   - cAdvisor:      Container metrics
+#   - Node Exporter: Host metrics
+#
+# Access: https://grafana.YOUR_DOMAIN
+# Default: admin / (generated password)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Grafana - Dashboards & Visualization
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_AUTH_BASIC_ENABLED=true
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - app-network
+      - grafana-internal
+
+  # ---------------------------------------------------------------------------
+  # Prometheus - Metrics Collection
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: grafana-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - grafana-internal
+
+  # ---------------------------------------------------------------------------
+  # Loki - Log Aggregation
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:latest
+    container_name: grafana-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    networks:
+      - grafana-internal
+
+  # ---------------------------------------------------------------------------
+  # Promtail - Log Collector (ships Docker logs to Loki)
+  # ---------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:latest
+    container_name: grafana-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - grafana-internal
+
+  # ---------------------------------------------------------------------------
+  # cAdvisor - Container Metrics
+  # ---------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: grafana-cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - grafana-internal
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter - Host Metrics (CPU, RAM, Disk, Network)
+  # ---------------------------------------------------------------------------
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: grafana-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    networks:
+      - grafana-internal
+
+volumes:
+  grafana-data:
+  prometheus-data:
+  loki-data:
+
+networks:
+  app-network:
+    external: true
+  grafana-internal:
+    driver: bridge

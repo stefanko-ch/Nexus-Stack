@@ -1,0 +1,16 @@
+# =============================================================================
+# Grafana Dashboard Provisioning
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'Nexus Dashboards'
+    orgId: 1
+    folder: 'Nexus'
+    folderUid: 'nexus'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

@@ -67,5 +67,12 @@ output "secrets" {
     
     # Uptime Kuma
     kuma_admin_password        = random_password.kuma_admin.result
+    
+    # Grafana
+    grafana_admin_password     = random_password.grafana_admin.result
+    
+    # Docker Hub (optional)
+    dockerhub_username         = var.dockerhub_username
+    dockerhub_token            = var.dockerhub_token
   }
 }
