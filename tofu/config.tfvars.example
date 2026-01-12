@@ -105,6 +105,13 @@ services = {
     port      = 8090
     public    = false    # Landing page with service overview
   }
+
+  kestra = {
+    enabled   = true
+    subdomain = "kestra"
+    port      = 8085
+    public    = false    # Workflow orchestration - always protected
+  }
   
   # Example: Add more services like this:
   # excalidraw = {
