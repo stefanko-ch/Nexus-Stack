@@ -79,6 +79,13 @@ services = {
     public    = false    # Secret management - always protected
   }
 
+  grafana = {
+    enabled   = true
+    subdomain = "grafana"
+    port      = 3100
+    public    = false    # Observability stack - always protected
+  }
+
   info = {
     enabled   = true
     subdomain = "info"

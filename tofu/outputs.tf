@@ -67,5 +67,8 @@ output "secrets" {
     
     # Uptime Kuma
     kuma_admin_password        = random_password.kuma_admin.result
+    
+    # Grafana
+    grafana_admin_password     = random_password.grafana_admin.result
   }
 }

@@ -61,6 +61,7 @@ INFISICAL_AUTH_SECRET=$(echo "$SECRETS_JSON" | jq -r '.infisical_auth_secret // 
 INFISICAL_DB_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.infisical_db_password // empty')
 PORTAINER_PASS=$(echo "$SECRETS_JSON" | jq -r '.portainer_admin_password // empty')
 KUMA_PASS=$(echo "$SECRETS_JSON" | jq -r '.kuma_admin_password // empty')
+GRAFANA_PASS=$(echo "$SECRETS_JSON" | jq -r '.grafana_admin_password // empty')
 
 echo -e "${GREEN}  ✓ Secrets loaded (admin user: $ADMIN_USERNAME)${NC}"
 
@@ -166,6 +167,17 @@ AUTH_SECRET=$INFISICAL_AUTH_SECRET
 POSTGRES_PASSWORD=$INFISICAL_DB_PASSWORD
 EOF
     echo -e "${GREEN}  ✓ Infisical .env generated${NC}"
+fi
+
+# Generate Grafana .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "grafana"; then
+    echo "  Generating Grafana config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/grafana/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+GRAFANA_ADMIN_USER=$ADMIN_USERNAME
+GRAFANA_ADMIN_PASSWORD=$GRAFANA_PASS
+EOF
+    echo -e "${GREEN}  ✓ Grafana .env generated${NC}"
 fi
 
 # Sync only enabled stacks
@@ -293,7 +305,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "config"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "config"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -308,6 +320,7 @@ EOF
                     INFISICAL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="infisical") | .id // empty' 2>/dev/null)
                     PORTAINER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="portainer") | .id // empty' 2>/dev/null)
                     KUMA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="uptime-kuma") | .id // empty' 2>/dev/null)
+                    GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     
                     echo -e "${GREEN}  ✓ Tags created${NC}"
@@ -329,7 +342,9 @@ EOF
     {"secretKey": "PORTAINER_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$PORTAINER_TAG"]},
     {"secretKey": "PORTAINER_PASSWORD", "secretValue": "$PORTAINER_PASS", "tagIds": ["$PORTAINER_TAG"]},
     {"secretKey": "UPTIME_KUMA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$KUMA_TAG"]},
-    {"secretKey": "UPTIME_KUMA_PASSWORD", "secretValue": "$KUMA_PASS", "tagIds": ["$KUMA_TAG"]}
+    {"secretKey": "UPTIME_KUMA_PASSWORD", "secretValue": "$KUMA_PASS", "tagIds": ["$KUMA_TAG"]},
+    {"secretKey": "GRAFANA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GRAFANA_TAG"]},
+    {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]}
   ]
 }
 SECRETS_EOF
@@ -567,6 +582,9 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer"; then
 fi
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma"; then
     echo -e "   ${YELLOW}Uptime Kuma:${NC} $ADMIN_USERNAME / $KUMA_PASS"
+fi
+if echo "$ENABLED_SERVICES" | grep -qw "grafana"; then
+    echo -e "   ${YELLOW}Grafana:${NC}     $ADMIN_USERNAME / $GRAFANA_PASS"
 fi
 echo ""
 
