@@ -38,8 +38,14 @@ resource "random_password" "portainer_admin" {
   special = false
 }
 
-# Uptime Kuma admin password (for future use)
+# Uptime Kuma admin password
 resource "random_password" "kuma_admin" {
+  length  = 24
+  special = false
+}
+
+# Grafana admin password
+resource "random_password" "grafana_admin" {
   length  = 24
   special = false
 }
