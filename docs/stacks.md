@@ -71,7 +71,7 @@ A lightweight management UI that allows you to easily manage your Docker environ
 | Website | [portainer.io](https://www.portainer.io) |
 | Source | [GitHub](https://github.com/portainer/portainer) |
 
-> ⚠️ **Important:** Portainer requires initial setup within 5 minutes of first start. Access it immediately after deployment to create your admin account.
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
 
 ---
 
@@ -95,6 +95,8 @@ A beautiful, self-hosted monitoring tool similar to "Uptime Robot":
 | Public Access | Optional (status page can be public) |
 | Website | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | Source | [GitHub](https://github.com/louislam/uptime-kuma) |
+
+> ✅ **Auto-configured:** Admin account is automatically created and monitors for all enabled services are added during deployment. Use `make secrets` to view the credentials.
 
 ---
 
@@ -145,7 +147,7 @@ A modern, developer-friendly alternative to HashiCorp Vault:
 | Website | [infisical.com](https://infisical.com) |
 | Source | [GitHub](https://github.com/Infisical/infisical) |
 
-> ⚠️ **Important:** First user to sign up becomes the admin. Access the service immediately after deployment to create your admin account.
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. A "Nexus Stack" project is created with all generated passwords pre-loaded. Use `make secrets` to view the credentials.
 
 > ℹ️ **Note:** Secrets are auto-generated on first deployment (encryption key, auth secret). These are stored in `stacks/infisical/.env`.
 
@@ -202,7 +204,7 @@ The stack comes with three ready-to-use dashboards:
 └─────────────┘                                │
 ```
 
-> ℹ️ **Note:** Admin credentials are auto-generated and stored in Infisical. Use `make secrets` to view them.
+> ✅ **Auto-configured:** Admin password is set via environment variables during deployment. Dashboards and datasources are pre-provisioned. Use `make secrets` to view the credentials.
 
 ---
 
@@ -227,6 +229,8 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 | Public Access | **Never** (always protected) |
 | Website | [kestra.io](https://kestra.io) |
 | Source | [GitHub](https://github.com/kestra-io/kestra) |
+
+> ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Use `make secrets` to view the credentials.
 
 ### Architecture
 
