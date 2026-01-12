@@ -45,7 +45,7 @@ if [ -z "$DOMAIN" ]; then
 fi
 
 # Get secrets from OpenTofu
-echo -e "${YELLOW}[0/6] Loading secrets from OpenTofu...${NC}"
+echo -e "${YELLOW}[0/7] Loading secrets from OpenTofu...${NC}"
 SECRETS_JSON=$(cd "$TOFU_DIR" && tofu output -json secrets 2>/dev/null || echo "{}")
 
 if [ "$SECRETS_JSON" = "{}" ]; then
@@ -62,6 +62,8 @@ INFISICAL_DB_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.infisical_db_password // 
 PORTAINER_PASS=$(echo "$SECRETS_JSON" | jq -r '.portainer_admin_password // empty')
 KUMA_PASS=$(echo "$SECRETS_JSON" | jq -r '.kuma_admin_password // empty')
 GRAFANA_PASS=$(echo "$SECRETS_JSON" | jq -r '.grafana_admin_password // empty')
+DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
+DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
 echo -e "${GREEN}  ✓ Secrets loaded (admin user: $ADMIN_USERNAME)${NC}"
 
@@ -76,7 +78,7 @@ SERVER_IP=$(cd "$TOFU_DIR" && tofu output -raw server_ip 2>/dev/null || echo "")
 SSH_CONFIG="$HOME/.ssh/config"
 
 if ! grep -q "Host nexus" "$SSH_CONFIG" 2>/dev/null; then
-    echo -e "${YELLOW}[1/6] Adding SSH config for nexus...${NC}"
+    echo -e "${YELLOW}[1/7] Adding SSH config for nexus...${NC}"
     mkdir -p "$HOME/.ssh"
     cat >> "$SSH_CONFIG" << EOF
 
@@ -88,7 +90,7 @@ EOF
     chmod 600 "$SSH_CONFIG"
     echo -e "${GREEN}  ✓ SSH config added to ~/.ssh/config${NC}"
 else
-    echo -e "${GREEN}[1/6] SSH config for nexus already exists${NC}"
+    echo -e "${GREEN}[1/7] SSH config for nexus already exists${NC}"
 fi
 
 # -----------------------------------------------------------------------------
@@ -116,7 +118,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Wait for SSH connection
 # -----------------------------------------------------------------------------
-echo -e "${YELLOW}[2/6] Waiting for SSH via Cloudflare Tunnel...${NC}"
+echo -e "${YELLOW}[2/7] Waiting for SSH via Cloudflare Tunnel...${NC}"
 MAX_RETRIES=30
 RETRY=0
 while [ $RETRY -lt $MAX_RETRIES ]; do
@@ -138,7 +140,7 @@ fi
 # Prepare stacks with secrets
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[3/6] Preparing stacks...${NC}"
+echo -e "${YELLOW}[3/7] Preparing stacks...${NC}"
 
 # Get enabled services from tofu output
 ENABLED_SERVICES=$(cd "$TOFU_DIR" && tofu output -json enabled_services 2>/dev/null | jq -r '.[]')
@@ -195,7 +197,7 @@ echo -e "${GREEN}  ✓ Stacks synced${NC}"
 # Stop disabled services
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[4/6] Cleaning up disabled services...${NC}"
+echo -e "${YELLOW}[4/7] Cleaning up disabled services...${NC}"
 
 ENABLED_LIST=$(echo $ENABLED_SERVICES | tr '\n' ' ')
 
@@ -221,10 +223,23 @@ echo '  ✓ Cleanup complete'
 "
 
 # -----------------------------------------------------------------------------
+# Docker Hub Login (optional - for increased pull rate limits)
+# -----------------------------------------------------------------------------
+if [ -n "$DOCKERHUB_USER" ] && [ -n "$DOCKERHUB_TOKEN" ]; then
+    echo ""
+    echo -e "${YELLOW}[5/7] Logging into Docker Hub...${NC}"
+    ssh nexus "echo '$DOCKERHUB_TOKEN' | docker login -u '$DOCKERHUB_USER' --password-stdin" 2>/dev/null
+    echo -e "${GREEN}  ✓ Docker Hub login successful (200 pulls/6h)${NC}"
+else
+    echo ""
+    echo -e "${CYAN}[5/7] Skipping Docker Hub login (anonymous: 100 pulls/6h)${NC}"
+fi
+
+# -----------------------------------------------------------------------------
 # Start containers (only enabled services)
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[5/6] Starting enabled containers...${NC}"
+echo -e "${YELLOW}[6/7] Starting enabled containers...${NC}"
 
 ssh nexus "
 set -e
@@ -245,7 +260,7 @@ echo -e "${GREEN}  ✓ All containers started${NC}"
 # Auto-configure services
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[6/6] Auto-configuring services...${NC}"
+echo -e "${YELLOW}[7/7] Auto-configuring services...${NC}"
 
 # Configure Infisical admin and push secrets
 if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then

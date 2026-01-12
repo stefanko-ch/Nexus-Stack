@@ -73,6 +73,19 @@ Edit `tofu/config.tfvars`:
 
 Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for the complete list of required permissions.
 
+### Docker Hub Login (Optional)
+
+Docker Hub limits anonymous pulls to 100 per 6 hours per IP. During development with frequent `make down` / `make up` cycles, this limit is quickly reached since each deployment pulls multiple images (Grafana stack alone requires 6 images).
+
+To avoid rate limits, add your Docker Hub credentials:
+
+```hcl
+dockerhub_username = "your-username"
+dockerhub_token    = "dckr_pat_xxxx"  # Create at hub.docker.com/settings/security
+```
+
+This doubles your limit to 200 pulls/6h with a free account.
+
 ## Available Stacks
 
 ![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)

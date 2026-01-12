@@ -40,6 +40,19 @@ admin_email = "your@email.com"
 # admin_username = "admin"
 
 # =============================================================================
+# Docker Hub (optional - for increased pull rate limits)
+# =============================================================================
+# Without login: 100 image pulls per 6 hours
+# With login:    200 image pulls per 6 hours (free account)
+#
+# Create a free account at https://hub.docker.com
+# Create an access token at https://hub.docker.com/settings/security
+# =============================================================================
+
+# dockerhub_username = "your-docker-hub-username"
+# dockerhub_token    = "dckr_pat_xxxxxxxxxxxxxxxxxxxx"
+
+# =============================================================================
 # Services
 # =============================================================================
 # Add services here - each one gets automatic:

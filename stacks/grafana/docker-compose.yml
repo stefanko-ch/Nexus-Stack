@@ -4,11 +4,11 @@
 # Full monitoring solution: Metrics, Logs, Dashboards, Alerting
 #
 # Components:
-#   - Grafana:    Dashboards & Alerting (Port 3100)
-#   - Prometheus: Metrics collection
-#   - Loki:       Log aggregation
-#   - Promtail:   Log shipping from Docker
-#   - cAdvisor:   Container metrics
+#   - Grafana:       Dashboards & Alerting (external 3100 → internal 3000)
+#   - Prometheus:    Metrics collection
+#   - Loki:          Log aggregation
+#   - Promtail:      Log shipping from Docker
+#   - cAdvisor:      Container metrics
 #   - Node Exporter: Host metrics
 #
 # Access: https://grafana.YOUR_DOMAIN
