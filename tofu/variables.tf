@@ -94,3 +94,20 @@ variable "services" {
   }))
   default = {}
 }
+
+# =============================================================================
+# Docker Hub (optional - for increased pull rate limits)
+# =============================================================================
+
+variable "dockerhub_username" {
+  description = "Docker Hub username (optional - increases pull rate limit from 100 to 200/6h)"
+  type        = string
+  default     = ""
+}
+
+variable "dockerhub_token" {
+  description = "Docker Hub access token (create at https://hub.docker.com/settings/security)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

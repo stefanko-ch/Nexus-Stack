@@ -52,7 +52,7 @@ nano tofu/config.tfvars
 make up
 ```
 
-That's it! After ~5 minutes you'll have:
+That's it! After a few minutes you'll have:
 - `https://it-tools.yourdomain.com` - IT-Tools (protected by Cloudflare Access)
 - `ssh nexus` - SSH access via Cloudflare Tunnel
 
@@ -73,6 +73,19 @@ Edit `tofu/config.tfvars`:
 
 Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for the complete list of required permissions.
 
+### Docker Hub Login (Optional)
+
+Docker Hub limits anonymous pulls to 100 per 6 hours per IP. During development with frequent `make down` / `make up` cycles, this limit is quickly reached since each deployment pulls multiple images (Grafana stack alone requires 6 images).
+
+To avoid rate limits, add your Docker Hub credentials:
+
+```hcl
+dockerhub_username = "your-username"
+dockerhub_token    = "dckr_pat_xxxx"  # Create at hub.docker.com/settings/security
+```
+
+This doubles your limit to 200 pulls/6h with a free account.
+
 ## Available Stacks
 
 ![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
@@ -80,6 +93,7 @@ Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-
 ![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -89,6 +103,7 @@ Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-
 | **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
+| **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Info** | Landing page with service overview dashboard | — |
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.

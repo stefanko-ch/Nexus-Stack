@@ -1,0 +1,68 @@
+# =============================================================================
+# Promtail Configuration - Docker Log Collector
+# =============================================================================
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Collect all Docker container logs
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Use container name as job label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      
+      # Extract service name from container name (nexus-xxx -> xxx)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/nexus-(.*)'
+        target_label: 'service'
+      
+      # Add container ID
+      - source_labels: ['__meta_docker_container_id']
+        target_label: 'container_id'
+      
+      # Add image name
+      - source_labels: ['__meta_docker_container_image']
+        target_label: 'image'
+      
+      # Add compose project if available
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'compose_project'
+      
+      # Add compose service if available
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'compose_service'
+
+    pipeline_stages:
+      # Try to parse JSON logs
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            message: message
+            time: time
+            timestamp: timestamp
+      
+      # Extract log level if present
+      - labels:
+          level:
+      
+      # Add timestamp from log if available
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+          fallback_formats:
+            - RFC3339
+            - UnixMs

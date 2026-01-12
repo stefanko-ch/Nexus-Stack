@@ -110,6 +110,12 @@ secrets:
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_USER"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.kuma_admin_password')"; \
+		echo ""; \
+		echo "Grafana:"; \
+		SUBDOMAIN=$$(grep -A5 'grafana.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
+		echo "  User:     $$ADMIN_USER"; \
+		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.grafana_admin_password')"; \
 	else \
 		echo "⚠️  No OpenTofu state found. Run 'make up' first."; \
 	fi
