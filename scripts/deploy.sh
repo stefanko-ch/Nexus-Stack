@@ -88,14 +88,14 @@ echo -e "${YELLOW}[1/7] Configuring SSH access...${NC}"
 mkdir -p "$HOME/.ssh"
 
 # Remove old nexus config if exists (to update with token)
-if grep -q "Host nexus" "$SSH_CONFIG" 2>/dev/null; then
-    # Remove old nexus block (from "Host nexus" to next "Host " or EOF)
-    sed -i.bak '/^Host nexus$/,/^Host [^n]/{ /^Host [^n]/!d; }' "$SSH_CONFIG" 2>/dev/null || \
-    sed -i '' '/^Host nexus$/,/^Host [^n]/{ /^Host [^n]/!d; }' "$SSH_CONFIG" 2>/dev/null || true
-    # Clean up if nexus was at the end
-    sed -i.bak '/^Host nexus$/,$d' "$SSH_CONFIG" 2>/dev/null || \
-    sed -i '' '/^Host nexus$/,$d' "$SSH_CONFIG" 2>/dev/null || true
-    rm -f "$SSH_CONFIG.bak"
+if grep -q "^Host nexus$" "$SSH_CONFIG" 2>/dev/null; then
+    # Create temp file without the nexus block
+    # This approach handles blocks correctly regardless of position
+    awk '
+        /^Host nexus$/ { skip=1; next }
+        /^Host / && skip { skip=0 }
+        !skip { print }
+    ' "$SSH_CONFIG" > "$SSH_CONFIG.tmp" && mv "$SSH_CONFIG.tmp" "$SSH_CONFIG"
 fi
 
 # Add new config with Service Token support
