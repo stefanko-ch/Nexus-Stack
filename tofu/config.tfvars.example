@@ -40,6 +40,14 @@ admin_email = "your@email.com"
 # admin_username = "admin"
 
 # =============================================================================
+# SSH Access (automatic - no configuration needed)
+# =============================================================================
+# A Cloudflare Service Token is automatically created for SSH access.
+# This allows headless/CI deployments without browser login.
+# The token is stored in the OpenTofu state and used by deploy.sh.
+# =============================================================================
+
+# =============================================================================
 # Docker Hub (optional - for increased pull rate limits)
 # =============================================================================
 # Without login: 100 image pulls per 6 hours

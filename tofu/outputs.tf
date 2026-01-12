@@ -23,6 +23,19 @@ output "ssh_config" {
 }
 
 # =============================================================================
+# SSH Service Token (for headless/CI access)
+# =============================================================================
+
+output "ssh_service_token" {
+  description = "Service Token for SSH access without browser login"
+  sensitive   = true
+  value = {
+    client_id     = cloudflare_zero_trust_access_service_token.ssh.client_id
+    client_secret = cloudflare_zero_trust_access_service_token.ssh.client_secret
+  }
+}
+
+# =============================================================================
 # Cloudflare Outputs
 # =============================================================================
 

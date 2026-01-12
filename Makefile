@@ -31,6 +31,8 @@ up:
 	@echo "🏗️  Creating infrastructure with OpenTofu..."
 	cd tofu && tofu apply -var-file=config.tfvars -auto-approve
 	@echo ""
+	@echo "⏳ Waiting for Cloudflare to propagate changes..."
+	@sleep 5
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
 
