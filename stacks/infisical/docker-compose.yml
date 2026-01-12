@@ -1,0 +1,84 @@
+# =============================================================================
+# Infisical - Modern Secret Management
+# =============================================================================
+# Open-source secret management platform:
+#   - Beautiful modern UI
+#   - No unsealing required (unlike Vault)
+#   - Environment variables sync
+#   - Team collaboration & audit logs
+#
+# Access: https://infisical.YOUR_DOMAIN
+# First user to sign up becomes admin
+#
+# Docs: https://infisical.com/docs
+# =============================================================================
+
+services:
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    ports:
+      - "8070:8080"
+    environment:
+      - NODE_ENV=production
+      # Core settings - auto-generated on first run
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      - SITE_URL=https://infisical.${DOMAIN:-localhost}
+      # Database
+      - DB_CONNECTION_URI=postgres://infisical:${POSTGRES_PASSWORD:-infisical}@infisical-db:5432/infisical?sslmode=disable
+      # Redis
+      - REDIS_URL=redis://infisical-redis:6379
+      # Disable telemetry
+      - TELEMETRY_ENABLED=false
+    depends_on:
+      infisical-db:
+        condition: service_healthy
+      infisical-redis:
+        condition: service_healthy
+    networks:
+      - app-network
+      - infisical-internal
+
+  infisical-db:
+    image: postgres:14-alpine
+    container_name: infisical-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=infisical
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-infisical}
+      - POSTGRES_DB=infisical
+    volumes:
+      - infisical-db-data:/var/lib/postgresql/data
+    networks:
+      - infisical-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infisical"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  infisical-redis:
+    image: redis:7-alpine
+    container_name: infisical-redis
+    restart: unless-stopped
+    volumes:
+      - infisical-redis-data:/data
+    networks:
+      - infisical-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  infisical-db-data:
+  infisical-redis-data:
+
+networks:
+  app-network:
+    external: true
+  infisical-internal:
+    driver: bridge
