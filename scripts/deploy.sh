@@ -62,6 +62,8 @@ INFISICAL_DB_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.infisical_db_password // 
 PORTAINER_PASS=$(echo "$SECRETS_JSON" | jq -r '.portainer_admin_password // empty')
 KUMA_PASS=$(echo "$SECRETS_JSON" | jq -r '.kuma_admin_password // empty')
 GRAFANA_PASS=$(echo "$SECRETS_JSON" | jq -r '.grafana_admin_password // empty')
+KESTRA_PASS=$(echo "$SECRETS_JSON" | jq -r '.kestra_admin_password // empty')
+KESTRA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.kestra_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -180,6 +182,19 @@ GRAFANA_ADMIN_USER=$ADMIN_USERNAME
 GRAFANA_ADMIN_PASSWORD=$GRAFANA_PASS
 EOF
     echo -e "${GREEN}  ✓ Grafana .env generated${NC}"
+fi
+
+# Generate Kestra .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "kestra"; then
+    echo "  Generating Kestra config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/kestra/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+KESTRA_ADMIN_USER=$ADMIN_EMAIL
+KESTRA_ADMIN_PASSWORD=$KESTRA_PASS
+KESTRA_DB_PASSWORD=$KESTRA_DB_PASS
+KESTRA_URL=https://kestra.${DOMAIN}
+EOF
+    echo -e "${GREEN}  ✓ Kestra .env generated${NC}"
 fi
 
 # Sync only enabled stacks
@@ -587,25 +602,9 @@ echo -e "${CYAN}🔗 Your Services:${NC}"
 cd "$TOFU_DIR" && tofu output -json service_urls 2>/dev/null | jq -r 'to_entries | .[] | "   \(.key): \(.value)"' || echo "   (run 'make urls' to see service URLs)"
 echo ""
 
-# Show credentials
-echo -e "${CYAN}🔐 Credentials:${NC}"
-if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
-    echo -e "   ${YELLOW}Infisical:${NC}   $ADMIN_EMAIL / $INFISICAL_PASS"
-fi
-if echo "$ENABLED_SERVICES" | grep -qw "portainer"; then
-    echo -e "   ${YELLOW}Portainer:${NC}   $ADMIN_USERNAME / $PORTAINER_PASS"
-fi
-if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma"; then
-    echo -e "   ${YELLOW}Uptime Kuma:${NC} $ADMIN_USERNAME / $KUMA_PASS"
-fi
-if echo "$ENABLED_SERVICES" | grep -qw "grafana"; then
-    echo -e "   ${YELLOW}Grafana:${NC}     $ADMIN_USERNAME / $GRAFANA_PASS"
-fi
-echo ""
-
 echo -e "${CYAN}📌 SSH Access:${NC}"
 echo -e "   ssh nexus"
 echo ""
-echo -e "${CYAN}💡 View secrets anytime:${NC}"
+echo -e "${CYAN}🔐 View credentials:${NC}"
 echo -e "   make secrets"
 echo ""

@@ -1,0 +1,106 @@
+# =============================================================================
+# Kestra - Workflow Orchestration Platform
+# =============================================================================
+# Modern, event-driven workflow orchestration for data pipelines, ETL,
+# infrastructure automation, and scheduled tasks.
+#
+# Features:
+#   - Declarative YAML workflows
+#   - Event-driven triggers (cron, webhooks, file, message queues)
+#   - 400+ plugins (AWS, GCP, Azure, databases, APIs)
+#   - Real-time execution monitoring
+#   - Built-in code editor
+#
+# Access: https://kestra.YOUR_DOMAIN
+# Default: admin / (generated password)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Kestra - Workflow Engine
+  # ---------------------------------------------------------------------------
+  kestra:
+    image: kestra/kestra:latest
+    container_name: kestra
+    restart: unless-stopped
+    user: "root"
+    command: server standalone
+    ports:
+      - "8085:8080"
+    env_file:
+      - .env
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://kestra-postgres:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: ${KESTRA_DB_PASSWORD}
+        kestra:
+          server:
+            basic-auth:
+              enabled: true
+              username: ${KESTRA_ADMIN_USER}
+              password: ${KESTRA_ADMIN_PASSWORD}
+          repository:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: /app/storage
+          queue:
+            type: postgres
+          tasks:
+            tmp-dir:
+              path: /tmp/kestra-wd/tmp
+          url: ${KESTRA_URL}
+    volumes:
+      - kestra-data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/kestra-wd:/tmp/kestra-wd
+    depends_on:
+      kestra-postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+      - kestra-internal
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Kestra Database
+  # ---------------------------------------------------------------------------
+  kestra-postgres:
+    image: postgres:16-alpine
+    container_name: kestra-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: kestra
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: ${KESTRA_DB_PASSWORD}
+    volumes:
+      - kestra-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kestra -d kestra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kestra-internal
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  kestra-data:
+  kestra-postgres-data:
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app-network:
+    external: true
+  kestra-internal:
+    driver: bridge
