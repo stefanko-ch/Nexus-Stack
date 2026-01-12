@@ -71,6 +71,10 @@ output "secrets" {
     # Grafana
     grafana_admin_password     = random_password.grafana_admin.result
     
+    # Kestra
+    kestra_admin_password      = random_password.kestra_admin.result
+    kestra_db_password         = random_password.kestra_db.result
+    
     # Docker Hub (optional)
     dockerhub_username         = var.dockerhub_username
     dockerhub_token            = var.dockerhub_token

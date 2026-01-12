@@ -94,6 +94,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
+![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -104,6 +105,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
+| **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **Info** | Landing page with service overview dashboard | — |
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
