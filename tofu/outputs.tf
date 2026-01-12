@@ -43,3 +43,29 @@ output "enabled_services" {
   description = "List of enabled service names (for deploy script)"
   value = keys(local.enabled_services)
 }
+
+# =============================================================================
+# Secrets Outputs
+# =============================================================================
+
+output "secrets" {
+  description = "Generated secrets for services (auto-pushed to Infisical)"
+  sensitive   = true
+  value = {
+    # Admin credentials
+    admin_email    = var.admin_email
+    admin_username = var.admin_username
+    
+    # Infisical
+    infisical_admin_password   = random_password.infisical_admin.result
+    infisical_encryption_key   = random_password.infisical_encryption_key.result
+    infisical_auth_secret      = random_password.infisical_auth_secret.result
+    infisical_db_password      = random_password.infisical_db_password.result
+    
+    # Portainer
+    portainer_admin_password   = random_password.portainer_admin.result
+    
+    # Uptime Kuma
+    kuma_admin_password        = random_password.kuma_admin.result
+  }
+}

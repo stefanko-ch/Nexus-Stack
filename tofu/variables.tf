@@ -74,6 +74,12 @@ variable "admin_email" {
   type        = string
 }
 
+variable "admin_username" {
+  description = "Admin username for services like Portainer, Uptime Kuma (default: admin)"
+  type        = string
+  default     = "admin"
+}
+
 # =============================================================================
 # Services
 # =============================================================================

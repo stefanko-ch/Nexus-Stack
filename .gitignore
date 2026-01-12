@@ -40,3 +40,6 @@ terraform.rc
 
 # Logs
 *.log
+
+# Stack secrets
+stacks/*/.env

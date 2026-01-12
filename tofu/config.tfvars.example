@@ -36,6 +36,9 @@ domain = "your-domain.com"
 # Your email for Cloudflare Access (only this email can access services)
 admin_email = "your@email.com"
 
+# Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
+# admin_username = "admin"
+
 # =============================================================================
 # Services
 # =============================================================================
@@ -67,6 +70,13 @@ services = {
     subdomain = "uptime-kuma"
     port      = 3001
     public    = false
+  }
+
+  infisical = {
+    enabled   = true
+    subdomain = "infisical"
+    port      = 8070
+    public    = false    # Secret management - always protected
   }
 
   info = {

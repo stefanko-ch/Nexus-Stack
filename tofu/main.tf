@@ -8,6 +8,43 @@ resource "hcloud_ssh_key" "main" {
 }
 
 # =============================================================================
+# Generated Secrets
+# =============================================================================
+
+# Infisical secrets
+resource "random_password" "infisical_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "infisical_encryption_key" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "infisical_auth_secret" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "infisical_db_password" {
+  length  = 24
+  special = false
+}
+
+# Portainer admin password (for future use)
+resource "random_password" "portainer_admin" {
+  length  = 24
+  special = false
+}
+
+# Uptime Kuma admin password (for future use)
+resource "random_password" "kuma_admin" {
+  length  = 24
+  special = false
+}
+
+# =============================================================================
 # Firewall
 # =============================================================================
 
