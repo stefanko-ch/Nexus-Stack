@@ -149,9 +149,6 @@ if [ "$USE_SERVICE_TOKEN" = "false" ]; then
     kill $CFLOGIN_PID 2>/dev/null || true
 else
     echo -e "${GREEN}  ✓ Using Service Token for authentication (no browser required)${NC}"
-    # Give Cloudflare a moment to propagate the new token
-    echo "  Waiting for Service Token propagation..."
-    sleep 5
 fi
 echo ""
 
@@ -160,20 +157,34 @@ echo ""
 # -----------------------------------------------------------------------------
 echo -e "${YELLOW}[2/7] Waiting for SSH via Cloudflare Tunnel...${NC}"
 
-# If using Service Token, test it first
+# If using Service Token, test it first with retry and exponential backoff
 if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     echo "  Testing Service Token authentication..."
-    # Test SSH with BatchMode to prevent interactive prompts
-    if ! ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
-        echo -e "${YELLOW}  ⚠️  Service Token authentication failed, falling back to browser login...${NC}"
+    MAX_TOKEN_RETRIES=3
+    TOKEN_RETRY=0
+    BACKOFF=2
+    
+    while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
+        if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
+            break
+        fi
+        TOKEN_RETRY=$((TOKEN_RETRY + 1))
+        if [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; then
+            echo "  Retry $TOKEN_RETRY/$MAX_TOKEN_RETRIES - waiting ${BACKOFF}s for propagation..."
+            sleep $BACKOFF
+            BACKOFF=$((BACKOFF * 2))
+        fi
+    done
+    
+    if [ $TOKEN_RETRY -eq $MAX_TOKEN_RETRIES ]; then
+        echo -e "${YELLOW}  ⚠️  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts, falling back to browser login...${NC}"
         USE_SERVICE_TOKEN=false
         cloudflared access login "https://${SSH_HOST}" >/dev/null 2>&1 &
         CFLOGIN_PID=$!
         sleep 2
         read -p "Press Enter after completing Zero Trust authentication... "
         kill $CFLOGIN_PID 2>/dev/null || true
-    else
-        echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
     fi
 fi
 
