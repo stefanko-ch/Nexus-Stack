@@ -115,11 +115,12 @@ jobs:
           # Start changelog
           CHANGELOG="## What's Changed in ${NEW_VERSION}\n\n"
           
-          # Get commits since last tag
+          # Get commits since last tag (with body for details)
+          # Format: HASH|SUBJECT|BODY (body has newlines replaced with §)
           if [ "$LATEST_TAG" = "v0.0.0" ]; then
-            COMMITS=$(git log --pretty=format:"%H|%s" --no-merges)
+            COMMITS=$(git log --pretty=format:"%H|%s|%b§END§" --no-merges | tr '\n' '¶' | sed 's/§END§¶/\n/g')
           else
-            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%H|%s" --no-merges)
+            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%H|%s|%b§END§" --no-merges | tr '\n' '¶' | sed 's/§END§¶/\n/g')
           fi
           
           # Categorize commits
@@ -129,24 +130,34 @@ jobs:
           DOCS=""
           OTHER=""
           
-          while IFS='|' read -r HASH MSG; do
+          while IFS='|' read -r HASH MSG BODY; do
             [ -z "$HASH" ] && continue
             SHORT_HASH=${HASH:0:7}
             
+            # Extract bullet points from body (lines starting with -)
+            DETAILS=""
+            if [ -n "$BODY" ]; then
+              # Convert ¶ back to newlines, extract lines starting with -, indent them
+              BODY_LINES=$(echo "$BODY" | tr '¶' '\n' | grep -E "^-" | sed 's/^-/  -/' || true)
+              if [ -n "$BODY_LINES" ]; then
+                DETAILS="\n${BODY_LINES}"
+              fi
+            fi
+            
             if echo "$MSG" | grep -qE "^feat(\(.+\))?:"; then
               CLEAN_MSG=$(echo "$MSG" | sed -E 's/^feat(\(.+\))?:\s*//')
-              FEATURES="${FEATURES}- ${CLEAN_MSG} (${SHORT_HASH})\n"
+              FEATURES="${FEATURES}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
             elif echo "$MSG" | grep -qE "^fix(\(.+\))?:"; then
               CLEAN_MSG=$(echo "$MSG" | sed -E 's/^fix(\(.+\))?:\s*//')
-              FIXES="${FIXES}- ${CLEAN_MSG} (${SHORT_HASH})\n"
+              FIXES="${FIXES}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
             elif echo "$MSG" | grep -qE "^refactor(\(.+\))?:"; then
               CLEAN_MSG=$(echo "$MSG" | sed -E 's/^refactor(\(.+\))?:\s*//')
-              REFACTORS="${REFACTORS}- ${CLEAN_MSG} (${SHORT_HASH})\n"
+              REFACTORS="${REFACTORS}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
             elif echo "$MSG" | grep -qE "^docs(\(.+\))?:"; then
               CLEAN_MSG=$(echo "$MSG" | sed -E 's/^docs(\(.+\))?:\s*//')
-              DOCS="${DOCS}- ${CLEAN_MSG} (${SHORT_HASH})\n"
+              DOCS="${DOCS}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
             else
-              OTHER="${OTHER}- ${MSG} (${SHORT_HASH})\n"
+              OTHER="${OTHER}- ${MSG} (${SHORT_HASH})${DETAILS}\n"
             fi
           done <<< "$COMMITS"
           
