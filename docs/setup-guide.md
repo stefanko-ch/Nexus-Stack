@@ -71,11 +71,12 @@ ssh-keygen -t ed25519 -C "nexus"
    |-------|----------|------------|
    | Account | Cloudflare Tunnel | Edit |
    | Account | Access: Apps and Policies | Edit |
+   | Account | Access: Service Tokens | Edit |
    | Account | Access: Organizations, Identity Providers, and Groups | Edit |
    | Zone | DNS | Edit |
    | Zone | Zone | Read |
 
-   > **Note:** The "Access: Organizations" permission is required for revoking Zero Trust sessions during `make down`.
+   > **Note:** The "Access: Organizations" permission is required for revoking Zero Trust sessions during `make down`. The "Access: Service Tokens" permission enables headless SSH authentication for CI/CD.
 
 6. **Account Resources:** Include → All accounts (or specific)
 7. **Zone Resources:** Include → Specific Zone → Your domain
@@ -169,17 +170,36 @@ make secrets
 
 ## 6️⃣ SSH Access
 
-SSH also goes through Cloudflare Tunnel:
+SSH also goes through Cloudflare Tunnel. The deploy script automatically configures your SSH:
 
 ```bash
-# Add to ~/.ssh/config
+# Simply run:
+ssh nexus
+```
+
+### Service Token (Automatic)
+
+Nexus-Stack automatically creates a Cloudflare Service Token that enables SSH without browser login. This is configured automatically during `make up`.
+
+Benefits:
+- **No browser popup** — SSH works immediately
+- **CI/CD ready** — Perfect for automated workflows
+- **Persistent** — No re-authentication needed
+
+The SSH config uses the Service Token:
+```
 Host nexus
   HostName ssh.yourdomain.com
   User root
-  ProxyCommand cloudflared access ssh --hostname %h
+  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=xxx TUNNEL_SERVICE_TOKEN_SECRET=xxx cloudflared access ssh --hostname %h'
+```
 
-# Then simply:
-ssh nexus
+### Manual Login (Fallback)
+
+If the Service Token is not available, authenticate via browser:
+
+```bash
+cloudflared access login https://ssh.yourdomain.com
 ```
 
 ---

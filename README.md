@@ -235,12 +235,30 @@ The deploy script automatically configures SSH. Just run:
 ssh nexus
 ```
 
-The config is added to `~/.ssh/config`:
+### Service Token Authentication (Headless)
+
+Nexus-Stack automatically creates a Cloudflare Service Token for SSH access. This enables:
+- **No browser login required** - SSH works immediately without email verification
+- **CI/CD ready** - Perfect for automated deployments with GitHub Actions
+- **Persistent authentication** - Token doesn't expire
+
+The SSH config is automatically configured with the Service Token:
 ```
 Host nexus
   HostName ssh.yourdomain.com
   User root
-  ProxyCommand cloudflared access ssh --hostname %h
+  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=xxx TUNNEL_SERVICE_TOKEN_SECRET=xxx cloudflared access ssh --hostname %h'
+```
+
+> ℹ️ **Note:** The Service Token is stored in the OpenTofu state. After `make down`, you'll need to run `make up` again to get a new token.
+
+### Manual Browser Login (Fallback)
+
+If the Service Token is not available (e.g., first deployment before infrastructure exists), the script falls back to browser-based authentication:
+
+```bash
+# Manual authentication if needed:
+cloudflared access login https://ssh.yourdomain.com
 ```
 
 ## Security

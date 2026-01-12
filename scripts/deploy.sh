@@ -67,6 +67,11 @@ KESTRA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.kestra_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
+# Get SSH Service Token for headless authentication
+SSH_TOKEN_JSON=$(cd "$TOFU_DIR" && tofu output -json ssh_service_token 2>/dev/null || echo "{}")
+CF_ACCESS_CLIENT_ID=$(echo "$SSH_TOKEN_JSON" | jq -r '.client_id // empty')
+CF_ACCESS_CLIENT_SECRET=$(echo "$SSH_TOKEN_JSON" | jq -r '.client_secret // empty')
+
 echo -e "${GREEN}  ✓ Secrets loaded (admin user: $ADMIN_USERNAME)${NC}"
 
 # Clean old SSH known_hosts entries
@@ -75,52 +80,103 @@ SERVER_IP=$(cd "$TOFU_DIR" && tofu output -raw server_ip 2>/dev/null || echo "")
 [ -n "$SERVER_IP" ] && ssh-keygen -R "$SERVER_IP" 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
-# Setup SSH Config (if not already present)
+# Setup SSH Config with Service Token (replaces existing config)
 # -----------------------------------------------------------------------------
 SSH_CONFIG="$HOME/.ssh/config"
 
-if ! grep -q "Host nexus" "$SSH_CONFIG" 2>/dev/null; then
-    echo -e "${YELLOW}[1/7] Adding SSH config for nexus...${NC}"
-    mkdir -p "$HOME/.ssh"
+echo -e "${YELLOW}[1/7] Configuring SSH access...${NC}"
+mkdir -p "$HOME/.ssh"
+
+# Remove old nexus config if exists (to update with token)
+if grep -q "Host nexus" "$SSH_CONFIG" 2>/dev/null; then
+    # Remove old nexus block (from "Host nexus" to next "Host " or EOF)
+    sed -i.bak '/^Host nexus$/,/^Host [^n]/{ /^Host [^n]/!d; }' "$SSH_CONFIG" 2>/dev/null || \
+    sed -i '' '/^Host nexus$/,/^Host [^n]/{ /^Host [^n]/!d; }' "$SSH_CONFIG" 2>/dev/null || true
+    # Clean up if nexus was at the end
+    sed -i.bak '/^Host nexus$/,$d' "$SSH_CONFIG" 2>/dev/null || \
+    sed -i '' '/^Host nexus$/,$d' "$SSH_CONFIG" 2>/dev/null || true
+    rm -f "$SSH_CONFIG.bak"
+fi
+
+# Add new config with Service Token support
+if [ -n "$CF_ACCESS_CLIENT_ID" ] && [ -n "$CF_ACCESS_CLIENT_SECRET" ]; then
     cat >> "$SSH_CONFIG" << EOF
 
 Host nexus
   HostName ${SSH_HOST}
   User root
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=${CF_ACCESS_CLIENT_ID} TUNNEL_SERVICE_TOKEN_SECRET=${CF_ACCESS_CLIENT_SECRET} cloudflared access ssh --hostname %h'
+EOF
+    echo -e "${GREEN}  ✓ SSH config with Service Token added (no browser login required)${NC}"
+    USE_SERVICE_TOKEN=true
+else
+    cat >> "$SSH_CONFIG" << EOF
+
+Host nexus
+  HostName ${SSH_HOST}
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
   ProxyCommand cloudflared access ssh --hostname %h
 EOF
-    chmod 600 "$SSH_CONFIG"
-    echo -e "${GREEN}  ✓ SSH config added to ~/.ssh/config${NC}"
-else
-    echo -e "${GREEN}[1/7] SSH config for nexus already exists${NC}"
+    echo -e "${GREEN}  ✓ SSH config added (browser login required)${NC}"
+    USE_SERVICE_TOKEN=false
 fi
+chmod 600 "$SSH_CONFIG"
 
 # -----------------------------------------------------------------------------
-# Cloudflare Zero Trust Authentication
+# Cloudflare Zero Trust Authentication (only if no Service Token)
 # -----------------------------------------------------------------------------
-echo ""
-echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║  ${YELLOW}⚠️  Cloudflare Zero Trust Authentication Required${CYAN}            ║${NC}"
-echo -e "${CYAN}╠═══════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${CYAN}║${NC}  Opening browser for Zero Trust login...                      ${CYAN}║${NC}"
-echo -e "${CYAN}║${NC}  1. Check your email for the verification code               ${CYAN}║${NC}"
-echo -e "${CYAN}║${NC}  2. Enter the code in the browser                            ${CYAN}║${NC}"
-echo -e "${CYAN}║${NC}  3. Press Enter here when done                               ${CYAN}║${NC}"
-echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
-echo ""
+if [ "$USE_SERVICE_TOKEN" = "false" ]; then
+    echo ""
+    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║  ${YELLOW}⚠️  Cloudflare Zero Trust Authentication Required${CYAN}            ║${NC}"
+    echo -e "${CYAN}╠═══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║${NC}  Opening browser for Zero Trust login...                      ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  1. Check your email for the verification code               ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  2. Enter the code in the browser                            ${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}  3. Press Enter here when done                               ${CYAN}║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 
-cloudflared access login "https://${SSH_HOST}" >/dev/null 2>&1 &
-CFLOGIN_PID=$!
-sleep 2
+    cloudflared access login "https://${SSH_HOST}" >/dev/null 2>&1 &
+    CFLOGIN_PID=$!
+    sleep 2
 
-read -p "Press Enter after completing Zero Trust authentication... "
-kill $CFLOGIN_PID 2>/dev/null || true
+    read -p "Press Enter after completing Zero Trust authentication... "
+    kill $CFLOGIN_PID 2>/dev/null || true
+else
+    echo -e "${GREEN}  ✓ Using Service Token for authentication (no browser required)${NC}"
+    # Give Cloudflare a moment to propagate the new token
+    echo "  Waiting for Service Token propagation..."
+    sleep 5
+fi
 echo ""
 
 # -----------------------------------------------------------------------------
 # Wait for SSH connection
 # -----------------------------------------------------------------------------
 echo -e "${YELLOW}[2/7] Waiting for SSH via Cloudflare Tunnel...${NC}"
+
+# If using Service Token, test it first
+if [ "$USE_SERVICE_TOKEN" = "true" ]; then
+    echo "  Testing Service Token authentication..."
+    # Test SSH with BatchMode to prevent interactive prompts
+    if ! ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
+        echo -e "${YELLOW}  ⚠️  Service Token authentication failed, falling back to browser login...${NC}"
+        USE_SERVICE_TOKEN=false
+        cloudflared access login "https://${SSH_HOST}" >/dev/null 2>&1 &
+        CFLOGIN_PID=$!
+        sleep 2
+        read -p "Press Enter after completing Zero Trust authentication... "
+        kill $CFLOGIN_PID 2>/dev/null || true
+    else
+        echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
+    fi
+fi
+
 MAX_RETRIES=30
 RETRY=0
 while [ $RETRY -lt $MAX_RETRIES ]; do
