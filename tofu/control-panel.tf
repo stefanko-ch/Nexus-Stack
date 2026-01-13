@@ -19,7 +19,8 @@ resource "cloudflare_pages_project" "control_panel" {
   
   build_config {
     build_command   = ""
-    destination_dir = "control-panel/pages"
+    destination_dir = "pages"
+    root_dir        = "control-panel"
   }
   
   deployment_configs {

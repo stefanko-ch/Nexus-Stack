@@ -159,7 +159,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "📦 Deploying Control Panel to Cloudflare Pages..."
-          npx wrangler pages deploy control-panel/pages \
+          cd control-panel
+          npx wrangler pages deploy pages \
             --project-name=nexus-control \
             --branch=main
           echo "✅ Control Panel deployed!"
