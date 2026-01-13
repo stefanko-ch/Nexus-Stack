@@ -96,3 +96,13 @@ output "secrets" {
     dockerhub_token            = var.dockerhub_token
   }
 }
+
+# =============================================================================
+# Individual Secret Outputs (for CI/CD)
+# =============================================================================
+
+output "infisical_admin_password" {
+  description = "Infisical admin password (for GitHub Secrets)"
+  sensitive   = true
+  value       = random_password.infisical_admin.result
+}
