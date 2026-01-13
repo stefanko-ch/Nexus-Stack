@@ -14,6 +14,14 @@ jobs:
   deploy:
     name: Deploy Nexus-Stack
     runs-on: ubuntu-latest
+    env:
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      TF_VAR_domain: ${{ secrets.DOMAIN }}
+      TF_VAR_access_emails: ${{ secrets.ACCESS_EMAILS }}
+      TF_VAR_infisical_token: ${{ secrets.INFISICAL_TOKEN }}
     
     steps:
       - name: Checkout
@@ -29,18 +37,6 @@ jobs:
           curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
-
-      - name: Create .env file from secrets
-        run: |
-          cat > .env << EOF
-          TF_VAR_cloudflare_api_token="${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}"
-          TF_VAR_cloudflare_account_id="${{ secrets.TF_VAR_CLOUDFLARE_ACCOUNT_ID }}"
-          TF_VAR_cloudflare_zone_id="${{ secrets.TF_VAR_CLOUDFLARE_ZONE_ID }}"
-          TF_VAR_hcloud_token="${{ secrets.TF_VAR_HCLOUD_TOKEN }}"
-          TF_VAR_domain="${{ secrets.TF_VAR_DOMAIN }}"
-          TF_VAR_access_emails="${{ secrets.TF_VAR_ACCESS_EMAILS }}"
-          TF_VAR_infisical_token="${{ secrets.TF_VAR_INFISICAL_TOKEN }}"
-          EOF
 
       - name: Check if R2 credentials exist
         id: check_r2
@@ -109,7 +105,7 @@ jobs:
           
           cat > tofu/backend.hcl << EOF
           endpoints = {
-            s3 = "https://${{ secrets.TF_VAR_CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
           EOF
 
