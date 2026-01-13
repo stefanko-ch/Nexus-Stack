@@ -305,7 +305,7 @@ Deploy entirely via CI - no local tools required!
 | Workflow | Command | Description |
 |----------|---------|-------------|
 | **Deploy** | `gh workflow run deploy.yml` | Full deploy |
-| **Stop** | `gh workflow run down.yml` | Destroy infra (reversible) |
+| **Stop** | `gh workflow run down.yml` | Stop infrastructure (keeps state) |
 | **Destroy** | `gh workflow run destroy.yml -f confirm=DESTROY` | Delete everything |
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
