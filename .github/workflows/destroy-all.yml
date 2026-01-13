@@ -107,6 +107,25 @@ jobs:
             echo "   Run: gh secret delete R2_ACCESS_KEY_ID && gh secret delete R2_SECRET_ACCESS_KEY"
           fi
 
+      - name: Cleanup R2 API tokens from Cloudflare
+        run: |
+          echo "🔐 Cleaning up R2 API tokens from Cloudflare..."
+          # Find and delete all nexus-r2-terraform-state tokens
+          TOKENS=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            | jq -r '.result[] | select(.name | startswith("nexus-r2-terraform-state")) | .id')
+          
+          if [ -n "$TOKENS" ]; then
+            for token_id in $TOKENS; do
+              echo "  Deleting token: $token_id"
+              curl -s -X DELETE "https://api.cloudflare.com/client/v4/user/tokens/$token_id" \
+                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" > /dev/null
+            done
+            echo "✅ R2 API tokens deleted"
+          else
+            echo "  No R2 tokens found to delete"
+          fi
+
       - name: Confirm destruction
         run: |
           echo ""
@@ -116,6 +135,7 @@ jobs:
           echo "   - Cloudflare DNS records"
           echo "   - Cloudflare Access policies"
           echo "   - R2 state bucket and contents"
+          echo "   - R2 API tokens from Cloudflare"
           echo "   - R2 GitHub Secrets (if GH_SECRETS_TOKEN configured)"
           echo ""
           echo "To redeploy, run the Deploy workflow."
