@@ -201,32 +201,41 @@ jobs:
           if [ -n "$RESEND_API_KEY" ]; then
             echo "📧 Sending credentials email..."
             
-            # Build HTML email
-            EMAIL_HTML="<div style='font-family: monospace; background: #0a0a0f; color: #00ff88; padding: 20px;'>
-              <h1 style='color: #00ff88;'>🚀 Nexus-Stack Deployed!</h1>
-              <p>Your infrastructure is ready at <strong>$DOMAIN</strong></p>
-              <h2>🔐 Credentials</h2>
-              <table style='border-collapse: collapse;'>
-                <tr><td style='padding: 8px; border: 1px solid #333;'>Infisical Admin</td><td style='padding: 8px; border: 1px solid #333;'><code>$INFISICAL_PASS</code></td></tr>
-              </table>
-              <h2>🔗 Quick Links</h2>
-              <ul>
-                <li><a href='https://info.$DOMAIN' style='color: #00ff88;'>Info Page</a> - All services & credentials</li>
-                <li><a href='https://infisical.$DOMAIN' style='color: #00ff88;'>Infisical</a> - Secret management</li>
-                <li><a href='https://control.$DOMAIN' style='color: #00ff88;'>Control Panel</a> - Manage infrastructure</li>
-              </ul>
-              <p style='color: #666; font-size: 12px;'>This email was sent automatically after deployment.</p>
-            </div>"
+            # Build HTML email (escaped for JSON)
+            EMAIL_HTML=$(cat <<'HTMLEOF'
+<div style="font-family: monospace; background: #0a0a0f; color: #00ff88; padding: 20px;">
+  <h1 style="color: #00ff88;">🚀 Nexus-Stack Deployed!</h1>
+  <p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p>
+  <h2>🔐 Credentials</h2>
+  <table style="border-collapse: collapse;">
+    <tr><td style="padding: 8px; border: 1px solid #333;">Infisical Admin</td><td style="padding: 8px; border: 1px solid #333;"><code>PASS_PLACEHOLDER</code></td></tr>
+  </table>
+  <h2>🔗 Quick Links</h2>
+  <ul>
+    <li><a href="https://info.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Info Page</a> - All services &amp; credentials</li>
+    <li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Infisical</a> - Secret management</li>
+    <li><a href="https://control.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Control Panel</a> - Manage infrastructure</li>
+  </ul>
+  <p style="color: #666; font-size: 12px;">This email was sent automatically after deployment.</p>
+</div>
+HTMLEOF
+)
+            # Replace placeholders
+            EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
+            EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
+            
+            # Use jq to properly escape JSON
+            JSON_PAYLOAD=$(jq -n \
+              --arg from "Nexus-Stack <nexus@$DOMAIN>" \
+              --arg to "$ADMIN_EMAIL" \
+              --arg subject "🚀 Nexus-Stack Deployed - Your Credentials" \
+              --arg html "$EMAIL_HTML" \
+              '{from: $from, to: $to, subject: $subject, html: $html}')
             
             curl -s -X POST 'https://api.resend.com/emails' \
               -H "Authorization: Bearer $RESEND_API_KEY" \
               -H "Content-Type: application/json" \
-              -d "{
-                \"from\": \"Nexus-Stack <nexus@$DOMAIN>\",
-                \"to\": \"$ADMIN_EMAIL\",
-                \"subject\": \"🚀 Nexus-Stack Deployed - Your Credentials\",
-                \"html\": \"$EMAIL_HTML\"
-              }" && echo "✅ Credentials email sent to $ADMIN_EMAIL"
+              -d "$JSON_PAYLOAD" && echo "✅ Credentials email sent to $ADMIN_EMAIL"
           else
             echo "⚠️  RESEND_API_KEY not configured - skipping email"
           fi
