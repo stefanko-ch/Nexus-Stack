@@ -181,12 +181,72 @@ jobs:
               echo "🔐 Saving Infisical admin password to GitHub Secrets..."
               gh secret set INFISICAL_ADMIN_PASSWORD -b "$INFISICAL_PASS"
               echo "✅ Infisical password saved! Use it to login at https://infisical.${{ secrets.DOMAIN }}"
+              # Store password for email step
+              echo "INFISICAL_PASS=$INFISICAL_PASS" >> $GITHUB_ENV
             else
               echo "⚠️  Could not retrieve Infisical password from Terraform output"
             fi
           else
             echo "⚠️  GH_SECRETS_TOKEN not configured - Infisical password not saved"
             echo "   View password via: make secrets (locally) or SSH to server"
+          fi
+
+      - name: Send credentials email via Resend
+        if: env.INFISICAL_PASS != ''
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          if [ -n "$RESEND_API_KEY" ]; then
+            echo "📧 Sending credentials email..."
+            
+            # Build HTML email (escaped for JSON)
+            EMAIL_HTML=$(cat <<'HTMLEOF'
+<div style="font-family: monospace; background: #0a0a0f; color: #00ff88; padding: 20px;">
+  <h1 style="color: #00ff88;">🚀 Nexus-Stack Deployed!</h1>
+  <p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p>
+  <h2>🔐 Credentials</h2>
+  <table style="border-collapse: collapse;">
+    <tr><td style="padding: 8px; border: 1px solid #333;">Infisical Admin</td><td style="padding: 8px; border: 1px solid #333;"><code>PASS_PLACEHOLDER</code></td></tr>
+  </table>
+  <p style="color: #ffaa00; margin-top: 1rem;">⚠️ Please change this password after your first login!</p>
+  <h2>🔗 Quick Links</h2>
+  <ul>
+    <li><a href="https://info.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Info Page</a> - All services &amp; credentials</li>
+    <li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Infisical</a> - Secret management</li>
+    <li><a href="https://control.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Control Panel</a> - Manage infrastructure</li>
+  </ul>
+  <p style="color: #666; font-size: 12px;">This email was sent automatically after deployment.</p>
+</div>
+HTMLEOF
+)
+            # Replace placeholders
+            EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
+            EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
+            
+            # Use jq to properly escape JSON (to must be an array per Resend API)
+            JSON_PAYLOAD=$(jq -n \
+              --arg from "Nexus-Stack <nexus@$DOMAIN>" \
+              --arg to "$ADMIN_EMAIL" \
+              --arg subject "🚀 Nexus-Stack Deployed - Your Credentials" \
+              --arg html "$EMAIL_HTML" \
+              '{from: $from, to: [$to], subject: $subject, html: $html}')
+            
+            # Send email with proper error handling
+            HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
+              -H "Authorization: Bearer $RESEND_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$JSON_PAYLOAD")
+            
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "✅ Credentials email sent to $ADMIN_EMAIL"
+            else
+              echo "⚠️  Failed to send email (HTTP $HTTP_STATUS) - deployment continues"
+              cat /tmp/resend_response.txt 2>/dev/null || true
+            fi
+          else
+            echo "⚠️  RESEND_API_KEY not configured - skipping email"
           fi
 
       - name: Show deployment info

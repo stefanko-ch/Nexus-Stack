@@ -1,0 +1,34 @@
+# =============================================================================
+# Mailpit - Email & SMTP Testing Tool
+# =============================================================================
+# Web UI: https://mailpit.YOUR_DOMAIN
+# SMTP: localhost:1025 (internal only)
+# API: https://mailpit.YOUR_DOMAIN/api/v1/
+#
+# Use this to catch and inspect emails from your applications during development.
+# Configure your apps to send mail to mailpit:1025 on the app-network.
+# =============================================================================
+
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    volumes:
+      - mailpit-data:/data
+    networks:
+      - app-network
+    # SMTP port exposed only internally for other containers
+    # Web UI exposed via Cloudflare Tunnel on port 8025
+
+volumes:
+  mailpit-data:
+
+networks:
+  app-network:
+    external: true
