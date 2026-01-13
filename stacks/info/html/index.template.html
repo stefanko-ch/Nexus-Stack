@@ -73,6 +73,14 @@
             margin-bottom: 3rem;
         }
 
+        .logo {
+            display: block;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 1.5rem;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
+        }
+
         h1 {
             font-family: 'Orbitron', sans-serif;
             font-size: 3rem;
@@ -289,6 +297,7 @@
 <body>
     <div class="container">
         <header>
+            <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
             <p class="tagline">Dashboard</p>
             
@@ -335,20 +344,9 @@
         document.getElementById('active-count').textContent = activeServices.length;
         document.getElementById('disabled-count').textContent = disabledServices.length;
 
-        // Service descriptions
-        const descriptions = {
-            'it-tools': 'Collection of handy online tools for developers - encoders, converters, generators, and more.',
-            'excalidraw': 'Virtual whiteboard for sketching hand-drawn diagrams with collaboration support.',
-            'portainer': 'Docker container management UI for easy deployment and monitoring.',
-            'uptime-kuma': 'A fancy self-hosted monitoring tool for tracking service uptime and status.',
-            'info': 'This landing page - your Nexus Stack dashboard.',
-            'grafana': 'Observability platform for metrics, logs, and traces visualization.',
-            'infisical': 'Open-source secret management platform for teams.'
-        };
-
         function createServiceCard(name, service, isActive) {
             const url = `https://${service.subdomain}.${DOMAIN}`;
-            const description = descriptions[name] || 'No description available';
+            const description = service.description || 'No description available';
             const card = document.createElement('div');
             card.className = `service-card ${isActive ? '' : 'disabled'}`;
             
