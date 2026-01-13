@@ -135,14 +135,18 @@ echo -e "  ${YELLOW}→${NC} Creating R2 API token..."
 # ID verified from Cloudflare docs: https://developers.cloudflare.com/r2/api/tokens/
 R2_STORAGE_WRITE_PERMISSION_ID="bf7481a1826f439697cb59a20b22293e"
 
+# Generate unique token name with timestamp to avoid duplicates
+TOKEN_NAME="nexus-r2-terraform-state-$(date +%Y%m%d-%H%M%S)"
+
 # Create User API token for R2 with account-level R2 permissions
 # Using account resource instead of bucket-specific resource for broader access
+# No expiration - token must remain valid for state access
 TOKEN_RESPONSE=$(curl -s -X POST \
     "https://api.cloudflare.com/client/v4/user/tokens" \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "{
-        \"name\": \"nexus-r2-terraform-state\",
+        \"name\": \"${TOKEN_NAME}\",
         \"policies\": [
             {
                 \"effect\": \"allow\",
