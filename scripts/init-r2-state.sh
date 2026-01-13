@@ -198,6 +198,12 @@ fi
 # See: https://developers.cloudflare.com/r2/api/tokens/#get-s3-api-credentials-from-an-api-token
 SECRET_KEY_SHA256=$(echo -n "$TOKEN_VALUE" | openssl dgst -sha256 | awk '{print $2}')
 
+if [ -z "$SECRET_KEY_SHA256" ]; then
+    echo -e "  ${YELLOW}⚠${NC}  SHA-256 derivation returned empty value"
+    echo -e "     You may need to use the raw token value instead."
+    echo -e "     See R2_SECRET_ACCESS_KEY_RAW in $R2_CREDENTIALS_FILE after setup."
+fi
+
 echo -e "  ${GREEN}✓${NC} R2 API token created"
 echo -e "  ${YELLOW}→${NC} Waiting for token propagation..."
 sleep 5

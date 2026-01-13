@@ -10,6 +10,7 @@
 # =============================================================================
 
 # Auto-load .env file if it exists (handles 'export VAR="value"' format)
+# Note: Simple format only - values must not contain '=' or unescaped quotes
 ifneq (,$(wildcard ./.env))
     # Parse .env: strip 'export ', quotes, comments, and empty lines
     $(foreach line, $(shell grep -v '^\#' .env | grep '=' | sed 's/^export //; s/"\([^"]*\)"/\1/g' 2>/dev/null), \
@@ -208,6 +209,8 @@ destroy: down
 		if [ -f tofu/.r2-credentials ]; then \
 			echo "  Deleting state files from R2 bucket..."; \
 			. tofu/.r2-credentials && \
+			export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
+			export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
 			curl -s -X DELETE \
 				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/terraform.tfstate" \
 				--aws-sigv4 "aws:amz:auto:s3" \
