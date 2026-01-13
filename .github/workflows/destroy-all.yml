@@ -71,7 +71,7 @@ jobs:
         run: |
           cat > tofu/config.tfvars << EOF
           server_name     = "nexus"
-          server_type     = "cax11"
+          server_type     = "cax31"
           server_location = "fsn1"
           server_image    = "ubuntu-24.04"
           ssh_public_key_path  = "~/.ssh/id_ed25519.pub"

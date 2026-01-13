@@ -68,4 +68,11 @@ services = {
     port      = 8085
     public    = false
   }
+
+  n8n = {
+    enabled   = true
+    subdomain = "n8n"
+    port      = 5678
+    public    = false
+  }
 }
