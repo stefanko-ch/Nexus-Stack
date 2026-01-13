@@ -46,6 +46,13 @@ jobs:
         with:
           tofu_version: 1.10.0
 
+      - name: Generate SSH key for OpenTofu
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "github-actions@nexus-stack"
+          chmod 600 ~/.ssh/id_ed25519
+          chmod 644 ~/.ssh/id_ed25519.pub
+
       - name: Create R2 credentials from secrets
         run: |
           mkdir -p tofu
