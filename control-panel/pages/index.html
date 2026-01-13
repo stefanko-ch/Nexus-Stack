@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Stack — Control Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #0a0a0f;
+            color: #ffffff;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        /* Animated grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            z-index: -2;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Scanline effect */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.1) 0px,
+                rgba(0, 0, 0, 0.1) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 1.5rem;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #00ff88;
+            text-shadow: 
+                0 0 10px rgba(0, 255, 136, 0.8),
+                0 0 40px rgba(0, 255, 136, 0.4);
+            letter-spacing: 0.2em;
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            font-size: 0.85rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            opacity: 0.7;
+        }
+
+        /* Status Panel */
+        .status-panel {
+            background: rgba(0, 20, 10, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.deployed { background: #00ff88; }
+        .status-dot.torn-down { background: #ffaa00; }
+        .status-dot.destroyed { background: #ff4444; }
+        .status-dot.running { background: #00aaff; }
+        .status-dot.unknown { background: #666666; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+            50% { opacity: 0.7; box-shadow: 0 0 10px 5px currentColor; }
+        }
+
+        .status-text.deployed { color: #00ff88; }
+        .status-text.torn-down { color: #ffaa00; }
+        .status-text.destroyed { color: #ff4444; }
+        .status-text.running { color: #00aaff; }
+        .status-text.unknown { color: #666666; }
+
+        .status-description {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: #607080;
+        }
+
+        /* Action Buttons */
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .action-btn {
+            background: rgba(0, 20, 10, 0.8);
+            border: 2px solid rgba(0, 255, 136, 0.4);
+            color: #00ff88;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 1.5rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .action-btn:hover::before {
+            left: 100%;
+        }
+
+        .action-btn:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .action-btn:disabled:hover {
+            box-shadow: none;
+        }
+
+        .action-btn.deploy {
+            border-color: rgba(0, 255, 136, 0.6);
+            color: #00ff88;
+        }
+
+        .action-btn.teardown {
+            border-color: rgba(255, 170, 0, 0.6);
+            color: #ffaa00;
+        }
+
+        .action-btn.teardown:hover {
+            border-color: #ffaa00;
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.3);
+        }
+
+        .action-btn.destroy {
+            border-color: rgba(255, 68, 68, 0.6);
+            color: #ff4444;
+        }
+
+        .action-btn.destroy:hover {
+            border-color: #ff4444;
+            box-shadow: 0 0 30px rgba(255, 68, 68, 0.3);
+        }
+
+        .action-btn .icon {
+            display: block;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Workflow History */
+        .history-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+        }
+
+        .history-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem 0;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-name {
+            font-size: 0.85rem;
+            color: #ffffff;
+        }
+
+        .history-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .history-status.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .history-status.failure {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+
+        .history-status.in_progress, .history-status.queued {
+            background: rgba(0, 170, 255, 0.2);
+            border: 1px solid #00aaff;
+            color: #00aaff;
+        }
+
+        .history-time {
+            font-size: 0.7rem;
+            color: #607080;
+        }
+
+        .history-link {
+            font-size: 0.7rem;
+            color: #00ff88;
+            text-decoration: none;
+            opacity: 0.7;
+        }
+
+        .history-link:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        /* Confirmation Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #0a0a0f;
+            border: 2px solid #ff4444;
+            padding: 2rem;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .modal h3 {
+            font-family: 'Orbitron', sans-serif;
+            color: #ff4444;
+            margin-bottom: 1rem;
+        }
+
+        .modal p {
+            font-size: 0.85rem;
+            color: #607080;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            padding: 0.8rem 1.5rem;
+            border: 1px solid;
+            background: transparent;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn.cancel {
+            border-color: #607080;
+            color: #607080;
+        }
+
+        .modal-btn.cancel:hover {
+            border-color: #ffffff;
+            color: #ffffff;
+        }
+
+        .modal-btn.confirm {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .modal-btn.confirm:hover {
+            background: rgba(255, 68, 68, 0.2);
+        }
+
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(0, 20, 10, 0.95);
+            border: 1px solid #00ff88;
+            padding: 1rem 1.5rem;
+            font-size: 0.85rem;
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.error {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .toast.success {
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.75rem;
+            color: #303540;
+            border-top: 1px solid rgba(0, 255, 136, 0.1);
+            margin-top: 2rem;
+        }
+
+        footer a {
+            color: #00ff88;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .actions {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo {
+                width: 80px;
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <!-- Nexus Stack Logo -->
+            <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#00ff88;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#00aa55;stop-opacity:1" />
+                    </linearGradient>
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <!-- Hexagon background -->
+                <polygon points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5" 
+                         fill="none" stroke="url(#glowGradient)" stroke-width="2" filter="url(#glow)"/>
+                <!-- Inner N letter stylized -->
+                <path d="M30,70 L30,30 L45,30 L70,60 L70,30 L70,70 L55,70 L30,40 L30,70" 
+                      fill="none" stroke="url(#glowGradient)" stroke-width="3" stroke-linecap="round" 
+                      stroke-linejoin="round" filter="url(#glow)"/>
+                <!-- Stack lines -->
+                <line x1="25" y1="78" x2="75" y2="78" stroke="#00ff88" stroke-width="2" opacity="0.5"/>
+                <line x1="30" y1="84" x2="70" y2="84" stroke="#00ff88" stroke-width="2" opacity="0.3"/>
+                <line x1="35" y1="90" x2="65" y2="90" stroke="#00ff88" stroke-width="2" opacity="0.15"/>
+            </svg>
+            <h1>NEXUS STACK</h1>
+            <p class="tagline">Control Panel</p>
+        </header>
+
+        <!-- Status Panel -->
+        <div class="status-panel">
+            <div class="status-indicator">
+                <span class="status-dot unknown" id="status-dot"></span>
+                <span class="status-text unknown" id="status-text">Checking...</span>
+            </div>
+            <p class="status-description" id="status-description">Fetching infrastructure status...</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+            <button class="action-btn deploy" id="btn-deploy" disabled>
+                <span class="icon">🚀</span>
+                Deploy
+            </button>
+            <button class="action-btn teardown" id="btn-teardown" disabled>
+                <span class="icon">💤</span>
+                Teardown
+            </button>
+            <button class="action-btn destroy" id="btn-destroy" disabled>
+                <span class="icon">💀</span>
+                Destroy
+            </button>
+        </div>
+
+        <!-- Workflow History -->
+        <div class="history-panel">
+            <h2><span class="icon">📜</span> Recent Workflows</h2>
+            <div id="history-list">
+                <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by <a href="https://github.com/stefanko-ch/Nexus-Stack" target="_blank">Nexus-Stack</a></p>
+        </footer>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <h3 id="modal-title">Confirm Action</h3>
+            <p id="modal-message">Are you sure?</p>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="modal-cancel">Cancel</button>
+                <button class="modal-btn confirm" id="modal-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API calls are relative - Pages Functions handle them
+        const API_URL = '';
+        
+        let currentAction = null;
+
+        // Status descriptions
+        const statusDescriptions = {
+            'deployed': 'Infrastructure is running. All services are accessible.',
+            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Deploy to restart.',
+            'destroyed': 'Everything is destroyed. Click Deploy to start fresh.',
+            'running': 'A workflow is currently running. Please wait...',
+            'unknown': 'Unable to determine infrastructure state.'
+        };
+
+        // Fetch and display status
+        async function fetchStatus() {
+            try {
+                const response = await fetch(`${API_URL}/api/status`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatusDisplay(data);
+                    updateButtons(data);
+                    updateHistory(data.workflows);
+                }
+            } catch (error) {
+                console.error('Failed to fetch status:', error);
+                showToast('Failed to fetch status', 'error');
+            }
+        }
+
+        function updateStatusDisplay(data) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            const desc = document.getElementById('status-description');
+            
+            // Remove all classes
+            dot.className = 'status-dot ' + data.infraState;
+            text.className = 'status-text ' + data.infraState;
+            
+            const stateLabels = {
+                'deployed': 'Deployed',
+                'torn-down': 'Torn Down',
+                'destroyed': 'Destroyed',
+                'running': 'In Progress',
+                'unknown': 'Unknown'
+            };
+            
+            text.textContent = stateLabels[data.infraState] || 'Unknown';
+            desc.textContent = statusDescriptions[data.infraState] || '';
+        }
+
+        function updateButtons(data) {
+            const btnDeploy = document.getElementById('btn-deploy');
+            const btnTeardown = document.getElementById('btn-teardown');
+            const btnDestroy = document.getElementById('btn-destroy');
+            
+            // Disable all if workflow is running
+            if (data.inProgress) {
+                btnDeploy.disabled = true;
+                btnTeardown.disabled = true;
+                btnDestroy.disabled = true;
+                btnDeploy.innerHTML = '<span class="spinner"></span>Working...';
+                return;
+            }
+            
+            // Reset deploy button
+            btnDeploy.innerHTML = '<span class="icon">🚀</span>Deploy';
+            
+            // Enable based on state
+            switch (data.infraState) {
+                case 'deployed':
+                    btnDeploy.disabled = true;
+                    btnTeardown.disabled = false;
+                    btnDestroy.disabled = false;
+                    break;
+                case 'torn-down':
+                    btnDeploy.disabled = false;
+                    btnTeardown.disabled = true;
+                    btnDestroy.disabled = false;
+                    break;
+                case 'destroyed':
+                case 'unknown':
+                    btnDeploy.disabled = false;
+                    btnTeardown.disabled = true;
+                    btnDestroy.disabled = true;
+                    break;
+            }
+        }
+
+        function updateHistory(workflows) {
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '';
+            
+            const items = [
+                { name: 'Deploy', data: workflows.deploy },
+                { name: 'Teardown', data: workflows.teardown },
+                { name: 'Destroy', data: workflows.destroy }
+            ].filter(item => item.data);
+            
+            if (items.length === 0) {
+                historyList.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No recent workflows</p>';
+                return;
+            }
+            
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                
+                const status = item.data.conclusion || item.data.status;
+                const time = new Date(item.data.updatedAt).toLocaleString();
+                
+                div.innerHTML = `
+                    <span class="history-name">${item.name}</span>
+                    <span class="history-status ${status}">${status}</span>
+                    <span class="history-time">${time}</span>
+                    <a href="${item.data.url}" target="_blank" class="history-link">View →</a>
+                `;
+                historyList.appendChild(div);
+            });
+        }
+
+        // Action handlers
+        async function triggerAction(action) {
+            const actionLabels = {
+                'deploy': 'Deploy Infrastructure',
+                'teardown': 'Teardown Infrastructure',
+                'destroy': 'Destroy Everything'
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/${action}`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`${actionLabels[action]} triggered!`, 'success');
+                    setTimeout(fetchStatus, 2000);
+                } else {
+                    showToast(data.error || 'Failed to trigger action', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to trigger action', 'error');
+            }
+        }
+
+        function showConfirmModal(action) {
+            currentAction = action;
+            const modal = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            const message = document.getElementById('modal-message');
+            
+            const configs = {
+                'teardown': {
+                    title: '⚠️ Confirm Teardown',
+                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to re-deploy later.'
+                },
+                'destroy': {
+                    title: '💀 Confirm Full Destroy',
+                    message: 'This will PERMANENTLY destroy ALL infrastructure including this control panel. You will need to run the initial setup again. This action cannot be undone!'
+                }
+            };
+            
+            const config = configs[action];
+            title.textContent = config.title;
+            message.textContent = config.message;
+            modal.classList.add('active');
+        }
+
+        function hideModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+            currentAction = null;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Event listeners
+        document.getElementById('btn-deploy').addEventListener('click', () => triggerAction('deploy'));
+        document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
+        document.getElementById('btn-destroy').addEventListener('click', () => showConfirmModal('destroy'));
+        
+        document.getElementById('modal-cancel').addEventListener('click', hideModal);
+        document.getElementById('modal-confirm').addEventListener('click', () => {
+            if (currentAction) {
+                triggerAction(currentAction);
+                hideModal();
+            }
+        });
+
+        // Initial fetch and polling
+        fetchStatus();
+        setInterval(fetchStatus, 10000); // Poll every 10 seconds
+    </script>
+</body>
+</html>

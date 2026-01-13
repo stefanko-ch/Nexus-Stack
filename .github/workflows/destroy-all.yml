@@ -28,6 +28,9 @@ jobs:
       TF_VAR_domain: ${{ secrets.DOMAIN }}
       TF_VAR_access_emails: ${{ secrets.ACCESS_EMAILS }}
       TF_VAR_infisical_token: ${{ secrets.INFISICAL_TOKEN }}
+      TF_VAR_github_owner: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
+
     
     steps:
       - name: Validate confirmation
@@ -79,6 +82,8 @@ jobs:
           domain         = "${{ secrets.DOMAIN }}"
           admin_email    = "${{ secrets.ADMIN_EMAIL }}"
           admin_username = "admin"
+          github_owner   = "${{ github.repository_owner }}"
+          github_repo    = "${{ github.event.repository.name }}"
           EOF
           cat tofu/services.tfvars >> tofu/config.tfvars
 
@@ -134,6 +139,7 @@ jobs:
           echo "   - Cloudflare Tunnel"
           echo "   - Cloudflare DNS records"
           echo "   - Cloudflare Access policies"
+          echo "   - Control Panel (Pages + Worker)"
           echo "   - R2 state bucket and contents"
           echo "   - R2 API tokens from Cloudflare"
           echo "   - R2 GitHub Secrets (if GH_SECRETS_TOKEN configured)"
