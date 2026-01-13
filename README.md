@@ -13,6 +13,7 @@
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
 ![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)
+![Resend](https://img.shields.io/badge/Resend-000000?logo=resend&logoColor=white)
 
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated.**
 
@@ -128,6 +129,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
+![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -140,6 +142,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
+| **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Info** | Landing page with service overview dashboard | — |
 
 ## 🎮 Control Panel
@@ -319,12 +322,18 @@ Deploy entirely via CI - no local tools required!
    - Repository: `Nexus-Stack`, Permission: Secrets (Read and write)
    - Save as `GH_SECRETS_TOKEN` secret
 
-3. Run first deployment:
+3. **(Optional)** For credentials email after deployment:
+   - Create account at [resend.com](https://resend.com)
+   - Verify your domain (add DNS records)
+   - Create API key and save as `RESEND_API_KEY` secret
+
+4. Run first deployment:
    ```bash
    gh workflow run deploy.yml
    ```
 
-4. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
+5. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
+6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
 
 ### Available Workflows
 
