@@ -42,14 +42,18 @@
 git clone https://github.com/stefanko-ch/Nexus-Stack.git
 cd Nexus-Stack
 
-# 2. Initialize and create config
+# 2. Create config files
 make init
 
-# 3. Edit config with your API tokens and services
+# 3. Add your secrets to .env
+cp .env.example .env
+nano .env
+
+# 4. Edit domain/email settings
 nano tofu/config.tfvars
 
-# 4. Deploy everything
-make up
+# 5. Deploy everything
+source .env && make up
 ```
 
 That's it! After a few minutes you'll have:
@@ -58,20 +62,43 @@ That's it! After a few minutes you'll have:
 
 ## Configuration
 
-Edit `tofu/config.tfvars`:
+Nexus-Stack uses **two config files** for security:
 
-| Setting | Where to get it |
-|---------|-----------------|
-| `hcloud_token` | [Hetzner Console](https://console.hetzner.cloud/) → Project → Security → API Tokens |
-| `cloudflare_api_token` | [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token |
-| `cloudflare_account_id` | URL when logged into Cloudflare: `dash.cloudflare.com/<account_id>/...` |
+### 1. `.env` - Secrets (never committed)
+
+```bash
+export TF_VAR_hcloud_token="xxx"
+export TF_VAR_cloudflare_api_token="xxx"
+export TF_VAR_cloudflare_account_id="xxx"
+```
+
+| Variable | Where to get it |
+|----------|-----------------|
+| `TF_VAR_hcloud_token` | [Hetzner Console](https://console.hetzner.cloud/) → Project → Security → API Tokens |
+| `TF_VAR_cloudflare_api_token` | [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token |
+| `TF_VAR_cloudflare_account_id` | URL when logged into Cloudflare: `dash.cloudflare.com/<account_id>/...` |
+
+### 2. `tofu/config.tfvars` - Settings (can be committed)
+
+| Setting | Description |
+|---------|-------------|
 | `cloudflare_zone_id` | Domain overview page → right sidebar |
 | `domain` | Your domain in Cloudflare |
 | `admin_email` | Your email for authentication |
+| `services` | Which stacks to deploy |
 
 ### Cloudflare API Token Permissions
 
-Create a Custom Token. See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for the complete list of required permissions.
+Create a Custom Token with these permissions:
+- Zone:DNS:Edit
+- Zone:Zone:Read
+- Account:Cloudflare Tunnel:Edit
+- Account:Access: Apps and Policies:Edit
+- Account:Access: Service Tokens:Edit
+- Account:Access: Organizations:Edit
+- **Account:Workers R2 Storage:Edit** ← Required for remote state
+
+See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for details.
 
 ### Docker Hub Login (Optional)
 
@@ -114,17 +141,24 @@ All stacks are pre-configured and ready to deploy. Just enable them in `config.t
 
 ## Commands
 
+All commands (except `make init`) require environment variables:
+```bash
+source .env && make <command>
+```
+
 | Command | Description |
 |---------|-------------|
-| `make init` | First-time setup - creates config file |
+| `make init` | First-time setup - creates config files and R2 bucket |
 | `make up` | Create infrastructure + deploy containers |
-| `make down` | Destroy everything |
+| `make down` | Destroy infrastructure (keeps R2 state) |
+| `make destroy` | Full cleanup: infrastructure + R2 bucket + credentials |
 | `make status` | Show running containers |
 | `make ssh` | SSH into the server |
 | `make logs` | View container logs (default: it-tools) |
 | `make logs SERVICE=excalidraw` | View logs for specific service |
 | `make plan` | Preview changes |
 | `make urls` | Show all service URLs |
+| `make secrets` | Show service admin passwords |
 
 ## Adding More Services
 
@@ -214,16 +248,20 @@ The service is completely cleaned up - no orphaned resources.
 ```
 Nexus-Stack/
 ├── Makefile              # Main commands
+├── .env.example          # Template for secrets (TF_VAR_*)
+├── .env                  # Your secrets (git-ignored)
 ├── tofu/                 # Infrastructure as Code
 │   ├── main.tf           # Server, tunnel, DNS, access
 │   ├── variables.tf      # Input variables
 │   ├── outputs.tf        # Outputs (IPs, URLs)
-│   ├── providers.tf      # Provider config
-│   └── config.tfvars     # Your config (git-ignored)
+│   ├── providers.tf      # Provider config + R2 backend
+│   ├── config.tfvars.example  # Template for settings
+│   └── config.tfvars     # Your settings (git-ignored)
 ├── stacks/               # Docker Compose stacks
 │   ├── it-tools/         # Example: IT-Tools
 │   └── excalidraw/       # Example: Excalidraw
 └── scripts/
+    ├── init-r2-state.sh   # Creates R2 bucket for state
     └── deploy.sh         # Container deployment
 ```
 

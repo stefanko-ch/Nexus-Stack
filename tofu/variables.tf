@@ -1,11 +1,24 @@
 # =============================================================================
+# IMPORTANT: Secrets are read from environment variables!
+# =============================================================================
+# Set these before running OpenTofu:
+#   export TF_VAR_hcloud_token="xxx"
+#   export TF_VAR_cloudflare_api_token="xxx"
+#   export TF_VAR_cloudflare_account_id="xxx"
+#
+# For local development: Create a .env file and run 'source .env'
+# For CI/CD: Use GitHub Actions secrets
+# =============================================================================
+
+# =============================================================================
 # Hetzner Cloud
 # =============================================================================
 
 variable "hcloud_token" {
-  description = "Hetzner Cloud API token"
+  description = "Hetzner Cloud API token (set via TF_VAR_hcloud_token)"
   type        = string
   sensitive   = true
+  # No default - must be provided via environment variable
 }
 
 variable "server_name" {
@@ -49,14 +62,16 @@ variable "ssh_private_key_path" {
 # =============================================================================
 
 variable "cloudflare_api_token" {
-  description = "Cloudflare API token with Zone and Tunnel permissions"
+  description = "Cloudflare API token (set via TF_VAR_cloudflare_api_token)"
   type        = string
   sensitive   = true
+  # No default - must be provided via environment variable
 }
 
 variable "cloudflare_account_id" {
-  description = "Cloudflare Account ID"
+  description = "Cloudflare Account ID (set via TF_VAR_cloudflare_account_id)"
   type        = string
+  # No default - must be provided via environment variable
 }
 
 variable "cloudflare_zone_id" {
@@ -100,13 +115,13 @@ variable "services" {
 # =============================================================================
 
 variable "dockerhub_username" {
-  description = "Docker Hub username (optional - increases pull rate limit from 100 to 200/6h)"
+  description = "Docker Hub username (optional, set via TF_VAR_dockerhub_username)"
   type        = string
   default     = ""
 }
 
 variable "dockerhub_token" {
-  description = "Docker Hub access token (create at https://hub.docker.com/settings/security)"
+  description = "Docker Hub access token (optional, set via TF_VAR_dockerhub_token)"
   type        = string
   sensitive   = true
   default     = ""
