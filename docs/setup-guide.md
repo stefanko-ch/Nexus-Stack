@@ -73,10 +73,14 @@ ssh-keygen -t ed25519 -C "nexus"
    | Account | Access: Apps and Policies | Edit |
    | Account | Access: Service Tokens | Edit |
    | Account | Access: Organizations, Identity Providers, and Groups | Edit |
+   | Account | Workers R2 Storage | Edit |
    | Zone | DNS | Edit |
    | Zone | Zone | Read |
 
-   > **Note:** The "Access: Organizations" permission is required for revoking Zero Trust sessions during `make down`. The "Access: Service Tokens" permission enables headless SSH authentication for CI/CD.
+   > **Note:** 
+   > - "Workers R2 Storage" is required for the remote state backend
+   > - "Access: Organizations" is required for revoking Zero Trust sessions during `make down`
+   > - "Access: Service Tokens" enables headless SSH authentication for CI/CD
 
 6. **Account Resources:** Include → All accounts (or specific)
 7. **Zone Resources:** Include → Specific Zone → Your domain
@@ -87,23 +91,32 @@ ssh-keygen -t ed25519 -C "nexus"
 
 ## 3️⃣ Configure Nexus
 
-### Create Configuration File
+Nexus-Stack uses **two config files** for security:
+
+### Create Configuration Files
 
 ```bash
-cd tofu
-cp config.tfvars.example config.tfvars
+# From project root
+make init
+
+# Copy and edit secrets file
+cp .env.example .env
+nano .env
 ```
 
-### Edit config.tfvars
+### Edit .env (Secrets - never commit!)
+
+```bash
+export TF_VAR_hcloud_token="YOUR_HCLOUD_TOKEN"
+export TF_VAR_cloudflare_api_token="YOUR_CLOUDFLARE_TOKEN"
+export TF_VAR_cloudflare_account_id="YOUR_ACCOUNT_ID"
+```
+
+### Edit tofu/config.tfvars (Settings)
 
 ```hcl
-# Hetzner Cloud
-hcloud_token = "YOUR_HCLOUD_TOKEN"
-
-# Cloudflare
-cloudflare_api_token  = "YOUR_CLOUDFLARE_TOKEN"
-cloudflare_account_id = "YOUR_ACCOUNT_ID"
-cloudflare_zone_id    = "YOUR_ZONE_ID"
+# Cloudflare Zone (non-sensitive)
+cloudflare_zone_id = "YOUR_ZONE_ID"
 
 # Your domain
 domain = "yourdomain.com"
@@ -112,23 +125,33 @@ domain = "yourdomain.com"
 admin_email = "you@example.com"
 ```
 
+> 💡 **Why two files?** Secrets in `.env` can be set as GitHub Actions secrets for CI/CD, while `config.tfvars` can be safely committed.
+
 ---
 
 ## 4️⃣ Deploy
 
-### Initialize and Apply
+### Initialize
 
 ```bash
-# From project root
-make up
+# First time: create R2 bucket for remote state
+source .env && make init
+```
+
+### Apply
+
+```bash
+# Deploy everything
+source .env && make up
 ```
 
 This will:
-1. Initialize OpenTofu
-2. Create the Hetzner server
-3. Set up Cloudflare Tunnel
-4. Configure DNS records
-5. Deploy all Docker stacks
+1. Create R2 bucket for remote state (first run only)
+2. Initialize OpenTofu with remote backend
+3. Create the Hetzner server
+4. Set up Cloudflare Tunnel
+5. Configure DNS records
+6. Deploy all Docker stacks
 
 ### First deployment takes ~5 minutes
 
@@ -206,13 +229,21 @@ cloudflared access login https://ssh.yourdomain.com
 
 ## 🧹 Teardown
 
-To destroy everything:
+### Destroy Infrastructure (keep state)
 
 ```bash
-make down
+source .env && make down
 ```
 
-> ⚠️ This deletes the server and all data!
+> This deletes the server but keeps the R2 state bucket for future deployments.
+
+### Full Cleanup (delete everything)
+
+```bash
+source .env && make destroy
+```
+
+> ⚠️ This deletes everything: server, R2 bucket, API tokens, local credentials.
 
 ---
 

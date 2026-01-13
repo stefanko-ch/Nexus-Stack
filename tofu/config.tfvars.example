@@ -1,17 +1,21 @@
 # =============================================================================
 # Nexus-Stack Configuration
 # =============================================================================
-# Copy this file to config.tfvars and fill in your values
+# This file contains NON-SENSITIVE configuration only.
+# Secrets are provided via environment variables (see .env.example)
+#
+# Setup:
+#   1. Copy this file to config.tfvars
+#   2. Copy .env.example to .env and add your secrets
+#   3. Run 'source .env && make init'
+#
+# For CI/CD: Set secrets as GitHub Actions secrets (TF_VAR_*)
 # =============================================================================
 
 # =============================================================================
-# Hetzner Cloud
-# Get your API token from: https://console.hetzner.cloud/projects
+# Hetzner Cloud Server Settings
 # =============================================================================
 
-hcloud_token = "YOUR_HCLOUD_TOKEN_HERE"
-
-# Server settings (defaults are fine for testing)
 server_name     = "nexus"
 server_type     = "cax11"         # ~€4/month - 2 vCPU, 4GB RAM (ARM)
 server_location = "fsn1"          # Falkenstein, Germany
@@ -22,15 +26,13 @@ ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
 ssh_private_key_path = "~/.ssh/id_ed25519"
 
 # =============================================================================
-# Cloudflare
-# Get these values from your Cloudflare dashboard
+# Cloudflare Settings
 # =============================================================================
 
-cloudflare_api_token  = "YOUR_CLOUDFLARE_API_TOKEN_HERE"
-cloudflare_account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID_HERE"
-cloudflare_zone_id    = "YOUR_CLOUDFLARE_ZONE_ID_HERE"
+# Get your Zone ID from: Cloudflare Dashboard → Your Domain → Overview (right sidebar)
+cloudflare_zone_id = "YOUR_ZONE_ID_HERE"
 
-# Your domain (must be in Cloudflare)
+# Your domain (must be managed in Cloudflare)
 domain = "your-domain.com"
 
 # Your email for Cloudflare Access (only this email can access services)
@@ -38,27 +40,6 @@ admin_email = "your@email.com"
 
 # Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
 # admin_username = "admin"
-
-# =============================================================================
-# SSH Access (automatic - no configuration needed)
-# =============================================================================
-# A Cloudflare Service Token is automatically created for SSH access.
-# This allows headless/CI deployments without browser login.
-# The token is stored in the OpenTofu state and used by deploy.sh.
-# =============================================================================
-
-# =============================================================================
-# Docker Hub (optional - for increased pull rate limits)
-# =============================================================================
-# Without login: 100 image pulls per 6 hours
-# With login:    200 image pulls per 6 hours (free account)
-#
-# Create a free account at https://hub.docker.com
-# Create an access token at https://hub.docker.com/settings/security
-# =============================================================================
-
-# dockerhub_username = "your-docker-hub-username"
-# dockerhub_token    = "dckr_pat_xxxxxxxxxxxxxxxxxxxx"
 
 # =============================================================================
 # Services
