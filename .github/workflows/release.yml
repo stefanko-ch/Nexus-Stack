@@ -108,6 +108,8 @@ jobs:
       - name: Generate changelog
         id: changelog
         if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
@@ -115,71 +117,93 @@ jobs:
           # Start changelog
           CHANGELOG="## What's Changed in ${NEW_VERSION}\n\n"
           
-          # Get commits since last tag (with body for details)
-          # Format: HASH|SUBJECT|BODY (body has newlines replaced with §)
+          # Get merged PRs since last tag using GitHub API
+          # This provides cleaner, curated release notes based on PR titles
           if [ "$LATEST_TAG" = "v0.0.0" ]; then
-            COMMITS=$(git log --pretty=format:"%H|%s|%b§END§" --no-merges | tr '\n' '¶' | sed 's/§END§¶/\n/g')
+            SINCE=""
           else
-            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%H|%s|%b§END§" --no-merges | tr '\n' '¶' | sed 's/§END§¶/\n/g')
+            # Get the date of the last tag
+            SINCE=$(git log -1 --format=%aI "$LATEST_TAG")
           fi
           
-          # Categorize commits
-          FEATURES=""
-          FIXES=""
-          REFACTORS=""
-          DOCS=""
-          OTHER=""
+          # Fetch merged PRs since last release
+          if [ -n "$SINCE" ]; then
+            PRS=$(gh pr list --state merged --base main --search "merged:>=$SINCE" --json number,title,mergedAt --jq '.[] | "\(.number)|\(.title)"' 2>/dev/null || echo "")
+          else
+            PRS=$(gh pr list --state merged --base main --limit 50 --json number,title --jq '.[] | "\(.number)|\(.title)"' 2>/dev/null || echo "")
+          fi
           
-          while IFS='|' read -r HASH MSG BODY; do
-            [ -z "$HASH" ] && continue
-            SHORT_HASH=${HASH:0:7}
-            
-            # Extract bullet points from body (lines starting with -)
-            DETAILS=""
-            if [ -n "$BODY" ]; then
-              # Convert ¶ back to newlines, extract lines starting with -, indent them
-              BODY_LINES=$(echo "$BODY" | tr '¶' '\n' | grep -E "^-" | sed 's/^-/  -/' || true)
-              if [ -n "$BODY_LINES" ]; then
-                DETAILS="\n${BODY_LINES}"
-              fi
-            fi
-            
-            if echo "$MSG" | grep -qE "^feat(\(.+\))?:"; then
-              CLEAN_MSG=$(echo "$MSG" | sed -E 's/^feat(\(.+\))?:\s*//')
-              FEATURES="${FEATURES}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
-            elif echo "$MSG" | grep -qE "^fix(\(.+\))?:"; then
-              CLEAN_MSG=$(echo "$MSG" | sed -E 's/^fix(\(.+\))?:\s*//')
-              FIXES="${FIXES}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
-            elif echo "$MSG" | grep -qE "^refactor(\(.+\))?:"; then
-              CLEAN_MSG=$(echo "$MSG" | sed -E 's/^refactor(\(.+\))?:\s*//')
-              REFACTORS="${REFACTORS}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
-            elif echo "$MSG" | grep -qE "^docs(\(.+\))?:"; then
-              CLEAN_MSG=$(echo "$MSG" | sed -E 's/^docs(\(.+\))?:\s*//')
-              DOCS="${DOCS}- ${CLEAN_MSG} (${SHORT_HASH})${DETAILS}\n"
+          # If no PRs found, fall back to commits
+          if [ -z "$PRS" ]; then
+            echo "No merged PRs found, falling back to commit analysis"
+            if [ "$LATEST_TAG" = "v0.0.0" ]; then
+              COMMITS=$(git log --pretty=format:"%H|%s" --no-merges)
             else
-              OTHER="${OTHER}- ${MSG} (${SHORT_HASH})${DETAILS}\n"
+              COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%H|%s" --no-merges)
             fi
-          done <<< "$COMMITS"
-          
-          # Build changelog sections
-          if [ -n "$FEATURES" ]; then
-            CHANGELOG="${CHANGELOG}### 🚀 Features\n\n${FEATURES}\n"
-          fi
-          
-          if [ -n "$FIXES" ]; then
-            CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n\n${FIXES}\n"
-          fi
-          
-          if [ -n "$REFACTORS" ]; then
-            CHANGELOG="${CHANGELOG}### ♻️ Refactoring\n\n${REFACTORS}\n"
-          fi
-          
-          if [ -n "$DOCS" ]; then
-            CHANGELOG="${CHANGELOG}### 📚 Documentation\n\n${DOCS}\n"
-          fi
-          
-          if [ -n "$OTHER" ]; then
-            CHANGELOG="${CHANGELOG}### 📦 Other Changes\n\n${OTHER}\n"
+            
+            # Simple commit-based changelog
+            while IFS='|' read -r HASH MSG; do
+              [ -z "$HASH" ] && continue
+              SHORT_HASH=${HASH:0:7}
+              CHANGELOG="${CHANGELOG}- ${MSG} (${SHORT_HASH})\n"
+            done <<< "$COMMITS"
+          else
+            # Categorize PRs by conventional commit prefix in title
+            FEATURES=""
+            FIXES=""
+            REFACTORS=""
+            DOCS=""
+            CHORES=""
+            OTHER=""
+            
+            while IFS='|' read -r PR_NUM TITLE; do
+              [ -z "$PR_NUM" ] && continue
+              
+              if echo "$TITLE" | grep -qE "^feat(\(.+\))?:"; then
+                CLEAN_TITLE=$(echo "$TITLE" | sed -E 's/^feat(\(.+\))?:\s*//')
+                FEATURES="${FEATURES}- ${CLEAN_TITLE} (#${PR_NUM})\n"
+              elif echo "$TITLE" | grep -qE "^fix(\(.+\))?:"; then
+                CLEAN_TITLE=$(echo "$TITLE" | sed -E 's/^fix(\(.+\))?:\s*//')
+                FIXES="${FIXES}- ${CLEAN_TITLE} (#${PR_NUM})\n"
+              elif echo "$TITLE" | grep -qE "^refactor(\(.+\))?:"; then
+                CLEAN_TITLE=$(echo "$TITLE" | sed -E 's/^refactor(\(.+\))?:\s*//')
+                REFACTORS="${REFACTORS}- ${CLEAN_TITLE} (#${PR_NUM})\n"
+              elif echo "$TITLE" | grep -qE "^docs(\(.+\))?:"; then
+                CLEAN_TITLE=$(echo "$TITLE" | sed -E 's/^docs(\(.+\))?:\s*//')
+                DOCS="${DOCS}- ${CLEAN_TITLE} (#${PR_NUM})\n"
+              elif echo "$TITLE" | grep -qE "^(chore|ci|build)(\(.+\))?:"; then
+                CLEAN_TITLE=$(echo "$TITLE" | sed -E 's/^(chore|ci|build)(\(.+\))?:\s*//')
+                CHORES="${CHORES}- ${CLEAN_TITLE} (#${PR_NUM})\n"
+              else
+                OTHER="${OTHER}- ${TITLE} (#${PR_NUM})\n"
+              fi
+            done <<< "$PRS"
+            
+            # Build changelog sections
+            if [ -n "$FEATURES" ]; then
+              CHANGELOG="${CHANGELOG}### 🚀 Features\n\n${FEATURES}\n"
+            fi
+            
+            if [ -n "$FIXES" ]; then
+              CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n\n${FIXES}\n"
+            fi
+            
+            if [ -n "$REFACTORS" ]; then
+              CHANGELOG="${CHANGELOG}### ♻️ Refactoring\n\n${REFACTORS}\n"
+            fi
+            
+            if [ -n "$DOCS" ]; then
+              CHANGELOG="${CHANGELOG}### 📚 Documentation\n\n${DOCS}\n"
+            fi
+            
+            if [ -n "$CHORES" ]; then
+              CHANGELOG="${CHANGELOG}### 🔧 Maintenance\n\n${CHORES}\n"
+            fi
+            
+            if [ -n "$OTHER" ]; then
+              CHANGELOG="${CHANGELOG}### 📦 Other Changes\n\n${OTHER}\n"
+            fi
           fi
           
           # Add compare link
