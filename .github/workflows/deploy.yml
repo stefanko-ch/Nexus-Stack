@@ -225,18 +225,26 @@ HTMLEOF
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
             
-            # Use jq to properly escape JSON
+            # Use jq to properly escape JSON (to must be an array per Resend API)
             JSON_PAYLOAD=$(jq -n \
               --arg from "Nexus-Stack <nexus@$DOMAIN>" \
               --arg to "$ADMIN_EMAIL" \
               --arg subject "🚀 Nexus-Stack Deployed - Your Credentials" \
               --arg html "$EMAIL_HTML" \
-              '{from: $from, to: $to, subject: $subject, html: $html}')
+              '{from: $from, to: [$to], subject: $subject, html: $html}')
             
-            curl -s -X POST 'https://api.resend.com/emails' \
+            # Send email with proper error handling
+            HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
               -H "Authorization: Bearer $RESEND_API_KEY" \
               -H "Content-Type: application/json" \
-              -d "$JSON_PAYLOAD" && echo "✅ Credentials email sent to $ADMIN_EMAIL"
+              -d "$JSON_PAYLOAD")
+            
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+              echo "✅ Credentials email sent to $ADMIN_EMAIL"
+            else
+              echo "⚠️  Failed to send email (HTTP $HTTP_STATUS) - deployment continues"
+              cat /tmp/resend_response.txt 2>/dev/null || true
+            fi
           else
             echo "⚠️  RESEND_API_KEY not configured - skipping email"
           fi
