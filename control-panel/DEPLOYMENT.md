@@ -1,0 +1,186 @@
+# Control Panel Deployment Checklist
+
+## Pre-Deployment
+
+- [ ] Review code changes
+- [ ] Security audit completed (see [SECURITY.md](SECURITY.md))
+- [ ] All files in `control-panel/` directory
+
+## GitHub Setup
+
+- [ ] Create GitHub Personal Access Token
+  - Go to https://github.com/settings/tokens
+  - Click "Generate new token (classic)"
+  - Select scope: `workflow`
+  - Copy token (save securely, shown only once!)
+
+## Infrastructure Variables
+
+Ensure these are set in your `tofu/config.tfvars`:
+
+```hcl
+github_owner = "stefanko-ch"        # Your GitHub username
+github_repo  = "Nexus-Stack"        # Repository name
+```
+
+## Deployment Steps
+
+### 1. Deploy via Terraform
+
+```bash
+# Make sure .env is loaded
+source .env
+
+# Deploy infrastructure (includes control panel)
+make up
+```
+
+This creates:
+- ✅ Cloudflare Pages project (`nexus-control`)
+- ✅ DNS record (`control.domain.com`)
+- ✅ Cloudflare Access protection
+
+### 2. Set GitHub Token Secret
+
+**Option A: Via Cloudflare Dashboard**
+
+1. Go to **Cloudflare Dashboard**
+2. Navigate to **Pages** → **nexus-control**
+3. Click **Settings** → **Environment Variables**
+4. Click **Add variables**
+5. Production tab:
+   - Variable name: `GITHUB_TOKEN`
+   - Value: `ghp_xxxxxxxxxxxxx` (paste your token)
+   - ⚠️ Select **"Encrypt"** checkbox
+6. Click **Save**
+
+**Option B: Via Wrangler CLI**
+
+```bash
+cd control-panel/pages
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
+# Paste token when prompted
+```
+
+### 3. Deploy Pages Project
+
+**First deployment needs to be manual:**
+
+```bash
+cd control-panel/pages
+npx wrangler pages deploy . --project-name=nexus-control
+```
+
+**Subsequent deployments** happen automatically on push to `main`.
+
+### 4. Verify Deployment
+
+1. Visit `https://control.YOUR_DOMAIN`
+2. Authenticate with Cloudflare Access (email OTP)
+3. Should see Control Panel UI
+4. Check status indicator (might show "unknown" initially)
+
+### 5. Test Workflow Triggers
+
+⚠️ **Test in this order to avoid destroying infrastructure:**
+
+1. Click **"Deploy"** button
+   - Should trigger `deploy.yml` workflow
+   - Check GitHub Actions tab for running workflow
+   - Status should update to "Running"
+
+2. After deployment completes:
+   - Status should show "Deployed"
+   - Workflow history shows successful run
+
+3. Test **"Teardown"** (optional):
+   - Only if you want to test teardown
+   - Requires confirmation modal
+   - Destroys Hetzner infrastructure (keeps control panel)
+
+⚠️ **Do NOT test "Destroy"** unless you want to delete everything!
+
+## Post-Deployment
+
+- [ ] Control Panel accessible at `https://control.domain.com`
+- [ ] Cloudflare Access authentication works
+- [ ] Status API returns workflow data
+- [ ] Deploy button triggers workflow successfully
+- [ ] Workflow history displays correctly
+
+## Troubleshooting
+
+### "Failed to trigger workflow"
+
+**Possible causes:**
+1. GitHub token not set or expired
+2. Token missing `workflow` scope
+3. Wrong `GITHUB_OWNER` or `GITHUB_REPO`
+
+**Solution:**
+```bash
+# Check env vars in Cloudflare Dashboard
+Pages → nexus-control → Settings → Environment Variables
+
+# Verify token scope at:
+https://github.com/settings/tokens
+```
+
+### "Failed to fetch status"
+
+Same as above - token issue.
+
+### Cloudflare Access loop
+
+**Cause:** Wrong admin email or Access policy misconfigured
+
+**Solution:**
+```bash
+# Check Terraform output
+cd tofu
+tofu output
+
+# Verify admin_email matches Access policy
+```
+
+### Control Panel shows 404
+
+**Cause:** Pages project not deployed
+
+**Solution:**
+```bash
+cd control-panel/pages
+npx wrangler pages deploy . --project-name=nexus-control
+```
+
+## Maintenance
+
+### Token Rotation (every 90 days)
+
+1. Generate new token at https://github.com/settings/tokens
+2. Update in Cloudflare Dashboard (Pages → Settings → Env Vars)
+3. Delete old token from GitHub
+4. Test workflow trigger
+
+### Update Control Panel Code
+
+```bash
+git pull origin main
+cd control-panel/pages
+npx wrangler pages deploy . --project-name=nexus-control
+```
+
+Or let **Cloudflare Pages** auto-deploy on push (if connected to Git).
+
+## Rollback
+
+If something goes wrong:
+
+```bash
+# Via Cloudflare Dashboard
+# Pages → nexus-control → Deployments → Previous deployment → Rollback
+```
+
+---
+
+✅ **Deployment complete!** Visit `https://control.YOUR_DOMAIN`
