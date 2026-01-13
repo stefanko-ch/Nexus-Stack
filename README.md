@@ -293,14 +293,17 @@ Deploy entirely via CI - no local tools required!
    - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`
    - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`, `ADMIN_EMAIL`
 
-2. Run first deployment:
+2. **(Optional)** For auto-saving R2 credentials, create a Fine-grained PAT:
+   - GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+   - Repository: `Nexus-Stack`, Permission: Secrets (Read and write)
+   - Save as `GH_SECRETS_TOKEN` secret
+
+3. Run first deployment:
    ```bash
    gh workflow run deploy.yml
    ```
 
-3. Copy `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from the logs → save as secrets
-
-4. All future deploys work automatically!
+4. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
 
 ### Available Workflows
 
@@ -311,17 +314,6 @@ Deploy entirely via CI - no local tools required!
 | **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
-- **Persistent authentication** - Token doesn't expire
-
-The SSH config is automatically configured with the Service Token:
-```
-Host nexus
-  HostName ssh.yourdomain.com
-  User root
-  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=xxx TUNNEL_SERVICE_TOKEN_SECRET=xxx cloudflared access ssh --hostname %h'
-```
-
-> ℹ️ **Note:** The Service Token is stored in the OpenTofu state. After `make teardown`, you'll need to run `make up` again to get a new token.
 
 ### Manual Browser Login (Fallback)
 
