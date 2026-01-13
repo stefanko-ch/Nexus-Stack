@@ -59,7 +59,9 @@ source .env && make up
 ```
 
 That's it! After a few minutes you'll have:
+- `https://control.yourdomain.com` - Control Panel to manage infrastructure
 - `https://it-tools.yourdomain.com` - IT-Tools (protected by Cloudflare Access)
+- `https://info.yourdomain.com` - Service dashboard
 - `ssh nexus` - SSH access via Cloudflare Tunnel
 
 ## Configuration
@@ -138,6 +140,24 @@ This doubles your limit to 200 pulls/6h with a free account.
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **Info** | Landing page with service overview dashboard | — |
+
+## 🎮 Control Panel
+
+Manage your Nexus-Stack infrastructure via web interface:
+
+```
+https://control.YOUR_DOMAIN
+```
+
+**Features:**
+- 🚀 **Deploy** - Trigger full infrastructure deployment via GitHub Actions
+- 💤 **Teardown** - Stop infrastructure (keeps control panel + state)
+- 💀 **Destroy** - Full cleanup (removes everything)
+- 📊 **Status** - Real-time workflow monitoring
+
+The control panel is deployed via Cloudflare Pages and survives teardown. Protected by Cloudflare Access.
+
+→ See [control-panel/README.md](control-panel/README.md) for setup details.
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
 
