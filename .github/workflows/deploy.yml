@@ -210,6 +210,7 @@ jobs:
   <table style="border-collapse: collapse;">
     <tr><td style="padding: 8px; border: 1px solid #333;">Infisical Admin</td><td style="padding: 8px; border: 1px solid #333;"><code>PASS_PLACEHOLDER</code></td></tr>
   </table>
+  <p style="color: #ffaa00; margin-top: 1rem;">⚠️ Please change this password after your first login!</p>
   <h2>🔗 Quick Links</h2>
   <ul>
     <li><a href="https://info.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Info Page</a> - All services &amp; credentials</li>
