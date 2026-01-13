@@ -11,6 +11,8 @@
 ![Hetzner](https://img.shields.io/badge/Hetzner-D50C2D?logo=hetzner&logoColor=white)
 ![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)
 
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated.**
 
@@ -278,6 +280,35 @@ ssh nexus
 Nexus-Stack automatically creates a Cloudflare Service Token for SSH access. This enables:
 - **No browser login required** - SSH works immediately without email verification
 - **CI/CD ready** - Perfect for automated deployments with GitHub Actions
+
+## GitHub Actions Deployment
+
+Deploy entirely via CI - no local tools required!
+
+### Quick Start
+
+1. Add secrets to your repo (Settings → Secrets → Actions):
+   - `TF_VAR_CLOUDFLARE_API_TOKEN`, `TF_VAR_CLOUDFLARE_ACCOUNT_ID`, `TF_VAR_CLOUDFLARE_ZONE_ID`
+   - `TF_VAR_HCLOUD_TOKEN`, `TF_VAR_DOMAIN`, `TF_VAR_ACCESS_EMAILS`
+
+2. Run first deployment:
+   ```bash
+   gh workflow run deploy.yml
+   ```
+
+3. Copy `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from the logs → save as secrets
+
+4. All future deploys work automatically!
+
+### Available Workflows
+
+| Workflow | Command | Description |
+|----------|---------|-------------|
+| **Deploy** | `gh workflow run deploy.yml` | Full deploy |
+| **Stop** | `gh workflow run down.yml` | Stop infrastructure (keeps state) |
+| **Destroy** | `gh workflow run destroy.yml -f confirm=DESTROY` | Delete everything |
+
+→ See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
 - **Persistent authentication** - Token doesn't expire
 
 The SSH config is automatically configured with the Service Token:
