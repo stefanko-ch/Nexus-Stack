@@ -195,6 +195,12 @@ secrets:
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_EMAIL"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.kestra_admin_password')"; \
+		echo ""; \
+		echo "n8n:"; \
+		SUBDOMAIN=$$(grep -A5 'n8n.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
+		echo "  User:     $$ADMIN_USER"; \
+		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.n8n_admin_password')"; \
 	else \
 		echo "⚠️  No OpenTofu state found. Run 'make up' first."; \
 	fi

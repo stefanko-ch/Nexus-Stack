@@ -124,6 +124,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 ![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
+![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -135,6 +136,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
+| **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **Info** | Landing page with service overview dashboard | — |
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.

@@ -75,6 +75,7 @@ KUMA_PASS=$(echo "$SECRETS_JSON" | jq -r '.kuma_admin_password // empty')
 GRAFANA_PASS=$(echo "$SECRETS_JSON" | jq -r '.grafana_admin_password // empty')
 KESTRA_PASS=$(echo "$SECRETS_JSON" | jq -r '.kestra_admin_password // empty')
 KESTRA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.kestra_db_password // empty')
+N8N_PASS=$(echo "$SECRETS_JSON" | jq -r '.n8n_admin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -273,6 +274,18 @@ KESTRA_DB_PASSWORD=$KESTRA_DB_PASS
 KESTRA_URL=https://kestra.${DOMAIN}
 EOF
     echo -e "${GREEN}  ✓ Kestra .env generated${NC}"
+fi
+
+# Generate n8n .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "n8n"; then
+    echo "  Generating n8n config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/n8n/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+DOMAIN=$DOMAIN
+N8N_ADMIN_USER=$ADMIN_USERNAME
+N8N_ADMIN_PASSWORD=$N8N_PASS
+EOF
+    echo -e "${GREEN}  ✓ n8n .env generated${NC}"
 fi
 
 # Sync only enabled stacks

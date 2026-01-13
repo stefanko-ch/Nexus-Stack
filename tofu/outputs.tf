@@ -88,6 +88,9 @@ output "secrets" {
     kestra_admin_password      = random_password.kestra_admin.result
     kestra_db_password         = random_password.kestra_db.result
     
+    # n8n
+    n8n_admin_password         = random_password.n8n_admin.result
+    
     # Docker Hub (optional)
     dockerhub_username         = var.dockerhub_username
     dockerhub_token            = var.dockerhub_token
