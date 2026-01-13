@@ -161,8 +161,7 @@ jobs:
           echo "📦 Deploying Control Panel to Cloudflare Pages..."
           npx wrangler pages deploy control-panel/pages \
             --project-name=nexus-control \
-            --branch=main \
-            --commit-dirty=true
+            --branch=main
           echo "✅ Control Panel deployed!"
 
       - name: Save Infisical admin password to GitHub Secrets
