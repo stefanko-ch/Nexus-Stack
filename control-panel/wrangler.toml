@@ -1,0 +1,6 @@
+name = "nexus-control"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "pages"
+
+# Environment variables set via Cloudflare Dashboard or wrangler secret
+# Required: GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO
