@@ -267,13 +267,13 @@ Add these secrets to your repo:
 
 | Secret Name | Source | Description |
 |-------------|--------|-------------|
-| `TF_VAR_CLOUDFLARE_API_TOKEN` | Cloudflare dashboard | API access |
-| `TF_VAR_CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard | Account ID |
-| `TF_VAR_CLOUDFLARE_ZONE_ID` | Cloudflare dashboard | Zone ID |
-| `TF_VAR_HCLOUD_TOKEN` | Hetzner console | API token |
-| `TF_VAR_DOMAIN` | Your domain | e.g. `example.com` |
-| `TF_VAR_ACCESS_EMAILS` | Allowed emails | Comma-separated |
-| `TF_VAR_INFISICAL_TOKEN` | Infisical dashboard | Optional |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard | API access |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard | Account ID |
+| `CLOUDFLARE_ZONE_ID` | Cloudflare dashboard | Zone ID |
+| `HCLOUD_TOKEN` | Hetzner console | API token |
+| `DOMAIN` | Your domain | e.g. `example.com` |
+| `ACCESS_EMAILS` | Allowed emails | Comma-separated |
+| `INFISICAL_TOKEN` | Infisical dashboard | Optional |
 
 ### First Deployment
 

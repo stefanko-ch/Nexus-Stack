@@ -288,8 +288,8 @@ Deploy entirely via CI - no local tools required!
 ### Quick Start
 
 1. Add secrets to your repo (Settings → Secrets → Actions):
-   - `TF_VAR_CLOUDFLARE_API_TOKEN`, `TF_VAR_CLOUDFLARE_ACCOUNT_ID`, `TF_VAR_CLOUDFLARE_ZONE_ID`
-   - `TF_VAR_HCLOUD_TOKEN`, `TF_VAR_DOMAIN`, `TF_VAR_ACCESS_EMAILS`
+   - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`
+   - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`
 
 2. Run first deployment:
    ```bash
