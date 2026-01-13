@@ -79,7 +79,7 @@ ssh-keygen -t ed25519 -C "nexus"
 
    > **Note:** 
    > - "Workers R2 Storage" is required for the remote state backend
-   > - "Access: Organizations" is required for revoking Zero Trust sessions during `make down`
+   > - "Access: Organizations" is required for revoking Zero Trust sessions during `make teardown`
    > - "Access: Service Tokens" enables headless SSH authentication for CI/CD
 
 6. **Account Resources:** Include → All accounts (or specific)
@@ -229,14 +229,14 @@ cloudflared access login https://ssh.yourdomain.com
 
 ## 🧹 Teardown
 
-### Destroy Infrastructure (keep state)
+### Teardown Infrastructure (keep state)
 
 ```bash
 # Local
-make down
+make teardown
 
 # Or via GitHub Actions (no confirmation needed)
-gh workflow run down.yml
+gh workflow run teardown.yml
 ```
 
 > This deletes the server but keeps the R2 state bucket for future deployments.
@@ -245,10 +245,10 @@ gh workflow run down.yml
 
 ```bash
 # Local
-make destroy
+make destroy-all
 
 # Or via GitHub Actions (requires "DESTROY" confirmation)
-gh workflow run destroy.yml -f confirm=DESTROY
+gh workflow run destroy-all.yml -f confirm=DESTROY
 ```
 
 > ⚠️ This deletes everything: server, R2 bucket, API tokens, local credentials.
@@ -272,6 +272,7 @@ Add these secrets to your repo:
 | `CLOUDFLARE_ZONE_ID` | Cloudflare dashboard | Zone ID |
 | `HCLOUD_TOKEN` | Hetzner console | API token |
 | `DOMAIN` | Your domain | e.g. `example.com` |
+| `ADMIN_EMAIL` | Your email | For Cloudflare Access login |
 | `ACCESS_EMAILS` | Allowed emails | Comma-separated |
 | `INFISICAL_TOKEN` | Infisical dashboard | Optional |
 
@@ -306,15 +307,15 @@ Once saved, all future deployments will use these secrets automatically.
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
 | Deploy | `gh workflow run deploy.yml` | None | Full deploy |
-| Stop | `gh workflow run down.yml` | None | Stop infra (reversible) |
-| Destroy | `gh workflow run destroy.yml -f confirm=DESTROY` | Required | Delete everything |
+| Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
+| Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
 
-### Scheduled Deployment (Cost Saving)
+### Scheduled Teardown (Cost Saving)
 
-Add a schedule trigger to automatically stop infrastructure at night:
+Add a schedule trigger to automatically teardown infrastructure at night:
 
 ```yaml
-# In .github/workflows/down.yml, add to "on:" section:
+# In .github/workflows/teardown.yml, add to "on:" section:
 on:
   workflow_dispatch:
   schedule:
