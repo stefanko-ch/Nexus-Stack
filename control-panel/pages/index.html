@@ -74,6 +74,7 @@
         }
 
         .logo {
+            display: block;
             width: 120px;
             height: 120px;
             margin: 0 auto 1.5rem;
@@ -470,32 +471,7 @@
     <div class="container">
         <header>
             <!-- Nexus Stack Logo -->
-            <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style="stop-color:#00ff88;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#00aa55;stop-opacity:1" />
-                    </linearGradient>
-                    <filter id="glow">
-                        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                        <feMerge>
-                            <feMergeNode in="coloredBlur"/>
-                            <feMergeNode in="SourceGraphic"/>
-                        </feMerge>
-                    </filter>
-                </defs>
-                <!-- Hexagon background -->
-                <polygon points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5" 
-                         fill="none" stroke="url(#glowGradient)" stroke-width="2" filter="url(#glow)"/>
-                <!-- Inner N letter stylized -->
-                <path d="M30,70 L30,30 L45,30 L70,60 L70,30 L70,70 L55,70 L30,40 L30,70" 
-                      fill="none" stroke="url(#glowGradient)" stroke-width="3" stroke-linecap="round" 
-                      stroke-linejoin="round" filter="url(#glow)"/>
-                <!-- Stack lines -->
-                <line x1="25" y1="78" x2="75" y2="78" stroke="#00ff88" stroke-width="2" opacity="0.5"/>
-                <line x1="30" y1="84" x2="70" y2="84" stroke="#00ff88" stroke-width="2" opacity="0.3"/>
-                <line x1="35" y1="90" x2="65" y2="90" stroke="#00ff88" stroke-width="2" opacity="0.15"/>
-            </svg>
+            <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
             <p class="tagline">Control Panel</p>
         </header>

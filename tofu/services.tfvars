@@ -14,72 +14,82 @@
 
 services = {
   it-tools = {
-    enabled   = true
-    subdomain = "it-tools"
-    port      = 8080
-    public    = false
+    enabled     = true
+    subdomain   = "it-tools"
+    port        = 8080
+    public      = false
+    description = "Collection of handy online tools for developers - encoders, converters, generators, and more."
   }
 
   excalidraw = {
-    enabled   = true
-    subdomain = "excalidraw"
-    port      = 8082
-    public    = false
+    enabled     = true
+    subdomain   = "excalidraw"
+    port        = 8082
+    public      = false
+    description = "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
   }
 
   portainer = {
-    enabled   = true
-    subdomain = "portainer"
-    port      = 9090
-    public    = false
+    enabled     = true
+    subdomain   = "portainer"
+    port        = 9090
+    public      = false
+    description = "Docker container management UI for easy deployment and monitoring."
   }
 
   uptime-kuma = {
-    enabled   = true
-    subdomain = "uptime-kuma"
-    port      = 3001
-    public    = false
+    enabled     = true
+    subdomain   = "uptime-kuma"
+    port        = 3001
+    public      = false
+    description = "A fancy self-hosted monitoring tool for tracking service uptime and status."
   }
 
   infisical = {
-    enabled   = true
-    subdomain = "infisical"
-    port      = 8070
-    public    = false
+    enabled     = true
+    subdomain   = "infisical"
+    port        = 8070
+    public      = false
+    description = "Open-source secret management platform for teams."
   }
 
   grafana = {
-    enabled   = true
-    subdomain = "grafana"
-    port      = 3100
-    public    = false
+    enabled     = true
+    subdomain   = "grafana"
+    port        = 3100
+    public      = false
+    description = "Observability platform for metrics, logs, and traces visualization."
   }
 
   info = {
-    enabled   = true
-    subdomain = "info"
-    port      = 8090
-    public    = false
+    enabled     = true
+    subdomain   = "info"
+    port        = 8090
+    public      = false
+    description = "This landing page - your Nexus Stack dashboard."
   }
 
   kestra = {
-    enabled   = true
-    subdomain = "kestra"
-    port      = 8085
-    public    = false
+    enabled     = true
+    subdomain   = "kestra"
+    port        = 8085
+    public      = false
+    description = "Open-source orchestration and scheduling platform for data pipelines and workflows."
   }
 
   n8n = {
-    enabled   = true
-    subdomain = "n8n"
-    port      = 5678
-    public    = false
+    enabled     = true
+    subdomain   = "n8n"
+    port        = 5678
+    public      = false
+    description = "Workflow automation tool with 400+ integrations for connecting apps and services."
   }
 
   mailpit = {
-    enabled   = true
-    subdomain = "mailpit"
-    port      = 8025
-    public    = false
+    enabled     = true
+    subdomain   = "mailpit"
+    port        = 8025
+    public      = false
+    description = "Email testing tool that catches all outgoing emails for local development."
   }
 }
