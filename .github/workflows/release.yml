@@ -117,21 +117,25 @@ jobs:
           # Start changelog
           CHANGELOG="## What's Changed in ${NEW_VERSION}\n\n"
           
-          # Get merged PRs since last tag using GitHub API
-          # This provides cleaner, curated release notes based on PR titles
+          # Extract PR numbers from merge commits between tags
+          # This is more reliable than date-based filtering
           if [ "$LATEST_TAG" = "v0.0.0" ]; then
-            SINCE=""
+            MERGE_COMMITS=$(git log --merges --pretty=format:"%s" 2>/dev/null || echo "")
           else
-            # Get the date of the last tag
-            SINCE=$(git log -1 --format=%aI "$LATEST_TAG")
+            MERGE_COMMITS=$(git log ${LATEST_TAG}..HEAD --merges --pretty=format:"%s" 2>/dev/null || echo "")
           fi
           
-          # Fetch merged PRs since last release
-          if [ -n "$SINCE" ]; then
-            PRS=$(gh pr list --state merged --base main --search "merged:>=$SINCE" --json number,title,mergedAt --jq '.[] | "\(.number)|\(.title)"' 2>/dev/null || echo "")
-          else
-            PRS=$(gh pr list --state merged --base main --limit 50 --json number,title --jq '.[] | "\(.number)|\(.title)"' 2>/dev/null || echo "")
-          fi
+          # Extract PR numbers from "Merge pull request #XX" messages
+          PR_NUMBERS=$(echo "$MERGE_COMMITS" | grep -oE '#[0-9]+' | tr -d '#' | sort -u)
+          
+          # Fetch PR details for each PR number
+          PRS=""
+          for PR_NUM in $PR_NUMBERS; do
+            PR_TITLE=$(gh pr view "$PR_NUM" --json title --jq '.title' 2>/dev/null || echo "")
+            if [ -n "$PR_TITLE" ]; then
+              PRS="${PRS}${PR_NUM}|${PR_TITLE}\n"
+            fi
+          done
           
           # If no PRs found, fall back to commits
           if [ -z "$PRS" ]; then
