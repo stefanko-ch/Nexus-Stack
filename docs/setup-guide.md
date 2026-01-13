@@ -306,7 +306,7 @@ Once saved, all future deployments will use these secrets automatically.
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
 | Deploy | `gh workflow run deploy.yml` | None | Full deploy |
-| Stop | `gh workflow run down.yml` | None | Destroy infra |
+| Stop | `gh workflow run down.yml` | None | Stop infra (reversible) |
 | Destroy | `gh workflow run destroy.yml -f confirm=DESTROY` | Required | Delete everything |
 
 ### Scheduled Deployment (Cost Saving)
