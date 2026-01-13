@@ -11,9 +11,12 @@
 crash.log
 crash.*.log
 
-# Sensitive config files (keep the examples!)
+# Sensitive config files
+# - config.tfvars: gitignored (contains secrets for local use)
+# - services.tfvars: committed (only service definitions, no secrets)
 *.tfvars
 *.tfvars.json
+!services.tfvars
 !config.tfvars.example
 
 # Environment variables (secrets!)
