@@ -1,0 +1,136 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Nexus-Stack
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.0
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Create .env file from secrets
+        run: |
+          cat > .env << EOF
+          TF_VAR_cloudflare_api_token="${{ secrets.TF_VAR_CLOUDFLARE_API_TOKEN }}"
+          TF_VAR_cloudflare_account_id="${{ secrets.TF_VAR_CLOUDFLARE_ACCOUNT_ID }}"
+          TF_VAR_cloudflare_zone_id="${{ secrets.TF_VAR_CLOUDFLARE_ZONE_ID }}"
+          TF_VAR_hcloud_token="${{ secrets.TF_VAR_HCLOUD_TOKEN }}"
+          TF_VAR_domain="${{ secrets.TF_VAR_DOMAIN }}"
+          TF_VAR_access_emails="${{ secrets.TF_VAR_ACCESS_EMAILS }}"
+          TF_VAR_infisical_token="${{ secrets.TF_VAR_INFISICAL_TOKEN }}"
+          EOF
+
+      - name: Check if R2 credentials exist
+        id: check_r2
+        run: |
+          if [ -n "${{ secrets.R2_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" ]; then
+            echo "r2_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ R2 credentials found in secrets"
+          else
+            echo "r2_exists=false" >> $GITHUB_OUTPUT
+            echo "📦 No R2 credentials - will create new ones"
+          fi
+
+      - name: Initialize R2 (first-time setup)
+        if: steps.check_r2.outputs.r2_exists == 'false'
+        id: init_r2
+        run: |
+          echo "🪣 Creating R2 bucket and credentials..."
+          
+          # Run the init script
+          chmod +x scripts/init-r2-state.sh
+          ./scripts/init-r2-state.sh
+          
+          # Read the generated credentials
+          if [ -f tofu/.r2-credentials ]; then
+            source tofu/.r2-credentials
+            
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+            echo "║  ⚠️  IMPORTANT: Save these credentials as GitHub Secrets!                    ║"
+            echo "╠══════════════════════════════════════════════════════════════════════════════╣"
+            echo "║                                                                              ║"
+            echo "║  Go to: Settings → Secrets and variables → Actions → New repository secret  ║"
+            echo "║                                                                              ║"
+            echo "║  Add these two secrets:                                                      ║"
+            echo "║                                                                              ║"
+            echo "╠══════════════════════════════════════════════════════════════════════════════╣"
+            echo ""
+            echo "  R2_ACCESS_KEY_ID:"
+            echo "  $R2_ACCESS_KEY_ID"
+            echo ""
+            echo "  R2_SECRET_ACCESS_KEY:"
+            echo "  $R2_SECRET_ACCESS_KEY"
+            echo ""
+            echo "╠══════════════════════════════════════════════════════════════════════════════╣"
+            echo "║  After saving, all future deployments will use these credentials.           ║"
+            echo "║  This message will NOT appear again once secrets are configured.            ║"
+            echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+            echo ""
+            
+            # Export for this run
+            echo "r2_access_key=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
+            echo "r2_secret_key=$R2_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to create R2 credentials"
+            exit 1
+          fi
+
+      - name: Create R2 credentials from secrets
+        if: steps.check_r2.outputs.r2_exists == 'true'
+        run: |
+          mkdir -p tofu
+          cat > tofu/.r2-credentials << EOF
+          R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}"
+          R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}"
+          EOF
+          
+          cat > tofu/backend.hcl << EOF
+          endpoints = {
+            s3 = "https://${{ secrets.TF_VAR_CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          }
+          EOF
+
+      - name: Initialize OpenTofu
+        run: |
+          cd tofu
+          source .r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          tofu init -backend-config=backend.hcl
+
+      - name: Deploy infrastructure
+        run: make up
+
+      - name: Show service URLs
+        run: make urls
+        
+      - name: Reminder for first-time setup
+        if: steps.check_r2.outputs.r2_exists == 'false'
+        run: |
+          echo ""
+          echo "⚠️  REMINDER: Don't forget to save the R2 credentials as GitHub Secrets!"
+          echo "   Scroll up to find the R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY values."
+          echo ""
