@@ -93,6 +93,20 @@ jobs:
       - name: Destroy ALL infrastructure and state
         run: make destroy-all
 
+      - name: Delete R2 secrets from GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ]; then
+            echo "🔐 Cleaning up R2 secrets from GitHub..."
+            gh secret delete R2_ACCESS_KEY_ID 2>/dev/null || true
+            gh secret delete R2_SECRET_ACCESS_KEY 2>/dev/null || true
+            echo "✅ R2 secrets deleted"
+          else
+            echo "⚠️  GH_SECRETS_TOKEN not configured - R2 secrets must be deleted manually"
+            echo "   Run: gh secret delete R2_ACCESS_KEY_ID && gh secret delete R2_SECRET_ACCESS_KEY"
+          fi
+
       - name: Confirm destruction
         run: |
           echo ""
@@ -102,5 +116,6 @@ jobs:
           echo "   - Cloudflare DNS records"
           echo "   - Cloudflare Access policies"
           echo "   - R2 state bucket and contents"
+          echo "   - R2 GitHub Secrets (if GH_SECRETS_TOKEN configured)"
           echo ""
           echo "To redeploy, run the Deploy workflow."
