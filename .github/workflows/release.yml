@@ -182,7 +182,7 @@ jobs:
             
             # Build changelog sections
             if [ -n "$FEATURES" ]; then
-              CHANGELOG="${CHANGELOG}### ✨ Features\n\n${FEATURES}\n"
+              CHANGELOG="${CHANGELOG}### 🚀 Features\n\n${FEATURES}\n"
             fi
             
             if [ -n "$FIXES" ]; then
