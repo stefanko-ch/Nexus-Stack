@@ -153,6 +153,17 @@ jobs:
       - name: Deploy infrastructure
         run: make up
 
+      - name: Deploy Control Panel to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "📦 Deploying Control Panel to Cloudflare Pages..."
+          npx wrangler pages deploy control-panel/pages \
+            --project-name=nexus-control \
+            --branch=main
+          echo "✅ Control Panel deployed!"
+
       - name: Save Infisical admin password to GitHub Secrets
         env:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
