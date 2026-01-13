@@ -62,6 +62,12 @@ resource "random_password" "kestra_db" {
   special = false
 }
 
+# n8n admin password
+resource "random_password" "n8n_admin" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================

@@ -17,7 +17,7 @@
 # =============================================================================
 
 server_name     = "nexus"
-server_type     = "cax11"         # ~€4/month - 2 vCPU, 4GB RAM (ARM)
+server_type     = "cax31"         # ~€14/month - 8 vCPU, 16GB RAM (ARM)
 server_location = "fsn1"          # Falkenstein, Germany
 server_image    = "ubuntu-24.04"
 
