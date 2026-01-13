@@ -27,12 +27,23 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 # -----------------------------------------------------------------------------
-# Check OpenTofu state
+# Check OpenTofu state and load R2 credentials
 # -----------------------------------------------------------------------------
-if [ ! -f "$TOFU_DIR/terraform.tfstate" ]; then
+
+# Load R2 credentials for remote state access
+if [ -f "$TOFU_DIR/.r2-credentials" ]; then
+    source "$TOFU_DIR/.r2-credentials"
+    export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+    export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+fi
+
+# Check if we can access state (remote or local)
+cd "$TOFU_DIR"
+if ! tofu state list >/dev/null 2>&1; then
     echo -e "${RED}Error: No OpenTofu state found. Run 'make up' first.${NC}"
     exit 1
 fi
+cd "$PROJECT_ROOT"
 
 # Get domain and admin email from config
 DOMAIN=$(grep -E '^domain\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
