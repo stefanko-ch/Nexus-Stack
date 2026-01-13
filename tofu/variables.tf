@@ -126,3 +126,19 @@ variable "dockerhub_token" {
   sensitive   = true
   default     = ""
 }
+
+# =============================================================================
+# GitHub (for Control Panel)
+# =============================================================================
+
+variable "github_owner" {
+  description = "GitHub repository owner (e.g., stefanko-ch)"
+  type        = string
+  default     = ""
+}
+
+variable "github_repo" {
+  description = "GitHub repository name (e.g., Nexus-Stack)"
+  type        = string
+  default     = "Nexus-Stack"
+}
