@@ -202,26 +202,9 @@ jobs:
           if [ -n "$RESEND_API_KEY" ]; then
             echo "📧 Sending credentials email..."
             
-            # Build HTML email (escaped for JSON)
-            EMAIL_HTML=$(cat <<'HTMLEOF'
-<div style="font-family: monospace; background: #0a0a0f; color: #00ff88; padding: 20px;">
-  <h1 style="color: #00ff88;">🚀 Nexus-Stack Deployed!</h1>
-  <p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p>
-  <h2>🔐 Credentials</h2>
-  <table style="border-collapse: collapse;">
-    <tr><td style="padding: 8px; border: 1px solid #333;">Infisical Admin</td><td style="padding: 8px; border: 1px solid #333;"><code>PASS_PLACEHOLDER</code></td></tr>
-  </table>
-  <p style="color: #ffaa00; margin-top: 1rem;">⚠️ Please change this password after your first login!</p>
-  <h2>🔗 Quick Links</h2>
-  <ul>
-    <li><a href="https://info.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Info Page</a> - All services &amp; credentials</li>
-    <li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Infisical</a> - Secret management</li>
-    <li><a href="https://control.DOMAIN_PLACEHOLDER" style="color: #00ff88;">Control Panel</a> - Manage infrastructure</li>
-  </ul>
-  <p style="color: #666; font-size: 12px;">This email was sent automatically after deployment.</p>
-</div>
-HTMLEOF
-)
+            # Build HTML email (single line to avoid YAML heredoc issues)
+            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse"><tr><td style="padding:8px;border:1px solid #333">Infisical Admin</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li></ul><p style="color:#666;font-size:12px">This email was sent automatically after deployment.</p></div>'
+            
             # Replace placeholders
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
