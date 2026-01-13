@@ -102,10 +102,11 @@ variable "admin_username" {
 variable "services" {
   description = "Map of services to expose via Cloudflare Tunnel"
   type = map(object({
-    enabled   = bool
-    subdomain = string
-    port      = number
-    public    = bool   # true = no auth, false = behind Cloudflare Access
+    enabled     = bool
+    subdomain   = string
+    port        = number
+    public      = bool   # true = no auth, false = behind Cloudflare Access
+    description = optional(string, "")
   }))
   default = {}
 }
