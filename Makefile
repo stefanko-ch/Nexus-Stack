@@ -94,9 +94,9 @@ up: check-env
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
 
-# Destroy everything
-down: check-env
-	@echo "💥 Destroying infrastructure..."
+# Teardown infrastructure (keeps R2 state for re-deploy)
+teardown: check-env
+	@echo "💥 Tearing down infrastructure..."
 	@echo ""
 	@echo "🔐 Revoking Cloudflare Zero Trust sessions..."
 	@ADMIN_EMAIL=$$(grep -E '^admin_email\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
@@ -199,8 +199,8 @@ secrets:
 		echo "⚠️  No OpenTofu state found. Run 'make up' first."; \
 	fi
 
-# Full cleanup: destroy infrastructure AND remove R2 bucket/credentials
-destroy: down
+# Full cleanup: teardown infrastructure AND remove R2 bucket/credentials
+destroy-all: teardown
 	@echo ""
 	@echo "🧹 Cleaning up R2 state backend..."
 	@if [ -z "$$TF_VAR_cloudflare_api_token" ] || [ -z "$$TF_VAR_cloudflare_account_id" ]; then \
