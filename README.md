@@ -104,7 +104,7 @@ See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for details.
 
 ### Docker Hub Login (Optional)
 
-Docker Hub limits anonymous pulls to 100 per 6 hours per IP. During development with frequent `make down` / `make up` cycles, this limit is quickly reached since each deployment pulls multiple images (Grafana stack alone requires 6 images).
+Docker Hub limits anonymous pulls to 100 per 6 hours per IP. During development with frequent `make teardown` / `make up` cycles, this limit is quickly reached since each deployment pulls multiple images (Grafana stack alone requires 6 images).
 
 To avoid rate limits, add your Docker Hub credentials:
 
@@ -152,8 +152,8 @@ source .env && make <command>
 |---------|-------------|
 | `make init` | First-time setup - creates config files and R2 bucket |
 | `make up` | Create infrastructure + deploy containers |
-| `make down` | Destroy infrastructure (keeps R2 state) |
-| `make destroy` | Full cleanup: infrastructure + R2 bucket + credentials |
+| `make teardown` | Teardown infrastructure (keeps R2 state for re-deploy) |
+| `make destroy-all` | Full cleanup: infrastructure + R2 bucket + credentials |
 | `make status` | Show running containers |
 | `make ssh` | SSH into the server |
 | `make logs` | View container logs (default: it-tools) |
@@ -289,7 +289,7 @@ Deploy entirely via CI - no local tools required!
 
 1. Add secrets to your repo (Settings → Secrets → Actions):
    - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`
-   - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`
+   - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`, `ADMIN_EMAIL`
 
 2. Run first deployment:
    ```bash
@@ -305,8 +305,8 @@ Deploy entirely via CI - no local tools required!
 | Workflow | Command | Description |
 |----------|---------|-------------|
 | **Deploy** | `gh workflow run deploy.yml` | Full deploy |
-| **Stop** | `gh workflow run down.yml` | Stop infrastructure (keeps state) |
-| **Destroy** | `gh workflow run destroy.yml -f confirm=DESTROY` | Delete everything |
+| **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
+| **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
 - **Persistent authentication** - Token doesn't expire
@@ -319,7 +319,7 @@ Host nexus
   ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=xxx TUNNEL_SERVICE_TOKEN_SECRET=xxx cloudflared access ssh --hostname %h'
 ```
 
-> ℹ️ **Note:** The Service Token is stored in the OpenTofu state. After `make down`, you'll need to run `make up` again to get a new token.
+> ℹ️ **Note:** The Service Token is stored in the OpenTofu state. After `make teardown`, you'll need to run `make up` again to get a new token.
 
 ### Manual Browser Login (Fallback)
 

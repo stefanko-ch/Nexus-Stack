@@ -60,6 +60,21 @@ jobs:
           }
           EOF
 
+      - name: Generate config.tfvars
+        run: |
+          cat > tofu/config.tfvars << EOF
+          server_name     = "nexus"
+          server_type     = "cax11"
+          server_location = "fsn1"
+          server_image    = "ubuntu-24.04"
+          ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
+          ssh_private_key_path = "~/.ssh/id_ed25519"
+          domain         = "${{ secrets.DOMAIN }}"
+          admin_email    = "${{ secrets.ADMIN_EMAIL }}"
+          admin_username = "admin"
+          EOF
+          cat tofu/services.tfvars >> tofu/config.tfvars
+
       - name: Initialize OpenTofu
         run: |
           cd tofu
@@ -69,7 +84,7 @@ jobs:
           tofu init -backend-config=backend.hcl 2>/dev/null || echo "No existing state"
 
       - name: Destroy ALL infrastructure and state
-        run: make destroy
+        run: make destroy-all
 
       - name: Confirm destruction
         run: |
