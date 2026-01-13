@@ -232,7 +232,11 @@ cloudflared access login https://ssh.yourdomain.com
 ### Destroy Infrastructure (keep state)
 
 ```bash
-source .env && make down
+# Local
+make down
+
+# Or via GitHub Actions (no confirmation needed)
+gh workflow run down.yml
 ```
 
 > This deletes the server but keeps the R2 state bucket for future deployments.
@@ -240,10 +244,89 @@ source .env && make down
 ### Full Cleanup (delete everything)
 
 ```bash
-source .env && make destroy
+# Local
+make destroy
+
+# Or via GitHub Actions (requires "DESTROY" confirmation)
+gh workflow run destroy.yml -f confirm=DESTROY
 ```
 
 > ⚠️ This deletes everything: server, R2 bucket, API tokens, local credentials.
+
+---
+
+## 🤖 GitHub Actions Deployment
+
+You can deploy entirely via GitHub Actions - no local tools required!
+
+### Initial GitHub Secrets (before first deploy)
+
+Add these secrets to your repo:
+
+**Settings → Secrets and variables → Actions → New repository secret**
+
+| Secret Name | Source | Description |
+|-------------|--------|-------------|
+| `TF_VAR_CLOUDFLARE_API_TOKEN` | Cloudflare dashboard | API access |
+| `TF_VAR_CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard | Account ID |
+| `TF_VAR_CLOUDFLARE_ZONE_ID` | Cloudflare dashboard | Zone ID |
+| `TF_VAR_HCLOUD_TOKEN` | Hetzner console | API token |
+| `TF_VAR_DOMAIN` | Your domain | e.g. `example.com` |
+| `TF_VAR_ACCESS_EMAILS` | Allowed emails | Comma-separated |
+| `TF_VAR_INFISICAL_TOKEN` | Infisical dashboard | Optional |
+
+### First Deployment
+
+```bash
+# Run the deploy workflow
+gh workflow run deploy.yml
+```
+
+On **first run**, the pipeline will:
+1. Create the R2 bucket automatically
+2. Generate R2 API credentials
+3. **Display the credentials in the logs** with instructions
+4. Deploy the infrastructure
+
+> ⚠️ **Important:** After the first run, copy the `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from the logs and save them as GitHub Secrets!
+
+### Add R2 Credentials as Secrets
+
+After the first deploy, add these two additional secrets:
+
+| Secret Name | Source |
+|-------------|--------|
+| `R2_ACCESS_KEY_ID` | Shown in first deploy logs |
+| `R2_SECRET_ACCESS_KEY` | Shown in first deploy logs |
+
+Once saved, all future deployments will use these secrets automatically.
+
+### Available Workflows
+
+| Workflow | Command | Confirmation | Description |
+|----------|---------|--------------|-------------|
+| Deploy | `gh workflow run deploy.yml` | None | Full deploy |
+| Stop | `gh workflow run down.yml` | None | Destroy infra |
+| Destroy | `gh workflow run destroy.yml -f confirm=DESTROY` | Required | Delete everything |
+
+### Scheduled Deployment (Cost Saving)
+
+Add a schedule trigger to automatically stop infrastructure at night:
+
+```yaml
+# In .github/workflows/down.yml, add to "on:" section:
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 22 * * *'  # Every day at 22:00 UTC
+```
+
+### Local + CI Coexistence
+
+Both local and CI deployments share the same remote state in R2:
+- ✅ Deploy locally, destroy via CI
+- ✅ Deploy via CI, SSH locally  
+- ✅ Multiple team members with same state
 
 ---
 
