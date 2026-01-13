@@ -75,4 +75,11 @@ services = {
     port      = 5678
     public    = false
   }
+
+  mailpit = {
+    enabled   = true
+    subdomain = "mailpit"
+    port      = 8025
+    public    = false
+  }
 }
