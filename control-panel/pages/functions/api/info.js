@@ -96,6 +96,8 @@ export async function onRequestGet(context) {
         // Validate teardownTime format
         const timeFormatRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
         if (!timeFormatRegex.test(teardownTime)) {
+          // Log warning for invalid format
+          console.warn(`Invalid teardown_time format in KV: "${teardownTime}". Expected HH:MM format. Skipping next teardown calculation.`);
           // Skip calculation if invalid format
           info.scheduledTeardown.nextTeardown = null;
           info.scheduledTeardown.timeRemaining = null;
