@@ -139,28 +139,20 @@ fi
 chmod 600 "$SSH_CONFIG"
 
 # -----------------------------------------------------------------------------
-# Cloudflare Zero Trust Authentication (only if no Service Token)
+# Cloudflare Zero Trust Authentication (Service Token required)
 # -----------------------------------------------------------------------------
 if [ "$USE_SERVICE_TOKEN" = "false" ]; then
     echo ""
-    echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║  ${YELLOW}⚠️  Cloudflare Zero Trust Authentication Required${CYAN}            ║${NC}"
-    echo -e "${CYAN}╠═══════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}  Opening browser for Zero Trust login...                      ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}  1. Check your email for the verification code               ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}  2. Enter the code in the browser                            ${CYAN}║${NC}"
-    echo -e "${CYAN}║${NC}  3. Press Enter here when done                               ${CYAN}║${NC}"
-    echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║  ${YELLOW}❌ Service Token Required for GitHub Actions Deployment${RED}     ║${NC}"
+    echo -e "${RED}╠═══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${RED}║${NC}  Browser login is not supported in GitHub Actions.              ${RED}║${NC}"
+    echo -e "${RED}║${NC}  Service Token must be configured in Terraform outputs.        ${RED}║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-
-    cloudflared access login "https://${SSH_HOST}" >/dev/null 2>&1 &
-    CFLOGIN_PID=$!
-    sleep 2
-
-    read -p "Press Enter after completing Zero Trust authentication... "
-    kill $CFLOGIN_PID 2>/dev/null || true
+    exit 1
 else
-    echo -e "${GREEN}  ✓ Using Service Token for authentication (no browser required)${NC}"
+    echo -e "${GREEN}  ✓ Using Service Token for authentication${NC}"
 fi
 echo ""
 
@@ -190,13 +182,16 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     done
     
     if [ $TOKEN_RETRY -eq $MAX_TOKEN_RETRIES ]; then
-        echo -e "${YELLOW}  ⚠️  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts, falling back to browser login...${NC}"
-        USE_SERVICE_TOKEN=false
-        cloudflared access login "https://${SSH_HOST}" >/dev/null 2>&1 &
-        CFLOGIN_PID=$!
-        sleep 2
-        read -p "Press Enter after completing Zero Trust authentication... "
-        kill $CFLOGIN_PID 2>/dev/null || true
+        echo ""
+        echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║  ${YELLOW}❌ Service Token Authentication Failed${RED}                            ║${NC}"
+        echo -e "${RED}╠═══════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${RED}║${NC}  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts.  ${RED}║${NC}"
+        echo -e "${RED}║${NC}  Browser login fallback is not supported in GitHub Actions.      ${RED}║${NC}"
+        echo -e "${RED}║${NC}  Please check that the Service Token is correctly configured.     ${RED}║${NC}"
+        echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        exit 1
     fi
 fi
 
