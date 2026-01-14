@@ -94,7 +94,7 @@ jobs:
         if: steps.check_r2.outputs.r2_exists == 'false'
         id: init_r2
         env:
-          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🪣 Creating R2 bucket and credentials..."
           
