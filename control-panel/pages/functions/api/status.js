@@ -26,7 +26,8 @@ export async function onRequestGet(context) {
 
   // Workflow file paths (more reliable than name matching)
   const WORKFLOW_PATHS = {
-    deploy: 'deploy.yml',
+    setup: 'deploy.yml',
+    spinUp: 'spin-up.yml',
     teardown: 'teardown.yml',
     destroy: 'destroy-all.yml'
   };
@@ -70,7 +71,8 @@ export async function onRequestGet(context) {
     // Find the most recent run for each workflow type
     // Use workflow path (more reliable) or fallback to name
     const workflows = {
-      deploy: null,
+      setup: null,
+      spinUp: null,
       teardown: null,
       destroy: null,
     };
@@ -80,11 +82,17 @@ export async function onRequestGet(context) {
       const workflowName = run.name || '';
       
       // Match by path first (most reliable), then fallback to name
-      if (!workflows.deploy && (
-        workflowPath.includes(WORKFLOW_PATHS.deploy) || 
-        workflowName.includes('Deploy')
+      if (!workflows.setup && (
+        workflowPath.includes(WORKFLOW_PATHS.setup) || 
+        workflowName.includes('Setup')
       )) {
-        workflows.deploy = run;
+        workflows.setup = run;
+      } else if (!workflows.spinUp && (
+        workflowPath.includes(WORKFLOW_PATHS.spinUp) || 
+        workflowName.includes('Spin Up') ||
+        workflowName.includes('Spin-Up')
+      )) {
+        workflows.spinUp = run;
       } else if (!workflows.teardown && (
         workflowPath.includes(WORKFLOW_PATHS.teardown) || 
         workflowName.includes('Teardown')
@@ -103,7 +111,7 @@ export async function onRequestGet(context) {
     let inProgress = false;
 
     // Check if any workflow is currently running
-    const allRuns = [workflows.deploy, workflows.teardown, workflows.destroy].filter(Boolean);
+    const allRuns = [workflows.setup, workflows.spinUp, workflows.teardown, workflows.destroy].filter(Boolean);
     const runningWorkflow = allRuns.find(r => 
       r && (r.status === 'in_progress' || r.status === 'queued')
     );
@@ -113,7 +121,7 @@ export async function onRequestGet(context) {
       infraState = 'running';
     } else {
       // Find the most recent completed workflow
-      const completedRuns = allRuns
+      const completedRuns = [workflows.spinUp, workflows.teardown, workflows.destroy]
         .filter(r => r && r.conclusion === 'success')
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
       
@@ -122,7 +130,7 @@ export async function onRequestGet(context) {
         const lastPath = lastRun.path || lastRun.workflow_id || '';
         const lastName = lastRun.name || '';
         
-        if (lastPath.includes(WORKFLOW_PATHS.deploy) || lastName.includes('Deploy')) {
+        if (lastPath.includes(WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
           infraState = 'deployed';
         } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
           infraState = 'torn-down';
@@ -137,11 +145,17 @@ export async function onRequestGet(context) {
       infraState,
       inProgress,
       workflows: {
-        deploy: workflows.deploy ? {
-          status: workflows.deploy.status,
-          conclusion: workflows.deploy.conclusion,
-          updatedAt: workflows.deploy.updated_at,
-          url: workflows.deploy.html_url,
+        setup: workflows.setup ? {
+          status: workflows.setup.status,
+          conclusion: workflows.setup.conclusion,
+          updatedAt: workflows.setup.updated_at,
+          url: workflows.setup.html_url,
+        } : null,
+        spinUp: workflows.spinUp ? {
+          status: workflows.spinUp.status,
+          conclusion: workflows.spinUp.conclusion,
+          updatedAt: workflows.spinUp.updated_at,
+          url: workflows.spinUp.html_url,
         } : null,
         teardown: workflows.teardown ? {
           status: workflows.teardown.status,

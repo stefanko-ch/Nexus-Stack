@@ -9,9 +9,10 @@ Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
 │  Cloudflare Pages (control.domain.com)         │
 │  ┌──────────────┐     ┌──────────────────────┐ │
 │  │   Frontend   │────▶│  Pages Functions     │ │
-│  │  index.html  │     │  /api/deploy         │ │
-│  └──────────────┘     │  /api/teardown       │ │
-│                       │  /api/destroy        │ │
+│  │  index.html  │     │  /api/setup          │ │
+│  └──────────────┘     │  /api/spin-up        │ │
+│                       │  /api/teardown       │ │
+│                       │  /api/services       │ │
 │                       │  /api/status         │ │
 │                       └──────────────────────┘ │
 │                              │                  │
@@ -25,9 +26,10 @@ Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
 
 ## 🚀 Features
 
-- **Deploy** - Trigger full infrastructure deployment
+- **Setup** - One-time setup workflow (triggers spin-up)
+- **Spin Up** - Re-create infrastructure after teardown
 - **Teardown** - Stop infrastructure (keeps control panel + R2 state)
-- **Destroy** - Full cleanup (removes everything)
+- **Services** - Enable/disable services and trigger spin-up
 - **Status** - Real-time workflow monitoring
 - **Secure** - GitHub token stays server-side, protected by Cloudflare Access
 
@@ -40,9 +42,10 @@ control-panel/
 │   ├── nexus-logo-green.png   # Logo
 │   └── functions/              # Cloudflare Pages Functions (API)
 │       └── api/
-│           ├── deploy.js       # POST /api/deploy
+│           ├── setup.js        # POST /api/setup
+│           ├── spin-up.js      # POST /api/spin-up
 │           ├── teardown.js     # POST /api/teardown
-│           ├── destroy.js      # POST /api/destroy
+│           ├── services.js     # GET/POST /api/services
 │           ├── status.js       # GET /api/status
 │           └── health.js       # GET /api/health
 ├── README.md                   # This file
@@ -76,8 +79,8 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
 ### GitHub Token Requirements
 
 Create a Personal Access Token with:
-- **Scope:** `repo` (full control of private repositories)
-- **Or:** `public_repo` + `workflow` (for public repos)
+- **Classic:** `repo` (full control of private repositories)
+- **Fine-grained:** `Actions: Write`, `Contents: Read`, `Contents: Write`
 
 Generate at: https://github.com/settings/tokens
 
@@ -121,11 +124,14 @@ Access at `http://localhost:8788`
 
 ### "Failed to trigger workflow"
 - Check `GITHUB_TOKEN` is set correctly
-- Verify token has `workflow` scope
+- Verify token has `workflow` scope or `Actions: Write`
 - Check `GITHUB_OWNER` and `GITHUB_REPO` match your repository
 
 ### "Failed to fetch status"
 - Same as above - token permissions issue
+
+### "Failed to update services"
+- Verify token has `Contents: Write`
 
 ### Workflows not appearing
 - Wait a few seconds for GitHub API propagation

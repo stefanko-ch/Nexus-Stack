@@ -1,10 +1,11 @@
-name: Deploy Infrastructure
+name: Setup Nexus-Stack
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: infrastructure
@@ -97,6 +98,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🪣 Creating R2 bucket and credentials..."
+          r2_saved=false
           
           # Run the init script
           chmod +x scripts/init-r2-state.sh
@@ -125,6 +127,7 @@ jobs:
                 echo "✅ R2 credentials saved to GitHub Secrets automatically!"
                 echo ""
                 echo "Future deployments will use these credentials."
+                r2_saved=true
               else
                 echo "⚠️  Failed to auto-save secrets: $SECRET_ERROR"
                 echo ""
@@ -151,6 +154,8 @@ jobs:
               echo "║                                                                              ║"
               echo "╚══════════════════════════════════════════════════════════════════════════════╝"
             fi
+            
+            echo "r2_saved=$r2_saved" >> $GITHUB_OUTPUT
             
             # Export for this run
             echo "r2_access_key=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
@@ -192,8 +197,27 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=backend.hcl
 
-      - name: Deploy infrastructure
-        run: make up
+      - name: Deploy Control Panel infrastructure
+        run: |
+          cd tofu
+          source .r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          echo "🏗️  Deploying Control Panel infrastructure (Cloudflare Pages + Worker)..."
+          # Deploy only Control Panel resources (not the server)
+          # Note: DNS record is deployed in spin-up workflow to avoid provider conflicts
+          tofu apply -var-file=config.tfvars -auto-approve \
+            -target=cloudflare_pages_project.control_panel \
+            -target=cloudflare_pages_domain.control_panel \
+            -target=cloudflare_zero_trust_access_application.control_panel \
+            -target=cloudflare_zero_trust_access_policy.control_panel_email \
+            -target=cloudflare_workers_kv_namespace.scheduled_teardown \
+            -target=cloudflare_workers_script.scheduled_teardown \
+            -target=cloudflare_workers_cron_trigger.scheduled_teardown_notification \
+            -target=cloudflare_workers_cron_trigger.scheduled_teardown_execution
+          
+          echo "✅ Control Panel infrastructure deployed"
 
       - name: Set Control Panel environment variables and secrets
         env:
@@ -263,71 +287,33 @@ jobs:
           echo "📝 Note: Deployed to production branch (main)"
           echo "   Environment variables are set for both production and preview environments"
 
-      - name: Get Infisical admin password for email
-        run: |
-          cd tofu
-          source .r2-credentials
-          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          
-          # Get Infisical admin password from OpenTofu output
-          INFISICAL_PASS=$(tofu output -raw infisical_admin_password 2>/dev/null || echo "")
-          
-          if [ -n "$INFISICAL_PASS" ]; then
-            # Store password for email step (only used within this workflow)
-            echo "INFISICAL_PASS=$INFISICAL_PASS" >> $GITHUB_ENV
-            echo "✅ Infisical password retrieved (will be sent via email)"
-          else
-            echo "⚠️  Could not retrieve Infisical password from Terraform output"
-            echo "   View password via: make secrets (locally) or SSH to server"
-          fi
-
-      - name: Send credentials email via Resend
-        if: env.INFISICAL_PASS != ''
+      - name: Trigger spin-up workflow
+        if: steps.check_r2.outputs.r2_exists == 'true' || steps.init_r2.outputs.r2_saved == 'true'
         env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          DOMAIN: ${{ secrets.DOMAIN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "$RESEND_API_KEY" ]; then
-            echo "📧 Sending credentials email..."
-            
-            # Build HTML email (single line to avoid YAML heredoc issues)
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse;width:100%"><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Email</td><td style="padding:8px;border:1px solid #333"><code>EMAIL_PLACEHOLDER</code></td></tr><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Password</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#00ff88;margin-top:1rem;font-weight:bold">📧 Login with your email address: <code>EMAIL_PLACEHOLDER</code></p><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li></ul><div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">📮 Do not reply</p><p style="color:#999;margin:0.5rem 0 0 0;font-size:13px">This mailbox is not monitored. For questions or support, please contact: <a href="mailto:EMAIL_PLACEHOLDER" style="color:#00ff88">EMAIL_PLACEHOLDER</a></p></div><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after deployment.</p></div>'
-            
-            # Replace placeholders
-            EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
-            EMAIL_HTML="${EMAIL_HTML//EMAIL_PLACEHOLDER/$ADMIN_EMAIL}"
-            EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
-            
-            # Use jq to properly escape JSON (to must be an array per Resend API)
-            JSON_PAYLOAD=$(jq -n \
-              --arg from "Nexus-Stack <nexus@$DOMAIN>" \
-              --arg to "$ADMIN_EMAIL" \
-              --arg subject "🚀 Nexus-Stack Deployed - Your Credentials" \
-              --arg html "$EMAIL_HTML" \
-              '{from: $from, to: [$to], subject: $subject, html: $html}')
-            
-            # Send email with proper error handling
-            HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
-              -H "Authorization: Bearer $RESEND_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "$JSON_PAYLOAD")
-            
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "✅ Credentials email sent to $ADMIN_EMAIL"
-            else
-              echo "⚠️  Failed to send email (HTTP $HTTP_STATUS) - deployment continues"
-              cat /tmp/resend_response.txt 2>/dev/null || true
-            fi
-          else
-            echo "⚠️  RESEND_API_KEY not configured - skipping email"
+          echo "🚀 Triggering spin-up workflow..."
+          
+          RESPONSE_CODE=$(curl -s -o /tmp/spinup_response.txt -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/workflows/spin-up.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"send_credentials\":\"true\"}}")
+          
+          if [ "$RESPONSE_CODE" -ne 204 ]; then
+            echo "❌ Failed to trigger spin-up workflow (HTTP $RESPONSE_CODE)"
+            cat /tmp/spinup_response.txt 2>/dev/null || true
+            exit 1
           fi
+          
+          echo "✅ Spin-up workflow triggered"
 
-      - name: Show deployment info
+      - name: Show setup info
         run: |
           echo ""
-          echo "✅ Deployment complete!"
+          echo "✅ Setup complete!"
           echo ""
           echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
           echo "   (View all service URLs and credentials there)"

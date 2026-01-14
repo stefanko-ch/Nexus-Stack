@@ -208,9 +208,14 @@
             filter: grayscale(0.3);
         }
 
-        .action-btn.deploy {
+        .action-btn.setup {
             border-color: rgba(0, 255, 136, 0.6);
             color: #00ff88;
+        }
+
+        .action-btn.spin-up {
+            border-color: rgba(0, 170, 255, 0.6);
+            color: #00aaff;
         }
 
         .action-btn.teardown {
@@ -223,14 +228,217 @@
             box-shadow: 0 0 30px rgba(255, 170, 0, 0.3);
         }
 
-        .action-btn.destroy {
-            border-color: rgba(255, 68, 68, 0.6);
-            color: #ff4444;
+        /* Scheduled Teardown Panel */
+        .scheduled-teardown-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            padding: 1.5rem;
+            margin-top: 2rem;
         }
 
-        .action-btn.destroy:hover {
-            border-color: #ff4444;
-            box-shadow: 0 0 30px rgba(255, 68, 68, 0.3);
+        .scheduled-teardown-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #ffaa00;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .scheduled-teardown-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .scheduled-teardown-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 170, 0, 0.2);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: rgba(255, 170, 0, 0.2);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: #ffaa00;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: left 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            left: 27px;
+        }
+
+        .delay-btn {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.4);
+            color: #ffaa00;
+            padding: 0.6rem 1.2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 4px;
+        }
+
+        .delay-btn:hover:not(:disabled) {
+            background: rgba(255, 170, 0, 0.2);
+            border-color: #ffaa00;
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+        }
+
+        .delay-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .scheduled-info {
+            font-size: 0.75rem;
+            color: #607080;
+            margin-top: 0.5rem;
+        }
+
+        /* Services Panel */
+        .services-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .services-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .service-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .service-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .service-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .service-name {
+            font-weight: bold;
+            color: #00ff88;
+            font-size: 0.9rem;
+        }
+
+        .service-description {
+            font-size: 0.75rem;
+            color: #607080;
+        }
+
+        .service-toggle {
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        .service-toggle.active {
+            background: #00ff88;
+        }
+
+        .service-toggle.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .info-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .info-item-label {
+            font-size: 0.7rem;
+            color: #607080;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        .info-item-value {
+            font-size: 0.9rem;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .info-item-value.highlight {
+            color: #00ff88;
+        }
+
+        .info-item-value.warning {
+            color: #ffaa00;
         }
 
         .action-btn .icon {
@@ -491,18 +699,74 @@
 
         <!-- Action Buttons -->
         <div class="actions">
-            <button class="action-btn deploy" id="btn-deploy" disabled>
-                <span class="icon">🚀</span>
-                Deploy
+            <button class="action-btn setup" id="btn-setup" disabled>
+                <span class="icon">🧰</span>
+                Setup
+            </button>
+            <button class="action-btn spin-up" id="btn-spin-up" disabled>
+                <span class="icon">⚡</span>
+                Spin Up
             </button>
             <button class="action-btn teardown" id="btn-teardown" disabled>
                 <span class="icon">💤</span>
                 Teardown
             </button>
-            <button class="action-btn destroy" id="btn-destroy" disabled>
-                <span class="icon">💀</span>
-                Destroy
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <h2><span class="icon">ℹ️</span> Infrastructure Information</h2>
+            <div class="info-grid" id="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Server Type</div>
+                    <div class="info-item-value" id="info-server-type">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Location</div>
+                    <div class="info-item-value" id="info-server-location">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Domain</div>
+                    <div class="info-item-value highlight" id="info-domain">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Last Spin Up</div>
+                    <div class="info-item-value" id="info-last-deploy">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Last Teardown</div>
+                    <div class="info-item-value" id="info-last-teardown">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Uptime</div>
+                    <div class="info-item-value highlight" id="info-uptime">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scheduled Teardown Panel -->
+        <div class="scheduled-teardown-panel">
+            <h2><span class="icon">⏰</span> Scheduled Teardown</h2>
+            <div class="scheduled-teardown-controls">
+                <div class="scheduled-teardown-toggle">
+                    <div>
+                        <div style="font-weight: bold; margin-bottom: 0.3rem;">Automatic Daily Teardown</div>
+                        <div class="scheduled-info" id="scheduled-info">Loading...</div>
+                    </div>
+                    <div class="toggle-switch" id="toggle-scheduled-teardown"></div>
+                </div>
+                <button class="delay-btn" id="btn-delay-teardown" disabled>
+                    ⏱️ Delay Teardown by 2 Hours
             </button>
+            </div>
+        </div>
+
+        <!-- Services Panel -->
+        <div class="services-panel">
+            <h2><span class="icon">🧩</span> Services</h2>
+            <div class="service-list" id="services-list">
+                <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
+            </div>
         </div>
 
         <!-- Workflow History -->
@@ -539,8 +803,8 @@
         // Status descriptions
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
-            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Deploy to restart.',
-            'destroyed': 'Everything is destroyed. Click Deploy to start fresh.',
+            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
+            'destroyed': 'Everything is destroyed. Run Setup to start fresh.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -604,47 +868,254 @@
         }
 
         function updateButtons(data) {
-            const btnDeploy = document.getElementById('btn-deploy');
+            const btnSetup = document.getElementById('btn-setup');
+            const btnSpinUp = document.getElementById('btn-spin-up');
             const btnTeardown = document.getElementById('btn-teardown');
-            const btnDestroy = document.getElementById('btn-destroy');
             
             // Disable all if workflow is running
             if (data.inProgress) {
-                btnDeploy.disabled = true;
+                btnSetup.disabled = true;
+                btnSpinUp.disabled = true;
                 btnTeardown.disabled = true;
-                btnDestroy.disabled = true;
-                btnDeploy.innerHTML = '<span class="spinner"></span>Working...';
+                btnSetup.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
-            // Reset deploy button
-            btnDeploy.innerHTML = '<span class="icon">🚀</span>Deploy';
+            const setupComplete = data.workflows && data.workflows.setup && data.workflows.setup.conclusion === 'success';
+            
+            // Reset buttons
+            btnSetup.innerHTML = '<span class="icon">🧰</span>Setup';
+            btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
+            btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
             
             // Enable based on state
             switch (data.infraState) {
                 case 'deployed':
-                    btnDeploy.disabled = true;
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = false;
-                    btnDestroy.disabled = false;
                     break;
                 case 'torn-down':
-                    btnDeploy.disabled = false;
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = !setupComplete;
                     btnTeardown.disabled = true;
-                    btnDestroy.disabled = false;
                     break;
                 case 'destroyed':
-                    btnDeploy.disabled = false;
+                    btnSetup.disabled = false;
+                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = true;
-                    btnDestroy.disabled = true;
                     break;
                 case 'unknown':
                 default:
-                    // When status is unknown, allow all actions but show them as available
-                    // User can still deploy, and if infrastructure exists, teardown/destroy will work
-                    btnDeploy.disabled = false;
+                    btnSetup.disabled = setupComplete && data.infraState !== 'destroyed';
+                    btnSpinUp.disabled = !setupComplete;
                     btnTeardown.disabled = false;
-                    btnDestroy.disabled = false;
                     break;
+            }
+        }
+
+        // Scheduled Teardown Functions
+        async function loadScheduledTeardownConfig() {
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success) {
+                    updateScheduledTeardownUI(data.config);
+                }
+            } catch (error) {
+                console.error('Failed to load scheduled teardown config:', error);
+            }
+        }
+
+        function updateScheduledTeardownUI(config) {
+            const toggle = document.getElementById('toggle-scheduled-teardown');
+            const info = document.getElementById('scheduled-info');
+            const delayBtn = document.getElementById('btn-delay-teardown');
+            
+            if (config.enabled) {
+                toggle.classList.add('active');
+                const now = new Date();
+                const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
+                if (delayUntil && delayUntil > now) {
+                    const diffMs = delayUntil - now;
+                    const hours = Math.ceil(diffMs / (1000 * 60 * 60));
+                    const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
+                    delayBtn.disabled = true;
+                } else if (config.nextTeardown) {
+                    const nextTeardown = new Date(config.nextTeardown);
+                    const timeRemaining = config.timeRemaining;
+                    if (timeRemaining) {
+                        let timeText = '';
+                        if (timeRemaining.hours > 0) {
+                            timeText += `${timeRemaining.hours}h `;
+                        }
+                        timeText += `${timeRemaining.minutes}m`;
+                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                    } else {
+                        info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
+                    }
+                    delayBtn.disabled = false;
+                } else {
+                    info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
+                    delayBtn.disabled = false;
+                }
+            } else {
+                toggle.classList.remove('active');
+                info.textContent = 'Disabled - No automatic teardown';
+                delayBtn.disabled = true;
+            }
+        }
+
+        async function toggleScheduledTeardown() {
+            const toggle = document.getElementById('toggle-scheduled-teardown');
+            const isEnabled = toggle.classList.contains('active');
+            const newState = !isEnabled;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newState })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateScheduledTeardownUI(data.config);
+                        showToast(newState ? 'Scheduled teardown enabled' : 'Scheduled teardown disabled', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to toggle scheduled teardown:', error);
+                showToast('Failed to update scheduled teardown', 'error');
+            }
+        }
+
+        async function delayTeardown() {
+            const delayBtn = document.getElementById('btn-delay-teardown');
+            delayBtn.disabled = true;
+            delayBtn.textContent = 'Processing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ delayHours: 2 })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateScheduledTeardownUI(data.config);
+                        showToast('Teardown delayed by 2 hours', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to delay teardown:', error);
+                showToast('Failed to delay teardown', 'error');
+            } finally {
+                delayBtn.disabled = false;
+                delayBtn.textContent = '⏱️ Delay Teardown by 2 Hours';
+            }
+        }
+
+        // Services functions
+        async function loadServices() {
+            try {
+                const response = await fetch(`${API_URL}/api/services`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success) {
+                    renderServices(data.services || []);
+                }
+            } catch (error) {
+                console.error('Failed to load services:', error);
+            }
+        }
+
+        function renderServices(services) {
+            const list = document.getElementById('services-list');
+            list.innerHTML = '';
+
+            if (!services.length) {
+                list.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No services found</p>';
+                return;
+            }
+
+            services.forEach(service => {
+                const item = document.createElement('div');
+                item.className = 'service-item';
+
+                const details = document.createElement('div');
+                details.className = 'service-details';
+
+                const name = document.createElement('div');
+                name.className = 'service-name';
+                name.textContent = service.name;
+
+                const description = document.createElement('div');
+                description.className = 'service-description';
+                description.textContent = service.description || 'No description';
+
+                details.appendChild(name);
+                details.appendChild(description);
+
+                const toggle = document.createElement('div');
+                toggle.className = 'toggle-switch service-toggle';
+                if (service.enabled) {
+                    toggle.classList.add('active');
+                }
+
+                toggle.addEventListener('click', () => {
+                    if (toggle.classList.contains('disabled')) return;
+                    updateServiceToggle(service.name, !service.enabled, toggle);
+                });
+
+                item.appendChild(details);
+                item.appendChild(toggle);
+                list.appendChild(item);
+            });
+        }
+
+        async function updateServiceToggle(serviceName, enabled, toggleEl) {
+            toggleEl.classList.add('disabled');
+
+            try {
+                const response = await fetch(`${API_URL}/api/services`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ service: serviceName, enabled })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update service');
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    if (enabled) {
+                        toggleEl.classList.add('active');
+                    } else {
+                        toggleEl.classList.remove('active');
+                    }
+                    showToast('Service updated. Spin up triggered.', 'success');
+                    loadServices();
+                    setTimeout(fetchStatus, 2000);
+                } else {
+                    showToast(data.error || 'Failed to update service', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to update service:', error);
+                showToast('Failed to update service', 'error');
+            } finally {
+                toggleEl.classList.remove('disabled');
             }
         }
 
@@ -653,9 +1124,9 @@
             historyList.innerHTML = '';
             
             const items = [
-                { name: 'Deploy', data: workflows.deploy },
+                { name: 'Setup', data: workflows.setup },
+                { name: 'Spin Up', data: workflows.spinUp },
                 { name: 'Teardown', data: workflows.teardown },
-                { name: 'Destroy', data: workflows.destroy }
             ].filter(item => item.data);
             
             if (items.length === 0) {
@@ -683,9 +1154,9 @@
         // Action handlers
         async function triggerAction(action) {
             const actionLabels = {
-                'deploy': 'Deploy Infrastructure',
+                'setup': 'Setup Infrastructure',
+                'spin-up': 'Spin Up Infrastructure',
                 'teardown': 'Teardown Infrastructure',
-                'destroy': 'Destroy Everything'
             };
             
             // Disable buttons during action
@@ -743,12 +1214,8 @@
             const configs = {
                 'teardown': {
                     title: '⚠️ Confirm Teardown',
-                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to re-deploy later.'
+                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to spin up later.'
                 },
-                'destroy': {
-                    title: '💀 Confirm Full Destroy',
-                    message: 'This will PERMANENTLY destroy ALL infrastructure including this control panel. You will need to run the initial setup again. This action cannot be undone!'
-                }
             };
             
             const config = configs[action];
@@ -772,9 +1239,11 @@
         }
 
         // Event listeners
-        document.getElementById('btn-deploy').addEventListener('click', () => triggerAction('deploy'));
+        document.getElementById('btn-setup').addEventListener('click', () => triggerAction('setup'));
+        document.getElementById('btn-spin-up').addEventListener('click', () => triggerAction('spin-up'));
         document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
-        document.getElementById('btn-destroy').addEventListener('click', () => showConfirmModal('destroy'));
+        document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
+        document.getElementById('btn-delay-teardown').addEventListener('click', delayTeardown);
         
         document.getElementById('modal-cancel').addEventListener('click', hideModal);
         document.getElementById('modal-confirm').addEventListener('click', () => {
@@ -796,6 +1265,10 @@
                 console.warn('Health check failed:', error);
             }
         }
+
+        // Load scheduled teardown config on page load
+        loadServices();
+        loadScheduledTeardownConfig();
 
         // Polling with exponential backoff on errors
         let consecutiveErrors = 0;
