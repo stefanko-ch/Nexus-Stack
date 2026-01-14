@@ -366,20 +366,32 @@ make setup-control-panel-secrets
 | **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
 | **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
 
-### Scheduled Teardown (Cost Saving)
+### Scheduled Teardown (Cost Saving - Optional)
 
-Nexus-Stack can automatically tear down infrastructure daily to save costs:
+Nexus-Stack can automatically tear down infrastructure daily to save costs. This feature is **optional** and must be enabled via the Control Panel.
 
+**Features:**
 - **Email notification** sent 15 minutes before teardown (21:45)
 - **Automatic teardown** runs daily at 22:00
 - **Default timezone**: Europe/Zurich (Switzerland)
-- **Configurable**: Set `TEARDOWN_TIMEZONE` secret to change timezone (e.g., `America/New_York`)
+- **Configurable**: Enable/disable and configure via Control Panel API
 
-**Note:** GitHub Actions cron uses UTC. Adjust cron times in workflow files if you change the timezone:
-- `.github/workflows/teardown-notification.yml` (notification at 21:45)
-- `.github/workflows/teardown.yml` (teardown at 22:00)
+**Enable via Control Panel:**
+```bash
+# Enable scheduled teardown
+curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "timezone": "Europe/Zurich", "teardownTime": "22:00"}'
 
-To disable scheduled teardown, remove the `schedule:` section from both workflow files.
+# Check current configuration
+curl https://control.YOUR_DOMAIN/api/scheduled-teardown
+```
+
+**Architecture:**
+- Cloudflare Worker runs scheduled cron jobs (20:45 UTC for notification, 21:00 UTC for teardown)
+- Configuration stored in Cloudflare KV (accessible via Control Panel API)
+- Worker checks if scheduled teardown is enabled before triggering actions
+- Default: **disabled** (must be explicitly enabled)
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
 
