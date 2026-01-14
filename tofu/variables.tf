@@ -89,6 +89,28 @@ variable "admin_email" {
   type        = string
 }
 
+variable "auth_methods" {
+  description = "Authentication methods for Cloudflare Access (email, github, google, service_token). Multiple methods can be enabled - user can choose any one."
+  type = object({
+    email         = bool  # Email OTP (default: true)
+    github        = bool  # GitHub OAuth (default: false)
+    google        = bool  # Google OAuth (default: false)
+    service_token = bool  # Service tokens for CI/CD (default: false)
+  })
+  default = {
+    email         = true
+    github        = false
+    google        = false
+    service_token = false
+  }
+}
+
+variable "github_org" {
+  description = "GitHub organization name for OAuth authentication (optional, required if auth_methods.github = true)"
+  type        = string
+  default     = ""
+}
+
 variable "admin_username" {
   description = "Admin username for services like Portainer, Uptime Kuma (default: admin)"
   type        = string
