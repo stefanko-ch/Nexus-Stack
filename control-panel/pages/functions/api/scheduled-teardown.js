@@ -24,6 +24,7 @@ export async function onRequestGet(context) {
     const timezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
     const teardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
     const notificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
+    const delayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
     
     return new Response(JSON.stringify({
       success: true,
@@ -32,6 +33,7 @@ export async function onRequestGet(context) {
         timezone,
         teardownTime,
         notificationTime,
+        delayUntil,
       },
     }), {
       status: 200,
@@ -63,7 +65,7 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
-    const { enabled, timezone, teardownTime, notificationTime } = body;
+    const { enabled, timezone, teardownTime, notificationTime, delayHours } = body;
 
     // Validate input
     if (enabled !== undefined && enabled !== true && enabled !== false) {
@@ -76,9 +78,20 @@ export async function onRequestPost(context) {
       });
     }
 
+    // Handle delay request
+    if (delayHours !== undefined) {
+      const delayMs = delayHours * 60 * 60 * 1000;
+      const delayUntil = new Date(Date.now() + delayMs).toISOString();
+      await env.SCHEDULED_TEARDOWN.put('delay_until', delayUntil);
+    }
+
     // Update KV store
     if (enabled !== undefined) {
       await env.SCHEDULED_TEARDOWN.put('enabled', enabled ? 'true' : 'false');
+      // Clear delay when disabling
+      if (!enabled) {
+        await env.SCHEDULED_TEARDOWN.delete('delay_until');
+      }
     }
     if (timezone) {
       await env.SCHEDULED_TEARDOWN.put('timezone', timezone);
@@ -95,6 +108,7 @@ export async function onRequestPost(context) {
     const updatedTimezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
     const updatedTeardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
     const updatedNotificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
+    const updatedDelayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
 
     return new Response(JSON.stringify({
       success: true,
@@ -103,6 +117,7 @@ export async function onRequestPost(context) {
         timezone: updatedTimezone,
         teardownTime: updatedTeardownTime,
         notificationTime: updatedNotificationTime,
+        delayUntil: updatedDelayUntil,
       },
       message: 'Configuration updated successfully',
     }), {

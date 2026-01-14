@@ -39,6 +39,21 @@ async function handleScheduledTeardown(event, env) {
       return;
     }
 
+    // Check if teardown is delayed
+    if (config.delayUntil) {
+      const delayUntil = new Date(config.delayUntil);
+      const now = new Date();
+      if (now < delayUntil) {
+        const hoursRemaining = Math.ceil((delayUntil - now) / (1000 * 60 * 60));
+        console.log(`Scheduled teardown is delayed until ${delayUntil.toISOString()} (${hoursRemaining} hours remaining)`);
+        return;
+      } else {
+        // Delay has expired, clear it
+        await env.SCHEDULED_TEARDOWN.delete('delay_until');
+        console.log('Delay period expired, teardown will proceed');
+      }
+    }
+
     const now = new Date();
     const currentTime = now.toISOString();
     const cronTime = event.cron; // e.g., "0 21 * * *"
@@ -46,7 +61,6 @@ async function handleScheduledTeardown(event, env) {
     console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronTime})`);
 
     // Determine if this is notification time or teardown time
-    // We'll use two separate cron triggers, but for now check the time
     const hour = now.getUTCHours();
     const minute = now.getUTCMinutes();
     
@@ -67,8 +81,9 @@ async function getConfig(kv) {
   const timezone = await kv.get('timezone') || 'Europe/Zurich';
   const teardownTime = await kv.get('teardown_time') || '22:00';
   const notificationTime = await kv.get('notification_time') || '21:45';
+  const delayUntil = await kv.get('delay_until') || null;
   
-  return { enabled, timezone, teardownTime, notificationTime };
+  return { enabled, timezone, teardownTime, notificationTime, delayUntil };
 }
 
 async function sendNotification(env, config) {
