@@ -1,4 +1,4 @@
-name: Spin Up Infrastructure
+name: Spin Up Nexus-Stack
 
 on:
   workflow_dispatch:
