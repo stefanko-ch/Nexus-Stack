@@ -316,6 +316,7 @@ Deploy entirely via CI - no local tools required!
 1. Add secrets to your repo (Settings → Secrets → Actions):
    - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`
    - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`, `ADMIN_EMAIL`
+   - **(Optional)** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` - For increased Docker pull rate limits (200 vs 100 pulls/6h)
 
 2. **(Optional)** For auto-saving R2 credentials, create a Fine-grained PAT:
    - GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
