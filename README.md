@@ -17,7 +17,7 @@
 
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated.**
 
-> ⚠️ **Disclaimer:** This project was developed and tested on macOS. Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
+> ⚠️ **Disclaimer:** Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
 
 ## What This Does
 
@@ -365,6 +365,21 @@ make setup-control-panel-secrets
 | **Deploy** | `gh workflow run deploy.yml` | Full deploy |
 | **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
 | **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
+
+### Scheduled Teardown (Cost Saving)
+
+Nexus-Stack can automatically tear down infrastructure daily to save costs:
+
+- **Email notification** sent 15 minutes before teardown (21:45)
+- **Automatic teardown** runs daily at 22:00
+- **Default timezone**: Europe/Zurich (Switzerland)
+- **Configurable**: Set `TEARDOWN_TIMEZONE` secret to change timezone (e.g., `America/New_York`)
+
+**Note:** GitHub Actions cron uses UTC. Adjust cron times in workflow files if you change the timezone:
+- `.github/workflows/teardown-notification.yml` (notification at 21:45)
+- `.github/workflows/teardown.yml` (teardown at 22:00)
+
+To disable scheduled teardown, remove the `schedule:` section from both workflow files.
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
 

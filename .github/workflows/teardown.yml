@@ -7,6 +7,13 @@ on:
         description: 'Type "TEARDOWN" to confirm (keeps control panel)'
         required: true
         type: string
+  schedule:
+    # Scheduled teardown - runs daily at configured time
+    # Default: 22:00 Europe/Zurich (Switzerland) = 21:00 UTC (winter) / 20:00 UTC (summer)
+    # Adjust cron time based on your timezone (GitHub Actions uses UTC)
+    # To change timezone, set TEARDOWN_TIMEZONE secret (e.g., "Europe/Zurich", "America/New_York")
+    # Then adjust cron time: 22:00 CET = 21:00 UTC, 22:00 CEST = 20:00 UTC
+    - cron: '0 21 * * *'  # 22:00 CET / 23:00 CEST (Switzerland)
 
 permissions:
   contents: read
@@ -19,7 +26,10 @@ jobs:
   teardown:
     name: Teardown Hetzner Infrastructure
     runs-on: ubuntu-latest
-    if: github.event.inputs.confirm == 'TEARDOWN'
+    # Allow both manual dispatch (with confirmation) and scheduled runs
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'TEARDOWN') ||
+      (github.event_name == 'schedule')
     env:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -34,15 +44,25 @@ jobs:
     steps:
       - name: Validate confirmation
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "TEARDOWN" ]; then
-            echo "❌ Teardown cancelled. You must type 'TEARDOWN' to confirm."
-            exit 1
+          # For scheduled runs, skip confirmation check
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "⏰ Scheduled teardown triggered"
+            echo "   This will:"
+            echo "   - Destroy Hetzner server and all Docker containers"
+            echo "   - Remove Cloudflare Tunnel to Hetzner"
+            echo "   - Keep the Control Panel active for re-deployment"
+          else
+            # For manual dispatch, require confirmation
+            if [ "${{ github.event.inputs.confirm }}" != "TEARDOWN" ]; then
+              echo "❌ Teardown cancelled. You must type 'TEARDOWN' to confirm."
+              exit 1
+            fi
+            echo "⚠️  TEARDOWN CONFIRMED"
+            echo "   This will:"
+            echo "   - Destroy Hetzner server and all Docker containers"
+            echo "   - Remove Cloudflare Tunnel to Hetzner"
+            echo "   - Keep the Control Panel active for re-deployment"
           fi
-          echo "⚠️  TEARDOWN CONFIRMED"
-          echo "   This will:"
-          echo "   - Destroy Hetzner server and all Docker containers"
-          echo "   - Remove Cloudflare Tunnel to Hetzner"
-          echo "   - Keep the Control Panel active for re-deployment"
 
       - name: Checkout
         uses: actions/checkout@v4
