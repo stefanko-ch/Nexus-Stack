@@ -337,13 +337,18 @@ Deploy entirely via CI - no local tools required!
 6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
 7. Control Panel environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
 
-**Note:** The Control Panel requires `GITHUB_TOKEN` (or `GH_SECRETS_TOKEN`) to be set with the following scopes:
+**Note:** The Control Panel requires `GITHUB_TOKEN` to be set with the following permissions:
+
+**For Classic Tokens:**
 - `workflow` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
 - `repo` - Full control of repositories (required for auto-saving R2 credentials as Secrets)
 
 **For Fine-Grained Tokens:**
-- `Actions: Write` - Trigger workflows
-- `Secrets: Write` - Write repository secrets
+- Repository: Select your `Nexus-Stack` repository
+- `Actions: Write` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
+
+**Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token.
 
 Set the token manually:
 ```bash

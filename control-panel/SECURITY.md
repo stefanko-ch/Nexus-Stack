@@ -65,16 +65,20 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
 
 ### Token Requirements
 
-**Required scopes for GitHub Personal Access Token (classic):**
+**For Classic Personal Access Tokens:**
 
 ```
 ✓ workflow          - Trigger GitHub Actions workflows
 ✓ repo              - Full control of repositories (includes Secrets write access)
 ```
 
-**For Fine-Grained Tokens:**
-- `Actions: Write` - Trigger GitHub Actions workflows
-- `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
+**For Fine-Grained Personal Access Tokens:**
+
+Required permissions:
+- **Repository access:** Select the specific repository (`Nexus-Stack`)
+- **Repository permissions:**
+  - `Actions: Write` - Trigger GitHub Actions workflows (Deploy/Teardown/Destroy)
+  - `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
 
 **Not needed:**
 - ✗ `write:packages`
@@ -82,10 +86,13 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
 - ✗ `admin:org`
 - ✗ `gist`
 - ✗ `user`
+- ✗ `Contents: Write` (read-only is sufficient)
 
-**Note:** The `repo` scope is required for:
-- Triggering workflows (via `workflow` permission)
-- Auto-saving R2 credentials as GitHub Secrets (via `write:secrets` permission)
+**Important Notes:**
+- Fine-Grained Tokens require explicit repository selection
+- Make sure the token has access to the correct repository
+- Token expiration must be set appropriately (or no expiration)
+- Fine-Grained Tokens work the same way as Classic Tokens for API calls
 
 ### Attack Surface Analysis
 
