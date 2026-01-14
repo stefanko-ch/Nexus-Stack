@@ -70,15 +70,16 @@ resource "cloudflare_zero_trust_access_application" "control_panel" {
   session_duration = "24h"
 
   # Important settings for Pages Functions API to work
-  skip_interstitial        = true
-  app_launcher_visible     = true
-  options_preflight_bypass = true
+  skip_interstitial    = true
+  app_launcher_visible = true
+  # Note: options_preflight_bypass cannot be used with cors_headers
   
   # Cookie settings - critical for same-origin API requests
   http_only_cookie_attribute = true
   same_site_cookie_attribute = "lax"
   
   # CORS settings for API requests from the same origin
+  # Note: This conflicts with options_preflight_bypass, so we use CORS headers instead
   cors_headers {
     allowed_origins   = ["https://control.${var.domain}"]
     allowed_methods   = ["GET", "POST", "OPTIONS"]
