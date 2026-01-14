@@ -79,12 +79,56 @@ else
     exit 1
 fi
 
-echo ""
-echo -e "${CYAN}Note: GITHUB_OWNER and GITHUB_REPO are set automatically by Terraform${NC}"
-echo -e "${CYAN}      They should already be configured in Cloudflare Pages.${NC}"
+# Get GITHUB_OWNER and GITHUB_REPO from Terraform or config
+if [ -f "$TOFU_DIR/config.tfvars" ]; then
+    GITHUB_OWNER=$(grep -E '^github_owner\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' | tr -d ' ' || echo "")
+    GITHUB_REPO=$(grep -E '^github_repo\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' | tr -d ' ' || echo "")
+fi
+
+# Fallback: try to get from git remote
+if [ -z "$GITHUB_OWNER" ] || [ -z "$GITHUB_REPO" ]; then
+    cd "$PROJECT_ROOT"
+    REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$REMOTE_URL" =~ github.com[:/]([^/]+)/([^/]+) ]]; then
+        GITHUB_OWNER="${BASH_REMATCH[1]}"
+        GITHUB_REPO="${BASH_REMATCH[2]%.git}"
+    fi
+fi
+
+# Set GITHUB_OWNER and GITHUB_REPO as environment variables
+if [ -n "$GITHUB_OWNER" ] && [ -n "$GITHUB_REPO" ]; then
+    echo ""
+    echo -e "${YELLOW}Setting GITHUB_OWNER and GITHUB_REPO environment variables...${NC}"
+    echo -e "${CYAN}  GITHUB_OWNER: $GITHUB_OWNER${NC}"
+    echo -e "${CYAN}  GITHUB_REPO: $GITHUB_REPO${NC}"
+    echo ""
+    echo -e "${YELLOW}Note: These need to be set via Cloudflare Dashboard:${NC}"
+    echo "  1. Go to: https://dash.cloudflare.com"
+    echo "  2. Pages → $PROJECT_NAME → Settings → Environment Variables"
+    echo "  3. Add variable: GITHUB_OWNER = $GITHUB_OWNER"
+    echo "  4. Add variable: GITHUB_REPO = $GITHUB_REPO"
+    echo ""
+    echo -e "${YELLOW}Or run Terraform apply again to set them automatically:${NC}"
+    echo "  cd tofu && tofu apply -var-file=config.tfvars"
+else
+    echo ""
+    echo -e "${YELLOW}⚠ Could not determine GITHUB_OWNER/GITHUB_REPO automatically${NC}"
+    echo -e "${YELLOW}  Please set them manually in Cloudflare Dashboard${NC}"
+fi
+
 echo ""
 echo -e "${GREEN}Setup complete!${NC}"
 echo ""
 echo -e "${YELLOW}To verify, check Cloudflare Dashboard:${NC}"
 echo "  Pages → $PROJECT_NAME → Settings → Environment Variables"
+echo ""
+echo -e "${CYAN}Required variables:${NC}"
+echo "  - GITHUB_TOKEN (Secret) ✓"
+if [ -n "$GITHUB_OWNER" ] && [ -n "$GITHUB_REPO" ]; then
+    echo "  - GITHUB_OWNER = $GITHUB_OWNER ✓"
+    echo "  - GITHUB_REPO = $GITHUB_REPO ✓"
+else
+    echo "  - GITHUB_OWNER (set manually)"
+    echo "  - GITHUB_REPO (set manually)"
+fi
 echo ""
