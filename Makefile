@@ -1,4 +1,4 @@
-.PHONY: up down status ssh logs init plan urls secrets destroy
+.PHONY: up down status ssh logs init plan urls secrets destroy deploy-control-panel
 
 # =============================================================================
 # Nexus-Stack - Makefile
@@ -93,6 +93,9 @@ up: check-env
 	@sleep 5
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
+	@echo ""
+	@echo "📦 Deploying Control Panel..."
+	@$(MAKE) deploy-control-panel || echo "⚠️  Control Panel deployment skipped (set CLOUDFLARE_API_TOKEN to enable)"
 
 # Teardown infrastructure (keeps R2 state for re-deploy)
 teardown: check-env
@@ -258,3 +261,22 @@ destroy-all: teardown
 	@echo ""
 	@echo "To start fresh, run:"
 	@echo "  source .env && make init"
+
+# Deploy Control Panel to Cloudflare Pages
+deploy-control-panel:
+	@if [ -z "$$TF_VAR_cloudflare_api_token" ]; then \
+		echo "⚠️  CLOUDFLARE_API_TOKEN not set - skipping Control Panel deployment"; \
+		echo "   Set TF_VAR_cloudflare_api_token in .env to enable auto-deployment"; \
+		exit 0; \
+	fi
+	@echo "📦 Deploying Control Panel to Cloudflare Pages..."
+	@if [ ! -d "control-panel/pages/functions" ]; then \
+		echo "❌ Error: control-panel/pages/functions/ not found!"; \
+		exit 1; \
+	fi
+	@cd control-panel/pages && \
+		npx wrangler@latest pages deploy . \
+			--project-name=nexus-control \
+			--branch=main \
+			--commit-message="Auto-deploy via Makefile"
+	@echo "✅ Control Panel deployed!"
