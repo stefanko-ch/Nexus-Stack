@@ -41,16 +41,17 @@ admin_email = "your@email.com"
 # Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
 # admin_username = "admin"
 
-# Authentication methods (choose one or multiple - user can use any enabled method)
-# Multiple methods = OR logic (user can choose email OR github OR google)
+# Authentication methods
+# ⚠️ NOTE: Currently only email OTP is supported via Terraform
+# For GitHub/Google OAuth, configure Identity Providers manually in Cloudflare Dashboard
 auth_methods = {
-  email         = true   # Email OTP (default - requires email verification each time)
-  github        = false  # GitHub OAuth (one-time login, then session)
-  google        = false  # Google OAuth (one-time login, then session)
-  service_token = false  # Service tokens for CI/CD (no browser needed)
+  email         = true   # Email OTP (default - requires email verification each time) ✅ Supported
+  github        = false  # GitHub OAuth (⚠️ requires manual Identity Provider setup in Dashboard)
+  google        = false  # Google OAuth (⚠️ requires manual Identity Provider setup in Dashboard)
+  service_token = false  # Service tokens for CI/CD (no browser needed) ✅ Supported
 }
 
-# GitHub organization name (required if auth_methods.github = true)
+# GitHub organization name (not yet used - configure manually in Cloudflare Dashboard)
 # github_org = "your-github-org"
 
 # =============================================================================
