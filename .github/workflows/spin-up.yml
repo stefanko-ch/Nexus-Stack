@@ -1,4 +1,4 @@
-name: Spin up Nexus-Stack
+name: Spin Up Nexus-Stack
 
 on:
   workflow_dispatch:
