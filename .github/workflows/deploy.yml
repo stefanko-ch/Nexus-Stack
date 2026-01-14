@@ -109,26 +109,36 @@ jobs:
             # Check if we have a token to auto-save secrets
             if [ -n "$GH_TOKEN" ]; then
               echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
-              gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID"
-              gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY"
-              echo "✅ R2 credentials saved to GitHub Secrets automatically!"
-              echo ""
-              echo "Future deployments will use these credentials."
+              if gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>/dev/null && \
+                 gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>/dev/null; then
+                echo "✅ R2 credentials saved to GitHub Secrets automatically!"
+                echo ""
+                echo "Future deployments will use these credentials."
+              else
+                echo "⚠️  Failed to auto-save secrets (token may lack permissions)"
+                echo ""
+                echo "Please save these credentials manually in GitHub Secrets:"
+                echo "  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
+                echo "  R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY"
+                echo ""
+                echo "Or configure GH_SECRETS_TOKEN with 'repo' scope and 'write:secrets' permission"
+              fi
             else
               echo ""
               echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-              echo "║  ⚠️  GITHUB_SECRETS_TOKEN not configured - manual setup required            ║"
+              echo "║  ⚠️  GH_SECRETS_TOKEN not configured - manual setup required                ║"
               echo "╠══════════════════════════════════════════════════════════════════════════════╣"
               echo "║                                                                              ║"
-              echo "║  To enable auto-saving of secrets, create a Personal Access Token:          ║"
+              echo "║  Please save these credentials manually in GitHub Secrets:                  ║"
+              echo "║  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
+              echo "║  R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY"
+              echo "║                                                                              ║"
+              echo "║  To enable auto-saving, create a Personal Access Token:                     ║"
               echo "║  GitHub → Settings → Developer settings → Personal access tokens            ║"
               echo "║  Required scope: 'repo' (or fine-grained with 'Secrets' permission)         ║"
-              echo "║  Save as: GITHUB_SECRETS_TOKEN                                              ║"
+              echo "║  Save as: GH_SECRETS_TOKEN                                                  ║"
               echo "║                                                                              ║"
               echo "╚══════════════════════════════════════════════════════════════════════════════╝"
-              echo ""
-              echo "❌ Please save R2 credentials manually (see workflow logs for values)"
-              exit 1
             fi
             
             # Export for this run
