@@ -304,10 +304,8 @@ resource "cloudflare_zero_trust_access_application" "ssh" {
   session_duration = "1h"
 }
 
-# SSH Access Policies - multiple methods supported (OR logic)
+# SSH Access Policy (Email OTP)
 resource "cloudflare_zero_trust_access_policy" "ssh_email" {
-  count = var.auth_methods.email ? 1 : 0
-
   zone_id        = var.cloudflare_zone_id
   application_id = cloudflare_zero_trust_access_application.ssh.id
   name           = "Email SSH Access"
@@ -318,13 +316,6 @@ resource "cloudflare_zero_trust_access_policy" "ssh_email" {
     email = [var.admin_email]
   }
 }
-
-# GitHub and Google OAuth require Identity Provider setup first
-# For now, only email OTP is supported via Terraform
-# To enable GitHub/Google OAuth:
-# 1. Configure Identity Provider in Cloudflare Dashboard
-# 2. Then use include { github_organization = ["org-name"] } or include { google = ["email"] }
-# TODO: Add cloudflare_zero_trust_access_identity_provider resources when provider supports it
 
 resource "cloudflare_zero_trust_access_short_lived_certificate" "ssh" {
   zone_id        = var.cloudflare_zone_id
@@ -363,12 +354,11 @@ resource "cloudflare_zero_trust_access_application" "services" {
   skip_interstitial = true
 }
 
-# Dynamic Access Policies for all enabled services
-# Multiple policies can be created - user can choose any authentication method (OR logic)
+# Dynamic Access Policies for all enabled services (Email OTP)
 resource "cloudflare_zero_trust_access_policy" "services_email" {
   for_each = {
     for k, v in local.enabled_services : k => v
-    if !v.public && var.auth_methods.email
+    if !v.public
   }
 
   zone_id        = var.cloudflare_zone_id
@@ -381,10 +371,3 @@ resource "cloudflare_zero_trust_access_policy" "services_email" {
     email = [var.admin_email]
   }
 }
-
-# GitHub and Google OAuth require Identity Provider setup first
-# For now, only email OTP is supported via Terraform
-# To enable GitHub/Google OAuth:
-# 1. Configure Identity Provider in Cloudflare Dashboard
-# 2. Then use include { github_organization = ["org-name"] } or include { google = ["email"] }
-# TODO: Add cloudflare_zero_trust_access_identity_provider resources when provider supports it

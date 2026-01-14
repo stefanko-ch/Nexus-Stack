@@ -87,10 +87,8 @@ resource "cloudflare_zero_trust_access_application" "control_panel" {
   }
 }
 
-# Control Panel Access Policies - multiple methods supported (OR logic)
+# Control Panel Access Policy (Email OTP)
 resource "cloudflare_zero_trust_access_policy" "control_panel_email" {
-  count = var.auth_methods.email ? 1 : 0
-
   account_id     = var.cloudflare_account_id
   application_id = cloudflare_zero_trust_access_application.control_panel.id
   name           = "Email Access"
@@ -101,10 +99,3 @@ resource "cloudflare_zero_trust_access_policy" "control_panel_email" {
     email = [var.admin_email]
   }
 }
-
-# GitHub and Google OAuth require Identity Provider setup first
-# For now, only email OTP is supported via Terraform
-# To enable GitHub/Google OAuth:
-# 1. Configure Identity Provider in Cloudflare Dashboard
-# 2. Then use include { github_organization = ["org-name"] } or include { google = ["email"] }
-# TODO: Add cloudflare_zero_trust_access_identity_provider resources when provider supports it
