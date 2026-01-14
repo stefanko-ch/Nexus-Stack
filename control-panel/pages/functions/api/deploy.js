@@ -19,17 +19,6 @@ export async function onRequestPost(context) {
     });
   }
 
-  // Validate request method
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Method not allowed' 
-    }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/deploy.yml/dispatches`;
   
   try {
@@ -46,18 +35,15 @@ export async function onRequestPost(context) {
 
     // GitHub returns 204 No Content on success
     if (response.status === 204) {
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: 'Deploy workflow triggered successfully' 
-    }), {
-      status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': `https://control.${env.GITHUB_OWNER ? env.GITHUB_OWNER.split('/')[0] : '*'}`,
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Credentials': 'true',
-      },
-    });
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Deploy workflow triggered successfully' 
+      }), {
+        status: 200,
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+      });
     }
 
     // Handle errors

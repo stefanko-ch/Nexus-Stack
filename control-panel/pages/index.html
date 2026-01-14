@@ -789,7 +789,8 @@
             // Calculate interval with exponential backoff
             const baseInterval = 10000; // 10 seconds
             const maxInterval = 60000; // Max 60 seconds
-            const interval = Math.min(baseInterval * Math.pow(2, consecutiveErrors), maxInterval);
+            const cappedErrors = Math.min(consecutiveErrors, 6); // Cap at 6 to avoid large numbers
+            const interval = Math.min(baseInterval * Math.pow(2, cappedErrors), maxInterval);
             
             pollTimeout = setTimeout(() => {
                 fetchStatus()

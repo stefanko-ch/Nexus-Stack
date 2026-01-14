@@ -19,17 +19,6 @@ export async function onRequestPost(context) {
     });
   }
 
-  // Validate request method
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Method not allowed' 
-    }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/destroy-all.yml/dispatches`;
   
   try {
