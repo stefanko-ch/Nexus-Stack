@@ -68,9 +68,32 @@ if [ -z "$GITHUB_TOKEN" ]; then
     exit 1
 fi
 
+# Check if CLOUDFLARE_API_TOKEN is set (required for wrangler)
+if [ -z "$CLOUDFLARE_API_TOKEN" ] && [ -n "$TF_VAR_cloudflare_api_token" ]; then
+    export CLOUDFLARE_API_TOKEN="$TF_VAR_cloudflare_api_token"
+fi
+
+if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+    echo -e "${YELLOW}CLOUDFLARE_API_TOKEN not found in environment${NC}"
+    echo ""
+    echo "Please provide your Cloudflare API Token:"
+    echo "  1. Go to https://dash.cloudflare.com/profile/api-tokens"
+    echo "  2. Create token with 'Cloudflare Pages:Edit' permission"
+    echo ""
+    read -sp "Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+    echo ""
+    echo ""
+    export CLOUDFLARE_API_TOKEN
+fi
+
+if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+    echo -e "${RED}Error: CLOUDFLARE_API_TOKEN is required for wrangler${NC}"
+    exit 1
+fi
+
 # Set GITHUB_TOKEN secret
 echo -e "${YELLOW}Setting GITHUB_TOKEN secret...${NC}"
-echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN --project-name="$PROJECT_NAME"
+echo "$GITHUB_TOKEN" | CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" npx wrangler@latest pages secret put GITHUB_TOKEN --project-name="$PROJECT_NAME"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ GITHUB_TOKEN secret set successfully${NC}"

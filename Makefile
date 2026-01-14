@@ -273,6 +273,7 @@ deploy-control-panel:
 		exit 1; \
 	fi
 	@cd control-panel/pages && \
+		export CLOUDFLARE_API_TOKEN="$$TF_VAR_cloudflare_api_token" && \
 		npx wrangler@latest pages deploy . \
 			--project-name=nexus-control \
 			--branch=main \
