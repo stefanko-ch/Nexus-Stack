@@ -223,14 +223,98 @@
             box-shadow: 0 0 30px rgba(255, 170, 0, 0.3);
         }
 
-        .action-btn.destroy {
-            border-color: rgba(255, 68, 68, 0.6);
-            color: #ff4444;
+        /* Scheduled Teardown Panel */
+        .scheduled-teardown-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            padding: 1.5rem;
+            margin-top: 2rem;
         }
 
-        .action-btn.destroy:hover {
-            border-color: #ff4444;
-            box-shadow: 0 0 30px rgba(255, 68, 68, 0.3);
+        .scheduled-teardown-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #ffaa00;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .scheduled-teardown-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .scheduled-teardown-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 170, 0, 0.2);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: rgba(255, 170, 0, 0.2);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: #ffaa00;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: left 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            left: 27px;
+        }
+
+        .delay-btn {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.4);
+            color: #ffaa00;
+            padding: 0.6rem 1.2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 4px;
+        }
+
+        .delay-btn:hover:not(:disabled) {
+            background: rgba(255, 170, 0, 0.2);
+            border-color: #ffaa00;
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+        }
+
+        .delay-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .scheduled-info {
+            font-size: 0.75rem;
+            color: #607080;
+            margin-top: 0.5rem;
         }
 
         .action-btn .icon {
@@ -499,10 +583,23 @@
                 <span class="icon">💤</span>
                 Teardown
             </button>
-            <button class="action-btn destroy" id="btn-destroy" disabled>
-                <span class="icon">💀</span>
-                Destroy
-            </button>
+        </div>
+
+        <!-- Scheduled Teardown Panel -->
+        <div class="scheduled-teardown-panel">
+            <h2><span class="icon">⏰</span> Scheduled Teardown</h2>
+            <div class="scheduled-teardown-controls">
+                <div class="scheduled-teardown-toggle">
+                    <div>
+                        <div style="font-weight: bold; margin-bottom: 0.3rem;">Automatic Daily Teardown</div>
+                        <div class="scheduled-info" id="scheduled-info">Loading...</div>
+                    </div>
+                    <div class="toggle-switch" id="toggle-scheduled-teardown"></div>
+                </div>
+                <button class="delay-btn" id="btn-delay-teardown" disabled>
+                    ⏱️ Delay Teardown by 2 Hours
+                </button>
+            </div>
         </div>
 
         <!-- Workflow History -->
@@ -606,13 +703,11 @@
         function updateButtons(data) {
             const btnDeploy = document.getElementById('btn-deploy');
             const btnTeardown = document.getElementById('btn-teardown');
-            const btnDestroy = document.getElementById('btn-destroy');
             
             // Disable all if workflow is running
             if (data.inProgress) {
                 btnDeploy.disabled = true;
                 btnTeardown.disabled = true;
-                btnDestroy.disabled = true;
                 btnDeploy.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
@@ -625,26 +720,115 @@
                 case 'deployed':
                     btnDeploy.disabled = true;
                     btnTeardown.disabled = false;
-                    btnDestroy.disabled = false;
                     break;
                 case 'torn-down':
                     btnDeploy.disabled = false;
                     btnTeardown.disabled = true;
-                    btnDestroy.disabled = false;
                     break;
                 case 'destroyed':
                     btnDeploy.disabled = false;
                     btnTeardown.disabled = true;
-                    btnDestroy.disabled = true;
                     break;
                 case 'unknown':
                 default:
                     // When status is unknown, allow all actions but show them as available
-                    // User can still deploy, and if infrastructure exists, teardown/destroy will work
+                    // User can still deploy, and if infrastructure exists, teardown will work
                     btnDeploy.disabled = false;
                     btnTeardown.disabled = false;
-                    btnDestroy.disabled = false;
                     break;
+            }
+        }
+
+        // Scheduled Teardown Functions
+        async function loadScheduledTeardownConfig() {
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success) {
+                    updateScheduledTeardownUI(data.config);
+                }
+            } catch (error) {
+                console.error('Failed to load scheduled teardown config:', error);
+            }
+        }
+
+        function updateScheduledTeardownUI(config) {
+            const toggle = document.getElementById('toggle-scheduled-teardown');
+            const info = document.getElementById('scheduled-info');
+            const delayBtn = document.getElementById('btn-delay-teardown');
+            
+            if (config.enabled) {
+                toggle.classList.add('active');
+                const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
+                if (delayUntil && delayUntil > new Date()) {
+                    const hours = Math.ceil((delayUntil - new Date()) / (1000 * 60 * 60));
+                    info.textContent = `Enabled - Teardown delayed by ${hours} hour(s) until ${delayUntil.toLocaleTimeString()}`;
+                    delayBtn.disabled = true;
+                } else {
+                    info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
+                    delayBtn.disabled = false;
+                }
+            } else {
+                toggle.classList.remove('active');
+                info.textContent = 'Disabled - No automatic teardown';
+                delayBtn.disabled = true;
+            }
+        }
+
+        async function toggleScheduledTeardown() {
+            const toggle = document.getElementById('toggle-scheduled-teardown');
+            const isEnabled = toggle.classList.contains('active');
+            const newState = !isEnabled;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newState })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateScheduledTeardownUI(data.config);
+                        showToast(newState ? 'Scheduled teardown enabled' : 'Scheduled teardown disabled', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to toggle scheduled teardown:', error);
+                showToast('Failed to update scheduled teardown', 'error');
+            }
+        }
+
+        async function delayTeardown() {
+            const delayBtn = document.getElementById('btn-delay-teardown');
+            delayBtn.disabled = true;
+            delayBtn.textContent = 'Processing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ delayHours: 2 })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateScheduledTeardownUI(data.config);
+                        showToast('Teardown delayed by 2 hours', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to delay teardown:', error);
+                showToast('Failed to delay teardown', 'error');
+            } finally {
+                delayBtn.disabled = false;
+                delayBtn.textContent = '⏱️ Delay Teardown by 2 Hours';
             }
         }
 
@@ -655,7 +839,6 @@
             const items = [
                 { name: 'Deploy', data: workflows.deploy },
                 { name: 'Teardown', data: workflows.teardown },
-                { name: 'Destroy', data: workflows.destroy }
             ].filter(item => item.data);
             
             if (items.length === 0) {
@@ -685,7 +868,6 @@
             const actionLabels = {
                 'deploy': 'Deploy Infrastructure',
                 'teardown': 'Teardown Infrastructure',
-                'destroy': 'Destroy Everything'
             };
             
             // Disable buttons during action
@@ -745,10 +927,6 @@
                     title: '⚠️ Confirm Teardown',
                     message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to re-deploy later.'
                 },
-                'destroy': {
-                    title: '💀 Confirm Full Destroy',
-                    message: 'This will PERMANENTLY destroy ALL infrastructure including this control panel. You will need to run the initial setup again. This action cannot be undone!'
-                }
             };
             
             const config = configs[action];
@@ -774,7 +952,8 @@
         // Event listeners
         document.getElementById('btn-deploy').addEventListener('click', () => triggerAction('deploy'));
         document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
-        document.getElementById('btn-destroy').addEventListener('click', () => showConfirmModal('destroy'));
+        document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
+        document.getElementById('btn-delay-teardown').addEventListener('click', delayTeardown);
         
         document.getElementById('modal-cancel').addEventListener('click', hideModal);
         document.getElementById('modal-confirm').addEventListener('click', () => {
@@ -796,6 +975,9 @@
                 console.warn('Health check failed:', error);
             }
         }
+
+        // Load scheduled teardown config on page load
+        loadScheduledTeardownConfig();
 
         // Polling with exponential backoff on errors
         let consecutiveErrors = 0;
