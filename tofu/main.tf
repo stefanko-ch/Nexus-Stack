@@ -304,15 +304,50 @@ resource "cloudflare_zero_trust_access_application" "ssh" {
   session_duration = "1h"
 }
 
-resource "cloudflare_zero_trust_access_policy" "ssh_admin" {
+# SSH Access Policies - multiple methods supported (OR logic)
+resource "cloudflare_zero_trust_access_policy" "ssh_email" {
+  count = var.auth_methods.email ? 1 : 0
+
   zone_id        = var.cloudflare_zone_id
   application_id = cloudflare_zero_trust_access_application.ssh.id
-  name           = "Admin SSH Access"
+  name           = "Email SSH Access"
   precedence     = 1
   decision       = "allow"
 
   include {
     email = [var.admin_email]
+  }
+}
+
+resource "cloudflare_zero_trust_access_policy" "ssh_github" {
+  count = var.auth_methods.github && var.github_org != "" ? 1 : 0
+
+  zone_id        = var.cloudflare_zone_id
+  application_id = cloudflare_zero_trust_access_application.ssh.id
+  name           = "GitHub SSH Access"
+  precedence     = 2
+  decision       = "allow"
+
+  include {
+    github {
+      name = var.github_org
+    }
+  }
+}
+
+resource "cloudflare_zero_trust_access_policy" "ssh_google" {
+  count = var.auth_methods.google ? 1 : 0
+
+  zone_id        = var.cloudflare_zone_id
+  application_id = cloudflare_zero_trust_access_application.ssh.id
+  name           = "Google SSH Access"
+  precedence     = 3
+  decision       = "allow"
+
+  include {
+    google {
+      email = [var.admin_email]
+    }
   }
 }
 
@@ -354,16 +389,58 @@ resource "cloudflare_zero_trust_access_application" "services" {
 }
 
 # Dynamic Access Policies for all enabled services
-resource "cloudflare_zero_trust_access_policy" "services" {
-  for_each = local.enabled_services
+# Multiple policies can be created - user can choose any authentication method (OR logic)
+resource "cloudflare_zero_trust_access_policy" "services_email" {
+  for_each = {
+    for k, v in local.enabled_services : k => v
+    if !v.public && var.auth_methods.email
+  }
 
   zone_id        = var.cloudflare_zone_id
   application_id = cloudflare_zero_trust_access_application.services[each.key].id
-  name           = "Access to ${title(each.key)}"
+  name           = "Email Access to ${title(each.key)}"
   precedence     = 1
-  decision       = each.value.public ? "bypass" : "allow"
+  decision       = "allow"
 
   include {
     email = [var.admin_email]
+  }
+}
+
+resource "cloudflare_zero_trust_access_policy" "services_github" {
+  for_each = {
+    for k, v in local.enabled_services : k => v
+    if !v.public && var.auth_methods.github && var.github_org != ""
+  }
+
+  zone_id        = var.cloudflare_zone_id
+  application_id = cloudflare_zero_trust_access_application.services[each.key].id
+  name           = "GitHub Access to ${title(each.key)}"
+  precedence     = 2
+  decision       = "allow"
+
+  include {
+    github {
+      name = var.github_org
+    }
+  }
+}
+
+resource "cloudflare_zero_trust_access_policy" "services_google" {
+  for_each = {
+    for k, v in local.enabled_services : k => v
+    if !v.public && var.auth_methods.google
+  }
+
+  zone_id        = var.cloudflare_zone_id
+  application_id = cloudflare_zero_trust_access_application.services[each.key].id
+  name           = "Google Access to ${title(each.key)}"
+  precedence     = 3
+  decision       = "allow"
+
+  include {
+    google {
+      email = [var.admin_email]
+    }
   }
 }

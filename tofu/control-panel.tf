@@ -87,15 +87,49 @@ resource "cloudflare_zero_trust_access_application" "control_panel" {
   }
 }
 
-# Separate policy resource (required by Cloudflare provider)
-resource "cloudflare_zero_trust_access_policy" "control_panel" {
-  account_id            = var.cloudflare_account_id
-  application_id        = cloudflare_zero_trust_access_application.control_panel.id
-  name                  = "Admin Access"
-  precedence            = 1
-  decision              = "allow"
-  
+# Control Panel Access Policies - multiple methods supported (OR logic)
+resource "cloudflare_zero_trust_access_policy" "control_panel_email" {
+  count = var.auth_methods.email ? 1 : 0
+
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.control_panel.id
+  name           = "Email Access"
+  precedence     = 1
+  decision       = "allow"
+
   include {
     email = [var.admin_email]
+  }
+}
+
+resource "cloudflare_zero_trust_access_policy" "control_panel_github" {
+  count = var.auth_methods.github && var.github_org != "" ? 1 : 0
+
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.control_panel.id
+  name           = "GitHub Access"
+  precedence     = 2
+  decision       = "allow"
+
+  include {
+    github {
+      name = var.github_org
+    }
+  }
+}
+
+resource "cloudflare_zero_trust_access_policy" "control_panel_google" {
+  count = var.auth_methods.google ? 1 : 0
+
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.control_panel.id
+  name           = "Google Access"
+  precedence     = 3
+  decision       = "allow"
+
+  include {
+    google {
+      email = [var.admin_email]
+    }
   }
 }
