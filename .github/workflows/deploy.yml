@@ -189,26 +189,61 @@ jobs:
           fi
           
           # Set environment variables via Cloudflare API
-          # Terraform should set these, but we ensure they're set here too
-          echo "  Setting GITHUB_OWNER and GITHUB_REPO environment variables..."
-          curl -s -X PATCH \
+          # IMPORTANT: First GET existing vars, then merge, then PATCH to avoid overwriting
+          echo "  Fetching existing environment variables..."
+          EXISTING_VARS=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | \
+            jq -r '.result.deployment_configs.production.env_vars // {}')
+          
+          echo "  Merging GITHUB_OWNER and GITHUB_REPO with existing variables..."
+          # Merge existing vars with new ones (new vars take precedence)
+          MERGED_VARS=$(echo "$EXISTING_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
+            '. + {
+              "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
+              "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
+            }')
+          
+          echo "  Setting environment variables via PATCH..."
+          API_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{
               \"deployment_configs\": {
                 \"production\": {
-                  \"env_vars\": {
-                    \"GITHUB_OWNER\": {
-                      \"value\": \"$GITHUB_OWNER\"
-                    },
-                    \"GITHUB_REPO\": {
-                      \"value\": \"$GITHUB_REPO\"
-                    }
-                  }
+                  \"env_vars\": $MERGED_VARS
                 }
               }
-            }" | jq -r '.success // false' | grep -q true && echo "✅ Environment variables set" || echo "⚠️  Failed to set environment variables"
+            }")
+          
+          HTTP_CODE=$(echo "$API_RESPONSE" | tail -n1)
+          API_BODY=$(echo "$API_RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            SUCCESS=$(echo "$API_BODY" | jq -r '.success // false')
+            if [ "$SUCCESS" = "true" ]; then
+              echo "✅ Environment variables set successfully"
+              # Verify the variables were actually set
+              VERIFY_VARS=$(echo "$API_BODY" | jq -r '.result.deployment_configs.production.env_vars // {}')
+              OWNER_SET=$(echo "$VERIFY_VARS" | jq -r '.GITHUB_OWNER.value // empty')
+              REPO_SET=$(echo "$VERIFY_VARS" | jq -r '.GITHUB_REPO.value // empty')
+              if [ "$OWNER_SET" = "$GITHUB_OWNER" ] && [ "$REPO_SET" = "$GITHUB_REPO" ]; then
+                echo "✅ Verified: GITHUB_OWNER=$OWNER_SET, GITHUB_REPO=$REPO_SET"
+              else
+                echo "⚠️  Warning: Variables may not be set correctly"
+                echo "   Expected: GITHUB_OWNER=$GITHUB_OWNER, GITHUB_REPO=$GITHUB_REPO"
+                echo "   Got: GITHUB_OWNER=$OWNER_SET, GITHUB_REPO=$REPO_SET"
+              fi
+            else
+              echo "⚠️  API returned success=false"
+              echo "$API_BODY" | jq -r '.errors // .messages // "Unknown error"' | head -5
+            fi
+          else
+            echo "⚠️  Failed to set environment variables (HTTP $HTTP_CODE)"
+            echo "$API_BODY" | jq -r '.errors // .messages // "Unknown error"' | head -5
+          fi
           
           echo "✅ Setup complete"
 
