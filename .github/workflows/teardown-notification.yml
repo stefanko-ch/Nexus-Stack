@@ -1,0 +1,73 @@
+name: Teardown Notification
+
+on:
+  schedule:
+    # Run every day 15 minutes before scheduled teardown
+    # Default: 21:45 Europe/Zurich (Switzerland) = 20:45 UTC (winter) / 19:45 UTC (summer)
+    # Adjust cron time based on your timezone (GitHub Actions uses UTC)
+    # To change timezone, set TEARDOWN_TIMEZONE secret (e.g., "Europe/Zurich", "America/New_York")
+    # Then adjust cron time: 21:45 CET = 20:45 UTC, 21:45 CEST = 19:45 UTC
+    - cron: '45 20 * * *'  # 21:45 CET / 22:45 CEST (Switzerland, 15 min before 22:00)
+  workflow_dispatch: # Allow manual trigger for testing
+
+permissions:
+  contents: read
+
+jobs:
+  send-notification:
+    name: Send Teardown Warning Email
+    runs-on: ubuntu-latest
+    env:
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      DOMAIN: ${{ secrets.DOMAIN }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send teardown warning email
+        env:
+          TEARDOWN_TIMEZONE: ${{ secrets.TEARDOWN_TIMEZONE || 'Europe/Zurich' }}
+        run: |
+          if [ -z "$RESEND_API_KEY" ]; then
+            echo "⚠️  RESEND_API_KEY not configured - skipping email notification"
+            exit 0
+          fi
+          
+          echo "📧 Sending teardown warning email..."
+          
+          # Get teardown time in configured timezone (22:00)
+          TEARDOWN_TIME=$(TZ="$TEARDOWN_TIMEZONE" date -d '+15 minutes' '+%H:%M %Z' 2>/dev/null || TZ="$TEARDOWN_TIMEZONE" date -v+15M '+%H:%M %Z' 2>/dev/null || echo "22:00")
+          
+          # Build HTML email
+          EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#ffaa00">⚠️ Scheduled Teardown Reminder</h1><p style="color:#fff">Your Nexus-Stack infrastructure will be automatically torn down in <strong style="color:#ffaa00">15 minutes</strong> (at TEARDOWN_TIME_PLACEHOLDER).</p><div style="margin:1.5rem 0;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">⏰ What happens next?</p><ul style="color:#ccc;margin:0.5rem 0 0 1.5rem"><li>Infrastructure will be torn down automatically</li><li>Hetzner server and Docker containers will be stopped</li><li>Control Panel will remain active for re-deployment</li><li>All data and state will be preserved</li></ul></div><h2 style="color:#00ff88;margin-top:2rem">🛑 Want to prevent teardown?</h2><p style="color:#fff">You can cancel the scheduled teardown by:</p><ol style="color:#ccc;margin-left:1.5rem"><li>Going to <a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a></li><li>Checking the scheduled workflow in GitHub Actions</li><li>Manually canceling the teardown workflow</li></ol><h2 style="color:#00ff88;margin-top:2rem">🔗 Quick Links</h2><ul><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li><li><a href="https://github.com/GITHUB_OWNER_PLACEHOLDER/GITHUB_REPO_PLACEHOLDER/actions" style="color:#00ff88">GitHub Actions</a> - View workflows</li></ul><div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">📮 Do not reply</p><p style="color:#999;margin:0.5rem 0 0 0;font-size:13px">This mailbox is not monitored. For questions or support, please contact: <a href="mailto:EMAIL_PLACEHOLDER" style="color:#00ff88">EMAIL_PLACEHOLDER</a></p></div><p style="color:#666;font-size:12px;margin-top:1rem">This is an automated reminder. Infrastructure will be torn down automatically unless canceled.</p></div>'
+          
+          # Replace placeholders
+          EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
+          EMAIL_HTML="${EMAIL_HTML//EMAIL_PLACEHOLDER/$ADMIN_EMAIL}"
+          EMAIL_HTML="${EMAIL_HTML//GITHUB_OWNER_PLACEHOLDER/${{ github.repository_owner }}}"
+          EMAIL_HTML="${EMAIL_HTML//GITHUB_REPO_PLACEHOLDER/${{ github.event.repository.name }}}"
+          EMAIL_HTML="${EMAIL_HTML//TEARDOWN_TIME_PLACEHOLDER/$TEARDOWN_TIME}"
+          
+          # Use jq to properly escape JSON
+          JSON_PAYLOAD=$(jq -n \
+            --arg from "Nexus-Stack <nexus@$DOMAIN>" \
+            --arg to "$ADMIN_EMAIL" \
+            --arg subject "⚠️ Scheduled Teardown in 15 Minutes" \
+            --arg html "$EMAIL_HTML" \
+            '{from: $from, to: [$to], subject: $subject, html: $html}')
+          
+          # Send email with proper error handling
+          HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Teardown warning email sent to $ADMIN_EMAIL"
+          else
+            echo "⚠️  Failed to send email (HTTP $HTTP_STATUS)"
+            cat /tmp/resend_response.txt 2>/dev/null || true
+            exit 1
+          fi
