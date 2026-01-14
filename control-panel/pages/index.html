@@ -545,6 +545,11 @@
             'unknown': 'Unable to determine infrastructure state.'
         };
 
+        // Fallback function to enable buttons when status check fails
+        function enableFallbackState() {
+            updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
+        }
+
         // Fetch and display status
         async function fetchStatus() {
             try {
@@ -555,8 +560,7 @@
                 if (!contentType || !contentType.includes('application/json')) {
                     console.error('API returned non-JSON response - might need re-authentication');
                     showToast('Session expired - please refresh the page', 'error');
-                    // Fallback: enable deploy button if status check fails
-                    updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
+                    enableFallbackState();
                     return;
                 }
                 
@@ -569,14 +573,12 @@
                 } else {
                     console.error('API error:', data.error);
                     showToast(data.error || 'Failed to fetch status', 'error');
-                    // Fallback: enable deploy button on error
-                    updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
+                    enableFallbackState();
                 }
             } catch (error) {
                 console.error('Failed to fetch status:', error);
                 showToast('Failed to fetch status - check console for details', 'error');
-                // Fallback: enable deploy button on network error
-                updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
+                enableFallbackState();
             }
         }
 
