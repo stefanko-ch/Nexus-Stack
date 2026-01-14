@@ -382,6 +382,22 @@ Merge branch 'main' into feat   → Merge commits should not be PR titles
 
 4. After PR review and merge → Release is created automatically
 
+### Responding to PR Review Comments
+
+**When addressing PR review comments, respond directly to each individual comment, not with a summary comment.**
+
+- Use `gh api` or GitHub web interface to reply to each review comment thread
+- Each fix should be addressed with a direct reply to the specific comment
+- This creates clear traceability between comments and fixes
+- Only use summary comments if explicitly requested by the reviewer
+
+**Example workflow:**
+1. Read all PR review comments
+2. Fix each issue in code
+3. Commit fixes
+4. Reply directly to each comment thread indicating the fix
+5. Push changes
+
 ### Branch Naming
 
 Use prefixes that match commit types:
