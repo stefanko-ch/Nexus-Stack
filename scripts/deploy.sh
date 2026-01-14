@@ -365,7 +365,7 @@ set -e
 for service in $ENABLED_LIST; do
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Pre-pulling images for \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose pull 2>&1 | sed 's/^/    /' || echo \"    ⚠ Failed to pull images for \$service\") &
+        (cd /opt/docker-server/stacks/\$service && docker compose pull 2>&1 | tee /tmp/docker-pull-\$service.log | sed 's/^/    /' || { echo \"    ⚠ Failed to pull images for \$service\" >&2; cat /tmp/docker-pull-\$service.log 2>/dev/null | sed 's/^/      /' || true; }) &
     fi
 done
 wait
