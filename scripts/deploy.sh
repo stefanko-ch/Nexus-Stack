@@ -164,9 +164,16 @@ echo -e "${YELLOW}[2/7] Waiting for SSH via Cloudflare Tunnel...${NC}"
 # If using Service Token, test it first with retry and exponential backoff
 if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     echo "  Testing Service Token authentication..."
-    MAX_TOKEN_RETRIES=3
+    MAX_TOKEN_RETRIES=6
+    echo "  Note: Service Token may need a few seconds to propagate in Cloudflare..."
+    
+    # Initial wait for Service Token propagation (Cloudflare needs time to activate)
+    INITIAL_WAIT=10
+    echo "  Waiting ${INITIAL_WAIT}s for initial propagation..."
+    sleep $INITIAL_WAIT
+
     TOKEN_RETRY=0
-    BACKOFF=2
+    BACKOFF=5
     
     while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
         if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
@@ -177,7 +184,7 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
         if [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; then
             echo "  Retry $TOKEN_RETRY/$MAX_TOKEN_RETRIES - waiting ${BACKOFF}s for propagation..."
             sleep $BACKOFF
-            BACKOFF=$((BACKOFF * 2))
+            BACKOFF=$((BACKOFF + 5))  # Linear increase: 5s, 10s, 15s, 20s, 25s
         fi
     done
     
