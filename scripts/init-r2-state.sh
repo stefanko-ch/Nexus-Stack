@@ -214,10 +214,11 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
-fi
+    fi
+done
 
 if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
-    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+    ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     echo -e "  ${RED}❌ Failed to create token after $MAX_RETRIES attempts: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
