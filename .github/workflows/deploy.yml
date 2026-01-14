@@ -257,8 +257,7 @@ jobs:
           # Note: wrangler pages deploy does NOT support --env flag, only --branch
           npx wrangler@latest pages deploy . \
             --project-name=nexus-control \
-            --branch=main \
-            --commit-dirty=true
+            --branch=main
           echo "✅ Control Panel deployed!"
           echo ""
           echo "📝 Note: Deployed to production branch (main)"
