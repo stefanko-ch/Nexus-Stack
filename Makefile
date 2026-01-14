@@ -1,4 +1,4 @@
-.PHONY: up down status ssh logs init plan urls secrets destroy deploy-control-panel
+.PHONY: up down status ssh logs init plan urls secrets destroy deploy-control-panel setup-control-panel-secrets
 
 # =============================================================================
 # Nexus-Stack - Makefile
@@ -89,8 +89,6 @@ up: check-env
 		cd tofu && tofu init -backend-config=backend.hcl -reconfigure >/dev/null 2>&1 || true && \
 		tofu apply -var-file=config.tfvars -auto-approve
 	@echo ""
-	@echo "⏳ Waiting for Cloudflare to propagate changes..."
-	@sleep 5
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
 	@echo ""
@@ -280,3 +278,11 @@ deploy-control-panel:
 			--branch=main \
 			--commit-message="Auto-deploy via Makefile"
 	@echo "✅ Control Panel deployed!"
+	@echo ""
+	@echo "⚠️  Don't forget to set GITHUB_TOKEN secret:"
+	@echo "   make setup-control-panel-secrets"
+
+setup-control-panel-secrets:
+	@echo "🔐 Setting up Control Panel secrets..."
+	@chmod +x scripts/setup-control-panel-secrets.sh
+	@./scripts/setup-control-panel-secrets.sh

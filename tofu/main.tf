@@ -304,10 +304,11 @@ resource "cloudflare_zero_trust_access_application" "ssh" {
   session_duration = "1h"
 }
 
-resource "cloudflare_zero_trust_access_policy" "ssh_admin" {
+# SSH Access Policy (Email OTP)
+resource "cloudflare_zero_trust_access_policy" "ssh_email" {
   zone_id        = var.cloudflare_zone_id
   application_id = cloudflare_zero_trust_access_application.ssh.id
-  name           = "Admin SSH Access"
+  name           = "Email SSH Access"
   precedence     = 1
   decision       = "allow"
 
@@ -353,15 +354,18 @@ resource "cloudflare_zero_trust_access_application" "services" {
   skip_interstitial = true
 }
 
-# Dynamic Access Policies for all enabled services
-resource "cloudflare_zero_trust_access_policy" "services" {
-  for_each = local.enabled_services
+# Dynamic Access Policies for all enabled services (Email OTP)
+resource "cloudflare_zero_trust_access_policy" "services_email" {
+  for_each = {
+    for k, v in local.enabled_services : k => v
+    if !v.public
+  }
 
   zone_id        = var.cloudflare_zone_id
   application_id = cloudflare_zero_trust_access_application.services[each.key].id
-  name           = "Access to ${title(each.key)}"
+  name           = "Email Access to ${title(each.key)}"
   precedence     = 1
-  decision       = each.value.public ? "bypass" : "allow"
+  decision       = "allow"
 
   include {
     email = [var.admin_email]

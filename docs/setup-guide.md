@@ -364,3 +364,169 @@ Make sure your email matches `admin_email` in nexus.tfvars.
 - Check Grafana for logs and metrics
 - Set up alerts in Uptime Kuma
 - Store secrets in Vault
+
+---
+
+## 📧 Email Notifications via Resend (Optional)
+
+After deployment, Nexus-Stack can automatically send you an email with all service credentials. This requires Resend setup.
+
+### Why Resend?
+
+- **Free tier**: 3,000 emails/month, 100 emails/day
+- **Domain verification**: Send from `nexus@yourdomain.com`
+- **Simple API**: Easy integration with GitHub Actions
+- **No SMTP server needed**: Direct API integration
+
+### Setup Steps
+
+#### 1. Create Resend Account
+
+1. Go to [resend.com](https://resend.com)
+2. Sign up (free account)
+3. Verify your email address
+
+#### 2. Add Your Domain
+
+1. In Resend Dashboard → **Domains** → **Add Domain**
+2. Enter your domain (e.g., `nexus-stack.ch`)
+3. Click **Add Domain**
+
+#### 3. Verify Domain (DNS Records)
+
+Resend will show you DNS records to add. Add these in **Cloudflare DNS**:
+
+**SPF Record (TXT):**
+```
+Type: TXT
+Name: @ (or your domain)
+Content: v=spf1 include:resend.com ~all
+TTL: Auto
+```
+
+**DKIM Record (TXT):**
+```
+Type: TXT
+Name: resend._domainkey (or similar)
+Content: [provided by Resend]
+TTL: Auto
+```
+
+**DMARC Record (TXT) - Optional but recommended:**
+```
+Type: TXT
+Name: _dmarc
+Content: v=DMARC1; p=none; rua=mailto:admin@yourdomain.com
+TTL: Auto
+```
+
+**Steps in Cloudflare:**
+1. Go to Cloudflare Dashboard → Your Domain → **DNS**
+2. Click **Add record**
+3. Add each record as shown above
+4. Wait 5-10 minutes for DNS propagation
+
+#### 4. Verify Domain in Resend
+
+1. Go back to Resend Dashboard → **Domains**
+2. Click **Verify** next to your domain
+3. Wait for verification (usually 1-2 minutes)
+4. Status should change to **Verified** ✅
+
+#### 5. Create API Key
+
+1. Resend Dashboard → **API Keys** → **Create API Key**
+2. Name: `Nexus-Stack`
+3. Permission: **Sending access**
+4. Click **Create**
+5. **Copy the API key** (starts with `re_` - you'll only see it once!)
+
+#### 6. Add API Key to GitHub Secrets
+
+```bash
+gh secret set RESEND_API_KEY --body "re_xxxxxxxxxxxxx"
+```
+
+Or manually:
+1. GitHub → Repository → **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
+3. Name: `RESEND_API_KEY`
+4. Value: Your Resend API key
+5. Click **Add secret**
+
+### Test Email
+
+After deployment, check your email (`ADMIN_EMAIL` secret) for:
+- Subject: `🚀 Nexus-Stack Deployed - Your Credentials`
+- Contains: Infisical admin password and service URLs
+
+### Troubleshooting
+
+**Email not received?**
+- Check GitHub Actions logs for email step
+- Verify `RESEND_API_KEY` secret is set correctly
+- Check Resend Dashboard → **Logs** for delivery status
+- Verify `ADMIN_EMAIL` secret matches your email
+
+**Domain verification failed?**
+- Double-check DNS records in Cloudflare
+- Wait 10-15 minutes for DNS propagation
+- Verify records match exactly what Resend shows
+- Check Cloudflare DNS logs for any issues
+
+**Using a different sender email?**
+- Edit `.github/workflows/deploy.yml` line 221
+- Change `nexus@$DOMAIN` to your preferred email
+- Must be from verified domain (e.g., `admin@yourdomain.com`)
+
+---
+
+## 🐳 Docker Hub Credentials (Optional)
+
+Docker Hub limits anonymous image pulls to **100 pulls per 6 hours per IP**. During frequent deployments, this limit can be reached quickly since each stack requires multiple images.
+
+### Benefits of Docker Hub Login
+
+- **Without login**: 100 pulls/6h (anonymous)
+- **With login**: 200 pulls/6h (free account)
+
+### Setup for GitHub Actions
+
+1. **Create Docker Hub Access Token:**
+   - Go to https://hub.docker.com/settings/security
+   - Click **"New Access Token"**
+   - Name: `Nexus-Stack`
+   - Permissions: **Read** (sufficient for pulls)
+   - Click **Generate**
+   - **Copy the token** (starts with `dckr_pat_`)
+
+2. **Set GitHub Secrets:**
+   ```bash
+   gh secret set DOCKERHUB_USERNAME --body "your-dockerhub-username"
+   gh secret set DOCKERHUB_TOKEN --body "dckr_pat_xxxxxxxxxxxxx"
+   ```
+
+3. **Verify:**
+   ```bash
+   gh secret list | grep DOCKERHUB
+   ```
+
+The deployment workflow will automatically use these credentials if set.
+
+### Setup for Local Deployment
+
+Add to your `.env` file:
+
+```bash
+export TF_VAR_dockerhub_username="your-dockerhub-username"
+export TF_VAR_dockerhub_token="dckr_pat_xxxxxxxxxxxxx"
+```
+
+Or add to `tofu/config.tfvars`:
+
+```hcl
+dockerhub_username = "your-dockerhub-username"
+dockerhub_token    = "dckr_pat_xxxxxxxxxxxxx"
+```
+
+The `deploy.sh` script will automatically log in to Docker Hub during deployment if credentials are provided.

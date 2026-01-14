@@ -9,10 +9,15 @@ export async function onRequestGet(context) {
   const { env, request } = context;
   
   // Validate environment variables
-  if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
+  const missing = [];
+  if (!env.GITHUB_TOKEN) missing.push('GITHUB_TOKEN');
+  if (!env.GITHUB_OWNER) missing.push('GITHUB_OWNER');
+  if (!env.GITHUB_REPO) missing.push('GITHUB_REPO');
+  
+  if (missing.length > 0) {
     return new Response(JSON.stringify({ 
       success: false, 
-      error: 'Missing required environment variables' 
+      error: `Missing required environment variables: ${missing.join(', ')}. Configure them in Cloudflare Dashboard: Pages → nexus-control → Settings → Environment Variables → Secrets, or run: make setup-control-panel-secrets` 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
