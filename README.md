@@ -347,8 +347,9 @@ Deploy entirely via CI - no local tools required!
 - Repository: Select your `Nexus-Stack` repository
 - `Actions: Write` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
 - `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
+- `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
 
-**Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token.
+**Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token. The `Contents: Read` permission is required for the token to access the `main` branch when triggering workflows.
 
 Set the token manually:
 ```bash
