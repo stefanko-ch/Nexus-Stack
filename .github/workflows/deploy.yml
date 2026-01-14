@@ -184,7 +184,13 @@ jobs:
             echo "  Setting GITHUB_TOKEN secret via wrangler..."
             echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
               --project-name="$PROJECT_NAME" \
-              --env production || echo "⚠️  Failed to set GITHUB_TOKEN (may already be set)"
+              --env production || echo "⚠️  Failed to set GITHUB_TOKEN for production (may already be set)"
+            
+            echo "  Setting GITHUB_TOKEN secret for preview..."
+            echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
+              --project-name="$PROJECT_NAME" \
+              --env preview || echo "⚠️  Failed to set GITHUB_TOKEN for preview (may already be set)"
+            
             echo "✅ GITHUB_TOKEN secret set"
           else
             echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
@@ -277,18 +283,17 @@ jobs:
             echo "❌ Error: functions/ directory not found - API endpoints are required!"
             exit 1
           fi
-          # Deploy to production explicitly
-          # Using --branch=main should deploy to production, but we also set --env production
-          # to ensure it's not treated as a preview deployment
+          # Deploy to production
+          # --branch=main deploys to production (as configured in Terraform: production_branch = "main")
+          # Note: wrangler pages deploy does NOT support --env flag, only --branch
           npx wrangler@latest pages deploy . \
             --project-name=nexus-control \
             --branch=main \
-            --env production \
             --commit-dirty=true
-          echo "✅ Control Panel deployed to PRODUCTION!"
+          echo "✅ Control Panel deployed!"
           echo ""
-          echo "📝 Note: Deployment is explicitly set to production environment"
-          echo "   Environment variables are set for both production and preview"
+          echo "📝 Note: Deployed to production branch (main)"
+          echo "   Environment variables are set for both production and preview environments"
 
       - name: Get Infisical admin password for email
         run: |
