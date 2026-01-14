@@ -89,8 +89,6 @@ up: check-env
 		cd tofu && tofu init -backend-config=backend.hcl -reconfigure >/dev/null 2>&1 || true && \
 		tofu apply -var-file=config.tfvars -auto-approve
 	@echo ""
-	@echo "⏳ Waiting for Cloudflare to propagate changes..."
-	@sleep 5
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
 	@echo ""

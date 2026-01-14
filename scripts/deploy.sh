@@ -200,16 +200,29 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     fi
 fi
 
-MAX_RETRIES=30
+MAX_RETRIES=15
 RETRY=0
+TIMEOUT=5
 while [ $RETRY -lt $MAX_RETRIES ]; do
-    if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 nexus 'echo ok' 2>/dev/null; then
+    if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=$TIMEOUT -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
         echo -e "${GREEN}  ✓ SSH connection established${NC}"
         break
     fi
     RETRY=$((RETRY + 1))
-    echo "  Attempt $RETRY/$MAX_RETRIES - waiting for tunnel..."
-    sleep 10
+    if [ $RETRY -lt $MAX_RETRIES ]; then
+        echo "  Attempt $RETRY/$MAX_RETRIES - waiting for tunnel..."
+        # Increase timeout gradually: 5s, 5s, 10s, 10s, 15s...
+        if [ $RETRY -lt 3 ]; then
+            TIMEOUT=5
+            sleep 5
+        elif [ $RETRY -lt 7 ]; then
+            TIMEOUT=10
+            sleep 10
+        else
+            TIMEOUT=15
+            sleep 15
+        fi
+    fi
 done
 
 if [ $RETRY -eq $MAX_RETRIES ]; then
@@ -342,20 +355,38 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# Start containers (only enabled services)
+# Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[6/7] Starting enabled containers...${NC}"
+echo -e "${YELLOW}[6/7] Pre-pulling Docker images (parallel)...${NC}"
+
+ssh nexus "
+set -e
+for service in $ENABLED_LIST; do
+    if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
+        echo \"  Pre-pulling images for \$service...\"
+        (cd /opt/docker-server/stacks/\$service && docker compose pull >/dev/null 2>&1) &
+    fi
+done
+wait
+echo '  ✓ All images pre-pulled'
+"
+
+# -----------------------------------------------------------------------------
+# Start containers (parallel)
+# -----------------------------------------------------------------------------
+echo ""
+echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
 
 ssh nexus "
 set -e
 for service in $ENABLED_LIST; do
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
-        cd /opt/docker-server/stacks/\$service
-        docker compose up -d
+        (cd /opt/docker-server/stacks/\$service && docker compose up -d) &
     fi
 done
+wait
 echo ''
 echo '  ✓ All enabled stacks started'
 "
@@ -372,15 +403,29 @@ echo -e "${YELLOW}[7/7] Auto-configuring services...${NC}"
 if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     echo "  Configuring Infisical..."
     
-    # Wait for Infisical to be ready (can take 30-60s on first start)
+    # Wait for Infisical to be ready (optimized: check container status first)
     echo "  Waiting for Infisical to be ready..."
     INFISICAL_READY=false
-    for i in $(seq 1 30); do
-        if ssh nexus "curl -s --connect-timeout 5 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null | grep -q 'initialized'; then
+    # First check if container is running (faster than HTTP)
+    for i in $(seq 1 10); do
+        CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' infisical 2>/dev/null" || echo "")
+        if [ "$CONTAINER_STATUS" = "running" ]; then
+            break
+        fi
+        sleep 1
+    done
+    # Then check HTTP endpoint with shorter intervals initially
+    for i in $(seq 1 20); do
+        if ssh nexus "curl -s --connect-timeout 3 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null | grep -q 'initialized'; then
             INFISICAL_READY=true
             break
         fi
-        sleep 2
+        # Start with 1s intervals, increase to 2s after 10 retries
+        if [ $i -lt 10 ]; then
+            sleep 1
+        else
+            sleep 2
+        fi
     done
     
     if [ "$INFISICAL_READY" = "false" ]; then
@@ -494,40 +539,62 @@ SECRETS_EOF
     fi  # End of INFISICAL_READY check
 fi
 
-# Configure Portainer admin
+# Configure Portainer admin (non-blocking, can run in parallel with other configs)
 if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; then
-    echo "  Configuring Portainer admin..."
-    sleep 3
-    
-    PORTAINER_JSON="{\"Username\":\"$ADMIN_USERNAME\",\"Password\":\"$PORTAINER_PASS\"}"
-    PORTAINER_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:9090/api/users/admin/init' \
-        -H 'Content-Type: application/json' \
-        -d '$PORTAINER_JSON'" 2>/dev/null || echo "")
-    
-    if echo "$PORTAINER_RESULT" | grep -q '"Id"' 2>/dev/null; then
-        echo -e "${GREEN}  ✓ Portainer admin created (user: $ADMIN_USERNAME)${NC}"
-    elif echo "$PORTAINER_RESULT" | grep -q 'already initialized' 2>/dev/null; then
-        echo -e "${YELLOW}  ⚠ Portainer already initialized${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ Portainer setup skipped (may already be configured)${NC}"
-    fi
+    (
+        echo "  Configuring Portainer admin..."
+        # Quick readiness check
+        for i in $(seq 1 5); do
+            if ssh nexus "curl -s --connect-timeout 2 'http://localhost:9090/api/system/status'" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+        done
+        
+        PORTAINER_JSON="{\"Username\":\"$ADMIN_USERNAME\",\"Password\":\"$PORTAINER_PASS\"}"
+        PORTAINER_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:9090/api/users/admin/init' \
+            -H 'Content-Type: application/json' \
+            -d '$PORTAINER_JSON'" 2>/dev/null || echo "")
+        
+        if echo "$PORTAINER_RESULT" | grep -q '"Id"' 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Portainer admin created (user: $ADMIN_USERNAME)${NC}"
+        elif echo "$PORTAINER_RESULT" | grep -q 'already initialized' 2>/dev/null; then
+            echo -e "${YELLOW}  ⚠ Portainer already initialized${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Portainer setup skipped (may already be configured)${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
 fi
 
 # Configure Uptime Kuma admin
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; then
     echo "  Configuring Uptime Kuma..."
     
-    # Wait for Uptime Kuma container to be ready
+    # Wait for Uptime Kuma container to be ready (optimized: check status first)
     echo "  Waiting for Uptime Kuma to be ready..."
     KUMA_READY=false
-    for i in $(seq 1 30); do
-        # Check if container is healthy
+    # First check if container is running (faster than health check)
+    for i in $(seq 1 10); do
+        CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' uptime-kuma 2>/dev/null" || echo "")
+        if [ "$CONTAINER_STATUS" = "running" ]; then
+            break
+        fi
+        sleep 1
+    done
+    # Then check health status with shorter intervals initially
+    for i in $(seq 1 20); do
         KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
         if [ "$KUMA_HEALTH" = "healthy" ]; then
             KUMA_READY=true
             break
         fi
-        sleep 2
+        # Start with 1s intervals, increase to 2s after 10 retries
+        if [ $i -lt 10 ]; then
+            sleep 1
+        else
+            sleep 2
+        fi
     done
     
     if [ "$KUMA_READY" = "false" ]; then
@@ -676,6 +743,12 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 30000);
             echo -e "${YELLOW}  ⚠ Failed to sync monitors${NC}"
         fi
     fi
+fi
+
+# Wait for all background configuration jobs to complete
+if [ ${#CONFIG_JOBS[@]} -gt 0 ]; then
+    echo "  Waiting for background configuration jobs to complete..."
+    wait "${CONFIG_JOBS[@]}"
 fi
 
 # -----------------------------------------------------------------------------

@@ -79,26 +79,22 @@ resource "cloudflare_zero_trust_access_application" "control_panel" {
   same_site_cookie_attribute = "lax"
   
   # CORS settings for API requests from the same origin
-  cors_headers = {
+  cors_headers {
     allowed_origins   = ["https://control.${var.domain}"]
     allowed_methods   = ["GET", "POST", "OPTIONS"]
     allow_credentials = true
   }
+}
 
-  # Inline policy - this is the key difference!
-  # Using inline policy instead of separate cloudflare_zero_trust_access_policy
-  policies = [
-    {
-      name       = "Admin Access"
-      precedence = 1
-      decision   = "allow"
-      include = [
-        {
-          email = {
-            email = var.admin_email
-          }
-        }
-      ]
-    }
-  ]
+# Separate policy resource (required by Cloudflare provider)
+resource "cloudflare_zero_trust_access_policy" "control_panel" {
+  account_id            = var.cloudflare_account_id
+  application_id        = cloudflare_zero_trust_access_application.control_panel.id
+  name                  = "Admin Access"
+  precedence            = 1
+  decision              = "allow"
+  
+  include {
+    email = [var.admin_email]
+  }
 }
