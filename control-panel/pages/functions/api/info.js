@@ -79,7 +79,7 @@ export async function onRequestGet(context) {
 
     // Get scheduled teardown config
     if (env.SCHEDULED_TEARDOWN) {
-      const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'false';
+      const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
       const timezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
       const teardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
       const delayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;

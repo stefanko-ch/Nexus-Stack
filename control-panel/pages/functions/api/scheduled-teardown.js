@@ -58,7 +58,7 @@ export async function onRequestGet(context) {
   }
 
   try {
-    const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'false';
+    const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
     const timezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
     const teardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
     const notificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
@@ -210,7 +210,7 @@ export async function onRequestPost(context) {
     }
 
     // Get updated config
-    const updatedEnabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'false';
+    const updatedEnabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
     const updatedTimezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
     const updatedTeardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
     const updatedNotificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
