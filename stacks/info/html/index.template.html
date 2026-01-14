@@ -76,7 +76,7 @@
         .logo {
             display: block;
             width: 120px;
-            height: 120px;
+            height: auto;
             margin: 0 auto 1.5rem;
             filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
         }
@@ -381,6 +381,14 @@
         const activeGrid = document.getElementById('active-services');
         const disabledGrid = document.getElementById('disabled-services');
 
+        // Add Control Panel as special service (hosted on Cloudflare Pages, not Docker)
+        const controlPanel = {
+            subdomain: 'control',
+            description: 'Infrastructure control panel - deploy, teardown, and destroy your Nexus Stack.',
+            enabled: true
+        };
+        activeGrid.appendChild(createServiceCard('control', controlPanel, true));
+
         // Sort and display active services (info last)
         activeServices
             .sort((a, b) => {
@@ -391,6 +399,9 @@
             .forEach(([name, service]) => {
                 activeGrid.appendChild(createServiceCard(name, service, true));
             });
+
+        // Update count to include Control Panel
+        document.getElementById('active-count').textContent = activeServices.length + 1;
 
         disabledServices.forEach(([name, service]) => {
             disabledGrid.appendChild(createServiceCard(name, service, false));

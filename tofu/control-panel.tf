@@ -51,6 +51,13 @@ resource "cloudflare_record" "control_panel" {
   ttl     = 1
 }
 
+# Custom Domain for Cloudflare Pages
+resource "cloudflare_pages_domain" "control_panel" {
+  account_id   = var.cloudflare_account_id
+  project_name = cloudflare_pages_project.control_panel.name
+  domain       = "control.${var.domain}"
+}
+
 # -----------------------------------------------------------------------------
 # Cloudflare Access Protection
 # -----------------------------------------------------------------------------
