@@ -371,32 +371,6 @@ This setup achieves **zero open ports** after deployment:
 2. OpenTofu installs the Cloudflare Tunnel via SSH
 3. After tunnel is running, SSH port is **automatically closed** via Hetzner API
 
-### Authentication Methods
-
-Nexus-Stack supports multiple authentication methods for Cloudflare Access. Currently, **email OTP** is fully supported via Terraform. GitHub/Google OAuth can be configured manually in the Cloudflare Dashboard.
-
-**Configure in `tofu/config.tfvars`:**
-
-```hcl
-auth_methods = {
-  email         = true   # Email OTP (default - requires email verification each time) ✅ Supported
-  github        = false  # GitHub OAuth (⚠️ requires manual Identity Provider setup)
-  google        = false  # Google OAuth (⚠️ requires manual Identity Provider setup)
-  service_token = false  # Service tokens for CI/CD (no browser needed) ✅ Supported
-}
-```
-
-**Current Status:**
-- ✅ **Email OTP**: Fully supported via Terraform (default)
-- ✅ **Service Tokens**: Fully supported via Terraform (for SSH CI/CD)
-- ⚠️ **GitHub/Google OAuth**: Requires manual Identity Provider configuration in Cloudflare Dashboard
-
-**To enable GitHub/Google OAuth (manual setup):**
-1. Go to Cloudflare Dashboard → Zero Trust → Access → Identity Providers
-2. Add GitHub or Google as Identity Provider
-3. Then add policies manually or wait for Terraform provider support
-
-**Future:** Terraform provider will support Identity Providers natively - GitHub/Google OAuth will then be fully automated.
 4. All future SSH access goes through Cloudflare Tunnel
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
