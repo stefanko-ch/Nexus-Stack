@@ -195,15 +195,17 @@
         }
 
         .action-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.6;
             cursor: not-allowed !important;
             transform: none;
             pointer-events: none;
+            filter: grayscale(0.3);
         }
 
         .action-btn:disabled:hover {
             box-shadow: none;
             transform: none;
+            filter: grayscale(0.3);
         }
 
         .action-btn.deploy {
@@ -629,10 +631,17 @@
                     btnDestroy.disabled = false;
                     break;
                 case 'destroyed':
-                case 'unknown':
                     btnDeploy.disabled = false;
                     btnTeardown.disabled = true;
                     btnDestroy.disabled = true;
+                    break;
+                case 'unknown':
+                default:
+                    // When status is unknown, allow all actions but show them as available
+                    // User can still deploy, and if infrastructure exists, teardown/destroy will work
+                    btnDeploy.disabled = false;
+                    btnTeardown.disabled = false;
+                    btnDestroy.disabled = false;
                     break;
             }
         }
