@@ -37,17 +37,23 @@ Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
 control-panel/
 ├── pages/
 │   ├── index.html              # Frontend UI
+│   ├── nexus-logo-green.png   # Logo
 │   └── functions/              # Cloudflare Pages Functions (API)
 │       └── api/
 │           ├── deploy.js       # POST /api/deploy
 │           ├── teardown.js     # POST /api/teardown
 │           ├── destroy.js      # POST /api/destroy
-│           └── status.js       # GET /api/status
+│           ├── status.js       # GET /api/status
+│           └── health.js       # GET /api/health
+├── README.md                   # This file
+├── SECURITY.md                 # Security documentation
+├── DEPLOYMENT.md               # Deployment guide
+└── wrangler.toml               # Wrangler configuration
 ```
 
 ## 🔧 Setup
 
-The control panel is automatically deployed when you run `make up`.
+The control panel infrastructure is created by Terraform when you run `make up`. The actual Pages deployment happens automatically via the Makefile (if `CLOUDFLARE_API_TOKEN` is set) or via GitHub Actions.
 
 ### Required Secrets
 

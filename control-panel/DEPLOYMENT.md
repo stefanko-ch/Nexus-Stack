@@ -64,14 +64,18 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
 
 ### 3. Deploy Pages Project
 
-**First deployment needs to be manual:**
+**Automatic deployment:**
+
+The control panel is automatically deployed:
+- Via `make up` (if `CLOUDFLARE_API_TOKEN` is set in `.env`)
+- Via GitHub Actions workflow (when triggered from control panel)
+
+**Manual deployment (if needed):**
 
 ```bash
 cd control-panel/pages
 npx wrangler pages deploy . --project-name=nexus-control
 ```
-
-**Subsequent deployments** happen automatically on push to `main`.
 
 ### 4. Verify Deployment
 

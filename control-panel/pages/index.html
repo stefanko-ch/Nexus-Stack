@@ -669,13 +669,30 @@
                 'destroy': 'Destroy Everything'
             };
             
+            // Disable buttons during action
+            const buttons = document.querySelectorAll('.action-btn');
+            buttons.forEach(btn => btn.disabled = true);
+            
+            // Show loading state
+            const btn = document.getElementById(`btn-${action}`);
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span>Processing...';
+            
             try {
-                const response = await fetch(`${API_URL}/api/${action}`, { method: 'POST', credentials: 'same-origin' });
+                const response = await fetch(`${API_URL}/api/${action}`, { 
+                    method: 'POST', 
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
                 // Check if we got HTML instead of JSON (Access login page)
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     showToast('Session expired - please refresh the page', 'error');
+                    buttons.forEach(btn => btn.disabled = false);
+                    btn.innerHTML = originalHTML;
                     return;
                 }
                 
@@ -683,13 +700,18 @@
                 
                 if (data.success) {
                     showToast(`${actionLabels[action]} triggered!`, 'success');
+                    // Refresh status after short delay
                     setTimeout(fetchStatus, 2000);
                 } else {
                     showToast(data.error || 'Failed to trigger action', 'error');
+                    buttons.forEach(btn => btn.disabled = false);
+                    btn.innerHTML = originalHTML;
                 }
             } catch (error) {
                 console.error('Failed to trigger action:', error);
-                showToast('Failed to trigger action', 'error');
+                showToast('Network error - please try again', 'error');
+                buttons.forEach(btn => btn.disabled = false);
+                btn.innerHTML = originalHTML;
             }
         }
 
@@ -743,9 +765,48 @@
             }
         });
 
-        // Initial fetch and polling
-        fetchStatus();
-        setInterval(fetchStatus, 10000); // Poll every 10 seconds
+        // Health check on load
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/api/health`, { credentials: 'same-origin' });
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Control Panel API:', data.status);
+                }
+            } catch (error) {
+                console.warn('Health check failed:', error);
+            }
+        }
+
+        // Polling with exponential backoff on errors
+        let consecutiveErrors = 0;
+        let pollTimeout;
+        
+        function scheduleNextPoll() {
+            // Clear existing timeout
+            if (pollTimeout) clearTimeout(pollTimeout);
+            
+            // Calculate interval with exponential backoff
+            const baseInterval = 10000; // 10 seconds
+            const maxInterval = 60000; // Max 60 seconds
+            const interval = Math.min(baseInterval * Math.pow(2, consecutiveErrors), maxInterval);
+            
+            pollTimeout = setTimeout(() => {
+                fetchStatus()
+                    .then(() => {
+                        consecutiveErrors = 0; // Reset on success
+                        scheduleNextPoll();
+                    })
+                    .catch(() => {
+                        consecutiveErrors++;
+                        scheduleNextPoll();
+                    });
+            }, interval);
+        }
+        
+        // Initial health check and status fetch
+        checkHealth();
+        fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
     </script>
 </body>
 </html>

@@ -159,14 +159,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "📦 Deploying Control Panel to Cloudflare Pages..."
-          cd control-panel
-          # Copy functions into pages folder for wrangler to detect them
+          cd control-panel/pages
+          # Verify functions directory exists
           if [ ! -d "functions" ]; then
             echo "❌ Error: functions/ directory not found - API endpoints are required!"
             exit 1
           fi
-          cp -r functions pages/
-          npx wrangler pages deploy pages \
+          npx wrangler@latest pages deploy . \
             --project-name=nexus-control \
             --branch=main
           echo "✅ Control Panel deployed!"
