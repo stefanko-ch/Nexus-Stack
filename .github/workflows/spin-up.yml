@@ -42,6 +42,12 @@ jobs:
         with:
           tofu_version: 1.10.0
 
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
       - name: Generate SSH key for server access
         run: |
           mkdir -p ~/.ssh
