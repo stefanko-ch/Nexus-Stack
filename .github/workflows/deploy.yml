@@ -214,6 +214,8 @@ jobs:
             }')
           
           # Update via PATCH
+          # IMPORTANT: Set for BOTH production AND preview environments
+          # Some deployments might run on preview, so we need both
           API_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -221,6 +223,9 @@ jobs:
             -d "{
               \"deployment_configs\": {
                 \"production\": {
+                  \"env_vars\": $MERGED_VARS
+                },
+                \"preview\": {
                   \"env_vars\": $MERGED_VARS
                 }
               }
