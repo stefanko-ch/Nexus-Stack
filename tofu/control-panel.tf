@@ -40,6 +40,9 @@ resource "cloudflare_pages_project" "control_panel" {
         GITHUB_OWNER = var.github_owner
         GITHUB_REPO  = var.github_repo
       }
+      # Note: Preview uses environment variables via Terraform for flexibility.
+      # Production uses secrets via wrangler (set in deploy.yml workflow).
+      # This allows preview deployments to work even if secrets aren't configured.
     }
   }
 }
