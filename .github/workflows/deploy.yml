@@ -177,9 +177,26 @@ jobs:
           echo "  GITHUB_REPO: $GITHUB_REPO"
           
           # Set environment variables via Cloudflare API
-          # Note: Terraform should set these, but we ensure they're set here too
-          npx wrangler@latest pages project add-env-var "$PROJECT_NAME" GITHUB_OWNER "$GITHUB_OWNER" --env production || echo "⚠️  Failed to set GITHUB_OWNER (may already be set)"
-          npx wrangler@latest pages project add-env-var "$PROJECT_NAME" GITHUB_REPO "$GITHUB_REPO" --env production || echo "⚠️  Failed to set GITHUB_REPO (may already be set)"
+          # Terraform should set these, but we ensure they're set here too
+          # Using Cloudflare API directly (wrangler doesn't have a direct command for this)
+          curl -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"deployment_configs\": {
+                \"production\": {
+                  \"env_vars\": {
+                    \"GITHUB_OWNER\": {
+                      \"value\": \"$GITHUB_OWNER\"
+                    },
+                    \"GITHUB_REPO\": {
+                      \"value\": \"$GITHUB_REPO\"
+                    }
+                  }
+                }
+              }
+            }" || echo "⚠️  Failed to set environment variables (may already be set by Terraform)"
           
           echo "✅ Environment variables set"
 
