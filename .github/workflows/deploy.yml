@@ -255,6 +255,10 @@ jobs:
           
           echo ""
           echo "✅ Setup complete"
+          echo ""
+          echo "⚠️  IMPORTANT: Environment variables are now set."
+          echo "   If Control Panel still shows errors, the deployment may need to be recreated."
+          echo "   Triggering a new deployment to ensure variables are available..."
 
       - name: Deploy Control Panel to Cloudflare Pages
         env:
