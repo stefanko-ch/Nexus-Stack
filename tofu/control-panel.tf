@@ -114,13 +114,23 @@ resource "cloudflare_pages_project" "control_panel" {
 # DNS Record
 # -----------------------------------------------------------------------------
 
-# Note: DNS record is automatically created by cloudflare_pages_domain resource below
+# CNAME record pointing to the Pages project
+resource "cloudflare_record" "control_panel" {
+  zone_id = var.cloudflare_zone_id
+  name    = "control"
+  content = "${cloudflare_pages_project.control_panel.name}.pages.dev"
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1
+}
 
-# Custom Domain for Cloudflare Pages
+# Custom Domain for Cloudflare Pages (binds the domain to the Pages project)
 resource "cloudflare_pages_domain" "control_panel" {
   account_id   = var.cloudflare_account_id
   project_name = cloudflare_pages_project.control_panel.name
   domain       = "control.${var.domain}"
+  
+  depends_on = [cloudflare_record.control_panel]
 }
 
 # -----------------------------------------------------------------------------
