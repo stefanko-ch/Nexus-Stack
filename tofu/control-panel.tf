@@ -23,6 +23,7 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
   account_id = var.cloudflare_account_id
   name       = "${var.server_name}-scheduled-teardown"
   content    = file("${path.module}/../control-panel/worker/src/index.js")
+  module     = true
 
   kv_namespace_binding {
     name         = "SCHEDULED_TEARDOWN"
