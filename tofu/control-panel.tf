@@ -44,13 +44,13 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
 }
 
 # Cron triggers for scheduled teardown (separate resource)
-resource "cloudflare_worker_cron_trigger" "scheduled_teardown_notification" {
+resource "cloudflare_workers_cron_trigger" "scheduled_teardown_notification" {
   account_id = var.cloudflare_account_id
   script_name = cloudflare_workers_script.scheduled_teardown.name
   schedules   = ["45 20 * * *"]  # Notification at 20:45 UTC (21:45 CET)
 }
 
-resource "cloudflare_worker_cron_trigger" "scheduled_teardown_execution" {
+resource "cloudflare_workers_cron_trigger" "scheduled_teardown_execution" {
   account_id = var.cloudflare_account_id
   script_name = cloudflare_workers_script.scheduled_teardown.name
   schedules   = ["0 21 * * *"]  # Teardown at 21:00 UTC (22:00 CET)
