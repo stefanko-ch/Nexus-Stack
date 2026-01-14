@@ -26,6 +26,43 @@ export async function onRequestGet(context) {
     const notificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
     const delayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
     
+    // Calculate next teardown time
+    let nextTeardown = null;
+    let timeRemaining = null;
+    if (enabled === 'true') {
+      const now = new Date();
+      const [hours, minutes] = teardownTime.split(':').map(Number);
+      
+      // Create next teardown date (today or tomorrow) - adjust for timezone
+      const nextTeardownDate = new Date();
+      nextTeardownDate.setUTCHours(hours, minutes, 0, 0);
+      if (nextTeardownDate <= now) {
+        nextTeardownDate.setUTCDate(nextTeardownDate.getUTCDate() + 1);
+      }
+
+      // Apply delay if exists
+      if (delayUntil) {
+        const delayDate = new Date(delayUntil);
+        if (delayDate > nextTeardownDate) {
+          nextTeardown = delayDate.toISOString();
+        } else {
+          nextTeardown = nextTeardownDate.toISOString();
+        }
+      } else {
+        nextTeardown = nextTeardownDate.toISOString();
+      }
+
+      // Calculate time remaining
+      const remaining = new Date(nextTeardown) - now;
+      const hoursRemaining = Math.floor(remaining / (1000 * 60 * 60));
+      const minutesRemaining = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+      timeRemaining = {
+        hours: hoursRemaining,
+        minutes: minutesRemaining,
+        totalMinutes: Math.floor(remaining / (1000 * 60)),
+      };
+    }
+    
     return new Response(JSON.stringify({
       success: true,
       config: {
@@ -34,6 +71,8 @@ export async function onRequestGet(context) {
         teardownTime,
         notificationTime,
         delayUntil,
+        nextTeardown,
+        timeRemaining,
       },
     }), {
       status: 200,

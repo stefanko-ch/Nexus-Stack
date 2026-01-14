@@ -75,6 +75,9 @@ resource "cloudflare_pages_project" "control_panel" {
       environment_variables = {
         GITHUB_OWNER = var.github_owner
         GITHUB_REPO  = var.github_repo
+        DOMAIN       = var.domain
+        SERVER_TYPE  = var.server_type
+        SERVER_LOCATION = var.server_location
       }
       
       # KV Namespace binding for scheduled teardown configuration
@@ -91,6 +94,9 @@ resource "cloudflare_pages_project" "control_panel" {
       environment_variables = {
         GITHUB_OWNER = var.github_owner
         GITHUB_REPO  = var.github_repo
+        DOMAIN       = var.domain
+        SERVER_TYPE  = var.server_type
+        SERVER_LOCATION = var.server_location
       }
       
       # KV Namespace binding for preview environment
