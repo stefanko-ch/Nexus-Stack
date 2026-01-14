@@ -241,3 +241,30 @@ jobs:
             --notes-file /tmp/changelog.md
           
           echo "✅ Released $NEW_VERSION"
+
+      - name: Trigger nexus-stack.ch website update
+        if: steps.version.outputs.skip != 'true'
+        env:
+          WEBSITE_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          
+          # Only trigger if token is configured
+          if [ -z "$WEBSITE_TOKEN" ]; then
+            echo "⚠️ WEBSITE_DISPATCH_TOKEN not configured, skipping website update"
+            exit 0
+          fi
+          
+          # Trigger the update-content workflow in nexus-stack.ch repo
+          # Using jq for safe JSON encoding and --fail for proper error handling
+          if curl --fail -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $WEBSITE_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/stefanko-ch/nexus-stack.ch/dispatches \
+            -d "$(jq -n --arg version "$NEW_VERSION" '{event_type:"nexus-stack-release", client_payload:{version:$version, repository:"Nexus-Stack"}}')"; then
+            echo "✅ Triggered nexus-stack.ch website update"
+          else
+            echo "❌ Failed to trigger website update (HTTP error)"
+            exit 1
+          fi
