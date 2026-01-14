@@ -282,20 +282,20 @@ Add these secrets to your repo:
 | `ACCESS_EMAILS` | Allowed emails | Comma-separated |
 | `INFISICAL_TOKEN` | Infisical dashboard | Optional |
 
-### First Deployment
+### First Setup
 
 ```bash
-# Run the deploy workflow
+# Run the setup workflow
 gh workflow run deploy.yml
 ```
 
 On **first run**, the pipeline will:
 1. Create the R2 bucket automatically
 2. Generate R2 API credentials
-3. **Display the credentials in the logs** with instructions
-4. Deploy the infrastructure
+3. Deploy the Control Panel
+4. Trigger the spin-up workflow
 
-> ⚠️ **Important:** After the first run, copy the `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from the logs and save them as GitHub Secrets!
+> ⚠️ **Important:** After the first run, copy the `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from the logs and save them as GitHub Secrets (unless `GH_SECRETS_TOKEN` is configured for auto-save).
 
 ### Add R2 Credentials as Secrets
 
@@ -312,21 +312,15 @@ Once saved, all future deployments will use these secrets automatically.
 
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
-| Deploy | `gh workflow run deploy.yml` | None | Full deploy |
+| Setup | `gh workflow run deploy.yml` | None | One-time setup (triggers spin-up) |
+| Spin Up | `gh workflow run spin-up.yml` | None | Re-create infrastructure after teardown |
 | Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
 | Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
 
 ### Scheduled Teardown (Cost Saving)
 
-Add a schedule trigger to automatically teardown infrastructure at night:
-
-```yaml
-# In .github/workflows/teardown.yml, add to "on:" section:
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 22 * * *'  # Every day at 22:00 UTC
-```
+Scheduled teardown is optional and managed via the Control Panel (Cloudflare Worker + KV).
+Enable or disable it at runtime without changing GitHub Actions.
 
 ### Local + CI Coexistence
 

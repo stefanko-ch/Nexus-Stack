@@ -106,10 +106,17 @@ export async function onRequestGet(context) {
       const workflowData = await workflowResponse.json();
       const runs = workflowData.workflow_runs || [];
 
-      // Find last successful deploy
-      const lastDeploy = runs.find(r => 
-        (r.path && r.path.includes('deploy.yml')) || 
-        (r.name && r.name.includes('Deploy'))
+      // Find last successful spin-up (preferred) or setup
+      const lastSpinUp = runs.find(r => 
+        ((r.path && r.path.includes('spin-up.yml')) || 
+         (r.name && (r.name.includes('Spin Up') || r.name.includes('Spin-Up')))) &&
+        r.conclusion === 'success'
+      );
+
+      const lastSetup = runs.find(r => 
+        ((r.path && r.path.includes('deploy.yml')) || 
+         (r.name && r.name.includes('Setup'))) &&
+        r.conclusion === 'success'
       );
 
       // Find last successful teardown
@@ -119,8 +126,10 @@ export async function onRequestGet(context) {
         r.conclusion === 'success'
       );
 
-      if (lastDeploy && lastDeploy.conclusion === 'success') {
-        const deployTime = new Date(lastDeploy.updated_at);
+      const deploySource = lastSpinUp || lastSetup;
+
+      if (deploySource) {
+        const deployTime = new Date(deploySource.updated_at);
         const now = new Date();
         const uptimeMs = now - deployTime;
         const uptimeHours = Math.floor(uptimeMs / (1000 * 60 * 60));
@@ -128,7 +137,7 @@ export async function onRequestGet(context) {
         const uptimeMinutes = Math.floor((uptimeMs % (1000 * 60 * 60)) / (1000 * 60));
 
         info.time = {
-          lastDeploy: lastDeploy.updated_at,
+          lastDeploy: deploySource.updated_at,
           lastTeardown: lastTeardown ? lastTeardown.updated_at : null,
           uptime: {
             days: uptimeDays,
@@ -139,12 +148,24 @@ export async function onRequestGet(context) {
         };
 
         info.workflows = {
-          lastDeploy: {
-            time: lastDeploy.updated_at,
-            status: lastDeploy.status,
-            conclusion: lastDeploy.conclusion,
-            url: lastDeploy.html_url,
-          },
+          lastDeploy: deploySource ? {
+            time: deploySource.updated_at,
+            status: deploySource.status,
+            conclusion: deploySource.conclusion,
+            url: deploySource.html_url,
+          } : null,
+          lastSetup: lastSetup ? {
+            time: lastSetup.updated_at,
+            status: lastSetup.status,
+            conclusion: lastSetup.conclusion,
+            url: lastSetup.html_url,
+          } : null,
+          lastSpinUp: lastSpinUp ? {
+            time: lastSpinUp.updated_at,
+            status: lastSpinUp.status,
+            conclusion: lastSpinUp.conclusion,
+            url: lastSpinUp.html_url,
+          } : null,
           lastTeardown: lastTeardown ? {
             time: lastTeardown.updated_at,
             status: lastTeardown.status,
