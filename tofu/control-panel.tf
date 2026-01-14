@@ -34,6 +34,16 @@ resource "cloudflare_pages_project" "control_panel" {
       # wrangler pages secret put GITHUB_TOKEN --project-name=${var.server_name}-control
       # or via Cloudflare dashboard
     }
+
+    preview {
+      environment_variables = {
+        GITHUB_OWNER = var.github_owner
+        GITHUB_REPO  = var.github_repo
+      }
+      # Note: Preview uses environment variables via Terraform for flexibility.
+      # Production uses secrets via wrangler (set in deploy.yml workflow).
+      # This allows preview deployments to work even if secrets aren't configured.
+    }
   }
 }
 
@@ -70,35 +80,32 @@ resource "cloudflare_zero_trust_access_application" "control_panel" {
   session_duration = "24h"
 
   # Important settings for Pages Functions API to work
-  skip_interstitial        = true
-  app_launcher_visible     = true
-  options_preflight_bypass = true
+  skip_interstitial    = true
+  app_launcher_visible = true
+  # Note: options_preflight_bypass cannot be used with cors_headers
   
   # Cookie settings - critical for same-origin API requests
   http_only_cookie_attribute = true
   same_site_cookie_attribute = "lax"
   
   # CORS settings for API requests from the same origin
-  cors_headers = {
+  # Note: This conflicts with options_preflight_bypass, so we use CORS headers instead
+  cors_headers {
     allowed_origins   = ["https://control.${var.domain}"]
     allowed_methods   = ["GET", "POST", "OPTIONS"]
     allow_credentials = true
   }
+}
 
-  # Inline policy - this is the key difference!
-  # Using inline policy instead of separate cloudflare_zero_trust_access_policy
-  policies = [
-    {
-      name       = "Admin Access"
-      precedence = 1
-      decision   = "allow"
-      include = [
-        {
-          email = {
-            email = var.admin_email
-          }
-        }
-      ]
-    }
-  ]
+# Control Panel Access Policy (Email OTP)
+resource "cloudflare_zero_trust_access_policy" "control_panel_email" {
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.control_panel.id
+  name           = "Email Access"
+  precedence     = 1
+  decision       = "allow"
+
+  include {
+    email = [var.admin_email]
+  }
 }

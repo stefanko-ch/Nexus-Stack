@@ -316,6 +316,7 @@ Deploy entirely via CI - no local tools required!
 1. Add secrets to your repo (Settings → Secrets → Actions):
    - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`
    - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`, `ADMIN_EMAIL`
+   - **(Optional)** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` - For increased Docker pull rate limits (200 vs 100 pulls/6h)
 
 2. **(Optional)** For auto-saving R2 credentials, create a Fine-grained PAT:
    - GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
@@ -334,6 +335,28 @@ Deploy entirely via CI - no local tools required!
 
 5. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
 6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
+7. Control Panel environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
+
+**Note:** The Control Panel requires `GITHUB_TOKEN` to be set with the following permissions:
+
+**For Classic Tokens:**
+- `workflow` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `repo` - Full control of repositories (required for auto-saving R2 credentials as Secrets)
+
+**For Fine-Grained Tokens:**
+- Repository: Select your `Nexus-Stack` repository
+- `Actions: Write` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
+- `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
+
+**Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token. The `Contents: Read` permission is required for the token to access the `main` branch when triggering workflows.
+
+Set the token manually:
+```bash
+make setup-control-panel-secrets
+# Or manually via Cloudflare Dashboard:
+# Pages → nexus-control → Settings → Environment Variables → Secrets
+```
 
 ### Available Workflows
 
@@ -361,6 +384,7 @@ This setup achieves **zero open ports** after deployment:
 1. During initial setup, SSH (port 22) is temporarily open
 2. OpenTofu installs the Cloudflare Tunnel via SSH
 3. After tunnel is running, SSH port is **automatically closed** via Hetzner API
+
 4. All future SSH access goes through Cloudflare Tunnel
 
 **Result:** No attack surface. All traffic flows through Cloudflare.

@@ -22,6 +22,10 @@ jobs:
       TF_VAR_domain: ${{ secrets.DOMAIN }}
       TF_VAR_access_emails: ${{ secrets.ACCESS_EMAILS }}
       TF_VAR_infisical_token: ${{ secrets.INFISICAL_TOKEN }}
+      TF_VAR_dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+      TF_VAR_github_owner: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
     
     steps:
       - name: Checkout
@@ -64,6 +68,14 @@ jobs:
           github_repo    = "${{ github.event.repository.name }}"
           EOF
           
+          # Add Docker Hub credentials if provided (optional)
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            cat >> tofu/config.tfvars << EOF
+          dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
+          dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
+          EOF
+          fi
+          
           # Append services from committed services.tfvars
           cat tofu/services.tfvars >> tofu/config.tfvars
 
@@ -82,7 +94,7 @@ jobs:
         if: steps.check_r2.outputs.r2_exists == 'false'
         id: init_r2
         env:
-          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🪣 Creating R2 bucket and credentials..."
           
@@ -97,26 +109,47 @@ jobs:
             # Check if we have a token to auto-save secrets
             if [ -n "$GH_TOKEN" ]; then
               echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
-              gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID"
-              gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY"
-              echo "✅ R2 credentials saved to GitHub Secrets automatically!"
-              echo ""
-              echo "Future deployments will use these credentials."
+              
+              SECRET_ERROR=""
+              if ! gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1 | tee /tmp/gh-secret-access.log; then
+                SECRET_ERROR=$(cat /tmp/gh-secret-access.log 2>/dev/null || echo "Unknown error")
+              fi
+              
+              if [ -z "$SECRET_ERROR" ]; then
+                if ! gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1 | tee /tmp/gh-secret-secret.log; then
+                  SECRET_ERROR=$(cat /tmp/gh-secret-secret.log 2>/dev/null || echo "Unknown error")
+                fi
+              fi
+              
+              if [ -z "$SECRET_ERROR" ]; then
+                echo "✅ R2 credentials saved to GitHub Secrets automatically!"
+                echo ""
+                echo "Future deployments will use these credentials."
+              else
+                echo "⚠️  Failed to auto-save secrets: $SECRET_ERROR"
+                echo ""
+                echo "Please save these credentials manually in GitHub Secrets:"
+                echo "  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
+                echo "  R2_SECRET_ACCESS_KEY=*** (check workflow logs or tofu/.r2-credentials file)"
+                echo ""
+                echo "Or configure GH_SECRETS_TOKEN with 'repo' scope and 'write:secrets' permission"
+              fi
             else
               echo ""
               echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-              echo "║  ⚠️  GITHUB_SECRETS_TOKEN not configured - manual setup required            ║"
+              echo "║  ⚠️  GH_SECRETS_TOKEN not configured - manual setup required                ║"
               echo "╠══════════════════════════════════════════════════════════════════════════════╣"
               echo "║                                                                              ║"
-              echo "║  To enable auto-saving of secrets, create a Personal Access Token:          ║"
+              echo "║  Please save these credentials manually in GitHub Secrets:                  ║"
+              echo "║  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
+              echo "║  R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY"
+              echo "║                                                                              ║"
+              echo "║  To enable auto-saving, create a Personal Access Token:                     ║"
               echo "║  GitHub → Settings → Developer settings → Personal access tokens            ║"
               echo "║  Required scope: 'repo' (or fine-grained with 'Secrets' permission)         ║"
-              echo "║  Save as: GITHUB_SECRETS_TOKEN                                              ║"
+              echo "║  Save as: GH_SECRETS_TOKEN                                                  ║"
               echo "║                                                                              ║"
               echo "╚══════════════════════════════════════════════════════════════════════════════╝"
-              echo ""
-              echo "❌ Please save R2 credentials manually (see workflow logs for values)"
-              exit 1
             fi
             
             # Export for this run
@@ -131,9 +164,13 @@ jobs:
         if: steps.check_r2.outputs.r2_exists == 'true'
         run: |
           mkdir -p tofu
+          # Trim whitespace and newlines from secrets to avoid auth issues
+          R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
+          R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
+          
           cat > tofu/.r2-credentials << EOF
-          R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}"
-          R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}"
+          R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
           EOF
           
           cat > tofu/backend.hcl << EOF
@@ -141,6 +178,11 @@ jobs:
             s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
           EOF
+          
+          # Debug: Verify credentials are set (without exposing values)
+          echo "✅ R2 credentials file created"
+          echo "   R2_ACCESS_KEY_ID length: ${#R2_ACCESS_KEY_ID}"
+          echo "   R2_SECRET_ACCESS_KEY length: ${#R2_SECRET_ACCESS_KEY}"
 
       - name: Initialize OpenTofu
         run: |
@@ -152,6 +194,51 @@ jobs:
 
       - name: Deploy infrastructure
         run: make up
+
+      - name: Set Control Panel environment variables and secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+        run: |
+          echo "⚙️  Setting Control Panel environment variables and secrets..."
+          PROJECT_NAME="nexus-control"
+          GITHUB_OWNER="${{ github.repository_owner }}"
+          GITHUB_REPO="${{ github.event.repository.name }}"
+          
+          echo "  GITHUB_OWNER: $GITHUB_OWNER"
+          echo "  GITHUB_REPO: $GITHUB_REPO"
+          
+          # Set all three variables as Secrets via wrangler
+          # Secrets work for both production and preview environments automatically
+          # Note: wrangler pages secret put does NOT support --env flag (like pages deploy)
+          
+          if [ -n "$GITHUB_TOKEN" ]; then
+            echo "  Setting GITHUB_TOKEN secret..."
+            if ! echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
+              --project-name="$PROJECT_NAME" 2>&1; then
+              echo "⚠️  Failed to set GITHUB_TOKEN secret (check token validity and project name)"
+            fi
+          else
+            echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
+          fi
+          
+          echo "  Setting GITHUB_OWNER secret..."
+          echo "$GITHUB_OWNER" | npx wrangler@latest pages secret put GITHUB_OWNER \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_OWNER (may already be set)"
+          
+          echo "  Setting GITHUB_REPO secret..."
+          echo "$GITHUB_REPO" | npx wrangler@latest pages secret put GITHUB_REPO \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_REPO (may already be set)"
+          
+          echo "✅ All secrets set (applies to both production and preview environments)"
+          
+          echo ""
+          echo "✅ Setup complete"
+          echo ""
+          echo "⚠️  IMPORTANT: Environment variables are now set."
+          echo "   If Control Panel still shows errors, the deployment may need to be recreated."
+          echo "   Triggering a new deployment to ensure variables are available..."
 
       - name: Deploy Control Panel to Cloudflare Pages
         env:
@@ -165,35 +252,33 @@ jobs:
             echo "❌ Error: functions/ directory not found - API endpoints are required!"
             exit 1
           fi
+          # Deploy to production
+          # --branch=main deploys to production (as configured in Terraform: production_branch = "main")
+          # Note: wrangler pages deploy does NOT support --env flag, only --branch
           npx wrangler@latest pages deploy . \
             --project-name=nexus-control \
             --branch=main
           echo "✅ Control Panel deployed!"
+          echo ""
+          echo "📝 Note: Deployed to production branch (main)"
+          echo "   Environment variables are set for both production and preview environments"
 
-      - name: Save Infisical admin password to GitHub Secrets
-        env:
-          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+      - name: Get Infisical admin password for email
         run: |
-          if [ -n "$GH_TOKEN" ]; then
-            cd tofu
-            source .r2-credentials
-            export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-            export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-            
-            # Get Infisical admin password from OpenTofu output
-            INFISICAL_PASS=$(tofu output -raw infisical_admin_password 2>/dev/null || echo "")
-            
-            if [ -n "$INFISICAL_PASS" ]; then
-              echo "🔐 Saving Infisical admin password to GitHub Secrets..."
-              gh secret set INFISICAL_ADMIN_PASSWORD -b "$INFISICAL_PASS"
-              echo "✅ Infisical password saved! Use it to login at https://infisical.${{ secrets.DOMAIN }}"
-              # Store password for email step
-              echo "INFISICAL_PASS=$INFISICAL_PASS" >> $GITHUB_ENV
-            else
-              echo "⚠️  Could not retrieve Infisical password from Terraform output"
-            fi
+          cd tofu
+          source .r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          # Get Infisical admin password from OpenTofu output
+          INFISICAL_PASS=$(tofu output -raw infisical_admin_password 2>/dev/null || echo "")
+          
+          if [ -n "$INFISICAL_PASS" ]; then
+            # Store password for email step (only used within this workflow)
+            echo "INFISICAL_PASS=$INFISICAL_PASS" >> $GITHUB_ENV
+            echo "✅ Infisical password retrieved (will be sent via email)"
           else
-            echo "⚠️  GH_SECRETS_TOKEN not configured - Infisical password not saved"
+            echo "⚠️  Could not retrieve Infisical password from Terraform output"
             echo "   View password via: make secrets (locally) or SSH to server"
           fi
 
@@ -208,10 +293,11 @@ jobs:
             echo "📧 Sending credentials email..."
             
             # Build HTML email (single line to avoid YAML heredoc issues)
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse"><tr><td style="padding:8px;border:1px solid #333">Infisical Admin</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li></ul><p style="color:#666;font-size:12px">This email was sent automatically after deployment.</p></div>'
+            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse;width:100%"><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Email</td><td style="padding:8px;border:1px solid #333"><code>EMAIL_PLACEHOLDER</code></td></tr><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Password</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#00ff88;margin-top:1rem;font-weight:bold">📧 Login with your email address: <code>EMAIL_PLACEHOLDER</code></p><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li></ul><div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">📮 Do not reply</p><p style="color:#999;margin:0.5rem 0 0 0;font-size:13px">This mailbox is not monitored. For questions or support, please contact: <a href="mailto:EMAIL_PLACEHOLDER" style="color:#00ff88">EMAIL_PLACEHOLDER</a></p></div><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after deployment.</p></div>'
             
             # Replace placeholders
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
+            EMAIL_HTML="${EMAIL_HTML//EMAIL_PLACEHOLDER/$ADMIN_EMAIL}"
             EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
             
             # Use jq to properly escape JSON (to must be an array per Resend API)
