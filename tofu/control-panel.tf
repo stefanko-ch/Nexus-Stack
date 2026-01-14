@@ -63,12 +63,15 @@ resource "cloudflare_pages_domain" "control_panel" {
 # -----------------------------------------------------------------------------
 
 resource "cloudflare_zero_trust_access_application" "control_panel" {
-  zone_id           = var.cloudflare_zone_id
-  name              = "${var.server_name} Control Panel"
-  domain            = "control.${var.domain}"
-  type              = "self_hosted"
-  session_duration  = "24h"
-  skip_interstitial = true
+  zone_id                    = var.cloudflare_zone_id
+  name                       = "${var.server_name} Control Panel"
+  domain                     = "control.${var.domain}"
+  type                       = "self_hosted"
+  session_duration           = "24h"
+  skip_interstitial          = true
+  app_launcher_visible       = true
+  options_preflight_bypass   = true
+  http_only_cookie_attribute = false
 }
 
 resource "cloudflare_zero_trust_access_policy" "control_panel" {
