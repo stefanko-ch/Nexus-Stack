@@ -74,6 +74,7 @@ ssh-keygen -t ed25519 -C "nexus"
    | Account | Access: Service Tokens | Edit |
    | Account | Access: Organizations, Identity Providers, and Groups | Edit |
    | Account | Workers R2 Storage | Edit |
+   | Account | Workers KV Storage | Edit |
    | Account | Workers Scripts | Edit |
    | Account | Cloudflare Pages | Edit |
    | Zone | DNS | Edit |
@@ -81,7 +82,8 @@ ssh-keygen -t ed25519 -C "nexus"
 
    > **Note:** 
    > - "Workers R2 Storage" is required for the remote state backend
-   > - "Workers Scripts" is required for scheduled teardown worker and KV namespaces
+   > - "Workers KV Storage" is required for KV namespaces used by the scheduler
+   > - "Workers Scripts" is required for the scheduled teardown worker
    > - "Cloudflare Pages" is required for the Control Panel
    > - "Access: Organizations" is required for revoking Zero Trust sessions during `make teardown`
    > - "Access: Service Tokens" enables headless SSH authentication for CI/CD
