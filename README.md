@@ -17,7 +17,7 @@
 
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated.**
 
-> ⚠️ **Disclaimer:** This project was developed and tested on macOS. Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
+> ⚠️ **Disclaimer:** Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
 
 ## What This Does
 
@@ -102,6 +102,8 @@ Create a Custom Token with these permissions:
 - Account:Access: Service Tokens:Edit
 - Account:Access: Organizations:Edit
 - **Account:Workers R2 Storage:Edit** ← Required for remote state
+- **Account:Workers KV Storage:Edit** ← Required for KV namespaces
+- **Account:Workers Scripts:Edit** ← Required for scheduled teardown worker and KV namespaces
 - **Account:Cloudflare Pages:Edit** ← Required for Control Panel
 
 See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for details.
@@ -154,9 +156,10 @@ https://control.YOUR_DOMAIN
 ```
 
 **Features:**
-- 🚀 **Deploy** - Trigger full infrastructure deployment via GitHub Actions
+- 🧰 **Setup** - One-time setup workflow (bootstraps control panel + triggers spin-up)
+- ⚡ **Spin Up** - Re-create infrastructure after teardown
 - 💤 **Teardown** - Stop infrastructure (keeps control panel + state)
-- 💀 **Destroy** - Full cleanup (removes everything)
+- 🧩 **Services** - Enable/disable services and trigger spin-up
 - 📊 **Status** - Real-time workflow monitoring
 
 The control panel is deployed via Cloudflare Pages and survives teardown. Protected by Cloudflare Access.
@@ -328,7 +331,7 @@ Deploy entirely via CI - no local tools required!
    - Verify your domain (add DNS records)
    - Create API key and save as `RESEND_API_KEY` secret
 
-4. Run first deployment:
+4. Run first setup:
    ```bash
    gh workflow run deploy.yml
    ```
@@ -340,14 +343,15 @@ Deploy entirely via CI - no local tools required!
 **Note:** The Control Panel requires `GITHUB_TOKEN` to be set with the following permissions:
 
 **For Classic Tokens:**
-- `workflow` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `workflow` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
 - `repo` - Full control of repositories (required for auto-saving R2 credentials as Secrets)
 
 **For Fine-Grained Tokens:**
 - Repository: Select your `Nexus-Stack` repository
-- `Actions: Write` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `Actions: Write` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
 - `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
 - `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
+- `Contents: Write` - Update `tofu/services.tfvars` from the Control Panel
 
 **Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token. The `Contents: Read` permission is required for the token to access the `main` branch when triggering workflows.
 
@@ -362,9 +366,37 @@ make setup-control-panel-secrets
 
 | Workflow | Command | Description |
 |----------|---------|-------------|
-| **Deploy** | `gh workflow run deploy.yml` | Full deploy |
+| **Setup** | `gh workflow run deploy.yml` | One-time setup (triggers spin-up) |
+| **Spin Up** | `gh workflow run spin-up.yml` | Re-create infrastructure after teardown |
 | **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
 | **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
+
+### Scheduled Teardown (Cost Saving - Optional)
+
+Nexus-Stack can automatically tear down infrastructure daily to save costs. This feature is **optional** and must be enabled via the Control Panel.
+
+**Features:**
+- **Email notification** sent 15 minutes before teardown (21:45)
+- **Automatic teardown** runs daily at 22:00
+- **Default timezone**: Europe/Zurich (Switzerland)
+- **Configurable**: Enable/disable and configure via Control Panel API
+
+**Enable via Control Panel:**
+```bash
+# Enable scheduled teardown
+curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "timezone": "Europe/Zurich", "teardownTime": "22:00"}'
+
+# Check current configuration
+curl https://control.YOUR_DOMAIN/api/scheduled-teardown
+```
+
+**Architecture:**
+- Cloudflare Worker runs scheduled cron jobs (20:45 UTC for notification, 21:00 UTC for teardown)
+- Configuration stored in Cloudflare KV (accessible via Control Panel API)
+- Worker checks if scheduled teardown is enabled before triggering actions
+- Default: **disabled** (must be explicitly enabled)
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
 

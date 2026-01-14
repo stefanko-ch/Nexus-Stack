@@ -142,6 +142,12 @@ TOKEN_NAME="nexus-r2-terraform-state-$(date +%Y%m%d-%H%M%S)"
 # Using account resource instead of bucket-specific resource for broader access
 # No expiration - token must remain valid for state access
 # Retry logic for temporary Cloudflare API errors (500, rate limits, etc.)
+
+# Helper function to extract error messages
+extract_error() {
+    echo "$1" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//'
+}
+
 MAX_RETRIES=3
 RETRY=0
 TOKEN_RESPONSE=""
@@ -174,10 +180,6 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     fi
     
     # Extract error message and code
-    extract_error() {
-        echo "$1" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//'
-    }
-    
     ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     ERROR_CODE=$(echo "$TOKEN_RESPONSE" | grep -o '"code":[0-9]*' | head -1 | cut -d: -f2)
     
@@ -214,10 +216,10 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
-fi
+done
 
 if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
-    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+    ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     echo -e "  ${RED}❌ Failed to create token after $MAX_RETRIES attempts: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
