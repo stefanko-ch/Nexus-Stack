@@ -163,12 +163,13 @@ jobs:
       - name: Deploy infrastructure
         run: make up
 
-      - name: Set Control Panel environment variables
+      - name: Set Control Panel secrets and environment variables
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "⚙️  Setting Control Panel environment variables..."
+          echo "⚙️  Setting Control Panel secrets and environment variables..."
           PROJECT_NAME="nexus-control"
           GITHUB_OWNER="${{ github.repository_owner }}"
           GITHUB_REPO="${{ github.event.repository.name }}"
@@ -176,10 +177,21 @@ jobs:
           echo "  GITHUB_OWNER: $GITHUB_OWNER"
           echo "  GITHUB_REPO: $GITHUB_REPO"
           
+          # Set GITHUB_TOKEN as secret (required for API calls)
+          if [ -n "$GITHUB_TOKEN" ]; then
+            echo "  Setting GITHUB_TOKEN secret..."
+            echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
+              --project-name="$PROJECT_NAME" \
+              --env production || echo "⚠️  Failed to set GITHUB_TOKEN (may already be set)"
+          else
+            echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
+            echo "   Set GITHUB_TOKEN as GitHub Secret and run: make setup-control-panel-secrets"
+          fi
+          
           # Set environment variables via Cloudflare API
           # Terraform should set these, but we ensure they're set here too
-          # Using Cloudflare API directly (wrangler doesn't have a direct command for this)
-          curl -X PATCH \
+          echo "  Setting GITHUB_OWNER and GITHUB_REPO environment variables..."
+          curl -s -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
@@ -196,9 +208,9 @@ jobs:
                   }
                 }
               }
-            }" || echo "⚠️  Failed to set environment variables (may already be set by Terraform)"
+            }" | jq -r '.success // false' | grep -q true && echo "✅ Environment variables set" || echo "⚠️  Failed to set environment variables"
           
-          echo "✅ Environment variables set"
+          echo "✅ Setup complete"
 
       - name: Deploy Control Panel to Cloudflare Pages
         env:
