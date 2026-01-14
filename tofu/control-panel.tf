@@ -9,6 +9,53 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Scheduled Teardown Worker (must be defined before Pages Project for KV binding)
+# -----------------------------------------------------------------------------
+
+# KV Namespace for scheduled teardown configuration
+resource "cloudflare_workers_kv_namespace" "scheduled_teardown" {
+  account_id = var.cloudflare_account_id
+  title      = "${var.server_name}-scheduled-teardown"
+}
+
+# Cloudflare Worker for scheduled teardown
+resource "cloudflare_worker_script" "scheduled_teardown" {
+  account_id = var.cloudflare_account_id
+  name       = "${var.server_name}-scheduled-teardown"
+  content    = file("${path.module}/../control-panel/worker/src/index.js")
+
+  kv_namespace_binding {
+    name         = "SCHEDULED_TEARDOWN"
+    namespace_id = cloudflare_workers_kv_namespace.scheduled_teardown.id
+  }
+
+  # Scheduled Events (Cron Triggers)
+  # Notification: 20:45 UTC (21:45 CET / 22:45 CEST)
+  # Teardown: 21:00 UTC (22:00 CET / 23:00 CEST)
+  # Note: Adjust cron times if timezone changes
+  triggers {
+    crons = ["45 20 * * *", "0 21 * * *"]  # Notification and teardown
+  }
+
+  # Environment variables
+  plain_text_binding {
+    name  = "GITHUB_OWNER"
+    value = var.github_owner
+  }
+
+  plain_text_binding {
+    name  = "GITHUB_REPO"
+    value = var.github_repo
+  }
+
+  # Secrets must be set manually via wrangler:
+  # wrangler secret put RESEND_API_KEY --name=${var.server_name}-scheduled-teardown
+  # wrangler secret put ADMIN_EMAIL --name=${var.server_name}-scheduled-teardown
+  # wrangler secret put DOMAIN --name=${var.server_name}-scheduled-teardown
+  # wrangler secret put GITHUB_TOKEN --name=${var.server_name}-scheduled-teardown
+}
+
+# -----------------------------------------------------------------------------
 # Cloudflare Pages Project (Frontend + API Functions)
 # -----------------------------------------------------------------------------
 
@@ -30,6 +77,11 @@ resource "cloudflare_pages_project" "control_panel" {
         GITHUB_REPO  = var.github_repo
       }
       
+      # KV Namespace binding for scheduled teardown configuration
+      kv_namespaces = {
+        SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
+      }
+      
       # GITHUB_TOKEN must be set as secret via:
       # wrangler pages secret put GITHUB_TOKEN --project-name=${var.server_name}-control
       # or via Cloudflare dashboard
@@ -40,6 +92,12 @@ resource "cloudflare_pages_project" "control_panel" {
         GITHUB_OWNER = var.github_owner
         GITHUB_REPO  = var.github_repo
       }
+      
+      # KV Namespace binding for preview environment
+      kv_namespaces = {
+        SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
+      }
+      
       # Note: Preview uses environment variables via Terraform for flexibility.
       # Production uses secrets via wrangler (set in deploy.yml workflow).
       # This allows preview deployments to work even if secrets aren't configured.
