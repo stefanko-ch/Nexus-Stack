@@ -19,7 +19,7 @@ resource "cloudflare_workers_kv_namespace" "scheduled_teardown" {
 }
 
 # Cloudflare Worker for scheduled teardown
-resource "cloudflare_worker_script" "scheduled_teardown" {
+resource "cloudflare_workers_script" "scheduled_teardown" {
   account_id = var.cloudflare_account_id
   name       = "${var.server_name}-scheduled-teardown"
   content    = file("${path.module}/../control-panel/worker/src/index.js")
@@ -29,30 +29,31 @@ resource "cloudflare_worker_script" "scheduled_teardown" {
     namespace_id = cloudflare_workers_kv_namespace.scheduled_teardown.id
   }
 
-  # Scheduled Events (Cron Triggers)
-  # Notification: 20:45 UTC (21:45 CET / 22:45 CEST)
-  # Teardown: 21:00 UTC (22:00 CET / 23:00 CEST)
-  # Note: Adjust cron times if timezone changes
-  triggers {
-    crons = ["45 20 * * *", "0 21 * * *"]  # Notification and teardown
-  }
-
-  # Environment variables
-  plain_text_binding {
-    name  = "GITHUB_OWNER"
-    value = var.github_owner
-  }
-
-  plain_text_binding {
-    name  = "GITHUB_REPO"
-    value = var.github_repo
-  }
-
-  # Secrets must be set manually via wrangler:
+  # Note: Cron triggers and environment variables must be set via wrangler:
+  # wrangler deploy --name=${var.server_name}-scheduled-teardown --compatibility-date=2024-01-01
   # wrangler secret put RESEND_API_KEY --name=${var.server_name}-scheduled-teardown
   # wrangler secret put ADMIN_EMAIL --name=${var.server_name}-scheduled-teardown
   # wrangler secret put DOMAIN --name=${var.server_name}-scheduled-teardown
   # wrangler secret put GITHUB_TOKEN --name=${var.server_name}-scheduled-teardown
+  # wrangler secret put GITHUB_OWNER --name=${var.server_name}-scheduled-teardown
+  # wrangler secret put GITHUB_REPO --name=${var.server_name}-scheduled-teardown
+  # 
+  # For cron triggers, use wrangler.toml or:
+  # wrangler triggers cron add "45 20 * * *" --name=${var.server_name}-scheduled-teardown
+  # wrangler triggers cron add "0 21 * * *" --name=${var.server_name}-scheduled-teardown
+}
+
+# Cron triggers for scheduled teardown (separate resource)
+resource "cloudflare_worker_cron_trigger" "scheduled_teardown_notification" {
+  account_id = var.cloudflare_account_id
+  script_name = cloudflare_workers_script.scheduled_teardown.name
+  schedules   = ["45 20 * * *"]  # Notification at 20:45 UTC (21:45 CET)
+}
+
+resource "cloudflare_worker_cron_trigger" "scheduled_teardown_execution" {
+  account_id = var.cloudflare_account_id
+  script_name = cloudflare_workers_script.scheduled_teardown.name
+  schedules   = ["0 21 * * *"]  # Teardown at 21:00 UTC (22:00 CET)
 }
 
 # -----------------------------------------------------------------------------
