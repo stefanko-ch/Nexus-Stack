@@ -161,6 +161,10 @@ jobs:
           echo "📦 Deploying Control Panel to Cloudflare Pages..."
           cd control-panel
           # Copy functions into pages folder for wrangler to detect them
+          if [ ! -d "functions" ]; then
+            echo "❌ Error: functions/ directory not found - API endpoints are required!"
+            exit 1
+          fi
           cp -r functions pages/
           npx wrangler pages deploy pages \
             --project-name=nexus-control \
