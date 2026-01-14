@@ -30,8 +30,7 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
     namespace_id = cloudflare_workers_kv_namespace.scheduled_teardown.id
   }
 
-  # Note: Cron triggers and environment variables must be set via wrangler:
-  # wrangler deploy --name=${var.server_name}-scheduled-teardown --compatibility-date=2024-01-01
+  # Note: Environment variables (secrets) must be set via wrangler:
   # wrangler secret put RESEND_API_KEY --name=${var.server_name}-scheduled-teardown
   # wrangler secret put ADMIN_EMAIL --name=${var.server_name}-scheduled-teardown
   # wrangler secret put DOMAIN --name=${var.server_name}-scheduled-teardown
@@ -39,9 +38,7 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
   # wrangler secret put GITHUB_OWNER --name=${var.server_name}-scheduled-teardown
   # wrangler secret put GITHUB_REPO --name=${var.server_name}-scheduled-teardown
   # 
-  # For cron triggers, use wrangler.toml or:
-  # wrangler triggers cron add "45 20 * * *" --name=${var.server_name}-scheduled-teardown
-  # wrangler triggers cron add "0 21 * * *" --name=${var.server_name}-scheduled-teardown
+  # Cron triggers are managed by Terraform resources below (cloudflare_workers_cron_trigger)
 }
 
 # Cron triggers for scheduled teardown (separate resource)

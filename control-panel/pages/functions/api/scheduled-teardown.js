@@ -71,7 +71,7 @@ export async function onRequestGet(context) {
       // Validate teardownTime format
       const timeFormatRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
       if (!timeFormatRegex.test(teardownTime)) {
-        throw new Error(`Invalid teardownTime format: ${teardownTime}. Expected HH:MM format.`);
+        throw new Error(`Invalid teardown_time format: ${teardownTime}. Expected HH:MM format.`);
       }
 
       const now = new Date();

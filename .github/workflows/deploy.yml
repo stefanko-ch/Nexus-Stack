@@ -300,7 +300,7 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/workflows/spin-up.yml/dispatches" \
-            -d '{"ref":"main","inputs":{"send_credentials":"true"}}')
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"send_credentials\":\"true\"}}")
           
           if [ "$RESPONSE_CODE" -ne 204 ]; then
             echo "❌ Failed to trigger spin-up workflow (HTTP $RESPONSE_CODE)"
