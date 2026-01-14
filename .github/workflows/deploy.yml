@@ -201,19 +201,33 @@ jobs:
           echo ""
           echo "  Setting GITHUB_OWNER and GITHUB_REPO via Cloudflare API..."
           
-          # Get existing environment variables
+          # Get existing environment variables for BOTH production and preview
           PROJECT_INFO=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json")
           
-          EXISTING_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.production.env_vars // {}')
-          if [ "$EXISTING_VARS" = "null" ] || [ -z "$EXISTING_VARS" ]; then
-            EXISTING_VARS="{}"
+          # Get existing vars for production
+          EXISTING_PROD_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.production.env_vars // {}')
+          if [ "$EXISTING_PROD_VARS" = "null" ] || [ -z "$EXISTING_PROD_VARS" ]; then
+            EXISTING_PROD_VARS="{}"
           fi
           
-          # Merge with new variables
-          MERGED_VARS=$(echo "$EXISTING_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
+          # Get existing vars for preview
+          EXISTING_PREVIEW_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.preview.env_vars // {}')
+          if [ "$EXISTING_PREVIEW_VARS" = "null" ] || [ -z "$EXISTING_PREVIEW_VARS" ]; then
+            EXISTING_PREVIEW_VARS="{}"
+          fi
+          
+          # Merge with new variables for production
+          MERGED_PROD_VARS=$(echo "$EXISTING_PROD_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
+            '. + {
+              "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
+              "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
+            }')
+          
+          # Merge with new variables for preview
+          MERGED_PREVIEW_VARS=$(echo "$EXISTING_PREVIEW_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
             '. + {
               "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
               "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
@@ -221,7 +235,7 @@ jobs:
           
           # Update via PATCH
           # IMPORTANT: Set for BOTH production AND preview environments
-          # Some deployments might run on preview, so we need both
+          # Use separate merged vars for each environment to preserve existing vars
           API_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -229,10 +243,10 @@ jobs:
             -d "{
               \"deployment_configs\": {
                 \"production\": {
-                  \"env_vars\": $MERGED_VARS
+                  \"env_vars\": $MERGED_PROD_VARS
                 },
                 \"preview\": {
-                  \"env_vars\": $MERGED_VARS
+                  \"env_vars\": $MERGED_PREVIEW_VARS
                 }
               }
             }")
