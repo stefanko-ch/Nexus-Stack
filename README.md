@@ -337,7 +337,15 @@ Deploy entirely via CI - no local tools required!
 6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
 7. Control Panel environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
 
-**Note:** The Control Panel requires `GITHUB_TOKEN` to be set manually:
+**Note:** The Control Panel requires `GITHUB_TOKEN` (or `GH_SECRETS_TOKEN`) to be set with the following scopes:
+- `workflow` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `repo` - Full control of repositories (required for auto-saving R2 credentials as Secrets)
+
+**For Fine-Grained Tokens:**
+- `Actions: Write` - Trigger workflows
+- `Secrets: Write` - Write repository secrets
+
+Set the token manually:
 ```bash
 make setup-control-panel-secrets
 # Or manually via Cloudflare Dashboard:
