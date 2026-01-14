@@ -277,10 +277,18 @@ jobs:
             echo "❌ Error: functions/ directory not found - API endpoints are required!"
             exit 1
           fi
+          # Deploy to production explicitly
+          # Using --branch=main should deploy to production, but we also set --env production
+          # to ensure it's not treated as a preview deployment
           npx wrangler@latest pages deploy . \
             --project-name=nexus-control \
-            --branch=main
-          echo "✅ Control Panel deployed!"
+            --branch=main \
+            --env production \
+            --commit-dirty=true
+          echo "✅ Control Panel deployed to PRODUCTION!"
+          echo ""
+          echo "📝 Note: Deployment is explicitly set to production environment"
+          echo "   Environment variables are set for both production and preview"
 
       - name: Get Infisical admin password for email
         run: |
