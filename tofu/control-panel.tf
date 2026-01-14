@@ -114,15 +114,7 @@ resource "cloudflare_pages_project" "control_panel" {
 # DNS Record
 # -----------------------------------------------------------------------------
 
-# Control Panel (Frontend + API Functions)
-resource "cloudflare_record" "control_panel" {
-  zone_id = var.cloudflare_zone_id
-  name    = "control"
-  type    = "CNAME"
-  content = cloudflare_pages_project.control_panel.subdomain
-  proxied = true
-  ttl     = 1
-}
+# Note: DNS record is automatically created by cloudflare_pages_domain resource below
 
 # Custom Domain for Cloudflare Pages
 resource "cloudflare_pages_domain" "control_panel" {
