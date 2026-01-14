@@ -936,10 +936,12 @@
             
             if (config.enabled) {
                 toggle.classList.add('active');
+                const now = new Date();
                 const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
-                if (delayUntil && delayUntil > new Date()) {
-                    const hours = Math.ceil((delayUntil - new Date()) / (1000 * 60 * 60));
-                    const minutes = Math.ceil(((delayUntil - new Date()) % (1000 * 60 * 60)) / (1000 * 60));
+                if (delayUntil && delayUntil > now) {
+                    const diffMs = delayUntil - now;
+                    const hours = Math.ceil(diffMs / (1000 * 60 * 60));
+                    const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
                     info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
                     delayBtn.disabled = true;
                 } else if (config.nextTeardown) {

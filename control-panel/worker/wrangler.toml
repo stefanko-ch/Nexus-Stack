@@ -11,7 +11,7 @@ id = ""  # Will be created via Terraform
 # Runs daily at configured time (default: 22:00 Europe/Zurich = 21:00 UTC)
 # Notification runs 15 minutes before teardown (21:45 = 20:45 UTC)
 [triggers]
-crons = ["0 21 * * *"]  # Teardown at 22:00 CET / 23:00 CEST
+crons = ["0 21 * * *"]  # Teardown at 21:00 UTC (22:00 CET / 23:00 CEST)
 
 # Environment variables
 [vars]

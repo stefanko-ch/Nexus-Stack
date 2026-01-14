@@ -60,7 +60,7 @@ function updateServiceEnabled(content, serviceName, enabled) {
   let foundService = false;
   let updated = false;
 
-  for (let i = 0; i < lines.length; i += 1) {
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const serviceMatch = line.match(/^\s*([a-zA-Z0-9-]+)\s*=\s*\{\s*$/);
     if (serviceMatch) {

@@ -98,7 +98,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🪣 Creating R2 bucket and credentials..."
-          R2_SAVED=false
+          r2_saved=false
           
           # Run the init script
           chmod +x scripts/init-r2-state.sh
@@ -127,7 +127,7 @@ jobs:
                 echo "✅ R2 credentials saved to GitHub Secrets automatically!"
                 echo ""
                 echo "Future deployments will use these credentials."
-                R2_SAVED=true
+                r2_saved=true
               else
                 echo "⚠️  Failed to auto-save secrets: $SECRET_ERROR"
                 echo ""
@@ -155,7 +155,7 @@ jobs:
               echo "╚══════════════════════════════════════════════════════════════════════════════╝"
             fi
             
-            echo "r2_saved=$R2_SAVED" >> $GITHUB_OUTPUT
+            echo "r2_saved=$r2_saved" >> $GITHUB_OUTPUT
             
             # Export for this run
             echo "r2_access_key=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT

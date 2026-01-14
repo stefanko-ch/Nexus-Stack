@@ -34,7 +34,7 @@ async function handleScheduledTeardown(event, env) {
     // Get configuration from KV
     const config = await getConfig(env.SCHEDULED_TEARDOWN);
     
-    if (!config.enabled || config.enabled !== 'true') {
+    if (config.enabled !== 'true') {
       console.log('Scheduled teardown is disabled');
       return;
     }
@@ -60,16 +60,25 @@ async function handleScheduledTeardown(event, env) {
     
     console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronTime})`);
 
-    // Determine if this is notification time or teardown time
-    const hour = now.getUTCHours();
-    const minute = now.getUTCMinutes();
+    // Convert configured times from timezone to UTC
+    const notificationTimeUTC = timeInTimezoneToUTC(config.notificationTime, config.timezone);
+    const teardownTimeUTC = timeInTimezoneToUTC(config.teardownTime, config.timezone);
     
-    // Notification runs at 20:45 UTC (21:45 CET) = 15 min before 21:00 UTC (22:00 CET)
-    // Teardown runs at 21:00 UTC (22:00 CET)
-    if (hour === 20 && minute === 45) {
+    // Get current UTC time components
+    const currentHour = now.getUTCHours();
+    const currentMinute = now.getUTCMinutes();
+    const notificationHour = notificationTimeUTC.getUTCHours();
+    const notificationMinute = notificationTimeUTC.getUTCMinutes();
+    const teardownHour = teardownTimeUTC.getUTCHours();
+    const teardownMinute = teardownTimeUTC.getUTCMinutes();
+    
+    // Check if it's notification time or teardown time
+    if (currentHour === notificationHour && currentMinute === notificationMinute) {
       await sendNotification(env, config);
-    } else if (hour === 21 && minute === 0) {
+    } else if (currentHour === teardownHour && currentMinute === teardownMinute) {
       await triggerTeardown(env, config);
+    } else {
+      console.log(`Not time for notification (${notificationHour}:${String(notificationMinute).padStart(2, '0')} UTC) or teardown (${teardownHour}:${String(teardownMinute).padStart(2, '0')} UTC)`);
     }
   } catch (error) {
     console.error('Error in scheduled teardown:', error);
@@ -182,6 +191,44 @@ async function triggerTeardown(env, config) {
   } catch (error) {
     console.error('Error triggering teardown:', error);
   }
+}
+
+/**
+ * Convert a time in a specific timezone to UTC Date
+ * @param {string} timeStr - Time in HH:MM format
+ * @param {string} timezone - IANA timezone (e.g., 'Europe/Zurich')
+ * @param {Date} baseDate - Base date to use (defaults to today)
+ * @returns {Date} - Date object representing the time in UTC
+ */
+function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  
+  // Get the date string in the target timezone
+  const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
+  
+  // Create a date assuming the time is in UTC
+  const utcDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`);
+  
+  // Now format this UTC date in the target timezone to see what time it represents there
+  const tzFormatter = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  
+  const tzTimeStr = tzFormatter.format(utcDate);
+  const [tzHours, tzMinutes] = tzTimeStr.split(':').map(Number);
+  
+  // Calculate the difference between desired time and actual time in timezone
+  const desiredMinutes = hours * 60 + minutes;
+  const actualMinutes = tzHours * 60 + tzMinutes;
+  const diffMinutes = desiredMinutes - actualMinutes;
+  
+  // Adjust UTC date by the difference
+  const adjustedDate = new Date(utcDate.getTime() + diffMinutes * 60 * 1000);
+  
+  return adjustedDate;
 }
 
 function getTimezoneAbbr(timezone) {
