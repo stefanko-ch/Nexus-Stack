@@ -160,6 +160,8 @@ jobs:
         run: |
           echo "📦 Deploying Control Panel to Cloudflare Pages..."
           cd control-panel
+          # Copy functions into pages folder for wrangler to detect them
+          cp -r functions pages/
           npx wrangler pages deploy pages \
             --project-name=nexus-control \
             --branch=main
