@@ -143,9 +143,13 @@ jobs:
         if: steps.check_r2.outputs.r2_exists == 'true'
         run: |
           mkdir -p tofu
+          # Trim whitespace and newlines from secrets to avoid auth issues
+          R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
+          R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
+          
           cat > tofu/.r2-credentials << EOF
-          R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}"
-          R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}"
+          R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
           EOF
           
           cat > tofu/backend.hcl << EOF
@@ -153,6 +157,11 @@ jobs:
             s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
           EOF
+          
+          # Debug: Verify credentials are set (without exposing values)
+          echo "✅ R2 credentials file created"
+          echo "   R2_ACCESS_KEY_ID length: ${#R2_ACCESS_KEY_ID}"
+          echo "   R2_SECRET_ACCESS_KEY length: ${#R2_SECRET_ACCESS_KEY}"
 
       - name: Initialize OpenTofu
         run: |
