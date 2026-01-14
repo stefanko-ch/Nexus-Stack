@@ -317,6 +317,60 @@
             margin-top: 0.5rem;
         }
 
+        /* Info Panel */
+        .info-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .info-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .info-item-label {
+            font-size: 0.7rem;
+            color: #607080;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        .info-item-value {
+            font-size: 0.9rem;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .info-item-value.highlight {
+            color: #00ff88;
+        }
+
+        .info-item-value.warning {
+            color: #ffaa00;
+        }
+
         .action-btn .icon {
             display: block;
             font-size: 2rem;
@@ -585,6 +639,37 @@
             </button>
         </div>
 
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <h2><span class="icon">ℹ️</span> Infrastructure Information</h2>
+            <div class="info-grid" id="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Server Type</div>
+                    <div class="info-item-value" id="info-server-type">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Location</div>
+                    <div class="info-item-value" id="info-server-location">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Domain</div>
+                    <div class="info-item-value highlight" id="info-domain">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Last Deploy</div>
+                    <div class="info-item-value" id="info-last-deploy">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Last Teardown</div>
+                    <div class="info-item-value" id="info-last-teardown">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Uptime</div>
+                    <div class="info-item-value highlight" id="info-uptime">Loading...</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Scheduled Teardown Panel -->
         <div class="scheduled-teardown-panel">
             <h2><span class="icon">⏰</span> Scheduled Teardown</h2>
@@ -764,8 +849,23 @@
                 const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
                 if (delayUntil && delayUntil > new Date()) {
                     const hours = Math.ceil((delayUntil - new Date()) / (1000 * 60 * 60));
-                    info.textContent = `Enabled - Teardown delayed by ${hours} hour(s) until ${delayUntil.toLocaleTimeString()}`;
+                    const minutes = Math.ceil(((delayUntil - new Date()) % (1000 * 60 * 60)) / (1000 * 60));
+                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
                     delayBtn.disabled = true;
+                } else if (config.nextTeardown) {
+                    const nextTeardown = new Date(config.nextTeardown);
+                    const timeRemaining = config.timeRemaining;
+                    if (timeRemaining) {
+                        let timeText = '';
+                        if (timeRemaining.hours > 0) {
+                            timeText += `${timeRemaining.hours}h `;
+                        }
+                        timeText += `${timeRemaining.minutes}m`;
+                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                    } else {
+                        info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
+                    }
+                    delayBtn.disabled = false;
                 } else {
                     info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
                     delayBtn.disabled = false;
