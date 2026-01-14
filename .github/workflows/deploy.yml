@@ -109,13 +109,24 @@ jobs:
             # Check if we have a token to auto-save secrets
             if [ -n "$GH_TOKEN" ]; then
               echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
-              if gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>/dev/null && \
-                 gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>/dev/null; then
+              
+              SECRET_ERROR=""
+              if ! gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1 | tee /tmp/gh-secret-access.log; then
+                SECRET_ERROR=$(cat /tmp/gh-secret-access.log 2>/dev/null || echo "Unknown error")
+              fi
+              
+              if [ -z "$SECRET_ERROR" ]; then
+                if ! gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1 | tee /tmp/gh-secret-secret.log; then
+                  SECRET_ERROR=$(cat /tmp/gh-secret-secret.log 2>/dev/null || echo "Unknown error")
+                fi
+              fi
+              
+              if [ -z "$SECRET_ERROR" ]; then
                 echo "✅ R2 credentials saved to GitHub Secrets automatically!"
                 echo ""
                 echo "Future deployments will use these credentials."
               else
-                echo "⚠️  Failed to auto-save secrets (token may lack permissions)"
+                echo "⚠️  Failed to auto-save secrets: $SECRET_ERROR"
                 echo ""
                 echo "Please save these credentials manually in GitHub Secrets:"
                 echo "  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
