@@ -141,32 +141,42 @@ TOKEN_NAME="nexus-r2-terraform-state-$(date +%Y%m%d-%H%M%S)"
 # Create User API token for R2 with account-level R2 permissions
 # Using account resource instead of bucket-specific resource for broader access
 # No expiration - token must remain valid for state access
-TOKEN_RESPONSE=$(curl -s -X POST \
-    "https://api.cloudflare.com/client/v4/user/tokens" \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "{
-        \"name\": \"${TOKEN_NAME}\",
-        \"policies\": [
-            {
-                \"effect\": \"allow\",
-                \"resources\": {
-                    \"com.cloudflare.api.account.${CLOUDFLARE_ACCOUNT_ID}\": \"*\"
-                },
-                \"permission_groups\": [
-                    {
-                        \"id\": \"${R2_STORAGE_WRITE_PERMISSION_ID}\",
-                        \"name\": \"Workers R2 Storage Write\"
-                    }
-                ]
-            }
-        ]
-    }")
+# Retry logic for temporary Cloudflare API errors (500, rate limits, etc.)
+MAX_RETRIES=3
+RETRY=0
+TOKEN_RESPONSE=""
 
-if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
-    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+while [ $RETRY -lt $MAX_RETRIES ]; do
+    TOKEN_RESPONSE=$(curl -s -X POST \
+        "https://api.cloudflare.com/client/v4/user/tokens" \
+        -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"name\": \"${TOKEN_NAME}\",
+            \"policies\": [
+                {
+                    \"effect\": \"allow\",
+                    \"resources\": {
+                        \"com.cloudflare.api.account.${CLOUDFLARE_ACCOUNT_ID}\": \"*\"
+                    },
+                    \"permission_groups\": [
+                        {
+                            \"id\": \"${R2_STORAGE_WRITE_PERMISSION_ID}\",
+                            \"name\": \"Workers R2 Storage Write\"
+                        }
+                    ]
+                }
+            ]
+        }")
     
-    # Check if token already exists
+    if echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
+        break
+    fi
+    
+    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+    ERROR_CODE=$(echo "$TOKEN_RESPONSE" | grep -o '"code":[0-9]*' | head -1 | cut -d: -f2)
+    
+    # Check if token already exists (non-retryable)
     if echo "$TOKEN_RESPONSE" | grep -q "already exists"; then
         echo -e "  ${YELLOW}⚠${NC}  Token 'nexus-r2-terraform-state' already exists"
         echo ""
@@ -182,7 +192,26 @@ if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
         exit 1
     fi
     
-    echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG}${NC}"
+    # Retry on 500 errors or rate limits (retryable)
+    if [ "$ERROR_CODE" = "500" ] || [ "$ERROR_CODE" = "429" ] || [ -z "$ERROR_CODE" ]; then
+        RETRY=$((RETRY + 1))
+        if [ $RETRY -lt $MAX_RETRIES ]; then
+            WAIT_TIME=$((RETRY * 5))
+            echo -e "  ${YELLOW}⚠${NC}  API error (attempt $RETRY/$MAX_RETRIES): ${ERROR_MSG:-Unknown error}"
+            echo -e "  ${YELLOW}→${NC} Retrying in ${WAIT_TIME}s..."
+            sleep $WAIT_TIME
+            continue
+        fi
+    fi
+    
+    # Non-retryable error or max retries reached
+    echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
+    echo "     Full response: $TOKEN_RESPONSE"
+    exit 1
+done
+
+if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
+    echo -e "  ${RED}❌ Failed to create token after $MAX_RETRIES attempts${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
 fi
