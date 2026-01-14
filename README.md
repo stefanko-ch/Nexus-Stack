@@ -102,6 +102,7 @@ Create a Custom Token with these permissions:
 - Account:Access: Service Tokens:Edit
 - Account:Access: Organizations:Edit
 - **Account:Workers R2 Storage:Edit** ← Required for remote state
+- **Account:Workers Scripts:Edit** ← Required for scheduled teardown worker and KV namespaces
 - **Account:Cloudflare Pages:Edit** ← Required for Control Panel
 
 See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for details.
