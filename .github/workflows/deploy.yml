@@ -179,104 +179,27 @@ jobs:
           echo "  GITHUB_OWNER: $GITHUB_OWNER"
           echo "  GITHUB_REPO: $GITHUB_REPO"
           
-          # Set GITHUB_TOKEN as secret
+          # Set all three variables as Secrets via wrangler
+          # Secrets work for both production and preview environments automatically
+          # Note: wrangler pages secret put does NOT support --env flag (like pages deploy)
+          
           if [ -n "$GITHUB_TOKEN" ]; then
-            echo "  Setting GITHUB_TOKEN secret via wrangler..."
+            echo "  Setting GITHUB_TOKEN secret..."
             echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
-              --project-name="$PROJECT_NAME" \
-              --env production || echo "⚠️  Failed to set GITHUB_TOKEN for production (may already be set)"
-            
-            echo "  Setting GITHUB_TOKEN secret for preview..."
-            echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
-              --project-name="$PROJECT_NAME" \
-              --env preview || echo "⚠️  Failed to set GITHUB_TOKEN for preview (may already be set)"
-            
-            echo "✅ GITHUB_TOKEN secret set"
+              --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_TOKEN (may already be set)"
           else
             echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
           fi
           
-          # Set GITHUB_OWNER and GITHUB_REPO via Cloudflare API
-          # Terraform's deployment_configs.environment_variables doesn't always work reliably
-          echo ""
-          echo "  Setting GITHUB_OWNER and GITHUB_REPO via Cloudflare API..."
+          echo "  Setting GITHUB_OWNER secret..."
+          echo "$GITHUB_OWNER" | npx wrangler@latest pages secret put GITHUB_OWNER \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_OWNER (may already be set)"
           
-          # Get existing environment variables for BOTH production and preview
-          PROJECT_INFO=$(curl -s -X GET \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json")
+          echo "  Setting GITHUB_REPO secret..."
+          echo "$GITHUB_REPO" | npx wrangler@latest pages secret put GITHUB_REPO \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_REPO (may already be set)"
           
-          # Get existing vars for production
-          EXISTING_PROD_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.production.env_vars // {}')
-          if [ "$EXISTING_PROD_VARS" = "null" ] || [ -z "$EXISTING_PROD_VARS" ]; then
-            EXISTING_PROD_VARS="{}"
-          fi
-          
-          # Get existing vars for preview
-          EXISTING_PREVIEW_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.preview.env_vars // {}')
-          if [ "$EXISTING_PREVIEW_VARS" = "null" ] || [ -z "$EXISTING_PREVIEW_VARS" ]; then
-            EXISTING_PREVIEW_VARS="{}"
-          fi
-          
-          # Merge with new variables for production
-          MERGED_PROD_VARS=$(echo "$EXISTING_PROD_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
-            '. + {
-              "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
-              "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
-            }')
-          
-          # Merge with new variables for preview
-          MERGED_PREVIEW_VARS=$(echo "$EXISTING_PREVIEW_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
-            '. + {
-              "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
-              "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
-            }')
-          
-          # Update via PATCH
-          # IMPORTANT: Set for BOTH production AND preview environments
-          # Use separate merged vars for each environment to preserve existing vars
-          API_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"deployment_configs\": {
-                \"production\": {
-                  \"env_vars\": $MERGED_PROD_VARS
-                },
-                \"preview\": {
-                  \"env_vars\": $MERGED_PREVIEW_VARS
-                }
-              }
-            }")
-          
-          HTTP_CODE=$(echo "$API_RESPONSE" | tail -n1)
-          API_BODY=$(echo "$API_RESPONSE" | sed '$d')
-          
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            SUCCESS=$(echo "$API_BODY" | jq -r '.success // false')
-            if [ "$SUCCESS" = "true" ]; then
-              echo "✅ Environment variables set successfully"
-              # Verify
-              VERIFY_VARS=$(echo "$API_BODY" | jq -r '.result.deployment_configs.production.env_vars // {}')
-              OWNER_SET=$(echo "$VERIFY_VARS" | jq -r '.GITHUB_OWNER.value // empty')
-              REPO_SET=$(echo "$VERIFY_VARS" | jq -r '.GITHUB_REPO.value // empty')
-              if [ "$OWNER_SET" = "$GITHUB_OWNER" ] && [ "$REPO_SET" = "$GITHUB_REPO" ]; then
-                echo "✅ Verified: GITHUB_OWNER=$OWNER_SET, GITHUB_REPO=$REPO_SET"
-              else
-                echo "⚠️  Warning: Verification failed"
-                echo "   Expected: GITHUB_OWNER=$GITHUB_OWNER, GITHUB_REPO=$GITHUB_REPO"
-                echo "   Got: GITHUB_OWNER=$OWNER_SET, GITHUB_REPO=$REPO_SET"
-              fi
-            else
-              echo "⚠️  API returned success=false"
-              echo "$API_BODY" | jq -r '.errors // .messages // "Unknown error"' | head -5
-            fi
-          else
-            echo "⚠️  Failed to set environment variables (HTTP $HTTP_CODE)"
-            echo "$API_BODY" | jq -r '.errors // .messages // "Unknown error"' | head -5
-          fi
+          echo "✅ All secrets set (applies to both production and preview environments)"
           
           echo ""
           echo "✅ Setup complete"
