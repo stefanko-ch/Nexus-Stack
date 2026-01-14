@@ -65,21 +65,27 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
 
 ### Token Requirements
 
-Minimum required scope for GitHub Personal Access Token:
+**Required scopes for GitHub Personal Access Token (classic):**
 
 ```
 ✓ workflow          - Trigger GitHub Actions workflows
+✓ repo              - Full control of repositories (includes Secrets write access)
 ```
 
-**Optional** (if repo is private):
-```
-✓ repo              - Full control of private repositories
-```
+**For Fine-Grained Tokens:**
+- `Actions: Write` - Trigger GitHub Actions workflows
+- `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
 
 **Not needed:**
 - ✗ `write:packages`
 - ✗ `delete_repo`
 - ✗ `admin:org`
+- ✗ `gist`
+- ✗ `user`
+
+**Note:** The `repo` scope is required for:
+- Triggering workflows (via `workflow` permission)
+- Auto-saving R2 credentials as GitHub Secrets (via `write:secrets` permission)
 
 ### Attack Surface Analysis
 
