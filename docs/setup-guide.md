@@ -364,3 +364,55 @@ Make sure your email matches `admin_email` in nexus.tfvars.
 - Check Grafana for logs and metrics
 - Set up alerts in Uptime Kuma
 - Store secrets in Vault
+
+---
+
+## 🐳 Docker Hub Credentials (Optional)
+
+Docker Hub limits anonymous image pulls to **100 pulls per 6 hours per IP**. During frequent deployments, this limit can be reached quickly since each stack requires multiple images.
+
+### Benefits of Docker Hub Login
+
+- **Without login**: 100 pulls/6h (anonymous)
+- **With login**: 200 pulls/6h (free account)
+
+### Setup for GitHub Actions
+
+1. **Create Docker Hub Access Token:**
+   - Go to https://hub.docker.com/settings/security
+   - Click **"New Access Token"**
+   - Name: `Nexus-Stack`
+   - Permissions: **Read** (sufficient for pulls)
+   - Click **Generate**
+   - **Copy the token** (starts with `dckr_pat_`)
+
+2. **Set GitHub Secrets:**
+   ```bash
+   gh secret set DOCKERHUB_USERNAME --body "your-dockerhub-username"
+   gh secret set DOCKERHUB_TOKEN --body "dckr_pat_xxxxxxxxxxxxx"
+   ```
+
+3. **Verify:**
+   ```bash
+   gh secret list | grep DOCKERHUB
+   ```
+
+The deployment workflow will automatically use these credentials if set.
+
+### Setup for Local Deployment
+
+Add to your `.env` file:
+
+```bash
+export TF_VAR_dockerhub_username="your-dockerhub-username"
+export TF_VAR_dockerhub_token="dckr_pat_xxxxxxxxxxxxx"
+```
+
+Or add to `tofu/config.tfvars`:
+
+```hcl
+dockerhub_username = "your-dockerhub-username"
+dockerhub_token    = "dckr_pat_xxxxxxxxxxxxx"
+```
+
+The `deploy.sh` script will automatically log in to Docker Hub during deployment if credentials are provided.
