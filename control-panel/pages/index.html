@@ -544,7 +544,7 @@
         // Fetch and display status
         async function fetchStatus() {
             try {
-                const response = await fetch(`${API_URL}/api/status`);
+                const response = await fetch(`${API_URL}/api/status`, { credentials: 'same-origin' });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -658,7 +658,7 @@
             };
             
             try {
-                const response = await fetch(`${API_URL}/api/${action}`, { method: 'POST' });
+                const response = await fetch(`${API_URL}/api/${action}`, { method: 'POST', credentials: 'same-origin' });
                 const data = await response.json();
                 
                 if (data.success) {
