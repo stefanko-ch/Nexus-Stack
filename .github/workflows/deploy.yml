@@ -165,17 +165,21 @@ jobs:
       - name: Deploy infrastructure
         run: make up
 
-      - name: Set Control Panel GITHUB_TOKEN secret
+      - name: Set Control Panel environment variables and secrets
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "⚙️  Setting Control Panel GITHUB_TOKEN secret..."
+          echo "⚙️  Setting Control Panel environment variables and secrets..."
           PROJECT_NAME="nexus-control"
+          GITHUB_OWNER="${{ github.repository_owner }}"
+          GITHUB_REPO="${{ github.event.repository.name }}"
           
-          # GITHUB_OWNER and GITHUB_REPO are set automatically by Terraform
-          # (see tofu/control-panel.tf deployment_configs.production.environment_variables)
-          # Only GITHUB_TOKEN needs to be set manually as a secret
+          echo "  GITHUB_OWNER: $GITHUB_OWNER"
+          echo "  GITHUB_REPO: $GITHUB_REPO"
           
+          # Set GITHUB_TOKEN as secret
           if [ -n "$GITHUB_TOKEN" ]; then
             echo "  Setting GITHUB_TOKEN secret via wrangler..."
             echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
@@ -184,13 +188,73 @@ jobs:
             echo "✅ GITHUB_TOKEN secret set"
           else
             echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
-            echo "   Set GITHUB_TOKEN as GitHub Secret"
+          fi
+          
+          # Set GITHUB_OWNER and GITHUB_REPO via Cloudflare API
+          # Terraform's deployment_configs.environment_variables doesn't always work reliably
+          echo ""
+          echo "  Setting GITHUB_OWNER and GITHUB_REPO via Cloudflare API..."
+          
+          # Get existing environment variables
+          PROJECT_INFO=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json")
+          
+          EXISTING_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.production.env_vars // {}')
+          if [ "$EXISTING_VARS" = "null" ] || [ -z "$EXISTING_VARS" ]; then
+            EXISTING_VARS="{}"
+          fi
+          
+          # Merge with new variables
+          MERGED_VARS=$(echo "$EXISTING_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
+            '. + {
+              "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
+              "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
+            }')
+          
+          # Update via PATCH
+          API_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"deployment_configs\": {
+                \"production\": {
+                  \"env_vars\": $MERGED_VARS
+                }
+              }
+            }")
+          
+          HTTP_CODE=$(echo "$API_RESPONSE" | tail -n1)
+          API_BODY=$(echo "$API_RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            SUCCESS=$(echo "$API_BODY" | jq -r '.success // false')
+            if [ "$SUCCESS" = "true" ]; then
+              echo "✅ Environment variables set successfully"
+              # Verify
+              VERIFY_VARS=$(echo "$API_BODY" | jq -r '.result.deployment_configs.production.env_vars // {}')
+              OWNER_SET=$(echo "$VERIFY_VARS" | jq -r '.GITHUB_OWNER.value // empty')
+              REPO_SET=$(echo "$VERIFY_VARS" | jq -r '.GITHUB_REPO.value // empty')
+              if [ "$OWNER_SET" = "$GITHUB_OWNER" ] && [ "$REPO_SET" = "$GITHUB_REPO" ]; then
+                echo "✅ Verified: GITHUB_OWNER=$OWNER_SET, GITHUB_REPO=$REPO_SET"
+              else
+                echo "⚠️  Warning: Verification failed"
+                echo "   Expected: GITHUB_OWNER=$GITHUB_OWNER, GITHUB_REPO=$GITHUB_REPO"
+                echo "   Got: GITHUB_OWNER=$OWNER_SET, GITHUB_REPO=$REPO_SET"
+              fi
+            else
+              echo "⚠️  API returned success=false"
+              echo "$API_BODY" | jq -r '.errors // .messages // "Unknown error"' | head -5
+            fi
+          else
+            echo "⚠️  Failed to set environment variables (HTTP $HTTP_CODE)"
+            echo "$API_BODY" | jq -r '.errors // .messages // "Unknown error"' | head -5
           fi
           
           echo ""
           echo "✅ Setup complete"
-          echo "   GITHUB_OWNER and GITHUB_REPO are set by Terraform automatically"
-          echo "   GITHUB_TOKEN is set as secret (encrypted)"
 
       - name: Deploy Control Panel to Cloudflare Pages
         env:
