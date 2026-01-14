@@ -204,11 +204,23 @@ jobs:
           
           echo "  Merging GITHUB_OWNER and GITHUB_REPO with existing variables..."
           # Merge existing vars with new ones (new vars take precedence)
+          # Ensure we start with an object (not null)
+          if [ "$EXISTING_VARS" = "null" ] || [ -z "$EXISTING_VARS" ]; then
+            EXISTING_VARS="{}"
+          fi
+          
           MERGED_VARS=$(echo "$EXISTING_VARS" | jq --arg owner "$GITHUB_OWNER" --arg repo "$GITHUB_REPO" \
             '. + {
               "GITHUB_OWNER": {"value": $owner, "type": "plain_text"},
               "GITHUB_REPO": {"value": $repo, "type": "plain_text"}
             }')
+          
+          # Validate merged vars structure
+          if ! echo "$MERGED_VARS" | jq empty 2>/dev/null; then
+            echo "❌ Error: Invalid JSON structure for merged vars"
+            echo "EXISTING_VARS: $EXISTING_VARS"
+            exit 1
+          fi
           
           echo "  Setting environment variables via PATCH..."
           # Set for both production and preview environments
