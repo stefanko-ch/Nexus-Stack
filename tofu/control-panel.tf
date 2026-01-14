@@ -63,22 +63,42 @@ resource "cloudflare_pages_domain" "control_panel" {
 # -----------------------------------------------------------------------------
 
 resource "cloudflare_zero_trust_access_application" "control_panel" {
-  zone_id           = var.cloudflare_zone_id
-  name              = "${var.server_name} Control Panel"
-  domain            = "control.${var.domain}"
-  type              = "self_hosted"
-  session_duration  = "24h"
-  skip_interstitial = true
-}
+  zone_id          = var.cloudflare_zone_id
+  name             = "${var.server_name} Control Panel"
+  domain           = "control.${var.domain}"
+  type             = "self_hosted"
+  session_duration = "24h"
 
-resource "cloudflare_zero_trust_access_policy" "control_panel" {
-  zone_id        = var.cloudflare_zone_id
-  application_id = cloudflare_zero_trust_access_application.control_panel.id
-  name           = "Admin Access to Control Panel"
-  precedence     = 1
-  decision       = "allow"
-
-  include {
-    email = [var.admin_email]
+  # Important settings for Pages Functions API to work
+  skip_interstitial        = true
+  app_launcher_visible     = true
+  options_preflight_bypass = true
+  
+  # Cookie settings - critical for same-origin API requests
+  http_only_cookie_attribute = true
+  same_site_cookie_attribute = "lax"
+  
+  # CORS settings for API requests from the same origin
+  cors_headers = {
+    allowed_origins   = ["https://control.${var.domain}"]
+    allowed_methods   = ["GET", "POST", "OPTIONS"]
+    allow_credentials = true
   }
+
+  # Inline policy - this is the key difference!
+  # Using inline policy instead of separate cloudflare_zero_trust_access_policy
+  policies = [
+    {
+      name       = "Admin Access"
+      precedence = 1
+      decision   = "allow"
+      include = [
+        {
+          email = {
+            email = var.admin_email
+          }
+        }
+      ]
+    }
+  ]
 }

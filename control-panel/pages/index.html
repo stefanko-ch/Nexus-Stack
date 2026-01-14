@@ -545,12 +545,24 @@
         async function fetchStatus() {
             try {
                 const response = await fetch(`${API_URL}/api/status`, { credentials: 'same-origin' });
+                
+                // Check if we got HTML instead of JSON (Access login page)
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('API returned non-JSON response - might need re-authentication');
+                    showToast('Session expired - please refresh the page', 'error');
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (data.success) {
                     updateStatusDisplay(data);
                     updateButtons(data);
                     updateHistory(data.workflows);
+                } else {
+                    console.error('API error:', data.error);
+                    showToast(data.error || 'Failed to fetch status', 'error');
                 }
             } catch (error) {
                 console.error('Failed to fetch status:', error);
@@ -659,6 +671,14 @@
             
             try {
                 const response = await fetch(`${API_URL}/api/${action}`, { method: 'POST', credentials: 'same-origin' });
+                
+                // Check if we got HTML instead of JSON (Access login page)
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    showToast('Session expired - please refresh the page', 'error');
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (data.success) {
@@ -668,6 +688,7 @@
                     showToast(data.error || 'Failed to trigger action', 'error');
                 }
             } catch (error) {
+                console.error('Failed to trigger action:', error);
                 showToast('Failed to trigger action', 'error');
             }
         }
