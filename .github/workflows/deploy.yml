@@ -191,11 +191,16 @@ jobs:
           # Set environment variables via Cloudflare API
           # IMPORTANT: First GET existing vars, then merge, then PATCH to avoid overwriting
           echo "  Fetching existing environment variables..."
-          EXISTING_VARS=$(curl -s -X GET \
+          PROJECT_INFO=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" | \
-            jq -r '.result.deployment_configs.production.env_vars // {}')
+            -H "Content-Type: application/json")
+          
+          # Get existing vars from production (or empty object if none)
+          EXISTING_VARS=$(echo "$PROJECT_INFO" | jq -r '.result.deployment_configs.production.env_vars // {}')
+          
+          # Debug: Show what we found
+          echo "  Found $(echo "$EXISTING_VARS" | jq 'length') existing environment variables"
           
           echo "  Merging GITHUB_OWNER and GITHUB_REPO with existing variables..."
           # Merge existing vars with new ones (new vars take precedence)
@@ -206,6 +211,7 @@ jobs:
             }')
           
           echo "  Setting environment variables via PATCH..."
+          # Set for both production and preview environments
           API_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -213,6 +219,9 @@ jobs:
             -d "{
               \"deployment_configs\": {
                 \"production\": {
+                  \"env_vars\": $MERGED_VARS
+                },
+                \"preview\": {
                   \"env_vars\": $MERGED_VARS
                 }
               }
