@@ -155,9 +155,6 @@ export async function onRequestGet(context) {
       headers: { 
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Credentials': 'true',
       },
     });
   } catch (error) {
