@@ -156,9 +156,10 @@ https://control.YOUR_DOMAIN
 ```
 
 **Features:**
-- 🚀 **Deploy** - Trigger full infrastructure deployment via GitHub Actions
+- 🧰 **Setup** - One-time setup workflow (bootstraps control panel + triggers spin-up)
+- ⚡ **Spin Up** - Re-create infrastructure after teardown
 - 💤 **Teardown** - Stop infrastructure (keeps control panel + state)
-- 💀 **Destroy** - Full cleanup (removes everything)
+- 🧩 **Services** - Enable/disable services and trigger spin-up
 - 📊 **Status** - Real-time workflow monitoring
 
 The control panel is deployed via Cloudflare Pages and survives teardown. Protected by Cloudflare Access.
@@ -330,7 +331,7 @@ Deploy entirely via CI - no local tools required!
    - Verify your domain (add DNS records)
    - Create API key and save as `RESEND_API_KEY` secret
 
-4. Run first deployment:
+4. Run first setup:
    ```bash
    gh workflow run deploy.yml
    ```
@@ -342,14 +343,15 @@ Deploy entirely via CI - no local tools required!
 **Note:** The Control Panel requires `GITHUB_TOKEN` to be set with the following permissions:
 
 **For Classic Tokens:**
-- `workflow` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `workflow` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
 - `repo` - Full control of repositories (required for auto-saving R2 credentials as Secrets)
 
 **For Fine-Grained Tokens:**
 - Repository: Select your `Nexus-Stack` repository
-- `Actions: Write` - Trigger GitHub Actions workflows (required for Deploy/Teardown/Destroy buttons)
+- `Actions: Write` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
 - `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
 - `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
+- `Contents: Write` - Update `tofu/services.tfvars` from the Control Panel
 
 **Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token. The `Contents: Read` permission is required for the token to access the `main` branch when triggering workflows.
 
@@ -364,7 +366,8 @@ make setup-control-panel-secrets
 
 | Workflow | Command | Description |
 |----------|---------|-------------|
-| **Deploy** | `gh workflow run deploy.yml` | Full deploy |
+| **Setup** | `gh workflow run deploy.yml` | One-time setup (triggers spin-up) |
+| **Spin Up** | `gh workflow run spin-up.yml` | Re-create infrastructure after teardown |
 | **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
 | **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
 

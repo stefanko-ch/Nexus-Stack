@@ -1,11 +1,4 @@
-# Nexus-Stack - Copilot Instructions
-
-> ⚠️ **IMPORTANT:** This file must be kept **identical** to `.cursorrules` in the project root.
-> When updating instructions, update **both files** to maintain consistency across Cursor and GitHub Copilot.
-
----
-
-# Nexus-Stack - Cursor Rules
+# Nexus-Stack - Agent Instructions
 
 ## Language
 
@@ -47,16 +40,42 @@ Nexus-Stack is an **open-source infrastructure-as-code project** that provides o
 Nexus-Stack/
 ├── Makefile                    # Main entry point - all commands here
 ├── README.md                   # User documentation
+├── AGENTS.md                   # Agent instructions (this file)
+├── .github/
+│   └── workflows/             # GitHub Actions workflows
+│       ├── deploy.yml          # Setup workflow (one-time, triggers spin-up)
+│       ├── spin-up.yml         # Spin-up workflow (re-deploy after teardown)
+│       ├── teardown.yml        # Teardown workflow (stops infrastructure)
+│       ├── destroy-all.yml     # Destroy workflow (full cleanup)
+│       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── main.tf                 # Core infrastructure (server, tunnel, DNS, access)
+│   ├── control-panel.tf        # Cloudflare Pages + Worker configuration
 │   ├── variables.tf            # Input variable definitions
 │   ├── outputs.tf              # Output definitions
 │   ├── providers.tf            # Provider configuration
-│   └── config.tfvars.example   # Template for user config
+│   ├── config.tfvars.example   # Template for user config
+│   └── services.tfvars         # Service configuration (enabled/disabled)
 ├── stacks/                     # Docker Compose stacks (one folder per service)
 │   └── <service>/docker-compose.yml
-└── scripts/
-    └── deploy.sh               # Post-infrastructure deployment script
+├── control-panel/               # Control Panel (Cloudflare Pages)
+│   ├── pages/                  # Pages frontend + Functions
+│   │   ├── index.html          # Frontend UI
+│   │   ├── functions/api/      # API endpoints (deploy, teardown, status, etc.)
+│   │   └── nexus-logo-green.png
+│   └── worker/                 # Scheduled teardown Worker
+│       ├── src/index.js        # Worker logic
+│       └── wrangler.toml       # Worker configuration
+├── scripts/
+│   ├── deploy.sh               # Post-infrastructure deployment script
+│   ├── init-r2-state.sh        # R2 bucket + credentials setup
+│   ├── setup-control-panel-secrets.sh  # Control Panel secrets setup
+│   ├── generate-info-page.sh   # Info page generation
+│   └── check-control-panel-env.sh
+└── docs/                       # Documentation
+    ├── CONTRIBUTING.md         # Contribution guidelines
+    ├── setup-guide.md          # Setup instructions
+    └── stacks.md               # Stack documentation
 ```
 
 ## Key Commands

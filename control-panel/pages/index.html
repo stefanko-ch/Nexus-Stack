@@ -208,9 +208,14 @@
             filter: grayscale(0.3);
         }
 
-        .action-btn.deploy {
+        .action-btn.setup {
             border-color: rgba(0, 255, 136, 0.6);
             color: #00ff88;
+        }
+
+        .action-btn.spin-up {
+            border-color: rgba(0, 170, 255, 0.6);
+            color: #00aaff;
         }
 
         .action-btn.teardown {
@@ -315,6 +320,71 @@
             font-size: 0.75rem;
             color: #607080;
             margin-top: 0.5rem;
+        }
+
+        /* Services Panel */
+        .services-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .services-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .service-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .service-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .service-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .service-name {
+            font-weight: bold;
+            color: #00ff88;
+            font-size: 0.9rem;
+        }
+
+        .service-description {
+            font-size: 0.75rem;
+            color: #607080;
+        }
+
+        .service-toggle {
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        .service-toggle.active {
+            background: #00ff88;
+        }
+
+        .service-toggle.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         /* Info Panel */
@@ -629,9 +699,13 @@
 
         <!-- Action Buttons -->
         <div class="actions">
-            <button class="action-btn deploy" id="btn-deploy" disabled>
-                <span class="icon">🚀</span>
-                Deploy
+            <button class="action-btn setup" id="btn-setup" disabled>
+                <span class="icon">🧰</span>
+                Setup
+            </button>
+            <button class="action-btn spin-up" id="btn-spin-up" disabled>
+                <span class="icon">⚡</span>
+                Spin Up
             </button>
             <button class="action-btn teardown" id="btn-teardown" disabled>
                 <span class="icon">💤</span>
@@ -656,7 +730,7 @@
                     <div class="info-item-value highlight" id="info-domain">Loading...</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-item-label">Last Deploy</div>
+                    <div class="info-item-label">Last Spin Up</div>
                     <div class="info-item-value" id="info-last-deploy">Loading...</div>
                 </div>
                 <div class="info-item">
@@ -683,7 +757,15 @@
                 </div>
                 <button class="delay-btn" id="btn-delay-teardown" disabled>
                     ⏱️ Delay Teardown by 2 Hours
-                </button>
+            </button>
+            </div>
+        </div>
+
+        <!-- Services Panel -->
+        <div class="services-panel">
+            <h2><span class="icon">🧩</span> Services</h2>
+            <div class="service-list" id="services-list">
+                <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
             </div>
         </div>
 
@@ -721,8 +803,8 @@
         // Status descriptions
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
-            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Deploy to restart.',
-            'destroyed': 'Everything is destroyed. Click Deploy to start fresh.',
+            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
+            'destroyed': 'Everything is destroyed. Run Setup to start fresh.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -786,39 +868,47 @@
         }
 
         function updateButtons(data) {
-            const btnDeploy = document.getElementById('btn-deploy');
+            const btnSetup = document.getElementById('btn-setup');
+            const btnSpinUp = document.getElementById('btn-spin-up');
             const btnTeardown = document.getElementById('btn-teardown');
             
             // Disable all if workflow is running
             if (data.inProgress) {
-                btnDeploy.disabled = true;
+                btnSetup.disabled = true;
+                btnSpinUp.disabled = true;
                 btnTeardown.disabled = true;
-                btnDeploy.innerHTML = '<span class="spinner"></span>Working...';
+                btnSetup.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
-            // Reset deploy button
-            btnDeploy.innerHTML = '<span class="icon">🚀</span>Deploy';
+            const setupComplete = data.workflows && data.workflows.setup && data.workflows.setup.conclusion === 'success';
+            
+            // Reset buttons
+            btnSetup.innerHTML = '<span class="icon">🧰</span>Setup';
+            btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
+            btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
             
             // Enable based on state
             switch (data.infraState) {
                 case 'deployed':
-                    btnDeploy.disabled = true;
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
-                    btnDeploy.disabled = false;
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = !setupComplete;
                     btnTeardown.disabled = true;
                     break;
                 case 'destroyed':
-                    btnDeploy.disabled = false;
+                    btnSetup.disabled = false;
+                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = true;
                     break;
                 case 'unknown':
                 default:
-                    // When status is unknown, allow all actions but show them as available
-                    // User can still deploy, and if infrastructure exists, teardown will work
-                    btnDeploy.disabled = false;
+                    btnSetup.disabled = setupComplete && data.infraState !== 'destroyed';
+                    btnSpinUp.disabled = !setupComplete;
                     btnTeardown.disabled = false;
                     break;
             }
@@ -932,12 +1022,108 @@
             }
         }
 
+        // Services functions
+        async function loadServices() {
+            try {
+                const response = await fetch(`${API_URL}/api/services`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success) {
+                    renderServices(data.services || []);
+                }
+            } catch (error) {
+                console.error('Failed to load services:', error);
+            }
+        }
+
+        function renderServices(services) {
+            const list = document.getElementById('services-list');
+            list.innerHTML = '';
+
+            if (!services.length) {
+                list.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No services found</p>';
+                return;
+            }
+
+            services.forEach(service => {
+                const item = document.createElement('div');
+                item.className = 'service-item';
+
+                const details = document.createElement('div');
+                details.className = 'service-details';
+
+                const name = document.createElement('div');
+                name.className = 'service-name';
+                name.textContent = service.name;
+
+                const description = document.createElement('div');
+                description.className = 'service-description';
+                description.textContent = service.description || 'No description';
+
+                details.appendChild(name);
+                details.appendChild(description);
+
+                const toggle = document.createElement('div');
+                toggle.className = 'toggle-switch service-toggle';
+                if (service.enabled) {
+                    toggle.classList.add('active');
+                }
+
+                toggle.addEventListener('click', () => {
+                    if (toggle.classList.contains('disabled')) return;
+                    updateServiceToggle(service.name, !service.enabled, toggle);
+                });
+
+                item.appendChild(details);
+                item.appendChild(toggle);
+                list.appendChild(item);
+            });
+        }
+
+        async function updateServiceToggle(serviceName, enabled, toggleEl) {
+            toggleEl.classList.add('disabled');
+
+            try {
+                const response = await fetch(`${API_URL}/api/services`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ service: serviceName, enabled })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update service');
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    if (enabled) {
+                        toggleEl.classList.add('active');
+                    } else {
+                        toggleEl.classList.remove('active');
+                    }
+                    showToast('Service updated. Spin up triggered.', 'success');
+                    loadServices();
+                    setTimeout(fetchStatus, 2000);
+                } else {
+                    showToast(data.error || 'Failed to update service', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to update service:', error);
+                showToast('Failed to update service', 'error');
+            } finally {
+                toggleEl.classList.remove('disabled');
+            }
+        }
+
         function updateHistory(workflows) {
             const historyList = document.getElementById('history-list');
             historyList.innerHTML = '';
             
             const items = [
-                { name: 'Deploy', data: workflows.deploy },
+                { name: 'Setup', data: workflows.setup },
+                { name: 'Spin Up', data: workflows.spinUp },
                 { name: 'Teardown', data: workflows.teardown },
             ].filter(item => item.data);
             
@@ -966,7 +1152,8 @@
         // Action handlers
         async function triggerAction(action) {
             const actionLabels = {
-                'deploy': 'Deploy Infrastructure',
+                'setup': 'Setup Infrastructure',
+                'spin-up': 'Spin Up Infrastructure',
                 'teardown': 'Teardown Infrastructure',
             };
             
@@ -1025,7 +1212,7 @@
             const configs = {
                 'teardown': {
                     title: '⚠️ Confirm Teardown',
-                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to re-deploy later.'
+                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to spin up later.'
                 },
             };
             
@@ -1050,7 +1237,8 @@
         }
 
         // Event listeners
-        document.getElementById('btn-deploy').addEventListener('click', () => triggerAction('deploy'));
+        document.getElementById('btn-setup').addEventListener('click', () => triggerAction('setup'));
+        document.getElementById('btn-spin-up').addEventListener('click', () => triggerAction('spin-up'));
         document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
         document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
         document.getElementById('btn-delay-teardown').addEventListener('click', delayTeardown);
@@ -1077,6 +1265,7 @@
         }
 
         // Load scheduled teardown config on page load
+        loadServices();
         loadScheduledTeardownConfig();
 
         // Polling with exponential backoff on errors
