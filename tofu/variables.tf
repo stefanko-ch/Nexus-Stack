@@ -90,12 +90,12 @@ variable "admin_email" {
 }
 
 variable "auth_methods" {
-  description = "Authentication methods for Cloudflare Access (email, github, google, service_token). Multiple methods can be enabled - user can choose any one."
+  description = "Authentication methods for Cloudflare Access. Currently only email OTP is supported via Terraform. GitHub/Google OAuth must be configured manually in Cloudflare Dashboard."
   type = object({
-    email         = bool  # Email OTP (default: true)
-    github        = bool  # GitHub OAuth (default: false)
-    google        = bool  # Google OAuth (default: false)
-    service_token = bool  # Service tokens for CI/CD (default: false)
+    email         = bool  # Email OTP (default: true) - ✅ Supported
+    github        = bool  # GitHub OAuth (default: false) - ⚠️ Requires manual Identity Provider setup
+    google        = bool  # Google OAuth (default: false) - ⚠️ Requires manual Identity Provider setup
+    service_token = bool  # Service tokens for CI/CD (default: false) - ✅ Supported
   })
   default = {
     email         = true
@@ -106,7 +106,7 @@ variable "auth_methods" {
 }
 
 variable "github_org" {
-  description = "GitHub organization name for OAuth authentication (optional, required if auth_methods.github = true)"
+  description = "GitHub organization name for OAuth authentication (optional, not yet supported via Terraform - configure manually in Cloudflare Dashboard)"
   type        = string
   default     = ""
 }

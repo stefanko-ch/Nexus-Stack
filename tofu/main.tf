@@ -319,37 +319,12 @@ resource "cloudflare_zero_trust_access_policy" "ssh_email" {
   }
 }
 
-resource "cloudflare_zero_trust_access_policy" "ssh_github" {
-  count = var.auth_methods.github && var.github_org != "" ? 1 : 0
-
-  zone_id        = var.cloudflare_zone_id
-  application_id = cloudflare_zero_trust_access_application.ssh.id
-  name           = "GitHub SSH Access"
-  precedence     = 2
-  decision       = "allow"
-
-  include {
-    github {
-      name = var.github_org
-    }
-  }
-}
-
-resource "cloudflare_zero_trust_access_policy" "ssh_google" {
-  count = var.auth_methods.google ? 1 : 0
-
-  zone_id        = var.cloudflare_zone_id
-  application_id = cloudflare_zero_trust_access_application.ssh.id
-  name           = "Google SSH Access"
-  precedence     = 3
-  decision       = "allow"
-
-  include {
-    google {
-      email = [var.admin_email]
-    }
-  }
-}
+# GitHub and Google OAuth require Identity Provider setup first
+# For now, only email OTP is supported via Terraform
+# To enable GitHub/Google OAuth:
+# 1. Configure Identity Provider in Cloudflare Dashboard
+# 2. Then use include { github_organization = ["org-name"] } or include { google = ["email"] }
+# TODO: Add cloudflare_zero_trust_access_identity_provider resources when provider supports it
 
 resource "cloudflare_zero_trust_access_short_lived_certificate" "ssh" {
   zone_id        = var.cloudflare_zone_id
@@ -407,40 +382,9 @@ resource "cloudflare_zero_trust_access_policy" "services_email" {
   }
 }
 
-resource "cloudflare_zero_trust_access_policy" "services_github" {
-  for_each = {
-    for k, v in local.enabled_services : k => v
-    if !v.public && var.auth_methods.github && var.github_org != ""
-  }
-
-  zone_id        = var.cloudflare_zone_id
-  application_id = cloudflare_zero_trust_access_application.services[each.key].id
-  name           = "GitHub Access to ${title(each.key)}"
-  precedence     = 2
-  decision       = "allow"
-
-  include {
-    github {
-      name = var.github_org
-    }
-  }
-}
-
-resource "cloudflare_zero_trust_access_policy" "services_google" {
-  for_each = {
-    for k, v in local.enabled_services : k => v
-    if !v.public && var.auth_methods.google
-  }
-
-  zone_id        = var.cloudflare_zone_id
-  application_id = cloudflare_zero_trust_access_application.services[each.key].id
-  name           = "Google Access to ${title(each.key)}"
-  precedence     = 3
-  decision       = "allow"
-
-  include {
-    google {
-      email = [var.admin_email]
-    }
-  }
-}
+# GitHub and Google OAuth require Identity Provider setup first
+# For now, only email OTP is supported via Terraform
+# To enable GitHub/Google OAuth:
+# 1. Configure Identity Provider in Cloudflare Dashboard
+# 2. Then use include { github_organization = ["org-name"] } or include { google = ["email"] }
+# TODO: Add cloudflare_zero_trust_access_identity_provider resources when provider supports it
