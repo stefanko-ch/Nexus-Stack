@@ -79,7 +79,7 @@ export async function onRequestGet(context) {
 
     // Get scheduled teardown config
     if (env.SCHEDULED_TEARDOWN) {
-      const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'false';
+      const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
       const timezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
       const teardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
       const delayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
@@ -114,30 +114,31 @@ export async function onRequestGet(context) {
             nextTeardown = timeInTimezoneToUTC(teardownTime, timezone, tomorrow);
           }
 
-        // Apply delay if exists
-        if (delayUntil) {
-          const delayDate = new Date(delayUntil);
-          if (delayDate > nextTeardown) {
-            info.scheduledTeardown.nextTeardown = delayDate.toISOString();
-            info.scheduledTeardown.delayed = true;
+          // Apply delay if exists
+          if (delayUntil) {
+            const delayDate = new Date(delayUntil);
+            if (delayDate > nextTeardown) {
+              info.scheduledTeardown.nextTeardown = delayDate.toISOString();
+              info.scheduledTeardown.delayed = true;
+            } else {
+              info.scheduledTeardown.nextTeardown = nextTeardown.toISOString();
+              info.scheduledTeardown.delayed = false;
+            }
           } else {
             info.scheduledTeardown.nextTeardown = nextTeardown.toISOString();
             info.scheduledTeardown.delayed = false;
           }
-        } else {
-          info.scheduledTeardown.nextTeardown = nextTeardown.toISOString();
-          info.scheduledTeardown.delayed = false;
-        }
 
-        // Calculate time remaining
-        const timeRemaining = new Date(info.scheduledTeardown.nextTeardown) - now;
-        const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
-        const minutesRemaining = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
-        info.scheduledTeardown.timeRemaining = {
-          hours: hoursRemaining,
-          minutes: minutesRemaining,
-          totalMinutes: Math.floor(timeRemaining / (1000 * 60)),
-        };
+          // Calculate time remaining
+          const timeRemaining = new Date(info.scheduledTeardown.nextTeardown) - now;
+          const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
+          const minutesRemaining = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+          info.scheduledTeardown.timeRemaining = {
+            hours: hoursRemaining,
+            minutes: minutesRemaining,
+            totalMinutes: Math.floor(timeRemaining / (1000 * 60)),
+          };
+        }
       }
     }
 

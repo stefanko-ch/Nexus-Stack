@@ -86,7 +86,7 @@ async function handleScheduledTeardown(event, env) {
 }
 
 async function getConfig(kv) {
-  const enabled = await kv.get('enabled') || 'false';
+  const enabled = await kv.get('enabled') || 'true';
   const timezone = await kv.get('timezone') || 'Europe/Zurich';
   const teardownTime = await kv.get('teardown_time') || '22:00';
   const notificationTime = await kv.get('notification_time') || '21:45';

@@ -1,4 +1,4 @@
-name: Teardown Infrastructure
+name: Teardown Nexus-Stack
 
 on:
   workflow_dispatch:

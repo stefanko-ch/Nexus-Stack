@@ -1,4 +1,4 @@
-name: Setup Nexus-Stack
+name: Setup Nexus Control Panel
 
 on:
   workflow_dispatch:
@@ -287,34 +287,16 @@ jobs:
           echo "📝 Note: Deployed to production branch (main)"
           echo "   Environment variables are set for both production and preview environments"
 
-      - name: Trigger spin-up workflow
-        if: steps.check_r2.outputs.r2_exists == 'true' || steps.init_r2.outputs.r2_saved == 'true'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          echo "🚀 Triggering spin-up workflow..."
-          
-          RESPONSE_CODE=$(curl -s -o /tmp/spinup_response.txt -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/workflows/spin-up.yml/dispatches" \
-            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"send_credentials\":\"true\"}}")
-          
-          if [ "$RESPONSE_CODE" -ne 204 ]; then
-            echo "❌ Failed to trigger spin-up workflow (HTTP $RESPONSE_CODE)"
-            cat /tmp/spinup_response.txt 2>/dev/null || true
-            exit 1
-          fi
-          
-          echo "✅ Spin-up workflow triggered"
 
       - name: Show setup info
         run: |
           echo ""
-          echo "✅ Setup complete!"
+          echo "✅ Control Panel setup complete!"
           echo ""
-          echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
-          echo "   (View all service URLs and credentials there)"
+          echo "📋 Control Panel: https://control.${{ secrets.DOMAIN }}"
           echo ""
+          echo "ℹ️  Next steps:"
+          echo "   1. Use the Control Panel to manage your infrastructure"
+          echo "   2. Run 'Spin Up' workflow to deploy the Hetzner server and services"
+          echo "   3. Or trigger it manually: Actions → Spin Up Nexus-Stack → Run workflow"
+
