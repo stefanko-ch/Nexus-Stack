@@ -197,6 +197,28 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=backend.hcl
 
+      - name: Deploy Control Panel infrastructure
+        run: |
+          cd tofu
+          source .r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          echo "🏗️  Deploying Control Panel infrastructure (Cloudflare Pages + Worker)..."
+          # Deploy only Control Panel resources (not the server)
+          tofu apply -var-file=config.tfvars -auto-approve \
+            -target=cloudflare_pages_project.control_panel \
+            -target=cloudflare_record.control_panel \
+            -target=cloudflare_pages_domain.control_panel \
+            -target=cloudflare_zero_trust_access_application.control_panel \
+            -target=cloudflare_zero_trust_access_policy.control_panel_email \
+            -target=cloudflare_workers_kv_namespace.scheduled_teardown \
+            -target=cloudflare_workers_script.scheduled_teardown \
+            -target=cloudflare_workers_cron_trigger.scheduled_teardown_notification \
+            -target=cloudflare_workers_cron_trigger.scheduled_teardown_execution
+          
+          echo "✅ Control Panel infrastructure deployed"
+
       - name: Set Control Panel environment variables and secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
