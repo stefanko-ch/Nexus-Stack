@@ -22,6 +22,8 @@ jobs:
       TF_VAR_domain: ${{ secrets.DOMAIN }}
       TF_VAR_access_emails: ${{ secrets.ACCESS_EMAILS }}
       TF_VAR_infisical_token: ${{ secrets.INFISICAL_TOKEN }}
+      TF_VAR_dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
     
     steps:
       - name: Checkout
@@ -63,6 +65,14 @@ jobs:
           github_owner   = "${{ github.repository_owner }}"
           github_repo    = "${{ github.event.repository.name }}"
           EOF
+          
+          # Add Docker Hub credentials if provided (optional)
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            cat >> tofu/config.tfvars << EOF
+          dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
+          dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
+          EOF
+          fi
           
           # Append services from committed services.tfvars
           cat tofu/services.tfvars >> tofu/config.tfvars
