@@ -41,6 +41,18 @@ admin_email = "your@email.com"
 # Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
 # admin_username = "admin"
 
+# Authentication methods (choose one or multiple - user can use any enabled method)
+# Multiple methods = OR logic (user can choose email OR github OR google)
+auth_methods = {
+  email         = true   # Email OTP (default - requires email verification each time)
+  github        = false  # GitHub OAuth (one-time login, then session)
+  google        = false  # Google OAuth (one-time login, then session)
+  service_token = false  # Service tokens for CI/CD (no browser needed)
+}
+
+# GitHub organization name (required if auth_methods.github = true)
+# github_org = "your-github-org"
+
 # =============================================================================
 # Services
 # =============================================================================
