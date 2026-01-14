@@ -61,27 +61,11 @@ resource "cloudflare_pages_domain" "control_panel" {
 # -----------------------------------------------------------------------------
 # Cloudflare Access Protection
 # -----------------------------------------------------------------------------
-
-resource "cloudflare_zero_trust_access_application" "control_panel" {
-  zone_id                    = var.cloudflare_zone_id
-  name                       = "${var.server_name} Control Panel"
-  domain                     = "control.${var.domain}"
-  type                       = "self_hosted"
-  session_duration           = "24h"
-  skip_interstitial          = true
-  app_launcher_visible       = true
-  options_preflight_bypass   = true
-  http_only_cookie_attribute = false
-}
-
-resource "cloudflare_zero_trust_access_policy" "control_panel" {
-  zone_id        = var.cloudflare_zone_id
-  application_id = cloudflare_zero_trust_access_application.control_panel.id
-  name           = "Admin Access to Control Panel"
-  precedence     = 1
-  decision       = "allow"
-
-  include {
-    email = [var.admin_email]
-  }
-}
+# NOTE: Access protection for Pages is managed via the Cloudflare Dashboard:
+# Workers & Pages > nexus-control > Settings > Enable access policy
+# 
+# We do NOT create a separate Access Application here because:
+# 1. Pages has its own built-in Access integration
+# 2. Adding a separate Access Application causes 401 errors on API routes
+# 3. The Pages Access policy automatically covers all paths including /api/*
+# -----------------------------------------------------------------------------
