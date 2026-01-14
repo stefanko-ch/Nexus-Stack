@@ -130,7 +130,7 @@ jobs:
                 echo ""
                 echo "Please save these credentials manually in GitHub Secrets:"
                 echo "  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
-                echo "  R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY"
+                echo "  R2_SECRET_ACCESS_KEY=*** (check workflow logs or tofu/.r2-credentials file)"
                 echo ""
                 echo "Or configure GH_SECRETS_TOKEN with 'repo' scope and 'write:secrets' permission"
               fi

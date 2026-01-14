@@ -173,7 +173,12 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
         break
     fi
     
-    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+    # Extract error message and code
+    extract_error() {
+        echo "$1" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//'
+    }
+    
+    ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     ERROR_CODE=$(echo "$TOKEN_RESPONSE" | grep -o '"code":[0-9]*' | head -1 | cut -d: -f2)
     
     # Check if token already exists (non-retryable)
@@ -205,7 +210,7 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     fi
     
     # Non-retryable error or max retries reached
-    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+    ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
