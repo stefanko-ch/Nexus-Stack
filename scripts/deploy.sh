@@ -358,14 +358,14 @@ fi
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[6/7] Pre-pulling Docker images (parallel)...${NC}"
+echo -e "${YELLOW}[6/8] Pre-pulling Docker images (parallel)...${NC}"
 
 ssh nexus "
 set -e
 for service in $ENABLED_LIST; do
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Pre-pulling images for \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose pull >/dev/null 2>&1) &
+        (cd /opt/docker-server/stacks/\$service && docker compose pull 2>&1 | sed 's/^/    /' || echo \"    ⚠ Failed to pull images for \$service\") &
     fi
 done
 wait
@@ -376,7 +376,7 @@ echo '  ✓ All images pre-pulled'
 # Start containers (parallel)
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
+echo -e "${YELLOW}[7/8] Starting enabled containers (parallel)...${NC}"
 
 ssh nexus "
 set -e

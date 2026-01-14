@@ -204,8 +204,10 @@ jobs:
           
           if [ -n "$GITHUB_TOKEN" ]; then
             echo "  Setting GITHUB_TOKEN secret..."
-            echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
-              --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_TOKEN (may already be set)"
+            if ! echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN \
+              --project-name="$PROJECT_NAME" 2>&1; then
+              echo "⚠️  Failed to set GITHUB_TOKEN secret (check token validity and project name)"
+            fi
           else
             echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
           fi

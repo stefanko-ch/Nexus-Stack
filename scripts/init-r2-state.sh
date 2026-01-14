@@ -205,13 +205,15 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     fi
     
     # Non-retryable error or max retries reached
+    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
     echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
-done
+fi
 
 if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
-    echo -e "  ${RED}❌ Failed to create token after $MAX_RETRIES attempts${NC}"
+    ERROR_MSG=$(echo "$TOKEN_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
+    echo -e "  ${RED}❌ Failed to create token after $MAX_RETRIES attempts: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
 fi

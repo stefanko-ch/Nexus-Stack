@@ -41,7 +41,6 @@ admin_email = "your@email.com"
 # Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
 # admin_username = "admin"
 
-
 # =============================================================================
 # Services
 # =============================================================================
