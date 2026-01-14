@@ -206,9 +206,9 @@ jobs:
           
           echo "🏗️  Deploying Control Panel infrastructure (Cloudflare Pages + Worker)..."
           # Deploy only Control Panel resources (not the server)
+          # Note: DNS record is deployed in spin-up workflow to avoid provider conflicts
           tofu apply -var-file=config.tfvars -auto-approve \
             -target=cloudflare_pages_project.control_panel \
-            -target=cloudflare_record.control_panel \
             -target=cloudflare_pages_domain.control_panel \
             -target=cloudflare_zero_trust_access_application.control_panel \
             -target=cloudflare_zero_trust_access_policy.control_panel_email \
