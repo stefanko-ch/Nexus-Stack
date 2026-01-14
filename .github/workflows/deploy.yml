@@ -298,5 +298,5 @@ jobs:
           echo "ℹ️  Next steps:"
           echo "   1. Use the Control Panel to manage your infrastructure"
           echo "   2. Run 'Spin Up' workflow to deploy the Hetzner server and services"
-          echo "   3. Or trigger it manually: Actions → Spin Up Infrastructure → Run workflow"
+          echo "   3. Or trigger it manually: Actions → Spin Up Nexus-Stack → Run workflow"
 
