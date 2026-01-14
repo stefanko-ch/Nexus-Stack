@@ -34,6 +34,13 @@ resource "cloudflare_pages_project" "control_panel" {
       # wrangler pages secret put GITHUB_TOKEN --project-name=${var.server_name}-control
       # or via Cloudflare dashboard
     }
+
+    preview {
+      environment_variables = {
+        GITHUB_OWNER = var.github_owner
+        GITHUB_REPO  = var.github_repo
+      }
+    }
   }
 }
 
