@@ -196,12 +196,14 @@
 
         .action-btn:disabled {
             opacity: 0.5;
-            cursor: not-allowed;
+            cursor: not-allowed !important;
             transform: none;
+            pointer-events: none;
         }
 
         .action-btn:disabled:hover {
             box-shadow: none;
+            transform: none;
         }
 
         .action-btn.deploy {
@@ -551,6 +553,8 @@
                 if (!contentType || !contentType.includes('application/json')) {
                     console.error('API returned non-JSON response - might need re-authentication');
                     showToast('Session expired - please refresh the page', 'error');
+                    // Fallback: enable deploy button if status check fails
+                    updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
                     return;
                 }
                 
@@ -563,10 +567,14 @@
                 } else {
                     console.error('API error:', data.error);
                     showToast(data.error || 'Failed to fetch status', 'error');
+                    // Fallback: enable deploy button on error
+                    updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
                 }
             } catch (error) {
                 console.error('Failed to fetch status:', error);
-                showToast('Failed to fetch status', 'error');
+                showToast('Failed to fetch status - check console for details', 'error');
+                // Fallback: enable deploy button on network error
+                updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
             }
         }
 
