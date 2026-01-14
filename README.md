@@ -370,6 +370,35 @@ This setup achieves **zero open ports** after deployment:
 1. During initial setup, SSH (port 22) is temporarily open
 2. OpenTofu installs the Cloudflare Tunnel via SSH
 3. After tunnel is running, SSH port is **automatically closed** via Hetzner API
+
+### Authentication Methods
+
+Nexus-Stack supports multiple authentication methods for Cloudflare Access. You can enable one or multiple methods - users can choose their preferred method at login.
+
+**Configure in `tofu/config.tfvars`:**
+
+```hcl
+auth_methods = {
+  email         = true   # Email OTP (default - requires email verification each time)
+  github        = true   # GitHub OAuth (one-time login, then session)
+  google        = false  # Google OAuth (one-time login, then session)
+  service_token = false  # Service tokens for CI/CD (no browser needed)
+}
+
+# Required if auth_methods.github = true
+github_org = "your-github-username"
+```
+
+**How it works:**
+- **Multiple methods = OR logic**: If you enable both email and GitHub, users see both options at login
+- **Email OTP**: Traditional method - user receives email code each time
+- **GitHub/Google OAuth**: One-time login, then session (24h) - no repeated emails
+- **Service Tokens**: For CI/CD and headless access (already configured for SSH)
+
+**Benefits:**
+- Reduce email spam by using GitHub/Google OAuth
+- Users can choose their preferred method
+- Flexible: enable multiple methods simultaneously
 4. All future SSH access goes through Cloudflare Tunnel
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
