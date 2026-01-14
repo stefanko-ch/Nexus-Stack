@@ -79,6 +79,7 @@ Required permissions:
 - **Repository permissions:**
   - `Actions: Write` - Trigger GitHub Actions workflows (Deploy/Teardown/Destroy)
   - `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
+  - `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
 
 **Not needed:**
 - ✗ `write:packages`
