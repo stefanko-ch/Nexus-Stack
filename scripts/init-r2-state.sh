@@ -214,7 +214,6 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
     echo "     Full response: $TOKEN_RESPONSE"
     exit 1
-    fi
 done
 
 if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
