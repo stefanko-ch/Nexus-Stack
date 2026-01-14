@@ -22,7 +22,7 @@ services = {
   }
 
   excalidraw = {
-    enabled     = true
+    enabled     = false
     subdomain   = "excalidraw"
     port        = 8082
     public      = false
@@ -70,7 +70,7 @@ services = {
   }
 
   kestra = {
-    enabled     = true
+    enabled     = false
     subdomain   = "kestra"
     port        = 8085
     public      = false
@@ -78,7 +78,7 @@ services = {
   }
 
   n8n = {
-    enabled     = true
+    enabled     = false
     subdomain   = "n8n"
     port        = 5678
     public      = false
