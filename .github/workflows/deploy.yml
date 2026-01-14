@@ -1,4 +1,4 @@
-name: Setup Nexus-Stack
+name: Setup Nexus Control Panel
 
 on:
   workflow_dispatch:
