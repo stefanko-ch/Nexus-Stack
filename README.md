@@ -335,6 +335,14 @@ Deploy entirely via CI - no local tools required!
 
 5. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
 6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
+7. Control Panel environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
+
+**Note:** The Control Panel requires `GITHUB_TOKEN` to be set manually:
+```bash
+make setup-control-panel-secrets
+# Or manually via Cloudflare Dashboard:
+# Pages → nexus-control → Settings → Environment Variables → Secrets
+```
 
 ### Available Workflows
 
