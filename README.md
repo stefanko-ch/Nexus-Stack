@@ -380,7 +380,7 @@ Nexus-Stack can automatically tear down infrastructure daily to save costs. This
 - **Default timezone**: Europe/Zurich (Switzerland)
 - **Configurable**: Enable/disable and configure via Control Plane API
 
-**Enable via Control Plane:****
+**Enable via Control Plane:**
 ```bash
 # Enable scheduled teardown
 curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
