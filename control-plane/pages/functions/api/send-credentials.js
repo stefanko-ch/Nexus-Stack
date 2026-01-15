@@ -2,14 +2,15 @@
  * Send infrastructure credentials via email
  * POST /api/send-credentials
  * 
- * Sends Infisical credentials and other service passwords to admin email
+ * Reads credentials from KV (stored during deployment) and sends them via Resend.
+ * Email matches the style of the "Stack Online" notification.
  */
 
 export async function onRequestPost(context) {
-  const { env, request } = context;
+  const { env } = context;
 
   // Validate environment variables
-  const requiredEnv = ['GITHUB_OWNER', 'GITHUB_REPO', 'GITHUB_TOKEN', 'RESEND_API_KEY'];
+  const requiredEnv = ['RESEND_API_KEY', 'ADMIN_EMAIL', 'DOMAIN'];
   const missing = requiredEnv.filter(key => !env[key]);
   
   if (missing.length > 0) {
@@ -19,114 +20,130 @@ export async function onRequestPost(context) {
     }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
+  // Check KV namespace
+  if (!env.SCHEDULED_TEARDOWN) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'KV namespace not configured'
+    }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+
   try {
-    const adminEmail = env.ADMIN_EMAIL || '';
+    // Get credentials from KV
+    const credentialsJson = await env.SCHEDULED_TEARDOWN.get('credentials');
     
-    if (!adminEmail) {
+    if (!credentialsJson) {
       return new Response(JSON.stringify({
         success: false,
-        error: 'Admin email not configured'
-      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        error: 'No credentials found in KV. Deploy the stack first.'
+      }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Get secrets from GitHub
-    let infisicalPassword = '';
-    let otherSecrets = '';
+    const credentials = JSON.parse(credentialsJson);
+    const domain = env.DOMAIN;
+    const adminEmail = env.ADMIN_EMAIL;
 
-    try {
-      const secretsUrl = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/secrets`;
-      const secretsResponse = await fetch(secretsUrl, {
-        headers: {
-          'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
+    // Build credentials list for enabled services
+    const serviceCredentials = [];
+    
+    if (credentials.infisical_admin_password) {
+      serviceCredentials.push({
+        name: 'Infisical',
+        url: `https://infisical.${domain}`,
+        username: credentials.admin_username || 'admin',
+        password: credentials.infisical_admin_password
       });
-
-      if (secretsResponse.ok) {
-        const secretsData = await secretsResponse.json();
-        const secretNames = secretsData.secrets ? secretsData.secrets.map(s => s.name) : [];
-        
-        // Get Infisical password from GitHub Actions output or environment
-        if (secretNames.includes('INFISICAL_PASSWORD')) {
-          infisicalPassword = '(Stored in GitHub Secrets)';
-        }
-        
-        // List other relevant secrets
-        const relevantSecrets = secretNames.filter(name => 
-          ['HCLOUD_TOKEN', 'CLOUDFLARE_API_TOKEN', 'TF_VAR_', 'ADMIN_'].includes(
-            name.substring(0, Math.min(name.length, 12))
-          )
-        );
-        
-        if (relevantSecrets.length > 0) {
-          otherSecrets = `\n\nOther configured secrets:\n${relevantSecrets.map(s => `• ${s}`).join('\n')}`;
-        }
-      }
-    } catch (error) {
-      console.log('Could not fetch GitHub secrets:', error.message);
-      infisicalPassword = '(Check GitHub Secrets)';
+    }
+    
+    if (credentials.grafana_admin_password) {
+      serviceCredentials.push({
+        name: 'Grafana',
+        url: `https://grafana.${domain}`,
+        username: 'admin',
+        password: credentials.grafana_admin_password
+      });
+    }
+    
+    if (credentials.portainer_admin_password) {
+      serviceCredentials.push({
+        name: 'Portainer',
+        url: `https://portainer.${domain}`,
+        username: 'admin',
+        password: credentials.portainer_admin_password
+      });
+    }
+    
+    if (credentials.kuma_admin_password) {
+      serviceCredentials.push({
+        name: 'Uptime Kuma',
+        url: `https://uptime-kuma.${domain}`,
+        username: 'admin',
+        password: credentials.kuma_admin_password
+      });
+    }
+    
+    if (credentials.kestra_admin_password) {
+      serviceCredentials.push({
+        name: 'Kestra',
+        url: `https://kestra.${domain}`,
+        username: 'admin',
+        password: credentials.kestra_admin_password
+      });
+    }
+    
+    if (credentials.n8n_admin_password) {
+      serviceCredentials.push({
+        name: 'n8n',
+        url: `https://n8n.${domain}`,
+        username: adminEmail,
+        password: credentials.n8n_admin_password
+      });
     }
 
-    // Prepare email content
-    const emailSubject = 'Nexus-Stack: Infrastructure Credentials';
+    // Build HTML for credentials - same style as Stack Online email
+    const credentialsHtml = serviceCredentials.map(svc => `
+      <div style="background:#1a1a2e;padding:12px;margin:8px 0;border-radius:4px;border-left:3px solid #00ff88">
+        <div style="color:#00ff88;font-weight:bold;margin-bottom:8px">${svc.name}</div>
+        <div style="color:#ccc;font-size:14px">
+          <div>URL: <a href="${svc.url}" style="color:#00ff88">${svc.url}</a></div>
+          <div>Username: <span style="color:#fff">${svc.username}</span></div>
+          <div>Password: <span style="color:#fff;font-family:monospace">${svc.password}</span></div>
+        </div>
+      </div>
+    `).join('');
+
+    // Build email HTML - matching Stack Online style
     const emailHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: 'Courier New', monospace; color: #333; line-height: 1.6; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #0a0a0f; color: #00ff88; padding: 20px; text-align: center; border-radius: 4px; }
-        .header h1 { margin: 0; font-size: 24px; }
-        .content { background: #f5f5f5; padding: 20px; margin-top: 20px; border-left: 4px solid #00ff88; }
-        .credentials { background: white; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; }
-        .section-title { font-weight: bold; color: #0a0a0f; margin-top: 15px; margin-bottom: 8px; }
-        .footer { text-align: center; color: #999; font-size: 12px; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; }
-        .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 4px; margin: 15px 0; color: #856404; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔐 Nexus-Stack Credentials</h1>
-        </div>
-        
-        <div class="content">
-            <p>Hello,</p>
-            
-            <p>Here is a summary of your Nexus-Stack infrastructure credentials. Please keep this information safe.</p>
-            
-            <div class="section-title">📦 Infisical Credentials:</div>
-            <div class="credentials">
-                <p><strong>Username:</strong> admin</p>
-                <p><strong>Password:</strong> ${infisicalPassword || '(Not configured - check GitHub Secrets)'}</p>
-                <p><strong>Access:</strong> https://infisical.${env.DOMAIN || 'your-domain.com'}</p>
-            </div>
-            
-            <div class="warning">
-                ⚠️ <strong>Important:</strong> Keep your credentials secure. Do not share this email. Store sensitive information in a password manager.
-            </div>
-            
-            ${otherSecrets}
-            
-            <div class="section-title">📖 Next Steps:</div>
-            <ul>
-                <li>Store these credentials securely</li>
-                <li>Use Infisical to manage your infrastructure secrets</li>
-                <li>Never commit credentials to Git</li>
-            </ul>
-            
-            <div class="footer">
-                <p>Built with ❤️ and lots of ☕️ by <a href="https://github.com/stefanko-ch" style="color: #00ff88; text-decoration: none;">Stefan</a></p>
-                <p style="margin-top: 10px; color: #666;">
-                    <a href="https://github.com/stefanko-ch/Nexus-Stack" style="color: #00ff88; text-decoration: none;">Nexus-Stack</a> • 
-                    <a href="https://infisical.com" style="color: #00ff88; text-decoration: none;">Infisical</a>
-                </p>
-            </div>
-        </div>
+<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px;max-width:600px">
+  <h1 style="color:#00ff88;margin-top:0">🔐 Nexus-Stack Credentials</h1>
+  
+  <p style="color:#ccc">Here are your service credentials for <strong style="color:#fff">${domain}</strong></p>
+  
+  <h2 style="color:#00ff88;font-size:16px;margin-top:24px">📦 Service Credentials</h2>
+  ${credentialsHtml}
+  
+  <div style="background:#2d1f1f;padding:12px;margin:20px 0;border-radius:4px;border-left:3px solid #ff6b6b">
+    <div style="color:#ff6b6b;font-weight:bold">⚠️ Security Notice</div>
+    <div style="color:#ccc;font-size:14px;margin-top:8px">
+      <ul style="margin:0;padding-left:20px">
+        <li>Store these credentials in a password manager</li>
+        <li>Change passwords after first login</li>
+        <li>Never commit credentials to Git</li>
+        <li>Delete this email after saving credentials</li>
+      </ul>
     </div>
-</body>
-</html>
+  </div>
+  
+  <h2 style="color:#00ff88;font-size:16px;margin-top:24px">🔗 Quick Links</h2>
+  <ul style="color:#ccc;padding-left:20px">
+    <li><a href="https://info.${domain}" style="color:#00ff88">Info Page</a> - All services overview</li>
+    <li><a href="https://control.${domain}" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li>
+  </ul>
+  
+  <p style="color:#666;font-size:12px;margin-top:24px;border-top:1px solid #333;padding-top:16px">
+    Sent from Nexus-Stack • <a href="https://github.com/stefanko-ch/Nexus-Stack" style="color:#00ff88">GitHub</a>
+  </p>
+</div>
     `;
 
     // Send email via Resend
@@ -137,24 +154,25 @@ export async function onRequestPost(context) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
-        to: adminEmail,
-        subject: emailSubject,
+        from: `Nexus-Stack <nexus@${domain}>`,
+        to: [adminEmail],
+        subject: '🔐 Nexus-Stack Credentials',
         html: emailHTML
       })
     });
 
     if (!resendResponse.ok) {
       const error = await resendResponse.json();
-      throw new Error(`Resend API error: ${error.message || 'Unknown error'}`);
+      throw new Error(`Resend API error: ${error.message || JSON.stringify(error)}`);
     }
 
     const emailResult = await resendResponse.json();
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Credentials email sent successfully',
-      emailId: emailResult.id
+      message: `Credentials sent to ${adminEmail}`,
+      emailId: emailResult.id,
+      servicesIncluded: serviceCredentials.map(s => s.name)
     }), { 
       status: 200, 
       headers: { 'Content-Type': 'application/json' } 
