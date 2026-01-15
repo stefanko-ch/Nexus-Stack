@@ -140,7 +140,8 @@ jobs:
               return f'{service_name} = {{{new_block}}}'
 
           # Match service blocks like: service-name = { ... }
-          pattern = r'([a-zA-Z0-9_-]+)\s*=\s*\{([^}]+)\}'
+          # Pattern handles multiline blocks by matching content between { and }
+          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
           updated_content = re.sub(pattern, replace_enabled, content)
 
           with open('tofu/stack/config.tfvars', 'a') as f:
