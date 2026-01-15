@@ -208,6 +208,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Control Plane environment variables and secrets..."
           PROJECT_NAME="nexus-control-plane"
@@ -216,10 +217,12 @@ jobs:
           
           echo "  GITHUB_OWNER: $GITHUB_OWNER"
           echo "  GITHUB_REPO: $GITHUB_REPO"
+          echo "  DOMAIN: $DOMAIN"
           
-          # Set all three variables as Secrets via wrangler
+          # Set all variables as Secrets via wrangler
+          # Note: Terraform sets environment_variables in Pages project config,
+          # but wrangler pages deploy doesn't use those - we need to set them as secrets
           # Secrets work for both production and preview environments automatically
-          # Note: wrangler pages secret put does NOT support --env flag (like pages deploy)
           
           if [ -n "$GITHUB_TOKEN" ]; then
             echo "  Setting GITHUB_TOKEN secret..."
@@ -238,6 +241,15 @@ jobs:
           echo "  Setting GITHUB_REPO secret..."
           echo "$GITHUB_REPO" | npx wrangler@latest pages secret put GITHUB_REPO \
             --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set GITHUB_REPO (may already be set)"
+          
+          # Set DOMAIN (required for service URLs and email sender)
+          if [ -n "$DOMAIN" ]; then
+            echo "  Setting DOMAIN secret..."
+            echo "$DOMAIN" | npx wrangler@latest pages secret put DOMAIN \
+              --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set DOMAIN"
+          else
+            echo "⚠️  DOMAIN not provided - Service URLs will show 'unknown'!"
+          fi
           
           # Set RESEND_API_KEY for email sending (optional)
           if [ -n "$RESEND_API_KEY" ]; then
