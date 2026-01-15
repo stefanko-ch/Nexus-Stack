@@ -165,6 +165,62 @@ jobs:
       - name: Spin up infrastructure
         run: make up
 
+      - name: Store credentials in KV
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "📦 Storing credentials in KV..."
+          
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          # Get secrets from OpenTofu output
+          SECRETS_JSON=$(tofu output -json secrets 2>/dev/null || echo "{}")
+          
+          if [ "$SECRETS_JSON" = "{}" ]; then
+            echo "⚠️  Could not read secrets from OpenTofu state - skipping KV storage"
+            exit 0
+          fi
+          
+          # Get KV namespace ID from control-plane state
+          cd ../control-plane
+          tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
+          KV_NAMESPACE_ID=$(tofu output -raw kv_namespace_id 2>/dev/null || echo "")
+          
+          if [ -z "$KV_NAMESPACE_ID" ]; then
+            echo "⚠️  KV namespace ID not found - skipping credential storage"
+            exit 0
+          fi
+          
+          # Build credentials JSON with only essential fields
+          CREDENTIALS=$(echo "$SECRETS_JSON" | jq '{
+            admin_username: .admin_username,
+            infisical_admin_password: .infisical_admin_password,
+            portainer_admin_password: .portainer_admin_password,
+            grafana_admin_password: .grafana_admin_password,
+            kestra_admin_password: .kestra_admin_password,
+            n8n_admin_password: .n8n_admin_password,
+            kuma_admin_password: .kuma_admin_password
+          }')
+          
+          # Store in KV
+          HTTP_STATUS=$(curl -s -o /tmp/kv_response.txt -w "%{http_code}" \
+            -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/credentials" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$CREDENTIALS")
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Credentials stored in KV"
+          else
+            echo "⚠️  Failed to store credentials in KV (HTTP $HTTP_STATUS)"
+            cat /tmp/kv_response.txt 2>/dev/null || true
+          fi
+
       - name: Send stack online email via Resend
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
