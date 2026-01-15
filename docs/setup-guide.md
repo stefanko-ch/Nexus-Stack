@@ -118,7 +118,7 @@ export TF_VAR_cloudflare_api_token="YOUR_CLOUDFLARE_TOKEN"
 export TF_VAR_cloudflare_account_id="YOUR_ACCOUNT_ID"
 ```
 
-### Edit tofu/config.tfvars (Settings)
+### Edit tofu/stack/config.tfvars (Settings)
 
 ```hcl
 # Cloudflare Zone (non-sensitive)
@@ -520,7 +520,7 @@ export TF_VAR_dockerhub_username="your-dockerhub-username"
 export TF_VAR_dockerhub_token="dckr_pat_xxxxxxxxxxxxx"
 ```
 
-Or add to `tofu/config.tfvars`:
+Or add to `tofu/stack/config.tfvars`:
 
 ```hcl
 dockerhub_username = "your-dockerhub-username"

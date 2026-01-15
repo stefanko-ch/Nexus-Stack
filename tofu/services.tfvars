@@ -10,11 +10,16 @@
 # - Cloudflare Access policy (if public = false)
 #
 # Note: You also need stacks/<service>/docker-compose.yml for the container!
+#
+# CORE SERVICES (core = true):
+# - mailpit: Required for email testing by other services
+# - infisical: Required for secret management
+# These services cannot be disabled from the Control Plane.
 # =============================================================================
 
 services = {
   it-tools = {
-    enabled     = true
+    enabled     = false
     subdomain   = "it-tools"
     port        = 8080
     public      = false
@@ -30,7 +35,7 @@ services = {
   }
 
   portainer = {
-    enabled     = true
+    enabled     = false
     subdomain   = "portainer"
     port        = 9090
     public      = false
@@ -38,7 +43,7 @@ services = {
   }
 
   uptime-kuma = {
-    enabled     = true
+    enabled     = false
     subdomain   = "uptime-kuma"
     port        = 3001
     public      = false
@@ -50,7 +55,8 @@ services = {
     subdomain   = "infisical"
     port        = 8070
     public      = false
-    description = "Open-source secret management platform for teams."
+    core        = true
+    description = "Open-source secret management platform for teams. CORE SERVICE - cannot be disabled."
   }
 
   grafana = {
@@ -66,7 +72,8 @@ services = {
     subdomain   = "info"
     port        = 8090
     public      = false
-    description = "This landing page - your Nexus Stack dashboard."
+    core        = true
+    description = "This landing page - your Nexus Stack dashboard. CORE SERVICE - cannot be disabled."
   }
 
   kestra = {
@@ -90,6 +97,7 @@ services = {
     subdomain   = "mailpit"
     port        = 8025
     public      = false
-    description = "Email testing tool that catches all outgoing emails for local development."
+    core        = true
+    description = "Email testing tool that catches all outgoing emails. CORE SERVICE - cannot be disabled."
   }
 }

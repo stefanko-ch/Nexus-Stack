@@ -58,7 +58,7 @@ jobs:
 
       - name: Create R2 credentials from secrets
         run: |
-          mkdir -p tofu tofu/control-plane
+          mkdir -p tofu tofu/control-plane tofu/stack
           cat > tofu/.r2-credentials << EOF
           R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}"
           R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}"
@@ -69,13 +69,11 @@ jobs:
             s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
           EOF
-          
-          # Copy to control-plane subdir
-          cp tofu/backend.hcl tofu/control-plane/backend.hcl
 
       - name: Generate config.tfvars
         run: |
-          cat > tofu/config.tfvars << EOF
+          # Stack config
+          cat > tofu/stack/config.tfvars << EOF
           server_name     = "nexus"
           server_type     = "cax31"
           server_location = "fsn1"
@@ -88,25 +86,37 @@ jobs:
           github_owner   = "${{ github.repository_owner }}"
           github_repo    = "${{ github.event.repository.name }}"
           EOF
-          cat tofu/services.tfvars >> tofu/config.tfvars
+          cat tofu/services.tfvars >> tofu/stack/config.tfvars
+          
+          # Control Plane config
+          cat > tofu/control-plane/config.tfvars << EOF
+          server_name     = "nexus"
+          server_type     = "cax31"
+          server_location = "fsn1"
+          domain          = "${{ secrets.DOMAIN }}"
+          admin_email     = "${{ secrets.ADMIN_EMAIL }}"
+          github_owner    = "${{ github.repository_owner }}"
+          github_repo     = "${{ github.event.repository.name }}"
+          EOF
 
       - name: Initialize OpenTofu for both states
         run: |
-          # Initialize Nexus Stack state
-          cd tofu
-          source .r2-credentials
+          source tofu/.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          tofu init -backend-config=backend.hcl 2>/dev/null || echo "No existing Nexus Stack state"
+          
+          # Initialize Nexus Stack state
+          cd tofu/stack
+          tofu init -backend-config=../backend.hcl 2>/dev/null || echo "No existing Nexus Stack state"
           
           # Initialize Control Plane state
-          cd control-plane
-          tofu init -backend-config=backend.hcl 2>/dev/null || echo "No existing Control Plane state"
+          cd ../control-plane
+          tofu init -backend-config=../backend.hcl 2>/dev/null || echo "No existing Control Plane state"
 
       - name: Destroy Nexus Stack infrastructure
         run: |
-          cd tofu
-          source .r2-credentials
+          cd tofu/stack
+          source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
@@ -119,17 +129,6 @@ jobs:
           source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          
-          # Create tfvars for control-plane
-          cat > config.tfvars << EOF
-          server_name     = "nexus"
-          server_type     = "cax31"
-          server_location = "fsn1"
-          domain          = "${{ secrets.DOMAIN }}"
-          admin_email     = "${{ secrets.ADMIN_EMAIL }}"
-          github_owner    = "${{ github.repository_owner }}"
-          github_repo     = "${{ github.event.repository.name }}"
-          EOF
           
           echo "🗑️  Destroying Control Plane (Pages, Worker, DNS)..."
           tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "  No Control Plane state to destroy"

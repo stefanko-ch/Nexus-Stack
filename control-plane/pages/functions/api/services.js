@@ -27,7 +27,7 @@ function parseServicesConfig(content) {
   for (const line of lines) {
     const serviceMatch = line.match(/^\s*([a-zA-Z0-9-]+)\s*=\s*\{\s*$/);
     if (serviceMatch) {
-      current = { name: serviceMatch[1], enabled: null, description: '' };
+      current = { name: serviceMatch[1], enabled: null, core: false, description: '' };
       inBlock = true;
       continue;
     }
@@ -36,6 +36,11 @@ function parseServicesConfig(content) {
       const enabledMatch = line.match(/^\s*enabled\s*=\s*(true|false)\s*$/);
       if (enabledMatch) {
         current.enabled = enabledMatch[1] === 'true';
+      }
+
+      const coreMatch = line.match(/^\s*core\s*=\s*(true|false)\s*$/);
+      if (coreMatch) {
+        current.core = coreMatch[1] === 'true';
       }
 
       const descriptionMatch = line.match(/^\s*description\s*=\s*"(.*)"\s*$/);
@@ -150,7 +155,7 @@ async function triggerSpinUp(env) {
       'User-Agent': 'Nexus-Stack-Control-Plane',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ ref: 'main', inputs: { send_credentials: 'false' } }),
+    body: JSON.stringify({ ref: 'main' }),
   });
 
   if (response.status !== 204) {
@@ -224,8 +229,23 @@ export async function onRequestPost(context) {
       });
     }
 
+    // Fetch current config to check if service is core
     const file = await fetchServicesFile(env);
     const content = decodeBase64(file.content || '');
+    const services = parseServicesConfig(content);
+    const targetService = services.find(s => s.name === service);
+
+    // Block disabling core services
+    if (targetService && targetService.core && !enabled) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Cannot disable ${service} - it is a core service required for Nexus Stack operation`,
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const updatedContent = updateServiceEnabled(content, service, enabled);
 
     await updateServicesFile(
