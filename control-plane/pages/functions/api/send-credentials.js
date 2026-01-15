@@ -43,92 +43,44 @@ export async function onRequestPost(context) {
     const domain = env.DOMAIN;
     const adminEmail = env.ADMIN_EMAIL;
 
-    // Build credentials list for enabled services
-    const serviceCredentials = [];
-    
-    if (credentials.infisical_admin_password) {
-      serviceCredentials.push({
-        name: 'Infisical',
-        url: `https://infisical.${domain}`,
-        username: credentials.admin_username || 'admin',
-        password: credentials.infisical_admin_password
-      });
-    }
-    
-    if (credentials.grafana_admin_password) {
-      serviceCredentials.push({
-        name: 'Grafana',
-        url: `https://grafana.${domain}`,
-        username: 'admin',
-        password: credentials.grafana_admin_password
-      });
-    }
-    
-    if (credentials.portainer_admin_password) {
-      serviceCredentials.push({
-        name: 'Portainer',
-        url: `https://portainer.${domain}`,
-        username: 'admin',
-        password: credentials.portainer_admin_password
-      });
-    }
-    
-    if (credentials.kuma_admin_password) {
-      serviceCredentials.push({
-        name: 'Uptime Kuma',
-        url: `https://uptime-kuma.${domain}`,
-        username: 'admin',
-        password: credentials.kuma_admin_password
-      });
-    }
-    
-    if (credentials.kestra_admin_password) {
-      serviceCredentials.push({
-        name: 'Kestra',
-        url: `https://kestra.${domain}`,
-        username: 'admin',
-        password: credentials.kestra_admin_password
-      });
-    }
-    
-    if (credentials.n8n_admin_password) {
-      serviceCredentials.push({
-        name: 'n8n',
-        url: `https://n8n.${domain}`,
-        username: adminEmail,
-        password: credentials.n8n_admin_password
-      });
+    // Only send Infisical credentials - all other credentials are stored in Infisical
+    if (!credentials.infisical_admin_password) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Infisical credentials not found. Deploy the stack first.'
+      }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Build HTML for credentials - same style as Stack Online email
-    const credentialsHtml = serviceCredentials.map(svc => `
-      <div style="background:#1a1a2e;padding:12px;margin:8px 0;border-radius:4px;border-left:3px solid #00ff88">
-        <div style="color:#00ff88;font-weight:bold;margin-bottom:8px">${svc.name}</div>
-        <div style="color:#ccc;font-size:14px">
-          <div>URL: <a href="${svc.url}" style="color:#00ff88">${svc.url}</a></div>
-          <div>Username: <span style="color:#fff">${svc.username}</span></div>
-          <div>Password: <span style="color:#fff;font-family:monospace">${svc.password}</span></div>
-        </div>
-      </div>
-    `).join('');
-
-    // Build email HTML - matching Stack Online style
+    // Build email HTML - only Infisical + hint to check Infisical for other passwords
     const emailHTML = `
 <div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px;max-width:600px">
   <h1 style="color:#00ff88;margin-top:0">🔐 Nexus-Stack Credentials</h1>
   
-  <p style="color:#ccc">Here are your service credentials for <strong style="color:#fff">${domain}</strong></p>
+  <p style="color:#ccc">Your Nexus-Stack is ready at <strong style="color:#fff">${domain}</strong></p>
   
-  <h2 style="color:#00ff88;font-size:16px;margin-top:24px">📦 Service Credentials</h2>
-  ${credentialsHtml}
+  <h2 style="color:#00ff88;font-size:16px;margin-top:24px">🔑 Infisical (Secret Manager)</h2>
+  <div style="background:#1a1a2e;padding:12px;margin:8px 0;border-radius:4px;border-left:3px solid #00ff88">
+    <div style="color:#ccc;font-size:14px">
+      <div>URL: <a href="https://infisical.${domain}" style="color:#00ff88">https://infisical.${domain}</a></div>
+      <div>Email: <span style="color:#fff">${adminEmail}</span></div>
+      <div>Password: <span style="color:#fff;font-family:monospace">${credentials.infisical_admin_password}</span></div>
+    </div>
+  </div>
+  
+  <div style="background:#1a2e1a;padding:12px;margin:20px 0;border-radius:4px;border-left:3px solid #00ff88">
+    <div style="color:#00ff88;font-weight:bold">📦 Other Service Credentials</div>
+    <div style="color:#ccc;font-size:14px;margin-top:8px">
+      All service credentials (Grafana, Portainer, etc.) are stored in Infisical.<br>
+      Log in to Infisical to view them.
+    </div>
+  </div>
   
   <div style="background:#2d1f1f;padding:12px;margin:20px 0;border-radius:4px;border-left:3px solid #ff6b6b">
     <div style="color:#ff6b6b;font-weight:bold">⚠️ Security Notice</div>
     <div style="color:#ccc;font-size:14px;margin-top:8px">
       <ul style="margin:0;padding-left:20px">
-        <li>Store these credentials in a password manager</li>
+        <li>Store the Infisical password in a password manager</li>
         <li>Change passwords after first login</li>
-        <li>Never commit credentials to Git</li>
         <li>Delete this email after saving credentials</li>
       </ul>
     </div>
@@ -171,8 +123,7 @@ export async function onRequestPost(context) {
     return new Response(JSON.stringify({
       success: true,
       message: `Credentials sent to ${adminEmail}`,
-      emailId: emailResult.id,
-      servicesIncluded: serviceCredentials.map(s => s.name)
+      emailId: emailResult.id
     }), { 
       status: 200, 
       headers: { 'Content-Type': 'application/json' } 
