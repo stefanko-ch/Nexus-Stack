@@ -26,7 +26,7 @@ function parseServicesConfig(content) {
   let inBlock = false;
 
   for (const line of lines) {
-    const serviceMatch = line.match(/^\s*([a-zA-Z0-9_-]+)\s*=\s*\{\s*$/);
+    const serviceMatch = line.match(/^\s*([a-zA-Z0-9-]+)\s*=\s*\{\s*$/);
     if (serviceMatch) {
       current = { 
         name: serviceMatch[1], 
