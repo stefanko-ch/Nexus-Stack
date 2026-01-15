@@ -59,7 +59,7 @@ services = {
     port        = 8070
     public      = false
     core        = true
-    description = "Open-source secret management platform for teams. CORE SERVICE - cannot be disabled."
+    description = "Open-source secret management platform for teams."
   }
 
   grafana = {
@@ -76,7 +76,7 @@ services = {
     port        = 8090
     public      = false
     core        = true
-    description = "This landing page - your Nexus Stack dashboard. CORE SERVICE - cannot be disabled."
+    description = "Landing page showing all your Nexus Stack services and their status."
   }
 
   kestra = {
