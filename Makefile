@@ -91,9 +91,6 @@ up: check-env
 	@echo ""
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
-	@echo ""
-	@echo "📦 Deploying Control Plane..."
-	@$(MAKE) deploy-control-plane || echo "⚠️  Control Plane deployment skipped (set CLOUDFLARE_API_TOKEN to enable)"
 
 # Teardown infrastructure (keeps R2 state for re-deploy)
 teardown: check-env
