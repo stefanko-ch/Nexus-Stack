@@ -116,7 +116,10 @@ jobs:
           import os
 
           enabled_input = os.environ.get('ENABLED_SERVICES', '')
-          enabled_list = enabled_input.split(',')
+          if enabled_input.strip():
+              enabled_list = enabled_input.split(',')
+          else:
+              enabled_list = []
           enabled_set = set(s.strip() for s in enabled_list if s.strip())
 
           with open('tofu/services.tfvars', 'r') as f:

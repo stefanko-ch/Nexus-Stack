@@ -101,6 +101,6 @@ services = {
     port        = 8025
     public      = false
     core        = true
-    description = "Email testing tool that catches all outgoing emails. CORE SERVICE - cannot be disabled."
+    description = "Email testing tool that catches all outgoing emails for inspection and testing."
   }
 }
