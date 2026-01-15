@@ -302,21 +302,26 @@ jobs:
           fi
           
           # Generate wrangler.toml with KV binding
+          # pages_build_output_dir is required for Pages to use the config
           cat > wrangler.toml << EOF
-          name = "nexus-control-plane"
-          compatibility_date = "2024-01-01"
-          
-          [[kv_namespaces]]
-          binding = "SCHEDULED_TEARDOWN"
-          id = "$KV_NAMESPACE_ID"
-          EOF
+name = "nexus-control-plane"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
+
+[[kv_namespaces]]
+binding = "SCHEDULED_TEARDOWN"
+id = "$KV_NAMESPACE_ID"
+EOF
           
           echo "  Generated wrangler.toml with KV binding"
+          cat wrangler.toml
           
           # Deploy to production with KV binding
+          # --commit-dirty=true suppresses warning about uncommitted wrangler.toml
           npx wrangler@latest pages deploy . \
             --project-name=nexus-control-plane \
-            --branch=main
+            --branch=main \
+            --commit-dirty=true
           
           # Clean up generated wrangler.toml
           rm wrangler.toml
