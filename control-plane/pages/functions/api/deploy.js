@@ -1,9 +1,9 @@
 /**
- * Trigger Destroy All workflow
- * POST /api/destroy
+ * Trigger Deploy workflow
+ * POST /api/deploy
  * 
- * Triggers the GitHub Actions destroy-all.yml workflow.
- * Includes validation and error handling.
+ * Triggers the GitHub Actions deploy.yml workflow.
+ * Includes validation, error handling, and retry logic.
  */
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
     });
   }
 
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/destroy-all.yml/dispatches`;
+  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/deploy.yml/dispatches`;
   
   try {
     const response = await fetch(url, {
@@ -27,27 +27,26 @@ export async function onRequestPost(context) {
       headers: {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Panel',
+        'User-Agent': 'Nexus-Stack-Control-Plane',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
-        ref: 'main',
-        inputs: {
-          confirm: 'DESTROY'
-        }
-      }),
+      body: JSON.stringify({ ref: 'main' }),
     });
 
+    // GitHub returns 204 No Content on success
     if (response.status === 204) {
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Destroy workflow triggered successfully' 
+        message: 'Deploy workflow triggered successfully' 
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+        },
       });
     }
 
+    // Handle errors
     const errorText = await response.text();
     let errorMessage = `Failed to trigger workflow: ${response.status}`;
     
@@ -55,12 +54,13 @@ export async function onRequestPost(context) {
       const errorJson = JSON.parse(errorText);
       errorMessage = errorJson.message || errorMessage;
     } catch {
+      // If error is not JSON, use the text as-is
       if (errorText) {
-        errorMessage = errorText.substring(0, 200);
+        errorMessage = errorText.substring(0, 200); // Limit length
       }
     }
 
-    console.error(`Destroy trigger failed: ${response.status} - ${errorMessage}`);
+    console.error(`Deploy trigger failed: ${response.status} - ${errorMessage}`);
 
     return new Response(JSON.stringify({ 
       success: false, 
@@ -70,7 +70,7 @@ export async function onRequestPost(context) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Destroy endpoint error:', error);
+    console.error('Deploy endpoint error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       error: 'Network error while triggering workflow' 

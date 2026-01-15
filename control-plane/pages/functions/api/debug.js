@@ -29,7 +29,7 @@ export async function onRequestGet(context) {
     timestamp: new Date().toISOString(),
     message: missing.length === 0 
       ? 'All required environment variables are set'
-      : `Missing: ${missing.join(', ')}. Set them in Cloudflare Dashboard: Pages → nexus-control → Settings → Environment Variables`
+      : `Missing: ${missing.join(', ')}. Set them in Cloudflare Dashboard: Pages → nexus-control-plane → Settings → Environment Variables`
   }, null, 2), {
     status: missing.length === 0 ? 200 : 500,
     headers: { 

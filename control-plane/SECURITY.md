@@ -1,6 +1,6 @@
 # Security Considerations
 
-## 🔒 Control Panel Security Architecture
+## 🔒 Control Plane Security Architecture
 
 ### Token Protection
 
@@ -56,11 +56,11 @@
 
 ```bash
 # Option 1: Cloudflare Dashboard
-# Pages → nexus-control → Settings → Environment Variables
+# Pages → nexus-control-plane → Settings → Environment Variables
 # Add as "Secret" (encrypted)
 
 # Option 2: Wrangler CLI
-npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control-plane
 ```
 
 ### Token Requirements
@@ -124,7 +124,7 @@ Required permissions:
    - Enable GitHub notifications for workflow triggers
 
 4. **Separation of Concerns**
-   - Control Panel uses dedicated token
+   - Control Plane uses dedicated token
    - Different from deployment secrets
    - No cross-contamination
 

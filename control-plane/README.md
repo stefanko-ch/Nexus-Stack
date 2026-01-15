@@ -1,6 +1,6 @@
-# Control Panel
+# Control Plane
 
-Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
+Web-based control plane to manage Nexus-Stack infrastructure via GitHub Actions.
 
 ## 🏗️ Architecture
 
@@ -9,9 +9,8 @@ Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
 │  Cloudflare Pages (control.domain.com)         │
 │  ┌──────────────┐     ┌──────────────────────┐ │
 │  │   Frontend   │────▶│  Pages Functions     │ │
-│  │  index.html  │     │  /api/setup          │ │
-│  └──────────────┘     │  /api/spin-up        │ │
-│                       │  /api/teardown       │ │
+│  │  index.html  │     │  /api/spin-up        │ │
+│  └──────────────┘     │  /api/teardown       │ │
 │                       │  /api/services       │ │
 │                       │  /api/status         │ │
 │                       └──────────────────────┘ │
@@ -26,9 +25,8 @@ Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
 
 ## 🚀 Features
 
-- **Setup** - One-time setup workflow (triggers spin-up)
 - **Spin Up** - Re-create infrastructure after teardown
-- **Teardown** - Stop infrastructure (keeps control panel + R2 state)
+- **Teardown** - Stop infrastructure (keeps control plane + R2 state)
 - **Services** - Enable/disable services and trigger spin-up
 - **Status** - Real-time workflow monitoring
 - **Secure** - GitHub token stays server-side, protected by Cloudflare Access
@@ -36,13 +34,12 @@ Web-based control panel to manage Nexus-Stack infrastructure via GitHub Actions.
 ## 📁 Structure
 
 ```
-control-panel/
+control-plane/
 ├── pages/
 │   ├── index.html              # Frontend UI
 │   ├── nexus-logo-green.png   # Logo
 │   └── functions/              # Cloudflare Pages Functions (API)
 │       └── api/
-│           ├── setup.js        # POST /api/setup
 │           ├── spin-up.js      # POST /api/spin-up
 │           ├── teardown.js     # POST /api/teardown
 │           ├── services.js     # GET/POST /api/services
@@ -56,14 +53,14 @@ control-panel/
 
 ## 🔧 Setup
 
-The control panel infrastructure is created by Terraform when you run `make up`. The actual Pages deployment happens automatically via the Makefile (if `CLOUDFLARE_API_TOKEN` is set) or via GitHub Actions.
+The control plane infrastructure is created by Terraform when you run `make up`. The actual Pages deployment happens automatically via the Makefile (if `CLOUDFLARE_API_TOKEN` is set) or via GitHub Actions.
 
 ### Required Secrets
 
 Set these via **Cloudflare Dashboard** or **Wrangler CLI**:
 
 #### Via Cloudflare Dashboard:
-1. Go to **Cloudflare Dashboard** → **Pages** → **nexus-control**
+1. Go to **Cloudflare Dashboard** → **Pages** → **nexus-control-plane**
 2. **Settings** → **Environment Variables**
 3. Add **Production** variables:
    - `GITHUB_OWNER` = `stefanko-ch` (auto-set by Terraform)
@@ -72,8 +69,8 @@ Set these via **Cloudflare Dashboard** or **Wrangler CLI**:
 
 #### Via Wrangler CLI:
 ```bash
-cd control-panel/pages
-npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
+cd control-plane/pages
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control-plane
 ```
 
 ### GitHub Token Requirements
@@ -105,7 +102,7 @@ Protected by **Cloudflare Access** - only admin email can access.
 | State | Description |
 |-------|-------------|
 | **Deployed** | Infrastructure running, services accessible |
-| **Torn Down** | Infrastructure stopped, control panel + R2 active |
+| **Torn Down** | Infrastructure stopped, control plane + R2 active |
 | **Destroyed** | Everything deleted (first deployment) |
 | **Running** | Workflow in progress, please wait |
 
@@ -114,7 +111,7 @@ Protected by **Cloudflare Access** - only admin email can access.
 Pages Functions can be tested locally with Wrangler:
 
 ```bash
-cd control-panel/pages
+cd control-plane/pages
 npx wrangler pages dev .
 ```
 
@@ -143,23 +140,23 @@ Access at `http://localhost:8788`
 # Initial setup
 make init
 
-# Deploy infrastructure (including control panel)
+# Deploy infrastructure (including control plane)
 make up
 
 # Set GitHub token secret
 # → Via Cloudflare Dashboard (see above)
 # → Or via Wrangler CLI
 
-# Control panel is now live at https://control.YOUR_DOMAIN
+# Control plane is now live at https://control.YOUR_DOMAIN
 ```
 
 ## 🔄 Updates
 
-When you update the control panel:
+When you update the control plane:
 
 ```bash
-git add control-panel/
-git commit -m "feat: Update control panel UI"
+git add control-plane/
+git commit -m "feat: Update control plane UI"
 git push
 
 # Cloudflare Pages auto-deploys on push
@@ -169,4 +166,4 @@ No manual deployment needed - Cloudflare Pages watches the `main` branch.
 
 ---
 
-**Note:** The control panel **survives teardown** but is **destroyed** on `destroy-all`.
+**Note:** The control plane **survives teardown** but is **destroyed** on `destroy-all`.

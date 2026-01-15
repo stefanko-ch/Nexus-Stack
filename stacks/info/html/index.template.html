@@ -381,13 +381,13 @@
         const activeGrid = document.getElementById('active-services');
         const disabledGrid = document.getElementById('disabled-services');
 
-        // Add Control Panel as special service (hosted on Cloudflare Pages, not Docker)
-        const controlPanel = {
+        // Add Control Plane as special service (hosted on Cloudflare Pages, not Docker)
+        const controlPlane = {
             subdomain: 'control',
-            description: 'Infrastructure control panel - deploy, teardown, and destroy your Nexus Stack.',
+            description: 'Infrastructure control plane - deploy, teardown, and destroy your Nexus Stack.',
             enabled: true
         };
-        activeGrid.appendChild(createServiceCard('control', controlPanel, true));
+        activeGrid.appendChild(createServiceCard('control', controlPlane, true));
 
         // Sort and display active services (info last)
         activeServices
@@ -400,7 +400,7 @@
                 activeGrid.appendChild(createServiceCard(name, service, true));
             });
 
-        // Update count to include Control Panel
+        // Update count to include Control Plane
         document.getElementById('active-count').textContent = activeServices.length + 1;
 
         disabledServices.forEach(([name, service]) => {
