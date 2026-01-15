@@ -189,33 +189,43 @@ jobs:
           echo "   R2_ACCESS_KEY_ID length: ${#R2_ACCESS_KEY_ID}"
           echo "   R2_SECRET_ACCESS_KEY length: ${#R2_SECRET_ACCESS_KEY}"
 
-      - name: Initialize OpenTofu
+      - name: Initialize OpenTofu for Control Plane
         run: |
-          cd tofu
-          source .r2-credentials
+          cd tofu/control-plane
+          source ../backend.hcl 2>/dev/null || true
+          source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          # Create backend config for control-plane
+          cat > backend.hcl << EOF
+          endpoints = {
+            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          }
+          EOF
+          
           tofu init -backend-config=backend.hcl
 
       - name: Deploy Control Plane infrastructure
         run: |
-          cd tofu
-          source .r2-credentials
+          cd tofu/control-plane
+          source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
+          # Create tfvars for control-plane
+          cat > config.tfvars << EOF
+          server_name     = "nexus"
+          server_type     = "cax31"
+          server_location = "fsn1"
+          domain          = "${{ secrets.DOMAIN }}"
+          admin_email     = "${{ secrets.ADMIN_EMAIL }}"
+          github_owner    = "${{ github.repository_owner }}"
+          github_repo     = "${{ github.event.repository.name }}"
+          EOF
+          
           echo "🏗️  Deploying Control Plane infrastructure (Cloudflare Pages + Worker)..."
-          # Deploy only Control Plane resources (not the server)
-          tofu apply -var-file=config.tfvars -auto-approve \
-            -target=cloudflare_pages_project.control_plane \
-            -target=cloudflare_record.control_plane \
-            -target=cloudflare_pages_domain.control_plane \
-            -target=cloudflare_zero_trust_access_application.control_plane \
-            -target=cloudflare_zero_trust_access_policy.control_plane_email \
-            -target=cloudflare_workers_kv_namespace.scheduled_teardown \
-            -target=cloudflare_workers_script.scheduled_teardown \
-            -target=cloudflare_workers_cron_trigger.scheduled_teardown_notification \
-            -target=cloudflare_workers_cron_trigger.scheduled_teardown_execution
+          tofu apply -var-file=config.tfvars -auto-approve
           
           echo "✅ Control Plane infrastructure deployed"
 

@@ -22,34 +22,24 @@ resource "cloudflare_workers_kv_namespace" "scheduled_teardown" {
 resource "cloudflare_workers_script" "scheduled_teardown" {
   account_id = var.cloudflare_account_id
   name       = "${var.server_name}-scheduled-teardown"
-  content    = file("${path.module}/../control-plane/worker/src/index.js")
+  content    = file("${path.module}/../../control-plane/worker/src/index.js")
   module     = true
 
   kv_namespace_binding {
     name         = "SCHEDULED_TEARDOWN"
     namespace_id = cloudflare_workers_kv_namespace.scheduled_teardown.id
   }
-
-  # Note: Environment variables (secrets) must be set via wrangler:
-  # wrangler secret put RESEND_API_KEY --name=${var.server_name}-scheduled-teardown
-  # wrangler secret put ADMIN_EMAIL --name=${var.server_name}-scheduled-teardown
-  # wrangler secret put DOMAIN --name=${var.server_name}-scheduled-teardown
-  # wrangler secret put GITHUB_TOKEN --name=${var.server_name}-scheduled-teardown
-  # wrangler secret put GITHUB_OWNER --name=${var.server_name}-scheduled-teardown
-  # wrangler secret put GITHUB_REPO --name=${var.server_name}-scheduled-teardown
-  # 
-  # Cron triggers are managed by Terraform resources below (cloudflare_workers_cron_trigger)
 }
 
 # Cron triggers for scheduled teardown (separate resource)
 resource "cloudflare_workers_cron_trigger" "scheduled_teardown_notification" {
-  account_id = var.cloudflare_account_id
+  account_id  = var.cloudflare_account_id
   script_name = cloudflare_workers_script.scheduled_teardown.name
   schedules   = ["45 20 * * *"]  # Notification at 20:45 UTC (21:45 CET)
 }
 
 resource "cloudflare_workers_cron_trigger" "scheduled_teardown_execution" {
-  account_id = var.cloudflare_account_id
+  account_id  = var.cloudflare_account_id
   script_name = cloudflare_workers_script.scheduled_teardown.name
   schedules   = ["0 21 * * *"]  # Teardown at 21:00 UTC (22:00 CET)
 }
@@ -72,40 +62,30 @@ resource "cloudflare_pages_project" "control_plane" {
   deployment_configs {
     production {
       environment_variables = {
-        GITHUB_OWNER = var.github_owner
-        GITHUB_REPO  = var.github_repo
-        DOMAIN       = var.domain
-        SERVER_TYPE  = var.server_type
+        GITHUB_OWNER    = var.github_owner
+        GITHUB_REPO     = var.github_repo
+        DOMAIN          = var.domain
+        SERVER_TYPE     = var.server_type
         SERVER_LOCATION = var.server_location
       }
       
-      # KV Namespace binding for scheduled teardown configuration
       kv_namespaces = {
         SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
       }
-      
-      # GITHUB_TOKEN must be set as secret via:
-      # wrangler pages secret put GITHUB_TOKEN --project-name=${var.server_name}-control-plane
-      # or via Cloudflare dashboard
     }
 
     preview {
       environment_variables = {
-        GITHUB_OWNER = var.github_owner
-        GITHUB_REPO  = var.github_repo
-        DOMAIN       = var.domain
-        SERVER_TYPE  = var.server_type
+        GITHUB_OWNER    = var.github_owner
+        GITHUB_REPO     = var.github_repo
+        DOMAIN          = var.domain
+        SERVER_TYPE     = var.server_type
         SERVER_LOCATION = var.server_location
       }
       
-      # KV Namespace binding for preview environment
       kv_namespaces = {
         SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
       }
-      
-      # Note: Preview uses environment variables via Terraform for flexibility.
-      # Production uses secrets via wrangler (set in deploy.yml workflow).
-      # This allows preview deployments to work even if secrets aren't configured.
     }
   }
 }
@@ -114,7 +94,6 @@ resource "cloudflare_pages_project" "control_plane" {
 # DNS Record
 # -----------------------------------------------------------------------------
 
-# CNAME record pointing to the Pages project
 resource "cloudflare_record" "control_plane" {
   zone_id = var.cloudflare_zone_id
   name    = "control"
@@ -124,7 +103,6 @@ resource "cloudflare_record" "control_plane" {
   ttl     = 1
 }
 
-# Custom Domain for Cloudflare Pages (binds the domain to the Pages project)
 resource "cloudflare_pages_domain" "control_plane" {
   account_id   = var.cloudflare_account_id
   project_name = cloudflare_pages_project.control_plane.name
@@ -144,17 +122,12 @@ resource "cloudflare_zero_trust_access_application" "control_plane" {
   type             = "self_hosted"
   session_duration = "24h"
 
-  # Important settings for Pages Functions API to work
   skip_interstitial    = true
   app_launcher_visible = true
-  # Note: options_preflight_bypass cannot be used with cors_headers
-  
-  # Cookie settings - critical for same-origin API requests
+
   http_only_cookie_attribute = true
   same_site_cookie_attribute = "lax"
   
-  # CORS settings for API requests from the same origin
-  # Note: This conflicts with options_preflight_bypass, so we use CORS headers instead
   cors_headers {
     allowed_origins   = ["https://control.${var.domain}"]
     allowed_methods   = ["GET", "POST", "OPTIONS"]
@@ -162,7 +135,6 @@ resource "cloudflare_zero_trust_access_application" "control_plane" {
   }
 }
 
-# Control Plane Access Policy (Email OTP)
 resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
   account_id     = var.cloudflare_account_id
   application_id = cloudflare_zero_trust_access_application.control_plane.id
