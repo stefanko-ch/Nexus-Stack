@@ -201,6 +201,45 @@ jobs:
           
           echo "✅ Control Plane infrastructure deployed"
 
+      - name: Set Scheduled Teardown Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "⚙️  Setting Scheduled Teardown Worker secrets..."
+          WORKER_NAME="nexus-scheduled-teardown"
+          GITHUB_OWNER="${{ github.repository_owner }}"
+          GITHUB_REPO="${{ github.event.repository.name }}"
+          
+          # Set secrets for the Worker (different from Pages!)
+          echo "  Setting GITHUB_TOKEN..."
+          echo "$GITHUB_TOKEN" | npx wrangler@latest secret put GITHUB_TOKEN --name="$WORKER_NAME" || echo "⚠️  Failed"
+          
+          echo "  Setting GITHUB_OWNER..."
+          echo "$GITHUB_OWNER" | npx wrangler@latest secret put GITHUB_OWNER --name="$WORKER_NAME" || echo "⚠️  Failed"
+          
+          echo "  Setting GITHUB_REPO..."
+          echo "$GITHUB_REPO" | npx wrangler@latest secret put GITHUB_REPO --name="$WORKER_NAME" || echo "⚠️  Failed"
+          
+          echo "  Setting DOMAIN..."
+          echo "$DOMAIN" | npx wrangler@latest secret put DOMAIN --name="$WORKER_NAME" || echo "⚠️  Failed"
+          
+          if [ -n "$RESEND_API_KEY" ]; then
+            echo "  Setting RESEND_API_KEY..."
+            echo "$RESEND_API_KEY" | npx wrangler@latest secret put RESEND_API_KEY --name="$WORKER_NAME" || echo "⚠️  Failed"
+          fi
+          
+          if [ -n "$ADMIN_EMAIL" ]; then
+            echo "  Setting ADMIN_EMAIL..."
+            echo "$ADMIN_EMAIL" | npx wrangler@latest secret put ADMIN_EMAIL --name="$WORKER_NAME" || echo "⚠️  Failed"
+          fi
+          
+          echo "✅ Worker secrets configured"
+
       - name: Set Control Plane environment variables and secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
