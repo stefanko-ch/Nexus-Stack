@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Stack — Control Panel</title>
+    <title>Nexus Stack — Control Plane</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -206,11 +206,6 @@
             box-shadow: none;
             transform: none;
             filter: grayscale(0.3);
-        }
-
-        .action-btn.setup {
-            border-color: rgba(0, 255, 136, 0.6);
-            color: #00ff88;
         }
 
         .action-btn.spin-up {
@@ -685,7 +680,7 @@
             <!-- Nexus Stack Logo -->
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
-            <p class="tagline">Control Panel</p>
+            <p class="tagline">Control Plane</p>
         </header>
 
         <!-- Status Panel -->
@@ -699,10 +694,6 @@
 
         <!-- Action Buttons -->
         <div class="actions">
-            <button class="action-btn setup" id="btn-setup" disabled>
-                <span class="icon">🧰</span>
-                Setup
-            </button>
             <button class="action-btn spin-up" id="btn-spin-up" disabled>
                 <span class="icon">⚡</span>
                 Spin Up
@@ -710,6 +701,10 @@
             <button class="action-btn teardown" id="btn-teardown" disabled>
                 <span class="icon">💤</span>
                 Teardown
+            </button>
+            <button class="action-btn" id="btn-send-credentials" style="border-color: rgba(0, 170, 255, 0.6); color: #00aaff;">
+                <span class="icon">📧</span>
+                Send Credentials
             </button>
         </div>
 
@@ -779,6 +774,7 @@
 
         <footer>
             <p>Powered by <a href="https://github.com/stefanko-ch/Nexus-Stack" target="_blank">Nexus-Stack</a></p>
+            <p style="margin-top: 10px;">Built with ❤️ and lots of ☕️ by <a href="https://github.com/stefanko-ch" target="_blank">Stefan</a></p>
         </footer>
     </div>
 
@@ -803,8 +799,8 @@
         // Status descriptions
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
-            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
-            'destroyed': 'Everything is destroyed. Run Setup to start fresh.',
+            'torn-down': 'Nexus Stack is torn down. Click Spin Up to restart.',
+            'destroyed': 'Nexus Stack is torn down. Click Spin Up to restart.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -868,47 +864,38 @@
         }
 
         function updateButtons(data) {
-            const btnSetup = document.getElementById('btn-setup');
             const btnSpinUp = document.getElementById('btn-spin-up');
             const btnTeardown = document.getElementById('btn-teardown');
             
             // Disable all if workflow is running
             if (data.inProgress) {
-                btnSetup.disabled = true;
                 btnSpinUp.disabled = true;
                 btnTeardown.disabled = true;
-                btnSetup.innerHTML = '<span class="spinner"></span>Working...';
+                btnSpinUp.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
-            const setupComplete = data.workflows && data.workflows.setup && data.workflows.setup.conclusion === 'success';
-            
             // Reset buttons
-            btnSetup.innerHTML = '<span class="icon">🧰</span>Setup';
             btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
             btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
             
             // Enable based on state
             switch (data.infraState) {
                 case 'deployed':
-                    btnSetup.disabled = setupComplete;
                     btnSpinUp.disabled = true;
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
-                    btnSetup.disabled = setupComplete;
-                    btnSpinUp.disabled = !setupComplete;
+                    btnSpinUp.disabled = false;
                     btnTeardown.disabled = true;
                     break;
                 case 'destroyed':
-                    btnSetup.disabled = false;
                     btnSpinUp.disabled = true;
                     btnTeardown.disabled = true;
                     break;
                 case 'unknown':
                 default:
-                    btnSetup.disabled = setupComplete && data.infraState !== 'destroyed';
-                    btnSpinUp.disabled = !setupComplete;
+                    btnSpinUp.disabled = false;
                     btnTeardown.disabled = false;
                     break;
             }
@@ -1214,7 +1201,7 @@
             const configs = {
                 'teardown': {
                     title: '⚠️ Confirm Teardown',
-                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to spin up later.'
+                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control plane will remain active, allowing you to spin up later.'
                 },
             };
             
@@ -1238,8 +1225,44 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
+        // Send Credentials Event Listener
+        document.getElementById('btn-send-credentials').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-send-credentials');
+            btn.disabled = true;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span>Sending...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/send-credentials`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    showToast('Session expired - please refresh the page', 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    return;
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    showToast('Credentials email sent successfully!', 'success');
+                } else {
+                    showToast(data.error || 'Failed to send credentials', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to send credentials:', error);
+                showToast('Failed to send credentials - check browser console', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+        });
+
         // Event listeners
-        document.getElementById('btn-setup').addEventListener('click', () => triggerAction('setup'));
         document.getElementById('btn-spin-up').addEventListener('click', () => triggerAction('spin-up'));
         document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
         document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
@@ -1259,7 +1282,7 @@
                 const response = await fetch(`${API_URL}/api/health`, { credentials: 'same-origin' });
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Control Panel API:', data.status);
+                    console.log('Control Plane API:', data.status);
                 }
             } catch (error) {
                 console.warn('Health check failed:', error);

@@ -139,7 +139,7 @@ jobs:
           echo "   - Cloudflare Tunnel"
           echo "   - Cloudflare DNS records"
           echo "   - Cloudflare Access policies"
-          echo "   - Control Panel (Pages + Worker)"
+          echo "   - Control Plane (Pages + Worker)"
           echo "   - R2 state bucket and contents"
           echo "   - R2 API tokens from Cloudflare"
           echo "   - R2 GitHub Secrets (if GH_SECRETS_TOKEN configured)"

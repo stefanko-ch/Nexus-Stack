@@ -50,7 +50,7 @@ Nexus-Stack/
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── main.tf                 # Core infrastructure (server, tunnel, DNS, access)
-│   ├── control-panel.tf        # Cloudflare Pages + Worker configuration
+│   ├── control-plane.tf        # Cloudflare Pages + Worker configuration
 │   ├── variables.tf            # Input variable definitions
 │   ├── outputs.tf              # Output definitions
 │   ├── providers.tf            # Provider configuration
@@ -58,7 +58,7 @@ Nexus-Stack/
 │   └── services.tfvars         # Service configuration (enabled/disabled)
 ├── stacks/                     # Docker Compose stacks (one folder per service)
 │   └── <service>/docker-compose.yml
-├── control-panel/               # Control Panel (Cloudflare Pages)
+├── control-plane/              # Control Plane (Cloudflare Pages)
 │   ├── pages/                  # Pages frontend + Functions
 │   │   ├── index.html          # Frontend UI
 │   │   ├── functions/api/      # API endpoints (deploy, teardown, status, etc.)
@@ -69,9 +69,9 @@ Nexus-Stack/
 ├── scripts/
 │   ├── deploy.sh               # Post-infrastructure deployment script
 │   ├── init-r2-state.sh        # R2 bucket + credentials setup
-│   ├── setup-control-panel-secrets.sh  # Control Panel secrets setup
+│   ├── setup-control-plane-secrets.sh  # Control Plane secrets setup
 │   ├── generate-info-page.sh   # Info page generation
-│   └── check-control-panel-env.sh
+│   └── check-control-plane-env.sh
 └── docs/                       # Documentation
     ├── CONTRIBUTING.md         # Contribution guidelines
     ├── setup-guide.md          # Setup instructions
@@ -235,16 +235,16 @@ Many issues stem from missing or misconfigured Terraform resources. Check:
 **Example: Cloudflare Pages Custom Domain**
 ```hcl
 # CNAME record alone does NOT work!
-resource "cloudflare_record" "control_panel" {
+resource "cloudflare_record" "control_plane" {
   name  = "control"
   type  = "CNAME"
-  value = "nexus-control.pages.dev"
+  value = "nexus-control-plane.pages.dev"
 }
 
 # You ALSO need this resource:
-resource "cloudflare_pages_domain" "control_panel" {
+resource "cloudflare_pages_domain" "control_plane" {
   account_id   = var.cloudflare_account_id
-  project_name = cloudflare_pages_project.control_panel.name
+  project_name = cloudflare_pages_project.control_plane.name
   domain       = "control.${var.domain}"
 }
 ```

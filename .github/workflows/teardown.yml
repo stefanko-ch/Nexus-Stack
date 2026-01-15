@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "TEARDOWN" to confirm (keeps control panel)'
+        description: 'Type "TEARDOWN" to confirm (keeps control plane)'
         required: true
         type: string
 
@@ -42,7 +42,7 @@ jobs:
           echo "   This will:"
           echo "   - Destroy Hetzner server and all Docker containers"
           echo "   - Remove Cloudflare Tunnel to Hetzner"
-          echo "   - Keep the Control Panel active for re-deployment"
+          echo "   - Keep the Control Plane active for re-deployment"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,7 +105,7 @@ jobs:
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
-          # Destroy only Hetzner resources and tunnel (keep control panel)
+          # Destroy only Hetzner resources and tunnel (keep control plane)
           tofu destroy -var-file=config.tfvars -auto-approve \
             -target=hcloud_server.main \
             -target=hcloud_firewall.main \
@@ -120,9 +120,9 @@ jobs:
           echo "💤 Infrastructure torn down:"
           echo "   ✗ Hetzner Cloud server - DESTROYED"
           echo "   ✗ Cloudflare Tunnel - DESTROYED"
-          echo "   ✓ Control Panel - STILL ACTIVE"
+          echo "   ✓ Control Plane - STILL ACTIVE"
           echo "   ✓ R2 State Bucket - PRESERVED"
           echo ""
-          echo "📋 Visit the Control Panel to re-deploy:"
+          echo "📋 Visit the Control Plane to re-deploy:"
           echo "   https://control.${{ secrets.DOMAIN }}"
 

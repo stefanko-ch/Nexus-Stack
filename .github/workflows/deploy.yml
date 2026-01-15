@@ -1,4 +1,4 @@
-name: Setup Nexus Control Panel
+name: Setup Nexus Control Plane
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Nexus-Stack
+    name: Setup Nexus Control Plane
     runs-on: ubuntu-latest
     env:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -197,36 +197,36 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=backend.hcl
 
-      - name: Deploy Control Panel infrastructure
+      - name: Deploy Control Plane infrastructure
         run: |
           cd tofu
           source .r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
-          echo "🏗️  Deploying Control Panel infrastructure (Cloudflare Pages + Worker)..."
-          # Deploy only Control Panel resources (not the server)
-          # Note: DNS record is deployed in spin-up workflow to avoid provider conflicts
+          echo "🏗️  Deploying Control Plane infrastructure (Cloudflare Pages + Worker)..."
+          # Deploy only Control Plane resources (not the server)
           tofu apply -var-file=config.tfvars -auto-approve \
-            -target=cloudflare_pages_project.control_panel \
-            -target=cloudflare_pages_domain.control_panel \
-            -target=cloudflare_zero_trust_access_application.control_panel \
-            -target=cloudflare_zero_trust_access_policy.control_panel_email \
+            -target=cloudflare_pages_project.control_plane \
+            -target=cloudflare_record.control_plane \
+            -target=cloudflare_pages_domain.control_plane \
+            -target=cloudflare_zero_trust_access_application.control_plane \
+            -target=cloudflare_zero_trust_access_policy.control_plane_email \
             -target=cloudflare_workers_kv_namespace.scheduled_teardown \
             -target=cloudflare_workers_script.scheduled_teardown \
             -target=cloudflare_workers_cron_trigger.scheduled_teardown_notification \
             -target=cloudflare_workers_cron_trigger.scheduled_teardown_execution
           
-          echo "✅ Control Panel infrastructure deployed"
+          echo "✅ Control Plane infrastructure deployed"
 
-      - name: Set Control Panel environment variables and secrets
+      - name: Set Control Plane environment variables and secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
-          echo "⚙️  Setting Control Panel environment variables and secrets..."
-          PROJECT_NAME="nexus-control"
+          echo "⚙️  Setting Control Plane environment variables and secrets..."
+          PROJECT_NAME="nexus-control-plane"
           GITHUB_OWNER="${{ github.repository_owner }}"
           GITHUB_REPO="${{ github.event.repository.name }}"
           
@@ -244,7 +244,7 @@ jobs:
               echo "⚠️  Failed to set GITHUB_TOKEN secret (check token validity and project name)"
             fi
           else
-            echo "⚠️  GITHUB_TOKEN not provided - Control Panel will not work!"
+            echo "⚠️  GITHUB_TOKEN not provided - Control Plane will not work!"
           fi
           
           echo "  Setting GITHUB_OWNER secret..."
@@ -261,16 +261,16 @@ jobs:
           echo "✅ Setup complete"
           echo ""
           echo "⚠️  IMPORTANT: Environment variables are now set."
-          echo "   If Control Panel still shows errors, the deployment may need to be recreated."
+          echo "   If Control Plane still shows errors, the deployment may need to be recreated."
           echo "   Triggering a new deployment to ensure variables are available..."
 
-      - name: Deploy Control Panel to Cloudflare Pages
+      - name: Deploy Control Plane to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "📦 Deploying Control Panel to Cloudflare Pages..."
-          cd control-panel/pages
+          echo "📦 Deploying Control Plane to Cloudflare Pages..."
+          cd control-plane/pages
           # Verify functions directory exists
           if [ ! -d "functions" ]; then
             echo "❌ Error: functions/ directory not found - API endpoints are required!"
@@ -280,9 +280,9 @@ jobs:
           # --branch=main deploys to production (as configured in Terraform: production_branch = "main")
           # Note: wrangler pages deploy does NOT support --env flag, only --branch
           npx wrangler@latest pages deploy . \
-            --project-name=nexus-control \
+            --project-name=nexus-control-plane \
             --branch=main
-          echo "✅ Control Panel deployed!"
+          echo "✅ Control Plane deployed!"
           echo ""
           echo "📝 Note: Deployed to production branch (main)"
           echo "   Environment variables are set for both production and preview environments"
@@ -291,12 +291,12 @@ jobs:
       - name: Show setup info
         run: |
           echo ""
-          echo "✅ Control Panel setup complete!"
+          echo "✅ Control Plane setup complete!"
           echo ""
-          echo "📋 Control Panel: https://control.${{ secrets.DOMAIN }}"
+          echo "📋 Control Plane: https://control.${{ secrets.DOMAIN }}"
           echo ""
           echo "ℹ️  Next steps:"
-          echo "   1. Use the Control Panel to manage your infrastructure"
+          echo "   1. Use the Control Plane to manage your infrastructure"
           echo "   2. Run 'Spin Up' workflow to deploy the Hetzner server and services"
           echo "   3. Or trigger it manually: Actions → Spin Up Nexus-Stack → Run workflow"
 

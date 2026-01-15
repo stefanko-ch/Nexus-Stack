@@ -129,7 +129,7 @@ variable "dockerhub_token" {
 }
 
 # =============================================================================
-# GitHub (for Control Panel)
+# GitHub (for Control Plane)
 # =============================================================================
 
 variable "github_owner" {

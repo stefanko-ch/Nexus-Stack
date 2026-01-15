@@ -42,6 +42,12 @@ jobs:
         with:
           tofu_version: 1.10.0
 
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
       - name: Generate SSH key for server access
         run: |
           mkdir -p ~/.ssh
@@ -137,7 +143,7 @@ jobs:
           if [ -n "$RESEND_API_KEY" ]; then
             echo "📧 Sending credentials email..."
             
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse;width:100%"><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Email</td><td style="padding:8px;border:1px solid #333"><code>EMAIL_PLACEHOLDER</code></td></tr><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Password</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#00ff88;margin-top:1rem;font-weight:bold">📧 Login with your email address: <code>EMAIL_PLACEHOLDER</code></p><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li></ul><div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">📮 Do not reply</p><p style="color:#999;margin:0.5rem 0 0 0;font-size:13px">This mailbox is not monitored. For questions or support, please contact: <a href="mailto:EMAIL_PLACEHOLDER" style="color:#00ff88">EMAIL_PLACEHOLDER</a></p></div><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after deployment.</p></div>'
+            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse;width:100%"><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Email</td><td style="padding:8px;border:1px solid #333"><code>EMAIL_PLACEHOLDER</code></td></tr><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Password</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#00ff88;margin-top:1rem;font-weight:bold">📧 Login with your email address: <code>EMAIL_PLACEHOLDER</code></p><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li></ul><div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">📮 Do not reply</p><p style="color:#999;margin:0.5rem 0 0 0;font-size:13px">This mailbox is not monitored. For questions or support, please contact: <a href="mailto:EMAIL_PLACEHOLDER" style="color:#00ff88">EMAIL_PLACEHOLDER</a></p></div><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after deployment.</p></div>'
             
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             EMAIL_HTML="${EMAIL_HTML//EMAIL_PLACEHOLDER/$ADMIN_EMAIL}"
@@ -175,7 +181,7 @@ jobs:
           if [ -n "$RESEND_API_KEY" ]; then
             echo "📧 Sending stack online email..."
             
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">✅ Nexus-Stack is Online</h1><p>Your stack is back online at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li></ul><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after spin-up.</p></div>'
+            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">✅ Nexus-Stack is Online</h1><p>Your stack is back online at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li></ul><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after spin-up.</p></div>'
             
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             

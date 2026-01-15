@@ -8,7 +8,7 @@
 export async function onRequestGet() {
   return new Response(JSON.stringify({ 
     status: 'ok',
-    service: 'Nexus-Stack Control Panel API',
+    service: 'Nexus-Stack Control Plane API',
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   }), {

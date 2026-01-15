@@ -113,15 +113,15 @@ async function sendNotification(env, config) {
           <ul style="color:#ccc;margin:0.5rem 0 0 1.5rem">
             <li>Infrastructure will be torn down automatically</li>
             <li>Hetzner server and Docker containers will be stopped</li>
-            <li>Control Panel will remain active for re-deployment</li>
+            <li>Control Plane will remain active for re-deployment</li>
             <li>All data and state will be preserved</li>
           </ul>
         </div>
         <h2 style="color:#00ff88;margin-top:2rem">🛑 Want to prevent teardown?</h2>
-        <p style="color:#fff">You can disable scheduled teardown via the Control Panel settings.</p>
+        <p style="color:#fff">You can disable scheduled teardown via the Control Plane settings.</p>
         <h2 style="color:#00ff88;margin-top:2rem">🔗 Quick Links</h2>
         <ul>
-          <li><a href="https://control.${env.DOMAIN}" style="color:#00ff88">Control Panel</a> - Manage infrastructure</li>
+          <li><a href="https://control.${env.DOMAIN}" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li>
           <li><a href="https://github.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions" style="color:#00ff88">GitHub Actions</a> - View workflows</li>
         </ul>
         <div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00">

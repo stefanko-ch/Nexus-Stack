@@ -2,9 +2,9 @@
 set -e
 
 # =============================================================================
-# Setup Control Panel Secrets
+# Setup Control Plane Secrets
 # =============================================================================
-# This script helps set up the required environment variables for the Control Panel
+# This script helps set up the required environment variables for the Control Plane
 # in Cloudflare Pages.
 #
 # Required variables:
@@ -27,7 +27,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║          Control Panel Secrets Setup                          ║"
+echo "║          Control Plane Secrets Setup                           ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -44,7 +44,7 @@ else
     SERVER_NAME="nexus"
 fi
 
-PROJECT_NAME="${SERVER_NAME}-control"
+PROJECT_NAME="${SERVER_NAME}-control-plane"
 
 echo -e "${CYAN}Project name: ${PROJECT_NAME}${NC}"
 echo ""
@@ -68,9 +68,32 @@ if [ -z "$GITHUB_TOKEN" ]; then
     exit 1
 fi
 
+# Check if CLOUDFLARE_API_TOKEN is set (required for wrangler)
+if [ -z "$CLOUDFLARE_API_TOKEN" ] && [ -n "$TF_VAR_cloudflare_api_token" ]; then
+    export CLOUDFLARE_API_TOKEN="$TF_VAR_cloudflare_api_token"
+fi
+
+if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+    echo -e "${YELLOW}CLOUDFLARE_API_TOKEN not found in environment${NC}"
+    echo ""
+    echo "Please provide your Cloudflare API Token:"
+    echo "  1. Go to https://dash.cloudflare.com/profile/api-tokens"
+    echo "  2. Create token with 'Cloudflare Pages:Edit' permission"
+    echo ""
+    read -sp "Enter Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+    echo ""
+    echo ""
+    export CLOUDFLARE_API_TOKEN
+fi
+
+if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+    echo -e "${RED}Error: CLOUDFLARE_API_TOKEN is required for wrangler${NC}"
+    exit 1
+fi
+
 # Set GITHUB_TOKEN secret
 echo -e "${YELLOW}Setting GITHUB_TOKEN secret...${NC}"
-echo "$GITHUB_TOKEN" | npx wrangler@latest pages secret put GITHUB_TOKEN --project-name="$PROJECT_NAME"
+echo "$GITHUB_TOKEN" | CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" npx wrangler@latest pages secret put GITHUB_TOKEN --project-name="$PROJECT_NAME"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ GITHUB_TOKEN secret set successfully${NC}"
