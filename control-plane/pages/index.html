@@ -796,6 +796,19 @@
         
         let currentAction = null;
 
+        // Format date in European format (dd.mm.yyyy, HH:MM)
+        function formatDate(date) {
+            if (!(date instanceof Date)) date = new Date(date);
+            return date.toLocaleString('de-CH', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        }
+
         // Status descriptions
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
@@ -936,7 +949,7 @@
                     const diffMs = delayUntil - now;
                     const hours = Math.ceil(diffMs / (1000 * 60 * 60));
                     const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
+                    info.innerHTML = `Enabled - Teardown delayed until ${formatDate(delayUntil)}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
                     delayBtn.disabled = true;
                 } else if (config.nextTeardown) {
                     const nextTeardown = new Date(config.nextTeardown);
@@ -947,7 +960,7 @@
                             timeText += `${timeRemaining.hours}h `;
                         }
                         timeText += `${timeRemaining.minutes}m`;
-                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                        info.innerHTML = `Enabled - Next teardown: ${formatDate(nextTeardown)}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
                     } else {
                         info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
                     }
@@ -1153,7 +1166,7 @@
                 div.className = 'history-item';
                 
                 const status = item.data.conclusion || item.data.status;
-                const time = new Date(item.data.updatedAt).toLocaleString();
+                const time = formatDate(item.data.updatedAt);
                 
                 div.innerHTML = `
                     <span class="history-name">${item.name}</span>
@@ -1335,14 +1348,14 @@
                     if (data.info.time) {
                         if (data.info.time.lastDeploy) {
                             document.getElementById('info-last-deploy').textContent = 
-                                new Date(data.info.time.lastDeploy).toLocaleString();
+                                formatDate(data.info.time.lastDeploy);
                         } else {
                             document.getElementById('info-last-deploy').textContent = '-';
                         }
                         
                         if (data.info.time.lastTeardown) {
                             document.getElementById('info-last-teardown').textContent = 
-                                new Date(data.info.time.lastTeardown).toLocaleString();
+                                formatDate(data.info.time.lastTeardown);
                         } else {
                             document.getElementById('info-last-teardown').textContent = '-';
                         }
