@@ -109,41 +109,45 @@ jobs:
           if [ -n "$ENABLED_SERVICES" ]; then
             echo "📋 Using services from Control Plane: $ENABLED_SERVICES"
             # Parse services.tfvars and override enabled based on input
-            python3 << 'PYTHON_SCRIPT'
-import re
-import sys
+            # Write Python script to temp file to avoid YAML escaping issues
+            cat > /tmp/update_services.py << 'EOF'
+          import re
+          import sys
+          import os
 
-enabled_list = "${{ inputs.enabled_services }}".split(',')
-enabled_set = set(s.strip() for s in enabled_list if s.strip())
+          enabled_input = os.environ.get('ENABLED_SERVICES', '')
+          enabled_list = enabled_input.split(',')
+          enabled_set = set(s.strip() for s in enabled_list if s.strip())
 
-with open('tofu/services.tfvars', 'r') as f:
-    content = f.read()
+          with open('tofu/services.tfvars', 'r') as f:
+              content = f.read()
 
-# Find all service blocks and update enabled status
-def replace_enabled(match):
-    service_name = match.group(1)
-    block = match.group(2)
-    
-    # Determine if this service should be enabled
-    should_enable = service_name in enabled_set
-    
-    # Replace enabled = true/false with the correct value
-    new_block = re.sub(
-        r'(enabled\s*=\s*)(true|false)',
-        f'\\g<1>{"true" if should_enable else "false"}',
-        block
-    )
-    
-    return f'{service_name} = {{{new_block}}}'
+          # Find all service blocks and update enabled status
+          def replace_enabled(match):
+              service_name = match.group(1)
+              block = match.group(2)
+              
+              # Determine if this service should be enabled
+              should_enable = service_name in enabled_set
+              
+              # Replace enabled = true/false with the correct value
+              new_block = re.sub(
+                  r'(enabled\s*=\s*)(true|false)',
+                  r'\g<1>' + ('true' if should_enable else 'false'),
+                  block
+              )
+              
+              return f'{service_name} = {{{new_block}}}'
 
-# Match service blocks like: service-name = { ... }
-pattern = r'([a-zA-Z0-9_-]+)\s*=\s*\{([^}]+)\}'
-updated_content = re.sub(pattern, replace_enabled, content)
+          # Match service blocks like: service-name = { ... }
+          pattern = r'([a-zA-Z0-9_-]+)\s*=\s*\{([^}]+)\}'
+          updated_content = re.sub(pattern, replace_enabled, content)
 
-with open('tofu/stack/config.tfvars', 'a') as f:
-    f.write('\n# Services (enabled via Control Plane)\n')
-    f.write(updated_content)
-PYTHON_SCRIPT
+          with open('tofu/stack/config.tfvars', 'a') as f:
+              f.write('\n# Services (enabled via Control Plane)\n')
+              f.write(updated_content)
+          EOF
+            ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/update_services.py
           else
             echo "📋 Using default services from services.tfvars"
             # Append services from committed services.tfvars
