@@ -201,7 +201,7 @@ export async function onRequestGet(context) {
       core: svc.core,
       description: svc.description,
       // Use KV value if set, otherwise use default from tfvars
-      enabled: enabledMap.hasOwnProperty(svc.name) 
+      enabled: Object.hasOwn(enabledMap, svc.name) 
         ? enabledMap[svc.name] 
         : svc.defaultEnabled,
     }));
