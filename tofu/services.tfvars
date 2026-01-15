@@ -1,8 +1,10 @@
 # =============================================================================
 # Nexus-Stack Services Configuration
 # =============================================================================
-# This file defines which services are deployed via Cloudflare Tunnel.
-# Edit this file to enable/disable services or change subdomains.
+# This file defines the available services and their configuration.
+# 
+# The 'enabled' field here is the DEFAULT value - actual enabled status
+# is stored in Cloudflare KV and managed via the Control Plane.
 #
 # Each service creates:
 # - Cloudflare DNS record: <subdomain>.<domain>
@@ -10,11 +12,17 @@
 # - Cloudflare Access policy (if public = false)
 #
 # Note: You also need stacks/<service>/docker-compose.yml for the container!
+#
+# CORE SERVICES (core = true):
+# - mailpit: Required for email testing by other services
+# - infisical: Required for secret management
+# - info: Dashboard showing all services
+# These services cannot be disabled from the Control Plane.
 # =============================================================================
 
 services = {
   it-tools = {
-    enabled     = true
+    enabled     = false
     subdomain   = "it-tools"
     port        = 8080
     public      = false
@@ -30,7 +38,7 @@ services = {
   }
 
   portainer = {
-    enabled     = true
+    enabled     = false
     subdomain   = "portainer"
     port        = 9090
     public      = false
@@ -38,7 +46,7 @@ services = {
   }
 
   uptime-kuma = {
-    enabled     = true
+    enabled     = false
     subdomain   = "uptime-kuma"
     port        = 3001
     public      = false
@@ -50,6 +58,7 @@ services = {
     subdomain   = "infisical"
     port        = 8070
     public      = false
+    core        = true
     description = "Open-source secret management platform for teams."
   }
 
@@ -66,7 +75,8 @@ services = {
     subdomain   = "info"
     port        = 8090
     public      = false
-    description = "This landing page - your Nexus Stack dashboard."
+    core        = true
+    description = "Landing page showing all your Nexus Stack services and their status."
   }
 
   kestra = {
@@ -90,6 +100,7 @@ services = {
     subdomain   = "mailpit"
     port        = 8025
     public      = false
-    description = "Email testing tool that catches all outgoing emails for local development."
+    core        = true
+    description = "Email testing tool that catches all outgoing emails for inspection and testing."
   }
 }

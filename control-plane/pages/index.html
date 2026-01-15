@@ -129,7 +129,7 @@
 
         .status-dot.deployed { background: #00ff88; }
         .status-dot.torn-down { background: #ffaa00; }
-        .status-dot.destroyed { background: #ff4444; }
+        .status-dot.offline { background: #ff4444; }
         .status-dot.running { background: #00aaff; }
         .status-dot.unknown { background: #666666; }
 
@@ -140,7 +140,7 @@
 
         .status-text.deployed { color: #00ff88; }
         .status-text.torn-down { color: #ffaa00; }
-        .status-text.destroyed { color: #ff4444; }
+        .status-text.offline { color: #ff4444; }
         .status-text.running { color: #00aaff; }
         .status-text.unknown { color: #666666; }
 
@@ -796,11 +796,25 @@
         
         let currentAction = null;
 
+        // Format date using user's preferred locale
+        function formatDate(date) {
+            if (!(date instanceof Date)) date = new Date(date);
+            const locale = navigator.language || 'de-CH';
+            return date.toLocaleString(locale, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        }
+
         // Status descriptions
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
             'torn-down': 'Nexus Stack is torn down. Click Spin Up to restart.',
-            'destroyed': 'Nexus Stack is torn down. Click Spin Up to restart.',
+            'offline': 'Nexus Stack is offline. Click Spin Up to deploy.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -854,7 +868,7 @@
             const stateLabels = {
                 'deployed': 'Deployed',
                 'torn-down': 'Torn Down',
-                'destroyed': 'Destroyed',
+                'offline': 'Offline',
                 'running': 'In Progress',
                 'unknown': 'Unknown'
             };
@@ -886,11 +900,8 @@
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
+                case 'offline':
                     btnSpinUp.disabled = false;
-                    btnTeardown.disabled = true;
-                    break;
-                case 'destroyed':
-                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = true;
                     break;
                 case 'unknown':
@@ -905,14 +916,22 @@
         async function loadScheduledTeardownConfig() {
             try {
                 const response = await fetch(`${API_URL}/api/scheduled-teardown`, { credentials: 'same-origin' });
-                if (!response.ok) return;
-                
                 const data = await response.json();
+                
                 if (data.success) {
                     updateScheduledTeardownUI(data.config);
+                } else {
+                    // Show error in the scheduled teardown panel
+                    const info = document.getElementById('scheduled-info');
+                    info.textContent = data.error || 'Failed to load configuration';
+                    info.style.color = '#ff4444';
+                    console.error('Scheduled teardown config error:', data.error);
                 }
             } catch (error) {
                 console.error('Failed to load scheduled teardown config:', error);
+                const info = document.getElementById('scheduled-info');
+                info.textContent = 'Failed to connect to API';
+                info.style.color = '#ff4444';
             }
         }
 
@@ -921,7 +940,9 @@
             const info = document.getElementById('scheduled-info');
             const delayBtn = document.getElementById('btn-delay-teardown');
             
-            if (config.enabled) {
+            // Handle both boolean and string 'true'/'false'
+            const isEnabled = config.enabled === true || config.enabled === 'true';
+            if (isEnabled) {
                 toggle.classList.add('active');
                 const now = new Date();
                 const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
@@ -929,7 +950,7 @@
                     const diffMs = delayUntil - now;
                     const hours = Math.ceil(diffMs / (1000 * 60 * 60));
                     const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
+                    info.innerHTML = `Enabled - Teardown delayed until ${formatDate(delayUntil)}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
                     delayBtn.disabled = true;
                 } else if (config.nextTeardown) {
                     const nextTeardown = new Date(config.nextTeardown);
@@ -940,7 +961,7 @@
                             timeText += `${timeRemaining.hours}h `;
                         }
                         timeText += `${timeRemaining.minutes}m`;
-                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                        info.innerHTML = `Enabled - Next teardown: ${formatDate(nextTeardown)}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
                     } else {
                         info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
                     }
@@ -1045,6 +1066,14 @@
                 const name = document.createElement('div');
                 name.className = 'service-name';
                 name.textContent = service.name;
+                
+                // Add "CORE" badge for core services
+                if (service.core) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'font-size: 0.6rem; background: rgba(0, 255, 136, 0.2); color: #00ff88; padding: 0.15rem 0.4rem; margin-left: 0.5rem; border-radius: 3px; vertical-align: middle;';
+                    badge.textContent = 'CORE';
+                    name.appendChild(badge);
+                }
 
                 const description = document.createElement('div');
                 description.className = 'service-description';
@@ -1053,19 +1082,23 @@
                 details.appendChild(name);
                 details.appendChild(description);
 
-                const toggle = document.createElement('div');
-                toggle.className = 'toggle-switch service-toggle';
-                if (service.enabled) {
-                    toggle.classList.add('active');
+                // Don't show toggle for core services at all
+                if (!service.core) {
+                    const toggle = document.createElement('div');
+                    toggle.className = 'toggle-switch service-toggle';
+                    if (service.enabled) {
+                        toggle.classList.add('active');
+                    }
+
+                    toggle.addEventListener('click', () => {
+                        if (toggle.classList.contains('disabled')) return;
+                        updateServiceToggle(service.name, !service.enabled, toggle);
+                    });
+
+                    item.appendChild(toggle);
                 }
 
-                toggle.addEventListener('click', () => {
-                    if (toggle.classList.contains('disabled')) return;
-                    updateServiceToggle(service.name, !service.enabled, toggle);
-                });
-
                 item.appendChild(details);
-                item.appendChild(toggle);
                 list.appendChild(item);
             });
         }
@@ -1126,7 +1159,7 @@
                 div.className = 'history-item';
                 
                 const status = item.data.conclusion || item.data.status;
-                const time = new Date(item.data.updatedAt).toLocaleString();
+                const time = formatDate(item.data.updatedAt);
                 
                 div.innerHTML = `
                     <span class="history-name">${item.name}</span>
@@ -1289,9 +1322,55 @@
             }
         }
 
-        // Load scheduled teardown config on page load
+        // Load infrastructure info
+        async function loadInfo() {
+            try {
+                const response = await fetch(`${API_URL}/api/info`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success && data.info) {
+                    // Update server info
+                    if (data.info.server) {
+                        document.getElementById('info-server-type').textContent = data.info.server.type || '-';
+                        document.getElementById('info-server-location').textContent = data.info.server.location || '-';
+                        document.getElementById('info-domain').textContent = data.info.server.domain || '-';
+                    }
+                    
+                    // Update time info
+                    if (data.info.time) {
+                        if (data.info.time.lastDeploy) {
+                            document.getElementById('info-last-deploy').textContent = 
+                                formatDate(data.info.time.lastDeploy);
+                        } else {
+                            document.getElementById('info-last-deploy').textContent = '-';
+                        }
+                        
+                        if (data.info.time.lastTeardown) {
+                            document.getElementById('info-last-teardown').textContent = 
+                                formatDate(data.info.time.lastTeardown);
+                        } else {
+                            document.getElementById('info-last-teardown').textContent = '-';
+                        }
+                        
+                        if (data.info.time.uptime) {
+                            const u = data.info.time.uptime;
+                            document.getElementById('info-uptime').textContent = 
+                                `${u.days}d ${u.hours}h ${u.minutes}m`;
+                        } else {
+                            document.getElementById('info-uptime').textContent = '-';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load info:', error);
+            }
+        }
+
+        // Load all data on page load
         loadServices();
         loadScheduledTeardownConfig();
+        loadInfo();
 
         // Polling with exponential backoff on errors
         let consecutiveErrors = 0;

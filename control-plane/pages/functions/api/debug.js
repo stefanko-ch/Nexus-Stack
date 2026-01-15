@@ -13,6 +13,11 @@ export async function onRequestGet(context) {
     GITHUB_TOKEN: env.GITHUB_TOKEN ? '***SET***' : 'MISSING',
     GITHUB_OWNER: env.GITHUB_OWNER || 'MISSING',
     GITHUB_REPO: env.GITHUB_REPO || 'MISSING',
+    DOMAIN: env.DOMAIN || 'MISSING',
+    ADMIN_EMAIL: env.ADMIN_EMAIL || 'MISSING',
+    RESEND_API_KEY: env.RESEND_API_KEY ? '***SET***' : 'MISSING',
+    SERVER_TYPE: env.SERVER_TYPE || 'MISSING',
+    SERVER_LOCATION: env.SERVER_LOCATION || 'MISSING',
   };
   
   // Count missing variables
@@ -20,6 +25,7 @@ export async function onRequestGet(context) {
   if (!env.GITHUB_TOKEN) missing.push('GITHUB_TOKEN');
   if (!env.GITHUB_OWNER) missing.push('GITHUB_OWNER');
   if (!env.GITHUB_REPO) missing.push('GITHUB_REPO');
+  if (!env.DOMAIN) missing.push('DOMAIN');
   
   return new Response(JSON.stringify({
     status: missing.length === 0 ? 'ok' : 'error',

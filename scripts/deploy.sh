@@ -8,7 +8,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TOFU_DIR="$PROJECT_ROOT/tofu"
+TOFU_DIR="$PROJECT_ROOT/tofu/stack"
 STACKS_DIR="$PROJECT_ROOT/stacks"
 REMOTE_STACKS_DIR="/opt/docker-server/stacks"
 
@@ -31,8 +31,8 @@ echo -e "${NC}"
 # -----------------------------------------------------------------------------
 
 # Load R2 credentials for remote state access
-if [ -f "$TOFU_DIR/.r2-credentials" ]; then
-    source "$TOFU_DIR/.r2-credentials"
+if [ -f "$PROJECT_ROOT/tofu/.r2-credentials" ]; then
+    source "$PROJECT_ROOT/tofu/.r2-credentials"
     export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
     export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 fi

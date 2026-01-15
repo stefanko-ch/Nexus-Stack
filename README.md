@@ -53,7 +53,7 @@ cp .env.example .env
 nano .env
 
 # 4. Edit domain/email settings
-nano tofu/config.tfvars
+nano tofu/stack/config.tfvars
 
 # 5. Deploy everything
 source .env && make up
@@ -83,7 +83,7 @@ export TF_VAR_cloudflare_account_id="xxx"
 | `TF_VAR_cloudflare_api_token` | [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token |
 | `TF_VAR_cloudflare_account_id` | URL when logged into Cloudflare: `dash.cloudflare.com/<account_id>/...` |
 
-### 2. `tofu/config.tfvars` - Settings (can be committed)
+### 2. `tofu/stack/config.tfvars` - Settings (can be committed)
 
 | Setting | Description |
 |---------|-------------|
@@ -281,12 +281,20 @@ Nexus-Stack/
 ├── .env.example          # Template for secrets (TF_VAR_*)
 ├── .env                  # Your secrets (git-ignored)
 ├── tofu/                 # Infrastructure as Code
-│   ├── main.tf           # Server, tunnel, DNS, access
-│   ├── variables.tf      # Input variables
-│   ├── outputs.tf        # Outputs (IPs, URLs)
-│   ├── providers.tf      # Provider config + R2 backend
+│   ├── backend.hcl       # R2 backend configuration
+│   ├── services.tfvars   # Service definitions
 │   ├── config.tfvars.example  # Template for settings
-│   └── config.tfvars     # Your settings (git-ignored)
+│   ├── stack/            # Server, tunnel, services
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   ├── providers.tf
+│   │   └── config.tfvars # Your settings (git-ignored)
+│   └── control-plane/    # Control Plane (Cloudflare Pages)
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── providers.tf
 ├── stacks/               # Docker Compose stacks
 │   ├── it-tools/         # Example: IT-Tools
 │   └── excalidraw/       # Example: Excalidraw
