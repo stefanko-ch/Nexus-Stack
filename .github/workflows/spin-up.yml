@@ -3,10 +3,10 @@ name: Spin Up Nexus-Stack
 on:
   workflow_dispatch:
     inputs:
-      send_credentials:
-        description: 'Send credentials email (true only for initial deploy)'
+      enabled_services:
+        description: 'Comma-separated list of services to enable (from Control Plane KV)'
         required: false
-        default: 'false'
+        default: ''
         type: string
 
 permissions:
@@ -77,7 +77,7 @@ jobs:
 
       - name: Generate config.tfvars
         run: |
-          cat > tofu/config.tfvars << EOF
+          cat > tofu/stack/config.tfvars << EOF
           server_name     = "nexus"
           server_type     = "cax31"
           server_location = "fsn1"
@@ -95,84 +95,137 @@ jobs:
           
           # Add Docker Hub credentials if provided (optional)
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            cat >> tofu/config.tfvars << EOF
+            cat >> tofu/stack/config.tfvars << EOF
           dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
           dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
           EOF
           fi
           
-          # Append services from committed services.tfvars
-          cat tofu/services.tfvars >> tofu/config.tfvars
+          # Generate services config
+          # If enabled_services input is provided (from Control Plane), use it
+          # Otherwise, use defaults from services.tfvars
+          ENABLED_SERVICES="${{ inputs.enabled_services }}"
+          
+          if [ -n "$ENABLED_SERVICES" ]; then
+            echo "📋 Using services from Control Plane: $ENABLED_SERVICES"
+            # Parse services.tfvars and override enabled based on input
+            # Write Python script to temp file to avoid YAML escaping issues
+            cat > /tmp/update_services.py << 'EOF'
+          import re
+          import sys
+          import os
+
+          enabled_input = os.environ.get('ENABLED_SERVICES', '')
+          if enabled_input.strip():
+              enabled_list = enabled_input.split(',')
+          else:
+              enabled_list = []
+          enabled_set = set(s.strip() for s in enabled_list if s.strip())
+
+          with open('tofu/services.tfvars', 'r') as f:
+              content = f.read()
+
+          # Find all service blocks and update enabled status
+          def replace_enabled(match):
+              service_name = match.group(1)
+              block = match.group(2)
+              
+              # Determine if this service should be enabled
+              should_enable = service_name in enabled_set
+              
+              # Replace enabled = true/false with the correct value
+              new_block = re.sub(
+                  r'(enabled\s*=\s*)(true|false)',
+                  r'\g<1>' + ('true' if should_enable else 'false'),
+                  block
+              )
+              
+              return f'{service_name} = {{{new_block}}}'
+
+          # Match service blocks like: service-name = { ... }
+          # Pattern handles multiline blocks by matching content between { and }
+          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
+          updated_content = re.sub(pattern, replace_enabled, content)
+
+          with open('tofu/stack/config.tfvars', 'a') as f:
+              f.write('\n# Services (enabled via Control Plane)\n')
+              f.write(updated_content)
+          EOF
+            ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/update_services.py
+          else
+            echo "📋 Using default services from services.tfvars"
+            # Append services from committed services.tfvars
+            cat tofu/services.tfvars >> tofu/stack/config.tfvars
+          fi
 
       - name: Initialize OpenTofu
         run: |
-          cd tofu
-          source .r2-credentials
+          cd tofu/stack
+          source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          tofu init -backend-config=backend.hcl
+          tofu init -backend-config=../backend.hcl
 
       - name: Spin up infrastructure
         run: make up
 
-      - name: Get Infisical admin password for email
-        if: github.event.inputs.send_credentials == 'true'
+      - name: Store credentials in KV
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          cd tofu
-          source .r2-credentials
+          echo "📦 Storing credentials in KV..."
+          
+          cd tofu/stack
+          source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
-          INFISICAL_PASS=$(tofu output -raw infisical_admin_password 2>/dev/null || echo "")
+          # Get secrets from OpenTofu output
+          SECRETS_JSON=$(tofu output -json secrets 2>/dev/null || echo "{}")
           
-          if [ -n "$INFISICAL_PASS" ]; then
-            echo "INFISICAL_PASS=$INFISICAL_PASS" >> $GITHUB_ENV
-            echo "✅ Infisical password retrieved (will be sent via email)"
-          else
-            echo "⚠️  Could not retrieve Infisical password from Terraform output"
-            echo "   View password via: make secrets (locally) or SSH to server"
+          if [ "$SECRETS_JSON" = "{}" ]; then
+            echo "⚠️  Could not read secrets from OpenTofu state - skipping KV storage"
+            exit 0
           fi
-
-      - name: Send credentials email via Resend
-        if: github.event.inputs.send_credentials == 'true' && env.INFISICAL_PASS != ''
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-        run: |
-          if [ -n "$RESEND_API_KEY" ]; then
-            echo "📧 Sending credentials email..."
-            
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">🚀 Nexus-Stack Deployed!</h1><p>Your infrastructure is ready at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔐 Credentials</h2><table style="border-collapse:collapse;width:100%"><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Email</td><td style="padding:8px;border:1px solid #333"><code>EMAIL_PLACEHOLDER</code></td></tr><tr><td style="padding:8px;border:1px solid #333;background:#1a1a2e">Password</td><td style="padding:8px;border:1px solid #333"><code>PASS_PLACEHOLDER</code></td></tr></table><p style="color:#00ff88;margin-top:1rem;font-weight:bold">📧 Login with your email address: <code>EMAIL_PLACEHOLDER</code></p><p style="color:#ffaa00;margin-top:1rem">⚠️ Please change this password after your first login!</p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://infisical.DOMAIN_PLACEHOLDER" style="color:#00ff88">Infisical</a> - Secret management</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li></ul><div style="margin-top:2rem;padding:1rem;background:#1a1a2e;border-left:3px solid #ffaa00"><p style="color:#ffaa00;margin:0;font-weight:bold">📮 Do not reply</p><p style="color:#999;margin:0.5rem 0 0 0;font-size:13px">This mailbox is not monitored. For questions or support, please contact: <a href="mailto:EMAIL_PLACEHOLDER" style="color:#00ff88">EMAIL_PLACEHOLDER</a></p></div><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after deployment.</p></div>'
-            
-            EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
-            EMAIL_HTML="${EMAIL_HTML//EMAIL_PLACEHOLDER/$ADMIN_EMAIL}"
-            EMAIL_HTML="${EMAIL_HTML//PASS_PLACEHOLDER/$INFISICAL_PASS}"
-            
-            JSON_PAYLOAD=$(jq -n \
-              --arg from "Nexus-Stack <nexus@$DOMAIN>" \
-              --arg to "$ADMIN_EMAIL" \
-              --arg subject "🚀 Nexus-Stack Deployed - Your Credentials" \
-              --arg html "$EMAIL_HTML" \
-              '{from: $from, to: [$to], subject: $subject, html: $html}')
-            
-            HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
-              -H "Authorization: Bearer $RESEND_API_KEY" \
-              -H "Content-Type: application/json" \
-              -d "$JSON_PAYLOAD")
-            
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "✅ Credentials email sent to $ADMIN_EMAIL"
-            else
-              echo "⚠️  Failed to send email (HTTP $HTTP_STATUS) - deployment continues"
-              cat /tmp/resend_response.txt 2>/dev/null || true
-            fi
+          
+          # Get KV namespace ID from control-plane state
+          cd ../control-plane
+          tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
+          KV_NAMESPACE_ID=$(tofu output -raw kv_namespace_id 2>/dev/null || echo "")
+          
+          if [ -z "$KV_NAMESPACE_ID" ]; then
+            echo "⚠️  KV namespace ID not found - skipping credential storage"
+            exit 0
+          fi
+          
+          # Build credentials JSON with only essential fields
+          CREDENTIALS=$(echo "$SECRETS_JSON" | jq '{
+            admin_username: .admin_username,
+            infisical_admin_password: .infisical_admin_password,
+            portainer_admin_password: .portainer_admin_password,
+            grafana_admin_password: .grafana_admin_password,
+            kestra_admin_password: .kestra_admin_password,
+            n8n_admin_password: .n8n_admin_password,
+            kuma_admin_password: .kuma_admin_password
+          }')
+          
+          # Store in KV
+          HTTP_STATUS=$(curl -s -o /tmp/kv_response.txt -w "%{http_code}" \
+            -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/credentials" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$CREDENTIALS")
+          
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Credentials stored in KV"
           else
-            echo "⚠️  RESEND_API_KEY not configured - skipping email"
+            echo "⚠️  Failed to store credentials in KV (HTTP $HTTP_STATUS)"
+            cat /tmp/kv_response.txt 2>/dev/null || true
           fi
 
       - name: Send stack online email via Resend
-        if: github.event.inputs.send_credentials != 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
@@ -181,7 +234,7 @@ jobs:
           if [ -n "$RESEND_API_KEY" ]; then
             echo "📧 Sending stack online email..."
             
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">✅ Nexus-Stack is Online</h1><p>Your stack is back online at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li></ul><p style="color:#666;font-size:12px;margin-top:1rem">This email was sent automatically after spin-up.</p></div>'
+            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">✅ Nexus-Stack is Online</h1><p>Your stack is back online at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔗 Quick Links</h2><ul><li><a href="https://info.DOMAIN_PLACEHOLDER" style="color:#00ff88">Info Page</a> - All services &amp; credentials</li><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Plane</a> - Manage infrastructure</li></ul><p style="color:#999;font-size:12px;margin-top:1rem">Need credentials? Click "Send Credentials" in the Control Plane.</p></div>'
             
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             

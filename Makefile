@@ -33,12 +33,12 @@ check-env:
 init:
 	@echo "🚀 Nexus-Stack - First Time Setup"
 	@echo "=================================="
-	@if [ ! -f tofu/config.tfvars ]; then \
-		cp tofu/config.tfvars.example tofu/config.tfvars; \
-		echo "✅ Created tofu/config.tfvars from template"; \
+	@if [ ! -f tofu/stack/config.tfvars ]; then \
+		cp tofu/stack/config.tfvars.example tofu/stack/config.tfvars; \
+		echo "✅ Created tofu/stack/config.tfvars from template"; \
 		echo ""; \
 		echo "📝 Next steps:"; \
-		echo "   1. Edit tofu/config.tfvars (domain, zone_id, admin_email)"; \
+		echo "   1. Edit tofu/stack/config.tfvars (domain, zone_id, admin_email)"; \
 		echo "   2. Copy .env.example to .env and add your secrets"; \
 		echo "   3. Run: source .env && make init"; \
 		exit 0; \
@@ -55,20 +55,20 @@ init:
 	@echo ""
 	@echo "🔧 Initializing OpenTofu..."
 	@# Check for existing local state (should not exist for fresh setups)
-	@if [ -f tofu/terraform.tfstate ]; then \
-		echo "⚠️  Local state file found (tofu/terraform.tfstate)"; \
+	@if [ -f tofu/stack/terraform.tfstate ]; then \
+		echo "⚠️  Local state file found (tofu/stack/terraform.tfstate)"; \
 		echo "   This project uses R2 remote state. If you have existing infrastructure,"; \
 		echo "   you need to migrate it manually. Otherwise, delete the local state:"; \
-		echo "   rm -f tofu/terraform.tfstate tofu/terraform.tfstate.backup"; \
+		echo "   rm -f tofu/stack/terraform.tfstate tofu/stack/terraform.tfstate.backup"; \
 		exit 1; \
 	fi
 	@# Clean up terraform cache for fresh init
-	@rm -rf tofu/.terraform tofu/.terraform.lock.hcl
+	@rm -rf tofu/stack/.terraform tofu/stack/.terraform.lock.hcl
 	@if [ -f tofu/.r2-credentials ]; then \
 		. tofu/.r2-credentials && \
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
-		cd tofu && tofu init -backend-config=backend.hcl; \
+		cd tofu/stack && tofu init -backend-config=../backend.hcl; \
 	else \
 		echo "❌ R2 credentials not found. Bootstrap may have failed."; \
 		exit 1; \
@@ -86,21 +86,18 @@ up: check-env
 	@. tofu/.r2-credentials && \
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
-		cd tofu && tofu init -backend-config=backend.hcl -reconfigure >/dev/null 2>&1 || true && \
+		cd tofu/stack && tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true && \
 		tofu apply -var-file=config.tfvars -auto-approve
 	@echo ""
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
-	@echo ""
-	@echo "📦 Deploying Control Plane..."
-	@$(MAKE) deploy-control-plane || echo "⚠️  Control Plane deployment skipped (set CLOUDFLARE_API_TOKEN to enable)"
 
 # Teardown infrastructure (keeps R2 state for re-deploy)
 teardown: check-env
 	@echo "💥 Tearing down infrastructure..."
 	@echo ""
 	@echo "🔐 Revoking Cloudflare Zero Trust sessions..."
-	@ADMIN_EMAIL=$$(grep -E '^admin_email\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+	@ADMIN_EMAIL=$$(grep -E '^admin_email\s*=' tofu/stack/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
 	if [ -n "$$TF_VAR_cloudflare_api_token" ] && [ -n "$$TF_VAR_cloudflare_account_id" ] && [ -n "$$ADMIN_EMAIL" ]; then \
 		RESPONSE=$$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$$TF_VAR_cloudflare_account_id/access/organizations/revoke_user" \
 			-H "Authorization: Bearer $$TF_VAR_cloudflare_api_token" \
@@ -114,7 +111,7 @@ teardown: check-env
 	else \
 		echo "  ⚠️  Could not read config, skipping session revocation"; \
 	fi
-	@DOMAIN=$$(grep -E '^domain\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+	@DOMAIN=$$(grep -E '^domain\s*=' tofu/stack/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
 	if [ -n "$$DOMAIN" ]; then \
 		ssh-keygen -R "ssh.$$DOMAIN" 2>/dev/null || true; \
 		echo "🔑 Removed SSH known_hosts entry for ssh.$$DOMAIN"; \
@@ -123,9 +120,9 @@ teardown: check-env
 		. tofu/.r2-credentials && \
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
-		cd tofu && tofu destroy -var-file=config.tfvars -auto-approve; \
+		cd tofu/stack && tofu destroy -var-file=config.tfvars -auto-approve; \
 	else \
-		cd tofu && tofu destroy -var-file=config.tfvars -auto-approve; \
+		cd tofu/stack && tofu destroy -var-file=config.tfvars -auto-approve; \
 	fi
 
 # Show running containers
@@ -147,7 +144,7 @@ plan: check-env
 		. tofu/.r2-credentials && \
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
-		cd tofu && tofu plan -var-file=config.tfvars; \
+		cd tofu/stack && tofu plan -var-file=config.tfvars; \
 	else \
 		echo "❌ R2 credentials not found. Run 'make init' first."; \
 		exit 1; \
@@ -155,50 +152,50 @@ plan: check-env
 
 # Show service URLs
 urls:
-	@cd tofu && tofu output -json service_urls | jq -r 'to_entries | .[] | "\(.key): \(.value)"'
+	@cd tofu/stack && tofu output -json service_urls | jq -r 'to_entries | .[] | "\(.key): \(.value)"'
 
 # Show service credentials
 secrets:
 	@echo "🔐 Service Credentials"
 	@echo "======================"
-	@if [ -f tofu/terraform.tfstate ]; then \
-		SECRETS_JSON=$$(cd tofu && tofu output -json secrets 2>/dev/null || echo "{}"); \
+	@if [ -f tofu/stack/terraform.tfstate ]; then \
+		SECRETS_JSON=$$(cd tofu/stack && tofu output -json secrets 2>/dev/null || echo "{}"); \
 		ADMIN_EMAIL=$$(echo "$$SECRETS_JSON" | jq -r '.admin_email // empty'); \
 		ADMIN_USER=$$(echo "$$SECRETS_JSON" | jq -r '.admin_username // "admin"'); \
-		DOMAIN=$$(grep -E '^domain\s*=' tofu/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
+		DOMAIN=$$(grep -E '^domain\s*=' tofu/stack/config.tfvars 2>/dev/null | sed 's/.*"\(.*\)"/\1/'); \
 		echo ""; \
 		echo "Infisical:"; \
-		SUBDOMAIN=$$(grep -A5 'infisical.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		SUBDOMAIN=$$(grep -A5 'infisical.*=' tofu/stack/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_EMAIL"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.infisical_admin_password')"; \
 		echo ""; \
 		echo "Portainer:"; \
-		SUBDOMAIN=$$(grep -A5 'portainer.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		SUBDOMAIN=$$(grep -A5 'portainer.*=' tofu/stack/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_USER"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.portainer_admin_password')"; \
 		echo ""; \
 		echo "Uptime Kuma:"; \
-		SUBDOMAIN=$$(grep -A5 'uptime-kuma.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		SUBDOMAIN=$$(grep -A5 'uptime-kuma.*=' tofu/stack/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_USER"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.kuma_admin_password')"; \
 		echo ""; \
 		echo "Grafana:"; \
-		SUBDOMAIN=$$(grep -A5 'grafana.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		SUBDOMAIN=$$(grep -A5 'grafana.*=' tofu/stack/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_USER"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.grafana_admin_password')"; \
 		echo ""; \
 		echo "Kestra:"; \
-		SUBDOMAIN=$$(grep -A5 'kestra.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		SUBDOMAIN=$$(grep -A5 'kestra.*=' tofu/stack/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_EMAIL"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.kestra_admin_password')"; \
 		echo ""; \
 		echo "n8n:"; \
-		SUBDOMAIN=$$(grep -A5 'n8n.*=' tofu/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
+		SUBDOMAIN=$$(grep -A5 'n8n.*=' tofu/stack/config.tfvars | grep 'subdomain' | sed 's/.*"\(.*\)"/\1/'); \
 		echo "  URL:      https://$$SUBDOMAIN.$$DOMAIN"; \
 		echo "  User:     $$ADMIN_USER"; \
 		echo "  Password: $$(echo "$$SECRETS_JSON" | jq -r '.n8n_admin_password')"; \
@@ -219,7 +216,11 @@ destroy-all: teardown
 			export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 			export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
 			curl -s -X DELETE \
-				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/terraform.tfstate" \
+				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/nexus-stack.tfstate" \
+				--aws-sigv4 "aws:amz:auto:s3" \
+				--user "$$AWS_ACCESS_KEY_ID:$$AWS_SECRET_ACCESS_KEY" > /dev/null 2>&1 && \
+			curl -s -X DELETE \
+				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/control-plane.tfstate" \
 				--aws-sigv4 "aws:amz:auto:s3" \
 				--user "$$AWS_ACCESS_KEY_ID:$$AWS_SECRET_ACCESS_KEY" > /dev/null 2>&1 && \
 			curl -s -X DELETE \

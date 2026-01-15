@@ -103,7 +103,7 @@ Protected by **Cloudflare Access** - only admin email can access.
 |-------|-------------|
 | **Deployed** | Infrastructure running, services accessible |
 | **Torn Down** | Infrastructure stopped, control plane + R2 active |
-| **Destroyed** | Everything deleted (first deployment) |
+| **Offline** | Everything deleted (first deployment) |
 | **Running** | Workflow in progress, please wait |
 
 ## 🧪 Local Development
