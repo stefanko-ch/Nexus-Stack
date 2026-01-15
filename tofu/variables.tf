@@ -128,18 +128,4 @@ variable "dockerhub_token" {
   default     = ""
 }
 
-# =============================================================================
-# GitHub (for Control Plane)
-# =============================================================================
-
-variable "github_owner" {
-  description = "GitHub repository owner (e.g., stefanko-ch)"
-  type        = string
-  default     = ""
-}
-
-variable "github_repo" {
-  description = "GitHub repository name (e.g., Nexus-Stack)"
-  type        = string
-  default     = "Nexus-Stack"
-}
+# Note: GitHub variables moved to tofu/control-plane/variables.tf
