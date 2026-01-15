@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_NAME="nexus-control"
+PROJECT_NAME="nexus-control-plane"
 
 echo "🔍 Cloudflare Pages Diagnostics"
 echo "=================================="

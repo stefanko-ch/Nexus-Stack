@@ -1,12 +1,12 @@
 /**
- * Trigger Teardown workflow
- * POST /api/teardown
+ * Trigger Spin-Up workflow
+ * POST /api/spin-up
  * 
- * Triggers the GitHub Actions teardown.yml workflow.
+ * Triggers the GitHub Actions spin-up.yml workflow.
  * Includes validation and error handling.
  */
 export async function onRequestPost(context) {
-  const { env, request } = context;
+  const { env } = context;
   
   // Validate environment variables
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
     });
   }
 
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/teardown.yml/dispatches`;
+  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/spin-up.yml/dispatches`;
   
   try {
     const response = await fetch(url, {
@@ -27,13 +27,13 @@ export async function onRequestPost(context) {
       headers: {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Panel',
+        'User-Agent': 'Nexus-Stack-Control-Plane',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
         ref: 'main',
         inputs: {
-          confirm: 'TEARDOWN'
+          send_credentials: 'false'
         }
       }),
     });
@@ -41,7 +41,7 @@ export async function onRequestPost(context) {
     if (response.status === 204) {
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Teardown workflow triggered successfully' 
+        message: 'Spin-up workflow triggered successfully' 
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -60,7 +60,7 @@ export async function onRequestPost(context) {
       }
     }
 
-    console.error(`Teardown trigger failed: ${response.status} - ${errorMessage}`);
+    console.error(`Spin-up trigger failed: ${response.status} - ${errorMessage}`);
 
     return new Response(JSON.stringify({ 
       success: false, 
@@ -70,7 +70,7 @@ export async function onRequestPost(context) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Teardown endpoint error:', error);
+    console.error('Spin-up endpoint error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       error: 'Network error while triggering workflow' 

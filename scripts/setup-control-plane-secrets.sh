@@ -2,9 +2,9 @@
 set -e
 
 # =============================================================================
-# Setup Control Panel Secrets
+# Setup Control Plane Secrets
 # =============================================================================
-# This script helps set up the required environment variables for the Control Panel
+# This script helps set up the required environment variables for the Control Plane
 # in Cloudflare Pages.
 #
 # Required variables:
@@ -27,7 +27,7 @@ NC='\033[0m'
 
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║          Control Panel Secrets Setup                          ║"
+echo "║          Control Plane Secrets Setup                           ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -44,7 +44,7 @@ else
     SERVER_NAME="nexus"
 fi
 
-PROJECT_NAME="${SERVER_NAME}-control"
+PROJECT_NAME="${SERVER_NAME}-control-plane"
 
 echo -e "${CYAN}Project name: ${PROJECT_NAME}${NC}"
 echo ""

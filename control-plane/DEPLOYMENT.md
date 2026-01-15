@@ -1,10 +1,10 @@
-# Control Panel Deployment Checklist
+# Control Plane Deployment Checklist
 
 ## Pre-Deployment
 
 - [ ] Review code changes
 - [ ] Security audit completed (see [SECURITY.md](SECURITY.md))
-- [ ] All files in `control-panel/` directory
+- [ ] All files in `control-plane/` directory
 
 ## GitHub Setup
 
@@ -31,12 +31,12 @@ github_repo  = "Nexus-Stack"        # Repository name
 # Make sure .env is loaded
 source .env
 
-# Deploy infrastructure (includes control panel)
+# Deploy infrastructure (includes control plane)
 make up
 ```
 
 This creates:
-- ✅ Cloudflare Pages project (`nexus-control`)
+- ✅ Cloudflare Pages project (`nexus-control-plane`)
 - ✅ DNS record (`control.domain.com`)
 - ✅ Cloudflare Access protection
 
@@ -45,7 +45,7 @@ This creates:
 **Option A: Via Cloudflare Dashboard**
 
 1. Go to **Cloudflare Dashboard**
-2. Navigate to **Pages** → **nexus-control**
+2. Navigate to **Pages** → **nexus-control-plane**
 3. Click **Settings** → **Environment Variables**
 4. Click **Add variables**
 5. Production tab:
@@ -57,8 +57,8 @@ This creates:
 **Option B: Via Wrangler CLI**
 
 ```bash
-cd control-panel/pages
-npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
+cd control-plane/pages
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control-plane
 # Paste token when prompted
 ```
 
@@ -66,22 +66,22 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control
 
 **Automatic deployment:**
 
-The control panel is automatically deployed:
+The control plane is automatically deployed:
 - Via `make up` (if `CLOUDFLARE_API_TOKEN` is set in `.env`)
-- Via GitHub Actions workflow (when triggered from control panel)
+- Via GitHub Actions workflow (when triggered from control plane)
 
 **Manual deployment (if needed):**
 
 ```bash
-cd control-panel/pages
-npx wrangler pages deploy . --project-name=nexus-control
+cd control-plane/pages
+npx wrangler pages deploy . --project-name=nexus-control-plane
 ```
 
 ### 4. Verify Deployment
 
 1. Visit `https://control.YOUR_DOMAIN`
 2. Authenticate with Cloudflare Access (email OTP)
-3. Should see Control Panel UI
+3. Should see Control Plane UI
 4. Check status indicator (might show "unknown" initially)
 
 ### 5. Test Workflow Triggers
@@ -100,13 +100,13 @@ npx wrangler pages deploy . --project-name=nexus-control
 3. Test **"Teardown"** (optional):
    - Only if you want to test teardown
    - Requires confirmation modal
-   - Destroys Hetzner infrastructure (keeps control panel)
+   - Destroys Hetzner infrastructure (keeps control plane)
 
 ⚠️ **Do NOT test "Destroy"** unless you want to delete everything!
 
 ## Post-Deployment
 
-- [ ] Control Panel accessible at `https://control.domain.com`
+- [ ] Control Plane accessible at `https://control.domain.com`
 - [ ] Cloudflare Access authentication works
 - [ ] Status API returns workflow data
 - [ ] Deploy button triggers workflow successfully
@@ -124,7 +124,7 @@ npx wrangler pages deploy . --project-name=nexus-control
 **Solution:**
 ```bash
 # Check env vars in Cloudflare Dashboard
-Pages → nexus-control → Settings → Environment Variables
+Pages → nexus-control-plane → Settings → Environment Variables
 
 # Verify token scope at:
 https://github.com/settings/tokens
@@ -147,14 +147,14 @@ tofu output
 # Verify admin_email matches Access policy
 ```
 
-### Control Panel shows 404
+### Control Plane shows 404
 
 **Cause:** Pages project not deployed
 
 **Solution:**
 ```bash
-cd control-panel/pages
-npx wrangler pages deploy . --project-name=nexus-control
+cd control-plane/pages
+npx wrangler pages deploy . --project-name=nexus-control-plane
 ```
 
 ## Maintenance
@@ -166,12 +166,12 @@ npx wrangler pages deploy . --project-name=nexus-control
 3. Delete old token from GitHub
 4. Test workflow trigger
 
-### Update Control Panel Code
+### Update Control Plane Code
 
 ```bash
 git pull origin main
-cd control-panel/pages
-npx wrangler pages deploy . --project-name=nexus-control
+cd control-plane/pages
+npx wrangler pages deploy . --project-name=nexus-control-plane
 ```
 
 Or let **Cloudflare Pages** auto-deploy on push (if connected to Git).
@@ -182,7 +182,7 @@ If something goes wrong:
 
 ```bash
 # Via Cloudflare Dashboard
-# Pages → nexus-control → Deployments → Previous deployment → Rollback
+# Pages → nexus-control-plane → Deployments → Previous deployment → Rollback
 ```
 
 ---

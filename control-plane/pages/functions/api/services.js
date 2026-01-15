@@ -100,7 +100,7 @@ async function fetchServicesFile(env) {
     headers: {
       'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Nexus-Stack-Control-Panel',
+      'User-Agent': 'Nexus-Stack-Control-Plane',
     },
   });
 
@@ -126,7 +126,7 @@ async function updateServicesFile(env, content, sha, message) {
     headers: {
       'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Nexus-Stack-Control-Panel',
+      'User-Agent': 'Nexus-Stack-Control-Plane',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
@@ -147,7 +147,7 @@ async function triggerSpinUp(env) {
     headers: {
       'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Nexus-Stack-Control-Panel',
+      'User-Agent': 'Nexus-Stack-Control-Plane',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ ref: 'main', inputs: { send_credentials: 'false' } }),

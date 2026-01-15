@@ -148,7 +148,7 @@ export async function onRequestGet(context) {
       headers: {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Panel',
+        'User-Agent': 'Nexus-Stack-Control-Plane',
       },
     });
 

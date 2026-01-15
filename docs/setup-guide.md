@@ -84,7 +84,7 @@ ssh-keygen -t ed25519 -C "nexus"
    > - "Workers R2 Storage" is required for the remote state backend
    > - "Workers KV Storage" is required for KV namespaces used by the scheduler
    > - "Workers Scripts" is required for the scheduled teardown worker
-   > - "Cloudflare Pages" is required for the Control Panel
+   > - "Cloudflare Pages" is required for the Control Plane
    > - "Access: Organizations" is required for revoking Zero Trust sessions during `make teardown`
    > - "Access: Service Tokens" enables headless SSH authentication for CI/CD
 
@@ -292,7 +292,7 @@ gh workflow run deploy.yml
 On **first run**, the pipeline will:
 1. Create the R2 bucket automatically
 2. Generate R2 API credentials
-3. Deploy the Control Panel
+3. Deploy the Control Plane
 4. Trigger the spin-up workflow
 
 > ⚠️ **Important:** After the first run, copy the `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` from the logs and save them as GitHub Secrets (unless `GH_SECRETS_TOKEN` is configured for auto-save).
@@ -319,7 +319,7 @@ Once saved, all future deployments will use these secrets automatically.
 
 ### Scheduled Teardown (Cost Saving)
 
-Scheduled teardown is optional and managed via the Control Panel (Cloudflare Worker + KV).
+Scheduled teardown is optional and managed via the Control Plane (Cloudflare Worker + KV).
 Enable or disable it at runtime without changing GitHub Actions.
 
 ### Local + CI Coexistence
