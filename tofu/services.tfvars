@@ -1,8 +1,10 @@
 # =============================================================================
 # Nexus-Stack Services Configuration
 # =============================================================================
-# This file defines which services are deployed via Cloudflare Tunnel.
-# Edit this file to enable/disable services or change subdomains.
+# This file defines the available services and their configuration.
+# 
+# The 'enabled' field here is the DEFAULT value - actual enabled status
+# is stored in Cloudflare KV and managed via the Control Plane.
 #
 # Each service creates:
 # - Cloudflare DNS record: <subdomain>.<domain>
@@ -14,6 +16,7 @@
 # CORE SERVICES (core = true):
 # - mailpit: Required for email testing by other services
 # - infisical: Required for secret management
+# - info: Dashboard showing all services
 # These services cannot be disabled from the Control Plane.
 # =============================================================================
 
