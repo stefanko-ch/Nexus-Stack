@@ -284,36 +284,44 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "📦 Deploying Control Plane to Cloudflare Pages..."
+          
+          # Get KV namespace ID from Terraform output
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          KV_NAMESPACE_ID=$(tofu output -raw kv_namespace_id)
+          echo "  KV Namespace ID: $KV_NAMESPACE_ID"
+          cd ../..
+          
           cd control-plane/pages
           # Verify functions directory exists
           if [ ! -d "functions" ]; then
             echo "❌ Error: functions/ directory not found - API endpoints are required!"
             exit 1
           fi
-          # Deploy to production
-          # --branch=main deploys to production (as configured in Terraform: production_branch = "main")
-          # Note: wrangler pages deploy does NOT support --env flag, only --branch
+          
+          # Generate wrangler.toml with KV binding
+          cat > wrangler.toml << EOF
+          name = "nexus-control-plane"
+          compatibility_date = "2024-01-01"
+          
+          [[kv_namespaces]]
+          binding = "SCHEDULED_TEARDOWN"
+          id = "$KV_NAMESPACE_ID"
+          EOF
+          
+          echo "  Generated wrangler.toml with KV binding"
+          
+          # Deploy to production with KV binding
           npx wrangler@latest pages deploy . \
             --project-name=nexus-control-plane \
             --branch=main
-          echo "✅ Control Plane deployed!"
-          echo ""
-          echo "📝 Note: Deployed to production branch (main)"
-          echo "   Environment variables are set for both production and preview environments"
-
-      - name: Re-apply Terraform to ensure KV bindings
-        run: |
-          cd tofu/control-plane
-          source ../.r2-credentials
-          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
-          echo "🔗 Re-applying Terraform to ensure KV bindings are set..."
-          # This ensures the deployment_configs with kv_namespaces are applied
-          # after wrangler pages deploy (which creates a new deployment)
-          tofu apply -var-file=config.tfvars -auto-approve -refresh=true
+          # Clean up generated wrangler.toml
+          rm wrangler.toml
           
-          echo "✅ KV bindings configured"
+          echo "✅ Control Plane deployed with KV bindings!"
 
       - name: Show setup info
         run: |
