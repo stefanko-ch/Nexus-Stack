@@ -129,7 +129,7 @@
 
         .status-dot.deployed { background: #00ff88; }
         .status-dot.torn-down { background: #ffaa00; }
-        .status-dot.destroyed { background: #ff4444; }
+        .status-dot.offline { background: #ff4444; }
         .status-dot.running { background: #00aaff; }
         .status-dot.unknown { background: #666666; }
 
@@ -140,7 +140,7 @@
 
         .status-text.deployed { color: #00ff88; }
         .status-text.torn-down { color: #ffaa00; }
-        .status-text.destroyed { color: #ff4444; }
+        .status-text.offline { color: #ff4444; }
         .status-text.running { color: #00aaff; }
         .status-text.unknown { color: #666666; }
 
@@ -800,7 +800,7 @@
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
             'torn-down': 'Nexus Stack is torn down. Click Spin Up to restart.',
-            'destroyed': 'Nexus Stack is torn down. Click Spin Up to restart.',
+            'offline': 'Nexus Stack is offline. Click Spin Up to deploy.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -854,7 +854,7 @@
             const stateLabels = {
                 'deployed': 'Deployed',
                 'torn-down': 'Torn Down',
-                'destroyed': 'Destroyed',
+                'offline': 'Offline',
                 'running': 'In Progress',
                 'unknown': 'Unknown'
             };
@@ -886,11 +886,8 @@
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
+                case 'offline':
                     btnSpinUp.disabled = false;
-                    btnTeardown.disabled = true;
-                    break;
-                case 'destroyed':
-                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = true;
                     break;
                 case 'unknown':
@@ -921,7 +918,9 @@
             const info = document.getElementById('scheduled-info');
             const delayBtn = document.getElementById('btn-delay-teardown');
             
-            if (config.enabled) {
+            // Handle both boolean and string 'true'/'false'
+            const isEnabled = config.enabled === true || config.enabled === 'true';
+            if (isEnabled) {
                 toggle.classList.add('active');
                 const now = new Date();
                 const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
