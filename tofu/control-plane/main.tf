@@ -65,6 +65,7 @@ resource "cloudflare_pages_project" "control_plane" {
         GITHUB_OWNER    = var.github_owner
         GITHUB_REPO     = var.github_repo
         DOMAIN          = var.domain
+        ADMIN_EMAIL     = var.admin_email
         SERVER_TYPE     = var.server_type
         SERVER_LOCATION = var.server_location
       }
@@ -72,6 +73,9 @@ resource "cloudflare_pages_project" "control_plane" {
       kv_namespaces = {
         SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
       }
+      
+      # Note: GITHUB_TOKEN and RESEND_API_KEY are set via wrangler secret
+      # (secrets block in Terraform isn't supported for Pages yet)
     }
 
     preview {
@@ -79,6 +83,7 @@ resource "cloudflare_pages_project" "control_plane" {
         GITHUB_OWNER    = var.github_owner
         GITHUB_REPO     = var.github_repo
         DOMAIN          = var.domain
+        ADMIN_EMAIL     = var.admin_email
         SERVER_TYPE     = var.server_type
         SERVER_LOCATION = var.server_location
       }
