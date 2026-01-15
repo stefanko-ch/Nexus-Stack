@@ -71,7 +71,7 @@ jobs:
 
       - name: Generate config.tfvars
         run: |
-          cat > tofu/config.tfvars << EOF
+          cat > tofu/stack/config.tfvars << EOF
           server_name     = "nexus"
           server_type     = "cax31"
           server_location = "fsn1"
@@ -89,22 +89,22 @@ jobs:
           
           # Add Docker Hub credentials if provided (optional)
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            cat >> tofu/config.tfvars << EOF
+            cat >> tofu/stack/config.tfvars << EOF
           dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
           dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
           EOF
           fi
           
           # Append services from committed services.tfvars
-          cat tofu/services.tfvars >> tofu/config.tfvars
+          cat tofu/services.tfvars >> tofu/stack/config.tfvars
 
       - name: Initialize OpenTofu
         run: |
-          cd tofu
-          source .r2-credentials
+          cd tofu/stack
+          source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          tofu init -backend-config=backend.hcl
+          tofu init -backend-config=../backend.hcl
 
       - name: Spin up infrastructure
         run: make up

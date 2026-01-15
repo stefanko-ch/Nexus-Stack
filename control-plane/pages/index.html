@@ -902,14 +902,22 @@
         async function loadScheduledTeardownConfig() {
             try {
                 const response = await fetch(`${API_URL}/api/scheduled-teardown`, { credentials: 'same-origin' });
-                if (!response.ok) return;
-                
                 const data = await response.json();
+                
                 if (data.success) {
                     updateScheduledTeardownUI(data.config);
+                } else {
+                    // Show error in the scheduled teardown panel
+                    const info = document.getElementById('scheduled-info');
+                    info.textContent = data.error || 'Failed to load configuration';
+                    info.style.color = '#ff4444';
+                    console.error('Scheduled teardown config error:', data.error);
                 }
             } catch (error) {
                 console.error('Failed to load scheduled teardown config:', error);
+                const info = document.getElementById('scheduled-info');
+                info.textContent = 'Failed to connect to API';
+                info.style.color = '#ff4444';
             }
         }
 
@@ -1044,6 +1052,14 @@
                 const name = document.createElement('div');
                 name.className = 'service-name';
                 name.textContent = service.name;
+                
+                // Add "CORE" badge for core services
+                if (service.core) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'font-size: 0.6rem; background: rgba(0, 255, 136, 0.2); color: #00ff88; padding: 0.15rem 0.4rem; margin-left: 0.5rem; border-radius: 3px; vertical-align: middle;';
+                    badge.textContent = 'CORE';
+                    name.appendChild(badge);
+                }
 
                 const description = document.createElement('div');
                 description.className = 'service-description';
@@ -1057,9 +1073,21 @@
                 if (service.enabled) {
                     toggle.classList.add('active');
                 }
+                
+                // Lock toggle for core services
+                if (service.core) {
+                    toggle.classList.add('locked');
+                    toggle.style.opacity = '0.5';
+                    toggle.style.cursor = 'not-allowed';
+                    toggle.title = 'Core service - cannot be disabled';
+                }
 
                 toggle.addEventListener('click', () => {
                     if (toggle.classList.contains('disabled')) return;
+                    if (toggle.classList.contains('locked')) {
+                        showToast(`${service.name} is a core service and cannot be disabled`, 'error');
+                        return;
+                    }
                     updateServiceToggle(service.name, !service.enabled, toggle);
                 });
 
@@ -1288,9 +1316,55 @@
             }
         }
 
-        // Load scheduled teardown config on page load
+        // Load infrastructure info
+        async function loadInfo() {
+            try {
+                const response = await fetch(`${API_URL}/api/info`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success && data.info) {
+                    // Update server info
+                    if (data.info.server) {
+                        document.getElementById('info-server-type').textContent = data.info.server.type || '-';
+                        document.getElementById('info-server-location').textContent = data.info.server.location || '-';
+                        document.getElementById('info-domain').textContent = data.info.server.domain || '-';
+                    }
+                    
+                    // Update time info
+                    if (data.info.time) {
+                        if (data.info.time.lastDeploy) {
+                            document.getElementById('info-last-deploy').textContent = 
+                                new Date(data.info.time.lastDeploy).toLocaleString();
+                        } else {
+                            document.getElementById('info-last-deploy').textContent = '-';
+                        }
+                        
+                        if (data.info.time.lastTeardown) {
+                            document.getElementById('info-last-teardown').textContent = 
+                                new Date(data.info.time.lastTeardown).toLocaleString();
+                        } else {
+                            document.getElementById('info-last-teardown').textContent = '-';
+                        }
+                        
+                        if (data.info.time.uptime) {
+                            const u = data.info.time.uptime;
+                            document.getElementById('info-uptime').textContent = 
+                                `${u.days}d ${u.hours}h ${u.minutes}m`;
+                        } else {
+                            document.getElementById('info-uptime').textContent = '-';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load info:', error);
+            }
+        }
+
+        // Load all data on page load
         loadServices();
         loadScheduledTeardownConfig();
+        loadInfo();
 
         // Polling with exponential backoff on errors
         let consecutiveErrors = 0;

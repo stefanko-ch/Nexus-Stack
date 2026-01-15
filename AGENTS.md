@@ -49,16 +49,22 @@ Nexus-Stack/
 │       ├── destroy-all.yml     # Destroy workflow (full cleanup)
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
-│   ├── main.tf                 # Core infrastructure (server, tunnel, DNS, access)
-│   ├── control-plane.tf        # Cloudflare Pages + Worker configuration
-│   ├── variables.tf            # Input variable definitions
-│   ├── outputs.tf              # Output definitions
-│   ├── providers.tf            # Provider configuration
+│   ├── backend.hcl             # Shared R2 backend configuration
+│   ├── services.tfvars         # Service configuration (enabled/disabled)
 │   ├── config.tfvars.example   # Template for user config
-│   └── services.tfvars         # Service configuration (enabled/disabled)
+│   ├── stack/                  # Server, tunnel, services state
+│   │   ├── main.tf             # Core infrastructure (server, tunnel, DNS)
+│   │   ├── variables.tf        # Input variable definitions
+│   │   ├── outputs.tf          # Output definitions
+│   │   └── providers.tf        # Provider configuration
+│   └── control-plane/          # Control Plane state (separate)
+│       ├── main.tf             # Pages, Worker, KV, Access
+│       ├── variables.tf        # Input variable definitions
+│       ├── outputs.tf          # Output definitions
+│       └── providers.tf        # Provider configuration
 ├── stacks/                     # Docker Compose stacks (one folder per service)
 │   └── <service>/docker-compose.yml
-├── control-plane/              # Control Plane (Cloudflare Pages)
+├── control-panel/              # Control Plane (Cloudflare Pages)
 │   ├── pages/                  # Pages frontend + Functions
 │   │   ├── index.html          # Frontend UI
 │   │   ├── functions/api/      # API endpoints (deploy, teardown, status, etc.)
@@ -69,9 +75,9 @@ Nexus-Stack/
 ├── scripts/
 │   ├── deploy.sh               # Post-infrastructure deployment script
 │   ├── init-r2-state.sh        # R2 bucket + credentials setup
-│   ├── setup-control-plane-secrets.sh  # Control Plane secrets setup
+│   ├── setup-control-panel-secrets.sh  # Control Panel secrets setup
 │   ├── generate-info-page.sh   # Info page generation
-│   └── check-control-plane-env.sh
+│   └── check-control-panel-env.sh
 └── docs/                       # Documentation
     ├── CONTRIBUTING.md         # Contribution guidelines
     ├── setup-guide.md          # Setup instructions
@@ -121,7 +127,7 @@ When adding a new Docker stack, **all locations must be updated**:
 
 2. **Register the service in Terraform:**
    - Add to `services` map in `tofu/config.tfvars.example` (for documentation)
-   - Add to `services` map in `tofu/config.tfvars` (for deployment)
+   - Add to `services` map in `tofu/stack/config.tfvars` (for deployment)
    - Use matching port number from docker-compose.yml
 
 3. **Update README.md:**
@@ -129,8 +135,8 @@ When adding a new Docker stack, **all locations must be updated**:
    - Add row to the "Available Stacks" table with description and website link
 
 4. **Add admin credentials (if service has admin UI):**
-   - Add `random_password.<service>_admin` resource in `tofu/main.tf`
-   - Add password to `secrets` output in `tofu/outputs.tf`
+   - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
+   - Add password to `secrets` output in `tofu/stack/outputs.tf`
    - Add auto-setup API call in `scripts/deploy.sh` (Step 6/6)
    - Add password to Infisical secrets push payload
    - Update `make secrets` command in `Makefile`
