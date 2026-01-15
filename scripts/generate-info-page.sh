@@ -12,7 +12,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TFVARS_FILE="$PROJECT_ROOT/tofu/config.tfvars"
+TFVARS_FILE="$PROJECT_ROOT/tofu/stack/config.tfvars"
 TEMPLATE_FILE="$PROJECT_ROOT/stacks/info/html/index.template.html"
 OUTPUT_FILE="$PROJECT_ROOT/stacks/info/html/index.html"
 
