@@ -1,4 +1,4 @@
-.PHONY: up down status ssh logs init plan urls secrets destroy deploy-control-panel setup-control-panel-secrets
+.PHONY: up down status ssh logs init plan urls secrets destroy deploy-control-plane setup-control-plane-secrets
 
 # =============================================================================
 # Nexus-Stack - Makefile
@@ -92,8 +92,8 @@ up: check-env
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
 	@echo ""
-	@echo "📦 Deploying Control Panel..."
-	@$(MAKE) deploy-control-panel || echo "⚠️  Control Panel deployment skipped (set CLOUDFLARE_API_TOKEN to enable)"
+	@echo "📦 Deploying Control Plane..."
+	@$(MAKE) deploy-control-plane || echo "⚠️  Control Plane deployment skipped (set CLOUDFLARE_API_TOKEN to enable)"
 
 # Teardown infrastructure (keeps R2 state for re-deploy)
 teardown: check-env
@@ -260,30 +260,30 @@ destroy-all: teardown
 	@echo "To start fresh, run:"
 	@echo "  source .env && make init"
 
-# Deploy Control Panel to Cloudflare Pages
-deploy-control-panel:
+# Deploy Control Plane to Cloudflare Pages
+deploy-control-plane:
 	@if [ -z "$$TF_VAR_cloudflare_api_token" ]; then \
-		echo "⚠️  CLOUDFLARE_API_TOKEN not set - skipping Control Panel deployment"; \
+		echo "⚠️  CLOUDFLARE_API_TOKEN not set - skipping Control Plane deployment"; \
 		echo "   Set TF_VAR_cloudflare_api_token in .env to enable auto-deployment"; \
 		exit 0; \
 	fi
-	@echo "📦 Deploying Control Panel to Cloudflare Pages..."
-	@if [ ! -d "control-panel/pages/functions" ]; then \
-		echo "❌ Error: control-panel/pages/functions/ not found!"; \
+	@echo "📦 Deploying Control Plane to Cloudflare Pages..."
+	@if [ ! -d "control-plane/pages/functions" ]; then \
+		echo "❌ Error: control-plane/pages/functions/ not found!"; \
 		exit 1; \
 	fi
-	@cd control-panel/pages && \
+	@cd control-plane/pages && \
 		export CLOUDFLARE_API_TOKEN="$$TF_VAR_cloudflare_api_token" && \
 		npx wrangler@latest pages deploy . \
-			--project-name=nexus-control \
+			--project-name=nexus-control-plane \
 			--branch=main \
 			--commit-message="Auto-deploy via Makefile"
-	@echo "✅ Control Panel deployed!"
+	@echo "✅ Control Plane deployed!"
 	@echo ""
 	@echo "⚠️  Don't forget to set GITHUB_TOKEN secret:"
-	@echo "   make setup-control-panel-secrets"
+	@echo "   make setup-control-plane-secrets"
 
-setup-control-panel-secrets:
-	@echo "🔐 Setting up Control Panel secrets..."
-	@chmod +x scripts/setup-control-panel-secrets.sh
-	@./scripts/setup-control-panel-secrets.sh
+setup-control-plane-secrets:
+	@echo "🔐 Setting up Control Plane secrets..."
+	@chmod +x scripts/setup-control-plane-secrets.sh
+	@./scripts/setup-control-plane-secrets.sh

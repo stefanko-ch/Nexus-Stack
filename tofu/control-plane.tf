@@ -1,7 +1,7 @@
 # =============================================================================
-# Control Panel - Cloudflare Pages with Functions
+# Control Plane - Cloudflare Pages with Functions
 # =============================================================================
-# This creates the control panel infrastructure on Cloudflare.
+# This creates the control plane infrastructure on Cloudflare.
 # It survives "teardown" but is destroyed on "destroy-all".
 # 
 # Uses Cloudflare Pages Functions for the API (no separate Worker needed).
@@ -22,7 +22,7 @@ resource "cloudflare_workers_kv_namespace" "scheduled_teardown" {
 resource "cloudflare_workers_script" "scheduled_teardown" {
   account_id = var.cloudflare_account_id
   name       = "${var.server_name}-scheduled-teardown"
-  content    = file("${path.module}/../control-panel/worker/src/index.js")
+  content    = file("${path.module}/../control-plane/worker/src/index.js")
   module     = true
 
   kv_namespace_binding {
@@ -58,15 +58,15 @@ resource "cloudflare_workers_cron_trigger" "scheduled_teardown_execution" {
 # Cloudflare Pages Project (Frontend + API Functions)
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_pages_project" "control_panel" {
+resource "cloudflare_pages_project" "control_plane" {
   account_id        = var.cloudflare_account_id
-  name              = "${var.server_name}-control"
+  name              = "${var.server_name}-control-plane"
   production_branch = "main"
   
   build_config {
     build_command   = ""
     destination_dir = "pages"
-    root_dir        = "control-panel"
+    root_dir        = "control-plane"
   }
   
   deployment_configs {
@@ -85,7 +85,7 @@ resource "cloudflare_pages_project" "control_panel" {
       }
       
       # GITHUB_TOKEN must be set as secret via:
-      # wrangler pages secret put GITHUB_TOKEN --project-name=${var.server_name}-control
+      # wrangler pages secret put GITHUB_TOKEN --project-name=${var.server_name}-control-plane
       # or via Cloudflare dashboard
     }
 
@@ -115,31 +115,31 @@ resource "cloudflare_pages_project" "control_panel" {
 # -----------------------------------------------------------------------------
 
 # CNAME record pointing to the Pages project
-resource "cloudflare_record" "control_panel" {
+resource "cloudflare_record" "control_plane" {
   zone_id = var.cloudflare_zone_id
   name    = "control"
-  content = "${cloudflare_pages_project.control_panel.name}.pages.dev"
+  content = "${cloudflare_pages_project.control_plane.name}.pages.dev"
   type    = "CNAME"
   proxied = true
   ttl     = 1
 }
 
 # Custom Domain for Cloudflare Pages (binds the domain to the Pages project)
-resource "cloudflare_pages_domain" "control_panel" {
+resource "cloudflare_pages_domain" "control_plane" {
   account_id   = var.cloudflare_account_id
-  project_name = cloudflare_pages_project.control_panel.name
+  project_name = cloudflare_pages_project.control_plane.name
   domain       = "control.${var.domain}"
   
-  depends_on = [cloudflare_record.control_panel]
+  depends_on = [cloudflare_record.control_plane]
 }
 
 # -----------------------------------------------------------------------------
 # Cloudflare Access Protection
 # -----------------------------------------------------------------------------
 
-resource "cloudflare_zero_trust_access_application" "control_panel" {
+resource "cloudflare_zero_trust_access_application" "control_plane" {
   zone_id          = var.cloudflare_zone_id
-  name             = "${var.server_name} Control Panel"
+  name             = "${var.server_name} Control Plane"
   domain           = "control.${var.domain}"
   type             = "self_hosted"
   session_duration = "24h"
@@ -162,10 +162,10 @@ resource "cloudflare_zero_trust_access_application" "control_panel" {
   }
 }
 
-# Control Panel Access Policy (Email OTP)
-resource "cloudflare_zero_trust_access_policy" "control_panel_email" {
+# Control Plane Access Policy (Email OTP)
+resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
   account_id     = var.cloudflare_account_id
-  application_id = cloudflare_zero_trust_access_application.control_panel.id
+  application_id = cloudflare_zero_trust_access_application.control_plane.id
   name           = "Email Access"
   precedence     = 1
   decision       = "allow"

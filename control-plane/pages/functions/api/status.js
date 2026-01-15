@@ -17,7 +17,7 @@ export async function onRequestGet(context) {
   if (missing.length > 0) {
     return new Response(JSON.stringify({ 
       success: false, 
-      error: `Missing required environment variables: ${missing.join(', ')}. Configure them in Cloudflare Dashboard: Pages → nexus-control → Settings → Environment Variables → Secrets, or run: make setup-control-panel-secrets` 
+      error: `Missing required environment variables: ${missing.join(', ')}. Configure them in Cloudflare Dashboard: Pages → nexus-control-plane → Settings → Environment Variables → Secrets, or run: make setup-control-plane-secrets` 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -39,7 +39,7 @@ export async function onRequestGet(context) {
       headers: {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Panel',
+        'User-Agent': 'Nexus-Stack-Control-Plane',
       },
     });
 

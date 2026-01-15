@@ -60,7 +60,7 @@ source .env && make up
 ```
 
 That's it! After a few minutes you'll have:
-- `https://control.yourdomain.com` - Control Panel to manage infrastructure
+- `https://control.yourdomain.com` - Control Plane to manage infrastructure
 - `https://it-tools.yourdomain.com` - IT-Tools (protected by Cloudflare Access)
 - `https://info.yourdomain.com` - Service dashboard
 - `ssh nexus` - SSH access via Cloudflare Tunnel
@@ -104,7 +104,7 @@ Create a Custom Token with these permissions:
 - **Account:Workers R2 Storage:Edit** ← Required for remote state
 - **Account:Workers KV Storage:Edit** ← Required for KV namespaces
 - **Account:Workers Scripts:Edit** ← Required for scheduled teardown worker and KV namespaces
-- **Account:Cloudflare Pages:Edit** ← Required for Control Panel
+- **Account:Cloudflare Pages:Edit** ← Required for Control Plane
 
 See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for details.
 
@@ -147,7 +147,7 @@ This doubles your limit to 200 pulls/6h with a free account.
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Info** | Landing page with service overview dashboard | — |
 
-## 🎮 Control Panel
+## 🎮 Control Plane
 
 Manage your Nexus-Stack infrastructure via web interface:
 
@@ -156,15 +156,14 @@ https://control.YOUR_DOMAIN
 ```
 
 **Features:**
-- 🧰 **Setup** - One-time setup workflow (bootstraps control panel + triggers spin-up)
 - ⚡ **Spin Up** - Re-create infrastructure after teardown
-- 💤 **Teardown** - Stop infrastructure (keeps control panel + state)
+- 💤 **Teardown** - Stop infrastructure (keeps control plane + state)
 - 🧩 **Services** - Enable/disable services and trigger spin-up
 - 📊 **Status** - Real-time workflow monitoring
 
-The control panel is deployed via Cloudflare Pages and survives teardown. Protected by Cloudflare Access.
+The control plane is deployed via Cloudflare Pages and survives teardown. Protected by Cloudflare Access.
 
-→ See [control-panel/README.md](control-panel/README.md) for setup details.
+→ See [control-plane/README.md](control-plane/README.md) for setup details.
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
 
@@ -338,9 +337,9 @@ Deploy entirely via CI - no local tools required!
 
 5. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
 6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
-7. Control Panel environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
+7. Control Plane environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
 
-**Note:** The Control Panel requires `GITHUB_TOKEN` to be set with the following permissions:
+**Note:** The Control Plane requires `GITHUB_TOKEN` to be set with the following permissions:
 
 **For Classic Tokens:**
 - `workflow` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
@@ -351,15 +350,15 @@ Deploy entirely via CI - no local tools required!
 - `Actions: Write` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
 - `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
 - `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
-- `Contents: Write` - Update `tofu/services.tfvars` from the Control Panel
+- `Contents: Write` - Update `tofu/services.tfvars` from the Control Plane
 
 **Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token. The `Contents: Read` permission is required for the token to access the `main` branch when triggering workflows.
 
 Set the token manually:
 ```bash
-make setup-control-panel-secrets
+make setup-control-plane-secrets
 # Or manually via Cloudflare Dashboard:
-# Pages → nexus-control → Settings → Environment Variables → Secrets
+# Pages → nexus-control-plane → Settings → Environment Variables → Secrets
 ```
 
 ### Available Workflows
@@ -373,15 +372,15 @@ make setup-control-panel-secrets
 
 ### Scheduled Teardown (Cost Saving - Optional)
 
-Nexus-Stack can automatically tear down infrastructure daily to save costs. This feature is **optional** and must be enabled via the Control Panel.
+Nexus-Stack can automatically tear down infrastructure daily to save costs. This feature is **optional** and must be enabled via the Control Plane.
 
 **Features:**
 - **Email notification** sent 15 minutes before teardown (21:45)
 - **Automatic teardown** runs daily at 22:00
 - **Default timezone**: Europe/Zurich (Switzerland)
-- **Configurable**: Enable/disable and configure via Control Panel API
+- **Configurable**: Enable/disable and configure via Control Plane API
 
-**Enable via Control Panel:**
+**Enable via Control Plane:****
 ```bash
 # Enable scheduled teardown
 curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
@@ -394,7 +393,7 @@ curl https://control.YOUR_DOMAIN/api/scheduled-teardown
 
 **Architecture:**
 - Cloudflare Worker runs scheduled cron jobs (20:45 UTC for notification, 21:00 UTC for teardown)
-- Configuration stored in Cloudflare KV (accessible via Control Panel API)
+- Configuration stored in Cloudflare KV (accessible via Control Plane API)
 - Worker checks if scheduled teardown is enabled before triggering actions
 - Default: **disabled** (must be explicitly enabled)
 
