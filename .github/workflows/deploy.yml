@@ -301,6 +301,19 @@ jobs:
           echo "📝 Note: Deployed to production branch (main)"
           echo "   Environment variables are set for both production and preview environments"
 
+      - name: Re-apply Terraform to ensure KV bindings
+        run: |
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          echo "🔗 Re-applying Terraform to ensure KV bindings are set..."
+          # This ensures the deployment_configs with kv_namespaces are applied
+          # after wrangler pages deploy (which creates a new deployment)
+          tofu apply -var-file=config.tfvars -auto-approve -refresh=true
+          
+          echo "✅ KV bindings configured"
 
       - name: Show setup info
         run: |
