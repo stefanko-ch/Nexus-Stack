@@ -392,16 +392,38 @@ Merge branch 'main' into feat   → Merge commits should not be PR titles
 
 **When addressing PR review comments, respond directly to each individual comment, not with a summary comment.**
 
-- Use `gh api` or GitHub web interface to reply to each review comment thread
+- Use `gh api` to reply to each review comment thread
 - Each fix should be addressed with a direct reply to the specific comment
 - This creates clear traceability between comments and fixes
 - Only use summary comments if explicitly requested by the reviewer
 
-**Example workflow:**
-1. Read all PR review comments
+**How to reply directly to a PR review comment:**
+
+```bash
+# 1. Get the comment ID from the PR review comments
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments
+
+# 2. Reply to a specific comment using in_reply_to
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
+  -X POST \
+  -f body="Fixed in commit abc1234 - description of fix" \
+  -F in_reply_to=COMMENT_ID
+```
+
+**Example:**
+```bash
+# Reply to comment ID 2695714963 on PR #97
+gh api repos/stefanko-ch/Nexus-Stack/pulls/97/comments \
+  -X POST \
+  -f body="Fixed in commit 53fa498 - removed redundant text." \
+  -F in_reply_to=2695714963
+```
+
+**Workflow:**
+1. Get all PR review comments: `gh api repos/OWNER/REPO/pulls/PR/comments`
 2. Fix each issue in code
-3. Commit fixes
-4. Reply directly to each comment thread indicating the fix
+3. Commit fixes with descriptive message
+4. Reply directly to each comment thread with the commit reference
 5. Push changes
 
 ### Branch Naming
