@@ -1081,31 +1081,23 @@
                 details.appendChild(name);
                 details.appendChild(description);
 
-                const toggle = document.createElement('div');
-                toggle.className = 'toggle-switch service-toggle';
-                if (service.enabled) {
-                    toggle.classList.add('active');
-                }
-                
-                // Lock toggle for core services
-                if (service.core) {
-                    toggle.classList.add('locked');
-                    toggle.style.opacity = '0.5';
-                    toggle.style.cursor = 'not-allowed';
-                    toggle.title = 'Core service - cannot be disabled';
-                }
-
-                toggle.addEventListener('click', () => {
-                    if (toggle.classList.contains('disabled')) return;
-                    if (toggle.classList.contains('locked')) {
-                        showToast(`${service.name} is a core service and cannot be disabled`, 'error');
-                        return;
+                // Don't show toggle for core services at all
+                if (!service.core) {
+                    const toggle = document.createElement('div');
+                    toggle.className = 'toggle-switch service-toggle';
+                    if (service.enabled) {
+                        toggle.classList.add('active');
                     }
-                    updateServiceToggle(service.name, !service.enabled, toggle);
-                });
+
+                    toggle.addEventListener('click', () => {
+                        if (toggle.classList.contains('disabled')) return;
+                        updateServiceToggle(service.name, !service.enabled, toggle);
+                    });
+
+                    item.appendChild(toggle);
+                }
 
                 item.appendChild(details);
-                item.appendChild(toggle);
                 list.appendChild(item);
             });
         }
