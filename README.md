@@ -340,7 +340,7 @@ Deploy entirely via CI - no local tools required!
 
 4. Run first setup:
    ```bash
-   gh workflow run deploy.yml
+   gh workflow run initial-setup.yaml
    ```
 
 5. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
@@ -373,7 +373,8 @@ make setup-control-plane-secrets
 
 | Workflow | Command | Description |
 |----------|---------|-------------|
-| **Setup** | `gh workflow run deploy.yml` | One-time setup (triggers spin-up) |
+| **Initial Setup** | `gh workflow run initial-setup.yaml` | One-time setup (Control Plane + Spin Up) |
+| **Setup Control Plane** | `gh workflow run setup-control-plane.yaml` | Setup Control Plane only |
 | **Spin Up** | `gh workflow run spin-up.yml` | Re-create infrastructure after teardown |
 | **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
 | **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |

@@ -89,7 +89,7 @@ npx wrangler pages deploy . --project-name=nexus-control-plane
 ⚠️ **Test in this order to avoid destroying infrastructure:**
 
 1. Click **"Deploy"** button
-   - Should trigger `deploy.yml` workflow
+   - Should trigger `setup-control-plane.yaml` workflow
    - Check GitHub Actions tab for running workflow
    - Status should update to "Running"
 

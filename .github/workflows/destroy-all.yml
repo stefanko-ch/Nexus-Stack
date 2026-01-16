@@ -179,4 +179,4 @@ jobs:
           echo "   - R2 API tokens from Cloudflare"
           echo "   - R2 GitHub Secrets (if GH_SECRETS_TOKEN configured)"
           echo ""
-          echo "To redeploy, run the Deploy workflow."
+          echo "To redeploy, run the Initial Setup workflow."

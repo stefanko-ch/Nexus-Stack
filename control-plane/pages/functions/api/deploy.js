@@ -1,8 +1,8 @@
 /**
- * Trigger Deploy workflow
- * POST /api/deploy
+ * Trigger Setup Control Plane workflow
+ * POST /api/deploy (legacy endpoint name for backward compatibility)
  * 
- * Triggers the GitHub Actions deploy.yml workflow.
+ * Triggers the GitHub Actions setup-control-plane.yaml workflow.
  * Includes validation, error handling, and retry logic.
  */
 export async function onRequestPost(context) {
@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
     });
   }
 
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/deploy.yml/dispatches`;
+  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/setup-control-plane.yaml/dispatches`;
   
   try {
     const response = await fetch(url, {
