@@ -4,28 +4,35 @@ This document provides detailed information about all available Docker stacks in
 
 ## Docker Image Versions
 
-All Docker images are pinned to specific versions for stability. Versions are defined in [`tofu/image-versions.tfvars`](../tofu/image-versions.tfvars).
+Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`tofu/image-versions.tfvars`](../tofu/image-versions.tfvars).
 
-| Service | Image | Version |
-|---------|-------|---------|
-| Grafana | `grafana/grafana` | `12.3.1` |
-| Prometheus | `prom/prometheus` | `v3.9.1` |
-| Loki | `grafana/loki` | `3.6.3` |
-| Promtail | `grafana/promtail` | `3.6.3` |
-| cAdvisor | `gcr.io/cadvisor/cadvisor` | `v0.56.1` |
-| Node Exporter | `prom/node-exporter` | `v1.10.2` |
-| Portainer | `portainer/portainer-ce` | `2.33.6` |
-| Uptime Kuma | `louislam/uptime-kuma` | `2.0.2` |
-| n8n | `n8nio/n8n` | `1.123.15` |
-| Kestra | `kestra/kestra` | `v1.0.22` |
-| Infisical | `infisical/infisical` | `v0.155.5` |
-| Metabase | `metabase/metabase` | `v0.58.2.3` |
-| Mailpit | `axllent/mailpit` | `v1.28.2` |
-| IT-Tools | `corentinth/it-tools` | `2024.10.22-7ca5933` |
-| Excalidraw | `excalidraw/excalidraw` | `latest` ¹ |
-| Nginx (Info) | `nginx` | `alpine` |
+| Service | Image | Tag | Strategy |
+|---------|-------|-----|----------|
+| Grafana | `grafana/grafana` | `12` | Major |
+| Prometheus | `prom/prometheus` | `v3` | Major |
+| Loki | `grafana/loki` | `3` | Major |
+| Promtail | `grafana/promtail` | `3` | Major |
+| cAdvisor | `gcr.io/cadvisor/cadvisor` | `v0.56` | Minor |
+| Node Exporter | `prom/node-exporter` | `v1` | Major |
+| Portainer | `portainer/portainer-ce` | `2` | Major |
+| Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
+| n8n | `n8nio/n8n` | `1` | Major |
+| Kestra | `kestra/kestra` | `v1` | Major |
+| Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
+| Metabase | `metabase/metabase` | `v0.58` | Minor |
+| Mailpit | `axllent/mailpit` | `v1` | Major |
+| IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
+| Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Nginx (Info) | `nginx` | `alpine` | Rolling |
 
-¹ Excalidraw only publishes `latest` tags, no semantic versions available.
+¹ No major version tags available, requires manual updates.  
+² Only `latest` tags published, no semantic versions available.
+
+**Strategies:**
+- **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
+- **Minor** (e.g., `:v0.58`) - Auto-patches within minor version
+- **Exact** (e.g., `:v0.155.5`) - Full control, manual all updates
+- **Latest** - Always newest version (when no semver available)
 
 **To upgrade**: Edit the version in `tofu/image-versions.tfvars` and run Spin-Up.
 
