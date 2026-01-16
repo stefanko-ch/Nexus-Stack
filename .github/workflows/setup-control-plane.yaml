@@ -226,9 +226,9 @@ jobs:
         id: r2_credentials
         run: |
           source tofu/.r2-credentials
-          # Mask the credentials in logs
-          echo "::add-mask::$R2_ACCESS_KEY_ID"
-          echo "::add-mask::$R2_SECRET_ACCESS_KEY"
+          # Note: Don't mask credentials here - masking prevents them from being
+          # passed as workflow outputs (GitHub blocks outputs containing masked values)
+          # The credentials will be masked by the receiving workflow when used
           # Export as outputs for the calling workflow
           echo "r2_access_key_id=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
           echo "r2_secret_access_key=$R2_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
