@@ -17,6 +17,7 @@ image_versions = {
   # -------------------------------------------------------------------------
   # Main Services (major version pinning where supported)
   # -------------------------------------------------------------------------
+  cloudbeaver      = "dbeaver/cloudbeaver:24"                # Major: 24.x.x
   excalidraw       = "excalidraw/excalidraw:latest"          # No semver tags available
   grafana          = "grafana/grafana:12"                    # Major: 12.x.x
   infisical        = "infisical/infisical:v0.155.5"          # No major tags, exact only
