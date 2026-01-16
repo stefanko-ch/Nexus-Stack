@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-v-in-tag": true,
+  "include-component-in-tag": false,
+  "changelog-sections": [
+    { "type": "feat", "section": "🚀 Features" },
+    { "type": "fix", "section": "🐛 Bug Fixes" },
+    { "type": "refactor", "section": "♻️ Refactoring" },
+    { "type": "perf", "section": "⚡ Performance" },
+    { "type": "docs", "section": "📚 Documentation" },
+    { "type": "chore", "section": "🔧 Maintenance", "hidden": false },
+    { "type": "ci", "section": "🔧 Maintenance", "hidden": false },
+    { "type": "build", "section": "🔧 Maintenance", "hidden": false },
+    { "type": "test", "section": "🧪 Tests", "hidden": true },
+    { "type": "style", "section": "💄 Style", "hidden": true }
+  ],
+  "packages": {
+    ".": {
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
