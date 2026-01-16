@@ -2,13 +2,14 @@ name: Validate Workflows
 
 on:
   push:
-    branches-ignore:
-      - main
     paths:
       - '.github/workflows/**'
   pull_request:
     paths:
       - '.github/workflows/**'
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -18,17 +19,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install actionlint
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash
-          sudo mv actionlint /usr/local/bin/
-
       - name: Validate workflow files
-        run: |
-          echo "🔍 Validating GitHub Actions workflow files..."
-          
-          # Run actionlint on all workflow files
-          # Ignore shellcheck info-level messages (SC2086 etc.)
-          actionlint -ignore 'SC2086|SC2129' .github/workflows/*.yaml .github/workflows/*.yml
-          
-          echo "✅ All workflow files are valid!"
+        uses: raven-actions/actionlint@v2
+        with:
+          matcher: true
+          flags: "-ignore SC2086 -ignore SC2129"
+          # SC2086: Double quote warnings - noisy in GHA where unquoted expressions are common
+          # SC2129: Multiple redirections - safe in workflow scripts
