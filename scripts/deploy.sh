@@ -256,11 +256,15 @@ fi
 # Create remote stacks directory
 ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 
-# Generate global image versions .env file
-echo "  Creating image versions config..."
-IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
+# Generate global .env file with image versions and DOMAIN
+echo "  Creating global .env config..."
+ENV_CONTENT="# Auto-generated global config - DO NOT EDIT
 # Managed by OpenTofu via image-versions.tfvars
-#
+
+# Domain for service URLs
+DOMAIN=$DOMAIN
+
+# Docker image versions
 # Keys are transformed to environment variables by:
 #   - replacing '-' with '_'
 #   - converting to upper-case
@@ -269,11 +273,11 @@ IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
 "
 # Parse JSON and create IMAGE_XXX=value lines
 if [ "$IMAGE_VERSIONS_JSON" != "{}" ]; then
-    IMAGE_ENV_CONTENT+=$(echo "$IMAGE_VERSIONS_JSON" | jq -r 'to_entries | .[] | "IMAGE_\(.key | gsub("-"; "_") | ascii_upcase)=\(.value)"')
+    ENV_CONTENT+=$(echo "$IMAGE_VERSIONS_JSON" | jq -r 'to_entries | .[] | "IMAGE_\(.key | gsub("-"; "_") | ascii_upcase)=\(.value)"')
 fi
 # Write to server
-echo "$IMAGE_ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
-echo -e "${GREEN}  ✓ Image versions config created${NC}"
+echo "$ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
+echo -e "${GREEN}  ✓ Global .env config created (DOMAIN + image versions)${NC}"
 
 # Generate info page if info stack is enabled
 if echo "$ENABLED_SERVICES" | grep -qw "info"; then
