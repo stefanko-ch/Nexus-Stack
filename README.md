@@ -50,8 +50,10 @@
 - **[cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)** - Required locally for SSH proxy through Cloudflare Tunnel (macOS: `brew install cloudflared`)
 - **[Hetzner Cloud](https://console.hetzner.cloud/) account** - For the server
 - **[Cloudflare](https://cloudflare.com) account** - Free tier is sufficient
+- **[Resend](https://resend.com) account** - For email notifications (credentials, status updates)
 - **A domain** - Can be purchased from any registrar, but must be [added to Cloudflare](https://developers.cloudflare.com/fundamentals/setup/manage-domains/add-site/) (Cloudflare manages DNS)
 - **SSH key pair** - Must exist at `~/.ssh/id_ed25519`. Generate with: `ssh-keygen -t ed25519`
+- **[Docker Hub](https://hub.docker.com) account** *(optional)* - Increases pull rate limits for Docker images
 
 ## Getting Started
 
@@ -78,6 +80,7 @@ After deployment you'll have:
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
 ![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
+![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -91,6 +94,7 @@ After deployment you'll have:
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
+| **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **Info** | Landing page with service overview dashboard | — |
 
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
@@ -267,6 +271,7 @@ Deploy entirely via CI - no local tools required!
 | **Spin Up** | Re-create infrastructure after teardown |
 | **Teardown** | Teardown infrastructure (keeps state) |
 | **Destroy All** | Delete everything |
+| **Cleanup Orphaned Resources** | Manual cleanup of orphaned Cloudflare resources |
 
 ```bash
 # First time setup
@@ -276,6 +281,9 @@ gh workflow run initial-setup.yaml
 # Or via CLI:
 gh workflow run spin-up.yml
 gh workflow run teardown.yml
+
+# Manual cleanup (if needed)
+gh workflow run cleanup-orphaned-resources.yml
 ```
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for configuration details.
