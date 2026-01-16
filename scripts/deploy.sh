@@ -292,18 +292,6 @@ EOF
     echo -e "${GREEN}  ✓ Kestra .env generated${NC}"
 fi
 
-# Generate n8n .env from OpenTofu secrets
-if echo "$ENABLED_SERVICES" | grep -qw "n8n"; then
-    echo "  Generating n8n config from OpenTofu secrets..."
-    cat > "$STACKS_DIR/n8n/.env" << EOF
-# Auto-generated from OpenTofu secrets - DO NOT COMMIT
-DOMAIN=$DOMAIN
-N8N_ADMIN_USER=$ADMIN_USERNAME
-N8N_ADMIN_PASSWORD=$N8N_PASS
-EOF
-    echo -e "${GREEN}  ✓ n8n .env generated${NC}"
-fi
-
 # Sync only enabled stacks
 for service in $ENABLED_SERVICES; do
     if [ -d "$STACKS_DIR/$service" ]; then
@@ -474,7 +462,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "metabase" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -491,6 +479,7 @@ EOF
                     KUMA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="uptime-kuma") | .id // empty' 2>/dev/null)
                     GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
                     N8N_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="n8n") | .id // empty' 2>/dev/null)
+                    KESTRA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="kestra") | .id // empty' 2>/dev/null)
                     METABASE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="metabase") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
@@ -526,6 +515,8 @@ EOF
     {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]},
+    {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$KESTRA_TAG"]},
+    {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": ["$KESTRA_TAG"]},
     {"secretKey": "METABASE_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$METABASE_TAG"]},
     {"secretKey": "METABASE_PASSWORD", "secretValue": "$METABASE_PASS", "tagIds": ["$METABASE_TAG"]}$SSH_KEY_SECRET
   ]
@@ -586,6 +577,48 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; 
         fi
     ) &
     CONFIG_JOBS+=($!)
+fi
+
+# Configure n8n owner account
+if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
+    echo "  Configuring n8n..."
+    
+    # Wait for n8n to be ready
+    echo "  Waiting for n8n to be ready..."
+    N8N_READY=false
+    for i in $(seq 1 30); do
+        N8N_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:5678/healthz 2>/dev/null" || echo "000")
+        if [ "$N8N_HEALTH" = "200" ]; then
+            N8N_READY=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$N8N_READY" = "false" ]; then
+        echo -e "${YELLOW}  ⚠ n8n not ready after 60s - skipping config${NC}"
+    else
+        # Check if setup is needed
+        SETUP_CHECK=$(ssh nexus "curl -s http://localhost:5678/rest/settings" 2>/dev/null || echo "{}")
+        IS_SETUP_DONE=$(echo "$SETUP_CHECK" | jq -r '.data.userManagement.showSetupOnFirstLoad // true' 2>/dev/null || echo "true")
+        
+        if [ "$IS_SETUP_DONE" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ n8n already configured${NC}"
+        else
+            # Create owner account via API
+            N8N_SETUP_PAYLOAD="{\"email\":\"$ADMIN_EMAIL\",\"firstName\":\"Admin\",\"lastName\":\"User\",\"password\":\"$N8N_PASS\"}"
+            N8N_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:5678/rest/owner/setup' \
+                -H 'Content-Type: application/json' \
+                -d '$N8N_SETUP_PAYLOAD'" 2>&1 || echo "")
+            
+            if echo "$N8N_RESULT" | grep -q '"id"'; then
+                echo -e "${GREEN}  ✓ n8n owner account created (email: $ADMIN_EMAIL)${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ n8n auto-setup failed - configure manually at first login${NC}"
+                echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
+            fi
+        fi
+    fi
 fi
 
 # Configure Uptime Kuma admin

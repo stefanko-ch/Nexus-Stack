@@ -90,9 +90,9 @@ variable "admin_email" {
 }
 
 variable "admin_username" {
-  description = "Admin username for services like Portainer, Uptime Kuma (default: admin)"
+  description = "Admin username for services like Portainer, Uptime Kuma (default: nexus)"
   type        = string
-  default     = "admin"
+  default     = "nexus"
 }
 
 # =============================================================================

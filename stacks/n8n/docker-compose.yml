@@ -3,7 +3,9 @@
 # https://n8n.${DOMAIN}
 # =============================================================================
 # n8n is a free and source-available workflow automation tool.
-# Login: Uses basic auth configured via environment variables
+# Login: Owner account created during first deployment
+# Note: Since n8n 1.0, basic auth is deprecated. Owner setup is required.
+# The setup page is protected by Cloudflare Access.
 # =============================================================================
 
 services:
@@ -18,9 +20,6 @@ services:
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
       - WEBHOOK_URL=https://n8n.${DOMAIN}/
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_ADMIN_USER}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_ADMIN_PASSWORD}
       - GENERIC_TIMEZONE=Europe/Zurich
       - TZ=Europe/Zurich
       # Database (SQLite by default, can upgrade to PostgreSQL)

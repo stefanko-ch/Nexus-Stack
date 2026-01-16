@@ -39,7 +39,7 @@ domain = "your-domain.com"
 admin_email = "your@email.com"
 
 # Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
-# admin_username = "admin"
+# admin_username = "nexus"
 
 # =============================================================================
 # Services
