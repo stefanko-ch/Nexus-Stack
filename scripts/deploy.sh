@@ -260,6 +260,12 @@ ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 echo "  Creating image versions config..."
 IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
 # Managed by OpenTofu via image-versions.tfvars
+#
+# Keys are transformed to environment variables by:
+#   - replacing '-' with '_'
+#   - converting to upper-case
+#   - prefixing with 'IMAGE_'
+# Example: 'node-exporter' -> 'IMAGE_NODE_EXPORTER'
 "
 # Parse JSON and create IMAGE_XXX=value lines
 if [ "$IMAGE_VERSIONS_JSON" != "{}" ]; then
@@ -611,16 +617,18 @@ if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
     else
         # Check if setup is needed (showSetupOnFirstLoad=true means setup needed)
         SETUP_CHECK=$(ssh nexus "curl -s http://localhost:5678/rest/settings" 2>/dev/null || echo "{}")
-        NEEDS_SETUP=$(echo "$SETUP_CHECK" | jq -r '.data.userManagement.showSetupOnFirstLoad // true' 2>/dev/null || echo "true")
+        # jq outputs boolean as 'true'/'false' string, fallback to 'true' if parsing fails
+        NEEDS_SETUP=$(echo "$SETUP_CHECK" | jq -r '.data.userManagement.showSetupOnFirstLoad // true | if . then "true" else "false" end' 2>/dev/null || echo "true")
         
         if [ "$NEEDS_SETUP" = "false" ]; then
             echo -e "${YELLOW}  ⚠ n8n already configured - skipping owner setup${NC}"
         else
-            # Create owner account via API
-            N8N_SETUP_PAYLOAD="{\"email\":\"$ADMIN_EMAIL\",\"firstName\":\"Admin\",\"lastName\":\"User\",\"password\":\"$N8N_PASS\"}"
-            N8N_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:5678/rest/owner/setup' \
+            # Create owner account via API (use jq for proper JSON escaping)
+            N8N_SETUP_PAYLOAD=$(jq -n --arg email "$ADMIN_EMAIL" --arg password "$N8N_PASS" \
+                '{email: $email, firstName: "Admin", lastName: "User", password: $password}')
+            N8N_RESULT=$(printf '%s' "$N8N_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:5678/rest/owner/setup' \
                 -H 'Content-Type: application/json' \
-                -d '$N8N_SETUP_PAYLOAD'" 2>&1 || echo "")
+                -d @-" 2>&1 || echo "")
             
             if echo "$N8N_RESULT" | grep -q '"id"'; then
                 echo -e "${GREEN}  ✓ n8n owner account created (email: $ADMIN_EMAIL)${NC}"

@@ -363,9 +363,8 @@
         document.getElementById('disabled-count').textContent = disabledServices.length;
 
         function getVersion(serviceName) {
-            // Map service names to image version keys
-            const versionKey = serviceName.replace(/-/g, '-');
-            return IMAGE_VERSIONS[versionKey] || null;
+            // Service names match image version keys directly
+            return IMAGE_VERSIONS[serviceName] || null;
         }
 
         function createServiceCard(name, service, isActive) {
@@ -378,7 +377,9 @@
             // Format name for display
             const displayName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
             
-            const versionTag = version ? `<span class="service-version">v${version}</span>` : '';
+            // Handle version display - some already have 'v' prefix, some don't
+            const displayVersion = version && version.startsWith('v') ? version : `v${version}`;
+            const versionTag = version ? `<span class="service-version">${displayVersion}</span>` : '';
             
             if (isActive) {
                 card.innerHTML = `
