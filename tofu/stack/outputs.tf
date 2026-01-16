@@ -91,6 +91,9 @@ output "secrets" {
     # n8n
     n8n_admin_password         = random_password.n8n_admin.result
     
+    # Metabase
+    metabase_admin_password    = random_password.metabase_admin.result
+    
     # Docker Hub (optional)
     dockerhub_username         = var.dockerhub_username
     dockerhub_token            = var.dockerhub_token
