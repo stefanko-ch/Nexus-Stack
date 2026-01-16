@@ -135,4 +135,12 @@ services = {
     public      = false
     description = "Web UI for managing and debugging Redpanda/Kafka workloads."
   }
+
+  cloudbeaver = {
+    enabled     = false
+    subdomain   = "cloudbeaver"
+    port        = 8978
+    public      = false
+    description = "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
+  }
 }
