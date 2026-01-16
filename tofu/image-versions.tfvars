@@ -23,6 +23,7 @@ image_versions = {
   it-tools    = "corentinth/it-tools:latest"            # Date-based tags only
   kestra      = "kestra/kestra:v1"                      # Major: v1.x.x
   mailpit     = "axllent/mailpit:v1"                    # Major: v1.x.x
+  marimo      = "ghcr.io/marimo-team/marimo:latest-sql" # SQL variant with DuckDB
   metabase    = "metabase/metabase:v0.58"               # Minor: v0.58.x
   n8n         = "n8nio/n8n:1"                           # Major: 1.x.x
   portainer   = "portainer/portainer-ce:2"              # Major: 2.x.x

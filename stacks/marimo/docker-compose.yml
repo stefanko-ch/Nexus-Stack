@@ -1,0 +1,29 @@
+# =============================================================================
+# Marimo - Reactive Python Notebook
+# https://marimo.${DOMAIN}
+# =============================================================================
+# Marimo is a reactive Python notebook that's reproducible, git-friendly,
+# and deployable as apps. SQL variant includes DuckDB and data analysis tools.
+# =============================================================================
+
+services:
+  marimo:
+    image: ${IMAGE_MARIMO:-ghcr.io/marimo-team/marimo:latest-sql}
+    container_name: marimo
+    restart: unless-stopped
+    ports:
+      - "2718:2718"
+    environment:
+      - MARIMO_HOST=0.0.0.0
+      - MARIMO_PORT=2718
+    volumes:
+      - marimo_data:/app/notebooks
+    networks:
+      - app-network
+
+volumes:
+  marimo_data:
+
+networks:
+  app-network:
+    external: true
