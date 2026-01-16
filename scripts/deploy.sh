@@ -473,7 +473,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "config"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -491,11 +491,19 @@ EOF
                     GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
                     N8N_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="n8n") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
+                    SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
                     echo -e "${GREEN}  ✓ Tags created${NC}"
                     echo "  Pushing secrets to Infisical..."
                     
                     # Build secrets payload with usernames and tags
+                    # Prepare SSH private key for JSON (base64 encode to handle newlines)
+                    SSH_KEY_SECRET=""
+                    if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
+                        SSH_KEY_BASE64=$(echo "$SSH_PRIVATE_KEY_CONTENT" | base64 | tr -d '\n')
+                        SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
+                    fi
+                    
                     # Using v4 API which supports tagIds
                     SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
 {
@@ -515,7 +523,7 @@ EOF
     {"secretKey": "GRAFANA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$N8N_TAG"]},
-    {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]}
+    {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -528,6 +536,10 @@ SECRETS_EOF
                     
                     if echo "$SECRETS_RESULT" | grep -qE '"secrets"|"secretKey"'; then
                         echo -e "${GREEN}  ✓ All secrets pushed to Infisical (with tags)${NC}"
+                        if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
+                            echo -e "${GREEN}  ✓ SSH private key stored (base64 encoded)${NC}"
+                            echo -e "${DIM}    Decode with: base64 -d <<< \"\$SSH_PRIVATE_KEY_BASE64\" > ~/.ssh/nexus_key${NC}"
+                        fi
                     else
                         echo -e "${YELLOW}  ⚠ Failed to push secrets${NC}"
                     fi
