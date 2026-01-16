@@ -75,7 +75,8 @@
 
         .logo {
             display: block;
-            width: 120px;
+            width: 360px;
+            max-width: 100%;
             height: auto;
             margin: 0 auto 1.5rem;
             filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
@@ -880,6 +881,7 @@
                 btnTeardown.disabled = true;
                 btnSetup.innerHTML = '<span class="spinner"></span>Working...';
                 btnSpinUp.innerHTML = '<span class="spinner"></span>Working...';
+                btnTeardown.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
