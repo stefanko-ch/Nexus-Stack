@@ -879,6 +879,7 @@
                 btnSpinUp.disabled = true;
                 btnTeardown.disabled = true;
                 btnSetup.innerHTML = '<span class="spinner"></span>Working...';
+                btnSpinUp.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
@@ -1069,8 +1070,6 @@
 
                 const toggle = document.createElement('div');
                 toggle.className = 'toggle-switch service-toggle disabled';
-                toggle.style.opacity = '0.5';
-                toggle.style.cursor = 'not-allowed';
                 if (service.enabled) {
                     toggle.classList.add('active');
                 }
