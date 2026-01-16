@@ -26,6 +26,7 @@ export async function onRequestGet(context) {
 
   // Workflow file paths (more reliable than name matching)
   const WORKFLOW_PATHS = {
+    initialSetup: 'initial-setup.yaml',
     setup: 'setup-control-plane.yaml',
     spinUp: 'spin-up.yml',
     teardown: 'teardown.yml',
@@ -71,6 +72,7 @@ export async function onRequestGet(context) {
     // Find the most recent run for each workflow type
     // Use workflow path (more reliable) or fallback to name
     const workflows = {
+      initialSetup: null,
       setup: null,
       spinUp: null,
       teardown: null,
@@ -82,9 +84,15 @@ export async function onRequestGet(context) {
       const workflowName = run.name || '';
       
       // Match by path first (most reliable), then fallback to name
-      if (!workflows.setup && (
+      // Initial Setup includes spin-up, so count it as a successful deployment
+      if (!workflows.initialSetup && (
+        workflowPath.includes(WORKFLOW_PATHS.initialSetup) || 
+        workflowName.includes('Initial Setup')
+      )) {
+        workflows.initialSetup = run;
+      } else if (!workflows.setup && (
         workflowPath.includes(WORKFLOW_PATHS.setup) || 
-        workflowName.includes('Setup')
+        workflowName.includes('Setup') && !workflowName.includes('Initial')
       )) {
         workflows.setup = run;
       } else if (!workflows.spinUp && (
@@ -111,7 +119,7 @@ export async function onRequestGet(context) {
     let inProgress = false;
 
     // Check if any workflow is currently running
-    const allRuns = [workflows.setup, workflows.spinUp, workflows.teardown, workflows.destroy].filter(Boolean);
+    const allRuns = [workflows.initialSetup, workflows.setup, workflows.spinUp, workflows.teardown, workflows.destroy].filter(Boolean);
     const runningWorkflow = allRuns.find(r => 
       r && (r.status === 'in_progress' || r.status === 'queued')
     );
@@ -121,7 +129,8 @@ export async function onRequestGet(context) {
       infraState = 'running';
     } else {
       // Find the most recent completed workflow
-      const completedRuns = [workflows.spinUp, workflows.teardown, workflows.destroy]
+      // Include initialSetup as it contains spin-up
+      const completedRuns = [workflows.initialSetup, workflows.spinUp, workflows.teardown, workflows.destroy]
         .filter(r => r && r.conclusion === 'success')
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
       
@@ -130,7 +139,9 @@ export async function onRequestGet(context) {
         const lastPath = lastRun.path || lastRun.workflow_id || '';
         const lastName = lastRun.name || '';
         
-        if (lastPath.includes(WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
+        // Initial Setup or Spin Up means infrastructure is deployed
+        if (lastPath.includes(WORKFLOW_PATHS.initialSetup) || lastName.includes('Initial Setup') ||
+            lastPath.includes(WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
           infraState = 'deployed';
         } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
           infraState = 'torn-down';
