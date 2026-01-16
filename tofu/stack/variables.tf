@@ -138,4 +138,18 @@ variable "image_versions" {
   default     = {}
 }
 
-# Note: GitHub variables moved to tofu/control-plane/variables.tf
+# =============================================================================
+# GitHub (shared with control-plane, declared here to avoid warnings)
+# =============================================================================
+
+variable "github_owner" {
+  description = "GitHub repository owner (used by control-plane module)"
+  type        = string
+  default     = ""
+}
+
+variable "github_repo" {
+  description = "GitHub repository name (used by control-plane module)"
+  type        = string
+  default     = ""
+}
