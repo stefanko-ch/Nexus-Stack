@@ -12,10 +12,10 @@ services:
     container_name: marimo
     restart: unless-stopped
     ports:
-      - "2718:2718"
+      - "2718:8080"
     environment:
-      - MARIMO_HOST=0.0.0.0
-      - MARIMO_PORT=2718
+      - HOST=0.0.0.0
+      - PORT=8080
     volumes:
       - marimo_data:/app/notebooks
     networks:
