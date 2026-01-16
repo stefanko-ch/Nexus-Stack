@@ -68,6 +68,12 @@ resource "random_password" "n8n_admin" {
   special = false
 }
 
+# Metabase admin password
+resource "random_password" "metabase_admin" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================
