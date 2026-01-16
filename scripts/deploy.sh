@@ -638,7 +638,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
                 echo -e "${GREEN}  ✓ n8n owner account created (email: $ADMIN_EMAIL)${NC}"
             else
                 echo -e "${YELLOW}  ⚠ n8n auto-setup failed - configure manually at first login${NC}"
-                echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
+                echo -e "${YELLOW}    Credentials available in Infisical${NC}"
             fi
         fi
     fi
@@ -698,7 +698,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; th
                 echo -e "${GREEN}  ✓ Metabase admin created (email: $ADMIN_EMAIL)${NC}"
             else
                 echo -e "${YELLOW}  ⚠ Metabase auto-setup failed - configure manually at first login${NC}"
-                echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
+                echo -e "${YELLOW}    Credentials available in Infisical${NC}"
             fi
         fi
     fi
@@ -764,7 +764,7 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
             KUMA_SETUP_SUCCESS=true
         else
             echo -e "${YELLOW}  ⚠ Kuma auto-setup failed - configure manually at first login${NC}"
-            echo -e "${YELLOW}    Username: $ADMIN_USERNAME / Password: $KUMA_PASS${NC}"
+            echo -e "${YELLOW}    Credentials available in Infisical${NC}"
             KUMA_SETUP_SUCCESS=false
         fi
         
