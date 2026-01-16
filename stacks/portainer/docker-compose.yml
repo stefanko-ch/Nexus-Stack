@@ -7,7 +7,7 @@
 
 services:
   portainer:
-    image: portainer/portainer-ce:latest
+    image: ${IMAGE_PORTAINER:-portainer/portainer-ce:latest}
     container_name: portainer
     restart: unless-stopped
     ports:

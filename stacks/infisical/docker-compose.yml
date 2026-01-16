@@ -15,8 +15,10 @@
 
 services:
   infisical:
-    image: infisical/infisical:latest
+    image: ${IMAGE_INFISICAL:-infisical/infisical:latest}
     container_name: infisical
+    env_file:
+      - .env
     restart: unless-stopped
     ports:
       - "8070:8080"
