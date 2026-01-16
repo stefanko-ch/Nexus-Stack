@@ -103,4 +103,12 @@ services = {
     core        = true
     description = "Email testing tool that catches all outgoing emails for inspection and testing."
   }
+
+  metabase = {
+    enabled     = true
+    subdomain   = "metabase"
+    port        = 3000
+    public      = false
+    description = "Open-source business intelligence and analytics tool for data visualization."
+  }
 }
