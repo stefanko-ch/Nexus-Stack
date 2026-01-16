@@ -145,7 +145,7 @@ services = {
   }
 
   superset = {
-    enabled     = false
+    enabled     = true
     subdomain   = "superset"
     port        = 8088
     public      = false
