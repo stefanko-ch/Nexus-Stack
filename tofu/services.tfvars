@@ -121,7 +121,7 @@ services = {
   }
 
   redpanda = {
-    enabled     = false
+    enabled     = true
     subdomain   = "redpanda"
     port        = 9644
     public      = false
@@ -129,7 +129,7 @@ services = {
   }
 
   redpanda-console = {
-    enabled     = false
+    enabled     = true
     subdomain   = "redpanda-console"
     port        = 8180
     public      = false
@@ -137,7 +137,7 @@ services = {
   }
 
   cloudbeaver = {
-    enabled     = false
+    enabled     = true
     subdomain   = "cloudbeaver"
     port        = 8978
     public      = false
