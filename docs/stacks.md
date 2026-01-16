@@ -2,6 +2,40 @@
 
 This document provides detailed information about all available Docker stacks in Nexus-Stack.
 
+## Docker Image Versions
+
+Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`tofu/image-versions.tfvars`](../tofu/image-versions.tfvars).
+
+| Service | Image | Tag | Strategy |
+|---------|-------|-----|----------|
+| Grafana | `grafana/grafana` | `12` | Major |
+| Prometheus | `prom/prometheus` | `v3` | Major |
+| Loki | `grafana/loki` | `3` | Major |
+| Promtail | `grafana/promtail` | `3` | Major |
+| cAdvisor | `gcr.io/cadvisor/cadvisor` | `v0.56` | Minor |
+| Node Exporter | `prom/node-exporter` | `v1` | Major |
+| Portainer | `portainer/portainer-ce` | `2` | Major |
+| Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
+| n8n | `n8nio/n8n` | `1` | Major |
+| Kestra | `kestra/kestra` | `v1` | Major |
+| Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
+| Metabase | `metabase/metabase` | `v0.58` | Minor |
+| Mailpit | `axllent/mailpit` | `v1` | Major |
+| IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
+| Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Nginx (Info) | `nginx` | `alpine` | Rolling |
+
+¹ No major version tags available, requires manual updates.  
+² Only `latest` tags published, no semantic versions available.
+
+**Strategies:**
+- **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
+- **Minor** (e.g., `:v0.58`) - Auto-patches within minor version
+- **Exact** (e.g., `:v0.155.5`) - Full control, manual all updates
+- **Latest** - Always newest version (when no semver available)
+
+**To upgrade**: Edit the version in `tofu/image-versions.tfvars` and run Spin-Up.
+
 ---
 
 ## IT-Tools
@@ -286,14 +320,77 @@ services = {
 }
 ```
 
-Then deploy:
-
-```bash
-make up
-```
+Then deploy via **Spin Up** workflow in GitHub Actions or through the Control Plane.
 
 ---
 
-## Creating Custom Stacks
+## Adding New Services
 
-See the [Adding More Services](../README.md#adding-more-services) section in the README for instructions on creating your own stacks.
+Adding a new service requires **2 steps**:
+
+### 1. Create the Docker Compose stack
+
+```bash
+mkdir -p stacks/my-app
+```
+
+Create `stacks/my-app/docker-compose.yml`:
+```yaml
+services:
+  my-app:
+    image: my-app-image:latest
+    container_name: my-app
+    restart: unless-stopped
+    ports:
+      - "8090:80"  # Pick an unused port
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
+```
+
+### 2. Add to services.tfvars
+
+Add to `tofu/services.tfvars`:
+
+```hcl
+services = {
+  # ... existing services ...
+  
+  my-app = {
+    enabled     = true
+    subdomain   = "my-app"     # → https://my-app.yourdomain.com
+    port        = 8090         # Must match docker-compose port
+    public      = false        # false = requires login, true = public
+    description = "My awesome application"
+  }
+}
+```
+
+### 3. Deploy
+
+Run the **Spin Up** workflow via GitHub Actions or use the Control Plane.
+
+That's it! OpenTofu automatically creates:
+- ✅ DNS record
+- ✅ Tunnel ingress route
+- ✅ Cloudflare Access application
+- ✅ Access policy (email-based auth)
+
+---
+
+## Disabling Services
+
+Services can be disabled via the **Control Plane** web interface, or by setting `enabled = false` in `services.tfvars`.
+
+When disabled:
+1. DNS record is removed from Cloudflare
+2. Tunnel ingress route is removed
+3. Cloudflare Access application and policy are removed
+4. Docker container is stopped
+5. Stack folder is deleted from the server
+
+The service is completely cleaned up - no orphaned resources.
+

@@ -236,10 +236,26 @@
             margin-bottom: 0.8rem;
         }
 
+        .service-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .service-url {
             font-size: 0.75rem;
             color: #00ff88;
             opacity: 0.7;
+        }
+
+        .service-version {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.5rem;
+            background: rgba(100, 150, 255, 0.15);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            border-radius: 3px;
+            color: #6496ff;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .service-card.disabled {
@@ -338,6 +354,7 @@
         // Service configuration - generated from config.tfvars
         const SERVICES = __SERVICES_JSON__;
         const DOMAIN = "__DOMAIN__";
+        const IMAGE_VERSIONS = __IMAGE_VERSIONS_JSON__;
 
         const activeServices = Object.entries(SERVICES).filter(([_, s]) => s.enabled);
         const disabledServices = Object.entries(SERVICES).filter(([_, s]) => !s.enabled);
@@ -345,14 +362,24 @@
         document.getElementById('active-count').textContent = activeServices.length;
         document.getElementById('disabled-count').textContent = disabledServices.length;
 
+        function getVersion(serviceName) {
+            // Service names match image version keys directly
+            return IMAGE_VERSIONS[serviceName] || null;
+        }
+
         function createServiceCard(name, service, isActive) {
             const url = `https://${service.subdomain}.${DOMAIN}`;
             const description = service.description || 'No description available';
+            const version = getVersion(name);
             const card = document.createElement('div');
             card.className = `service-card ${isActive ? '' : 'disabled'}`;
             
             // Format name for display
             const displayName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            
+            // Handle version display - some already have 'v' prefix, some don't
+            const displayVersion = version && version.startsWith('v') ? version : `v${version}`;
+            const versionTag = version ? `<span class="service-version">${displayVersion}</span>` : '';
             
             if (isActive) {
                 card.innerHTML = `
@@ -362,7 +389,10 @@
                             <span class="service-status active">Online</span>
                         </div>
                         <p class="service-description">${description}</p>
-                        <div class="service-url">${url}</div>
+                        <div class="service-footer">
+                            <span class="service-url">${url}</span>
+                            ${versionTag}
+                        </div>
                     </a>
                 `;
             } else {
@@ -372,7 +402,10 @@
                         <span class="service-status disabled">Disabled</span>
                     </div>
                     <p class="service-description">${description}</p>
-                    <div class="service-url">${url}</div>
+                    <div class="service-footer">
+                        <span class="service-url">${url}</span>
+                        ${versionTag}
+                    </div>
                 `;
             }
             

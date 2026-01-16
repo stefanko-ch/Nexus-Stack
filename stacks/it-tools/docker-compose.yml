@@ -1,6 +1,6 @@
 services:
   it-tools:
-    image: corentinth/it-tools:latest
+    image: ${IMAGE_IT_TOOLS:-corentinth/it-tools:latest}
     container_name: it-tools
     restart: unless-stopped
     ports:

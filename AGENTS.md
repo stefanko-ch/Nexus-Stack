@@ -345,6 +345,8 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 
 **Never merge Pull Requests.** PRs must go through Copilot code review first. Only create PRs and push commits - the user will merge after review passes.
 
+**Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
+
 ### PR Titles for Release Notes
 
 **PR titles are used to generate release notes.** The release pipeline extracts PR titles (not individual commits) to create the changelog. Therefore:

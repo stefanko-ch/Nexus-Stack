@@ -1,6 +1,6 @@
 services:
   excalidraw:
-    image: excalidraw/excalidraw:latest
+    image: ${IMAGE_EXCALIDRAW:-excalidraw/excalidraw:latest}
     container_name: excalidraw
     restart: unless-stopped
     ports:
