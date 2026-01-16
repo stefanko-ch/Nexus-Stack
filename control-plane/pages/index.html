@@ -209,9 +209,9 @@
             filter: grayscale(0.3);
         }
 
-        .action-btn.setup {
-            border-color: rgba(0, 255, 136, 0.6);
-            color: #00ff88;
+        .action-btn.email-credentials {
+            border-color: rgba(168, 85, 247, 0.6);
+            color: #a855f7;
         }
 
         .action-btn.spin-up {
@@ -700,9 +700,9 @@
 
         <!-- Action Buttons -->
         <div class="actions">
-            <button class="action-btn setup" id="btn-setup" disabled>
-                <span class="icon">🧰</span>
-                Setup
+            <button class="action-btn email-credentials" id="btn-email-credentials" disabled>
+                <span class="icon">📧</span>
+                Email Credentials
             </button>
             <button class="action-btn spin-up" id="btn-spin-up" disabled>
                 <span class="icon">⚡</span>
@@ -807,7 +807,7 @@
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
             'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
-            'destroyed': 'Everything is destroyed. Run Setup to start fresh.',
+            'destroyed': 'Everything is destroyed. Run Spin Up to start fresh.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -871,49 +871,46 @@
         }
 
         function updateButtons(data) {
-            const btnSetup = document.getElementById('btn-setup');
+            const btnEmailCredentials = document.getElementById('btn-email-credentials');
             const btnSpinUp = document.getElementById('btn-spin-up');
             const btnTeardown = document.getElementById('btn-teardown');
             
             // Disable all if workflow is running
             if (data.inProgress) {
-                btnSetup.disabled = true;
+                btnEmailCredentials.disabled = true;
                 btnSpinUp.disabled = true;
                 btnTeardown.disabled = true;
-                btnSetup.innerHTML = '<span class="spinner"></span>Working...';
                 btnSpinUp.innerHTML = '<span class="spinner"></span>Working...';
                 btnTeardown.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
-            const setupComplete = data.workflows && data.workflows.setup && data.workflows.setup.conclusion === 'success';
-            
             // Reset buttons
-            btnSetup.innerHTML = '<span class="icon">🧰</span>Setup';
+            btnEmailCredentials.innerHTML = '<span class="icon">📧</span>Email Credentials';
             btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
             btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
             
             // Enable based on state
             switch (data.infraState) {
                 case 'deployed':
-                    btnSetup.disabled = setupComplete;
+                    btnEmailCredentials.disabled = false;
                     btnSpinUp.disabled = true;
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
-                    btnSetup.disabled = setupComplete;
-                    btnSpinUp.disabled = !setupComplete;
+                    btnEmailCredentials.disabled = true;
+                    btnSpinUp.disabled = false;
                     btnTeardown.disabled = true;
                     break;
                 case 'destroyed':
-                    btnSetup.disabled = false;
-                    btnSpinUp.disabled = true;
+                    btnEmailCredentials.disabled = true;
+                    btnSpinUp.disabled = false;
                     btnTeardown.disabled = true;
                     break;
                 case 'unknown':
                 default:
-                    btnSetup.disabled = setupComplete && data.infraState !== 'destroyed';
-                    btnSpinUp.disabled = !setupComplete;
+                    btnEmailCredentials.disabled = true;
+                    btnSpinUp.disabled = false;
                     btnTeardown.disabled = false;
                     break;
             }
@@ -1029,6 +1026,36 @@
             }
         }
 
+        // Email Credentials function
+        async function emailCredentials() {
+            const btn = document.getElementById('btn-email-credentials');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Sending...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/send-credentials`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Credentials email sent!', 'success');
+                } else {
+                    showToast(data.error || 'Failed to send email', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to send credentials email:', error);
+                showToast('Failed to send email', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+        }
+
         // Services functions
         async function loadServices() {
             try {
@@ -1129,7 +1156,6 @@
             historyList.innerHTML = '';
             
             const items = [
-                { name: 'Setup', data: workflows.setup },
                 { name: 'Spin Up', data: workflows.spinUp },
                 { name: 'Teardown', data: workflows.teardown },
             ].filter(item => item.data);
@@ -1159,9 +1185,9 @@
         // Action handlers
         async function triggerAction(action) {
             const actionLabels = {
-                'setup': 'Setup Infrastructure',
                 'spin-up': 'Spin Up Infrastructure',
                 'teardown': 'Teardown Infrastructure',
+                'email-credentials': 'Email Credentials',
             };
             
             // Disable buttons during action
@@ -1244,7 +1270,7 @@
         }
 
         // Event listeners
-        document.getElementById('btn-setup').addEventListener('click', () => triggerAction('setup'));
+        document.getElementById('btn-email-credentials').addEventListener('click', () => emailCredentials());
         document.getElementById('btn-spin-up').addEventListener('click', () => triggerAction('spin-up'));
         document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
         document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
