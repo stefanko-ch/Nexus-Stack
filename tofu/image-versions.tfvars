@@ -17,17 +17,19 @@ image_versions = {
   # -------------------------------------------------------------------------
   # Main Services (major version pinning where supported)
   # -------------------------------------------------------------------------
-  excalidraw  = "excalidraw/excalidraw:latest"          # No semver tags available
-  grafana     = "grafana/grafana:12"                    # Major: 12.x.x
-  infisical   = "infisical/infisical:v0.155.5"          # No major tags, exact only
-  it-tools    = "corentinth/it-tools:latest"            # Date-based tags only
-  kestra      = "kestra/kestra:v1.0"                    # Minor series: v1.0 (LTS)
-  mailpit     = "axllent/mailpit:v1.28"                 # Minor stream: v1.28 (tracks latest 1.28.x patch)
-  marimo      = "ghcr.io/marimo-team/marimo:latest-sql" # SQL variant with DuckDB
-  metabase    = "metabase/metabase:v0.58.x"             # Minor: v0.58.x.x
-  n8n         = "n8nio/n8n:1"                           # Major: 1.x.x
-  portainer   = "portainer/portainer-ce:lts"            # LTS: Long-term support
-  uptime-kuma = "louislam/uptime-kuma:2"                # Major: 2.x.x
+  excalidraw       = "excalidraw/excalidraw:latest"          # No semver tags available
+  grafana          = "grafana/grafana:12"                    # Major: 12.x.x
+  infisical        = "infisical/infisical:v0.155.5"          # No major tags, exact only
+  it-tools         = "corentinth/it-tools:latest"            # Date-based tags only
+  kestra           = "kestra/kestra:v1.0"                    # Minor series: v1.0 (LTS)
+  mailpit          = "axllent/mailpit:v1.28"                 # Minor stream: v1.28 (tracks latest 1.28.x patch)
+  marimo           = "ghcr.io/marimo-team/marimo:latest-sql" # SQL variant with DuckDB
+  metabase         = "metabase/metabase:v0.58.x"             # Minor: v0.58.x.x
+  n8n              = "n8nio/n8n:1"                           # Major: 1.x.x
+  portainer        = "portainer/portainer-ce:lts"            # LTS: Long-term support
+  redpanda         = "redpandadata/redpanda:v24.3"           # Minor: v24.3.x
+  redpanda-console = "redpandadata/console:v2.8"             # Minor: v2.8.x
+  uptime-kuma      = "louislam/uptime-kuma:2"                # Major: 2.x.x
 
   # -------------------------------------------------------------------------
   # Grafana Stack Components

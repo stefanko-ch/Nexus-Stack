@@ -73,6 +73,7 @@ After deployment you'll have:
 ![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
 ![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
 ![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
+![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -88,6 +89,7 @@ After deployment you'll have:
 | **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
+| **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Info** | Landing page with service overview dashboard | — |
 
 → See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.
