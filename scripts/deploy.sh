@@ -640,6 +640,63 @@ if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
     fi
 fi
 
+# Configure Metabase admin account
+if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; then
+    echo "  Configuring Metabase..."
+    
+    # Wait for Metabase to be ready (Java app, takes longer to start)
+    echo "  Waiting for Metabase to be ready..."
+    METABASE_READY=false
+    for i in $(seq 1 60); do
+        METABASE_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health 2>/dev/null" || echo "000")
+        if [ "$METABASE_HEALTH" = "200" ]; then
+            METABASE_READY=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$METABASE_READY" = "false" ]; then
+        echo -e "${YELLOW}  ⚠ Metabase not ready after 120s - skipping config${NC}"
+    else
+        # Get setup token (only available before first setup)
+        SETUP_TOKEN=$(ssh nexus "curl -s http://localhost:3000/api/session/properties 2>/dev/null | grep -o '\"setup-token\":\"[^\"]*\"' | cut -d'\"' -f4" || echo "")
+        
+        if [ -z "$SETUP_TOKEN" ]; then
+            echo -e "${YELLOW}  ⚠ Metabase already configured - skipping admin setup${NC}"
+        else
+            # Create admin user via setup API (use jq for proper JSON escaping)
+            METABASE_SETUP_PAYLOAD=$(jq -n \
+                --arg token "$SETUP_TOKEN" \
+                --arg email "$ADMIN_EMAIL" \
+                --arg password "$METABASE_PASS" \
+                '{
+                    token: $token,
+                    user: {
+                        email: $email,
+                        first_name: "Admin",
+                        last_name: "User",
+                        password: $password
+                    },
+                    prefs: {
+                        site_name: "Nexus Stack Analytics",
+                        allow_tracking: false
+                    }
+                }')
+            METABASE_RESULT=$(printf '%s' "$METABASE_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:3000/api/setup' \
+                -H 'Content-Type: application/json' \
+                -d @-" 2>&1 || echo "")
+            
+            if echo "$METABASE_RESULT" | grep -q '"id"'; then
+                echo -e "${GREEN}  ✓ Metabase admin created (email: $ADMIN_EMAIL)${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Metabase auto-setup failed - configure manually at first login${NC}"
+                echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
+            fi
+        fi
+    fi
+fi
+
 # Configure Uptime Kuma admin
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; then
     echo "  Configuring Uptime Kuma..."
