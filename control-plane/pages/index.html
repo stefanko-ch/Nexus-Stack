@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Stack — Control Plane</title>
+    <title>Nexus Stack — Control Panel</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -75,7 +75,7 @@
 
         .logo {
             display: block;
-            width: 360px;
+            width: 120px;
             height: auto;
             margin: 0 auto 1.5rem;
             filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
@@ -99,46 +99,6 @@
             text-transform: uppercase;
             letter-spacing: 0.3em;
             opacity: 0.7;
-        }
-
-        .version {
-            font-size: 0.85rem;
-            color: #607080;
-            margin-top: 0.5rem;
-        }
-
-        .version a {
-            color: #00ff88;
-            text-decoration: none;
-        }
-
-        .version a:hover {
-            text-decoration: underline;
-        }
-
-        .refresh-btn {
-            background: transparent;
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            border-radius: 4px;
-            padding: 0.3rem 0.5rem;
-            cursor: pointer;
-            font-size: 0.9rem;
-            margin-left: 0.5rem;
-            transition: all 0.3s ease;
-        }
-
-        .refresh-btn:hover {
-            background: rgba(0, 255, 136, 0.1);
-            border-color: rgba(0, 255, 136, 0.6);
-        }
-
-        .refresh-btn.spinning {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
         }
 
         /* Status Panel */
@@ -169,7 +129,7 @@
 
         .status-dot.deployed { background: #00ff88; }
         .status-dot.torn-down { background: #ffaa00; }
-        .status-dot.offline { background: #ff4444; }
+        .status-dot.destroyed { background: #ff4444; }
         .status-dot.running { background: #00aaff; }
         .status-dot.unknown { background: #666666; }
 
@@ -180,7 +140,7 @@
 
         .status-text.deployed { color: #00ff88; }
         .status-text.torn-down { color: #ffaa00; }
-        .status-text.offline { color: #ff4444; }
+        .status-text.destroyed { color: #ff4444; }
         .status-text.running { color: #00aaff; }
         .status-text.unknown { color: #666666; }
 
@@ -246,6 +206,11 @@
             box-shadow: none;
             transform: none;
             filter: grayscale(0.3);
+        }
+
+        .action-btn.setup {
+            border-color: rgba(0, 255, 136, 0.6);
+            color: #00ff88;
         }
 
         .action-btn.spin-up {
@@ -720,8 +685,7 @@
             <!-- Nexus Stack Logo -->
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
-            <p class="tagline">Control Plane</p>
-            <p class="version" id="version-tag">Loading version...</p>
+            <p class="tagline">Control Panel</p>
         </header>
 
         <!-- Status Panel -->
@@ -729,13 +693,16 @@
             <div class="status-indicator">
                 <span class="status-dot unknown" id="status-dot"></span>
                 <span class="status-text unknown" id="status-text">Checking...</span>
-                <button class="refresh-btn" id="btn-refresh" title="Refresh Status">🔄</button>
             </div>
             <p class="status-description" id="status-description">Fetching infrastructure status...</p>
         </div>
 
         <!-- Action Buttons -->
         <div class="actions">
+            <button class="action-btn setup" id="btn-setup" disabled>
+                <span class="icon">🧰</span>
+                Setup
+            </button>
             <button class="action-btn spin-up" id="btn-spin-up" disabled>
                 <span class="icon">⚡</span>
                 Spin Up
@@ -743,10 +710,6 @@
             <button class="action-btn teardown" id="btn-teardown" disabled>
                 <span class="icon">💤</span>
                 Teardown
-            </button>
-            <button class="action-btn" id="btn-send-credentials" style="border-color: rgba(0, 170, 255, 0.6); color: #00aaff;">
-                <span class="icon">📧</span>
-                Send Credentials
             </button>
         </div>
 
@@ -801,6 +764,7 @@
         <!-- Services Panel -->
         <div class="services-panel">
             <h2><span class="icon">🧩</span> Services</h2>
+            <p style="color: #607080; font-size: 0.85rem; margin-bottom: 1rem;">🚧 Enable/disable services feature coming soon</p>
             <div class="service-list" id="services-list">
                 <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
             </div>
@@ -816,7 +780,6 @@
 
         <footer>
             <p>Powered by <a href="https://github.com/stefanko-ch/Nexus-Stack" target="_blank">Nexus-Stack</a></p>
-            <p style="margin-top: 10px;">Built with ❤️ and lots of ☕️ by <a href="https://github.com/stefanko-ch" target="_blank">Stefan</a></p>
         </footer>
     </div>
 
@@ -838,25 +801,11 @@
         
         let currentAction = null;
 
-        // Format date using user's preferred locale
-        function formatDate(date) {
-            if (!(date instanceof Date)) date = new Date(date);
-            const locale = navigator.language || 'de-CH';
-            return date.toLocaleString(locale, {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            });
-        }
-
         // Status descriptions
         const statusDescriptions = {
             'deployed': 'Infrastructure is running. All services are accessible.',
-            'torn-down': 'Nexus Stack is torn down. Click Spin Up to restart.',
-            'offline': 'Nexus Stack is offline. Click Spin Up to deploy.',
+            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
+            'destroyed': 'Everything is destroyed. Run Setup to start fresh.',
             'running': 'A workflow is currently running. Please wait...',
             'unknown': 'Unable to determine infrastructure state.'
         };
@@ -864,38 +813,6 @@
         // Fallback function to enable buttons when status check fails
         function enableFallbackState() {
             updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
-        }
-
-        // Fetch and display version
-        async function fetchVersion() {
-            try {
-                const response = await fetch(`${API_URL}/api/version`, { credentials: 'same-origin' });
-                const data = await response.json();
-                
-                const versionEl = document.getElementById('version-tag');
-                if (data.success && data.version) {
-                    versionEl.innerHTML = `<a href="${data.url}" target="_blank">${data.version}</a>`;
-                } else {
-                    versionEl.textContent = 'dev';
-                }
-            } catch (error) {
-                console.error('Failed to fetch version:', error);
-                document.getElementById('version-tag').textContent = 'dev';
-            }
-        }
-
-        // Refresh status handler
-        async function refreshStatus() {
-            const refreshBtn = document.getElementById('btn-refresh');
-            refreshBtn.classList.add('spinning');
-            refreshBtn.disabled = true;
-            
-            await fetchStatus();
-            await fetchInfo();
-            await fetchServices();
-            
-            refreshBtn.classList.remove('spinning');
-            refreshBtn.disabled = false;
         }
 
         // Fetch and display status
@@ -942,7 +859,7 @@
             const stateLabels = {
                 'deployed': 'Deployed',
                 'torn-down': 'Torn Down',
-                'offline': 'Offline',
+                'destroyed': 'Destroyed',
                 'running': 'In Progress',
                 'unknown': 'Unknown'
             };
@@ -952,35 +869,47 @@
         }
 
         function updateButtons(data) {
+            const btnSetup = document.getElementById('btn-setup');
             const btnSpinUp = document.getElementById('btn-spin-up');
             const btnTeardown = document.getElementById('btn-teardown');
             
             // Disable all if workflow is running
             if (data.inProgress) {
+                btnSetup.disabled = true;
                 btnSpinUp.disabled = true;
                 btnTeardown.disabled = true;
-                btnSpinUp.innerHTML = '<span class="spinner"></span>Working...';
+                btnSetup.innerHTML = '<span class="spinner"></span>Working...';
                 return;
             }
             
+            const setupComplete = data.workflows && data.workflows.setup && data.workflows.setup.conclusion === 'success';
+            
             // Reset buttons
+            btnSetup.innerHTML = '<span class="icon">🧰</span>Setup';
             btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
             btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
             
             // Enable based on state
             switch (data.infraState) {
                 case 'deployed':
+                    btnSetup.disabled = setupComplete;
                     btnSpinUp.disabled = true;
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
-                case 'offline':
-                    btnSpinUp.disabled = false;
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = !setupComplete;
+                    btnTeardown.disabled = true;
+                    break;
+                case 'destroyed':
+                    btnSetup.disabled = false;
+                    btnSpinUp.disabled = true;
                     btnTeardown.disabled = true;
                     break;
                 case 'unknown':
                 default:
-                    btnSpinUp.disabled = false;
+                    btnSetup.disabled = setupComplete && data.infraState !== 'destroyed';
+                    btnSpinUp.disabled = !setupComplete;
                     btnTeardown.disabled = false;
                     break;
             }
@@ -990,22 +919,14 @@
         async function loadScheduledTeardownConfig() {
             try {
                 const response = await fetch(`${API_URL}/api/scheduled-teardown`, { credentials: 'same-origin' });
-                const data = await response.json();
+                if (!response.ok) return;
                 
+                const data = await response.json();
                 if (data.success) {
                     updateScheduledTeardownUI(data.config);
-                } else {
-                    // Show error in the scheduled teardown panel
-                    const info = document.getElementById('scheduled-info');
-                    info.textContent = data.error || 'Failed to load configuration';
-                    info.style.color = '#ff4444';
-                    console.error('Scheduled teardown config error:', data.error);
                 }
             } catch (error) {
                 console.error('Failed to load scheduled teardown config:', error);
-                const info = document.getElementById('scheduled-info');
-                info.textContent = 'Failed to connect to API';
-                info.style.color = '#ff4444';
             }
         }
 
@@ -1014,9 +935,7 @@
             const info = document.getElementById('scheduled-info');
             const delayBtn = document.getElementById('btn-delay-teardown');
             
-            // Handle both boolean and string 'true'/'false'
-            const isEnabled = config.enabled === true || config.enabled === 'true';
-            if (isEnabled) {
+            if (config.enabled) {
                 toggle.classList.add('active');
                 const now = new Date();
                 const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
@@ -1024,7 +943,7 @@
                     const diffMs = delayUntil - now;
                     const hours = Math.ceil(diffMs / (1000 * 60 * 60));
                     const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                    info.innerHTML = `Enabled - Teardown delayed until ${formatDate(delayUntil)}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
+                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
                     delayBtn.disabled = true;
                 } else if (config.nextTeardown) {
                     const nextTeardown = new Date(config.nextTeardown);
@@ -1035,7 +954,7 @@
                             timeText += `${timeRemaining.hours}h `;
                         }
                         timeText += `${timeRemaining.minutes}m`;
-                        info.innerHTML = `Enabled - Next teardown: ${formatDate(nextTeardown)}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
                     } else {
                         info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
                     }
@@ -1140,14 +1059,6 @@
                 const name = document.createElement('div');
                 name.className = 'service-name';
                 name.textContent = service.name;
-                
-                // Add "CORE" badge for core services
-                if (service.core) {
-                    const badge = document.createElement('span');
-                    badge.style.cssText = 'font-size: 0.6rem; background: rgba(0, 255, 136, 0.2); color: #00ff88; padding: 0.15rem 0.4rem; margin-left: 0.5rem; border-radius: 3px; vertical-align: middle;';
-                    badge.textContent = 'CORE';
-                    name.appendChild(badge);
-                }
 
                 const description = document.createElement('div');
                 description.className = 'service-description';
@@ -1156,23 +1067,21 @@
                 details.appendChild(name);
                 details.appendChild(description);
 
-                // Don't show toggle for core services at all
-                if (!service.core) {
-                    const toggle = document.createElement('div');
-                    toggle.className = 'toggle-switch service-toggle';
-                    if (service.enabled) {
-                        toggle.classList.add('active');
-                    }
-
-                    toggle.addEventListener('click', () => {
-                        if (toggle.classList.contains('disabled')) return;
-                        updateServiceToggle(service.name, !service.enabled, toggle);
-                    });
-
-                    item.appendChild(toggle);
+                const toggle = document.createElement('div');
+                toggle.className = 'toggle-switch service-toggle disabled';
+                toggle.style.opacity = '0.5';
+                toggle.style.cursor = 'not-allowed';
+                if (service.enabled) {
+                    toggle.classList.add('active');
                 }
 
+                toggle.addEventListener('click', () => {
+                    // Feature disabled - show coming soon message
+                    showToast('Enable/disable services feature coming soon', 'success');
+                });
+
                 item.appendChild(details);
+                item.appendChild(toggle);
                 list.appendChild(item);
             });
         }
@@ -1233,7 +1142,7 @@
                 div.className = 'history-item';
                 
                 const status = item.data.conclusion || item.data.status;
-                const time = formatDate(item.data.updatedAt);
+                const time = new Date(item.data.updatedAt).toLocaleString();
                 
                 div.innerHTML = `
                     <span class="history-name">${item.name}</span>
@@ -1308,7 +1217,7 @@
             const configs = {
                 'teardown': {
                     title: '⚠️ Confirm Teardown',
-                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control plane will remain active, allowing you to spin up later.'
+                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to spin up later.'
                 },
             };
             
@@ -1332,44 +1241,8 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // Send Credentials Event Listener
-        document.getElementById('btn-send-credentials').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-send-credentials');
-            btn.disabled = true;
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner"></span>Sending...';
-            
-            try {
-                const response = await fetch(`${API_URL}/api/send-credentials`, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    showToast('Session expired - please refresh the page', 'error');
-                    btn.disabled = false;
-                    btn.innerHTML = originalHTML;
-                    return;
-                }
-                
-                const data = await response.json();
-                if (data.success) {
-                    showToast('Credentials email sent successfully!', 'success');
-                } else {
-                    showToast(data.error || 'Failed to send credentials', 'error');
-                }
-            } catch (error) {
-                console.error('Failed to send credentials:', error);
-                showToast('Failed to send credentials - check browser console', 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalHTML;
-            }
-        });
-
         // Event listeners
+        document.getElementById('btn-setup').addEventListener('click', () => triggerAction('setup'));
         document.getElementById('btn-spin-up').addEventListener('click', () => triggerAction('spin-up'));
         document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
         document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
@@ -1389,62 +1262,16 @@
                 const response = await fetch(`${API_URL}/api/health`, { credentials: 'same-origin' });
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Control Plane API:', data.status);
+                    console.log('Control Panel API:', data.status);
                 }
             } catch (error) {
                 console.warn('Health check failed:', error);
             }
         }
 
-        // Load infrastructure info
-        async function loadInfo() {
-            try {
-                const response = await fetch(`${API_URL}/api/info`, { credentials: 'same-origin' });
-                if (!response.ok) return;
-                
-                const data = await response.json();
-                if (data.success && data.info) {
-                    // Update server info
-                    if (data.info.server) {
-                        document.getElementById('info-server-type').textContent = data.info.server.type || '-';
-                        document.getElementById('info-server-location').textContent = data.info.server.location || '-';
-                        document.getElementById('info-domain').textContent = data.info.server.domain || '-';
-                    }
-                    
-                    // Update time info
-                    if (data.info.time) {
-                        if (data.info.time.lastDeploy) {
-                            document.getElementById('info-last-deploy').textContent = 
-                                formatDate(data.info.time.lastDeploy);
-                        } else {
-                            document.getElementById('info-last-deploy').textContent = '-';
-                        }
-                        
-                        if (data.info.time.lastTeardown) {
-                            document.getElementById('info-last-teardown').textContent = 
-                                formatDate(data.info.time.lastTeardown);
-                        } else {
-                            document.getElementById('info-last-teardown').textContent = '-';
-                        }
-                        
-                        if (data.info.time.uptime) {
-                            const u = data.info.time.uptime;
-                            document.getElementById('info-uptime').textContent = 
-                                `${u.days}d ${u.hours}h ${u.minutes}m`;
-                        } else {
-                            document.getElementById('info-uptime').textContent = '-';
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load info:', error);
-            }
-        }
-
-        // Load all data on page load
+        // Load scheduled teardown config on page load
         loadServices();
         loadScheduledTeardownConfig();
-        loadInfo();
 
         // Polling with exponential backoff on errors
         let consecutiveErrors = 0;
@@ -1475,11 +1302,7 @@
         
         // Initial health check and status fetch
         checkHealth();
-        fetchVersion();
         fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
-
-        // Refresh button click handler
-        document.getElementById('btn-refresh').addEventListener('click', refreshStatus);
     </script>
 </body>
 </html>
