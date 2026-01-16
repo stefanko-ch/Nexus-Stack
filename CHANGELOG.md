@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.22.0...v0.22.1) (2026-01-16)
+
+
+### 🔧 Maintenance
+
+* Migrate to Release Please for automated releases ([3966ca8](https://github.com/stefanko-ch/Nexus-Stack/commit/3966ca83c1065a74470637b4808b194f05897339))
+* Migrate to Release Please for automated releases ([c860634](https://github.com/stefanko-ch/Nexus-Stack/commit/c86063442ee91698d07cf0d5266fa1b0f797a4a4))
+
 ## [v0.22.0](https://github.com/stefanko-ch/Nexus-Stack/releases/tag/v0.22.0) (2026-01-16)
 
 ### 🚀 Features
@@ -391,4 +399,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - standardize repository with community health files and badges (4e047f9)
 ### 📦 Other Changes
 - Initial commit (3b88c0b)
-
