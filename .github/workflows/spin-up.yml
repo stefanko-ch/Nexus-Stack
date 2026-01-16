@@ -15,6 +15,14 @@ on:
         required: false
         default: ''
         type: string
+      r2_access_key_id:
+        description: 'R2 Access Key ID (from setup-control-plane)'
+        required: false
+        type: string
+      r2_secret_access_key:
+        description: 'R2 Secret Access Key (from setup-control-plane)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -64,9 +72,26 @@ jobs:
       - name: Create R2 credentials from secrets
         run: |
           mkdir -p tofu
-          # Trim whitespace and newlines from secrets to avoid auth issues
-          R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
-          R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
+          
+          # Use inputs from setup-control-plane if available, otherwise fall back to secrets
+          # This allows initial-setup.yaml to pass freshly created credentials
+          if [ -n "${{ inputs.r2_access_key_id }}" ] && [ -n "${{ inputs.r2_secret_access_key }}" ]; then
+            echo "📦 Using R2 credentials from setup-control-plane workflow"
+            R2_ACCESS_KEY_ID="${{ inputs.r2_access_key_id }}"
+            R2_SECRET_ACCESS_KEY="${{ inputs.r2_secret_access_key }}"
+          else
+            echo "📦 Using R2 credentials from GitHub Secrets"
+            # Trim whitespace and newlines from secrets to avoid auth issues
+            R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
+            R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
+          fi
+          
+          # Validate credentials are not empty
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "❌ R2 credentials are empty!"
+            echo "   Either run 'Initial Setup' workflow first, or set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY secrets."
+            exit 1
+          fi
           
           cat > tofu/.r2-credentials << EOF
           R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
