@@ -648,11 +648,14 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; then
     echo "  Configuring Metabase..."
     
+    # Get Metabase port from services config (default: 3000)
+    METABASE_PORT=$(echo "$SERVICES_JSON" | jq -r '.metabase.port // 3000')
+    
     # Wait for Metabase to be ready (Java app, takes longer to start)
     echo "  Waiting for Metabase to be ready..."
     METABASE_READY=false
     for i in $(seq 1 60); do
-        METABASE_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health 2>/dev/null" || echo "000")
+        METABASE_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:$METABASE_PORT/api/health 2>/dev/null" || echo "000")
         if [ "$METABASE_HEALTH" = "200" ]; then
             METABASE_READY=true
             break
@@ -664,7 +667,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; th
         echo -e "${YELLOW}  ⚠ Metabase not ready after 120s - skipping config${NC}"
     else
         # Get setup token (only available before first setup)
-        SETUP_TOKEN=$(ssh nexus "curl -s http://localhost:3000/api/session/properties 2>/dev/null | grep -o '\"setup-token\":\"[^\"]*\"' | cut -d'\"' -f4" || echo "")
+        SETUP_TOKEN=$(ssh nexus "curl -s http://localhost:$METABASE_PORT/api/session/properties 2>/dev/null | grep -o '\"setup-token\":\"[^\"]*\"' | cut -d'\"' -f4" || echo "")
         
         if [ -z "$SETUP_TOKEN" ]; then
             echo -e "${YELLOW}  ⚠ Metabase already configured - skipping admin setup${NC}"
@@ -687,7 +690,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; th
                         allow_tracking: false
                     }
                 }')
-            METABASE_RESULT=$(printf '%s' "$METABASE_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:3000/api/setup' \
+            METABASE_RESULT=$(printf '%s' "$METABASE_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:$METABASE_PORT/api/setup' \
                 -H 'Content-Type: application/json' \
                 -d @-" 2>&1 || echo "")
             
