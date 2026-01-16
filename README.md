@@ -267,6 +267,7 @@ Deploy entirely via CI - no local tools required!
 | **Spin Up** | Re-create infrastructure after teardown |
 | **Teardown** | Teardown infrastructure (keeps state) |
 | **Destroy All** | Delete everything |
+| **Cleanup Orphaned Resources** | Manual cleanup of orphaned Cloudflare resources |
 
 ```bash
 # First time setup
@@ -276,6 +277,9 @@ gh workflow run initial-setup.yaml
 # Or via CLI:
 gh workflow run spin-up.yml
 gh workflow run teardown.yml
+
+# Manual cleanup (if needed)
+gh workflow run cleanup-orphaned-resources.yml
 ```
 
 → See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for configuration details.
