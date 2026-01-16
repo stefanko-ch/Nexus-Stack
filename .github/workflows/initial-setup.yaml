@@ -21,4 +21,9 @@ jobs:
     name: Spin Up Nexus-Stack
     needs: setup-control-plane
     uses: ./.github/workflows/spin-up.yml
+    with:
+      # Pass R2 credentials from setup-control-plane to spin-up
+      # This enables fully automated initial deployment without pre-existing secrets
+      r2_access_key_id: ${{ needs.setup-control-plane.outputs.r2_access_key_id }}
+      r2_secret_access_key: ${{ needs.setup-control-plane.outputs.r2_secret_access_key }}
     secrets: inherit
