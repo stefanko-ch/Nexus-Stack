@@ -84,7 +84,7 @@ jobs:
             echo "${{ inputs.ssh_public_key }}" > ~/.ssh/id_ed25519.pub
           else
             echo "❌ No SSH key found!"
-            echo "   Please run 'Initial Setup' workflow first to generate SSH keys."
+            echo "   Please run the 'Initial Setup' workflow (initial-setup.yaml) first to generate SSH keys."
             exit 1
           fi
           
@@ -112,7 +112,8 @@ jobs:
           # Validate credentials are not empty
           if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
             echo "❌ R2 credentials are empty!"
-            echo "   Either run 'Initial Setup' workflow first, or set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY secrets."
+            echo "   Either run the 'Initial Setup' workflow (initial-setup.yaml) first,"
+            echo "   or set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in GitHub Settings → Secrets → Actions."
             exit 1
           fi
           
