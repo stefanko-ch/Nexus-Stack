@@ -285,8 +285,8 @@ Add these secrets to your repo:
 ### First Setup
 
 ```bash
-# Run the setup workflow
-gh workflow run deploy.yml
+# Run the initial setup workflow
+gh workflow run initial-setup.yaml
 ```
 
 On **first run**, the pipeline will:
@@ -312,7 +312,8 @@ Once saved, all future deployments will use these secrets automatically.
 
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
-| Setup | `gh workflow run deploy.yml` | None | One-time setup (triggers spin-up) |
+| Initial Setup | `gh workflow run initial-setup.yaml` | None | One-time setup (Control Plane + Spin Up) |
+| Setup Control Plane | `gh workflow run setup-control-plane.yaml` | None | Setup Control Plane only |
 | Spin Up | `gh workflow run spin-up.yml` | None | Re-create infrastructure after teardown |
 | Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
 | Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
@@ -473,7 +474,7 @@ After deployment, check your email (`ADMIN_EMAIL` secret) for:
 - Check Cloudflare DNS logs for any issues
 
 **Using a different sender email?**
-- Edit `.github/workflows/deploy.yml` line 221
+- Edit `.github/workflows/setup-control-plane.yaml` line 221
 - Change `nexus@$DOMAIN` to your preferred email
 - Must be from verified domain (e.g., `admin@yourdomain.com`)
 
