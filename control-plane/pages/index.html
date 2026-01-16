@@ -75,7 +75,7 @@
 
         .logo {
             display: block;
-            width: 120px;
+            width: 360px;
             height: auto;
             margin: 0 auto 1.5rem;
             filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
@@ -99,6 +99,46 @@
             text-transform: uppercase;
             letter-spacing: 0.3em;
             opacity: 0.7;
+        }
+
+        .version {
+            font-size: 0.7rem;
+            color: #607080;
+            margin-top: 0.5rem;
+        }
+
+        .version a {
+            color: #00ff88;
+            text-decoration: none;
+        }
+
+        .version a:hover {
+            text-decoration: underline;
+        }
+
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 4px;
+            padding: 0.3rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: rgba(0, 255, 136, 0.6);
+        }
+
+        .refresh-btn.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         /* Status Panel */
@@ -681,6 +721,7 @@
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
             <p class="tagline">Control Plane</p>
+            <p class="version" id="version-tag">Loading version...</p>
         </header>
 
         <!-- Status Panel -->
@@ -688,6 +729,7 @@
             <div class="status-indicator">
                 <span class="status-dot unknown" id="status-dot"></span>
                 <span class="status-text unknown" id="status-text">Checking...</span>
+                <button class="refresh-btn" id="btn-refresh" title="Refresh Status">🔄</button>
             </div>
             <p class="status-description" id="status-description">Fetching infrastructure status...</p>
         </div>
@@ -822,6 +864,38 @@
         // Fallback function to enable buttons when status check fails
         function enableFallbackState() {
             updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
+        }
+
+        // Fetch and display version
+        async function fetchVersion() {
+            try {
+                const response = await fetch(`${API_URL}/api/version`, { credentials: 'same-origin' });
+                const data = await response.json();
+                
+                const versionEl = document.getElementById('version-tag');
+                if (data.success && data.version) {
+                    versionEl.innerHTML = `<a href="${data.url}" target="_blank">${data.version}</a>`;
+                } else {
+                    versionEl.textContent = 'dev';
+                }
+            } catch (error) {
+                console.error('Failed to fetch version:', error);
+                document.getElementById('version-tag').textContent = 'dev';
+            }
+        }
+
+        // Refresh status handler
+        async function refreshStatus() {
+            const refreshBtn = document.getElementById('btn-refresh');
+            refreshBtn.classList.add('spinning');
+            refreshBtn.disabled = true;
+            
+            await fetchStatus();
+            await fetchInfo();
+            await fetchServices();
+            
+            refreshBtn.classList.remove('spinning');
+            refreshBtn.disabled = false;
         }
 
         // Fetch and display status
@@ -1401,7 +1475,11 @@
         
         // Initial health check and status fetch
         checkHealth();
+        fetchVersion();
         fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
+
+        // Refresh button click handler
+        document.getElementById('btn-refresh').addEventListener('click', refreshStatus);
     </script>
 </body>
 </html>
