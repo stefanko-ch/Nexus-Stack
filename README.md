@@ -70,6 +70,7 @@ After deployment you'll have:
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
+![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
 ![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
 ![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
@@ -84,6 +85,7 @@ After deployment you'll have:
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
+| **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **Info** | Landing page with service overview dashboard | — |
