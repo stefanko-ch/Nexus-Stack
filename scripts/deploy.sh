@@ -609,12 +609,12 @@ if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
     if [ "$N8N_READY" = "false" ]; then
         echo -e "${YELLOW}  ⚠ n8n not ready after 60s - skipping config${NC}"
     else
-        # Check if setup is needed
+        # Check if setup is needed (showSetupOnFirstLoad=true means setup needed)
         SETUP_CHECK=$(ssh nexus "curl -s http://localhost:5678/rest/settings" 2>/dev/null || echo "{}")
-        IS_SETUP_DONE=$(echo "$SETUP_CHECK" | jq -r '.data.userManagement.showSetupOnFirstLoad // true' 2>/dev/null || echo "true")
+        NEEDS_SETUP=$(echo "$SETUP_CHECK" | jq -r '.data.userManagement.showSetupOnFirstLoad // true' 2>/dev/null || echo "true")
         
-        if [ "$IS_SETUP_DONE" = "false" ]; then
-            echo -e "${YELLOW}  ⚠ n8n already configured${NC}"
+        if [ "$NEEDS_SETUP" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ n8n already configured - skipping owner setup${NC}"
         else
             # Create owner account via API
             N8N_SETUP_PAYLOAD="{\"email\":\"$ADMIN_EMAIL\",\"firstName\":\"Admin\",\"lastName\":\"User\",\"password\":\"$N8N_PASS\"}"
