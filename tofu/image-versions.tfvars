@@ -35,7 +35,7 @@ image_versions = {
   prometheus    = "prom/prometheus:v3"                  # Major: v3.x.x
   loki          = "grafana/loki:3"                      # Major: 3.x.x
   promtail      = "grafana/promtail:3"                  # Major: 3.x.x (match loki)
-  cadvisor      = "ghcr.io/google/cadvisor:v0.56.1"     # Registry moved to ghcr.io in v0.54
+  cadvisor      = "ghcr.io/google/cadvisor:0.56"        # ghcr.io uses tags without 'v' prefix
   node-exporter = "prom/node-exporter:v1"               # Major: v1.x.x
 
   # -------------------------------------------------------------------------
