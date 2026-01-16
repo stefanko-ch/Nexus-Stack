@@ -23,6 +23,10 @@ on:
         description: 'R2 Secret Access Key (from setup-control-plane)'
         required: false
         type: string
+      ssh_public_key:
+        description: 'SSH Public Key (from setup-control-plane)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -62,12 +66,31 @@ jobs:
           chmod +x cloudflared
           sudo mv cloudflared /usr/local/bin/
 
-      - name: Generate SSH key for server access
+      - name: Setup SSH key for server access
         run: |
           mkdir -p ~/.ssh
-          ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "github-actions@nexus-stack"
+          chmod 700 ~/.ssh
+          
+          # Use SSH key from secrets (created by setup-control-plane)
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "🔑 Using SSH key from GitHub Secrets"
+            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+            echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
+          elif [ -n "${{ inputs.ssh_public_key }}" ]; then
+            # Fallback: Key passed from setup-control-plane during initial-setup
+            echo "🔑 Using SSH key from workflow input"
+            # Note: Private key should already be in secrets at this point
+            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+            echo "${{ inputs.ssh_public_key }}" > ~/.ssh/id_ed25519.pub
+          else
+            echo "❌ No SSH key found!"
+            echo "   Please run 'Initial Setup' workflow first to generate SSH keys."
+            exit 1
+          fi
+          
           chmod 600 ~/.ssh/id_ed25519
           chmod 644 ~/.ssh/id_ed25519.pub
+          echo "✅ SSH key configured"
 
       - name: Create R2 credentials from secrets
         run: |
@@ -198,6 +221,9 @@ jobs:
           tofu init -backend-config=../backend.hcl
 
       - name: Spin up infrastructure
+        env:
+          # Pass SSH private key to deploy.sh for Infisical storage
+          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
         run: make up
 
       - name: Store credentials in KV
