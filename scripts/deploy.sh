@@ -256,11 +256,15 @@ fi
 # Create remote stacks directory
 ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 
-# Generate global image versions .env file
-echo "  Creating image versions config..."
-IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
+# Generate global .env file with image versions and DOMAIN
+echo "  Creating global .env config..."
+ENV_CONTENT="# Auto-generated global config - DO NOT EDIT
 # Managed by OpenTofu via image-versions.tfvars
-#
+
+# Domain for service URLs
+DOMAIN=$DOMAIN
+
+# Docker image versions
 # Keys are transformed to environment variables by:
 #   - replacing '-' with '_'
 #   - converting to upper-case
@@ -269,11 +273,11 @@ IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
 "
 # Parse JSON and create IMAGE_XXX=value lines
 if [ "$IMAGE_VERSIONS_JSON" != "{}" ]; then
-    IMAGE_ENV_CONTENT+=$(echo "$IMAGE_VERSIONS_JSON" | jq -r 'to_entries | .[] | "IMAGE_\(.key | gsub("-"; "_") | ascii_upcase)=\(.value)"')
+    ENV_CONTENT+=$(echo "$IMAGE_VERSIONS_JSON" | jq -r 'to_entries | .[] | "IMAGE_\(.key | gsub("-"; "_") | ascii_upcase)=\(.value)"')
 fi
 # Write to server
-echo "$IMAGE_ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
-echo -e "${GREEN}  ✓ Image versions config created${NC}"
+echo "$ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
+echo -e "${GREEN}  ✓ Global .env config created (DOMAIN + image versions)${NC}"
 
 # Generate info page if info stack is enabled
 if echo "$ENABLED_SERVICES" | grep -qw "info"; then
@@ -634,6 +638,66 @@ if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
                 echo -e "${GREEN}  ✓ n8n owner account created (email: $ADMIN_EMAIL)${NC}"
             else
                 echo -e "${YELLOW}  ⚠ n8n auto-setup failed - configure manually at first login${NC}"
+                echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
+            fi
+        fi
+    fi
+fi
+
+# Configure Metabase admin account
+if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; then
+    echo "  Configuring Metabase..."
+    
+    # Get Metabase port from services config (default: 3000)
+    METABASE_PORT=$(echo "$SERVICES_JSON" | jq -r '.metabase.port // 3000')
+    
+    # Wait for Metabase to be ready (Java app, takes longer to start)
+    echo "  Waiting for Metabase to be ready..."
+    METABASE_READY=false
+    for i in $(seq 1 60); do
+        METABASE_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:$METABASE_PORT/api/health 2>/dev/null" || echo "000")
+        if [ "$METABASE_HEALTH" = "200" ]; then
+            METABASE_READY=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$METABASE_READY" = "false" ]; then
+        echo -e "${YELLOW}  ⚠ Metabase not ready after 120s - skipping config${NC}"
+    else
+        # Get setup token (only available before first setup)
+        SETUP_TOKEN=$(ssh nexus "curl -s http://localhost:$METABASE_PORT/api/session/properties 2>/dev/null | grep -o '\"setup-token\":\"[^\"]*\"' | cut -d'\"' -f4" || echo "")
+        
+        if [ -z "$SETUP_TOKEN" ]; then
+            echo -e "${YELLOW}  ⚠ Metabase already configured - skipping admin setup${NC}"
+        else
+            # Create admin user via setup API (use jq for proper JSON escaping)
+            METABASE_SETUP_PAYLOAD=$(jq -n \
+                --arg token "$SETUP_TOKEN" \
+                --arg email "$ADMIN_EMAIL" \
+                --arg password "$METABASE_PASS" \
+                '{
+                    token: $token,
+                    user: {
+                        email: $email,
+                        first_name: "Admin",
+                        last_name: "User",
+                        password: $password
+                    },
+                    prefs: {
+                        site_name: "Nexus Stack Analytics",
+                        allow_tracking: false
+                    }
+                }')
+            METABASE_RESULT=$(printf '%s' "$METABASE_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:$METABASE_PORT/api/setup' \
+                -H 'Content-Type: application/json' \
+                -d @-" 2>&1 || echo "")
+            
+            if echo "$METABASE_RESULT" | grep -q '"id"'; then
+                echo -e "${GREEN}  ✓ Metabase admin created (email: $ADMIN_EMAIL)${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Metabase auto-setup failed - configure manually at first login${NC}"
                 echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
             fi
         fi
