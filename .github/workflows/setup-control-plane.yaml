@@ -8,9 +8,8 @@ permissions:
   contents: read
   actions: write
 
-concurrency:
-  group: infrastructure
-  cancel-in-progress: false
+# NOTE: No concurrency here - handled by calling workflow (initial-setup.yaml)
+# When called directly via workflow_dispatch, runs without concurrency lock
 
 jobs:
   deploy:
