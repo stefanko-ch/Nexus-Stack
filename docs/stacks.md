@@ -24,6 +24,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
+| Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
+| Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
 ¹ No major version tags available, requires manual updates.  
@@ -351,6 +353,56 @@ Marimo is a reactive Python notebook that's reproducible, git-friendly, and depl
 | Public Access | No (contains notebooks/code) |
 | Website | [marimo.io](https://marimo.io) |
 | Source | [GitHub](https://github.com/marimo-team/marimo) |
+
+---
+
+## Redpanda
+
+![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
+
+**Kafka-compatible streaming platform**
+
+Redpanda is a Kafka-compatible streaming data platform that is simpler, faster, and more cost-effective than Apache Kafka. Features include:
+- 10x faster than Kafka with lower latency
+- No JVM, no ZooKeeper dependencies
+- 100% Kafka API compatible
+- Built-in Schema Registry and HTTP Proxy
+- Single binary deployment
+- WebAssembly data transforms
+
+| Setting | Value |
+|---------|-------|
+| Default Port (Admin) | `9644` |
+| Kafka Port | `9092` |
+| Schema Registry Port | `8081` |
+| Suggested Subdomain | `redpanda` |
+| Public Access | No (streaming infrastructure) |
+| Website | [redpanda.com](https://redpanda.com) |
+| Source | [GitHub](https://github.com/redpanda-data/redpanda) |
+
+---
+
+## Redpanda Console
+
+![Redpanda Console](https://img.shields.io/badge/Redpanda_Console-E4405F?logo=redpanda&logoColor=white)
+
+**Web UI for Redpanda/Kafka management**
+
+Redpanda Console is a developer-friendly web UI for managing and debugging your Kafka/Redpanda workloads. Features include:
+- Browse topics, partitions, and messages
+- View consumer groups and their lag
+- Manage schemas in Schema Registry
+- Execute ksqlDB queries
+- Monitor cluster health and performance
+- Produce and consume test messages
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8180` |
+| Suggested Subdomain | `redpanda-console` |
+| Public Access | No (cluster management) |
+| Website | [redpanda.com](https://redpanda.com) |
+| Source | [GitHub](https://github.com/redpanda-data/console) |
 
 ---
 

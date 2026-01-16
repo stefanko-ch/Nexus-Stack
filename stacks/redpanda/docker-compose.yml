@@ -1,0 +1,44 @@
+# =============================================================================
+# Redpanda - Kafka-compatible streaming platform
+# =============================================================================
+# Access via: https://redpanda.${domain}
+# Redpanda is a Kafka-compatible streaming data platform that is simpler,
+# faster, and more cost-effective than Apache Kafka.
+# =============================================================================
+
+services:
+  redpanda:
+    image: ${REDPANDA_IMAGE:-redpandadata/redpanda:v24.3.1}
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://redpanda:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://redpanda:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  redpanda-data:
+    driver: local
+
+networks:
+  app-network:
+    external: true
