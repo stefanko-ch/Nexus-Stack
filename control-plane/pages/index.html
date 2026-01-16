@@ -780,6 +780,7 @@
         </div>
 
         <footer>
+            <p>Built with ❤️ by <a href="https://github.com/stefanko-ch" target="_blank">Stefan Köller</a></p>
             <p>Powered by <a href="https://github.com/stefanko-ch/Nexus-Stack" target="_blank">Nexus-Stack</a></p>
         </footer>
     </div>
@@ -946,7 +947,7 @@
                     const diffMs = delayUntil - now;
                     const hours = Math.ceil(diffMs / (1000 * 60 * 60));
                     const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
+                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString('de-CH')}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
                     delayBtn.disabled = true;
                 } else if (config.nextTeardown) {
                     const nextTeardown = new Date(config.nextTeardown);
@@ -957,7 +958,7 @@
                             timeText += `${timeRemaining.hours}h `;
                         }
                         timeText += `${timeRemaining.minutes}m`;
-                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString('de-CH')}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
                     } else {
                         info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
                     }
@@ -1143,7 +1144,7 @@
                 div.className = 'history-item';
                 
                 const status = item.data.conclusion || item.data.status;
-                const time = new Date(item.data.updatedAt).toLocaleString();
+                const time = new Date(item.data.updatedAt).toLocaleString('de-CH');
                 
                 div.innerHTML = `
                     <span class="history-name">${item.name}</span>
