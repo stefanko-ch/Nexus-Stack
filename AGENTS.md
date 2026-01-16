@@ -43,7 +43,8 @@ Nexus-Stack/
 ├── AGENTS.md                   # Agent instructions (this file)
 ├── .github/
 │   └── workflows/             # GitHub Actions workflows
-│       ├── deploy.yml          # Setup workflow (one-time, triggers spin-up)
+│       ├── initial-setup.yaml  # Initial setup (triggers Control Plane + Spin Up)
+│       ├── setup-control-plane.yaml # Setup Control Plane only
 │       ├── spin-up.yml         # Spin-up workflow (re-deploy after teardown)
 │       ├── teardown.yml        # Teardown workflow (stops infrastructure)
 │       ├── destroy-all.yml     # Destroy workflow (full cleanup)

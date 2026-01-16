@@ -26,7 +26,7 @@ export async function onRequestGet(context) {
 
   // Workflow file paths (more reliable than name matching)
   const WORKFLOW_PATHS = {
-    setup: 'deploy.yml',
+    setup: 'setup-control-plane.yaml',
     spinUp: 'spin-up.yml',
     teardown: 'teardown.yml',
     destroy: 'destroy-all.yml'

@@ -1,0 +1,24 @@
+name: Initial Setup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  setup-control-plane:
+    name: Setup Control Plane
+    uses: ./.github/workflows/setup-control-plane.yaml
+    secrets: inherit
+
+  spin-up:
+    name: Spin Up Nexus-Stack
+    needs: setup-control-plane
+    uses: ./.github/workflows/spin-up.yml
+    secrets: inherit

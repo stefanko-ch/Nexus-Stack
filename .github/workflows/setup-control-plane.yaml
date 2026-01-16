@@ -2,6 +2,7 @@ name: Setup Nexus Control Plane
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

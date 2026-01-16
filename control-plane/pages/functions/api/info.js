@@ -164,7 +164,7 @@ export async function onRequestGet(context) {
       );
 
       const lastSetup = runs.find(r => 
-        ((r.path && r.path.includes('deploy.yml')) || 
+        ((r.path && r.path.includes('setup-control-plane.yaml')) || 
          (r.name && r.name.includes('Setup'))) &&
         r.conclusion === 'success'
       );
