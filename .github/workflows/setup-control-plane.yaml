@@ -3,6 +3,16 @@ name: Setup Nexus Control Plane
 on:
   workflow_dispatch:
   workflow_call:
+    outputs:
+      r2_access_key_id:
+        description: 'R2 Access Key ID (for spin-up workflow)'
+        value: ${{ jobs.deploy.outputs.r2_access_key_id }}
+      r2_secret_access_key:
+        description: 'R2 Secret Access Key (for spin-up workflow)'
+        value: ${{ jobs.deploy.outputs.r2_secret_access_key }}
+      ssh_public_key:
+        description: 'SSH Public Key (for spin-up workflow)'
+        value: ${{ jobs.deploy.outputs.ssh_public_key }}
 
 permissions:
   contents: read
@@ -15,6 +25,10 @@ jobs:
   deploy:
     name: Setup Nexus Control Plane
     runs-on: ubuntu-latest
+    outputs:
+      r2_access_key_id: ${{ steps.r2_credentials.outputs.r2_access_key_id }}
+      r2_secret_access_key: ${{ steps.r2_credentials.outputs.r2_secret_access_key }}
+      ssh_public_key: ${{ steps.ssh_key.outputs.ssh_public_key }}
     env:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -44,11 +58,47 @@ jobs:
           sudo mv cloudflared /usr/local/bin/
 
       - name: Generate SSH key for server access
+        id: ssh_key
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p ~/.ssh
-          ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "github-actions@nexus-stack"
-          chmod 600 ~/.ssh/id_ed25519
-          chmod 644 ~/.ssh/id_ed25519.pub
+          # Check if SSH key already exists in secrets
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "✅ SSH key already exists in secrets - reusing"
+            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+            echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
+            chmod 600 ~/.ssh/id_ed25519
+            chmod 644 ~/.ssh/id_ed25519.pub
+            echo "ssh_key_created=false" >> $GITHUB_OUTPUT
+          else
+            echo "🔑 Generating new SSH key..."
+            mkdir -p ~/.ssh
+            ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "nexus-stack"
+            chmod 600 ~/.ssh/id_ed25519
+            chmod 644 ~/.ssh/id_ed25519.pub
+            
+            # Save SSH keys as GitHub Secrets
+            SSH_PRIVATE_KEY=$(cat ~/.ssh/id_ed25519)
+            SSH_PUBLIC_KEY=$(cat ~/.ssh/id_ed25519.pub)
+            
+            if [ -n "$GH_TOKEN" ]; then
+              echo "🔐 Saving SSH keys to GitHub Secrets..."
+              if gh secret set SSH_PRIVATE_KEY -b "$SSH_PRIVATE_KEY" 2>/dev/null && \
+                 gh secret set SSH_PUBLIC_KEY -b "$SSH_PUBLIC_KEY" 2>/dev/null; then
+                echo "✅ SSH keys saved to GitHub Secrets"
+                echo "ssh_key_created=true" >> $GITHUB_OUTPUT
+              else
+                echo "⚠️  Failed to save SSH keys - GH_SECRETS_TOKEN may need 'repo' scope"
+                echo "ssh_key_created=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "⚠️  GH_SECRETS_TOKEN not set - SSH keys not saved"
+              echo "ssh_key_created=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+          # Export public key for output
+          echo "ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" >> $GITHUB_OUTPUT
 
       - name: Generate config.tfvars
         run: |
@@ -171,6 +221,18 @@ jobs:
           echo "✅ R2 credentials file created"
           echo "   R2_ACCESS_KEY_ID length: ${#R2_ACCESS_KEY_ID}"
           echo "   R2_SECRET_ACCESS_KEY length: ${#R2_SECRET_ACCESS_KEY}"
+
+      - name: Export R2 credentials for spin-up workflow
+        id: r2_credentials
+        run: |
+          source tofu/.r2-credentials
+          # Mask the credentials in logs
+          echo "::add-mask::$R2_ACCESS_KEY_ID"
+          echo "::add-mask::$R2_SECRET_ACCESS_KEY"
+          # Export as outputs for the calling workflow
+          echo "r2_access_key_id=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
+          echo "r2_secret_access_key=$R2_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
+          echo "✅ R2 credentials exported for spin-up workflow"
 
       - name: Initialize OpenTofu for Control Plane
         run: |

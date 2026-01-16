@@ -21,13 +21,28 @@
 
 ## What This Does
 
-- Creates a Hetzner Cloud server
-- Sets up Cloudflare Tunnel with Zero Trust authentication
-- Deploys your Docker services behind Cloudflare Access
-- Everything accessible only to your email address
-- SSH via Cloudflare Tunnel - **zero open ports**
+### Infrastructure
+- **Hetzner Cloud Server** - ARM-based (cax11/cax31) running Ubuntu 24.04
+- **Cloudflare Tunnel** - All traffic routed through Cloudflare, zero open ports
+- **Cloudflare Access** - Email OTP authentication for all services
+- **Remote State** - OpenTofu state stored in Cloudflare R2
 
-**Zero Entry** = Zero open ports = Zero attack surface
+### Automation
+- **Control Plane** - Web UI to manage infrastructure (spin up, teardown, services)
+- **GitHub Actions** - Full CI/CD deployment without local tools
+- **Scheduled Teardown** - Optional daily auto-shutdown to save costs
+- **Email Notifications** - Credentials and status emails via Resend
+
+### Security
+- **Zero Entry** - Zero open ports = Zero attack surface
+- **Service Tokens** - Headless SSH access for CI/CD
+- **Secrets Management** - Centralized in Infisical with auto-provisioning
+
+### Developer Experience
+- **One-Command Deploy** - `make up` deploys everything
+- **Modular Stacks** - Enable/disable services via config
+- **Auto-Setup** - Admin users created automatically with generated passwords
+- **Info Page** - Dashboard with all service URLs and credentials
 
 ## Prerequisites
 
@@ -38,88 +53,19 @@
 - **A domain** - Can be purchased from any registrar, but must be [added to Cloudflare](https://developers.cloudflare.com/fundamentals/setup/manage-domains/add-site/) (Cloudflare manages DNS)
 - **SSH key pair** - Must exist at `~/.ssh/id_ed25519`. Generate with: `ssh-keygen -t ed25519`
 
-## Quick Start
+## Getting Started
 
-```bash
-# 1. Clone this repo
-git clone https://github.com/stefanko-ch/Nexus-Stack.git
-cd Nexus-Stack
+For complete installation and configuration instructions, see the **[Setup Guide](docs/setup-guide.md)**.
 
-# 2. Create config files
-make init
+**Quick Overview:**
+1. Clone the repo and run `make init`
+2. Configure `.env` with API tokens and `tofu/stack/config.tfvars` with settings
+3. Run `source .env && make up`
 
-# 3. Add your secrets to .env
-cp .env.example .env
-nano .env
-
-# 4. Edit domain/email settings
-nano tofu/stack/config.tfvars
-
-# 5. Deploy everything
-source .env && make up
-```
-
-That's it! After a few minutes you'll have:
+After deployment you'll have:
 - `https://control.yourdomain.com` - Control Plane to manage infrastructure
-- `https://it-tools.yourdomain.com` - IT-Tools (protected by Cloudflare Access)
-- `https://info.yourdomain.com` - Service dashboard
+- `https://info.yourdomain.com` - Service dashboard with credentials
 - `ssh nexus` - SSH access via Cloudflare Tunnel
-
-## Configuration
-
-Nexus-Stack uses **two config files** for security:
-
-### 1. `.env` - Secrets (never committed)
-
-```bash
-export TF_VAR_hcloud_token="xxx"
-export TF_VAR_cloudflare_api_token="xxx"
-export TF_VAR_cloudflare_account_id="xxx"
-```
-
-| Variable | Where to get it |
-|----------|-----------------|
-| `TF_VAR_hcloud_token` | [Hetzner Console](https://console.hetzner.cloud/) → Project → Security → API Tokens |
-| `TF_VAR_cloudflare_api_token` | [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token |
-| `TF_VAR_cloudflare_account_id` | URL when logged into Cloudflare: `dash.cloudflare.com/<account_id>/...` |
-
-### 2. `tofu/stack/config.tfvars` - Settings (can be committed)
-
-| Setting | Description |
-|---------|-------------|
-| `cloudflare_zone_id` | Domain overview page → right sidebar |
-| `domain` | Your domain in Cloudflare |
-| `admin_email` | Your email for authentication |
-| `services` | Which stacks to deploy |
-
-### Cloudflare API Token Permissions
-
-Create a Custom Token with these permissions:
-- Zone:DNS:Edit
-- Zone:Zone:Read
-- Account:Cloudflare Tunnel:Edit
-- Account:Access: Apps and Policies:Edit
-- Account:Access: Service Tokens:Edit
-- Account:Access: Organizations:Edit
-- **Account:Workers R2 Storage:Edit** ← Required for remote state
-- **Account:Workers KV Storage:Edit** ← Required for KV namespaces
-- **Account:Workers Scripts:Edit** ← Required for scheduled teardown worker and KV namespaces
-- **Account:Cloudflare Pages:Edit** ← Required for Control Plane
-
-See [docs/setup-guide.md](docs/setup-guide.md#create-api-token) for details.
-
-### Docker Hub Login (Optional)
-
-Docker Hub limits anonymous pulls to 100 per 6 hours per IP. During development with frequent `make teardown` / `make up` cycles, this limit is quickly reached since each deployment pulls multiple images (Grafana stack alone requires 6 images).
-
-To avoid rate limits, add your Docker Hub credentials:
-
-```hcl
-dockerhub_username = "your-username"
-dockerhub_token    = "dckr_pat_xxxx"  # Create at hub.docker.com/settings/security
-```
-
-This doubles your limit to 200 pulls/6h with a free account.
 
 ## Available Stacks
 
@@ -147,27 +93,21 @@ This doubles your limit to 200 pulls/6h with a free account.
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Info** | Landing page with service overview dashboard | — |
 
-## 🎮 Control Plane
-
-Manage your Nexus-Stack infrastructure via web interface:
-
-```
-https://control.YOUR_DOMAIN
-```
-
-**Features:**
-- ⚡ **Spin Up** - Re-create infrastructure after teardown
-- 💤 **Teardown** - Stop infrastructure (keeps control plane + state)
-- 🧩 **Services** - Enable/disable services and trigger spin-up
-- 📊 **Status** - Real-time workflow monitoring
-
-The control plane is deployed via Cloudflare Pages and survives teardown. Protected by Cloudflare Access.
-
-→ See [control-plane/README.md](control-plane/README.md) for setup details.
-
 All stacks are pre-configured and ready to deploy. Just enable them in `config.tfvars`.
 
 → See [docs/stacks.md](docs/stacks.md) for detailed stack documentation.
+
+## Control Plane
+
+Manage your Nexus-Stack infrastructure via web interface at `https://control.YOUR_DOMAIN`.
+
+**Features:**
+- ⚡ **Spin Up / Teardown** - Start and stop infrastructure with one click
+- 🧩 **Services** - Enable/disable services dynamically
+- ⏰ **Scheduled Teardown** - Auto-shutdown to save costs
+- 📧 **Credentials Email** - Send login credentials to your inbox
+
+→ See [docs/control-plane.md](docs/control-plane.md) for the user guide.
 
 ## Commands
 
@@ -321,101 +261,24 @@ Nexus-Stack automatically creates a Cloudflare Service Token for SSH access. Thi
 
 Deploy entirely via CI - no local tools required!
 
-### Quick Start
-
-1. Add secrets to your repo (Settings → Secrets → Actions):
-   - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`
-   - `HCLOUD_TOKEN`, `DOMAIN`, `ACCESS_EMAILS`, `ADMIN_EMAIL`
-   - **(Optional)** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` - For increased Docker pull rate limits (200 vs 100 pulls/6h)
-
-2. **(Optional)** For auto-saving R2 credentials, create a Fine-grained PAT:
-   - GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
-   - Repository: `Nexus-Stack`, Permission: Secrets (Read and write)
-   - Save as `GH_SECRETS_TOKEN` secret
-
-3. **(Optional)** For credentials email after deployment:
-   - Create account at [resend.com](https://resend.com)
-   - Verify your domain (add DNS records)
-   - Create API key and save as `RESEND_API_KEY` secret
-
-4. Run first setup:
-   ```bash
-   gh workflow run initial-setup.yaml
-   ```
-
-5. R2 credentials are auto-saved as GitHub Secrets (if `GH_SECRETS_TOKEN` is configured)
-6. Credentials email sent to admin (if `RESEND_API_KEY` is configured)
-7. Control Plane environment variables (`GITHUB_OWNER`, `GITHUB_REPO`) are set automatically
-
-**Note:** The Control Plane requires `GITHUB_TOKEN` to be set with the following permissions:
-
-**For Classic Tokens:**
-- `workflow` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
-- `repo` - Full control of repositories (required for auto-saving R2 credentials as Secrets)
-
-**For Fine-Grained Tokens:**
-- Repository: Select your `Nexus-Stack` repository
-- `Actions: Write` - Trigger GitHub Actions workflows (required for Setup/Spin Up/Teardown buttons)
-- `Secrets: Write` - Write repository secrets (for auto-saving R2 credentials)
-- `Contents: Read` - Read repository contents (required for branch access when triggering workflows)
-- `Contents: Write` - Update `tofu/services.tfvars` from the Control Plane
-
-**Important:** Fine-Grained Tokens must have explicit access to the repository. Make sure you selected the correct repository when creating the token. The `Contents: Read` permission is required for the token to access the `main` branch when triggering workflows.
-
-Set the token manually:
-```bash
-make setup-control-plane-secrets
-# Or manually via Cloudflare Dashboard:
-# Pages → nexus-control-plane → Settings → Environment Variables → Secrets
-```
-
-### Available Workflows
-
-| Workflow | Command | Description |
-|----------|---------|-------------|
-| **Initial Setup** | `gh workflow run initial-setup.yaml` | One-time setup (Control Plane + Spin Up) |
-| **Setup Control Plane** | `gh workflow run setup-control-plane.yaml` | Setup Control Plane only |
-| **Spin Up** | `gh workflow run spin-up.yml` | Re-create infrastructure after teardown |
-| **Teardown** | `gh workflow run teardown.yml` | Teardown infrastructure (keeps state) |
-| **Destroy All** | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Delete everything |
-
-### Scheduled Teardown (Cost Saving - Optional)
-
-Nexus-Stack can automatically tear down infrastructure daily to save costs. This feature is **optional** and must be enabled via the Control Plane.
-
-**Features:**
-- **Email notification** sent 15 minutes before teardown (21:45)
-- **Automatic teardown** runs daily at 22:00
-- **Default timezone**: Europe/Zurich (Switzerland)
-- **Configurable**: Enable/disable and configure via Control Plane API
-
-**Enable via Control Plane:**
-```bash
-# Enable scheduled teardown
-curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": true, "timezone": "Europe/Zurich", "teardownTime": "22:00"}'
-
-# Check current configuration
-curl https://control.YOUR_DOMAIN/api/scheduled-teardown
-```
-
-**Architecture:**
-- Cloudflare Worker runs scheduled cron jobs (20:45 UTC for notification, 21:00 UTC for teardown)
-- Configuration stored in Cloudflare KV (accessible via Control Plane API)
-- Worker checks if scheduled teardown is enabled before triggering actions
-- Default: **disabled** (must be explicitly enabled)
-
-→ See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for details.
-
-### Manual Browser Login (Fallback)
-
-If the Service Token is not available (e.g., first deployment before infrastructure exists), the script falls back to browser-based authentication:
+| Workflow | Description |
+|----------|-------------|
+| **Initial Setup** | One-time setup (Control Plane + Spin Up) |
+| **Spin Up** | Re-create infrastructure after teardown |
+| **Teardown** | Teardown infrastructure (keeps state) |
+| **Destroy All** | Delete everything |
 
 ```bash
-# Manual authentication if needed:
-cloudflared access login https://ssh.yourdomain.com
+# First time setup
+gh workflow run initial-setup.yaml
+
+# Daily operations via Control Plane UI
+# Or via CLI:
+gh workflow run spin-up.yml
+gh workflow run teardown.yml
 ```
+
+→ See [docs/setup-guide.md](docs/setup-guide.md#-github-actions-deployment) for configuration details.
 
 ## Security
 
