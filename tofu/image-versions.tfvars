@@ -1,37 +1,41 @@
 # =============================================================================
 # Docker Image Versions
 # =============================================================================
-# Pin specific versions for stability. Update these manually when you want to
-# upgrade services. Find latest versions at:
-# - https://hub.docker.com
-# - GitHub releases of each project
+# Images are pinned to MAJOR versions where available for automatic security
+# patches while avoiding breaking changes. Some images only support exact
+# versions or "latest".
 #
-# Format: "image:tag" - the full image reference
+# Strategy:
+#   - Major version (e.g., :12) = auto-patches, manual major upgrades
+#   - Exact version (e.g., :v1.0.22) = full control, manual all upgrades
+#   - Latest = always newest (use only when no semver available)
+#
+# Find versions: https://hub.docker.com or GitHub releases
 # =============================================================================
 
 image_versions = {
   # -------------------------------------------------------------------------
-  # Main Services
+  # Main Services (major version pinning where supported)
   # -------------------------------------------------------------------------
   excalidraw  = "excalidraw/excalidraw:latest"          # No semver tags available
-  grafana     = "grafana/grafana:12.3.1"
-  infisical   = "infisical/infisical:v0.155.5"
-  it-tools    = "corentinth/it-tools:2024.10.22-7ca5933"
-  kestra      = "kestra/kestra:v1.0.22"
-  mailpit     = "axllent/mailpit:v1.28.2"
-  metabase    = "metabase/metabase:v0.58.2.3"
-  n8n         = "n8nio/n8n:1.123.15"
-  portainer   = "portainer/portainer-ce:2.33.6"
-  uptime-kuma = "louislam/uptime-kuma:2.0.2"
+  grafana     = "grafana/grafana:12"                    # Major: 12.x.x
+  infisical   = "infisical/infisical:v0.155.5"          # No major tags, exact only
+  it-tools    = "corentinth/it-tools:latest"            # Date-based tags only
+  kestra      = "kestra/kestra:v1"                      # Major: v1.x.x
+  mailpit     = "axllent/mailpit:v1"                    # Major: v1.x.x
+  metabase    = "metabase/metabase:v0.58"               # Minor: v0.58.x
+  n8n         = "n8nio/n8n:1"                           # Major: 1.x.x
+  portainer   = "portainer/portainer-ce:2"              # Major: 2.x.x
+  uptime-kuma = "louislam/uptime-kuma:2"                # Major: 2.x.x
 
   # -------------------------------------------------------------------------
   # Grafana Stack Components
   # -------------------------------------------------------------------------
-  prometheus    = "prom/prometheus:v3.9.1"
-  loki          = "grafana/loki:3.6.3"
-  promtail      = "grafana/promtail:3.6.3"
-  cadvisor      = "gcr.io/cadvisor/cadvisor:v0.56.1"
-  node-exporter = "prom/node-exporter:v1.10.2"
+  prometheus    = "prom/prometheus:v3"                  # Major: v3.x.x
+  loki          = "grafana/loki:3"                      # Major: 3.x.x
+  promtail      = "grafana/promtail:3"                  # Major: 3.x.x (match loki)
+  cadvisor      = "gcr.io/cadvisor/cadvisor:v0.56"      # Minor: v0.56.x
+  node-exporter = "prom/node-exporter:v1"               # Major: v1.x.x
 
   # -------------------------------------------------------------------------
   # Database & Support Images (pinned to major versions)
