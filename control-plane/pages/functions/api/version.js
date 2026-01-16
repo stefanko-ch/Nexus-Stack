@@ -47,7 +47,7 @@ export async function onRequestGet(context) {
         }), {
           headers: { 
             'Content-Type': 'application/json',
-            'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+            'Cache-Control': 'public, max-age=300', // 300s = 5 minutes
           },
         });
       }
@@ -75,7 +75,7 @@ export async function onRequestGet(context) {
     }), {
       headers: { 
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+        'Cache-Control': 'public, max-age=300', // 300s = 5 minutes
       },
     });
   } catch (error) {
