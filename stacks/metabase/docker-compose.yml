@@ -1,0 +1,33 @@
+# =============================================================================
+# Metabase - Business Intelligence Tool
+# https://metabase.${DOMAIN}
+# =============================================================================
+# Metabase is an easy-to-use, open-source business intelligence tool.
+# Create dashboards, ask questions about your data, and share insights.
+# Default login: admin@metabase.local / (generated password in Infisical)
+# =============================================================================
+
+services:
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - MB_SITE_NAME=Nexus Stack Analytics
+      - MB_SITE_URL=https://metabase.${DOMAIN}
+      - MB_ADMIN_EMAIL=admin@metabase.local
+      - MB_ANON_TRACKING_ENABLED=false
+      - JAVA_TIMEZONE=Europe/Zurich
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - app-network
+
+volumes:
+  metabase_data:
+
+networks:
+  app-network:
+    external: true
