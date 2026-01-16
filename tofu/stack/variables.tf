@@ -128,4 +128,14 @@ variable "dockerhub_token" {
   default     = ""
 }
 
+# =============================================================================
+# Docker Image Versions
+# =============================================================================
+
+variable "image_versions" {
+  description = "Map of service names to their Docker image:tag"
+  type        = map(string)
+  default     = {}
+}
+
 # Note: GitHub variables moved to tofu/control-plane/variables.tf

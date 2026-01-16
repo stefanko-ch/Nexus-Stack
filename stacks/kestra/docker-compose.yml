@@ -20,8 +20,10 @@ services:
   # Kestra - Workflow Engine
   # ---------------------------------------------------------------------------
   kestra:
-    image: kestra/kestra:latest
+    image: ${IMAGE_KESTRA:-kestra/kestra:latest}
     container_name: kestra
+    env_file:
+      - .env
     restart: unless-stopped
     user: "root"
     command: server standalone

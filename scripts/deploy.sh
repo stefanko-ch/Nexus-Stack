@@ -87,6 +87,12 @@ CF_ACCESS_CLIENT_SECRET=$(echo "$SSH_TOKEN_JSON" | jq -r '.client_secret // empt
 
 echo -e "${GREEN}  ✓ Secrets loaded (admin user: $ADMIN_USERNAME)${NC}"
 
+# Get image versions from OpenTofu
+echo ""
+echo -e "${YELLOW}Loading image versions...${NC}"
+IMAGE_VERSIONS_JSON=$(cd "$TOFU_DIR" && tofu output -json image_versions 2>/dev/null || echo "{}")
+echo -e "${GREEN}  ✓ Image versions loaded${NC}"
+
 # Clean old SSH known_hosts entries
 SERVER_IP=$(cd "$TOFU_DIR" && tofu output -raw server_ip 2>/dev/null || echo "")
 [ -n "$SSH_HOST" ] && ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
@@ -250,6 +256,19 @@ fi
 # Create remote stacks directory
 ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 
+# Generate global image versions .env file
+echo "  Creating image versions config..."
+IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
+# Managed by OpenTofu via image-versions.tfvars
+"
+# Parse JSON and create IMAGE_XXX=value lines
+if [ "$IMAGE_VERSIONS_JSON" != "{}" ]; then
+    IMAGE_ENV_CONTENT+=$(echo "$IMAGE_VERSIONS_JSON" | jq -r 'to_entries | .[] | "IMAGE_\(.key | gsub("-"; "_") | ascii_upcase)=\(.value)"')
+fi
+# Write to server
+echo "$IMAGE_ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
+echo -e "${GREEN}  ✓ Image versions config created${NC}"
+
 # Generate info page if info stack is enabled
 if echo "$ENABLED_SERVICES" | grep -qw "info"; then
     echo "  Generating info page..."
@@ -348,29 +367,21 @@ fi
 # -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
-echo ""
-echo -e "${YELLOW}[6/8] Pre-pulling Docker images (parallel)...${NC}"
-
-ssh nexus "
-set -e
-for service in $ENABLED_LIST; do
-    if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
-        echo \"  Pre-pulling images for \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose pull 2>&1 | tee /tmp/docker-pull-\$service.log | sed 's/^/    /' || { echo \"    ⚠ Failed to pull images for \$service\" >&2; cat /tmp/docker-pull-\$service.log 2>/dev/null | sed 's/^/      /' || true; }) &
-    fi
-done
-wait
-echo '  ✓ All images pre-pulled'
-"
-
-# -----------------------------------------------------------------------------
 # Start containers (parallel)
+# Note: docker compose up -d will automatically pull missing images
+# To force update images, use: docker compose pull && docker compose up -d
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[7/8] Starting enabled containers (parallel)...${NC}"
+echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
 
 ssh nexus "
 set -e
+# Export image versions from global .env
+if [ -f /opt/docker-server/stacks/.env ]; then
+    set -a
+    source /opt/docker-server/stacks/.env
+    set +a
+fi
 for service in $ENABLED_LIST; do
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"

@@ -9,7 +9,7 @@
 
 services:
   metabase:
-    image: metabase/metabase:latest
+    image: ${IMAGE_METABASE:-metabase/metabase:latest}
     container_name: metabase
     restart: unless-stopped
     ports:

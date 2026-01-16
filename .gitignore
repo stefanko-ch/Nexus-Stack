@@ -14,9 +14,11 @@ crash.*.log
 # Sensitive config files
 # - config.tfvars: gitignored (contains secrets for local use)
 # - services.tfvars: committed (only service definitions, no secrets)
+# - image-versions.tfvars: committed (Docker image versions)
 *.tfvars
 *.tfvars.json
 !services.tfvars
+!image-versions.tfvars
 !config.tfvars.example
 
 # Environment variables (secrets!)
@@ -53,5 +55,6 @@ terraform.rc
 # Logs
 *.log
 
-# Stack secrets
+# Stack secrets (auto-generated on server)
+stacks/.env
 stacks/*/.env

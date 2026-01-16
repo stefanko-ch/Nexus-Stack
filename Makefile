@@ -87,7 +87,7 @@ up: check-env
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
 		cd tofu/stack && tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true && \
-		tofu apply -var-file=config.tfvars -auto-approve
+		tofu apply -var-file=config.tfvars -var-file=../image-versions.tfvars -auto-approve
 	@echo ""
 	@chmod +x scripts/deploy.sh
 	@./scripts/deploy.sh
@@ -120,9 +120,9 @@ teardown: check-env
 		. tofu/.r2-credentials && \
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
-		cd tofu/stack && tofu destroy -var-file=config.tfvars -auto-approve; \
+		cd tofu/stack && tofu destroy -var-file=config.tfvars -var-file=../image-versions.tfvars -auto-approve; \
 	else \
-		cd tofu/stack && tofu destroy -var-file=config.tfvars -auto-approve; \
+		cd tofu/stack && tofu destroy -var-file=config.tfvars -var-file=../image-versions.tfvars -auto-approve; \
 	fi
 
 # Show running containers
@@ -144,7 +144,7 @@ plan: check-env
 		. tofu/.r2-credentials && \
 		export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 		export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
-		cd tofu/stack && tofu plan -var-file=config.tfvars; \
+		cd tofu/stack && tofu plan -var-file=config.tfvars -var-file=../image-versions.tfvars; \
 	else \
 		echo "❌ R2 credentials not found. Run 'make init' first."; \
 		exit 1; \
