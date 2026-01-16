@@ -1,0 +1,59 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    
+    steps:
+      - name: Run Release Please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  trigger-website:
+    name: Update Website
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger nexus-stack.ch website update
+        env:
+          WEBSITE_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+          NEW_VERSION: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          # Only trigger if token is configured
+          if [ -z "$WEBSITE_TOKEN" ]; then
+            echo "⚠️ WEBSITE_DISPATCH_TOKEN not configured, skipping website update"
+            exit 0
+          fi
+          
+          # Trigger the update-content workflow in nexus-stack.ch repo
+          if curl --fail -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $WEBSITE_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/stefanko-ch/nexus-stack.ch/dispatches \
+            -d "$(jq -n --arg version "$NEW_VERSION" '{event_type:"nexus-stack-release", client_payload:{version:$version, repository:"Nexus-Stack"}}')"; then
+            echo "✅ Triggered nexus-stack.ch website update for $NEW_VERSION"
+          else
+            echo "❌ Failed to trigger website update (HTTP error)"
+            exit 1
+          fi
