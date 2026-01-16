@@ -2,6 +2,33 @@
 
 This document provides detailed information about all available Docker stacks in Nexus-Stack.
 
+## Docker Image Versions
+
+All Docker images are pinned to specific versions for stability. Versions are defined in [`tofu/image-versions.tfvars`](../tofu/image-versions.tfvars).
+
+| Service | Image | Version |
+|---------|-------|---------|
+| Grafana | `grafana/grafana` | `12.3.1` |
+| Prometheus | `prom/prometheus` | `v3.9.1` |
+| Loki | `grafana/loki` | `3.6.3` |
+| Promtail | `grafana/promtail` | `3.6.3` |
+| cAdvisor | `gcr.io/cadvisor/cadvisor` | `v0.56.1` |
+| Node Exporter | `prom/node-exporter` | `v1.10.2` |
+| Portainer | `portainer/portainer-ce` | `2.33.6` |
+| Uptime Kuma | `louislam/uptime-kuma` | `2.0.2` |
+| n8n | `n8nio/n8n` | `1.123.15` |
+| Kestra | `kestra/kestra` | `v1.0.22` |
+| Infisical | `infisical/infisical` | `v0.155.5` |
+| Metabase | `metabase/metabase` | `v0.58.2.3` |
+| Mailpit | `axllent/mailpit` | `v1.28.2` |
+| IT-Tools | `corentinth/it-tools` | `2024.10.22-7ca5933` |
+| Excalidraw | `excalidraw/excalidraw` | `latest` ¹ |
+| Nginx (Info) | `nginx` | `alpine` |
+
+¹ Excalidraw only publishes `latest` tags, no semantic versions available.
+
+**To upgrade**: Edit the version in `tofu/image-versions.tfvars` and run Spin-Up.
+
 ---
 
 ## IT-Tools
