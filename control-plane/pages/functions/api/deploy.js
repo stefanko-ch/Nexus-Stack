@@ -1,6 +1,6 @@
 /**
  * Trigger Setup Control Plane workflow
- * POST /api/deploy
+ * POST /api/deploy (legacy endpoint name for backward compatibility)
  * 
  * Triggers the GitHub Actions setup-control-plane.yaml workflow.
  * Includes validation, error handling, and retry logic.
