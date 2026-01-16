@@ -57,6 +57,11 @@ output "enabled_services" {
   value = keys(local.enabled_services)
 }
 
+output "image_versions" {
+  description = "Docker image versions for each service"
+  value       = var.image_versions
+}
+
 # =============================================================================
 # Secrets Outputs
 # =============================================================================

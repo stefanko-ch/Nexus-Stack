@@ -107,7 +107,7 @@ jobs:
           
           # Destroy all resources in nexus-stack state
           # Control Plane is now in separate state (tofu/control-plane/)
-          tofu destroy -var-file=config.tfvars -auto-approve
+          tofu destroy -var-file=config.tfvars -var-file=../image-versions.tfvars -auto-approve
 
       - name: Confirm teardown
         run: |

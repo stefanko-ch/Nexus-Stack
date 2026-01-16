@@ -9,7 +9,7 @@
 
 services:
   info:
-    image: nginx:alpine
+    image: ${IMAGE_NGINX:-nginx:alpine}
     container_name: info
     restart: unless-stopped
     ports:

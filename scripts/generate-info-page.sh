@@ -13,6 +13,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 TFVARS_FILE="$PROJECT_ROOT/tofu/stack/config.tfvars"
+IMAGE_VERSIONS_FILE="$PROJECT_ROOT/tofu/image-versions.tfvars"
 TEMPLATE_FILE="$PROJECT_ROOT/stacks/info/html/index.template.html"
 OUTPUT_FILE="$PROJECT_ROOT/stacks/info/html/index.html"
 
@@ -123,6 +124,48 @@ TOTAL_COUNT=$(echo "$SERVICES_JSON" | python3 -c "import sys, json; d=json.load(
 
 echo -e "  Services: ${GREEN}$ACTIVE_COUNT${NC} active / $TOTAL_COUNT total"
 
+# Parse image versions from tfvars
+IMAGE_VERSIONS_JSON="{}"
+if [ -f "$IMAGE_VERSIONS_FILE" ]; then
+    IMAGE_VERSIONS_JSON=$(python3 << PYEOF
+import re
+import json
+
+with open("$IMAGE_VERSIONS_FILE", 'r') as f:
+    content = f.read()
+
+# Find image_versions block
+match = re.search(r'image_versions\s*=\s*\{(.*?)^\}', content, re.MULTILINE | re.DOTALL)
+if not match:
+    print("{}")
+    exit(0)
+
+block = match.group(1)
+versions = {}
+
+for line in block.split('\n'):
+    line = line.strip()
+    if not line or line.startswith('#'):
+        continue
+    
+    # Parse: key = "value"
+    m = re.match(r'^([\w-]+)\s*=\s*"([^"]+)"', line)
+    if m:
+        key = m.group(1)
+        value = m.group(2)
+        # Extract just the tag from "image:tag"
+        if ':' in value:
+            tag = value.split(':')[-1]
+        else:
+            tag = value
+        versions[key] = tag
+
+print(json.dumps(versions, indent=2))
+PYEOF
+)
+    echo -e "  Image versions: ${GREEN}loaded${NC}"
+fi
+
 # Get current date
 GENERATED_DATE=$(date '+%Y-%m-%d %H:%M UTC')
 
@@ -135,6 +178,7 @@ output_path = "$OUTPUT_FILE"
 domain = "$DOMAIN"
 generated_date = "$GENERATED_DATE"
 services_json = '''$SERVICES_JSON'''
+image_versions_json = '''$IMAGE_VERSIONS_JSON'''
 
 with open(template_path, 'r') as f:
     content = f.read()
@@ -143,6 +187,7 @@ with open(template_path, 'r') as f:
 content = content.replace('__DOMAIN__', domain)
 content = content.replace('__GENERATED_DATE__', generated_date)
 content = content.replace('__SERVICES_JSON__', services_json)
+content = content.replace('__IMAGE_VERSIONS_JSON__', image_versions_json)
 
 with open(output_path, 'w') as f:
     f.write(content)

@@ -87,6 +87,12 @@ CF_ACCESS_CLIENT_SECRET=$(echo "$SSH_TOKEN_JSON" | jq -r '.client_secret // empt
 
 echo -e "${GREEN}  ✓ Secrets loaded (admin user: $ADMIN_USERNAME)${NC}"
 
+# Get image versions from OpenTofu
+echo ""
+echo -e "${YELLOW}Loading image versions...${NC}"
+IMAGE_VERSIONS_JSON=$(cd "$TOFU_DIR" && tofu output -json image_versions 2>/dev/null || echo "{}")
+echo -e "${GREEN}  ✓ Image versions loaded${NC}"
+
 # Clean old SSH known_hosts entries
 SERVER_IP=$(cd "$TOFU_DIR" && tofu output -raw server_ip 2>/dev/null || echo "")
 [ -n "$SSH_HOST" ] && ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
@@ -250,6 +256,25 @@ fi
 # Create remote stacks directory
 ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 
+# Generate global image versions .env file
+echo "  Creating image versions config..."
+IMAGE_ENV_CONTENT="# Auto-generated Docker image versions - DO NOT EDIT
+# Managed by OpenTofu via image-versions.tfvars
+#
+# Keys are transformed to environment variables by:
+#   - replacing '-' with '_'
+#   - converting to upper-case
+#   - prefixing with 'IMAGE_'
+# Example: 'node-exporter' -> 'IMAGE_NODE_EXPORTER'
+"
+# Parse JSON and create IMAGE_XXX=value lines
+if [ "$IMAGE_VERSIONS_JSON" != "{}" ]; then
+    IMAGE_ENV_CONTENT+=$(echo "$IMAGE_VERSIONS_JSON" | jq -r 'to_entries | .[] | "IMAGE_\(.key | gsub("-"; "_") | ascii_upcase)=\(.value)"')
+fi
+# Write to server
+echo "$IMAGE_ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
+echo -e "${GREEN}  ✓ Image versions config created${NC}"
+
 # Generate info page if info stack is enabled
 if echo "$ENABLED_SERVICES" | grep -qw "info"; then
     echo "  Generating info page..."
@@ -290,18 +315,6 @@ KESTRA_DB_PASSWORD=$KESTRA_DB_PASS
 KESTRA_URL=https://kestra.${DOMAIN}
 EOF
     echo -e "${GREEN}  ✓ Kestra .env generated${NC}"
-fi
-
-# Generate n8n .env from OpenTofu secrets
-if echo "$ENABLED_SERVICES" | grep -qw "n8n"; then
-    echo "  Generating n8n config from OpenTofu secrets..."
-    cat > "$STACKS_DIR/n8n/.env" << EOF
-# Auto-generated from OpenTofu secrets - DO NOT COMMIT
-DOMAIN=$DOMAIN
-N8N_ADMIN_USER=$ADMIN_USERNAME
-N8N_ADMIN_PASSWORD=$N8N_PASS
-EOF
-    echo -e "${GREEN}  ✓ n8n .env generated${NC}"
 fi
 
 # Sync only enabled stacks
@@ -360,29 +373,21 @@ fi
 # -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
-echo ""
-echo -e "${YELLOW}[6/8] Pre-pulling Docker images (parallel)...${NC}"
-
-ssh nexus "
-set -e
-for service in $ENABLED_LIST; do
-    if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
-        echo \"  Pre-pulling images for \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose pull 2>&1 | tee /tmp/docker-pull-\$service.log | sed 's/^/    /' || { echo \"    ⚠ Failed to pull images for \$service\" >&2; cat /tmp/docker-pull-\$service.log 2>/dev/null | sed 's/^/      /' || true; }) &
-    fi
-done
-wait
-echo '  ✓ All images pre-pulled'
-"
-
-# -----------------------------------------------------------------------------
 # Start containers (parallel)
+# Note: docker compose up -d will automatically pull missing images
+# To force update images, use: docker compose pull && docker compose up -d
 # -----------------------------------------------------------------------------
 echo ""
-echo -e "${YELLOW}[7/8] Starting enabled containers (parallel)...${NC}"
+echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
 
 ssh nexus "
 set -e
+# Export image versions from global .env
+if [ -f /opt/docker-server/stacks/.env ]; then
+    set -a
+    source /opt/docker-server/stacks/.env
+    set +a
+fi
 for service in $ENABLED_LIST; do
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
@@ -474,7 +479,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "metabase" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -491,6 +496,7 @@ EOF
                     KUMA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="uptime-kuma") | .id // empty' 2>/dev/null)
                     GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
                     N8N_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="n8n") | .id // empty' 2>/dev/null)
+                    KESTRA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="kestra") | .id // empty' 2>/dev/null)
                     METABASE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="metabase") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
@@ -526,6 +532,8 @@ EOF
     {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]},
+    {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$KESTRA_TAG"]},
+    {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": ["$KESTRA_TAG"]},
     {"secretKey": "METABASE_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$METABASE_TAG"]},
     {"secretKey": "METABASE_PASSWORD", "secretValue": "$METABASE_PASS", "tagIds": ["$METABASE_TAG"]}$SSH_KEY_SECRET
   ]
@@ -586,6 +594,50 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; 
         fi
     ) &
     CONFIG_JOBS+=($!)
+fi
+
+# Configure n8n owner account
+if echo "$ENABLED_SERVICES" | grep -qw "n8n" && [ -n "$N8N_PASS" ]; then
+    echo "  Configuring n8n..."
+    
+    # Wait for n8n to be ready
+    echo "  Waiting for n8n to be ready..."
+    N8N_READY=false
+    for i in $(seq 1 30); do
+        N8N_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:5678/healthz 2>/dev/null" || echo "000")
+        if [ "$N8N_HEALTH" = "200" ]; then
+            N8N_READY=true
+            break
+        fi
+        sleep 2
+    done
+    
+    if [ "$N8N_READY" = "false" ]; then
+        echo -e "${YELLOW}  ⚠ n8n not ready after 60s - skipping config${NC}"
+    else
+        # Check if setup is needed (showSetupOnFirstLoad=true means setup needed)
+        SETUP_CHECK=$(ssh nexus "curl -s http://localhost:5678/rest/settings" 2>/dev/null || echo "{}")
+        # jq outputs boolean as 'true'/'false' string, fallback to 'true' if parsing fails
+        NEEDS_SETUP=$(echo "$SETUP_CHECK" | jq -r '.data.userManagement.showSetupOnFirstLoad // true | if . then "true" else "false" end' 2>/dev/null || echo "true")
+        
+        if [ "$NEEDS_SETUP" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ n8n already configured - skipping owner setup${NC}"
+        else
+            # Create owner account via API (use jq for proper JSON escaping)
+            N8N_SETUP_PAYLOAD=$(jq -n --arg email "$ADMIN_EMAIL" --arg password "$N8N_PASS" \
+                '{email: $email, firstName: "Admin", lastName: "User", password: $password}')
+            N8N_RESULT=$(printf '%s' "$N8N_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:5678/rest/owner/setup' \
+                -H 'Content-Type: application/json' \
+                -d @-" 2>&1 || echo "")
+            
+            if echo "$N8N_RESULT" | grep -q '"id"'; then
+                echo -e "${GREEN}  ✓ n8n owner account created (email: $ADMIN_EMAIL)${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ n8n auto-setup failed - configure manually at first login${NC}"
+                echo -e "${YELLOW}    Email: $ADMIN_EMAIL / Password: (from Infisical)${NC}"
+            fi
+        fi
+    fi
 fi
 
 # Configure Uptime Kuma admin

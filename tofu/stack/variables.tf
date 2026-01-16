@@ -90,9 +90,9 @@ variable "admin_email" {
 }
 
 variable "admin_username" {
-  description = "Admin username for services like Portainer, Uptime Kuma (default: admin)"
+  description = "Admin username for services like Portainer, Uptime Kuma (default: nexus)"
   type        = string
-  default     = "admin"
+  default     = "nexus"
 }
 
 # =============================================================================
@@ -126,6 +126,16 @@ variable "dockerhub_token" {
   type        = string
   sensitive   = true
   default     = ""
+}
+
+# =============================================================================
+# Docker Image Versions
+# =============================================================================
+
+variable "image_versions" {
+  description = "Map of service names to their Docker image:tag"
+  type        = map(string)
+  default     = {}
 }
 
 # Note: GitHub variables moved to tofu/control-plane/variables.tf
