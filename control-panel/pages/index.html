@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Stack — Control Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #0a0a0f;
+            color: #ffffff;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+
+        /* Animated grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 136, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 136, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            z-index: -2;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Scanline effect */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.1) 0px,
+                rgba(0, 0, 0, 0.1) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo {
+            display: block;
+            width: 120px;
+            height: auto;
+            margin: 0 auto 1.5rem;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #00ff88;
+            text-shadow: 
+                0 0 10px rgba(0, 255, 136, 0.8),
+                0 0 40px rgba(0, 255, 136, 0.4);
+            letter-spacing: 0.2em;
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            font-size: 0.85rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            opacity: 0.7;
+        }
+
+        /* Status Panel */
+        .status-panel {
+            background: rgba(0, 20, 10, 0.8);
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.deployed { background: #00ff88; }
+        .status-dot.torn-down { background: #ffaa00; }
+        .status-dot.destroyed { background: #ff4444; }
+        .status-dot.running { background: #00aaff; }
+        .status-dot.unknown { background: #666666; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+            50% { opacity: 0.7; box-shadow: 0 0 10px 5px currentColor; }
+        }
+
+        .status-text.deployed { color: #00ff88; }
+        .status-text.torn-down { color: #ffaa00; }
+        .status-text.destroyed { color: #ff4444; }
+        .status-text.running { color: #00aaff; }
+        .status-text.unknown { color: #666666; }
+
+        .status-description {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: #607080;
+        }
+
+        /* Action Buttons */
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .action-btn {
+            background: rgba(0, 20, 10, 0.8);
+            border: 2px solid rgba(0, 255, 136, 0.4);
+            color: #00ff88;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 1.5rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .action-btn:hover::before {
+            left: 100%;
+        }
+
+        .action-btn:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed !important;
+            transform: none;
+            pointer-events: none;
+            filter: grayscale(0.3);
+        }
+
+        .action-btn:disabled:hover {
+            box-shadow: none;
+            transform: none;
+            filter: grayscale(0.3);
+        }
+
+        .action-btn.setup {
+            border-color: rgba(0, 255, 136, 0.6);
+            color: #00ff88;
+        }
+
+        .action-btn.spin-up {
+            border-color: rgba(0, 170, 255, 0.6);
+            color: #00aaff;
+        }
+
+        .action-btn.teardown {
+            border-color: rgba(255, 170, 0, 0.6);
+            color: #ffaa00;
+        }
+
+        .action-btn.teardown:hover {
+            border-color: #ffaa00;
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.3);
+        }
+
+        /* Scheduled Teardown Panel */
+        .scheduled-teardown-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(255, 170, 0, 0.3);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .scheduled-teardown-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #ffaa00;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .scheduled-teardown-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .scheduled-teardown-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 170, 0, 0.2);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: rgba(255, 170, 0, 0.2);
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: #ffaa00;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: left 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            left: 27px;
+        }
+
+        .delay-btn {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid rgba(255, 170, 0, 0.4);
+            color: #ffaa00;
+            padding: 0.6rem 1.2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 4px;
+        }
+
+        .delay-btn:hover:not(:disabled) {
+            background: rgba(255, 170, 0, 0.2);
+            border-color: #ffaa00;
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+        }
+
+        .delay-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .scheduled-info {
+            font-size: 0.75rem;
+            color: #607080;
+            margin-top: 0.5rem;
+        }
+
+        /* Services Panel */
+        .services-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .services-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .service-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .service-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .service-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .service-name {
+            font-weight: bold;
+            color: #00ff88;
+            font-size: 0.9rem;
+        }
+
+        .service-description {
+            font-size: 0.75rem;
+            color: #607080;
+        }
+
+        .service-toggle {
+            background: rgba(0, 255, 136, 0.2);
+        }
+
+        .service-toggle.active {
+            background: #00ff88;
+        }
+
+        .service-toggle.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .info-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .info-item-label {
+            font-size: 0.7rem;
+            color: #607080;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+
+        .info-item-value {
+            font-size: 0.9rem;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .info-item-value.highlight {
+            color: #00ff88;
+        }
+
+        .info-item-value.warning {
+            color: #ffaa00;
+        }
+
+        .action-btn .icon {
+            display: block;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Workflow History */
+        .history-panel {
+            background: rgba(0, 20, 10, 0.6);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 1.5rem;
+        }
+
+        .history-panel h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: #00ff88;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem 0;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-name {
+            font-size: 0.85rem;
+            color: #ffffff;
+        }
+
+        .history-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .history-status.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+
+        .history-status.failure {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+
+        .history-status.in_progress, .history-status.queued {
+            background: rgba(0, 170, 255, 0.2);
+            border: 1px solid #00aaff;
+            color: #00aaff;
+        }
+
+        .history-time {
+            font-size: 0.7rem;
+            color: #607080;
+        }
+
+        .history-link {
+            font-size: 0.7rem;
+            color: #00ff88;
+            text-decoration: none;
+            opacity: 0.7;
+        }
+
+        .history-link:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        /* Confirmation Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #0a0a0f;
+            border: 2px solid #ff4444;
+            padding: 2rem;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .modal h3 {
+            font-family: 'Orbitron', sans-serif;
+            color: #ff4444;
+            margin-bottom: 1rem;
+        }
+
+        .modal p {
+            font-size: 0.85rem;
+            color: #607080;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            padding: 0.8rem 1.5rem;
+            border: 1px solid;
+            background: transparent;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn.cancel {
+            border-color: #607080;
+            color: #607080;
+        }
+
+        .modal-btn.cancel:hover {
+            border-color: #ffffff;
+            color: #ffffff;
+        }
+
+        .modal-btn.confirm {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .modal-btn.confirm:hover {
+            background: rgba(255, 68, 68, 0.2);
+        }
+
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: rgba(0, 20, 10, 0.95);
+            border: 1px solid #00ff88;
+            padding: 1rem 1.5rem;
+            font-size: 0.85rem;
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.error {
+            border-color: #ff4444;
+            color: #ff4444;
+        }
+
+        .toast.success {
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.75rem;
+            color: #303540;
+            border-top: 1px solid rgba(0, 255, 136, 0.1);
+            margin-top: 2rem;
+        }
+
+        footer a {
+            color: #00ff88;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .actions {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo {
+                width: 80px;
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <!-- Nexus Stack Logo -->
+            <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
+            <h1>NEXUS STACK</h1>
+            <p class="tagline">Control Panel</p>
+        </header>
+
+        <!-- Status Panel -->
+        <div class="status-panel">
+            <div class="status-indicator">
+                <span class="status-dot unknown" id="status-dot"></span>
+                <span class="status-text unknown" id="status-text">Checking...</span>
+            </div>
+            <p class="status-description" id="status-description">Fetching infrastructure status...</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+            <button class="action-btn setup" id="btn-setup" disabled>
+                <span class="icon">🧰</span>
+                Setup
+            </button>
+            <button class="action-btn spin-up" id="btn-spin-up" disabled>
+                <span class="icon">⚡</span>
+                Spin Up
+            </button>
+            <button class="action-btn teardown" id="btn-teardown" disabled>
+                <span class="icon">💤</span>
+                Teardown
+            </button>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <h2><span class="icon">ℹ️</span> Infrastructure Information</h2>
+            <div class="info-grid" id="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Server Type</div>
+                    <div class="info-item-value" id="info-server-type">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Location</div>
+                    <div class="info-item-value" id="info-server-location">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Domain</div>
+                    <div class="info-item-value highlight" id="info-domain">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Last Spin Up</div>
+                    <div class="info-item-value" id="info-last-deploy">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Last Teardown</div>
+                    <div class="info-item-value" id="info-last-teardown">Loading...</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Uptime</div>
+                    <div class="info-item-value highlight" id="info-uptime">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scheduled Teardown Panel -->
+        <div class="scheduled-teardown-panel">
+            <h2><span class="icon">⏰</span> Scheduled Teardown</h2>
+            <div class="scheduled-teardown-controls">
+                <div class="scheduled-teardown-toggle">
+                    <div>
+                        <div style="font-weight: bold; margin-bottom: 0.3rem;">Automatic Daily Teardown</div>
+                        <div class="scheduled-info" id="scheduled-info">Loading...</div>
+                    </div>
+                    <div class="toggle-switch" id="toggle-scheduled-teardown"></div>
+                </div>
+                <button class="delay-btn" id="btn-delay-teardown" disabled>
+                    ⏱️ Delay Teardown by 2 Hours
+            </button>
+            </div>
+        </div>
+
+        <!-- Services Panel -->
+        <div class="services-panel">
+            <h2><span class="icon">🧩</span> Services</h2>
+            <p style="color: #607080; font-size: 0.85rem; margin-bottom: 1rem;">🚧 Enable/disable services feature coming soon</p>
+            <div class="service-list" id="services-list">
+                <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Workflow History -->
+        <div class="history-panel">
+            <h2><span class="icon">📜</span> Recent Workflows</h2>
+            <div id="history-list">
+                <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by <a href="https://github.com/stefanko-ch/Nexus-Stack" target="_blank">Nexus-Stack</a></p>
+        </footer>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <h3 id="modal-title">Confirm Action</h3>
+            <p id="modal-message">Are you sure?</p>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="modal-cancel">Cancel</button>
+                <button class="modal-btn confirm" id="modal-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API calls are relative - Pages Functions handle them
+        const API_URL = '';
+        
+        let currentAction = null;
+
+        // Status descriptions
+        const statusDescriptions = {
+            'deployed': 'Infrastructure is running. All services are accessible.',
+            'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
+            'destroyed': 'Everything is destroyed. Run Setup to start fresh.',
+            'running': 'A workflow is currently running. Please wait...',
+            'unknown': 'Unable to determine infrastructure state.'
+        };
+
+        // Fallback function to enable buttons when status check fails
+        function enableFallbackState() {
+            updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
+        }
+
+        // Fetch and display status
+        async function fetchStatus() {
+            try {
+                const response = await fetch(`${API_URL}/api/status`, { credentials: 'same-origin' });
+                
+                // Check if we got HTML instead of JSON (Access login page)
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('API returned non-JSON response - might need re-authentication');
+                    showToast('Session expired - please refresh the page', 'error');
+                    enableFallbackState();
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatusDisplay(data);
+                    updateButtons(data);
+                    updateHistory(data.workflows);
+                } else {
+                    console.error('API error:', data.error);
+                    showToast(data.error || 'Failed to fetch status', 'error');
+                    enableFallbackState();
+                }
+            } catch (error) {
+                console.error('Failed to fetch status:', error);
+                showToast('Failed to fetch status - check console for details', 'error');
+                enableFallbackState();
+            }
+        }
+
+        function updateStatusDisplay(data) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            const desc = document.getElementById('status-description');
+            
+            // Remove all classes
+            dot.className = 'status-dot ' + data.infraState;
+            text.className = 'status-text ' + data.infraState;
+            
+            const stateLabels = {
+                'deployed': 'Deployed',
+                'torn-down': 'Torn Down',
+                'destroyed': 'Destroyed',
+                'running': 'In Progress',
+                'unknown': 'Unknown'
+            };
+            
+            text.textContent = stateLabels[data.infraState] || 'Unknown';
+            desc.textContent = statusDescriptions[data.infraState] || '';
+        }
+
+        function updateButtons(data) {
+            const btnSetup = document.getElementById('btn-setup');
+            const btnSpinUp = document.getElementById('btn-spin-up');
+            const btnTeardown = document.getElementById('btn-teardown');
+            
+            // Disable all if workflow is running
+            if (data.inProgress) {
+                btnSetup.disabled = true;
+                btnSpinUp.disabled = true;
+                btnTeardown.disabled = true;
+                btnSetup.innerHTML = '<span class="spinner"></span>Working...';
+                return;
+            }
+            
+            const setupComplete = data.workflows && data.workflows.setup && data.workflows.setup.conclusion === 'success';
+            
+            // Reset buttons
+            btnSetup.innerHTML = '<span class="icon">🧰</span>Setup';
+            btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
+            btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
+            
+            // Enable based on state
+            switch (data.infraState) {
+                case 'deployed':
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = true;
+                    btnTeardown.disabled = false;
+                    break;
+                case 'torn-down':
+                    btnSetup.disabled = setupComplete;
+                    btnSpinUp.disabled = !setupComplete;
+                    btnTeardown.disabled = true;
+                    break;
+                case 'destroyed':
+                    btnSetup.disabled = false;
+                    btnSpinUp.disabled = true;
+                    btnTeardown.disabled = true;
+                    break;
+                case 'unknown':
+                default:
+                    btnSetup.disabled = setupComplete && data.infraState !== 'destroyed';
+                    btnSpinUp.disabled = !setupComplete;
+                    btnTeardown.disabled = false;
+                    break;
+            }
+        }
+
+        // Scheduled Teardown Functions
+        async function loadScheduledTeardownConfig() {
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success) {
+                    updateScheduledTeardownUI(data.config);
+                }
+            } catch (error) {
+                console.error('Failed to load scheduled teardown config:', error);
+            }
+        }
+
+        function updateScheduledTeardownUI(config) {
+            const toggle = document.getElementById('toggle-scheduled-teardown');
+            const info = document.getElementById('scheduled-info');
+            const delayBtn = document.getElementById('btn-delay-teardown');
+            
+            if (config.enabled) {
+                toggle.classList.add('active');
+                const now = new Date();
+                const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
+                if (delayUntil && delayUntil > now) {
+                    const diffMs = delayUntil - now;
+                    const hours = Math.ceil(diffMs / (1000 * 60 * 60));
+                    const minutes = Math.ceil((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                    info.innerHTML = `Enabled - Teardown delayed until ${delayUntil.toLocaleString()}<br><span style="color: #ffaa00;">(${hours}h ${minutes}m remaining)</span>`;
+                    delayBtn.disabled = true;
+                } else if (config.nextTeardown) {
+                    const nextTeardown = new Date(config.nextTeardown);
+                    const timeRemaining = config.timeRemaining;
+                    if (timeRemaining) {
+                        let timeText = '';
+                        if (timeRemaining.hours > 0) {
+                            timeText += `${timeRemaining.hours}h `;
+                        }
+                        timeText += `${timeRemaining.minutes}m`;
+                        info.innerHTML = `Enabled - Next teardown: ${nextTeardown.toLocaleString()}<br><span style="color: #ffaa00;">(${timeText} remaining)</span>`;
+                    } else {
+                        info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
+                    }
+                    delayBtn.disabled = false;
+                } else {
+                    info.textContent = `Enabled - Daily teardown at ${config.teardownTime} ${config.timezone}`;
+                    delayBtn.disabled = false;
+                }
+            } else {
+                toggle.classList.remove('active');
+                info.textContent = 'Disabled - No automatic teardown';
+                delayBtn.disabled = true;
+            }
+        }
+
+        async function toggleScheduledTeardown() {
+            const toggle = document.getElementById('toggle-scheduled-teardown');
+            const isEnabled = toggle.classList.contains('active');
+            const newState = !isEnabled;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: newState })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateScheduledTeardownUI(data.config);
+                        showToast(newState ? 'Scheduled teardown enabled' : 'Scheduled teardown disabled', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to toggle scheduled teardown:', error);
+                showToast('Failed to update scheduled teardown', 'error');
+            }
+        }
+
+        async function delayTeardown() {
+            const delayBtn = document.getElementById('btn-delay-teardown');
+            delayBtn.disabled = true;
+            delayBtn.textContent = 'Processing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ delayHours: 2 })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        updateScheduledTeardownUI(data.config);
+                        showToast('Teardown delayed by 2 hours', 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to delay teardown:', error);
+                showToast('Failed to delay teardown', 'error');
+            } finally {
+                delayBtn.disabled = false;
+                delayBtn.textContent = '⏱️ Delay Teardown by 2 Hours';
+            }
+        }
+
+        // Services functions
+        async function loadServices() {
+            try {
+                const response = await fetch(`${API_URL}/api/services`, { credentials: 'same-origin' });
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (data.success) {
+                    renderServices(data.services || []);
+                }
+            } catch (error) {
+                console.error('Failed to load services:', error);
+            }
+        }
+
+        function renderServices(services) {
+            const list = document.getElementById('services-list');
+            list.innerHTML = '';
+
+            if (!services.length) {
+                list.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No services found</p>';
+                return;
+            }
+
+            services.forEach(service => {
+                const item = document.createElement('div');
+                item.className = 'service-item';
+
+                const details = document.createElement('div');
+                details.className = 'service-details';
+
+                const name = document.createElement('div');
+                name.className = 'service-name';
+                name.textContent = service.name;
+
+                const description = document.createElement('div');
+                description.className = 'service-description';
+                description.textContent = service.description || 'No description';
+
+                details.appendChild(name);
+                details.appendChild(description);
+
+                const toggle = document.createElement('div');
+                toggle.className = 'toggle-switch service-toggle disabled';
+                toggle.style.opacity = '0.5';
+                toggle.style.cursor = 'not-allowed';
+                if (service.enabled) {
+                    toggle.classList.add('active');
+                }
+
+                toggle.addEventListener('click', () => {
+                    // Feature disabled - show coming soon message
+                    showToast('Enable/disable services feature coming soon', 'success');
+                });
+
+                item.appendChild(details);
+                item.appendChild(toggle);
+                list.appendChild(item);
+            });
+        }
+
+        async function updateServiceToggle(serviceName, enabled, toggleEl) {
+            toggleEl.classList.add('disabled');
+
+            try {
+                const response = await fetch(`${API_URL}/api/services`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ service: serviceName, enabled })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update service');
+                }
+
+                const data = await response.json();
+                if (data.success) {
+                    if (enabled) {
+                        toggleEl.classList.add('active');
+                    } else {
+                        toggleEl.classList.remove('active');
+                    }
+                    showToast('Service updated. Spin up triggered.', 'success');
+                    loadServices();
+                    setTimeout(fetchStatus, 2000);
+                } else {
+                    showToast(data.error || 'Failed to update service', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to update service:', error);
+                showToast('Failed to update service', 'error');
+            } finally {
+                toggleEl.classList.remove('disabled');
+            }
+        }
+
+        function updateHistory(workflows) {
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '';
+            
+            const items = [
+                { name: 'Setup', data: workflows.setup },
+                { name: 'Spin Up', data: workflows.spinUp },
+                { name: 'Teardown', data: workflows.teardown },
+            ].filter(item => item.data);
+            
+            if (items.length === 0) {
+                historyList.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No recent workflows</p>';
+                return;
+            }
+            
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                
+                const status = item.data.conclusion || item.data.status;
+                const time = new Date(item.data.updatedAt).toLocaleString();
+                
+                div.innerHTML = `
+                    <span class="history-name">${item.name}</span>
+                    <span class="history-status ${status}">${status}</span>
+                    <span class="history-time">${time}</span>
+                    <a href="${item.data.url}" target="_blank" class="history-link">View →</a>
+                `;
+                historyList.appendChild(div);
+            });
+        }
+
+        // Action handlers
+        async function triggerAction(action) {
+            const actionLabels = {
+                'setup': 'Setup Infrastructure',
+                'spin-up': 'Spin Up Infrastructure',
+                'teardown': 'Teardown Infrastructure',
+            };
+            
+            // Disable buttons during action
+            const buttons = document.querySelectorAll('.action-btn');
+            buttons.forEach(btn => btn.disabled = true);
+            
+            // Show loading state
+            const btn = document.getElementById(`btn-${action}`);
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span>Processing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/${action}`, { 
+                    method: 'POST', 
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // Check if we got HTML instead of JSON (Access login page)
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    showToast('Session expired - please refresh the page', 'error');
+                    buttons.forEach(btn => btn.disabled = false);
+                    btn.innerHTML = originalHTML;
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`${actionLabels[action]} triggered!`, 'success');
+                    // Refresh status after short delay
+                    setTimeout(fetchStatus, 2000);
+                } else {
+                    showToast(data.error || 'Failed to trigger action', 'error');
+                    buttons.forEach(btn => btn.disabled = false);
+                    btn.innerHTML = originalHTML;
+                }
+            } catch (error) {
+                console.error('Failed to trigger action:', error);
+                showToast('Network error - please try again', 'error');
+                buttons.forEach(btn => btn.disabled = false);
+                btn.innerHTML = originalHTML;
+            }
+        }
+
+        function showConfirmModal(action) {
+            currentAction = action;
+            const modal = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            const message = document.getElementById('modal-message');
+            
+            const configs = {
+                'teardown': {
+                    title: '⚠️ Confirm Teardown',
+                    message: 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to spin up later.'
+                },
+            };
+            
+            const config = configs[action];
+            title.textContent = config.title;
+            message.textContent = config.message;
+            modal.classList.add('active');
+        }
+
+        function hideModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+            currentAction = null;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Event listeners
+        document.getElementById('btn-setup').addEventListener('click', () => triggerAction('setup'));
+        document.getElementById('btn-spin-up').addEventListener('click', () => triggerAction('spin-up'));
+        document.getElementById('btn-teardown').addEventListener('click', () => showConfirmModal('teardown'));
+        document.getElementById('toggle-scheduled-teardown').addEventListener('click', toggleScheduledTeardown);
+        document.getElementById('btn-delay-teardown').addEventListener('click', delayTeardown);
+        
+        document.getElementById('modal-cancel').addEventListener('click', hideModal);
+        document.getElementById('modal-confirm').addEventListener('click', () => {
+            if (currentAction) {
+                triggerAction(currentAction);
+                hideModal();
+            }
+        });
+
+        // Health check on load
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/api/health`, { credentials: 'same-origin' });
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Control Panel API:', data.status);
+                }
+            } catch (error) {
+                console.warn('Health check failed:', error);
+            }
+        }
+
+        // Load scheduled teardown config on page load
+        loadServices();
+        loadScheduledTeardownConfig();
+
+        // Polling with exponential backoff on errors
+        let consecutiveErrors = 0;
+        let pollTimeout;
+        
+        function scheduleNextPoll() {
+            // Clear existing timeout
+            if (pollTimeout) clearTimeout(pollTimeout);
+            
+            // Calculate interval with exponential backoff
+            const baseInterval = 10000; // 10 seconds
+            const maxInterval = 60000; // Max 60 seconds
+            const cappedErrors = Math.min(consecutiveErrors, 6); // Cap at 6 to avoid large numbers
+            const interval = Math.min(baseInterval * Math.pow(2, cappedErrors), maxInterval);
+            
+            pollTimeout = setTimeout(() => {
+                fetchStatus()
+                    .then(() => {
+                        consecutiveErrors = 0; // Reset on success
+                        scheduleNextPoll();
+                    })
+                    .catch(() => {
+                        consecutiveErrors++;
+                        scheduleNextPoll();
+                    });
+            }, interval);
+        }
+        
+        // Initial health check and status fetch
+        checkHealth();
+        fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
+    </script>
+</body>
+</html>
