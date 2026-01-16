@@ -119,4 +119,20 @@ services = {
     public      = false
     description = "Open-source business intelligence and analytics tool for data visualization."
   }
+
+  redpanda = {
+    enabled     = false
+    subdomain   = "redpanda"
+    port        = 9644
+    public      = false
+    description = "Kafka-compatible streaming platform that is simpler, faster, and more cost-effective."
+  }
+
+  redpanda-console = {
+    enabled     = false
+    subdomain   = "redpanda-console"
+    port        = 8180
+    public      = false
+    description = "Web UI for managing and debugging Redpanda/Kafka workloads."
+  }
 }

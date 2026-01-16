@@ -1,0 +1,37 @@
+# =============================================================================
+# Redpanda Console - Web UI for Redpanda/Kafka
+# =============================================================================
+# Access via: https://redpanda-console.${domain}
+# Redpanda Console is a developer-friendly web UI for managing and debugging
+# your Kafka/Redpanda workloads.
+# =============================================================================
+
+services:
+  redpanda-console:
+    image: ${REDPANDA_CONSOLE_IMAGE:-redpandadata/console:v2.8.0}
+    container_name: redpanda-console
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:9092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    ports:
+      - "8180:8080"
+    networks:
+      - app-network
+    depends_on:
+      - redpanda
+    restart: unless-stopped
+
+networks:
+  app-network:
+    external: true
