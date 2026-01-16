@@ -286,14 +286,77 @@ services = {
 }
 ```
 
-Then deploy:
-
-```bash
-make up
-```
+Then deploy via **Spin Up** workflow in GitHub Actions or through the Control Plane.
 
 ---
 
-## Creating Custom Stacks
+## Adding New Services
 
-See the [Adding More Services](../README.md#adding-more-services) section in the README for instructions on creating your own stacks.
+Adding a new service requires **2 steps**:
+
+### 1. Create the Docker Compose stack
+
+```bash
+mkdir -p stacks/my-app
+```
+
+Create `stacks/my-app/docker-compose.yml`:
+```yaml
+services:
+  my-app:
+    image: my-app-image:latest
+    container_name: my-app
+    restart: unless-stopped
+    ports:
+      - "8090:80"  # Pick an unused port
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
+```
+
+### 2. Add to services.tfvars
+
+Add to `tofu/services.tfvars`:
+
+```hcl
+services = {
+  # ... existing services ...
+  
+  my-app = {
+    enabled     = true
+    subdomain   = "my-app"     # → https://my-app.yourdomain.com
+    port        = 8090         # Must match docker-compose port
+    public      = false        # false = requires login, true = public
+    description = "My awesome application"
+  }
+}
+```
+
+### 3. Deploy
+
+Run the **Spin Up** workflow via GitHub Actions or use the Control Plane.
+
+That's it! OpenTofu automatically creates:
+- ✅ DNS record
+- ✅ Tunnel ingress route
+- ✅ Cloudflare Access application
+- ✅ Access policy (email-based auth)
+
+---
+
+## Disabling Services
+
+Services can be disabled via the **Control Plane** web interface, or by setting `enabled = false` in `services.tfvars`.
+
+When disabled:
+1. DNS record is removed from Cloudflare
+2. Tunnel ingress route is removed
+3. Cloudflare Access application and policy are removed
+4. Docker container is stopped
+5. Stack folder is deleted from the server
+
+The service is completely cleaned up - no orphaned resources.
+
