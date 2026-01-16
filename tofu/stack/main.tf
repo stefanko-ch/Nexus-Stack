@@ -74,6 +74,12 @@ resource "random_password" "metabase_admin" {
   special = false
 }
 
+# CloudBeaver admin password
+resource "random_password" "cloudbeaver_admin" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================
@@ -107,7 +113,7 @@ resource "hcloud_server" "main" {
   location     = var.server_location
   image        = var.server_image
   ssh_keys     = [hcloud_ssh_key.main.id]
-  firewall_ids = [hcloud_firewall.main.id, hcloud_firewall.setup.id]  # Both firewalls during setup
+  firewall_ids = [hcloud_firewall.main.id, hcloud_firewall.setup.id] # Both firewalls during setup
 
   labels = {
     environment = "production"
