@@ -87,7 +87,7 @@ else
     else
         ERROR_MSG=$(echo "$CREATE_RESPONSE" | grep -o '"message":"[^"]*"' | head -1 | sed 's/"message":"//;s/"$//')
         echo -e "  ${RED}❌ Failed to create bucket: ${ERROR_MSG}${NC}"
-        echo "     Full response: $CREATE_RESPONSE"
+        echo "     Check Cloudflare dashboard for details"
         exit 1
     fi
 fi
@@ -214,14 +214,14 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     # Non-retryable error or max retries reached
     ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     echo -e "  ${RED}❌ Failed to create token: ${ERROR_MSG:-Unknown error}${NC}"
-    echo "     Full response: $TOKEN_RESPONSE"
+    echo "     Check Cloudflare dashboard for details"
     exit 1
 done
 
 if ! echo "$TOKEN_RESPONSE" | grep -q '"success":true'; then
     ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     echo -e "  ${RED}❌ Failed to create token after $MAX_RETRIES attempts: ${ERROR_MSG:-Unknown error}${NC}"
-    echo "     Full response: $TOKEN_RESPONSE"
+    echo "     Check Cloudflare dashboard for details"
     exit 1
 fi
 
@@ -231,7 +231,7 @@ TOKEN_VALUE=$(echo "$TOKEN_RESPONSE" | grep -o '"value":"[^"]*"' | sed 's/"value
 
 if [ -z "$TOKEN_ID" ] || [ -z "$TOKEN_VALUE" ]; then
     echo -e "  ${RED}❌ Failed to extract token credentials${NC}"
-    echo "     Response: $TOKEN_RESPONSE"
+    echo "     Check Cloudflare dashboard for details"
     exit 1
 fi
 

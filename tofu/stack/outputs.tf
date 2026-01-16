@@ -54,7 +54,7 @@ output "service_urls" {
 
 output "enabled_services" {
   description = "List of enabled service names (for deploy script)"
-  value = keys(local.enabled_services)
+  value       = keys(local.enabled_services)
 }
 
 output "image_versions" {
@@ -73,35 +73,38 @@ output "secrets" {
     # Admin credentials
     admin_email    = var.admin_email
     admin_username = var.admin_username
-    
+
     # Infisical
-    infisical_admin_password   = random_password.infisical_admin.result
-    infisical_encryption_key   = random_password.infisical_encryption_key.result
-    infisical_auth_secret      = random_password.infisical_auth_secret.result
-    infisical_db_password      = random_password.infisical_db_password.result
-    
+    infisical_admin_password = random_password.infisical_admin.result
+    infisical_encryption_key = random_password.infisical_encryption_key.result
+    infisical_auth_secret    = random_password.infisical_auth_secret.result
+    infisical_db_password    = random_password.infisical_db_password.result
+
     # Portainer
-    portainer_admin_password   = random_password.portainer_admin.result
-    
+    portainer_admin_password = random_password.portainer_admin.result
+
     # Uptime Kuma
-    kuma_admin_password        = random_password.kuma_admin.result
-    
+    kuma_admin_password = random_password.kuma_admin.result
+
     # Grafana
-    grafana_admin_password     = random_password.grafana_admin.result
-    
+    grafana_admin_password = random_password.grafana_admin.result
+
     # Kestra
-    kestra_admin_password      = random_password.kestra_admin.result
-    kestra_db_password         = random_password.kestra_db.result
-    
+    kestra_admin_password = random_password.kestra_admin.result
+    kestra_db_password    = random_password.kestra_db.result
+
     # n8n
-    n8n_admin_password         = random_password.n8n_admin.result
-    
+    n8n_admin_password = random_password.n8n_admin.result
+
     # Metabase
-    metabase_admin_password    = random_password.metabase_admin.result
-    
+    metabase_admin_password = random_password.metabase_admin.result
+
+    # CloudBeaver
+    cloudbeaver_admin_password = random_password.cloudbeaver_admin.result
+
     # Docker Hub (optional)
-    dockerhub_username         = var.dockerhub_username
-    dockerhub_token            = var.dockerhub_token
+    dockerhub_username = var.dockerhub_username
+    dockerhub_token    = var.dockerhub_token
   }
 }
 

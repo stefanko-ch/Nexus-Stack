@@ -121,7 +121,7 @@ services = {
   }
 
   redpanda = {
-    enabled     = false
+    enabled     = true
     subdomain   = "redpanda"
     port        = 9644
     public      = false
@@ -129,10 +129,18 @@ services = {
   }
 
   redpanda-console = {
-    enabled     = false
+    enabled     = true
     subdomain   = "redpanda-console"
     port        = 8180
     public      = false
     description = "Web UI for managing and debugging Redpanda/Kafka workloads."
+  }
+
+  cloudbeaver = {
+    enabled     = true
+    subdomain   = "cloudbeaver"
+    port        = 8978
+    public      = false
+    description = "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
   }
 }

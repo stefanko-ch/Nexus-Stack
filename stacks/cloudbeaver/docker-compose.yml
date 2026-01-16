@@ -1,0 +1,34 @@
+# =============================================================================
+# CloudBeaver - Web-based database management tool
+# =============================================================================
+# Access via: https://cloudbeaver.${domain}
+# CloudBeaver is an open-source web-based database management tool that
+# supports PostgreSQL, MySQL, MariaDB, SQL Server, Oracle, and more.
+#
+# Auto-setup: Admin user is created automatically via environment variables
+# =============================================================================
+
+services:
+  cloudbeaver:
+    image: ${CLOUDBEAVER_IMAGE:-dbeaver/cloudbeaver:24}
+    container_name: cloudbeaver
+    ports:
+      - "8978:8978"
+    environment:
+      - CB_SERVER_NAME=${CB_SERVER_NAME:-Nexus CloudBeaver}
+      - CB_SERVER_URL=${CB_SERVER_URL:-}
+      - CB_ADMIN_NAME=${CB_ADMIN_NAME:-}
+      - CB_ADMIN_PASSWORD=${CB_ADMIN_PASSWORD:-}
+    volumes:
+      - cloudbeaver-data:/opt/cloudbeaver/workspace
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  cloudbeaver-data:
+    driver: local
+
+networks:
+  app-network:
+    external: true
