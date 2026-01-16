@@ -143,4 +143,12 @@ services = {
     public      = false
     description = "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
   }
+
+  superset = {
+    enabled     = false
+    subdomain   = "superset"
+    port        = 8088
+    public      = false
+    description = "Enterprise-ready BI platform with SQL Lab, interactive dashboards, and 40+ database connectors."
+  }
 }

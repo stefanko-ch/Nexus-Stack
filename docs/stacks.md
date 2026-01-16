@@ -27,6 +27,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
+| Superset | `apache/superset` | `4.1.1` | Exact |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
 ¹ No major version tags available, requires manual updates.  
@@ -352,6 +353,45 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 | Public Access | No (contains business data) |
 | Website | [metabase.com](https://www.metabase.com) |
 | Source | [GitHub](https://github.com/metabase/metabase) |
+
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## Superset
+
+![Superset](https://img.shields.io/badge/Superset-20A6C9?logo=apachesuperset&logoColor=white)
+
+**Enterprise-ready BI platform with SQL Lab and interactive dashboards**
+
+Apache Superset is a modern, enterprise-ready business intelligence platform. It's fast, lightweight, and designed for data exploration and visualization. Features include:
+- SQL Lab for advanced SQL queries
+- 40+ database connectors (PostgreSQL, MySQL, Snowflake, BigQuery, etc.)
+- Rich visualizations and interactive dashboards
+- Role-based access control (RBAC)
+- Custom CSS themes and white-labeling
+- Async query execution with caching
+- Alerts and scheduled reports
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8088` |
+| Suggested Subdomain | `superset` |
+| Public Access | No (contains business data) |
+| Website | [superset.apache.org](https://superset.apache.org) |
+| Source | [GitHub](https://github.com/apache/superset) |
+
+### Components
+
+Superset runs as a multi-container stack:
+
+| Container | Purpose |
+|-----------|---------|
+| `superset` | Main web application (Gunicorn) |
+| `superset-db` | PostgreSQL for metadata storage |
+| `superset-redis` | Redis for caching and Celery broker |
+| `superset-worker` | Celery worker for async tasks |
+| `superset-init` | One-time initialization (migrations, admin user) |
 
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
 

@@ -75,6 +75,7 @@ After deployment you'll have:
 ![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
 ![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
+![Superset](https://img.shields.io/badge/Superset-20A6C9?logo=apachesuperset&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -92,6 +93,7 @@ After deployment you'll have:
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
+| **Superset** | Enterprise-ready BI platform with SQL Lab and dashboards | [superset.apache.org](https://superset.apache.org) |
 | **Info** | Landing page with service overview dashboard | — |
 
 → See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.

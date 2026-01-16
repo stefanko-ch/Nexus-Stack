@@ -78,6 +78,9 @@ KESTRA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.kestra_db_password // empty')
 N8N_PASS=$(echo "$SECRETS_JSON" | jq -r '.n8n_admin_password // empty')
 METABASE_PASS=$(echo "$SECRETS_JSON" | jq -r '.metabase_admin_password // empty')
 CLOUDBEAVER_PASS=$(echo "$SECRETS_JSON" | jq -r '.cloudbeaver_admin_password // empty')
+SUPERSET_PASS=$(echo "$SECRETS_JSON" | jq -r '.superset_admin_password // empty')
+SUPERSET_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.superset_db_password // empty')
+SUPERSET_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.superset_secret_key // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -335,6 +338,20 @@ EOF
     echo -e "${GREEN}  ✓ CloudBeaver .env generated${NC}"
 fi
 
+# Generate Superset .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "superset"; then
+    echo "  Generating Superset config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/superset/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+SUPERSET_SECRET_KEY=$SUPERSET_SECRET_KEY
+SUPERSET_DB_PASSWORD=$SUPERSET_DB_PASS
+SUPERSET_ADMIN_USERNAME=$ADMIN_USERNAME
+SUPERSET_ADMIN_EMAIL=$ADMIN_EMAIL
+SUPERSET_ADMIN_PASSWORD=$SUPERSET_PASS
+EOF
+    echo -e "${GREEN}  ✓ Superset .env generated${NC}"
+fi
+
 # Sync only enabled stacks
 for service in $ENABLED_SERVICES; do
     if [ -d "$STACKS_DIR/$service" ]; then
@@ -497,7 +514,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "superset" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -517,6 +534,7 @@ EOF
                     KESTRA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="kestra") | .id // empty' 2>/dev/null)
                     METABASE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="metabase") | .id // empty' 2>/dev/null)
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
+                    SUPERSET_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="superset") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -556,7 +574,9 @@ EOF
     {"secretKey": "METABASE_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$METABASE_TAG"]},
     {"secretKey": "METABASE_PASSWORD", "secretValue": "$METABASE_PASS", "tagIds": ["$METABASE_TAG"]},
     {"secretKey": "CLOUDBEAVER_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$CLOUDBEAVER_TAG"]},
-    {"secretKey": "CLOUDBEAVER_PASSWORD", "secretValue": "$CLOUDBEAVER_PASS", "tagIds": ["$CLOUDBEAVER_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "CLOUDBEAVER_PASSWORD", "secretValue": "$CLOUDBEAVER_PASS", "tagIds": ["$CLOUDBEAVER_TAG"]},
+    {"secretKey": "SUPERSET_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$SUPERSET_TAG"]},
+    {"secretKey": "SUPERSET_PASSWORD", "secretValue": "$SUPERSET_PASS", "tagIds": ["$SUPERSET_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF

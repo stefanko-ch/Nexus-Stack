@@ -80,6 +80,24 @@ resource "random_password" "cloudbeaver_admin" {
   special = false
 }
 
+# Superset admin password
+resource "random_password" "superset_admin" {
+  length  = 24
+  special = false
+}
+
+# Superset database password
+resource "random_password" "superset_db" {
+  length  = 24
+  special = false
+}
+
+# Superset secret key (for session encryption)
+resource "random_password" "superset_secret_key" {
+  length  = 42
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================

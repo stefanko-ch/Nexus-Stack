@@ -102,6 +102,11 @@ output "secrets" {
     # CloudBeaver
     cloudbeaver_admin_password = random_password.cloudbeaver_admin.result
 
+    # Superset
+    superset_admin_password = random_password.superset_admin.result
+    superset_db_password    = random_password.superset_db.result
+    superset_secret_key     = random_password.superset_secret_key.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

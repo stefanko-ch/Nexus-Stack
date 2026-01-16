@@ -30,6 +30,7 @@ image_versions = {
   portainer        = "portainer/portainer-ce:lts"            # LTS: Long-term support
   redpanda         = "redpandadata/redpanda:v24.3"           # Minor: v24.3.x
   redpanda-console = "redpandadata/console:v2.8"             # Minor: v2.8.x
+  superset         = "apache/superset:4.1.1"                 # Exact: 4.1.1 (latest stable)
   uptime-kuma      = "louislam/uptime-kuma:2"                # Major: 2.x.x
 
   # -------------------------------------------------------------------------

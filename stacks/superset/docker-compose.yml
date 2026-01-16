@@ -1,0 +1,175 @@
+# =============================================================================
+# Apache Superset - Business Intelligence & Data Visualization Platform
+# =============================================================================
+# Access via: https://superset.${domain}
+# Superset is an enterprise-ready BI platform with SQL Lab, interactive
+# dashboards, 40+ database connectors, and rich visualizations.
+#
+# Default credentials: admin / ${SUPERSET_ADMIN_PASSWORD}
+# Auto-setup: Admin user is created on first boot via ADMIN_PASSWORD env var
+# =============================================================================
+
+services:
+  # PostgreSQL database for Superset metadata
+  superset-db:
+    image: ${SUPERSET_POSTGRES_IMAGE:-postgres:16-alpine}
+    container_name: superset-db
+    environment:
+      - POSTGRES_DB=superset
+      - POSTGRES_USER=superset
+      - POSTGRES_PASSWORD=${SUPERSET_DB_PASSWORD:-superset}
+    volumes:
+      - superset-db-data:/var/lib/postgresql/data
+    networks:
+      - superset-internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset -d superset"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and Celery broker
+  superset-redis:
+    image: ${SUPERSET_REDIS_IMAGE:-redis:7-alpine}
+    container_name: superset-redis
+    volumes:
+      - superset-redis-data:/data
+    networks:
+      - superset-internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Superset initialization (runs once on first startup)
+  superset-init:
+    image: ${SUPERSET_IMAGE:-apache/superset:4.1.1}
+    container_name: superset-init
+    command: >
+      bash -c "
+        echo 'Waiting for database...' &&
+        while ! nc -z superset-db 5432; do sleep 1; done &&
+        echo 'Database ready. Running migrations...' &&
+        superset db upgrade &&
+        echo 'Creating admin user...' &&
+        superset fab create-admin \
+          --username $${ADMIN_USERNAME:-admin} \
+          --email $${ADMIN_EMAIL:-admin@superset.local} \
+          --password $${ADMIN_PASSWORD:-admin} \
+          --firstname Admin \
+          --lastname User || true &&
+        echo 'Setting up roles and permissions...' &&
+        superset init &&
+        echo 'Initialization complete!'
+      "
+    environment:
+      - DATABASE_HOST=superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${SUPERSET_DB_PASSWORD:-superset}
+      - REDIS_HOST=superset-redis
+      - REDIS_PORT=6379
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+      - ADMIN_USERNAME=${SUPERSET_ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${SUPERSET_ADMIN_EMAIL:-admin@superset.local}
+      - ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD}
+    env_file:
+      - superset_config.env
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+    networks:
+      - superset-internal
+    restart: "no"
+
+  # Superset web application
+  superset:
+    image: ${SUPERSET_IMAGE:-apache/superset:4.1.1}
+    container_name: superset
+    command: >
+      bash -c "
+        echo 'Waiting for initialization to complete...' &&
+        sleep 10 &&
+        /app/docker/docker-bootstrap.sh app-gunicorn
+      "
+    environment:
+      - DATABASE_HOST=superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${SUPERSET_DB_PASSWORD:-superset}
+      - REDIS_HOST=superset-redis
+      - REDIS_PORT=6379
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+    env_file:
+      - superset_config.env
+    ports:
+      - "8088:8088"
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+      superset-init:
+        condition: service_completed_successfully
+    volumes:
+      - superset-home:/app/superset_home
+    networks:
+      - superset-internal
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Celery worker for async tasks (optional but recommended)
+  superset-worker:
+    image: ${SUPERSET_IMAGE:-apache/superset:4.1.1}
+    container_name: superset-worker
+    command: celery --app=superset.tasks.celery_app:app worker --pool=prefork -O fair -c 2
+    environment:
+      - DATABASE_HOST=superset-db
+      - DATABASE_PORT=5432
+      - DATABASE_DB=superset
+      - DATABASE_USER=superset
+      - DATABASE_PASSWORD=${SUPERSET_DB_PASSWORD:-superset}
+      - REDIS_HOST=superset-redis
+      - REDIS_PORT=6379
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+    env_file:
+      - superset_config.env
+    depends_on:
+      superset-db:
+        condition: service_healthy
+      superset-redis:
+        condition: service_healthy
+      superset-init:
+        condition: service_completed_successfully
+    volumes:
+      - superset-home:/app/superset_home
+    networks:
+      - superset-internal
+    restart: unless-stopped
+
+volumes:
+  superset-db-data:
+    driver: local
+  superset-redis-data:
+    driver: local
+  superset-home:
+    driver: local
+
+networks:
+  superset-internal:
+    driver: bridge
+  app-network:
+    external: true
