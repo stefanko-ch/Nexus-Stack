@@ -19,10 +19,11 @@ Images are pinned to **major versions** where supported for automatic security p
 | n8n | `n8nio/n8n` | `1` | Major |
 | Kestra | `kestra/kestra` | `v1` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
-| Metabase | `metabase/metabase` | `v0.58` | Minor |
+| Metabase | `metabase/metabase` | `v0.58.x` | Minor |
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
 ¹ No major version tags available, requires manual updates.  
@@ -300,6 +301,56 @@ n8n is a free and source-available workflow automation tool that allows you to c
 | Source | [GitHub](https://github.com/n8n-io/n8n) |
 
 > ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## Metabase
+
+![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
+
+**Open-source business intelligence and analytics tool**
+
+Metabase is an easy-to-use, open-source business intelligence tool that lets you ask questions about your data. Features include:
+- Ask questions in plain English or SQL
+- Create beautiful dashboards with drag & drop
+- Connect to 20+ data sources (PostgreSQL, MySQL, MongoDB, etc.)
+- Share insights with your team
+- Schedule automated reports via email/Slack
+- Embed charts in other applications
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3000` |
+| Suggested Subdomain | `metabase` |
+| Public Access | No (contains business data) |
+| Website | [metabase.com](https://www.metabase.com) |
+| Source | [GitHub](https://github.com/metabase/metabase) |
+
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## Marimo
+
+![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
+
+**Reactive Python notebook with SQL support**
+
+Marimo is a reactive Python notebook that's reproducible, git-friendly, and deployable as apps. Features include:
+- Reactive execution - cells auto-update when dependencies change
+- Git-friendly - notebooks stored as pure Python files
+- SQL support - built-in DuckDB for data analysis
+- Interactive UI elements - sliders, buttons, tables
+- Deploy as web apps or scripts
+- No hidden state - what you see is what you run
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `2718` |
+| Suggested Subdomain | `marimo` |
+| Public Access | No (contains notebooks/code) |
+| Website | [marimo.io](https://marimo.io) |
+| Source | [GitHub](https://github.com/marimo-team/marimo) |
 
 ---
 

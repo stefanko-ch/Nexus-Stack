@@ -95,6 +95,14 @@ services = {
     description = "Workflow automation tool with 400+ integrations for connecting apps and services."
   }
 
+  marimo = {
+    enabled     = true
+    subdomain   = "marimo"
+    port        = 2718
+    public      = false
+    description = "Reactive Python notebook with SQL support, reproducible and git-friendly."
+  }
+
   mailpit = {
     enabled     = true
     subdomain   = "mailpit"
