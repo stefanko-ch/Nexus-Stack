@@ -102,6 +102,9 @@ jobs:
             echo "📦 Using R2 credentials from setup-control-plane workflow"
             R2_ACCESS_KEY_ID="${{ inputs.r2_access_key_id }}"
             R2_SECRET_ACCESS_KEY="${{ inputs.r2_secret_access_key }}"
+            # Mask credentials passed via workflow inputs (security)
+            echo "::add-mask::$R2_ACCESS_KEY_ID"
+            echo "::add-mask::$R2_SECRET_ACCESS_KEY"
           else
             echo "📦 Using R2 credentials from GitHub Secrets"
             # Trim whitespace and newlines from secrets to avoid auth issues
