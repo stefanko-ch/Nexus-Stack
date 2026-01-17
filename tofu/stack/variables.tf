@@ -48,7 +48,10 @@ variable "server_image" {
 variable "ipv6_only" {
   description = "Use IPv6 only (no public IPv4). Reduces costs by ~€4/month."
   type        = bool
-  default     = true
+  # NOTE: IPv6-only is currently disabled due to connectivity issues.
+  # IPv6-only servers cannot download cloudflared from GitHub or pkg.cloudflare.com
+  # (TLS handshake failures over IPv6). See issue #130 for progress on IPv6 support.
+  default     = false
 }
 
 variable "ssh_public_key_path" {
