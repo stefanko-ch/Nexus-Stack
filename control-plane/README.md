@@ -60,7 +60,7 @@ The control plane infrastructure is created by Terraform when you run `make up`.
 Set these via **Cloudflare Dashboard** or **Wrangler CLI**:
 
 #### Via Cloudflare Dashboard:
-1. Go to **Cloudflare Dashboard** → **Pages** → **nexus-control-plane**
+1. Go to **Cloudflare Dashboard** → **Pages** → **nexus-{domain}-control** (e.g., `nexus-stefanko-ch-control`)
 2. **Settings** → **Environment Variables**
 3. Add **Production** variables:
    - `GITHUB_OWNER` = `stefanko-ch` (auto-set by Terraform)
@@ -70,7 +70,8 @@ Set these via **Cloudflare Dashboard** or **Wrangler CLI**:
 #### Via Wrangler CLI:
 ```bash
 cd control-plane/pages
-npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control-plane
+# Replace {domain} with your domain (e.g., nexus-stefanko-ch-control)
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-{domain}-control
 ```
 
 ### GitHub Token Requirements

@@ -20,6 +20,20 @@
 # These services cannot be disabled from the Control Plane.
 # =============================================================================
 
+# =============================================================================
+# User Accounts
+# =============================================================================
+# admin_email: Full access including SSH tunnel
+# user_email:  All services + Control Plane, but NO SSH access (optional)
+# =============================================================================
+
+admin_email = "sk@stefanko.ch"
+user_email  = "stefan.koch@bg2c.ch"
+
+# =============================================================================
+# Services
+# =============================================================================
+
 services = {
   it-tools = {
     enabled     = false
