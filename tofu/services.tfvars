@@ -22,7 +22,7 @@
 
 services = {
   it-tools = {
-    enabled     = true
+    enabled     = false
     subdomain   = "it-tools"
     port        = 8080
     public      = false
@@ -30,7 +30,7 @@ services = {
   }
 
   excalidraw = {
-    enabled     = true
+    enabled     = false
     subdomain   = "excalidraw"
     port        = 8082
     public      = false
@@ -38,7 +38,7 @@ services = {
   }
 
   portainer = {
-    enabled     = true
+    enabled     = false
     subdomain   = "portainer"
     port        = 9090
     public      = false
@@ -46,7 +46,7 @@ services = {
   }
 
   uptime-kuma = {
-    enabled     = true
+    enabled     = false
     subdomain   = "uptime-kuma"
     port        = 3001
     public      = false
@@ -63,7 +63,7 @@ services = {
   }
 
   grafana = {
-    enabled     = true
+    enabled     = false
     subdomain   = "grafana"
     port        = 3100
     public      = false
@@ -80,7 +80,7 @@ services = {
   }
 
   kestra = {
-    enabled     = true
+    enabled     = false
     subdomain   = "kestra"
     port        = 8085
     public      = false
@@ -88,7 +88,7 @@ services = {
   }
 
   n8n = {
-    enabled     = true
+    enabled     = false
     subdomain   = "n8n"
     port        = 5678
     public      = false
@@ -113,7 +113,7 @@ services = {
   }
 
   metabase = {
-    enabled     = true
+    enabled     = false
     subdomain   = "metabase"
     port        = 3000
     public      = false
@@ -137,7 +137,7 @@ services = {
   }
 
   cloudbeaver = {
-    enabled     = true
+    enabled     = false
     subdomain   = "cloudbeaver"
     port        = 8978
     public      = false
