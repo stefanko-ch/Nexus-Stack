@@ -115,6 +115,13 @@ resource "hcloud_server" "main" {
   ssh_keys     = [hcloud_ssh_key.main.id]
   firewall_ids = [hcloud_firewall.main.id, hcloud_firewall.setup.id] # Both firewalls during setup
 
+  # IPv6-only mode: Disable public IPv4 to reduce costs
+  # Note: Cloudflare Tunnel works over IPv6, so no public IPv4 is needed
+  public_net {
+    ipv4_enabled = var.ipv6_only ? false : true
+    ipv6_enabled = true
+  }
+
   labels = {
     environment = "production"
     managed_by  = "opentofu"
@@ -239,7 +246,8 @@ resource "null_resource" "start_tunnel" {
     connection {
       type        = "ssh"
       user        = "root"
-      host        = hcloud_server.main.ipv4_address
+      # Use IPv6 if IPv4 is disabled, otherwise use IPv4
+      host        = var.ipv6_only ? hcloud_server.main.ipv6_address : hcloud_server.main.ipv4_address
       private_key = file(var.ssh_private_key_path)
       agent       = false
       timeout     = "10m"
