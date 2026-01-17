@@ -72,14 +72,19 @@ if [ -z "$TF_VAR_cloudflare_api_token" ] || [ -z "$TF_VAR_cloudflare_account_id"
     exit 1
 fi
 
-# Get server name from config or default
+# Get resource prefix from domain in config
 if [ -f "$TOFU_DIR/config.tfvars" ]; then
-    SERVER_NAME=$(grep -E '^server_name\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "nexus")
+    DOMAIN=$(grep -E '^domain\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
+    if [ -n "$DOMAIN" ]; then
+        RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
+    else
+        RESOURCE_PREFIX="nexus"
+    fi
 else
-    SERVER_NAME="nexus"
+    RESOURCE_PREFIX="nexus"
 fi
 
-KV_NAMESPACE_TITLE="${SERVER_NAME}-scheduled-teardown"
+KV_NAMESPACE_TITLE="${RESOURCE_PREFIX}-kv"
 ACCESS_APP_DOMAIN="control.${TF_VAR_domain:-unknown}"
 
 # =============================================================================

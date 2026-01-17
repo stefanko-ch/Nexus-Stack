@@ -17,7 +17,7 @@ export async function onRequestGet(context) {
   if (missing.length > 0) {
     return new Response(JSON.stringify({ 
       success: false, 
-      error: `Missing required environment variables: ${missing.join(', ')}. Configure them in Cloudflare Dashboard: Pages → nexus-control-plane → Settings → Environment Variables → Secrets, or run: make setup-control-plane-secrets` 
+      error: `Missing required environment variables: ${missing.join(', ')}. Configure them in Cloudflare Dashboard: Pages → Settings → Environment Variables → Secrets, or run: make setup-control-plane-secrets` 
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

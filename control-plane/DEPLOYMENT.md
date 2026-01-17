@@ -36,7 +36,7 @@ make up
 ```
 
 This creates:
-- ✅ Cloudflare Pages project (`nexus-control-plane`)
+- ✅ Cloudflare Pages project (`nexus-{domain}-control`, e.g., `nexus-stefanko-ch-control`)
 - ✅ DNS record (`control.domain.com`)
 - ✅ Cloudflare Access protection
 
@@ -45,7 +45,7 @@ This creates:
 **Option A: Via Cloudflare Dashboard**
 
 1. Go to **Cloudflare Dashboard**
-2. Navigate to **Pages** → **nexus-control-plane**
+2. Navigate to **Pages** → **nexus-{domain}-control**
 3. Click **Settings** → **Environment Variables**
 4. Click **Add variables**
 5. Production tab:
@@ -58,7 +58,8 @@ This creates:
 
 ```bash
 cd control-plane/pages
-npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control-plane
+# Replace {domain} with your domain (e.g., nexus-stefanko-ch-control)
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-{domain}-control
 # Paste token when prompted
 ```
 
@@ -74,7 +75,8 @@ The control plane is automatically deployed:
 
 ```bash
 cd control-plane/pages
-npx wrangler pages deploy . --project-name=nexus-control-plane
+# Replace {domain} with your domain (e.g., nexus-stefanko-ch-control)
+npx wrangler pages deploy . --project-name=nexus-{domain}-control
 ```
 
 ### 4. Verify Deployment
@@ -124,7 +126,7 @@ npx wrangler pages deploy . --project-name=nexus-control-plane
 **Solution:**
 ```bash
 # Check env vars in Cloudflare Dashboard
-Pages → nexus-control-plane → Settings → Environment Variables
+Pages → nexus-{domain}-control → Settings → Environment Variables
 
 # Verify token scope at:
 https://github.com/settings/tokens
@@ -154,7 +156,8 @@ tofu output
 **Solution:**
 ```bash
 cd control-plane/pages
-npx wrangler pages deploy . --project-name=nexus-control-plane
+# Replace {domain} with your domain (e.g., nexus-stefanko-ch-control)
+npx wrangler pages deploy . --project-name=nexus-{domain}-control
 ```
 
 ## Maintenance
@@ -171,7 +174,8 @@ npx wrangler pages deploy . --project-name=nexus-control-plane
 ```bash
 git pull origin main
 cd control-plane/pages
-npx wrangler pages deploy . --project-name=nexus-control-plane
+# Replace {domain} with your domain (e.g., nexus-stefanko-ch-control)
+npx wrangler pages deploy . --project-name=nexus-{domain}-control
 ```
 
 Or let **Cloudflare Pages** auto-deploy on push (if connected to Git).
@@ -182,7 +186,7 @@ If something goes wrong:
 
 ```bash
 # Via Cloudflare Dashboard
-# Pages → nexus-control-plane → Deployments → Previous deployment → Rollback
+# Pages → nexus-{domain}-control → Deployments → Previous deployment → Rollback
 ```
 
 ---
