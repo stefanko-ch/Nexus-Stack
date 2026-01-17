@@ -127,7 +127,7 @@ Host nexus
   User root
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
-  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=${CF_ACCESS_CLIENT_ID} TUNNEL_SERVICE_TOKEN_SECRET=${CF_ACCESS_CLIENT_SECRET} cloudflared access ssh --hostname %h'
+  ProxyCommand cloudflared access ssh --hostname %h --id '${CF_ACCESS_CLIENT_ID}' --secret '${CF_ACCESS_CLIENT_SECRET}'
 EOF
     echo -e "${GREEN}  ✓ SSH config with Service Token added (no browser login required)${NC}"
     USE_SERVICE_TOKEN=true
@@ -185,13 +185,14 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     BACKOFF=10
     
     while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
-        if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
+        if OUTPUT=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>&1); then
             echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
             break
         fi
         TOKEN_RETRY=$((TOKEN_RETRY + 1))
         if [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; then
             echo "  Retry $TOKEN_RETRY/$MAX_TOKEN_RETRIES - waiting ${BACKOFF}s for propagation..."
+            echo "  Debug: $OUTPUT"
             sleep $BACKOFF
             BACKOFF=$((BACKOFF + 5))  # Linear increase: 10s, 15s, 20s, 25s...
         fi
