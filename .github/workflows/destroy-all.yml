@@ -59,6 +59,11 @@ jobs:
       - name: Create R2 credentials from secrets
         run: |
           mkdir -p tofu tofu/control-plane tofu/stack
+          
+          # Generate dynamic bucket name from domain
+          BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
+          echo "📦 Using bucket: $BUCKET_NAME"
+          
           cat > tofu/.r2-credentials << EOF
           R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}"
           R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}"
@@ -68,6 +73,7 @@ jobs:
           endpoints = {
             s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
+          bucket = "${BUCKET_NAME}"
           EOF
 
       - name: Generate config.tfvars
