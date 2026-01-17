@@ -101,6 +101,12 @@ async function sendNotification(env, config) {
     return;
   }
 
+  // Build recipient list (admin + optional user)
+  const recipients = [env.ADMIN_EMAIL];
+  if (env.USER_EMAIL && env.USER_EMAIL.trim() !== '') {
+    recipients.push(env.USER_EMAIL);
+  }
+
   try {
     const teardownTime = `${config.teardownTime} ${getTimezoneAbbr(config.timezone)}`;
     
@@ -140,14 +146,14 @@ async function sendNotification(env, config) {
       },
       body: JSON.stringify({
         from: `Nexus-Stack <nexus@${env.DOMAIN}>`,
-        to: [env.ADMIN_EMAIL],
+        to: recipients,
         subject: '⚠️ Scheduled Teardown in 15 Minutes',
         html: emailHtml,
       }),
     });
 
     if (response.ok) {
-      console.log(`✅ Notification email sent to ${env.ADMIN_EMAIL}`);
+      console.log(`✅ Notification email sent to ${recipients.join(', ')}`);
     } else {
       const error = await response.text();
       console.error(`⚠️ Failed to send notification: ${response.status} - ${error}`);
