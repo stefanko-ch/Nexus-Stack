@@ -240,22 +240,33 @@ resource "null_resource" "wait_for_tunnel" {
   provisioner "local-exec" {
     command = <<-EOT
       echo "Waiting for Cloudflare Tunnel to become active..."
-      echo "This may take 2-3 minutes while cloud-init completes..."
+      echo "This may take 2-3 minutes while cloud-init completes on the server..."
       
-      MAX_ATTEMPTS=30
+      MAX_ATTEMPTS=36
       ATTEMPT=0
+      TUNNEL_ID="${cloudflare_zero_trust_tunnel_cloudflared.main.id}"
+      ACCOUNT_ID="${var.cloudflare_account_id}"
+      API_TOKEN="${var.cloudflare_api_token}"
       
       while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         ATTEMPT=$((ATTEMPT + 1))
         
-        # Check tunnel connections via Cloudflare API
-        CONNECTIONS=$(curl -s -X GET \
-          "https://api.cloudflare.com/client/v4/accounts/${var.cloudflare_account_id}/cfd_tunnel/${cloudflare_zero_trust_tunnel_cloudflared.main.id}" \
-          -H "Authorization: Bearer ${var.cloudflare_api_token}" \
-          -H "Content-Type: application/json" | grep -o '"conns_active_at"' | wc -l || echo "0")
+        # Check tunnel status via Cloudflare API
+        RESPONSE=$(curl -s -X GET \
+          "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID" \
+          -H "Authorization: Bearer $API_TOKEN" \
+          -H "Content-Type: application/json")
         
-        if [ "$CONNECTIONS" -gt 0 ]; then
-          echo "Tunnel is active!"
+        # Check if tunnel has active connections (status will have "connections" array with entries)
+        if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
+          echo "Tunnel is active and healthy!"
+          exit 0
+        fi
+        
+        # Also check for connections array with content
+        CONN_COUNT=$(echo "$RESPONSE" | grep -o '"conns_active_at":"[^"]*"' | wc -l | tr -d ' ')
+        if [ "$CONN_COUNT" -gt 0 ]; then
+          echo "Tunnel has $CONN_COUNT active connection(s)!"
           exit 0
         fi
         
@@ -263,7 +274,8 @@ resource "null_resource" "wait_for_tunnel" {
         sleep 10
       done
       
-      echo "Warning: Tunnel may not be active yet. Continuing anyway..."
+      echo "Warning: Tunnel may not be active yet after $MAX_ATTEMPTS attempts."
+      echo "Continuing anyway - deploy.sh will retry SSH connection..."
       exit 0
     EOT
   }
