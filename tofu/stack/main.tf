@@ -284,10 +284,9 @@ resource "null_resource" "start_tunnel" {
       user        = "root"
       # Use IPv6 if IPv4 is disabled, otherwise use IPv4
       # Note: GitHub Actions uses Cloudflare WARP for IPv6 connectivity
-      # Hetzner returns IPv6 as /64 network (e.g., 2a01:4f8:c012:155a::/64)
-      # We need to convert to host address: 2a01:4f8:c012:155a::1
-      # trimsuffix removes "::/64", leaving "2a01:4f8:c012:155a:" - then append "1"
-      host        = var.ipv6_only ? "${trimsuffix(hcloud_server.main.ipv6_address, "/64")}1" : hcloud_server.main.ipv4_address
+      # Hetzner returns IPv6 with /64 suffix (e.g. 2a01:4f8:x:x::1/64)
+      # We simply remove the /64 to get the host address
+      host        = var.ipv6_only ? element(split("/", hcloud_server.main.ipv6_address), 0) : hcloud_server.main.ipv4_address
       private_key = file(var.ssh_private_key_path)
       agent       = false
       timeout     = "10m"
