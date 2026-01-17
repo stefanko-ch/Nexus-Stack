@@ -71,10 +71,10 @@ jobs:
           # Wait for warp-svc to be ready
           sleep 3
           
-          # Register and connect WARP (accept TOS automatically)
-          sudo warp-cli registration new --accept-tos
-          sudo warp-cli mode warp+doh
-          sudo warp-cli connect
+          # Register WARP (pipe 'y' for TOS acceptance)
+          echo "y" | sudo warp-cli registration new || sudo warp-cli registration new || true
+          sudo warp-cli mode warp+doh || true
+          sudo warp-cli connect || true
           
           # Wait for connection and verify IPv6
           sleep 5
