@@ -470,35 +470,35 @@ Fixes #3
 
 This creates a clear link between PRs and the issues they resolve.
 
-## Creating GitHub Issues
+## Creating GitHub Issues and Pull Requests
 
-**Problem:** Multiline strings in terminal commands cause parsing issues with `gh issue create`.
+**Problem:** Heredoc syntax (`<< 'EOF'`) in terminal commands causes parsing issues and garbled output.
 
-**Solution:** Always use a temporary file for the issue body:
+**Solution:** Use the `create_file` tool to write the body file, then run `gh` command separately:
 
-```bash
-# Step 1: Create temp file with issue body
-cat > /tmp/issue-body.md << 'EOF'
-## Problem
-Description of the problem...
+```markdown
+# Step 1: Use create_file tool to write body
+create_file("/tmp/pr-body.md", "## Summary\n\nDescription here...")
 
-## Proposed Solution
-How to fix it...
-
-## Implementation Steps
-- [ ] Step 1
-- [ ] Step 2
-EOF
-
-# Step 2: Create issue from file
-gh issue create -t "feat: Issue title here" -F /tmp/issue-body.md
+# Step 2: Run gh command in terminal
+gh pr create --title "feat: Title here" --body-file /tmp/pr-body.md
 
 # Step 3: Clean up
-rm /tmp/issue-body.md
+rm /tmp/pr-body.md
+```
+
+**NEVER use heredoc in terminal:**
+```bash
+# BAD - causes garbled output in this environment
+cat > /tmp/body.md << 'EOF'
+content
+EOF
+
+# GOOD - use create_file tool instead
 ```
 
 **Important:**
-- Use `<< 'EOF'` (quoted) to prevent variable expansion in the heredoc
+- Always use `create_file` tool for multiline content (PR body, issue body)
 - Use `/tmp/` directory for temp files (not in repo)
-- Always clean up temp files after
-- Alternative: Use `gh issue create --web` to open browser editor
+- Always clean up temp files after with `rm`
+- The `--body-file` flag works reliably with files created by `create_file`
