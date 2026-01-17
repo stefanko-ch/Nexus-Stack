@@ -78,9 +78,9 @@ jobs:
 
       - name: Generate config.tfvars
         run: |
+          # Note: server_name removed - resource_prefix is derived from domain
           # Stack config
           cat > tofu/stack/config.tfvars << EOF
-          server_name     = "nexus"
           server_type     = "cax31"
           server_location = "fsn1"
           server_image    = "ubuntu-24.04"
@@ -96,7 +96,6 @@ jobs:
           
           # Control Plane config
           cat > tofu/control-plane/config.tfvars << EOF
-          server_name     = "nexus"
           server_type     = "cax31"
           server_location = "fsn1"
           domain          = "${{ secrets.DOMAIN }}"

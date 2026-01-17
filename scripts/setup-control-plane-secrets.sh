@@ -37,14 +37,19 @@ if ! command -v npx &> /dev/null; then
     exit 1
 fi
 
-# Get project name from Terraform output or config
+# Get project name from domain in config
 if [ -f "$TOFU_DIR/config.tfvars" ]; then
-    SERVER_NAME=$(grep -E '^server_name\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "nexus")
+    DOMAIN=$(grep -E '^domain\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
+    if [ -n "$DOMAIN" ]; then
+        RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
+    else
+        RESOURCE_PREFIX="nexus"
+    fi
 else
-    SERVER_NAME="nexus"
+    RESOURCE_PREFIX="nexus"
 fi
 
-PROJECT_NAME="${SERVER_NAME}-control-plane"
+PROJECT_NAME="${RESOURCE_PREFIX}-control"
 
 echo -e "${CYAN}Project name: ${PROJECT_NAME}${NC}"
 echo ""

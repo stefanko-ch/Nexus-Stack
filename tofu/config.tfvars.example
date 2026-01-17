@@ -16,8 +16,7 @@
 # Hetzner Cloud Server Settings
 # =============================================================================
 
-server_name     = "nexus"
-server_type     = "cax31"         # ~€14/month - 8 vCPU, 16GB RAM (ARM)
+server_type     = "cax31"         # ~€14/month - 4 vCPU, 8GB RAM (ARM)
 server_location = "fsn1"          # Falkenstein, Germany
 server_image    = "ubuntu-24.04"
 
@@ -33,12 +32,20 @@ ssh_private_key_path = "~/.ssh/id_ed25519"
 cloudflare_zone_id = "YOUR_ZONE_ID_HERE"
 
 # Your domain (must be managed in Cloudflare)
+# Note: Resource names are derived from this (e.g., "nexus-your-domain-com")
 domain = "your-domain.com"
 
-# Your email for Cloudflare Access (only this email can access services)
-admin_email = "your@email.com"
+# =============================================================================
+# User Access
+# =============================================================================
 
-# Admin username for services like Portainer, Uptime Kuma (optional, default: admin)
+# Admin email - full access including SSH
+admin_email = "admin@example.com"
+
+# Regular user email - all services except SSH (optional)
+# user_email = "user@example.com"
+
+# Admin username for services like Portainer, Uptime Kuma (optional, default: nexus)
 # admin_username = "nexus"
 
 # =============================================================================
