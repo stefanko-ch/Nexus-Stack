@@ -28,9 +28,9 @@ variable "server_name" {
 }
 
 variable "server_type" {
-  description = "Hetzner server type (e.g., cax11, cax21, cpx21)"
+  description = "Hetzner server type (e.g., cax11, cax21, cax31)"
   type        = string
-  default     = "cax11"  # 2 vCPU, 4GB RAM - ARM-based, cheapest option
+  default     = "cax31"  # 8 vCPU, 16GB RAM - ARM-based
 }
 
 variable "server_location" {

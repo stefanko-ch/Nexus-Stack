@@ -139,6 +139,82 @@ jobs:
           echo "🗑️  Destroying Control Plane (Pages, Worker, DNS)..."
           tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "  No Control Plane state to destroy"
 
+      - name: Cleanup orphaned Hetzner resources
+        run: |
+          echo "🧹 Cleaning up orphaned Hetzner resources (nexus-* only)..."
+          
+          # Delete servers with nexus prefix
+          SERVERS=$(curl -s "https://api.hetzner.cloud/v1/servers" \
+            -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" \
+            | jq -r '.servers[] | select(.name | startswith("nexus")) | .id')
+          for id in $SERVERS; do
+            echo "  Deleting server: $id"
+            curl -s -X DELETE "https://api.hetzner.cloud/v1/servers/$id" \
+              -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" > /dev/null
+          done
+          
+          # Wait for servers to be deleted before deleting firewalls
+          sleep 5
+          
+          # Delete firewalls with nexus prefix
+          FIREWALLS=$(curl -s "https://api.hetzner.cloud/v1/firewalls" \
+            -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" \
+            | jq -r '.firewalls[] | select(.name | startswith("nexus")) | .id')
+          for id in $FIREWALLS; do
+            echo "  Deleting firewall: $id"
+            curl -s -X DELETE "https://api.hetzner.cloud/v1/firewalls/$id" \
+              -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" > /dev/null
+          done
+          
+          # Delete SSH keys with nexus prefix
+          SSHKEYS=$(curl -s "https://api.hetzner.cloud/v1/ssh_keys" \
+            -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" \
+            | jq -r '.ssh_keys[] | select(.name | startswith("nexus")) | .id')
+          for id in $SSHKEYS; do
+            echo "  Deleting SSH key: $id"
+            curl -s -X DELETE "https://api.hetzner.cloud/v1/ssh_keys/$id" \
+              -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" > /dev/null
+          done
+          
+          echo "✅ Hetzner cleanup complete"
+
+      - name: Cleanup orphaned Cloudflare resources
+        run: |
+          echo "🧹 Cleaning up orphaned Cloudflare resources (nexus* only)..."
+          
+          # Delete tunnels with nexus name
+          TUNNELS=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/cfd_tunnel" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            | jq -r '.result[] | select(.name == "nexus") | .id')
+          for id in $TUNNELS; do
+            echo "  Deleting tunnel: $id"
+            curl -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/cfd_tunnel/$id" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" > /dev/null
+          done
+          
+          # Delete Access Applications with nexus prefix
+          ACCESS_APPS=$(curl -s "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/access/apps" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            | jq -r '.result[] | select(.name | startswith("nexus")) | .id')
+          for id in $ACCESS_APPS; do
+            echo "  Deleting Access Application: $id"
+            curl -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/access/apps/$id" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" > /dev/null
+          done
+          
+          # Delete DNS records pointing to nexus tunnel (CNAME to cfargotunnel.com)
+          # Only delete records that are tunnel-related, not manually created ones
+          DNS_RECORDS=$(curl -s "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            | jq -r '.result[] | select(.type == "CNAME" and (.content | contains("cfargotunnel.com"))) | .id')
+          for id in $DNS_RECORDS; do
+            echo "  Deleting DNS record: $id"
+            curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records/$id" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" > /dev/null
+          done
+          
+          echo "✅ Cloudflare cleanup complete"
+
       - name: Delete R2 bucket and contents
         run: |
           echo "🪣 Deleting R2 bucket and all contents..."
