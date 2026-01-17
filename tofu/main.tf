@@ -160,9 +160,19 @@ resource "hcloud_server" "main" {
     # Create Docker network
     docker network create app-network || true
     
+    # Start Cloudflare Tunnel (token injected by Terraform)
+    cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}
+    systemctl enable cloudflared
+    systemctl start cloudflared
+    
     # Signal completion
     touch /opt/docker-server/.setup-complete
   EOT
+
+  # Server depends on tunnel being configured first
+  depends_on = [
+    cloudflare_zero_trust_tunnel_cloudflared_config.main
+  ]
 }
 
 # =============================================================================
@@ -216,37 +226,46 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
 }
 
 # =============================================================================
-# Start Tunnel on Server
+# Wait for Tunnel to be Active
 # =============================================================================
 
-resource "null_resource" "start_tunnel" {
+# Wait for the tunnel to become active (no SSH required - uses Cloudflare API)
+resource "null_resource" "wait_for_tunnel" {
   triggers = {
-    server_id   = hcloud_server.main.id
-    tunnel_id   = cloudflare_zero_trust_tunnel_cloudflared.main.id
-    # Trigger re-run when server IP changes (e.g., IPv6-only mode toggle)
-    server_ipv4 = hcloud_server.main.ipv4_address
-    server_ipv6 = hcloud_server.main.ipv6_address
+    server_id = hcloud_server.main.id
+    tunnel_id = cloudflare_zero_trust_tunnel_cloudflared.main.id
   }
 
-  provisioner "remote-exec" {
-    inline = [
-      "echo 'Waiting for cloud-init to complete...'",
-      "cloud-init status --wait || true",
-      "echo 'Starting Cloudflare Tunnel...'",
-      "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
-      "systemctl enable cloudflared",
-      "systemctl start cloudflared",
-      "echo 'Tunnel started successfully!'"
-    ]
-
-    connection {
-      type        = "ssh"
-      user        = "root"
-      host        = hcloud_server.main.ipv4_address
-      private_key = file(var.ssh_private_key_path)
-      agent       = false
-      timeout     = "10m"
-    }
+  # Use local-exec to poll Cloudflare API for tunnel status
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for Cloudflare Tunnel to become active..."
+      echo "This may take 2-3 minutes while cloud-init completes..."
+      
+      MAX_ATTEMPTS=30
+      ATTEMPT=0
+      
+      while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+        ATTEMPT=$((ATTEMPT + 1))
+        
+        # Check tunnel connections via Cloudflare API
+        CONNECTIONS=$(curl -s -X GET \
+          "https://api.cloudflare.com/client/v4/accounts/${var.cloudflare_account_id}/cfd_tunnel/${cloudflare_zero_trust_tunnel_cloudflared.main.id}" \
+          -H "Authorization: Bearer ${var.cloudflare_api_token}" \
+          -H "Content-Type: application/json" | grep -o '"conns_active_at"' | wc -l || echo "0")
+        
+        if [ "$CONNECTIONS" -gt 0 ]; then
+          echo "Tunnel is active!"
+          exit 0
+        fi
+        
+        echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - Tunnel not yet active, waiting 10s..."
+        sleep 10
+      done
+      
+      echo "Warning: Tunnel may not be active yet. Continuing anyway..."
+      exit 0
+    EOT
   }
 
   depends_on = [
@@ -262,7 +281,7 @@ resource "null_resource" "start_tunnel" {
 
 resource "null_resource" "close_ssh_port" {
   triggers = {
-    tunnel_started = null_resource.start_tunnel.id
+    tunnel_started = null_resource.wait_for_tunnel.id
   }
 
   # Remove the setup firewall from the server (closes port 22)
@@ -278,7 +297,7 @@ resource "null_resource" "close_ssh_port" {
     EOT
   }
 
-  depends_on = [null_resource.start_tunnel]
+  depends_on = [null_resource.wait_for_tunnel]
 }
 
 # =============================================================================
