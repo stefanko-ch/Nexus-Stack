@@ -13,23 +13,30 @@
 
 set -e
 
-# Generate bucket name from domain: nexus-stack.ch -> nexus-stack-ch-terraform-state
-DOMAIN="${TF_VAR_domain:-}"
-if [ -n "$DOMAIN" ]; then
-    DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
-    BUCKET_NAME="${DOMAIN_SLUG}-terraform-state"
-else
-    BUCKET_NAME="nexus-terraform-state"
-fi
-
-R2_CREDENTIALS_FILE="tofu/.r2-credentials"
-
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Generate bucket name from domain: nexus-stack.ch -> nexus-stack-ch-terraform-state
+DOMAIN="${TF_VAR_domain:-}"
+if [ -z "$DOMAIN" ]; then
+    echo -e "${RED}❌ TF_VAR_domain not set${NC}"
+    echo ""
+    echo "Set environment variables before running:"
+    echo "  export TF_VAR_domain=\"your-domain.com\""
+    echo ""
+    echo "Or source your .env file:"
+    echo "  source .env && make init"
+    exit 1
+fi
+
+DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
+BUCKET_NAME="${DOMAIN_SLUG}-terraform-state"
+
+R2_CREDENTIALS_FILE="tofu/.r2-credentials"
 
 echo -e "${BLUE}🪣 Nexus-Stack - R2 Bootstrap${NC}"
 echo "=============================="
