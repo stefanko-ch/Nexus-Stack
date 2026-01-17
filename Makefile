@@ -210,28 +210,33 @@ destroy-all: teardown
 	@if [ -z "$$TF_VAR_cloudflare_api_token" ] || [ -z "$$TF_VAR_cloudflare_account_id" ]; then \
 		echo "  ⚠️  Environment variables not set, skipping R2 cleanup"; \
 	else \
+		BUCKET_NAME="nexus-terraform-state"; \
+		if [ -n "$$TF_VAR_domain" ]; then \
+			BUCKET_NAME="$$(echo "$$TF_VAR_domain" | tr '.' '-')-terraform-state"; \
+		fi; \
+		echo "  Using bucket: $$BUCKET_NAME"; \
 		if [ -f tofu/.r2-credentials ]; then \
 			echo "  Deleting state files from R2 bucket..."; \
 			. tofu/.r2-credentials && \
 			export AWS_ACCESS_KEY_ID="$$R2_ACCESS_KEY_ID" && \
 			export AWS_SECRET_ACCESS_KEY="$$R2_SECRET_ACCESS_KEY" && \
 			curl -s -X DELETE \
-				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/nexus-stack.tfstate" \
+				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/$$BUCKET_NAME/nexus-stack.tfstate" \
 				--aws-sigv4 "aws:amz:auto:s3" \
 				--user "$$AWS_ACCESS_KEY_ID:$$AWS_SECRET_ACCESS_KEY" > /dev/null 2>&1 && \
 			curl -s -X DELETE \
-				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/control-plane.tfstate" \
+				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/$$BUCKET_NAME/control-plane.tfstate" \
 				--aws-sigv4 "aws:amz:auto:s3" \
 				--user "$$AWS_ACCESS_KEY_ID:$$AWS_SECRET_ACCESS_KEY" > /dev/null 2>&1 && \
 			curl -s -X DELETE \
-				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/nexus-terraform-state/.terraform.lock.hcl" \
+				"https://$$TF_VAR_cloudflare_account_id.r2.cloudflarestorage.com/$$BUCKET_NAME/.terraform.lock.hcl" \
 				--aws-sigv4 "aws:amz:auto:s3" \
 				--user "$$AWS_ACCESS_KEY_ID:$$AWS_SECRET_ACCESS_KEY" > /dev/null 2>&1 && \
 			echo "  ✓ State files deleted"; \
 		fi; \
-		echo "  Deleting R2 bucket 'nexus-terraform-state'..."; \
+		echo "  Deleting R2 bucket '$$BUCKET_NAME'..."; \
 		RESPONSE=$$(curl -s -X DELETE \
-			"https://api.cloudflare.com/client/v4/accounts/$$TF_VAR_cloudflare_account_id/r2/buckets/nexus-terraform-state" \
+			"https://api.cloudflare.com/client/v4/accounts/$$TF_VAR_cloudflare_account_id/r2/buckets/$$BUCKET_NAME" \
 			-H "Authorization: Bearer $$TF_VAR_cloudflare_api_token"); \
 		if echo "$$RESPONSE" | grep -q '"success":true'; then \
 			echo "  ✓ R2 bucket deleted"; \
