@@ -232,52 +232,66 @@ resource "null_resource" "start_tunnel" {
     tunnel_id   = cloudflare_zero_trust_tunnel_cloudflared.main.id
     server_ipv4 = hcloud_server.main.ipv4_address
     server_ipv6 = hcloud_server.main.ipv6_address
+    force_check = "v8" # Force recreation for debugging
   }
 
+  # 1. Diagnostic Checks (VISIBLE OUTPUT)
   provisioner "remote-exec" {
     inline = [
-      # Debug: Show connection info (no secrets)
       "echo '=== DEBUG: Server Info ==='",
-      "echo 'Hostname:' $(hostname)",
-      "echo 'Kernel:' $(uname -r)",
-      "echo 'Architecture:' $(uname -m)",
+      "hostname",
+      "uname -a",
       "echo ''",
-      # Debug: Check network connectivity
-      "echo '=== DEBUG: Network Connectivity ==='",
-      "echo 'IPv4 addresses:' $(ip -4 addr show | grep inet | head -3)",
-      "echo 'IPv6 addresses:' $(ip -6 addr show scope global | grep inet6 | head -3)",
-      "echo 'Default route:' $(ip route | head -1)",
-      "echo 'IPv6 route:' $(ip -6 route | head -1)",
+      "echo '=== DEBUG: Network ==='",
+      "ip addr show",
+      "ip route show",
       "echo ''",
-      # Debug: Test external connectivity
-      "echo '=== DEBUG: External Connectivity ==='",
-      "curl -s -m 5 https://cloudflare.com > /dev/null && echo 'IPv4/Cloudflare: OK' || echo 'IPv4/Cloudflare: FAILED'",
-      "curl -6 -s -m 5 https://cloudflare.com > /dev/null && echo 'IPv6/Cloudflare: OK' || echo 'IPv6/Cloudflare: FAILED'",
+      "echo '=== DEBUG: Connectivity ==='",
+      "curl -v -6 https://region1.v2.argotunnel.com/login 2>&1 || echo 'Failed to reach Argotunnel v2 (IPv6)'",
+      "curl -v https://region1.v2.argotunnel.com/login 2>&1 || echo 'Failed to reach Argotunnel v2 (Default)'",
       "echo ''",
-      # Wait for cloud-init
-      "echo '=== Waiting for cloud-init ==='",
+      "echo '=== DEBUG: Pre-Install Check ==='",
       "cloud-init status --wait || true",
-      "echo 'Cloud-init complete'",
-      "echo ''",
-      # Debug: Check cloudflared binary
-      "echo '=== DEBUG: Cloudflared Check ==='",
-      "which cloudflared && echo 'cloudflared found' || echo 'cloudflared NOT FOUND'",
-      "cloudflared --version || echo 'cloudflared version check failed'",
-      "echo ''",
-      # Install and start tunnel (token is sensitive, output suppressed by Terraform)
-      "echo '=== Starting Cloudflare Tunnel ==='",
+      "which cloudflared || echo 'cloudflared not in path'"
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "root"
+      host        = var.ipv6_only ? element(split("/", hcloud_server.main.ipv6_address), 0) : hcloud_server.main.ipv4_address
+      private_key = file(var.ssh_private_key_path)
+      timeout     = "5m"
+    }
+  }
+
+  # 2. Sensitive Installation (SUPPRESSED OUTPUT)
+  provisioner "remote-exec" {
+    inline = [
       "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
       "systemctl enable cloudflared",
-      "systemctl start cloudflared",
-      "echo ''",
-      # Debug: Check tunnel status
-      "echo '=== DEBUG: Tunnel Status ==='",
+      "systemctl restart cloudflared"
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "root"
+      host        = var.ipv6_only ? element(split("/", hcloud_server.main.ipv6_address), 0) : hcloud_server.main.ipv4_address
+      private_key = file(var.ssh_private_key_path)
+      timeout     = "5m"
+    }
+  }
+
+  # 3. Post-Install Diagnostics (VISIBLE OUTPUT)
+  provisioner "remote-exec" {
+    inline = [
+      "echo '=== DEBUG: Post-Install Status ==='",
       "sleep 5",
       "systemctl status cloudflared --no-pager || true",
-      "journalctl -u cloudflared --no-pager -n 20 || true",
-      "echo ''",
-      "echo '=== Tunnel startup complete ==='"
+      "echo '=== DEBUG: Cloudflared Logs ==='",
+      "journalctl -u cloudflared --no-pager -n 50 || true",
+      "echo '=== Tunnel Setup End ==='"
     ]
+
 
     connection {
       type        = "ssh"
