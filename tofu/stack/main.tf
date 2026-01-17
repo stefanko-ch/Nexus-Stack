@@ -150,12 +150,16 @@ resource "hcloud_server" "main" {
     systemctl enable fail2ban unattended-upgrades
     systemctl start fail2ban unattended-upgrades
     
-    # Install cloudflared via official Cloudflare apt repository (IPv6 compatible)
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /etc/apt/keyrings/cloudflare-main.gpg >/dev/null
-    echo "deb [signed-by=/etc/apt/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/cloudflared.list
-    apt-get update
-    apt-get install -y cloudflared
+    # Detect architecture and install cloudflared
+    ARCH=$(dpkg --print-architecture)
+    if [ "$ARCH" = "arm64" ]; then
+      CLOUDFLARED_ARCH="arm64"
+    else
+      CLOUDFLARED_ARCH="amd64"
+    fi
+    curl -L --output cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$${CLOUDFLARED_ARCH}.deb"
+    dpkg -i cloudflared.deb
+    rm cloudflared.deb
     
     # Create app directories
     mkdir -p /opt/docker-server/stacks
@@ -219,84 +223,31 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
 }
 
 # =============================================================================
-# Start Tunnel on Server (via SSH over IPv6 with WARP)
+# Start Tunnel on Server
 # =============================================================================
 
 resource "null_resource" "start_tunnel" {
   triggers = {
-    server_id   = hcloud_server.main.id
-    tunnel_id   = cloudflare_zero_trust_tunnel_cloudflared.main.id
-    server_ipv4 = hcloud_server.main.ipv4_address
-    server_ipv6 = hcloud_server.main.ipv6_address
-    force_check = "v8" # Force recreation for debugging
+    server_id = hcloud_server.main.id
+    tunnel_id = cloudflare_zero_trust_tunnel_cloudflared.main.id
   }
 
-  # 1. Diagnostic Checks (VISIBLE OUTPUT)
   provisioner "remote-exec" {
     inline = [
-      "echo '=== DEBUG: Server Info ==='",
-      "hostname",
-      "uname -a",
-      "echo ''",
-      "echo '=== DEBUG: Network ==='",
-      "ip addr show",
-      "ip route show",
-      "echo ''",
-      "echo '=== DEBUG: Connectivity ==='",
-      "curl -v -6 https://region1.v2.argotunnel.com/login 2>&1 || echo 'Failed to reach Argotunnel v2 (IPv6)'",
-      "curl -v https://region1.v2.argotunnel.com/login 2>&1 || echo 'Failed to reach Argotunnel v2 (Default)'",
-      "echo ''",
-      "echo '=== DEBUG: Pre-Install Check ==='",
+      "echo 'Waiting for cloud-init to complete...'",
       "cloud-init status --wait || true",
-      "which cloudflared || echo 'cloudflared not in path'"
-    ]
-
-    connection {
-      type        = "ssh"
-      user        = "root"
-      host        = var.ipv6_only ? element(split("/", hcloud_server.main.ipv6_address), 0) : hcloud_server.main.ipv4_address
-      private_key = file(var.ssh_private_key_path)
-      timeout     = "5m"
-    }
-  }
-
-  # 2. Sensitive Installation (SUPPRESSED OUTPUT)
-  provisioner "remote-exec" {
-    inline = [
+      "echo 'Starting Cloudflare Tunnel...'",
       "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
       "systemctl enable cloudflared",
-      "systemctl restart cloudflared"
+      "systemctl start cloudflared",
+      "echo 'Tunnel started successfully!'"
     ]
-
-    connection {
-      type        = "ssh"
-      user        = "root"
-      host        = var.ipv6_only ? element(split("/", hcloud_server.main.ipv6_address), 0) : hcloud_server.main.ipv4_address
-      private_key = file(var.ssh_private_key_path)
-      timeout     = "5m"
-    }
-  }
-
-  # 3. Post-Install Diagnostics (VISIBLE OUTPUT)
-  provisioner "remote-exec" {
-    inline = [
-      "echo '=== DEBUG: Post-Install Status ==='",
-      "sleep 5",
-      "systemctl status cloudflared --no-pager || true",
-      "echo '=== DEBUG: Cloudflared Logs ==='",
-      "journalctl -u cloudflared --no-pager -n 50 || true",
-      "echo '=== Tunnel Setup End ==='"
-    ]
-
 
     connection {
       type        = "ssh"
       user        = "root"
       # Use IPv6 if IPv4 is disabled, otherwise use IPv4
-      # Note: GitHub Actions uses Cloudflare WARP for IPv6 connectivity
-      # Hetzner returns IPv6 with /64 suffix (e.g. 2a01:4f8:x:x::1/64)
-      # We simply remove the /64 to get the host address
-      host        = var.ipv6_only ? element(split("/", hcloud_server.main.ipv6_address), 0) : hcloud_server.main.ipv4_address
+      host        = var.ipv6_only ? hcloud_server.main.ipv6_address : hcloud_server.main.ipv4_address
       private_key = file(var.ssh_private_key_path)
       agent       = false
       timeout     = "10m"

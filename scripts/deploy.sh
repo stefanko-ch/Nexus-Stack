@@ -127,7 +127,7 @@ Host nexus
   User root
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
-  ProxyCommand cloudflared access ssh --hostname %h --id '${CF_ACCESS_CLIENT_ID}' --secret '${CF_ACCESS_CLIENT_SECRET}'
+  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=${CF_ACCESS_CLIENT_ID} TUNNEL_SERVICE_TOKEN_SECRET=${CF_ACCESS_CLIENT_SECRET} cloudflared access ssh --hostname %h'
 EOF
     echo -e "${GREEN}  ✓ SSH config with Service Token added (no browser login required)${NC}"
     USE_SERVICE_TOKEN=true
@@ -172,29 +172,27 @@ echo -e "${YELLOW}[2/7] Waiting for SSH via Cloudflare Tunnel...${NC}"
 # If using Service Token, test it first with retry and exponential backoff
 if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     echo "  Testing Service Token authentication..."
-    MAX_TOKEN_RETRIES=8
-    echo "  Note: Service Token may need up to 60-90 seconds to propagate in Cloudflare..."
+    MAX_TOKEN_RETRIES=6
+    echo "  Note: Service Token may need a few seconds to propagate in Cloudflare..."
     
     # Initial wait for Service Token propagation (Cloudflare needs time to activate)
-    # Fresh tunnels typically need 30-90 seconds to become active and connect to the edge
-    INITIAL_WAIT=60
-    echo "  Waiting ${INITIAL_WAIT}s for initial tunnel connection..."
+    INITIAL_WAIT=10
+    echo "  Waiting ${INITIAL_WAIT}s for initial propagation..."
     sleep $INITIAL_WAIT
 
     TOKEN_RETRY=0
-    BACKOFF=15
+    BACKOFF=5
     
     while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
-        if OUTPUT=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>&1); then
+        if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
             echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
             break
         fi
         TOKEN_RETRY=$((TOKEN_RETRY + 1))
         if [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; then
             echo "  Retry $TOKEN_RETRY/$MAX_TOKEN_RETRIES - waiting ${BACKOFF}s for propagation..."
-            echo "  Debug: $OUTPUT"
             sleep $BACKOFF
-            BACKOFF=$((BACKOFF + 5))  # Linear increase: 10s, 15s, 20s, 25s...
+            BACKOFF=$((BACKOFF + 5))  # Linear increase: 5s, 10s, 15s, 20s, 25s
         fi
     done
     
@@ -203,7 +201,7 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║  ${YELLOW}❌ Service Token Authentication Failed${RED}                            ║${NC}"
         echo -e "${RED}╠═══════════════════════════════════════════════════════════════╣${NC}"
-        echo -e "${RED}║${NC}  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts.   ${RED}║${NC}"
+        echo -e "${RED}║${NC}  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts.  ${RED}║${NC}"
         echo -e "${RED}║${NC}  Browser login fallback is not supported in GitHub Actions.      ${RED}║${NC}"
         echo -e "${RED}║${NC}  Please check that the Service Token is correctly configured.     ${RED}║${NC}"
         echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
