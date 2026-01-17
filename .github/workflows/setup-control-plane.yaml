@@ -118,8 +118,11 @@ jobs:
       - name: Generate config.tfvars
         run: |
           # Read admin_email and user_email from services.tfvars (committed to repo)
-          ADMIN_EMAIL=$(grep -E '^admin_email\\s*=' tofu/services.tfvars | sed 's/.*\"\\(.*\\)\"/\\1/' || echo "")
-          USER_EMAIL=$(grep -E '^user_email\\s*=' tofu/services.tfvars | sed 's/.*\"\\(.*\\)\"/\\1/' || echo "")
+          ADMIN_EMAIL=$(awk -F'"' '/^admin_email/ {print $2}' tofu/services.tfvars)
+          USER_EMAIL=$(awk -F'"' '/^user_email/ {print $2}' tofu/services.tfvars)
+          
+          echo "Admin email: $ADMIN_EMAIL"
+          echo "User email: $USER_EMAIL"
           
           # Control Plane config (server_name removed - resource_prefix is derived from domain)
           cat > tofu/control-plane/config.tfvars << EOF
