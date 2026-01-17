@@ -139,6 +139,33 @@ jobs:
           echo "🗑️  Destroying Control Plane (Pages, Worker, DNS)..."
           tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "  No Control Plane state to destroy"
 
+      - name: Delete R2 bucket and contents
+        run: |
+          echo "🪣 Deleting R2 bucket and all contents..."
+          BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
+          
+          # Use Cloudflare API to delete bucket (requires emptying first)
+          # First, list and delete all objects
+          source tofu/.r2-credentials
+          
+          # Install AWS CLI for S3-compatible operations
+          pip install awscli-plugin-endpoint > /dev/null 2>&1 || true
+          
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          # Delete all objects in bucket
+          aws s3 rm "s3://${BUCKET_NAME}" --recursive \
+            --endpoint-url "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com" \
+            2>/dev/null || echo "  Bucket empty or doesn't exist"
+          
+          # Delete the bucket itself
+          aws s3 rb "s3://${BUCKET_NAME}" \
+            --endpoint-url "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com" \
+            2>/dev/null || echo "  Bucket doesn't exist or already deleted"
+          
+          echo "✅ R2 bucket deleted"
+
       - name: Delete R2 secrets from GitHub
         env:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
