@@ -46,9 +46,9 @@ variable "server_image" {
 }
 
 variable "ipv6_only" {
-  description = "Use IPv6 only (no public IPv4). Reduces costs but requires IPv6-capable network."
+  description = "Use IPv6 only (no public IPv4). Reduces costs by ~€4/month."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "ssh_public_key_path" {
