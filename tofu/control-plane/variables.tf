@@ -26,20 +26,20 @@ variable "domain" {
 }
 
 variable "admin_email" {
-  description = "Admin email for Cloudflare Access"
+  description = "Admin email for Cloudflare Access (full access including SSH)"
   type        = string
 }
 
-variable "server_name" {
-  description = "Name prefix for resources"
+variable "user_email" {
+  description = "Regular user email for Cloudflare Access (all services except SSH). Optional."
   type        = string
-  default     = "nexus"
+  default     = ""
 }
 
 variable "server_type" {
   description = "Hetzner server type (passed to Control Plane for display)"
   type        = string
-  default     = "cax11"
+  default     = "cax31"
 }
 
 variable "server_location" {

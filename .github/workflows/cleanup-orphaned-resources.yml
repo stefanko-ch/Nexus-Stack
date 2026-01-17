@@ -26,8 +26,10 @@ jobs:
       - name: Cleanup KV Namespace
         run: |
           echo "🔍 Finding KV Namespace..."
-          SERVER_NAME="nexus"
-          KV_NAMESPACE_TITLE="${SERVER_NAME}-scheduled-teardown"
+          # Resource prefix is derived from domain (e.g., stefanko.ch -> nexus-stefanko-ch)
+          DOMAIN="${{ secrets.DOMAIN }}"
+          RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
+          KV_NAMESPACE_TITLE="${RESOURCE_PREFIX}-kv"
           
           # Get all KV namespaces
           KV_NAMESPACES_RESPONSE=$(curl -s \

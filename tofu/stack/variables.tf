@@ -21,16 +21,10 @@ variable "hcloud_token" {
   # No default - must be provided via environment variable
 }
 
-variable "server_name" {
-  description = "Name of the server"
-  type        = string
-  default     = "docker-server"
-}
-
 variable "server_type" {
   description = "Hetzner server type (e.g., cax11, cax21, cpx21)"
   type        = string
-  default     = "cax11"  # 2 vCPU, 4GB RAM - ARM-based, cheapest option
+  default     = "cax31"  # 4 vCPU, 8GB RAM (ARM)
 }
 
 variable "server_location" {
@@ -94,8 +88,14 @@ variable "domain" {
 }
 
 variable "admin_email" {
-  description = "Admin email for Cloudflare Access (allowed to access services)"
+  description = "Admin email for Cloudflare Access (full access including SSH)"
   type        = string
+}
+
+variable "user_email" {
+  description = "Regular user email for Cloudflare Access (all services except SSH). Optional."
+  type        = string
+  default     = ""
 }
 
 variable "admin_username" {

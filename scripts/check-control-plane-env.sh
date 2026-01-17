@@ -1,7 +1,19 @@
 #!/bin/bash
 # Quick check script to verify Control Plane environment variables
 
-PROJECT_NAME="nexus-control-plane"
+# Derive project name from domain
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/../tofu/config.tfvars" ]; then
+  DOMAIN=$(grep -E '^domain\s*=' "$SCRIPT_DIR/../tofu/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
+  if [ -n "$DOMAIN" ]; then
+    RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
+  else
+    RESOURCE_PREFIX="nexus"
+  fi
+else
+  RESOURCE_PREFIX="nexus"
+fi
+PROJECT_NAME="${RESOURCE_PREFIX}-control"
 
 echo "Checking Cloudflare Pages environment variables for: $PROJECT_NAME"
 echo ""
