@@ -476,7 +476,7 @@ This creates a clear link between PRs and the issues they resolve.
 
 **Solution:** Use the `create_file` tool to write the body file, then run `gh` command separately:
 
-```markdown
+```bash
 # Step 1: Use create_file tool to write body
 create_file("/tmp/pr-body.md", "## Summary\n\nDescription here...")
 
@@ -495,6 +495,9 @@ content
 EOF
 
 # GOOD - use create_file tool instead
+# (Assume /tmp/body.md was created with the create_file tool)
+gh pr create --title "feat: Title here" --body-file /tmp/body.md
+rm /tmp/body.md
 ```
 
 **Important:**
