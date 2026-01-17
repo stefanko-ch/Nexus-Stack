@@ -45,6 +45,12 @@ variable "server_image" {
   default     = "ubuntu-24.04"
 }
 
+variable "ipv6_only" {
+  description = "Use IPv6 only (no public IPv4). Reduces costs but requires IPv6-capable network."
+  type        = bool
+  default     = false
+}
+
 variable "ssh_public_key_path" {
   description = "Path to SSH public key file"
   type        = string

@@ -8,19 +8,20 @@ terraform {
   # State is stored in Cloudflare R2 with automatic encryption at rest (AES-256).
   # 
   # Prerequisites (handled automatically by 'make init'):
-  # 1. R2 bucket "nexus-terraform-state" is created by init-r2-state.sh
+  # 1. R2 bucket is created by init-r2-state.sh (name based on domain)
   # 2. R2 API credentials are generated and stored in tofu/.r2-credentials
-  # 3. Backend config is generated in tofu/backend.hcl
+  # 3. Backend config (bucket + endpoint) is generated in tofu/backend.hcl
   #
   # First-time setup: make init
   # =============================================================================
   backend "s3" {
-    bucket = "nexus-terraform-state"
+    # bucket is set dynamically via -backend-config=backend.hcl
+    # Format: {domain-with-dashes}-terraform-state (e.g., nexus-stack-ch-terraform-state)
     key    = "nexus-stack.tfstate"  # Main stack state (separate from control-plane.tfstate)
     region = "auto"
 
     # Cloudflare R2 S3-compatible settings
-    # The actual endpoint is set via -backend-config=backend.hcl
+    # The actual endpoint and bucket are set via -backend-config=backend.hcl
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
