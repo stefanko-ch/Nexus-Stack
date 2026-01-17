@@ -176,13 +176,13 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     echo "  Note: Service Token may need up to 60-90 seconds to propagate in Cloudflare..."
     
     # Initial wait for Service Token propagation (Cloudflare needs time to activate)
-    # Fresh tokens typically need 30-60 seconds to become active
-    INITIAL_WAIT=20
-    echo "  Waiting ${INITIAL_WAIT}s for initial propagation..."
+    # Fresh tunnels typically need 30-90 seconds to become active and connect to the edge
+    INITIAL_WAIT=60
+    echo "  Waiting ${INITIAL_WAIT}s for initial tunnel connection..."
     sleep $INITIAL_WAIT
 
     TOKEN_RETRY=0
-    BACKOFF=10
+    BACKOFF=15
     
     while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
         if OUTPUT=$(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>&1); then
