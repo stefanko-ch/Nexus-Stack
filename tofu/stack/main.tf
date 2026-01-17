@@ -118,7 +118,7 @@ resource "hcloud_server" "main" {
   # IPv6-only mode: Disable public IPv4 to reduce costs
   # Note: Cloudflare Tunnel works over IPv6, so no public IPv4 is needed
   public_net {
-    ipv4_enabled = var.ipv6_only ? false : true
+    ipv4_enabled = !var.ipv6_only
     ipv6_enabled = true
   }
 
