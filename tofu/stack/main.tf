@@ -150,16 +150,12 @@ resource "hcloud_server" "main" {
     systemctl enable fail2ban unattended-upgrades
     systemctl start fail2ban unattended-upgrades
     
-    # Detect architecture and install cloudflared
-    ARCH=$(dpkg --print-architecture)
-    if [ "$ARCH" = "arm64" ]; then
-      CLOUDFLARED_ARCH="arm64"
-    else
-      CLOUDFLARED_ARCH="amd64"
-    fi
-    curl -L --output cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$${CLOUDFLARED_ARCH}.deb"
-    dpkg -i cloudflared.deb
-    rm cloudflared.deb
+    # Install cloudflared via official Cloudflare apt repository (IPv6 compatible)
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /etc/apt/keyrings/cloudflare-main.gpg >/dev/null
+    echo "deb [signed-by=/etc/apt/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/cloudflared.list
+    apt-get update
+    apt-get install -y cloudflared
     
     # Create app directories
     mkdir -p /opt/docker-server/stacks
