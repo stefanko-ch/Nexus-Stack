@@ -172,12 +172,12 @@ echo -e "${YELLOW}[2/7] Waiting for SSH via Cloudflare Tunnel...${NC}"
 # If using Service Token, test it first with retry and exponential backoff
 if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     echo "  Testing Service Token authentication..."
-    MAX_TOKEN_RETRIES=10
-    echo "  Note: Service Token may need up to 2-3 minutes to propagate in Cloudflare..."
+    MAX_TOKEN_RETRIES=8
+    echo "  Note: Service Token may need up to 60-90 seconds to propagate in Cloudflare..."
     
     # Initial wait for Service Token propagation (Cloudflare needs time to activate)
-    # Fresh tokens can take 30-60 seconds to become active
-    INITIAL_WAIT=30
+    # Fresh tokens typically need 30-60 seconds to become active
+    INITIAL_WAIT=20
     echo "  Waiting ${INITIAL_WAIT}s for initial propagation..."
     sleep $INITIAL_WAIT
 
@@ -185,7 +185,7 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
     BACKOFF=10
     
     while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
-        if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
+        if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
             echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
             break
         fi
@@ -193,7 +193,7 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
         if [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; then
             echo "  Retry $TOKEN_RETRY/$MAX_TOKEN_RETRIES - waiting ${BACKOFF}s for propagation..."
             sleep $BACKOFF
-            BACKOFF=$((BACKOFF + 10))  # Linear increase: 10s, 20s, 30s, 40s...
+            BACKOFF=$((BACKOFF + 5))  # Linear increase: 10s, 15s, 20s, 25s...
         fi
     done
     
@@ -202,7 +202,7 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║  ${YELLOW}❌ Service Token Authentication Failed${RED}                            ║${NC}"
         echo -e "${RED}╠═══════════════════════════════════════════════════════════════╣${NC}"
-        echo -e "${RED}║${NC}  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts.  ${RED}║${NC}"
+        echo -e "${RED}║${NC}  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts.   ${RED}║${NC}"
         echo -e "${RED}║${NC}  Browser login fallback is not supported in GitHub Actions.      ${RED}║${NC}"
         echo -e "${RED}║${NC}  Please check that the Service Token is correctly configured.     ${RED}║${NC}"
         echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
