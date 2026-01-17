@@ -117,20 +117,13 @@ jobs:
 
       - name: Generate config.tfvars
         run: |
-          # Read admin_email and user_email from services.tfvars (committed to repo)
-          ADMIN_EMAIL=$(awk -F'"' '/^admin_email/ {print $2}' tofu/services.tfvars)
-          USER_EMAIL=$(awk -F'"' '/^user_email/ {print $2}' tofu/services.tfvars)
-          
-          echo "Admin email: $ADMIN_EMAIL"
-          echo "User email: $USER_EMAIL"
-          
-          # Control Plane config (server_name removed - resource_prefix is derived from domain)
+          # Control Plane config (emails from secrets)
           cat > tofu/control-plane/config.tfvars << EOF
           server_type     = "cax31"
           server_location = "fsn1"
           domain          = "${{ secrets.DOMAIN }}"
-          admin_email     = "$ADMIN_EMAIL"
-          user_email      = "$USER_EMAIL"
+          admin_email     = "${{ secrets.TF_VAR_admin_email }}"
+          user_email      = "${{ secrets.TF_VAR_user_email }}"
           github_owner    = "${{ github.repository_owner }}"
           github_repo     = "${{ github.event.repository.name }}"
           EOF
