@@ -122,6 +122,7 @@ if grep -q "^Host nexus$" "$SSH_CONFIG" 2>/dev/null; then
 fi
 
 # Add new config with Service Token support
+# ServerAliveInterval prevents SSH timeout during long-running commands (e.g., Superset init)
 if [ -n "$CF_ACCESS_CLIENT_ID" ] && [ -n "$CF_ACCESS_CLIENT_SECRET" ]; then
     cat >> "$SSH_CONFIG" << EOF
 
@@ -130,6 +131,8 @@ Host nexus
   User root
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
+  ServerAliveInterval 60
+  ServerAliveCountMax 30
   ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=${CF_ACCESS_CLIENT_ID} TUNNEL_SERVICE_TOKEN_SECRET=${CF_ACCESS_CLIENT_SECRET} cloudflared access ssh --hostname %h'
 EOF
     echo -e "${GREEN}  ✓ SSH config with Service Token added (no browser login required)${NC}"
@@ -142,6 +145,8 @@ Host nexus
   User root
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
+  ServerAliveInterval 60
+  ServerAliveCountMax 30
   ProxyCommand cloudflared access ssh --hostname %h
 EOF
     echo -e "${GREEN}  ✓ SSH config added (browser login required)${NC}"
