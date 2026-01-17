@@ -143,28 +143,32 @@ jobs:
         run: |
           echo "🪣 Deleting R2 bucket and all contents..."
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
+          ENDPOINT_URL="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           
-          # Use Cloudflare API to delete bucket (requires emptying first)
-          # First, list and delete all objects
           source tofu/.r2-credentials
-          
-          # Install AWS CLI for S3-compatible operations
-          pip install awscli-plugin-endpoint > /dev/null 2>&1 || true
-          
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
-          # Delete all objects in bucket
-          aws s3 rm "s3://${BUCKET_NAME}" --recursive \
-            --endpoint-url "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com" \
-            2>/dev/null || echo "  Bucket empty or doesn't exist"
-          
-          # Delete the bucket itself
-          aws s3 rb "s3://${BUCKET_NAME}" \
-            --endpoint-url "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com" \
-            2>/dev/null || echo "  Bucket doesn't exist or already deleted"
-          
-          echo "✅ R2 bucket deleted"
+          # Check if bucket exists before attempting deletion
+          if ! aws s3 ls "s3://${BUCKET_NAME}" --endpoint-url "$ENDPOINT_URL" > /dev/null 2>&1; then
+            echo "  Bucket '${BUCKET_NAME}' does not exist or is already deleted"
+          else
+            echo "  Bucket '${BUCKET_NAME}' found - deleting contents and bucket..."
+            
+            # Delete all objects in bucket
+            if ! aws s3 rm "s3://${BUCKET_NAME}" --recursive --endpoint-url "$ENDPOINT_URL"; then
+              echo "  Error deleting objects from bucket '${BUCKET_NAME}'."
+              echo "  Please check R2/AWS credentials, endpoint configuration, and network connectivity."
+            fi
+            
+            # Delete the bucket itself
+            if ! aws s3 rb "s3://${BUCKET_NAME}" --endpoint-url "$ENDPOINT_URL"; then
+              echo "  Error deleting bucket '${BUCKET_NAME}'."
+              echo "  The bucket may not be empty, or there may be permission or network issues."
+            else
+              echo "✅ R2 bucket '${BUCKET_NAME}' deleted"
+            fi
+          fi
 
       - name: Delete R2 secrets from GitHub
         env:
