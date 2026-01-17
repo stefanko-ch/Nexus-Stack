@@ -290,7 +290,7 @@ Many issues stem from missing or misconfigured Terraform resources. Check:
 resource "cloudflare_record" "control_plane" {
   name  = "control"
   type  = "CNAME"
-  value = "nexus-control-plane.pages.dev"
+  value = "${local.resource_prefix}-control.pages.dev"  # e.g., nexus-stefanko-ch-control.pages.dev
 }
 
 # You ALSO need this resource:

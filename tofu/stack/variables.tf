@@ -24,7 +24,7 @@ variable "hcloud_token" {
 variable "server_type" {
   description = "Hetzner server type (e.g., cax11, cax21, cpx21)"
   type        = string
-  default     = "cax11"  # 2 vCPU, 4GB RAM - ARM-based, cheapest option
+  default     = "cax31"  # 2 vCPU, 4GB RAM - ARM-based, cheapest option
 }
 
 variable "server_location" {

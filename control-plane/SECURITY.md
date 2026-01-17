@@ -56,11 +56,11 @@
 
 ```bash
 # Option 1: Cloudflare Dashboard
-# Pages → nexus-control-plane → Settings → Environment Variables
+# Pages → nexus-{domain}-control → Settings → Environment Variables
 # Add as "Secret" (encrypted)
 
-# Option 2: Wrangler CLI
-npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-control-plane
+# Option 2: Wrangler CLI (replace {domain} with your domain, e.g., nexus-stefanko-ch-control)
+npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-{domain}-control
 ```
 
 ### Token Requirements

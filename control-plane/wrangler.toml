@@ -1,3 +1,6 @@
+# Note: This is a template. The actual project name is derived from domain.
+# Format: nexus-{domain}-control (e.g., nexus-stefanko-ch-control)
+# This file is regenerated during deployment with the correct project name.
 name = "nexus-control-plane"
 compatibility_date = "2024-01-01"
 pages_build_output_dir = "pages"

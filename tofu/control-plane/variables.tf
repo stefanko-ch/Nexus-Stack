@@ -39,7 +39,7 @@ variable "user_email" {
 variable "server_type" {
   description = "Hetzner server type (passed to Control Plane for display)"
   type        = string
-  default     = "cax11"
+  default     = "cax31"
 }
 
 variable "server_location" {

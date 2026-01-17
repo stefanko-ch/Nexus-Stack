@@ -103,14 +103,31 @@ jobs:
           # Export public key for output
           echo "ssh_public_key=$(cat ~/.ssh/id_ed25519.pub)" >> $GITHUB_OUTPUT
 
+      - name: Compute resource prefix
+        id: prefix
+        run: |
+          # Derive resource prefix from domain (e.g., stefanko.ch -> nexus-stefanko-ch)
+          DOMAIN="${{ secrets.DOMAIN }}"
+          RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
+          PROJECT_NAME="${RESOURCE_PREFIX}-control"
+          echo "resource_prefix=$RESOURCE_PREFIX" >> $GITHUB_OUTPUT
+          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+          echo "Resource prefix: $RESOURCE_PREFIX"
+          echo "Project name: $PROJECT_NAME"
+
       - name: Generate config.tfvars
         run: |
+          # Read admin_email and user_email from services.tfvars (committed to repo)
+          ADMIN_EMAIL=$(grep -E '^admin_email\\s*=' tofu/services.tfvars | sed 's/.*\"\\(.*\\)\"/\\1/' || echo "")
+          USER_EMAIL=$(grep -E '^user_email\\s*=' tofu/services.tfvars | sed 's/.*\"\\(.*\\)\"/\\1/' || echo "")
+          
           # Control Plane config (server_name removed - resource_prefix is derived from domain)
           cat > tofu/control-plane/config.tfvars << EOF
           server_type     = "cax31"
           server_location = "fsn1"
           domain          = "${{ secrets.DOMAIN }}"
-          admin_email     = "${{ secrets.ADMIN_EMAIL }}"
+          admin_email     = "$ADMIN_EMAIL"
+          user_email      = "$USER_EMAIL"
           github_owner    = "${{ github.repository_owner }}"
           github_repo     = "${{ github.event.repository.name }}"
           EOF
@@ -320,7 +337,7 @@ jobs:
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Control Plane environment variables and secrets..."
-          PROJECT_NAME="nexus-control-plane"
+          PROJECT_NAME="${{ steps.prefix.outputs.project_name }}"
           GITHUB_OWNER="${{ github.repository_owner }}"
           GITHUB_REPO="${{ github.event.repository.name }}"
           
@@ -412,8 +429,9 @@ jobs:
           
           # Generate wrangler.toml with KV binding
           # pages_build_output_dir is required for Pages to use the config
+          PROJECT_NAME="${{ steps.prefix.outputs.project_name }}"
           cat > wrangler.toml << EOF
-          name = "nexus-control-plane"
+          name = "$PROJECT_NAME"
           compatibility_date = "2024-01-01"
           pages_build_output_dir = "."
 
@@ -428,7 +446,7 @@ jobs:
           # Deploy to production with KV binding
           # --commit-dirty=true suppresses warning about uncommitted wrangler.toml
           npx wrangler@latest pages deploy . \
-            --project-name=nexus-control-plane \
+            --project-name="$PROJECT_NAME" \
             --branch=main \
             --commit-dirty=true
           
