@@ -76,12 +76,29 @@ jobs:
           sudo warp-cli --accept-tos mode warp+doh
           sudo warp-cli --accept-tos connect
           
-          # Wait for connection and verify IPv6
+          # Wait for connection and verify
           sleep 5
-          echo "Checking WARP status..."
+          
+          echo ""
+          echo "=== DEBUG: WARP Status ==="
           warp-cli --accept-tos status || true
-          echo "Testing IPv6 connectivity..."
-          curl -6 -s --max-time 10 https://ipv6.icanhazip.com && echo "✅ IPv6 working!" || echo "⚠️ IPv6 may not be available"
+          
+          echo ""
+          echo "=== DEBUG: Network Interfaces ==="
+          ip addr show | grep -E "^[0-9]+:|inet" | head -20
+          
+          echo ""
+          echo "=== DEBUG: IPv4 Connectivity ==="
+          curl -4 -s --max-time 10 https://ipv4.icanhazip.com && echo " (IPv4 OK)" || echo "IPv4 FAILED"
+          
+          echo ""
+          echo "=== DEBUG: IPv6 Connectivity ==="
+          curl -6 -s --max-time 10 https://ipv6.icanhazip.com && echo " (IPv6 OK)" || echo "⚠️ IPv6 FAILED - this may cause issues with IPv6-only servers"
+          
+          echo ""
+          echo "=== DEBUG: Ping to Cloudflare ==="
+          ping -c 2 1.1.1.1 && echo "Ping IPv4 OK" || echo "Ping IPv4 FAILED"
+          ping6 -c 2 2606:4700:4700::1111 && echo "Ping IPv6 OK" || echo "Ping IPv6 FAILED (expected if no native IPv6)"
 
       - name: Install cloudflared
         run: |
