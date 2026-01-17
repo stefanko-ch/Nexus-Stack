@@ -241,41 +241,41 @@ resource "null_resource" "start_tunnel" {
       "echo 'Hostname:' $(hostname)",
       "echo 'Kernel:' $(uname -r)",
       "echo 'Architecture:' $(uname -m)",
-      "",
+      "echo ''",
       # Debug: Check network connectivity
       "echo '=== DEBUG: Network Connectivity ==='",
       "echo 'IPv4 addresses:' $(ip -4 addr show | grep inet | head -3)",
       "echo 'IPv6 addresses:' $(ip -6 addr show scope global | grep inet6 | head -3)",
       "echo 'Default route:' $(ip route | head -1)",
       "echo 'IPv6 route:' $(ip -6 route | head -1)",
-      "",
+      "echo ''",
       # Debug: Test external connectivity
       "echo '=== DEBUG: External Connectivity ==='",
       "curl -s -m 5 https://cloudflare.com > /dev/null && echo 'IPv4/Cloudflare: OK' || echo 'IPv4/Cloudflare: FAILED'",
       "curl -6 -s -m 5 https://cloudflare.com > /dev/null && echo 'IPv6/Cloudflare: OK' || echo 'IPv6/Cloudflare: FAILED'",
-      "",
+      "echo ''",
       # Wait for cloud-init
       "echo '=== Waiting for cloud-init ==='",
       "cloud-init status --wait || true",
       "echo 'Cloud-init complete'",
-      "",
+      "echo ''",
       # Debug: Check cloudflared binary
       "echo '=== DEBUG: Cloudflared Check ==='",
       "which cloudflared && echo 'cloudflared found' || echo 'cloudflared NOT FOUND'",
       "cloudflared --version || echo 'cloudflared version check failed'",
-      "",
+      "echo ''",
       # Install and start tunnel (token is sensitive, output suppressed by Terraform)
       "echo '=== Starting Cloudflare Tunnel ==='",
       "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
       "systemctl enable cloudflared",
       "systemctl start cloudflared",
-      "",
+      "echo ''",
       # Debug: Check tunnel status
       "echo '=== DEBUG: Tunnel Status ==='",
       "sleep 5",
       "systemctl status cloudflared --no-pager || true",
       "journalctl -u cloudflared --no-pager -n 20 || true",
-      "",
+      "echo ''",
       "echo '=== Tunnel startup complete ==='"
     ]
 
