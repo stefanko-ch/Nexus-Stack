@@ -71,15 +71,15 @@ jobs:
           # Wait for warp-svc to be ready
           sleep 3
           
-          # Register WARP (pipe 'y' for TOS acceptance)
-          echo "y" | sudo warp-cli registration new || sudo warp-cli registration new || true
-          sudo warp-cli mode warp+doh || true
-          sudo warp-cli connect || true
+          # Accept TOS first, then register
+          sudo warp-cli --accept-tos registration new
+          sudo warp-cli --accept-tos mode warp+doh
+          sudo warp-cli --accept-tos connect
           
           # Wait for connection and verify IPv6
           sleep 5
           echo "Checking WARP status..."
-          warp-cli status || true
+          warp-cli --accept-tos status || true
           echo "Testing IPv6 connectivity..."
           curl -6 -s --max-time 10 https://ipv6.icanhazip.com && echo "✅ IPv6 working!" || echo "⚠️ IPv6 may not be available"
 
@@ -168,6 +168,7 @@ jobs:
           server_type     = "cax31"
           server_location = "fsn1"
           server_image    = "ubuntu-24.04"
+          ipv6_only       = true
           
           ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
           ssh_private_key_path = "~/.ssh/id_ed25519"
