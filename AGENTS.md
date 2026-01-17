@@ -103,7 +103,7 @@ make secrets # Show all service credentials
 
 ### Code Style
 
-- **Terraform/OpenTofu**: Use 2-space indentation, descriptive resource names with `${var.server_name}` prefix
+- **Terraform/OpenTofu**: Use 2-space indentation, descriptive resource names with `${local.resource_prefix}` prefix
 - **Bash scripts**: Use `set -e`, include colored output with emoji for user feedback
 - **Docker Compose**: Always use `networks: app-network` (external), include `restart: unless-stopped`
 - **Comments**: Use section headers with `# =====` separators for major sections
@@ -318,12 +318,15 @@ resource "cloudflare_pages_domain" "control_plane" {
 ## Common Patterns
 
 ### Resource Naming
-All Hetzner/Cloudflare resources use `${var.server_name}` prefix:
-- Server: `nexus`
-- Firewall: `nexus-fw`
-- SSH Key: `nexus-key`
-- Tunnel: `nexus`
-- Access Apps: `nexus <ServiceName>`
+All Hetzner/Cloudflare resources use `${local.resource_prefix}` prefix (derived from domain, e.g., `nexus-stefanko-ch`):
+- Server: `nexus-stefanko-ch`
+- Firewall: `nexus-stefanko-ch-fw`
+- SSH Key: `nexus-stefanko-ch-key`
+- Tunnel: `nexus-stefanko-ch`
+- Access Apps: `nexus-stefanko-ch <ServiceName>`
+- KV Namespace: `nexus-stefanko-ch-kv`
+- Worker: `nexus-stefanko-ch-worker`
+- Pages Project: `nexus-stefanko-ch-control`
 
 ### Service Configuration
 Services are defined in `config.tfvars`:

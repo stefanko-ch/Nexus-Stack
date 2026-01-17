@@ -105,9 +105,8 @@ jobs:
 
       - name: Generate config.tfvars
         run: |
-          # Control Plane config
+          # Control Plane config (server_name removed - resource_prefix is derived from domain)
           cat > tofu/control-plane/config.tfvars << EOF
-          server_name     = "nexus"
           server_type     = "cax31"
           server_location = "fsn1"
           domain          = "${{ secrets.DOMAIN }}"

@@ -1,9 +1,23 @@
 # =============================================================================
+# Locals
+# =============================================================================
+
+locals {
+  # Resource prefix derived from domain (e.g., "example.com" → "nexus-example-com")
+  # This ensures unique resource names when multiple users deploy Nexus-Stack
+  resource_prefix = "nexus-${replace(var.domain, ".", "-")}"
+
+  # List of emails allowed to access services (admin + optional user)
+  # Filter out empty strings
+  allowed_emails = compact([var.admin_email, var.user_email])
+}
+
+# =============================================================================
 # SSH Key
 # =============================================================================
 
 resource "hcloud_ssh_key" "main" {
-  name       = "${var.server_name}-key"
+  name       = "${local.resource_prefix}-key"
   public_key = file(var.ssh_public_key_path)
 }
 
@@ -85,7 +99,7 @@ resource "random_password" "cloudbeaver_admin" {
 # =============================================================================
 
 resource "hcloud_firewall" "main" {
-  name = "${var.server_name}-fw"
+  name = "${local.resource_prefix}-fw"
 
   # No inbound rules at all = true Zero Entry
   # All traffic goes through Cloudflare Tunnel
@@ -93,7 +107,7 @@ resource "hcloud_firewall" "main" {
 
 # Temporary firewall for initial setup (SSH access)
 resource "hcloud_firewall" "setup" {
-  name = "${var.server_name}-setup-fw"
+  name = "${local.resource_prefix}-setup-fw"
 
   rule {
     direction  = "in"
@@ -108,7 +122,7 @@ resource "hcloud_firewall" "setup" {
 # =============================================================================
 
 resource "hcloud_server" "main" {
-  name         = var.server_name
+  name         = local.resource_prefix
   server_type  = var.server_type
   location     = var.server_location
   image        = var.server_image
@@ -182,7 +196,7 @@ resource "random_id" "tunnel_secret" {
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "main" {
   account_id = var.cloudflare_account_id
-  name       = var.server_name
+  name       = local.resource_prefix
   secret     = random_id.tunnel_secret.b64_std
 }
 
@@ -318,7 +332,7 @@ resource "cloudflare_record" "services" {
 # SSH Access Application
 resource "cloudflare_zero_trust_access_application" "ssh" {
   zone_id          = var.cloudflare_zone_id
-  name             = "${var.server_name} SSH"
+  name             = "${local.resource_prefix} SSH"
   domain           = "ssh.${var.domain}"
   type             = "ssh"
   session_duration = "1h"
@@ -345,7 +359,7 @@ resource "cloudflare_zero_trust_access_short_lived_certificate" "ssh" {
 # SSH Service Token for headless/CI authentication (no browser required)
 resource "cloudflare_zero_trust_access_service_token" "ssh" {
   account_id = var.cloudflare_account_id
-  name       = "${var.server_name}-ssh-token"
+  name       = "${local.resource_prefix}-ssh-token"
   duration   = "forever"
 }
 
@@ -367,7 +381,7 @@ resource "cloudflare_zero_trust_access_application" "services" {
   for_each = local.enabled_services
 
   zone_id           = var.cloudflare_zone_id
-  name              = "${var.server_name} ${title(each.key)}"
+  name              = "${local.resource_prefix} ${title(each.key)}"
   domain            = "${each.value.subdomain}.${var.domain}"
   type              = "self_hosted"
   session_duration  = "24h"
@@ -388,6 +402,6 @@ resource "cloudflare_zero_trust_access_policy" "services_email" {
   decision       = "allow"
 
   include {
-    email = [var.admin_email]
+    email = local.allowed_emails
   }
 }

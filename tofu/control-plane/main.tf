@@ -8,6 +8,14 @@
 # Environment variables are set via wrangler or Cloudflare dashboard.
 # =============================================================================
 
+locals {
+  # Resource prefix derived from domain (e.g., "example.com" → "nexus-example-com")
+  resource_prefix = "nexus-${replace(var.domain, ".", "-")}"
+
+  # List of emails allowed to access control plane (admin + optional user)
+  allowed_emails = compact([var.admin_email, var.user_email])
+}
+
 # -----------------------------------------------------------------------------
 # Scheduled Teardown Worker (must be defined before Pages Project for KV binding)
 # -----------------------------------------------------------------------------
@@ -15,13 +23,13 @@
 # KV Namespace for scheduled teardown configuration
 resource "cloudflare_workers_kv_namespace" "scheduled_teardown" {
   account_id = var.cloudflare_account_id
-  title      = "${var.server_name}-scheduled-teardown"
+  title      = "${local.resource_prefix}-kv"
 }
 
 # Cloudflare Worker for scheduled teardown
 resource "cloudflare_workers_script" "scheduled_teardown" {
   account_id = var.cloudflare_account_id
-  name       = "${var.server_name}-scheduled-teardown"
+  name       = "${local.resource_prefix}-worker"
   content    = file("${path.module}/../../control-plane/worker/src/index.js")
   module     = true
 
@@ -50,7 +58,7 @@ resource "cloudflare_workers_cron_trigger" "scheduled_teardown_execution" {
 
 resource "cloudflare_pages_project" "control_plane" {
   account_id        = var.cloudflare_account_id
-  name              = "${var.server_name}-control-plane"
+  name              = "${local.resource_prefix}-control"
   production_branch = "main"
   
   build_config {
@@ -122,7 +130,7 @@ resource "cloudflare_pages_domain" "control_plane" {
 
 resource "cloudflare_zero_trust_access_application" "control_plane" {
   zone_id          = var.cloudflare_zone_id
-  name             = "${var.server_name} Control Plane"
+  name             = "${local.resource_prefix} Control Plane"
   domain           = "control.${var.domain}"
   type             = "self_hosted"
   session_duration = "24h"
@@ -148,6 +156,6 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
   decision       = "allow"
 
   include {
-    email = [var.admin_email]
+    email = local.allowed_emails
   }
 }
