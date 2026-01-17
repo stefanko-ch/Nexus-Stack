@@ -60,6 +60,26 @@ jobs:
         with:
           tofu_version: 1.10.0
 
+      - name: Install Cloudflare WARP (for IPv6 connectivity)
+        run: |
+          echo "🌐 Installing Cloudflare WARP for IPv6 support..."
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update
+          sudo apt-get install -y cloudflare-warp
+          
+          # Register and connect WARP
+          sudo warp-cli registration new
+          sudo warp-cli mode warp+doh
+          sudo warp-cli connect
+          
+          # Wait for connection and verify IPv6
+          sleep 5
+          echo "Checking WARP status..."
+          warp-cli status || true
+          echo "Testing IPv6 connectivity..."
+          curl -6 -s --max-time 10 https://ipv6.icanhazip.com && echo "✅ IPv6 working!" || echo "⚠️ IPv6 may not be available"
+
       - name: Install cloudflared
         run: |
           curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared

@@ -167,19 +167,9 @@ resource "hcloud_server" "main" {
     # Create Docker network
     docker network create app-network || true
     
-    # Start Cloudflare Tunnel (token injected by Terraform)
-    cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}
-    systemctl enable cloudflared
-    systemctl start cloudflared
-    
     # Signal completion
     touch /opt/docker-server/.setup-complete
   EOT
-
-  # Server depends on tunnel being configured first
-  depends_on = [
-    cloudflare_zero_trust_tunnel_cloudflared_config.main
-  ]
 }
 
 # =============================================================================
@@ -233,58 +223,38 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
 }
 
 # =============================================================================
-# Wait for Tunnel to be Active
+# Start Tunnel on Server (via SSH over IPv6 with WARP)
 # =============================================================================
 
-# Wait for the tunnel to become active (no SSH required - uses Cloudflare API)
-resource "null_resource" "wait_for_tunnel" {
+resource "null_resource" "start_tunnel" {
   triggers = {
-    server_id = hcloud_server.main.id
-    tunnel_id = cloudflare_zero_trust_tunnel_cloudflared.main.id
+    server_id   = hcloud_server.main.id
+    tunnel_id   = cloudflare_zero_trust_tunnel_cloudflared.main.id
+    server_ipv4 = hcloud_server.main.ipv4_address
+    server_ipv6 = hcloud_server.main.ipv6_address
   }
 
-  # Use local-exec to poll Cloudflare API for tunnel status
-  provisioner "local-exec" {
-    command = <<-EOT
-      echo "Waiting for Cloudflare Tunnel to become active..."
-      echo "This may take 2-3 minutes while cloud-init completes on the server..."
-      
-      MAX_ATTEMPTS=36
-      ATTEMPT=0
-      TUNNEL_ID="${cloudflare_zero_trust_tunnel_cloudflared.main.id}"
-      ACCOUNT_ID="${var.cloudflare_account_id}"
-      API_TOKEN="${var.cloudflare_api_token}"
-      
-      while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-        ATTEMPT=$((ATTEMPT + 1))
-        
-        # Check tunnel status via Cloudflare API
-        RESPONSE=$(curl -s -X GET \
-          "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID" \
-          -H "Authorization: Bearer $API_TOKEN" \
-          -H "Content-Type: application/json")
-        
-        # Check if tunnel has active connections (status will have "connections" array with entries)
-        if echo "$RESPONSE" | grep -q '"status":"healthy"'; then
-          echo "Tunnel is active and healthy!"
-          exit 0
-        fi
-        
-        # Also check for connections array with content
-        CONN_COUNT=$(echo "$RESPONSE" | grep -o '"conns_active_at":"[^"]*"' | wc -l | tr -d ' ')
-        if [ "$CONN_COUNT" -gt 0 ]; then
-          echo "Tunnel has $CONN_COUNT active connection(s)!"
-          exit 0
-        fi
-        
-        echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - Tunnel not yet active, waiting 10s..."
-        sleep 10
-      done
-      
-      echo "Warning: Tunnel may not be active yet after $MAX_ATTEMPTS attempts."
-      echo "Continuing anyway - deploy.sh will retry SSH connection..."
-      exit 0
-    EOT
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Waiting for cloud-init to complete...'",
+      "cloud-init status --wait || true",
+      "echo 'Starting Cloudflare Tunnel...'",
+      "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
+      "systemctl enable cloudflared",
+      "systemctl start cloudflared",
+      "echo 'Tunnel started successfully!'"
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "root"
+      # Use IPv6 if IPv4 is disabled, otherwise use IPv4
+      # Note: GitHub Actions uses Cloudflare WARP for IPv6 connectivity
+      host        = var.ipv6_only ? hcloud_server.main.ipv6_address : hcloud_server.main.ipv4_address
+      private_key = file(var.ssh_private_key_path)
+      agent       = false
+      timeout     = "10m"
+    }
   }
 
   depends_on = [
@@ -300,7 +270,7 @@ resource "null_resource" "wait_for_tunnel" {
 
 resource "null_resource" "close_ssh_port" {
   triggers = {
-    tunnel_started = null_resource.wait_for_tunnel.id
+    tunnel_started = null_resource.start_tunnel.id
   }
 
   # Remove the setup firewall from the server (closes port 22)
@@ -316,7 +286,7 @@ resource "null_resource" "close_ssh_port" {
     EOT
   }
 
-  depends_on = [null_resource.wait_for_tunnel]
+  depends_on = [null_resource.start_tunnel]
 }
 
 # =============================================================================
