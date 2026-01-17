@@ -74,6 +74,7 @@ resource "cloudflare_pages_project" "control_plane" {
         GITHUB_REPO     = var.github_repo
         DOMAIN          = var.domain
         ADMIN_EMAIL     = var.admin_email
+        USER_EMAIL      = var.user_email
         SERVER_TYPE     = var.server_type
         SERVER_LOCATION = var.server_location
       }
@@ -92,6 +93,7 @@ resource "cloudflare_pages_project" "control_plane" {
         GITHUB_REPO     = var.github_repo
         DOMAIN          = var.domain
         ADMIN_EMAIL     = var.admin_email
+        USER_EMAIL      = var.user_email
         SERVER_TYPE     = var.server_type
         SERVER_LOCATION = var.server_location
       }

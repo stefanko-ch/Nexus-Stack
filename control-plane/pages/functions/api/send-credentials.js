@@ -42,6 +42,12 @@ export async function onRequestPost(context) {
     const credentials = JSON.parse(credentialsJson);
     const domain = env.DOMAIN;
     const adminEmail = env.ADMIN_EMAIL;
+    
+    // Build recipient list (admin + optional user)
+    const recipients = [adminEmail];
+    if (env.USER_EMAIL && env.USER_EMAIL.trim() !== '') {
+      recipients.push(env.USER_EMAIL);
+    }
 
     // Only send Infisical credentials - all other credentials are stored in Infisical
     if (!credentials.infisical_admin_password) {
@@ -107,7 +113,7 @@ export async function onRequestPost(context) {
       },
       body: JSON.stringify({
         from: `Nexus-Stack <nexus@${domain}>`,
-        to: [adminEmail],
+        to: recipients,
         subject: '🔐 Nexus-Stack Credentials',
         html: emailHTML
       })
@@ -122,7 +128,7 @@ export async function onRequestPost(context) {
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Credentials sent to ${adminEmail}`,
+      message: `Credentials sent to ${recipients.join(', ')}`,
       emailId: emailResult.id
     }), { 
       status: 200, 
