@@ -225,6 +225,43 @@ cd tofu && tofu validate
 
 **When something doesn't work, think outside the box!**
 
+### 0. Systematic Error Analysis (CRITICAL)
+
+**NEVER jump to conclusions or make assumptions when encountering an error.**
+
+Before attempting any fix, perform a comprehensive analysis:
+
+1. **Gather ALL relevant information first:**
+   - Read the COMPLETE error message, not just the first line
+   - Check logs from ALL involved systems (GitHub Actions, Terraform, Server, Cloudflare)
+   - Identify the EXACT point of failure in the execution flow
+
+2. **Analyze the fundamentals before complex causes:**
+   - Verify basic connectivity (IP addresses, ports, DNS)
+   - Check data formats and types (e.g., IPv6 `/64` network vs host address)
+   - Confirm variable values are what you expect them to be
+   - Validate file paths, permissions, and existence
+
+3. **Consult documentation when dealing with:**
+   - Provider-specific behavior (Hetzner, Cloudflare, etc.)
+   - API response formats and data structures
+   - Platform-specific quirks (e.g., GitHub Actions environment)
+
+4. **Create a hypothesis list:**
+   - List ALL possible causes, from simple to complex
+   - Start investigating from the most fundamental (network, data format)
+   - Don't skip "obvious" checks - they're often the actual problem
+
+5. **Example of what NOT to do:**
+   - ❌ "SSH fails → must be Service Token issue" (skipped checking IP format)
+   - ❌ "Connection timeout → must be firewall" (didn't verify the IP was valid)
+   - ❌ "Auth failed → token not propagated" (didn't check if tunnel was running)
+
+6. **Example of proper analysis:**
+   - ✅ "SSH fails → What IP is being used? → `2a01:4f8:xxxx::/64` → That's a network, not a host! → Fix: append `::1`"
+
+**Remember: The simplest explanation is often correct. Check the basics FIRST.**
+
 ### 1. Always Check Logs First
 
 Before assuming client-side issues (DNS cache, browser cache, etc.), check:
