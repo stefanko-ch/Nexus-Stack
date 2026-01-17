@@ -16,7 +16,7 @@
 # Hetzner Cloud Server Settings
 # =============================================================================
 
-server_type     = "cax31"         # ~€14/month - 4 vCPU, 8GB RAM (ARM)
+server_type     = "cax31"         # 4 vCPU, 8GB RAM (ARM)
 server_location = "fsn1"          # Falkenstein, Germany
 server_image    = "ubuntu-24.04"
 
@@ -37,6 +37,10 @@ domain = "your-domain.com"
 
 # =============================================================================
 # User Access
+# =============================================================================
+# NOTE: For GitHub Actions, set these as secrets:
+#   gh secret set TF_VAR_admin_email --body "admin@example.com"
+#   gh secret set TF_VAR_user_email --body "user@example.com"
 # =============================================================================
 
 # Admin email - full access including SSH

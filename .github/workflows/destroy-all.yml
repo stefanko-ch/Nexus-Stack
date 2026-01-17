@@ -78,13 +78,7 @@ jobs:
 
       - name: Generate config.tfvars
         run: |
-          # Read admin_email and user_email from services.tfvars (committed to repo)
-          ADMIN_EMAIL=$(awk -F'"' '/^admin_email/ {print $2}' tofu/services.tfvars)
-          USER_EMAIL=$(awk -F'"' '/^user_email/ {print $2}' tofu/services.tfvars)
-          
-          # Note: admin_email and user_email are in services.tfvars (appended for stack)
-          # Note: server_name removed - resource_prefix is derived from domain
-          # Stack config
+          # Stack config (emails from secrets)
           cat > tofu/stack/config.tfvars << EOF
           server_type     = "cax31"
           server_location = "fsn1"
@@ -92,19 +86,21 @@ jobs:
           ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
           ssh_private_key_path = "~/.ssh/id_ed25519"
           domain         = "${{ secrets.DOMAIN }}"
+          admin_email    = "${{ secrets.TF_VAR_admin_email }}"
+          user_email     = "${{ secrets.TF_VAR_user_email }}"
           admin_username = "admin"
           github_owner   = "${{ github.repository_owner }}"
           github_repo    = "${{ github.event.repository.name }}"
           EOF
           cat tofu/services.tfvars >> tofu/stack/config.tfvars
           
-          # Control Plane config (needs emails explicitly since services.tfvars is not appended)
+          # Control Plane config
           cat > tofu/control-plane/config.tfvars << EOF
           server_type     = "cax31"
           server_location = "fsn1"
           domain          = "${{ secrets.DOMAIN }}"
-          admin_email     = "$ADMIN_EMAIL"
-          user_email      = "$USER_EMAIL"
+          admin_email     = "${{ secrets.TF_VAR_admin_email }}"
+          user_email      = "${{ secrets.TF_VAR_user_email }}"
           github_owner    = "${{ github.repository_owner }}"
           github_repo     = "${{ github.event.repository.name }}"
           EOF

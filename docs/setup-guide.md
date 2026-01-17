@@ -281,8 +281,8 @@ Add these secrets to your repo:
 | `CLOUDFLARE_ZONE_ID` | Cloudflare dashboard | Zone ID |
 | `HCLOUD_TOKEN` | Hetzner console | API token |
 | `DOMAIN` | Your domain | e.g. `example.com` |
-| `ADMIN_EMAIL` | Your email | For Cloudflare Access login |
-| `ACCESS_EMAILS` | Allowed emails | Comma-separated |
+| `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
+| `TF_VAR_user_email` | User email | User - all services except SSH (optional) |
 | `INFISICAL_TOKEN` | Infisical dashboard | Optional |
 
 ### First Setup
