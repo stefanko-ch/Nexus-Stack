@@ -37,6 +37,34 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
     name         = "SCHEDULED_TEARDOWN"
     namespace_id = cloudflare_workers_kv_namespace.scheduled_teardown.id
   }
+
+  # Environment variables for worker
+  plain_text_binding {
+    name = "DOMAIN"
+    text = var.domain
+  }
+
+  plain_text_binding {
+    name = "ADMIN_EMAIL"
+    text = var.admin_email
+  }
+
+  plain_text_binding {
+    name = "USER_EMAIL"
+    text = var.user_email
+  }
+
+  plain_text_binding {
+    name = "GITHUB_OWNER"
+    text = var.github_owner
+  }
+
+  plain_text_binding {
+    name = "GITHUB_REPO"
+    text = var.github_repo
+  }
+
+  # Note: RESEND_API_KEY and GITHUB_TOKEN are set via setup-control-plane-secrets.sh
 }
 
 # Cron triggers for scheduled teardown (separate resource)
