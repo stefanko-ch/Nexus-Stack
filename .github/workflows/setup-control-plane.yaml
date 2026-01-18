@@ -391,6 +391,15 @@ jobs:
             echo "  ⏭️  ADMIN_EMAIL not provided - email sending will be disabled"
           fi
           
+          # Set SERVER_TYPE and SERVER_LOCATION for info panel
+          echo "  Setting SERVER_TYPE secret..."
+          echo "cax31" | npx wrangler@latest pages secret put SERVER_TYPE \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set SERVER_TYPE"
+          
+          echo "  Setting SERVER_LOCATION secret..."
+          echo "fsn1" | npx wrangler@latest pages secret put SERVER_LOCATION \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set SERVER_LOCATION"
+          
           echo "✅ All secrets set (applies to both production and preview environments)"
           
           echo ""
