@@ -109,7 +109,7 @@ export async function onRequestPost(context) {
     if (userEmail) {
       emailPayload.cc = [adminEmail];
     }
-    
+
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
