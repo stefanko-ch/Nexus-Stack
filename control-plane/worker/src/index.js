@@ -144,7 +144,7 @@ async function sendNotification(env, config) {
     if (userEmail) {
       emailPayload.cc = [env.ADMIN_EMAIL];
     }
-    
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
