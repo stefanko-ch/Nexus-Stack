@@ -42,12 +42,7 @@ export async function onRequestPost(context) {
     const credentials = JSON.parse(credentialsJson);
     const domain = env.DOMAIN;
     const adminEmail = env.ADMIN_EMAIL;
-    
-    // Build recipient list (admin + optional user)
-    const recipients = [adminEmail];
-    if (env.USER_EMAIL && env.USER_EMAIL.trim() !== '') {
-      recipients.push(env.USER_EMAIL);
-    }
+    const userEmail = env.USER_EMAIL && env.USER_EMAIL.trim() !== '' ? env.USER_EMAIL : null;
 
     // Only send Infisical credentials - all other credentials are stored in Infisical
     if (!credentials.infisical_admin_password) {
@@ -104,19 +99,24 @@ export async function onRequestPost(context) {
 </div>
     `;
 
-    // Send email via Resend
+    // Send email via Resend (User as primary, Admin in CC)
+    const emailPayload = {
+      from: `Nexus-Stack <nexus@${domain}>`,
+      to: userEmail ? [userEmail] : [adminEmail],
+      subject: '🔐 Nexus-Stack Credentials',
+      html: emailHTML
+    };
+    if (userEmail) {
+      emailPayload.cc = [adminEmail];
+    }
+    
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${env.RESEND_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        from: `Nexus-Stack <nexus@${domain}>`,
-        to: recipients,
-        subject: '🔐 Nexus-Stack Credentials',
-        html: emailHTML
-      })
+      body: JSON.stringify(emailPayload)
     });
 
     if (!resendResponse.ok) {
@@ -126,9 +126,10 @@ export async function onRequestPost(context) {
 
     const emailResult = await resendResponse.json();
 
+    const recipientMsg = userEmail ? `${userEmail} (cc: ${adminEmail})` : adminEmail;
     return new Response(JSON.stringify({
       success: true,
-      message: `Credentials sent to ${recipients.join(', ')}`,
+      message: `Credentials sent to ${recipientMsg}`,
       emailId: emailResult.id
     }), { 
       status: 200, 
