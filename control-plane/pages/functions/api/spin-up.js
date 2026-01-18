@@ -6,6 +6,8 @@
  * Reads enabled services from D1 and passes them to the workflow.
  */
 
+import { logApiCall, logError } from './_utils/logger.js';
+
 // D1 Helper Functions
 async function getEnabledServicesFromD1(db) {
   try {
@@ -117,6 +119,13 @@ export async function onRequestPost(context) {
         })
         .map(svc => svc.name);
     }
+
+    // Log the spin-up request
+    await logApiCall(env.NEXUS_DB, '/api/spin-up', 'POST', {
+      action: 'trigger_spin_up',
+      enabledServices: enabledServicesList,
+      serviceCount: enabledServicesList.length,
+    });
 
     const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/spin-up.yml/dispatches`;
     

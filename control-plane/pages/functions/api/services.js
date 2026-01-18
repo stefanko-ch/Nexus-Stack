@@ -7,6 +7,8 @@
  * Enabled status is stored in Cloudflare D1 database (services table)
  */
 
+import { logApiCall, logError } from './_utils/logger.js';
+
 // D1 Helper Functions
 async function getEnabledServicesFromD1(db) {
   try {
@@ -285,6 +287,13 @@ export async function onRequestPost(context) {
 
     // Save to D1 (no deployment - user clicks Spin Up when ready)
     await setServiceEnabled(env.NEXUS_DB, serviceName, enabled);
+
+    // Log the service toggle
+    await logApiCall(env.NEXUS_DB, '/api/services', 'POST', {
+      action: 'toggle_service',
+      service: serviceName,
+      enabled: enabled,
+    });
 
     // Get updated enabled map for response
     const enabledMap = await getEnabledServicesFromD1(env.NEXUS_DB);
