@@ -417,7 +417,11 @@ Access MinIO Console at `https://minio.<domain>` to:
 - Manage access policies
 - Configure lifecycle rules
 
-Connect applications using S3-compatible SDKs with endpoint `https://minio.<domain>:9000`.
+**S3 API Access:**
+- **Console UI**: `https://minio.<domain>` (accessible via Cloudflare Tunnel)
+- **S3 API**: `http://localhost:9000` (cluster/localhost only - not exposed via tunnel)
+
+For S3 API access from external applications, use the Console UI or SSH tunnel. Direct S3 API exposure via Cloudflare Tunnel is not configured by default for security reasons.
 
 ---
 
