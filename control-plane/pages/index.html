@@ -102,6 +102,28 @@
             opacity: 0.7;
         }
 
+        .header-nav {
+            margin-top: 1.5rem;
+        }
+
+        .nav-link {
+            display: inline-block;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .nav-link:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
         /* Status Panel */
         .status-panel {
             background: rgba(0, 20, 10, 0.8);
@@ -687,6 +709,9 @@
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
             <p class="tagline">Control Panel</p>
+            <nav class="header-nav">
+                <a href="/database.html" class="nav-link">🗄️ Database</a>
+            </nav>
         </header>
 
         <!-- Status Panel -->

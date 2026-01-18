@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logs - Nexus Control Plane</title>
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: #1a1a2e;
+      --accent: #00ff88;
+      --accent-dim: #00cc6a;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border: #2a2a3e;
+      --error: #ff4444;
+      --warning: #ffaa00;
+      --info: #00aaff;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    
+    .container { max-width: 1400px; margin: 0 auto; }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    h1 {
+      color: var(--accent);
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .back-link {
+      color: var(--accent);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+    
+    .back-link:hover { text-decoration: underline; }
+    
+    .filters {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .filter-group label {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+    
+    select, input[type="text"] {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+    
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    
+    .btn {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    
+    .btn:hover { background: var(--accent-dim); }
+    
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    
+    .btn-secondary:hover { border-color: var(--accent); }
+    
+    .btn-danger {
+      background: var(--error);
+      color: white;
+    }
+    
+    .stats {
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+    
+    .stats span { color: var(--accent); }
+    
+    .table-wrapper {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    
+    th {
+      background: var(--bg-card);
+      color: var(--accent);
+      text-align: left;
+      padding: 1rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    
+    tr:last-child td { border-bottom: none; }
+    
+    tr:hover { background: var(--bg-card); }
+    
+    .level {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .level-debug { background: var(--text-muted); color: white; }
+    .level-info { background: var(--info); color: white; }
+    .level-warn { background: var(--warning); color: black; }
+    .level-error { background: var(--error); color: white; }
+    
+    .source {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    
+    .message {
+      max-width: 400px;
+      word-break: break-word;
+    }
+    
+    .metadata {
+      max-width: 200px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+    
+    .metadata pre {
+      margin: 0;
+      white-space: pre-wrap;
+    }
+    
+    .timestamp {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    
+    .empty {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-secondary);
+    }
+    
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--accent);
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📋 Logs</h1>
+      <a href="/" class="back-link">← Back to Control Plane</a>
+    </header>
+    
+    <div class="filters">
+      <div class="filter-group">
+        <label>Source:</label>
+        <select id="sourceFilter">
+          <option value="">All</option>
+          <option value="github-action">GitHub Action</option>
+          <option value="worker">Worker</option>
+          <option value="api">API</option>
+          <option value="health-check">Health Check</option>
+          <option value="deploy">Deploy</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label>Level:</label>
+        <select id="levelFilter">
+          <option value="">All</option>
+          <option value="debug">Debug</option>
+          <option value="info">Info</option>
+          <option value="warn">Warning</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label>Limit:</label>
+        <select id="limitFilter">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="500">500</option>
+        </select>
+      </div>
+      
+      <button class="btn" onclick="loadLogs()">🔄 Refresh</button>
+      <button class="btn btn-danger" onclick="clearOldLogs()">🗑️ Clear Old (30d)</button>
+    </div>
+    
+    <div class="stats" id="stats"></div>
+    
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Source</th>
+            <th>Level</th>
+            <th>Message</th>
+            <th>Run ID</th>
+            <th>Metadata</th>
+          </tr>
+        </thead>
+        <tbody id="logsTable">
+          <tr><td colspan="6" class="loading"><span class="spinner"></span> Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script>
+    let currentOffset = 0;
+    
+    async function loadLogs() {
+      const source = document.getElementById('sourceFilter').value;
+      const level = document.getElementById('levelFilter').value;
+      const limit = document.getElementById('limitFilter').value;
+      
+      const params = new URLSearchParams();
+      if (source) params.set('source', source);
+      if (level) params.set('level', level);
+      params.set('limit', limit);
+      params.set('offset', currentOffset);
+      
+      document.getElementById('logsTable').innerHTML = 
+        '<tr><td colspan="6" class="loading"><span class="spinner"></span> Loading...</td></tr>';
+      
+      try {
+        const res = await fetch(`/api/logs?${params}`);
+        const data = await res.json();
+        
+        if (!data.success) {
+          throw new Error(data.error);
+        }
+        
+        const logs = data.logs || [];
+        
+        // Update stats
+        document.getElementById('stats').innerHTML = `
+          Showing <span>${logs.length}</span> logs
+          ${source ? ` from <span>${source}</span>` : ''}
+          ${level ? ` with level <span>${level}</span>` : ''}
+        `;
+        
+        if (logs.length === 0) {
+          document.getElementById('logsTable').innerHTML = 
+            '<tr><td colspan="6" class="empty">No logs found</td></tr>';
+          return;
+        }
+        
+        document.getElementById('logsTable').innerHTML = logs.map(log => `
+          <tr>
+            <td class="timestamp">${formatTime(log.created_at)}</td>
+            <td class="source">${log.source || '-'}</td>
+            <td><span class="level level-${log.level}">${log.level}</span></td>
+            <td class="message">${escapeHtml(log.message)}</td>
+            <td class="timestamp">${log.run_id || '-'}</td>
+            <td class="metadata">${log.metadata ? `<pre>${JSON.stringify(log.metadata, null, 2)}</pre>` : '-'}</td>
+          </tr>
+        `).join('');
+        
+        // Pagination
+        const limitNum = parseInt(limit);
+        document.getElementById('pagination').innerHTML = `
+          ${currentOffset > 0 ? `<button class="btn btn-secondary" onclick="prevPage()">← Previous</button>` : ''}
+          ${logs.length >= limitNum ? `<button class="btn btn-secondary" onclick="nextPage()">Next →</button>` : ''}
+        `;
+        
+      } catch (err) {
+        document.getElementById('logsTable').innerHTML = 
+          `<tr><td colspan="6" class="empty" style="color: var(--error)">Error: ${err.message}</td></tr>`;
+      }
+    }
+    
+    function prevPage() {
+      const limit = parseInt(document.getElementById('limitFilter').value);
+      currentOffset = Math.max(0, currentOffset - limit);
+      loadLogs();
+    }
+    
+    function nextPage() {
+      const limit = parseInt(document.getElementById('limitFilter').value);
+      currentOffset += limit;
+      loadLogs();
+    }
+    
+    async function clearOldLogs() {
+      if (!confirm('Delete logs older than 30 days?')) return;
+      
+      try {
+        const res = await fetch('/api/logs?days=30', { method: 'DELETE' });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert(`Deleted ${data.deleted} old log(s)`);
+          loadLogs();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+    
+    function formatTime(isoString) {
+      if (!isoString) return '-';
+      const d = new Date(isoString + 'Z');
+      return d.toLocaleString();
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Auto-refresh filters
+    document.getElementById('sourceFilter').onchange = () => { currentOffset = 0; loadLogs(); };
+    document.getElementById('levelFilter').onchange = () => { currentOffset = 0; loadLogs(); };
+    document.getElementById('limitFilter').onchange = () => { currentOffset = 0; loadLogs(); };
+    
+    // Initial load
+    loadLogs();
+  </script>
+</body>
+</html>
