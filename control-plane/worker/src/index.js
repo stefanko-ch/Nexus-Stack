@@ -101,11 +101,8 @@ async function sendNotification(env, config) {
     return;
   }
 
-  // Build recipient list (admin + optional user)
-  const recipients = [env.ADMIN_EMAIL];
-  if (env.USER_EMAIL && env.USER_EMAIL.trim() !== '') {
-    recipients.push(env.USER_EMAIL);
-  }
+  // Email recipients: User as primary, Admin in CC
+  const userEmail = env.USER_EMAIL && env.USER_EMAIL.trim() !== '' ? env.USER_EMAIL : null;
 
   try {
     const teardownTime = `${config.teardownTime} ${getTimezoneAbbr(config.timezone)}`;
@@ -138,22 +135,28 @@ async function sendNotification(env, config) {
       </div>
     `;
 
+    const emailPayload = {
+      from: `Nexus-Stack <nexus@${env.DOMAIN}>`,
+      to: userEmail ? [userEmail] : [env.ADMIN_EMAIL],
+      subject: '⚠️ Scheduled Teardown in 15 Minutes',
+      html: emailHtml,
+    };
+    if (userEmail) {
+      emailPayload.cc = [env.ADMIN_EMAIL];
+    }
+    
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: `Nexus-Stack <nexus@${env.DOMAIN}>`,
-        to: recipients,
-        subject: '⚠️ Scheduled Teardown in 15 Minutes',
-        html: emailHtml,
-      }),
+      body: JSON.stringify(emailPayload),
     });
 
     if (response.ok) {
-      console.log(`✅ Notification email sent to ${recipients.join(', ')}`);
+      const recipientMsg = userEmail ? `${userEmail} (cc: ${env.ADMIN_EMAIL})` : env.ADMIN_EMAIL;
+      console.log(`✅ Notification email sent to ${recipientMsg}`);
     } else {
       const error = await response.text();
       console.error(`⚠️ Failed to send notification: ${response.status} - ${error}`);
