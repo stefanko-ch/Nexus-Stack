@@ -316,6 +316,48 @@ jobs:
             # Note: Pages secrets API is not publicly available, so we skip
           fi
 
+      - name: Redeploy Control Plane to activate secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🔄 Redeploying Control Plane to activate new secrets..."
+          
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          D1_DATABASE_ID=$(tofu output -raw d1_database_id 2>/dev/null || echo "")
+          PAGES_PROJECT=$(tofu output -raw pages_project_name 2>/dev/null || echo "")
+          cd ../..
+          
+          if [ -z "$PAGES_PROJECT" ] || [ -z "$D1_DATABASE_ID" ]; then
+            echo "⚠️  Could not get Pages project info - skipping redeploy"
+            exit 0
+          fi
+          
+          cd control-plane/pages
+          
+          # Generate wrangler.toml with D1 binding
+          cat > wrangler.toml << EOF
+          name = "$PAGES_PROJECT"
+          compatibility_date = "2024-01-01"
+          pages_build_output_dir = "."
+
+          [[d1_databases]]
+          binding = "NEXUS_DB"
+          database_id = "$D1_DATABASE_ID"
+          EOF
+          
+          # Redeploy to production
+          npx wrangler@latest pages deploy . \
+            --project-name="$PAGES_PROJECT" \
+            --branch=main \
+            --commit-dirty=true
+          
+          rm wrangler.toml
+          echo "✅ Control Plane redeployed with new secrets!"
+
       - name: Send stack online email via Resend
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
