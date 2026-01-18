@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.4.0...v0.5.0) (2026-01-18)
+
+
+### 🚀 Features
+
+* **scripts:** Auto-sync missing secrets to Infisical on re-deployments ([9d60dc0](https://github.com/stefanko-ch/Nexus-Stack/commit/9d60dc0ae2cb4ad45bec889f12021104f40c7f1a))
+* **stacks:** Add MinIO + Infisical auto-sync + Grafana fixes ([546d4c4](https://github.com/stefanko-ch/Nexus-Stack/commit/546d4c4358e30079c750e5396552ab05ee7cb5ff))
+* **stacks:** Add MinIO S3-compatible object storage ([54a4140](https://github.com/stefanko-ch/Nexus-Stack/commit/54a414038d3b979289245e7a57b205316b4d0465))
+
+
+### 🐛 Bug Fixes
+
+* add working directory to Uptime Kuma setup scripts ([962ca04](https://github.com/stefanko-ch/Nexus-Stack/commit/962ca04209fcd9a3045c40671be401190edc2e7a))
+* **grafana:** Correct Prometheus and cAdvisor Docker image tags ([84ef522](https://github.com/stefanko-ch/Nexus-Stack/commit/84ef522edaa9f75eaa2012a5ba9c26f153fb7048))
+* **grafana:** Use exact versions instead of 'latest' tags ([5c6b108](https://github.com/stefanko-ch/Nexus-Stack/commit/5c6b1086362bad06d0a782b5b7f7d0cc667f66d3))
+* improve Infisical warning comment per review feedback ([365b503](https://github.com/stefanko-ch/Nexus-Stack/commit/365b5037cf91147166424179f13354e27d929df6))
+* resolve deployment issues from PR [#141](https://github.com/stefanko-ch/Nexus-Stack/issues/141) ([d573557](https://github.com/stefanko-ch/Nexus-Stack/commit/d573557909179c5c1a546c034b5e85fff46bd971))
+* Revert broken Infisical auto-sync and fix cAdvisor image tag ([1af45d0](https://github.com/stefanko-ch/Nexus-Stack/commit/1af45d068bb160b69089a44486c7446aa22713e9))
+
+
+### ♻️ Refactoring
+
+* **scripts:** Optimize Metabase health check with fast-path ([a33fc55](https://github.com/stefanko-ch/Nexus-Stack/commit/a33fc559ebac16c94cc3109b83625fe72c4eb629))
+
+
+### 📚 Documentation
+
+* **stacks:** Clarify MinIO S3 API access is localhost-only ([d680157](https://github.com/stefanko-ch/Nexus-Stack/commit/d680157a0b71ed866f534e718bcda85f40872f2e))
+
 ## [0.4.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.3.0...v0.4.0) (2026-01-18)
 
 
