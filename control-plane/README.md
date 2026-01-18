@@ -44,12 +44,44 @@ control-plane/
 │           ├── teardown.js     # POST /api/teardown
 │           ├── services.js     # GET/POST /api/services
 │           ├── status.js       # GET /api/status
-│           └── health.js       # GET /api/health
+│           ├── info.js         # GET /api/info
+│           ├── debug.js        # GET /api/debug
+│           ├── health.js       # GET /api/health
+│           └── send-credentials.js  # POST /api/send-credentials
 ├── README.md                   # This file
 ├── SECURITY.md                 # Security documentation
 ├── DEPLOYMENT.md               # Deployment guide
 └── wrangler.toml               # Wrangler configuration
 ```
+
+## 🔍 Debug & Info Endpoints
+
+The Control Plane provides endpoints for debugging and monitoring:
+
+### GET /api/info
+Returns infrastructure information including server details, uptime, and workflow history.
+
+```bash
+curl https://control.YOUR_DOMAIN/api/info
+```
+
+Response includes:
+- `server`: type, location, domain
+- `time`: lastDeploy, lastTeardown, uptime
+- `scheduledTeardown`: enabled, timezone, nextTeardown
+- `workflows`: lastDeploy, lastSpinUp, lastTeardown details
+
+### GET /api/debug
+Returns environment variable status for troubleshooting (values are masked).
+
+```bash
+curl https://control.YOUR_DOMAIN/api/debug
+```
+
+Response shows which environment variables are set or missing:
+- `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`
+- `DOMAIN`, `ADMIN_EMAIL`, `RESEND_API_KEY`
+- `SERVER_TYPE`, `SERVER_LOCATION`
 
 ## 🔧 Setup
 
