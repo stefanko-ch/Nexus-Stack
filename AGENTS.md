@@ -439,6 +439,20 @@ Merge branch 'main' into feat   → Merge commits should not be PR titles
 
 4. After PR review and merge → Release is created automatically
 
+### Branch Cleanup Rules
+
+**When cleaning up branches, NEVER delete:**
+- `main` - Protected main branch
+- `release-please--branches--main` - Used by Release Please to create release PRs
+
+The `release-please--branches--main` branch is automatically managed by the Release Please GitHub Action. Deleting it will break the automated release process until a new commit triggers Release Please to recreate it.
+
+**Safe to delete after merge:**
+- Feature branches (`feat/*`)
+- Fix branches (`fix/*`)
+- Documentation branches (`docs/*`)
+- Any other temporary development branches
+
 ### Responding to PR Review Comments
 
 **When addressing PR review comments, respond directly to each individual comment, not with a summary comment.**
