@@ -35,11 +35,11 @@ image_versions = {
   # -------------------------------------------------------------------------
   # Grafana Stack Components
   # -------------------------------------------------------------------------
-  prometheus    = "prom/prometheus:v3"                  # Major: v3.x.x
+  prometheus    = "prom/prometheus:latest"              # Latest stable (no major version tags)
   loki          = "grafana/loki:3"                      # Major: 3.x.x
   promtail      = "grafana/promtail:3"                  # Major: 3.x.x (match loki)
-  cadvisor      = "ghcr.io/google/cadvisor:0.56"        # ghcr.io uses tags without 'v' prefix
-  node-exporter = "prom/node-exporter:v1"               # Major: v1.x.x
+  cadvisor      = "gcr.io/cadvisor/cadvisor:latest"     # Latest stable
+  node-exporter = "prom/node-exporter:latest"           # Latest stable
 
   # -------------------------------------------------------------------------
   # Database & Support Images (pinned to major versions)
