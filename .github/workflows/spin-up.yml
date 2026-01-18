@@ -316,19 +316,23 @@ jobs:
             
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             
-            # Build recipient list (admin + optional user)
-            RECIPIENTS="[\"$ADMIN_EMAIL\""
+            # Build email: User as primary recipient, Admin in CC
             if [ -n "$USER_EMAIL" ]; then
-              RECIPIENTS="$RECIPIENTS, \"$USER_EMAIL\""
+              JSON_PAYLOAD=$(jq -n \
+                --arg from "Nexus-Stack <nexus@$DOMAIN>" \
+                --arg to "$USER_EMAIL" \
+                --arg cc "$ADMIN_EMAIL" \
+                --arg subject "✅ Nexus-Stack Online" \
+                --arg html "$EMAIL_HTML" \
+                '{from: $from, to: [$to], cc: [$cc], subject: $subject, html: $html}')
+            else
+              JSON_PAYLOAD=$(jq -n \
+                --arg from "Nexus-Stack <nexus@$DOMAIN>" \
+                --arg to "$ADMIN_EMAIL" \
+                --arg subject "✅ Nexus-Stack Online" \
+                --arg html "$EMAIL_HTML" \
+                '{from: $from, to: [$to], subject: $subject, html: $html}')
             fi
-            RECIPIENTS="$RECIPIENTS]"
-            
-            JSON_PAYLOAD=$(jq -n \
-              --arg from "Nexus-Stack <nexus@$DOMAIN>" \
-              --argjson to "$RECIPIENTS" \
-              --arg subject "✅ Nexus-Stack Online" \
-              --arg html "$EMAIL_HTML" \
-              '{from: $from, to: $to, subject: $subject, html: $html}')
             
             HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
               -H "Authorization: Bearer $RESEND_API_KEY" \
@@ -336,8 +340,11 @@ jobs:
               -d "$JSON_PAYLOAD")
             
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-              echo "✅ Stack online email sent to $ADMIN_EMAIL"
-              [ -n "$USER_EMAIL" ] && echo "✅ Stack online email sent to $USER_EMAIL"
+              if [ -n "$USER_EMAIL" ]; then
+                echo "✅ Stack online email sent to $USER_EMAIL (cc: $ADMIN_EMAIL)"
+              else
+                echo "✅ Stack online email sent to $ADMIN_EMAIL"
+              fi
             else
               echo "⚠️  Failed to send email (HTTP $HTTP_STATUS) - spin-up continues"
               cat /tmp/resend_response.txt 2>/dev/null || true
