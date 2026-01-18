@@ -21,6 +21,23 @@ CREATE TABLE IF NOT EXISTS services (
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Logs
+-- Stores logs from various sources: GitHub Actions, Workers, API, health checks
+CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,            -- e.g., 'github-action', 'worker', 'api', 'health-check'
+    run_id TEXT,                      -- Correlation ID (e.g., GitHub Actions run ID)
+    level TEXT DEFAULT 'info',        -- 'debug', 'info', 'warn', 'error'
+    message TEXT NOT NULL,
+    metadata TEXT,                    -- JSON blob for additional context
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Index for efficient log queries
+CREATE INDEX IF NOT EXISTS idx_logs_source ON logs(source);
+CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
+
 -- Insert default configuration values
 INSERT OR IGNORE INTO config (key, value) VALUES 
     ('teardown_enabled', 'true'),
