@@ -76,6 +76,7 @@ After deployment you'll have:
 ![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
 ![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
+![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
@@ -94,6 +95,7 @@ After deployment you'll have:
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
+| **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **Info** | Landing page with service overview dashboard | — |
 
 → See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.
