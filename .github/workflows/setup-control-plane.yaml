@@ -423,6 +423,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "🗄️  Initializing D1 database schema..."
           
@@ -437,6 +438,9 @@ jobs:
           
           # Initialize schema
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
+          
+          # Store domain in D1 config
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$DOMAIN', datetime('now'))"
           
           # Add initial log entry
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Control Plane initialized', '{\"workflow\": \"setup-control-plane\", \"run_id\": \"${{ github.run_id }}\"}')"

@@ -215,7 +215,8 @@ export async function onRequestGet(context) {
 
 /**
  * POST /api/services
- * Enable/disable a service and trigger spin-up
+ * Enable/disable a service (saves to D1 only, no deployment)
+ * Use the Spin Up button to deploy changes
  */
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -282,32 +283,25 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Get current enabled map from D1
-    const enabledMap = await getEnabledServicesFromD1(env.NEXUS_DB);
-    
-    // Update the service status
-    enabledMap[serviceName] = enabled;
-    
-    // Save to D1
+    // Save to D1 (no deployment - user clicks Spin Up when ready)
     await setServiceEnabled(env.NEXUS_DB, serviceName, enabled);
 
-    // Build list of all enabled services for spin-up
+    // Get updated enabled map for response
+    const enabledMap = await getEnabledServicesFromD1(env.NEXUS_DB);
     const enabledServices = serviceDefinitions
       .filter(svc => {
-        if (enabledMap.hasOwnProperty(svc.name)) {
+        if (Object.hasOwn(enabledMap, svc.name)) {
           return enabledMap[svc.name];
         }
         return svc.defaultEnabled;
       })
       .map(svc => svc.name);
 
-    // Trigger spin-up with the enabled services
-    await triggerSpinUp(env, enabledServices);
-
     return new Response(JSON.stringify({
       success: true,
-      message: `Service ${serviceName} ${enabled ? 'enabled' : 'disabled'}. Spin-up triggered.`,
+      message: `Service ${serviceName} ${enabled ? 'enabled' : 'disabled'}. Click "Spin Up" to deploy changes.`,
       enabledServices,
+      pendingChanges: true,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });

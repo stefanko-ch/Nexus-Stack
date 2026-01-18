@@ -43,4 +43,6 @@ INSERT OR IGNORE INTO config (key, value) VALUES
     ('teardown_enabled', 'true'),
     ('teardown_timezone', 'Europe/Zurich'),
     ('teardown_time', '22:00'),
-    ('notification_time', '21:45');
+    ('notification_time', '21:45'),
+    ('server_type', 'cax31'),
+    ('server_location', 'fsn1');

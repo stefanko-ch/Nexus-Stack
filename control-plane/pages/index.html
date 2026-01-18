@@ -790,7 +790,7 @@
         <!-- Services Panel -->
         <div class="services-panel">
             <h2><span class="icon">🧩</span> Services</h2>
-            <p style="color: #607080; font-size: 0.85rem; margin-bottom: 1rem;">🚧 Enable/disable services feature coming soon</p>
+            <p style="color: #607080; font-size: 0.85rem; margin-bottom: 1rem;">Toggle services on/off, then click "Spin Up" to deploy changes</p>
             <div class="service-list" id="services-list">
                 <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
             </div>
@@ -1173,6 +1173,9 @@
                 const name = document.createElement('div');
                 name.className = 'service-name';
                 name.textContent = service.name;
+                if (service.core) {
+                    name.innerHTML += ' <span style="color: #ff6b6b; font-size: 0.7rem;">(core)</span>';
+                }
 
                 const description = document.createElement('div');
                 description.className = 'service-description';
@@ -1182,14 +1185,22 @@
                 details.appendChild(description);
 
                 const toggle = document.createElement('div');
-                toggle.className = 'toggle-switch service-toggle disabled';
+                toggle.className = 'toggle-switch service-toggle';
                 if (service.enabled) {
                     toggle.classList.add('active');
                 }
+                if (service.core) {
+                    toggle.classList.add('disabled');
+                    toggle.title = 'Core service - cannot be disabled';
+                }
 
                 toggle.addEventListener('click', () => {
-                    // Feature disabled - show coming soon message
-                    showToast('Enable/disable services feature coming soon', 'success');
+                    if (service.core) {
+                        showToast('Core services cannot be disabled', 'error');
+                        return;
+                    }
+                    const newState = !toggle.classList.contains('active');
+                    updateServiceToggle(service.name, newState, toggle);
                 });
 
                 item.appendChild(details);
@@ -1220,9 +1231,8 @@
                     } else {
                         toggleEl.classList.remove('active');
                     }
-                    showToast('Service updated. Spin up triggered.', 'success');
+                    showToast('Service updated. Click "Spin Up" to deploy.', 'success');
                     loadServices();
-                    setTimeout(fetchStatus, 2000);
                 } else {
                     showToast(data.error || 'Failed to update service', 'error');
                 }

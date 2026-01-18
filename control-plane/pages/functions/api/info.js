@@ -81,21 +81,22 @@ export async function onRequestGet(context) {
       workflows: {},
     };
 
-    // Debug: Log environment variables
-    console.log('[INFO API] Environment check:', {
-      SERVER_TYPE: env.SERVER_TYPE ? 'SET' : 'MISSING',
-      SERVER_LOCATION: env.SERVER_LOCATION ? 'SET' : 'MISSING',
-      DOMAIN: env.DOMAIN ? 'SET' : 'MISSING',
-      GITHUB_TOKEN: env.GITHUB_TOKEN ? 'SET' : 'MISSING',
-      GITHUB_OWNER: env.GITHUB_OWNER ? 'SET' : 'MISSING',
-      GITHUB_REPO: env.GITHUB_REPO ? 'SET' : 'MISSING',
-    });
+    // Get server info from D1 config (primary) or env vars (fallback)
+    let serverType = 'cax31';
+    let serverLocation = 'fsn1';
+    let domain = env.DOMAIN || 'unknown';
 
-    // Get server info from environment variables (set by Terraform)
+    if (env.NEXUS_DB) {
+      serverType = await getConfig(env.NEXUS_DB, 'server_type', env.SERVER_TYPE || 'cax31');
+      serverLocation = await getConfig(env.NEXUS_DB, 'server_location', env.SERVER_LOCATION || 'fsn1');
+      const d1Domain = await getConfig(env.NEXUS_DB, 'domain', null);
+      if (d1Domain) domain = d1Domain;
+    }
+
     info.server = {
-      type: env.SERVER_TYPE || 'cax31',
-      location: env.SERVER_LOCATION || 'fsn1',
-      domain: env.DOMAIN || 'unknown',
+      type: serverType,
+      location: serverLocation,
+      domain: domain,
     };
 
     // Get scheduled teardown config from D1
