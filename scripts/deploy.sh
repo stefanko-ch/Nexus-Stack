@@ -493,8 +493,10 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     
     if echo "$INIT_CHECK" | grep -q '"initialized":true'; then
         echo -e "${YELLOW}  ⚠ Infisical already configured - skipping setup${NC}"
-        # Note: New service secrets (like MinIO) must be added manually to Infisical
-        # or wait for a full destroy/spin-up cycle to bootstrap fresh
+        # WARNING: Infisical will NOT auto-populate secrets for newly enabled services.
+        # After initial bootstrap, new service secrets (e.g. MinIO) must be added
+        # manually via the Infisical UI, or perform a full destroy/spin-up cycle
+        # to bootstrap fresh with all current service credentials.
     else
         # Build JSON payload locally and base64 encode to avoid escaping issues
         BOOTSTRAP_JSON=$(cat <<EOF
