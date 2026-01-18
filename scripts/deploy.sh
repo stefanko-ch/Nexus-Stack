@@ -779,10 +779,11 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; then
     echo "  Configuring Uptime Kuma..."
     
-    # Wait for Uptime Kuma container to be ready (optimized: check status first)
+    # Wait for Uptime Kuma container to be ready
     echo "  Waiting for Uptime Kuma to be ready..."
     KUMA_READY=false
-    # First check if container is running (faster than health check)
+    
+    # First check if container is running
     for i in $(seq 1 10); do
         CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' uptime-kuma 2>/dev/null" || echo "")
         if [ "$CONTAINER_STATUS" = "running" ]; then
@@ -790,23 +791,34 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
         fi
         sleep 1
     done
-    # Then check health status with shorter intervals initially
-    for i in $(seq 1 20); do
-        KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
-        if [ "$KUMA_HEALTH" = "healthy" ]; then
-            KUMA_READY=true
-            break
-        fi
-        # Start with 1s intervals, increase to 2s after 10 retries
-        if [ $i -lt 10 ]; then
-            sleep 1
-        else
+    
+    # Check if container has healthcheck configured
+    HAS_HEALTHCHECK=$(ssh nexus "docker inspect --format='{{if .State.Health}}yes{{else}}no{{end}}' uptime-kuma 2>/dev/null" || echo "no")
+    
+    if [ "$HAS_HEALTHCHECK" = "yes" ]; then
+        # Wait for healthcheck to report healthy
+        for i in $(seq 1 30); do
+            KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
+            if [ "$KUMA_HEALTH" = "healthy" ]; then
+                KUMA_READY=true
+                break
+            fi
             sleep 2
-        fi
-    done
+        done
+    else
+        # No healthcheck - wait for HTTP response on port 3001
+        for i in $(seq 1 30); do
+            HTTP_CHECK=$(ssh nexus "curl -sf http://localhost:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
+            if [ "$HTTP_CHECK" = "ok" ]; then
+                KUMA_READY=true
+                break
+            fi
+            sleep 2
+        done
+    fi
     
     if [ "$KUMA_READY" = "false" ]; then
-        echo -e "${YELLOW}  ⚠ Uptime Kuma not healthy after 60s - skipping config${NC}"
+        echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 60s - skipping config${NC}"
     else
         # Kuma uses socket.io for setup - run via container's node
         # Parameters are separate: setup(username, password, callback) - NOT an object!
