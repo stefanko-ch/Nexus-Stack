@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.2.0...v0.3.0) (2026-01-18)
+
+
+### 🚀 Features
+
+* Add IPv6-only support and dynamic R2 bucket naming ([70b70c1](https://github.com/stefanko-ch/Nexus-Stack/commit/70b70c1a79a423787db705c4248075f2e2835ad3))
+* Add IPv6-only support and dynamic R2 bucket naming ([ccf3a07](https://github.com/stefanko-ch/Nexus-Stack/commit/ccf3a078bd5c3c1f9d83388c580f690ca258afb2)), closes [#112](https://github.com/stefanko-ch/Nexus-Stack/issues/112)
+* Add multi-tenant naming and user account support ([242a4c9](https://github.com/stefanko-ch/Nexus-Stack/commit/242a4c9118793b1b21da2b28aeda75537814bfa3))
+* Add multi-tenant naming with domain-based resource prefix ([4998b46](https://github.com/stefanko-ch/Nexus-Stack/commit/4998b462f2af9fa2d4895ecf21b195e42f8e524b))
+* Move user emails to services.tfvars for automatic configuration ([dbadbad](https://github.com/stefanko-ch/Nexus-Stack/commit/dbadbad8582deb47093f28ec90e98a33dc561b09))
+* Send notifications to both admin and user ([7d0bdcb](https://github.com/stefanko-ch/Nexus-Stack/commit/7d0bdcb73f2bdd7bdcafcea6989eb8cc64569dfe))
+* Set ipv6_only default to true ([4c5f202](https://github.com/stefanko-ch/Nexus-Stack/commit/4c5f20242081084728a3b764fc8fe110f897cf54))
+* **stacks:** Add CloudBeaver auto-setup with admin credentials ([481ee67](https://github.com/stefanko-ch/Nexus-Stack/commit/481ee67dc06605a4fc643e281d63aeb756909cdc))
+* **stacks:** Add CloudBeaver database management tool ([c28912a](https://github.com/stefanko-ch/Nexus-Stack/commit/c28912ac770cbd017272d479dc83db6c39dd9236))
+* **stacks:** Add CloudBeaver database management tool ([07e1e3f](https://github.com/stefanko-ch/Nexus-Stack/commit/07e1e3f57f73701da974338c8cd2caa4dfd93b2f)), closes [#44](https://github.com/stefanko-ch/Nexus-Stack/issues/44)
+
+
+### 🐛 Bug Fixes
+
+* Add environment variables to Worker for email notifications ([ed88fd3](https://github.com/stefanko-ch/Nexus-Stack/commit/ed88fd3cd23bc6c4697011f8473cb7f2907c2267))
+* Add fetchInfo() to populate Infrastructure Information panel ([53799e0](https://github.com/stefanko-ch/Nexus-Stack/commit/53799e0d36285c5d275469fbd53a6d82cdaaa930))
+* Add SERVER_TYPE and SERVER_LOCATION to Pages secrets ([c3a6eca](https://github.com/stefanko-ch/Nexus-Stack/commit/c3a6ecaf6144e60c7837ccd51cf6761333cdfbf1))
+* Add USER_EMAIL to Pages secrets for credential emails ([eb87808](https://github.com/stefanko-ch/Nexus-Stack/commit/eb87808b24e976b0ca860d5b9b33af60cbf09b8d))
+* Control Plane secrets and info panel ([30c8dc1](https://github.com/stefanko-ch/Nexus-Stack/commit/30c8dc169297b79c625ade0fe16f64a97f74e295))
+* Correct cax31 server specifications in comments ([9a3acf1](https://github.com/stefanko-ch/Nexus-Stack/commit/9a3acf1cad0f7afb56f21839a7dd640886d6aafd))
+* Disable IPv6-only mode due to connectivity issues ([#129](https://github.com/stefanko-ch/Nexus-Stack/issues/129)) ([a9564e8](https://github.com/stefanko-ch/Nexus-Stack/commit/a9564e8779a881cc0bbf1e76f96077211113ca58))
+* Make TF_VAR_domain required, remove fallback bucket name ([3e268f5](https://github.com/stefanko-ch/Nexus-Stack/commit/3e268f5dc616db9ae3501d52cde89df5c803a4ab))
+* **redpanda-console:** Remove invalid cross-stack depends_on ([edc2740](https://github.com/stefanko-ch/Nexus-Stack/commit/edc274098cdab08c5bdc86625e2c6d6960a17351))
+* **redpanda-console:** Remove invalid cross-stack depends_on ([1a5366f](https://github.com/stefanko-ch/Nexus-Stack/commit/1a5366fda064e408cad67da27d1e020dcfa19d20))
+* Remove API response printing from init-r2-state.sh ([0a6ead7](https://github.com/stefanko-ch/Nexus-Stack/commit/0a6ead7ac07267eb8473ca6ccaf5777f54c1eb7f))
+* Remove duplicate admin_email/user_email from generated config ([b28fde9](https://github.com/stefanko-ch/Nexus-Stack/commit/b28fde9d793875336091cba5b56a995842c2f959))
+* Remove password printing from deploy logs ([9a47b1c](https://github.com/stefanko-ch/Nexus-Stack/commit/9a47b1c52598ffd57a991eb78c11a189ced3d2f3))
+* Send emails to user with admin in CC ([db1e3e3](https://github.com/stefanko-ch/Nexus-Stack/commit/db1e3e322b6013f173bdb3320020041134555721))
+* Send emails to user with admin in CC ([faab4af](https://github.com/stefanko-ch/Nexus-Stack/commit/faab4af300bde3b51ab8c5de263f273737651329))
+* Send stack online email to both admin and user ([ef8989a](https://github.com/stefanko-ch/Nexus-Stack/commit/ef8989ae35b6d0702cd58e03052c25f770c286b9))
+* Use awk instead of sed for email extraction in workflows ([4154496](https://github.com/stefanko-ch/Nexus-Stack/commit/4154496f215cf5dc9a8b235244ba7e0436de5ff3))
+* Use bash code fence and add concrete example ([695e030](https://github.com/stefanko-ch/Nexus-Stack/commit/695e0303592a53efdf70cfd05dc1b2916ba25c1d))
+* Use TF_VAR_admin_email for Control Plane secrets ([aa71251](https://github.com/stefanko-ch/Nexus-Stack/commit/aa71251c10d1efbb4ff2444ba8af900d5bb5efde))
+* Use TF_VAR_admin_email for spin-up email notification ([5eccd65](https://github.com/stefanko-ch/Nexus-Stack/commit/5eccd650d0d61706a30266ae7043e6ceb03c3725))
+* Use TF_VAR_admin_email for spin-up email notification ([59d639b](https://github.com/stefanko-ch/Nexus-Stack/commit/59d639bb337b772790d557e887704a0d267431dd))
+
+
+### ♻️ Refactoring
+
+* Move email configuration from services.tfvars to GitHub Secrets ([49e8d38](https://github.com/stefanko-ch/Nexus-Stack/commit/49e8d386d594c018d223c72b93403b4c0ae65321))
+* Simplify ipv4_enabled to use negation directly ([b887af1](https://github.com/stefanko-ch/Nexus-Stack/commit/b887af1de5c0157901c51156d367426ebb06210b))
+
+
+### 📚 Documentation
+
+* Add critical security rule - never print secrets to logs ([f32b5c2](https://github.com/stefanko-ch/Nexus-Stack/commit/f32b5c2b7e9a50add240b75636e884290425d03f))
+* Add info and debug API endpoints documentation ([f4caea7](https://github.com/stefanko-ch/Nexus-Stack/commit/f4caea71fcaa6a26fd8e0d1150d1a23a92a35184))
+* **agents:** Fix PR/issue creation - use create_file instead of heredoc ([3d269f1](https://github.com/stefanko-ch/Nexus-Stack/commit/3d269f1e152668ae52400573948613b5d3eefc12))
+* **agents:** Fix PR/issue creation instructions ([b6c8c02](https://github.com/stefanko-ch/Nexus-Stack/commit/b6c8c027a782d7dd82d5ba571f6067d6f5f2abda))
+
+
+### 🔧 Maintenance
+
+* Enable Redpanda and CloudBeaver for testing ([28019f8](https://github.com/stefanko-ch/Nexus-Stack/commit/28019f88aec203e6934146fe93209093b4839aa2))
+
 ## [0.2.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.1.0...v0.2.0) (2026-01-16)
 
 
