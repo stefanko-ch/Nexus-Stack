@@ -119,6 +119,13 @@ services = {
     port      = 3000
     public    = false    # Business intelligence - always protected
   }
+
+  mage = {
+    enabled   = true
+    subdomain = "mage"
+    port      = 6789
+    public    = false    # Data pipeline tool - always protected
+  }
   
   # Example: Add more services like this:
   # excalidraw = {

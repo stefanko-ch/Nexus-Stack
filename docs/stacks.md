@@ -24,6 +24,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Mage | `mageai/mageai` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -354,6 +355,32 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 | Source | [GitHub](https://github.com/metabase/metabase) |
 
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## Mage
+
+![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
+
+**Modern data pipeline tool for ETL/ELT workflows**
+
+Mage is a modern replacement for Airflow, designed for building, running, and managing data pipelines. Features include:
+- Hybrid development environment (notebooks + IDE)
+- Built-in orchestration with scheduling and triggers
+- Native integrations for data sources (SQL, APIs, cloud storage)
+- Real-time and batch pipeline support
+- Version control friendly with code-first approach
+- Beautiful UI for monitoring and debugging
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `6789` |
+| Suggested Subdomain | `mage` |
+| Public Access | No (contains data pipelines) |
+| Website | [mage.ai](https://mage.ai) |
+| Source | [GitHub](https://github.com/mage-ai/mage-ai) |
+
+> ✅ **Auto-configured:** Admin account is automatically created during deployment using your `user_email`. Use `make secrets` to view the credentials.
 
 ---
 

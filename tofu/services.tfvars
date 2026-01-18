@@ -26,7 +26,7 @@
 
 services = {
   it-tools = {
-    enabled     = false
+    enabled     = true
     subdomain   = "it-tools"
     port        = 8080
     public      = false
@@ -34,7 +34,7 @@ services = {
   }
 
   excalidraw = {
-    enabled     = false
+    enabled     = true
     subdomain   = "excalidraw"
     port        = 8082
     public      = false
@@ -42,7 +42,7 @@ services = {
   }
 
   portainer = {
-    enabled     = false
+    enabled     = true
     subdomain   = "portainer"
     port        = 9090
     public      = false
@@ -50,7 +50,7 @@ services = {
   }
 
   uptime-kuma = {
-    enabled     = false
+    enabled     = true
     subdomain   = "uptime-kuma"
     port        = 3001
     public      = false
@@ -67,7 +67,7 @@ services = {
   }
 
   grafana = {
-    enabled     = false
+    enabled     = true
     subdomain   = "grafana"
     port        = 3100
     public      = false
@@ -84,7 +84,7 @@ services = {
   }
 
   kestra = {
-    enabled     = false
+    enabled     = true
     subdomain   = "kestra"
     port        = 8085
     public      = false
@@ -92,7 +92,7 @@ services = {
   }
 
   n8n = {
-    enabled     = false
+    enabled     = true
     subdomain   = "n8n"
     port        = 5678
     public      = false
@@ -117,7 +117,7 @@ services = {
   }
 
   metabase = {
-    enabled     = false
+    enabled     = true
     subdomain   = "metabase"
     port        = 3000
     public      = false
@@ -141,10 +141,18 @@ services = {
   }
 
   cloudbeaver = {
-    enabled     = false
+    enabled     = true
     subdomain   = "cloudbeaver"
     port        = 8978
     public      = false
     description = "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
+  }
+
+  mage = {
+    enabled     = true
+    subdomain   = "mage"
+    port        = 6789
+    public      = false
+    description = "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
   }
 }
