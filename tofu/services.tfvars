@@ -147,4 +147,12 @@ services = {
     public      = false
     description = "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
   }
+
+  mage = {
+    enabled     = true
+    subdomain   = "mage"
+    port        = 6789
+    public      = false
+    description = "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
+  }
 }

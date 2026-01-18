@@ -102,6 +102,9 @@ output "secrets" {
     # CloudBeaver
     cloudbeaver_admin_password = random_password.cloudbeaver_admin.result
 
+    # Mage AI
+    mage_admin_password = random_password.mage_admin.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token
