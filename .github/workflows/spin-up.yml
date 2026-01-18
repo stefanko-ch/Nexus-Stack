@@ -55,6 +55,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Log workflow start
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          chmod +x .github/scripts/log-to-d1.sh
+          .github/scripts/log-to-d1.sh info "Spin-up workflow started" '{"triggered_by":"${{ github.actor }}"}'
+
       - name: Install OpenTofu
         uses: opentofu/setup-opentofu@v1
         with:
@@ -246,6 +255,13 @@ jobs:
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
 
+      - name: Log infrastructure provisioned
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: .github/scripts/log-to-d1.sh info "Infrastructure and containers deployed"
+
       - name: Store credentials as Cloudflare Secret
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -359,11 +375,9 @@ jobs:
           echo "   (View all service URLs and credentials there)"
           echo ""
 
-      - name: Log spin-up to D1
+      - name: Log spin-up completed
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          D1_DATABASE_NAME="nexus-${{ secrets.DOMAIN }}-db"
-          D1_DATABASE_NAME="${D1_DATABASE_NAME//./-}"
-          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Infrastructure spin-up completed', '{\"workflow\": \"spin-up\", \"run_id\": \"${{ github.run_id }}\"}')" || echo "⚠️ Failed to log to D1 (non-critical)"
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: .github/scripts/log-to-d1.sh info "Spin-up workflow completed successfully"
