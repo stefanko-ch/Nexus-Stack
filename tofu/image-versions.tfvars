@@ -38,7 +38,7 @@ image_versions = {
   prometheus    = "prom/prometheus:v3.9.1"              # Exact: v3.9.1 (latest stable)
   loki          = "grafana/loki:3"                      # Major: 3.x.x
   promtail      = "grafana/promtail:3"                  # Major: 3.x.x (match loki)
-  cadvisor      = "gcr.io/cadvisor/cadvisor:v0.56.2"    # Exact: v0.56.2 (gcr.io is official registry)
+  cadvisor      = "ghcr.io/google/cadvisor:0.56"        # Exact: 0.56 (ghcr.io, no 'v' prefix)
   node-exporter = "prom/node-exporter:v1.10.2"          # Exact: v1.10.2 (latest stable)
 
   # -------------------------------------------------------------------------
