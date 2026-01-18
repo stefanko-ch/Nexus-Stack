@@ -705,10 +705,10 @@ if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; th
     # Get Metabase port from services config (default: 3000)
     METABASE_PORT=$(echo "$SERVICES_JSON" | jq -r '.metabase.port // 3000')
     
-    # Wait for Metabase to be ready (Java app, takes longer to start)
-    echo "  Waiting for Metabase to be ready..."
+    # Quick health check (max 10s - for already running instances)
+    echo "  Checking Metabase status..."
     METABASE_READY=false
-    for i in $(seq 1 60); do
+    for i in $(seq 1 5); do
         METABASE_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:$METABASE_PORT/api/health 2>/dev/null" || echo "000")
         if [ "$METABASE_HEALTH" = "200" ]; then
             METABASE_READY=true
@@ -716,6 +716,19 @@ if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; th
         fi
         sleep 2
     done
+    
+    # If not ready yet, wait longer (Java app takes ~2min on first boot)
+    if [ "$METABASE_READY" = "false" ]; then
+        echo "  Metabase starting (first boot takes ~2min)..."
+        for i in $(seq 1 55); do
+            METABASE_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:$METABASE_PORT/api/health 2>/dev/null" || echo "000")
+            if [ "$METABASE_HEALTH" = "200" ]; then
+                METABASE_READY=true
+                break
+            fi
+            sleep 2
+        done
+    fi
     
     if [ "$METABASE_READY" = "false" ]; then
         echo -e "${YELLOW}  ⚠ Metabase not ready after 120s - skipping config${NC}"
