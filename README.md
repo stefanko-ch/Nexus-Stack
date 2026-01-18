@@ -17,7 +17,7 @@
 
 🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated via GitHub Actions.**
 
-> ⚠️ **Disclaimer:** Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
+> ⚠️ **Disclaimer:** This project is currently under active development. Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
 
 ## What This Does
 
