@@ -60,9 +60,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
+          TRIGGERED_BY: ${{ github.actor }}
         run: |
           chmod +x .github/scripts/log-to-d1.sh
-          .github/scripts/log-to-d1.sh info "Spin-up workflow started" '{"triggered_by":"${{ github.actor }}"}'
+          .github/scripts/log-to-d1.sh info "Spin-up workflow started" "{\"triggered_by\":\"$TRIGGERED_BY\"}"
 
       - name: Install OpenTofu
         uses: opentofu/setup-opentofu@v1
