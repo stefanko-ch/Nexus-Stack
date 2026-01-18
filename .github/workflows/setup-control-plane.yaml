@@ -290,7 +290,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Scheduled Teardown Worker secrets..."
@@ -329,7 +329,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Control Plane environment variables and secrets..."
