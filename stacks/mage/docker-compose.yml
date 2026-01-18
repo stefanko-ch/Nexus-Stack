@@ -18,6 +18,8 @@ services:
     image: mageai/mageai:latest
     container_name: mage
     restart: unless-stopped
+    ports:
+      - "6789:6789"
     environment:
       # Project configuration
       USER_CODE_PATH: /home/src/default_repo
