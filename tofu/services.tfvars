@@ -155,4 +155,12 @@ services = {
     public      = false
     description = "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
   }
+
+  minio = {
+    enabled     = true
+    subdomain   = "minio"
+    port        = 9001
+    public      = false
+    description = "High-performance S3-compatible object storage for data lakes, backups, and ML models."
+  }
 }

@@ -105,6 +105,9 @@ output "secrets" {
     # Mage AI
     mage_admin_password = random_password.mage_admin.result
 
+    # MinIO
+    minio_root_password = random_password.minio_root.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token
