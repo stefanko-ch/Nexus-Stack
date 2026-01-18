@@ -819,16 +819,21 @@
 
         // Fetch and display infrastructure info
         async function fetchInfo() {
+            console.log('[fetchInfo] Starting info fetch...');
             try {
                 const response = await fetch(`${API_URL}/api/info`, { credentials: 'same-origin' });
+                console.log('[fetchInfo] Response status:', response.status);
                 
                 const contentType = response.headers.get('content-type');
+                console.log('[fetchInfo] Content-Type:', contentType);
+                
                 if (!contentType || !contentType.includes('application/json')) {
-                    console.error('Info API returned non-JSON response');
+                    console.error('[fetchInfo] API returned non-JSON response');
                     return;
                 }
                 
                 const data = await response.json();
+                console.log('[fetchInfo] Data received:', JSON.stringify(data, null, 2));
                 
                 if (data.success) {
                     // Update server info
