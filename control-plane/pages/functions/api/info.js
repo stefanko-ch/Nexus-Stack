@@ -70,6 +70,16 @@ export async function onRequestGet(context) {
       workflows: {},
     };
 
+    // Debug: Log environment variables
+    console.log('[INFO API] Environment check:', {
+      SERVER_TYPE: env.SERVER_TYPE ? 'SET' : 'MISSING',
+      SERVER_LOCATION: env.SERVER_LOCATION ? 'SET' : 'MISSING',
+      DOMAIN: env.DOMAIN ? 'SET' : 'MISSING',
+      GITHUB_TOKEN: env.GITHUB_TOKEN ? 'SET' : 'MISSING',
+      GITHUB_OWNER: env.GITHUB_OWNER ? 'SET' : 'MISSING',
+      GITHUB_REPO: env.GITHUB_REPO ? 'SET' : 'MISSING',
+    });
+
     // Get server info from environment variables (set by Terraform)
     info.server = {
       type: env.SERVER_TYPE || 'cax31',
