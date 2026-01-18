@@ -24,9 +24,9 @@ services:
       # Project configuration
       USER_CODE_PATH: /home/src/default_repo
       MAGE_DATA_DIR: /home/src/mage_data
-      # Authentication - use Nexus-Stack user credentials (fallback to admin)
+      # Authentication - use Nexus-Stack user credentials (fallback to admin applied in deployment)
       REQUIRE_USER_AUTHENTICATION: "true"
-      DEFAULT_OWNER_EMAIL: ${USER_EMAIL:-${ADMIN_EMAIL}}
+      DEFAULT_OWNER_EMAIL: ${USER_EMAIL}
       DEFAULT_OWNER_PASSWORD: ${MAGE_ADMIN_PASSWORD}
       DEFAULT_OWNER_USERNAME: ${ADMIN_USERNAME:-admin}
       # Server settings
