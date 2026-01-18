@@ -305,7 +305,7 @@ jobs:
       - name: Send stack online email via Resend
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           if [ -n "$RESEND_API_KEY" ]; then
