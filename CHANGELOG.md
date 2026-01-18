@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.3.0...v0.4.0) (2026-01-18)
+
+
+### 🚀 Features
+
+* **stacks:** Add Mage AI data pipeline platform ([9f2b6ee](https://github.com/stefanko-ch/Nexus-Stack/commit/9f2b6ee3df0dfe44b7b6cfd86f38e92b15f4a8b1))
+* **stacks:** Add Mage AI data pipeline stack ([2711723](https://github.com/stefanko-ch/Nexus-Stack/commit/271172391fff2886f781a0e82bdfdbcbefbddb5e))
+
+
+### 🐛 Bug Fixes
+
+* Address PR review comments ([82614e3](https://github.com/stefanko-ch/Nexus-Stack/commit/82614e31a31f8238f7803d95f5c0ec7ab8cb3144))
+* **control-plane:** Add debug logging to info API ([8215739](https://github.com/stefanko-ch/Nexus-Stack/commit/821573947cd25618d5c8f6e5f29bad69474032e9))
+* **control-plane:** Add debug logging to info API and fetchInfo ([08e7b5a](https://github.com/stefanko-ch/Nexus-Stack/commit/08e7b5accba5915a642358b390ed9e3e1c52cd97))
+* **stacks:** Add port mapping to Mage container ([6de6944](https://github.com/stefanko-ch/Nexus-Stack/commit/6de6944b5cb221f750171374ee90ae42020fce53))
+* Use consistent ternary operators for env variable checks ([b7c44b1](https://github.com/stefanko-ch/Nexus-Stack/commit/b7c44b1958375f232ed98d34844d59ff683124b2))
+
+
+### 📚 Documentation
+
+* Add active development note to disclaimer ([1709365](https://github.com/stefanko-ch/Nexus-Stack/commit/17093654517717a123cefa875079867138c5486b))
+* Add branch cleanup rules to prevent deleting release-please branch ([92468ef](https://github.com/stefanko-ch/Nexus-Stack/commit/92468ef1b1ce297e31bedff420a1cccd345dc037))
+* Add Mage AI to stacks.md and config.tfvars.example ([30aac20](https://github.com/stefanko-ch/Nexus-Stack/commit/30aac207155890c134e59760295aa30dc738fdf4))
+* **agents:** Add branch cleanup rules ([8a4cf1d](https://github.com/stefanko-ch/Nexus-Stack/commit/8a4cf1d6d2c12bf4f68bf6ae230ede1ea390691f))
+* **agents:** Add branch cleanup rules ([4704635](https://github.com/stefanko-ch/Nexus-Stack/commit/47046350b42de8aab7b63ed7d23bd89c7c67ccfe))
+
+
+### 🔧 Maintenance
+
+* Add debug logging for info panel troubleshooting ([92c8dde](https://github.com/stefanko-ch/Nexus-Stack/commit/92c8dde0088046943728dd41d9d569a74423f1ff))
+* Enable all services for testing ([705c6d3](https://github.com/stefanko-ch/Nexus-Stack/commit/705c6d3bd0423ec7cbea4ae319c3c9ea83de5e13))
+
 ## [0.3.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.2.0...v0.3.0) (2026-01-18)
 
 
