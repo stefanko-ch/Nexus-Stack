@@ -94,6 +94,12 @@ resource "random_password" "cloudbeaver_admin" {
   special = false
 }
 
+# Mage AI admin password
+resource "random_password" "mage_admin" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================
