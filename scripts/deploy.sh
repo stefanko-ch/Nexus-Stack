@@ -492,7 +492,82 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     INIT_CHECK=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null || echo "")
     
     if echo "$INIT_CHECK" | grep -q '"initialized":true'; then
-        echo -e "${YELLOW}  ⚠ Infisical already configured${NC}"
+        echo -e "${YELLOW}  ⚠ Infisical already configured - checking for missing secrets${NC}"
+        
+        # Login to get token
+        LOGIN_JSON="{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$INFISICAL_PASS\"}"
+        LOGIN_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/auth/login1' \
+            -H 'Content-Type: application/json' \
+            -d '$LOGIN_JSON'" 2>/dev/null || echo "")
+        
+        INFISICAL_TOKEN=$(echo "$LOGIN_RESULT" | jq -r '.token // empty')
+        
+        if [ -n "$INFISICAL_TOKEN" ]; then
+            # Get projects
+            PROJECTS_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v2/workspace' \
+                -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
+            
+            PROJECT_ID=$(echo "$PROJECTS_RESULT" | jq -r '.workspaces[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
+            
+            if [ -z "$PROJECT_ID" ]; then
+                PROJECT_ID=$(echo "$PROJECTS_RESULT" | jq -r '.projects[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
+            fi
+            
+            if [ -n "$PROJECT_ID" ]; then
+                # Get existing secrets
+                EXISTING_SECRETS=$(ssh nexus "curl -s 'http://localhost:8070/api/v3/secrets/raw?projectId=$PROJECT_ID&environment=prod&secretPath=/' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
+                
+                # Get tag IDs
+                TAGS_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
+                
+                MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                
+                # Check which MinIO secrets are missing
+                MISSING_SECRETS=()
+                
+                if ! echo "$EXISTING_SECRETS" | jq -e '.secrets[] | select(.secretKey=="MINIO_ROOT_USER")' >/dev/null 2>&1; then
+                    MISSING_SECRETS+=("MINIO_ROOT_USER")
+                fi
+                
+                if ! echo "$EXISTING_SECRETS" | jq -e '.secrets[] | select(.secretKey=="MINIO_ROOT_PASSWORD")' >/dev/null 2>&1; then
+                    MISSING_SECRETS+=("MINIO_ROOT_PASSWORD")
+                fi
+                
+                # Push missing secrets
+                if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+                    echo "  Adding ${#MISSING_SECRETS[@]} missing secret(s)..."
+                    
+                    for SECRET_KEY in "${MISSING_SECRETS[@]}"; do
+                        if [ "$SECRET_KEY" = "MINIO_ROOT_USER" ]; then
+                            SECRET_VALUE="admin"
+                        elif [ "$SECRET_KEY" = "MINIO_ROOT_PASSWORD" ]; then
+                            SECRET_VALUE="$MINIO_ROOT_PASS"
+                        fi
+                        
+                        CREATE_PAYLOAD="{\"projectId\": \"$PROJECT_ID\", \"environment\": \"prod\", \"secretPath\": \"/\", \"secretKey\": \"$SECRET_KEY\", \"secretValue\": \"$SECRET_VALUE\", \"tagIds\": [\"$MINIO_TAG\"]}"
+                        
+                        CREATE_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v3/secrets/raw/$SECRET_KEY' \
+                            -H 'Authorization: Bearer $INFISICAL_TOKEN' \
+                            -H 'Content-Type: application/json' \
+                            -d '$CREATE_PAYLOAD'" 2>/dev/null || echo "")
+                        
+                        if echo "$CREATE_RESULT" | grep -q '"secret"'; then
+                            echo -e "${GREEN}  ✓ Added $SECRET_KEY${NC}"
+                        else
+                            echo -e "${YELLOW}  ⚠ Failed to add $SECRET_KEY${NC}"
+                        fi
+                    done
+                else
+                    echo -e "${GREEN}  ✓ All MinIO secrets already present${NC}"
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Could not find Nexus Stack project${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ Could not login to Infisical${NC}"
+        fi
     else
         # Build JSON payload locally and base64 encode to avoid escaping issues
         BOOTSTRAP_JSON=$(cat <<EOF
