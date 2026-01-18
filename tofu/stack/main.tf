@@ -100,6 +100,12 @@ resource "random_password" "mage_admin" {
   special = false
 }
 
+# MinIO root password
+resource "random_password" "minio_root" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================
