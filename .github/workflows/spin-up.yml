@@ -305,7 +305,8 @@ jobs:
       - name: Send stack online email via Resend
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
+          USER_EMAIL: ${{ secrets.TF_VAR_user_email }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           if [ -n "$RESEND_API_KEY" ]; then
@@ -315,12 +316,19 @@ jobs:
             
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
             
+            # Build recipient list (admin + optional user)
+            RECIPIENTS="[\"$ADMIN_EMAIL\""
+            if [ -n "$USER_EMAIL" ]; then
+              RECIPIENTS="$RECIPIENTS, \"$USER_EMAIL\""
+            fi
+            RECIPIENTS="$RECIPIENTS]"
+            
             JSON_PAYLOAD=$(jq -n \
               --arg from "Nexus-Stack <nexus@$DOMAIN>" \
-              --arg to "$ADMIN_EMAIL" \
+              --argjson to "$RECIPIENTS" \
               --arg subject "✅ Nexus-Stack Online" \
               --arg html "$EMAIL_HTML" \
-              '{from: $from, to: [$to], subject: $subject, html: $html}')
+              '{from: $from, to: $to, subject: $subject, html: $html}')
             
             HTTP_STATUS=$(curl -s -o /tmp/resend_response.txt -w "%{http_code}" -X POST 'https://api.resend.com/emails' \
               -H "Authorization: Bearer $RESEND_API_KEY" \
@@ -329,6 +337,7 @@ jobs:
             
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
               echo "✅ Stack online email sent to $ADMIN_EMAIL"
+              [ -n "$USER_EMAIL" ] && echo "✅ Stack online email sent to $USER_EMAIL"
             else
               echo "⚠️  Failed to send email (HTTP $HTTP_STATUS) - spin-up continues"
               cat /tmp/resend_response.txt 2>/dev/null || true
