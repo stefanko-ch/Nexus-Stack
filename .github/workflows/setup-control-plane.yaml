@@ -438,6 +438,9 @@ jobs:
           # Initialize schema
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
           
+          # Add initial log entry
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Control Plane initialized', '{\"workflow\": \"setup-control-plane\", \"run_id\": \"${{ github.run_id }}\"}')"
+          
           echo "✅ D1 database schema initialized!"
 
       - name: Deploy Control Plane to Cloudflare Pages

@@ -128,3 +128,11 @@ jobs:
           echo "📋 Visit the Control Plane to re-deploy:"
           echo "   https://control.${{ secrets.DOMAIN }}"
 
+      - name: Log teardown to D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          D1_DATABASE_NAME="nexus-${{ secrets.DOMAIN }}-db"
+          D1_DATABASE_NAME="${D1_DATABASE_NAME//./-}"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Infrastructure teardown completed', '{\"workflow\": \"teardown\", \"run_id\": \"${{ github.run_id }}\"}')" || echo "⚠️ Failed to log to D1 (non-critical)"
