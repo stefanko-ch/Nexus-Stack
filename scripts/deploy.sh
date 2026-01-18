@@ -820,10 +820,11 @@ socket.on("connect", () => {
         });
     });
 });
-socket.on("connect_error", () => { console.log("CONNECTION_ERROR"); process.exit(1); });
+socket.on("connect_error", (err) => { console.log("CONNECTION_ERROR: " + err.message); process.exit(1); });
 setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
 '
-        KUMA_RESULT=$(ssh nexus "docker exec -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' uptime-kuma node -e '$SETUP_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
+        # Run in /app where node_modules is located
+        KUMA_RESULT=$(ssh nexus "docker exec -w /app -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' uptime-kuma node -e '$SETUP_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
         
         if echo "$KUMA_RESULT" | grep -q "SUCCESS"; then
             echo -e "${GREEN}  ✓ Uptime Kuma admin created (user: $ADMIN_USERNAME)${NC}"
@@ -932,7 +933,8 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 30000);
         # Escape the JSON for shell
         DESIRED_ESCAPED=$(echo "$DESIRED_JSON" | sed "s/'/'\\\\''/g")
         
-        SYNC_RESULT=$(ssh nexus "docker exec -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' -e DESIRED='$DESIRED_ESCAPED' uptime-kuma node -e '$SYNC_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
+        # Run in /app where node_modules is located
+        SYNC_RESULT=$(ssh nexus "docker exec -w /app -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' -e DESIRED='$DESIRED_ESCAPED' uptime-kuma node -e '$SYNC_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
         
         if echo "$SYNC_RESULT" | grep -q "SYNC:"; then
             SYNC_DATA=$(echo "$SYNC_RESULT" | grep "SYNC:" | head -1)
