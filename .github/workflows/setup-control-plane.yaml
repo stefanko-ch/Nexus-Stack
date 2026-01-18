@@ -290,7 +290,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Scheduled Teardown Worker secrets..."
@@ -329,7 +329,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
+          USER_EMAIL: ${{ secrets.TF_VAR_user_email }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Control Plane environment variables and secrets..."
@@ -390,6 +391,24 @@ jobs:
           else
             echo "  ⏭️  ADMIN_EMAIL not provided - email sending will be disabled"
           fi
+          
+          # Set USER_EMAIL for email sending (optional)
+          if [ -n "$USER_EMAIL" ]; then
+            echo "  Setting USER_EMAIL secret..."
+            echo "$USER_EMAIL" | npx wrangler@latest pages secret put USER_EMAIL \
+              --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set USER_EMAIL"
+          else
+            echo "  ⏭️  USER_EMAIL not provided - emails go to admin only"
+          fi
+          
+          # Set SERVER_TYPE and SERVER_LOCATION for info panel
+          echo "  Setting SERVER_TYPE secret..."
+          echo "cax31" | npx wrangler@latest pages secret put SERVER_TYPE \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set SERVER_TYPE"
+          
+          echo "  Setting SERVER_LOCATION secret..."
+          echo "fsn1" | npx wrangler@latest pages secret put SERVER_LOCATION \
+            --project-name="$PROJECT_NAME" || echo "⚠️  Failed to set SERVER_LOCATION"
           
           echo "✅ All secrets set (applies to both production and preview environments)"
           

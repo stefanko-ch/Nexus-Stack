@@ -817,6 +817,59 @@
             updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
         }
 
+        // Fetch and display infrastructure info
+        async function fetchInfo() {
+            try {
+                const response = await fetch(`${API_URL}/api/info`, { credentials: 'same-origin' });
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('Info API returned non-JSON response');
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update server info
+                    document.getElementById('info-server-type').textContent = data.server?.type || 'Unknown';
+                    document.getElementById('info-server-location').textContent = data.server?.location || 'Unknown';
+                    document.getElementById('info-domain').textContent = data.server?.domain || 'Unknown';
+                    
+                    // Update workflow timestamps
+                    if (data.workflows?.lastSpinUp) {
+                        const date = new Date(data.workflows.lastSpinUp);
+                        document.getElementById('info-last-deploy').textContent = date.toLocaleString('de-CH');
+                    } else {
+                        document.getElementById('info-last-deploy').textContent = 'Never';
+                    }
+                    
+                    if (data.workflows?.lastTeardown) {
+                        const date = new Date(data.workflows.lastTeardown);
+                        document.getElementById('info-last-teardown').textContent = date.toLocaleString('de-CH');
+                    } else {
+                        document.getElementById('info-last-teardown').textContent = 'Never';
+                    }
+                    
+                    // Update uptime
+                    if (data.uptime) {
+                        document.getElementById('info-uptime').textContent = data.uptime;
+                    } else if (data.workflows?.lastSpinUp) {
+                        const lastSpinUp = new Date(data.workflows.lastSpinUp);
+                        const now = new Date();
+                        const diffMs = now - lastSpinUp;
+                        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                        document.getElementById('info-uptime').textContent = `${hours}h ${minutes}m`;
+                    } else {
+                        document.getElementById('info-uptime').textContent = 'N/A';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to fetch info:', error);
+            }
+        }
+
         // Fetch and display status
         async function fetchStatus() {
             try {
@@ -1330,6 +1383,7 @@
         
         // Initial health check and status fetch
         checkHealth();
+        fetchInfo();
         fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
     </script>
 </body>
