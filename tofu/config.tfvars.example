@@ -126,6 +126,13 @@ services = {
     port      = 6789
     public    = false    # Data pipeline tool - always protected
   }
+
+  minio = {
+    enabled   = true
+    subdomain = "minio"
+    port      = 9001
+    public    = false    # Object storage - always protected
+  }
   
   # Example: Add more services like this:
   # excalidraw = {
