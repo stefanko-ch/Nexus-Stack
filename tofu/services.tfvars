@@ -4,7 +4,7 @@
 # This file defines the available services and their configuration.
 # 
 # The 'enabled' field here is the DEFAULT value - actual enabled status
-# is stored in Cloudflare KV and managed via the Control Plane.
+# is stored in Cloudflare D1 and managed via the Control Plane.
 #
 # Each service creates:
 # - Cloudflare DNS record: <subdomain>.<domain>

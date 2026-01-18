@@ -6,7 +6,7 @@ set -e
 # =============================================================================
 # This script deletes orphaned Cloudflare resources that may have been
 # left behind after manual cleanup:
-# - KV Namespaces
+# - D1 Databases
 # - Access Applications
 # =============================================================================
 
@@ -84,59 +84,40 @@ else
     RESOURCE_PREFIX="nexus"
 fi
 
-KV_NAMESPACE_TITLE="${RESOURCE_PREFIX}-kv"
+D1_DATABASE_NAME="${RESOURCE_PREFIX}-db"
 ACCESS_APP_DOMAIN="control.${TF_VAR_domain:-unknown}"
 
 # =============================================================================
-# Step 1: Delete KV Namespace
+# Step 1: Delete D1 Database
 # =============================================================================
 
-echo -e "${CYAN}Step 1: Deleting KV Namespace '${KV_NAMESPACE_TITLE}'...${NC}"
+echo -e "${CYAN}Step 1: Deleting D1 Database '${D1_DATABASE_NAME}'...${NC}"
 
-# Get all KV namespaces
-KV_NAMESPACES_RESPONSE=$(curl -s \
-    "https://api.cloudflare.com/client/v4/accounts/$TF_VAR_cloudflare_account_id/storage/kv/namespaces" \
+# Get all D1 databases
+D1_DATABASES_RESPONSE=$(curl -s \
+    "https://api.cloudflare.com/client/v4/accounts/$TF_VAR_cloudflare_account_id/d1/database" \
     -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" \
     -H "Content-Type: application/json")
 
-KV_NAMESPACE_ID=$(echo "$KV_NAMESPACES_RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAMESPACE_TITLE\") | .id" 2>/dev/null || echo "")
+D1_DATABASE_ID=$(echo "$D1_DATABASES_RESPONSE" | jq -r ".result[] | select(.name == \"$D1_DATABASE_NAME\") | .uuid" 2>/dev/null || echo "")
 
-if [ -n "$KV_NAMESPACE_ID" ] && [ "$KV_NAMESPACE_ID" != "null" ]; then
-    echo "  Found KV Namespace ID: $KV_NAMESPACE_ID"
+if [ -n "$D1_DATABASE_ID" ] && [ "$D1_DATABASE_ID" != "null" ]; then
+    echo "  Found D1 Database ID: $D1_DATABASE_ID"
     
-    # First, try to delete all keys in the namespace (if any)
-    echo "  Checking for keys in namespace..."
-    KEYS_RESPONSE=$(curl -s \
-        "https://api.cloudflare.com/client/v4/accounts/$TF_VAR_cloudflare_account_id/storage/kv/namespaces/$KV_NAMESPACE_ID/keys" \
+    # Delete the database
+    D1_DELETE_RESPONSE=$(curl -s -X DELETE \
+        "https://api.cloudflare.com/client/v4/accounts/$TF_VAR_cloudflare_account_id/d1/database/$D1_DATABASE_ID" \
         -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" \
         -H "Content-Type: application/json")
     
-    KEYS=$(echo "$KEYS_RESPONSE" | jq -r '.result[].name' 2>/dev/null || echo "")
-    
-    if [ -n "$KEYS" ]; then
-        echo "  Deleting keys in namespace..."
-        for key in $KEYS; do
-            curl -s -X DELETE \
-                "https://api.cloudflare.com/client/v4/accounts/$TF_VAR_cloudflare_account_id/storage/kv/namespaces/$KV_NAMESPACE_ID/values/$key" \
-                -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" >/dev/null 2>&1 || true
-        done
-        echo -e "${GREEN}    ✓ Keys deleted${NC}"
-    fi
-    
-    # Now delete the namespace
-    KV_DELETE_RESPONSE=$(curl -s -X DELETE \
-        "https://api.cloudflare.com/client/v4/accounts/$TF_VAR_cloudflare_account_id/storage/kv/namespaces/$KV_NAMESPACE_ID" \
-        -H "Authorization: Bearer $TF_VAR_cloudflare_api_token" \
-        -H "Content-Type: application/json")
-    
-    if echo "$KV_DELETE_RESPONSE" | grep -q '"success":true'; then
-        echo -e "${GREEN}  ✓ KV Namespace deleted${NC}"
+    if echo "$D1_DELETE_RESPONSE" | grep -q '"success":true'; then
+        echo -e "${GREEN}  ✓ D1 Database deleted${NC}"
     else
-        echo -e "${YELLOW}  ⚠️  Could not delete KV Namespace${NC}"
-        echo "    Response: $(echo "$KV_DELETE_RESPONSE" | jq -r '.errors[0].message // "Unknown error"' 2>/dev/null || echo "Parse error")"
+        echo -e "${YELLOW}  ⚠️  Could not delete D1 Database${NC}"
+        echo "    Response: $(echo "$D1_DELETE_RESPONSE" | jq -r '.errors[0].message // "Unknown error"' 2>/dev/null || echo "Parse error")"
     fi
 else
-    echo -e "${YELLOW}  ⚠️  KV Namespace not found (may already be deleted)${NC}"
+    echo -e "${YELLOW}  ⚠️  D1 Database not found (may already be deleted)${NC}"
 fi
 
 # =============================================================================

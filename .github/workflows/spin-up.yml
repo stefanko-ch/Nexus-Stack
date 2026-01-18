@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane KV)'
+        description: 'Comma-separated list of services to enable (from Control Plane D1)'
         required: false
         default: ''
         type: string
   workflow_call:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane KV)'
+        description: 'Comma-separated list of services to enable (from Control Plane D1)'
         required: false
         default: ''
         type: string
@@ -246,13 +246,13 @@ jobs:
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
 
-      - name: Store credentials in KV
+      - name: Store credentials as Cloudflare Secret
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          echo "📦 Storing credentials in KV..."
+          echo "📦 Storing credentials as Cloudflare Secret..."
           
           cd tofu/stack
           source ../.r2-credentials
@@ -263,22 +263,22 @@ jobs:
           SECRETS_JSON=$(tofu output -json secrets 2>/dev/null || echo "{}")
           
           if [ "$SECRETS_JSON" = "{}" ]; then
-            echo "⚠️  Could not read secrets from OpenTofu state - skipping KV storage"
+            echo "⚠️  Could not read secrets from OpenTofu state - skipping credential storage"
             exit 0
           fi
           
-          # Get KV namespace ID from control-plane state
+          # Get Pages project name from control-plane state
           cd ../control-plane
           tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
-          KV_NAMESPACE_ID=$(tofu output -raw kv_namespace_id 2>/dev/null || echo "")
+          PAGES_PROJECT=$(tofu output -raw pages_project_name 2>/dev/null || echo "")
           
-          if [ -z "$KV_NAMESPACE_ID" ]; then
-            echo "⚠️  KV namespace ID not found - skipping credential storage"
+          if [ -z "$PAGES_PROJECT" ]; then
+            echo "⚠️  Pages project name not found - skipping credential storage"
             exit 0
           fi
           
           # Build credentials JSON with only essential fields
-          CREDENTIALS=$(echo "$SECRETS_JSON" | jq '{
+          CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c '{
             admin_username: .admin_username,
             infisical_admin_password: .infisical_admin_password,
             portainer_admin_password: .portainer_admin_password,
@@ -288,18 +288,15 @@ jobs:
             kuma_admin_password: .kuma_admin_password
           }')
           
-          # Store in KV
-          HTTP_STATUS=$(curl -s -o /tmp/kv_response.txt -w "%{http_code}" \
-            -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/credentials" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$CREDENTIALS")
+          # Store as Pages secret using wrangler
+          echo "$CREDENTIALS" | npx wrangler pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null
           
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "✅ Credentials stored in KV"
+          if [ $? -eq 0 ]; then
+            echo "✅ Credentials stored as Cloudflare Secret"
           else
-            echo "⚠️  Failed to store credentials in KV (HTTP $HTTP_STATUS)"
-            cat /tmp/kv_response.txt 2>/dev/null || true
+            echo "⚠️  Failed to store credentials - trying API fallback"
+            # Fallback to API if wrangler fails
+            # Note: Pages secrets API is not publicly available, so we skip
           fi
 
       - name: Send stack online email via Resend

@@ -5,12 +5,26 @@
  * 1. Email notification (15 minutes before teardown)
  * 2. Teardown workflow (at configured time)
  * 
- * Configuration stored in KV: SCHEDULED_TEARDOWN
- * - enabled: "true" | "false"
- * - timezone: "Europe/Zurich" (default)
+ * Configuration stored in Cloudflare D1 database (NEXUS_DB)
+ * - teardown_enabled: "true" | "false"
+ * - teardown_timezone: "Europe/Zurich" (default)
  * - teardown_time: "22:00" (default)
  * - notification_time: "21:45" (default, 15 min before)
  */
+
+// D1 Helper Functions
+async function getConfigValue(db, key, defaultValue = null) {
+  try {
+    const result = await db.prepare('SELECT value FROM config WHERE key = ?').bind(key).first();
+    return result ? result.value : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+async function deleteConfigValue(db, key) {
+  await db.prepare('DELETE FROM config WHERE key = ?').bind(key).run();
+}
 
 export default {
   async scheduled(event, env, ctx) {
@@ -31,8 +45,14 @@ export default {
 
 async function handleScheduledTeardown(event, env) {
   try {
-    // Get configuration from KV
-    const config = await getConfig(env.SCHEDULED_TEARDOWN);
+    // Check if D1 database is configured
+    if (!env.NEXUS_DB) {
+      console.log('D1 database not configured');
+      return;
+    }
+
+    // Get configuration from D1
+    const config = await getConfig(env.NEXUS_DB);
     
     if (config.enabled !== 'true') {
       console.log('Scheduled teardown is disabled');
@@ -49,7 +69,7 @@ async function handleScheduledTeardown(event, env) {
         return;
       } else {
         // Delay has expired, clear it
-        await env.SCHEDULED_TEARDOWN.delete('delay_until');
+        await deleteConfigValue(env.NEXUS_DB, 'delay_until');
         console.log('Delay period expired, teardown will proceed');
       }
     }
@@ -85,12 +105,12 @@ async function handleScheduledTeardown(event, env) {
   }
 }
 
-async function getConfig(kv) {
-  const enabled = await kv.get('enabled') || 'true';
-  const timezone = await kv.get('timezone') || 'Europe/Zurich';
-  const teardownTime = await kv.get('teardown_time') || '22:00';
-  const notificationTime = await kv.get('notification_time') || '21:45';
-  const delayUntil = await kv.get('delay_until') || null;
+async function getConfig(db) {
+  const enabled = await getConfigValue(db, 'teardown_enabled', 'true');
+  const timezone = await getConfigValue(db, 'teardown_timezone', 'Europe/Zurich');
+  const teardownTime = await getConfigValue(db, 'teardown_time', '22:00');
+  const notificationTime = await getConfigValue(db, 'notification_time', '21:45');
+  const delayUntil = await getConfigValue(db, 'delay_until', null);
   
   return { enabled, timezone, teardownTime, notificationTime, delayUntil };
 }

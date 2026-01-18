@@ -2,7 +2,7 @@
  * Send infrastructure credentials via email
  * POST /api/send-credentials
  * 
- * Reads credentials from KV (stored during deployment) and sends them via Resend.
+ * Reads credentials from CREDENTIALS_JSON secret and sends them via Resend.
  * Email matches the style of the "Stack Online" notification.
  */
 
@@ -20,22 +20,22 @@ export async function onRequestPost(context) {
     }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
-  // Check KV namespace
-  if (!env.SCHEDULED_TEARDOWN) {
+  // Check for credentials secret
+  if (!env.CREDENTIALS_JSON) {
     return new Response(JSON.stringify({
       success: false,
-      error: 'KV namespace not configured'
+      error: 'Credentials secret not configured'
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
-    // Get credentials from KV
-    const credentialsJson = await env.SCHEDULED_TEARDOWN.get('credentials');
+    // Get credentials from secret (already JSON string)
+    const credentialsJson = env.CREDENTIALS_JSON;
     
     if (!credentialsJson) {
       return new Response(JSON.stringify({
         success: false,
-        error: 'No credentials found in KV. Deploy the stack first.'
+        error: 'No credentials found. Deploy the stack first.'
       }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
 
