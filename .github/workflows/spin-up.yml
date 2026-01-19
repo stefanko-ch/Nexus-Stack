@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane D1)'
+        description: 'Comma-separated list of services to enable (empty = use defaults from services.tfvars)'
         required: false
         default: ''
         type: string
   workflow_call:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane D1)'
+        description: 'Comma-separated list of services to enable (passed by Control Plane from D1)'
         required: false
         default: ''
         type: string
@@ -190,12 +190,31 @@ jobs:
           
           # Generate services config
           # If enabled_services input is provided (from Control Plane), use it
-          # Otherwise, use defaults from services.tfvars
+          # Otherwise, read from D1 database (single source of truth)
           ENABLED_SERVICES="${{ inputs.enabled_services }}"
           
           if [ -n "$ENABLED_SERVICES" ]; then
             echo "📋 Using services from Control Plane: $ENABLED_SERVICES"
+          else
+            echo "📋 Reading services from D1 database..."
+            # Get enabled services from D1
+            D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+            ENABLED_SERVICES=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
+              --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
+              | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
+            
+            if [ -z "$ENABLED_SERVICES" ]; then
+              echo "⚠️ No services found in D1 - using defaults from services.tfvars"
+              cat tofu/services.tfvars >> tofu/stack/config.tfvars
+            else
+              echo "📋 Enabled services from D1: $ENABLED_SERVICES"
+            fi
+          fi
+          
+          # If we have enabled_services (from input or D1), generate config
+          if [ -n "$ENABLED_SERVICES" ]; then
             # Parse services.tfvars and override enabled based on input
+            # Core services (core = true) are always enabled regardless of D1 state
             # Write Python script to temp file to avoid YAML escaping issues
             cat > /tmp/update_services.py << 'EOF'
           import re
@@ -212,13 +231,25 @@ jobs:
           with open('tofu/services.tfvars', 'r') as f:
               content = f.read()
 
+          # Extract the inner content of the services = { ... } block
+          # This skips the outer wrapper to avoid matching "services" as a service name
+          inner_match = re.search(r'^services\s*=\s*\{(.+)\}\s*$', content, re.DOTALL | re.MULTILINE)
+          if not inner_match:
+              # Fallback: use content as-is
+              inner_content = content
+          else:
+              inner_content = inner_match.group(1)
+
           # Find all service blocks and update enabled status
           def replace_enabled(match):
               service_name = match.group(1)
               block = match.group(2)
               
-              # Determine if this service should be enabled
-              should_enable = service_name in enabled_set
+              # Check if this is a core service (core = true)
+              is_core = re.search(r'core\s*=\s*true', block) is not None
+              
+              # Core services are always enabled, others follow D1 state
+              should_enable = is_core or service_name in enabled_set
               
               # Replace enabled = true/false with the correct value
               new_block = re.sub(
@@ -227,22 +258,44 @@ jobs:
                   block
               )
               
-              return f'{service_name} = {{{new_block}}}'
+              return f'  {service_name} = {{{new_block}}}'
 
           # Match service blocks like: service-name = { ... }
-          # Pattern handles multiline blocks by matching content between { and }
-          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
-          updated_content = re.sub(pattern, replace_enabled, content)
+          # Pattern handles multiline blocks with nested braces for support_images
+          pattern = r'(\s*)([a-zA-Z0-9_-]+)\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}'
+          
+          def replace_with_indent(match):
+              indent = match.group(1)
+              service_name = match.group(2)
+              block = match.group(3)
+              
+              # Skip nested blocks like support_images
+              if not re.search(r'enabled\s*=', block):
+                  return match.group(0)
+              
+              # Check if this is a core service (core = true)
+              is_core = re.search(r'core\s*=\s*true', block) is not None
+              
+              # Core services are always enabled, others follow D1 state
+              should_enable = is_core or service_name in enabled_set
+              
+              # Replace enabled = true/false with the correct value
+              new_block = re.sub(
+                  r'(enabled\s*=\s*)(true|false)',
+                  r'\g<1>' + ('true' if should_enable else 'false'),
+                  block
+              )
+              
+              return f'{indent}{service_name} = {{{new_block}}}'
+
+          updated_inner = re.sub(pattern, replace_with_indent, inner_content)
+          updated_content = f'services = {{{updated_inner}}}'
 
           with open('tofu/stack/config.tfvars', 'a') as f:
               f.write('\n# Services (enabled via Control Plane)\n')
               f.write(updated_content)
           EOF
             ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/update_services.py
-          else
-            echo "📋 Using default services from services.tfvars"
-            # Append services from committed services.tfvars
-            cat tofu/services.tfvars >> tofu/stack/config.tfvars
           fi
 
       - name: Initialize OpenTofu
@@ -258,13 +311,12 @@ jobs:
           # Pass SSH private key to deploy.sh for Infisical storage
           SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          # Add image-versions.tfvars to the apply command
           cd tofu/stack
           source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
-          tofu apply -var-file=config.tfvars -var-file=../image-versions.tfvars -auto-approve
+          tofu apply -var-file=config.tfvars -var-file=../services.tfvars -auto-approve
           cd ../..
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
@@ -482,6 +534,17 @@ jobs:
           echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
           echo "   (View all service URLs and credentials there)"
           echo ""
+      
+      - name: Sync deployed state to D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          # Sync deployed = enabled in D1 after successful deployment
+          if [ -f .github/scripts/sync-deployed-state.sh ]; then
+            .github/scripts/sync-deployed-state.sh
+          fi
 
       - name: Log spin-up completed
         env:

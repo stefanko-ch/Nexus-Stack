@@ -409,6 +409,35 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        
+        /* Pending changes indicators */
+        .service-pending {
+            border-left: 3px solid #ffd700;
+        }
+        
+        .pending-label {
+            font-size: 0.65rem;
+            background: #ffd700;
+            color: #000;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            margin-left: 0.5rem;
+            font-weight: bold;
+        }
+        
+        .pending-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffd700;
+            color: #000;
+            font-size: 0.7rem;
+            font-weight: bold;
+            width: 1.2rem;
+            height: 1.2rem;
+            border-radius: 50%;
+            margin-left: 0.5rem;
+        }
 
         /* Info Panel */
         .info-panel {
@@ -790,9 +819,6 @@
         <!-- Services Panel -->
         <div class="services-panel">
             <h2><span class="icon">🧩</span> Services</h2>
-            <div style="background: rgba(100, 150, 255, 0.1); border: 1px solid rgba(100, 150, 255, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-                <p style="color: #6496ff; font-size: 0.85rem; margin: 0;">🚧 <strong>Coming Soon</strong> — Service toggles will allow you to enable/disable services directly from the Control Plane. For now, services are configured via <code>services.tfvars</code>.</p>
-            </div>
             <div class="service-list" id="services-list">
                 <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
             </div>
@@ -987,9 +1013,11 @@
             btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
             
             // Enable based on state
+            // Note: Spin Up can be enabled even when deployed if there are pending service changes
             switch (data.infraState) {
                 case 'deployed':
                     btnEmailCredentials.disabled = false;
+                    // Spin Up stays enabled if there are pending changes (handled by loadServices)
                     btnSpinUp.disabled = true;
                     btnTeardown.disabled = false;
                     break;
@@ -1161,9 +1189,29 @@
                 const data = await response.json();
                 if (data.success) {
                     renderServices(data.services || []);
+                    updatePendingBadge(data.pendingChangesCount || 0);
                 }
             } catch (error) {
                 console.error('Failed to load services:', error);
+            }
+        }
+        
+        function updatePendingBadge(count) {
+            const spinUpBtn = document.getElementById('btn-spin-up');
+            if (!spinUpBtn) return;
+            
+            // Remove existing badge if any
+            const existingBadge = spinUpBtn.querySelector('.pending-badge');
+            if (existingBadge) existingBadge.remove();
+            
+            // Enable Spin Up button if there are pending changes (even when deployed)
+            if (count > 0) {
+                spinUpBtn.disabled = false;
+                const badge = document.createElement('span');
+                badge.className = 'pending-badge';
+                badge.textContent = count;
+                badge.title = `${count} pending service change${count > 1 ? 's' : ''} - click Spin Up to deploy`;
+                spinUpBtn.appendChild(badge);
             }
         }
 
@@ -1172,13 +1220,18 @@
             list.innerHTML = '';
 
             if (!services.length) {
-                list.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No services found</p>';
+                list.innerHTML = '<p style="color: #607080; font-size: 0.8rem;">No services found. Run Spin Up to initialize services.</p>';
                 return;
             }
 
             services.forEach(service => {
                 const item = document.createElement('div');
                 item.className = 'service-item';
+                
+                // Add pending class for visual indication
+                if (service.pending) {
+                    item.classList.add('service-pending');
+                }
 
                 const details = document.createElement('div');
                 details.className = 'service-details';
@@ -1188,6 +1241,12 @@
                 name.textContent = service.name;
                 if (service.core) {
                     name.innerHTML += ' <span style="color: #ff6b6b; font-size: 0.7rem;">(core)</span>';
+                }
+                if (service.pending) {
+                    // enabled=true + deployed=false → will be enabled on next spin-up
+                    // enabled=false + deployed=true → will be disabled on next spin-up
+                    const pendingLabel = service.enabled && !service.deployed ? 'WILL ENABLE' : 'WILL DISABLE';
+                    name.innerHTML += ` <span class="pending-label">${pendingLabel}</span>`;
                 }
 
                 const description = document.createElement('div');
@@ -1205,14 +1264,13 @@
                 if (service.core) {
                     toggle.classList.add('disabled');
                     toggle.title = 'Core service - cannot be disabled';
+                } else {
+                    // Enable toggle for non-core services
+                    toggle.addEventListener('click', () => {
+                        const newState = !toggle.classList.contains('active');
+                        updateServiceToggle(service.name, newState, toggle);
+                    });
                 }
-
-                // Service toggles disabled for now - Coming Soon feature
-                toggle.classList.add('disabled');
-                toggle.title = 'Coming Soon — Service toggles will be available in a future update';
-                toggle.addEventListener('click', () => {
-                    showToast('Coming Soon — Service toggles will be available in a future update', 'info');
-                });
 
                 item.appendChild(details);
                 item.appendChild(toggle);
