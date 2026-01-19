@@ -80,9 +80,9 @@ jobs:
             chmod 600 ~/.ssh/id_ed25519
             chmod 644 ~/.ssh/id_ed25519.pub
             
-            # Save SSH keys as GitHub Secrets
+            # Save SSH Private Key as GitHub Secret
+            # Note: Public Key is not stored as secret - it can be derived from private key
             SSH_PRIVATE_KEY=$(cat ~/.ssh/id_ed25519)
-            SSH_PUBLIC_KEY=$(cat ~/.ssh/id_ed25519.pub)
             
             if [ -n "$GH_TOKEN" ]; then
               echo "🔐 Saving SSH keys to GitHub Secrets..."

@@ -802,61 +802,78 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     if [ "$KUMA_READY" = "false" ]; then
         echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 120s - skipping config${NC}"
     else
-        # Give socket.io a moment to be fully ready after HTTP responds
-        sleep 5
+        # Wait for Socket.io to be fully initialized
+        # HTTP responding doesn't mean Socket.io is ready - it needs extra time
+        echo "  Uptime Kuma HTTP ready, waiting for Socket.io initialization..."
+        sleep 15
         
         # Prepare the setup script locally to avoid SSH escaping hell
         # We pipe this script into 'node' running inside the container via docker exec
         cat << 'MJ_EOF' > /tmp/kuma-setup.js
 const { io } = require("socket.io-client");
 
-// Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues
-const socket = io("http://127.0.0.1:3001", { 
-    transports: ["polling", "websocket"],
-    reconnection: true,
-    reconnectionAttempts: 5,
-    timeout: 10000,
-    forceNew: true
-});
+// Retry logic: try to connect multiple times with delay
+const MAX_RETRIES = 10;
+const RETRY_DELAY = 3000;
+let retryCount = 0;
 
-console.log("Attempting connection to http://127.0.0.1:3001...");
+function attemptConnection() {
+    console.log(`Connection attempt ${retryCount + 1}/${MAX_RETRIES}...`);
+    
+    const socket = io("http://127.0.0.1:3001", { 
+        transports: ["polling", "websocket"],
+        reconnection: false,  // We handle retries manually
+        timeout: 10000,
+        forceNew: true
+    });
 
-socket.on("connect", () => {
-    console.log("CONNECTED");
-    socket.emit("needSetup", (needSetup) => {
-        console.log("Need setup:", needSetup);
-        if (!needSetup) { 
-            console.log("ALREADY_CONFIGURED"); 
-            process.exit(0); 
-        }
-        
-        console.log("Sending setup command...");
-        socket.emit("setup", process.env.KUMA_USER, process.env.KUMA_PASS, (res) => {
-            if (res === "ok" || (res && res === "Successfully Created")) {
-                 // Early versions returns string "Successfully Created"
-                 console.log("SUCCESS");
-                 process.exit(0);
-            } else if (res && res.ok) { 
-                // Newer versions return object { ok: true }
-                console.log("SUCCESS"); 
+    socket.on("connect", () => {
+        console.log("CONNECTED");
+        socket.emit("needSetup", (needSetup) => {
+            console.log("Need setup:", needSetup);
+            if (!needSetup) { 
+                console.log("ALREADY_CONFIGURED"); 
                 process.exit(0); 
-            } else { 
-                console.log("SETUP_FAILED_RESPONSE: " + JSON.stringify(res)); 
-                process.exit(1); 
             }
+            
+            console.log("Sending setup command...");
+            socket.emit("setup", process.env.KUMA_USER, process.env.KUMA_PASS, (res) => {
+                if (res === "ok" || (res && res === "Successfully Created")) {
+                    console.log("SUCCESS");
+                    process.exit(0);
+                } else if (res && res.ok) { 
+                    console.log("SUCCESS"); 
+                    process.exit(0); 
+                } else { 
+                    console.log("SETUP_FAILED_RESPONSE: " + JSON.stringify(res)); 
+                    process.exit(1); 
+                }
+            });
         });
     });
-});
 
-socket.on("connect_error", (err) => { 
-    console.log("CONNECTION_ERROR: " + err.message); 
-});
+    socket.on("connect_error", (err) => { 
+        console.log("CONNECTION_ERROR: " + err.message);
+        socket.close();
+        retryCount++;
+        if (retryCount < MAX_RETRIES) {
+            console.log(`Retrying in ${RETRY_DELAY/1000}s...`);
+            setTimeout(attemptConnection, RETRY_DELAY);
+        } else {
+            console.log("MAX_RETRIES_REACHED");
+            process.exit(1);
+        }
+    });
+}
 
-// Force exit after timeout
+// Start first attempt
+attemptConnection();
+
+// Force exit after total timeout (longer to allow retries)
 setTimeout(() => { 
     console.log("TIMEOUT"); 
     process.exit(1); 
-}, 30000);
+}, 60000);
 MJ_EOF
 
         # Run the script by piping it into node inside the container
