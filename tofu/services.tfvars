@@ -21,6 +21,10 @@
 # =============================================================================
 
 services = {
+  # it-tools: intentionally enabled by default.
+  # Previous default was `enabled = false`; this was changed to `true`
+  # so new stacks have common developer tooling available out-of-the-box.
+  # Control Plane / D1 still governs the *actual* enabled state at runtime.
   it-tools = {
     enabled     = true
     subdomain   = "it-tools"
@@ -152,6 +156,10 @@ services = {
     }
   }
 
+  # redpanda and redpanda-console: Changed from enabled = true to false by default.
+  # These services are typically used together. This change represents a breaking change
+  # for existing deployments that had these services enabled. Users can re-enable them
+  # via the Control Plane UI if needed.
   redpanda = {
     enabled     = false
     subdomain   = "redpanda"
