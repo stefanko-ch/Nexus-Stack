@@ -214,6 +214,7 @@ jobs:
           # If we have enabled_services (from input or D1), generate config
           if [ -n "$ENABLED_SERVICES" ]; then
             # Parse services.tfvars and override enabled based on input
+            # Core services (core = true) are always enabled regardless of D1 state
             # Write Python script to temp file to avoid YAML escaping issues
             cat > /tmp/update_services.py << 'EOF'
           import re
@@ -235,8 +236,11 @@ jobs:
               service_name = match.group(1)
               block = match.group(2)
               
-              # Determine if this service should be enabled
-              should_enable = service_name in enabled_set
+              # Check if this is a core service (core = true)
+              is_core = re.search(r'core\s*=\s*true', block) is not None
+              
+              # Core services are always enabled, others follow D1 state
+              should_enable = is_core or service_name in enabled_set
               
               # Replace enabled = true/false with the correct value
               new_block = re.sub(
