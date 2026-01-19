@@ -207,4 +207,13 @@ services = {
     description = "High-performance S3-compatible object storage for data lakes, backups, and ML models."
     image       = "minio/minio:latest"
   }
+
+  wetty = {
+    enabled     = false
+    subdomain   = "wetty"
+    port        = 3002
+    public      = false
+    description = "Web-based SSH terminal that allows you to access your server via a web browser without requiring SSH client software."
+    image       = "wettyoss/wetty:latest"
+  }
 }
