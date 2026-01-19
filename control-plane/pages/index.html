@@ -861,14 +861,17 @@
                 console.log('[fetchInfo] Data received:', JSON.stringify(data, null, 2));
                 
                 if (data.success) {
+                    // API returns data in 'info' object
+                    const info = data.info || {};
+                    
                     // Update server info
-                    document.getElementById('info-server-type').textContent = data.server?.type || 'Unknown';
-                    document.getElementById('info-server-location').textContent = data.server?.location || 'Unknown';
-                    document.getElementById('info-domain').textContent = data.server?.domain || 'Unknown';
+                    document.getElementById('info-server-type').textContent = info.server?.type || 'Unknown';
+                    document.getElementById('info-server-location').textContent = info.server?.location || 'Unknown';
+                    document.getElementById('info-domain').textContent = info.server?.domain || 'Unknown';
                     
                     // Update workflow timestamps (from D1 via server object)
-                    const lastSpinUp = data.server?.lastSpinUp || data.workflows?.lastSpinUp;
-                    const lastTeardown = data.server?.lastTeardown || data.workflows?.lastTeardown;
+                    const lastSpinUp = info.server?.lastSpinUp || info.time?.lastDeploy;
+                    const lastTeardown = info.server?.lastTeardown || info.time?.lastTeardown;
                     
                     if (lastSpinUp) {
                         const date = new Date(lastSpinUp);
@@ -885,8 +888,13 @@
                     }
                     
                     // Update uptime
-                    if (data.uptime) {
-                        document.getElementById('info-uptime').textContent = data.uptime;
+                    if (info.time?.uptime) {
+                        const uptime = info.time.uptime;
+                        if (uptime.days > 0) {
+                            document.getElementById('info-uptime').textContent = `${uptime.days}d ${uptime.hours}h ${uptime.minutes}m`;
+                        } else {
+                            document.getElementById('info-uptime').textContent = `${uptime.hours}h ${uptime.minutes}m`;
+                        }
                     } else if (lastSpinUp) {
                         const spinUpDate = new Date(lastSpinUp);
                         const now = new Date();

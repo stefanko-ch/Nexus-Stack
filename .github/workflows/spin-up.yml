@@ -270,6 +270,9 @@ jobs:
           source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          # Initialize control-plane state to read D1 database name
+          tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
           D1_DATABASE_NAME=$(tofu output -raw d1_database_name 2>/dev/null || echo "")
           cd ../..
           
