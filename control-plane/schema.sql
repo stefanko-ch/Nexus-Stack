@@ -15,9 +15,12 @@ CREATE TABLE IF NOT EXISTS config (
 
 -- Service enabled/disabled state
 -- Stores which services are enabled in the Control Plane UI
+-- enabled = what the user wants (staged)
+-- deployed = what is currently running
 CREATE TABLE IF NOT EXISTS services (
     name TEXT PRIMARY KEY,
     enabled INTEGER NOT NULL DEFAULT 0,
+    deployed INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT DEFAULT (datetime('now'))
 );
 

@@ -26,7 +26,7 @@
 
 services = {
   it-tools = {
-    enabled     = false
+    enabled     = true
     subdomain   = "it-tools"
     port        = 8080
     public      = false
@@ -125,7 +125,7 @@ services = {
   }
 
   redpanda = {
-    enabled     = true
+    enabled     = false
     subdomain   = "redpanda"
     port        = 9644
     public      = false
@@ -133,7 +133,7 @@ services = {
   }
 
   redpanda-console = {
-    enabled     = true
+    enabled     = false
     subdomain   = "redpanda-console"
     port        = 8180
     public      = false
