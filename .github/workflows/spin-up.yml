@@ -190,11 +190,29 @@ jobs:
           
           # Generate services config
           # If enabled_services input is provided (from Control Plane), use it
-          # Otherwise, use defaults from services.tfvars
+          # Otherwise, read from D1 database (single source of truth)
           ENABLED_SERVICES="${{ inputs.enabled_services }}"
           
           if [ -n "$ENABLED_SERVICES" ]; then
             echo "📋 Using services from Control Plane: $ENABLED_SERVICES"
+          else
+            echo "📋 Reading services from D1 database..."
+            # Get enabled services from D1
+            D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+            ENABLED_SERVICES=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
+              --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
+              | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
+            
+            if [ -z "$ENABLED_SERVICES" ]; then
+              echo "⚠️ No services found in D1 - using defaults from services.tfvars"
+              cat tofu/services.tfvars >> tofu/stack/config.tfvars
+            else
+              echo "📋 Enabled services from D1: $ENABLED_SERVICES"
+            fi
+          fi
+          
+          # If we have enabled_services (from input or D1), generate config
+          if [ -n "$ENABLED_SERVICES" ]; then
             # Parse services.tfvars and override enabled based on input
             # Write Python script to temp file to avoid YAML escaping issues
             cat > /tmp/update_services.py << 'EOF'
@@ -239,10 +257,6 @@ jobs:
               f.write(updated_content)
           EOF
             ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/update_services.py
-          else
-            echo "📋 Using default services from services.tfvars"
-            # Append services from committed services.tfvars
-            cat tofu/services.tfvars >> tofu/stack/config.tfvars
           fi
 
       - name: Initialize OpenTofu

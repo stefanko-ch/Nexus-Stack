@@ -106,7 +106,46 @@ jobs:
           github_owner   = "${{ github.repository_owner }}"
           github_repo    = "${{ github.event.repository.name }}"
           EOF
-          cat tofu/services.tfvars >> tofu/stack/config.tfvars
+          
+          # Read services from D1 (single source of truth)
+          echo "📋 Reading services from D1..."
+          D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+          ENABLED_SERVICES=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
+            --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
+            | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
+          
+          if [ -z "$ENABLED_SERVICES" ]; then
+            echo "⚠️ No services found in D1 - using defaults from services.tfvars"
+            cat tofu/services.tfvars >> tofu/stack/config.tfvars
+          else
+            echo "📋 Enabled services: $ENABLED_SERVICES"
+            # Generate services config from D1 state
+            cat > /tmp/update_services.py << 'EOF'
+          import re
+          import os
+
+          enabled_input = os.environ.get('ENABLED_SERVICES', '')
+          enabled_set = set(s.strip() for s in enabled_input.split(',') if s.strip())
+
+          with open('tofu/services.tfvars', 'r') as f:
+              content = f.read()
+
+          def replace_enabled(match):
+              service_name = match.group(1)
+              block = match.group(2)
+              should_enable = service_name in enabled_set
+              new_block = re.sub(r'(enabled\s*=\s*)(true|false)', r'\g<1>' + ('true' if should_enable else 'false'), block)
+              return f'{service_name} = {{{new_block}}}'
+
+          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
+          updated_content = re.sub(pattern, replace_enabled, content)
+
+          with open('tofu/stack/config.tfvars', 'a') as f:
+              f.write('\n# Services (from D1)\n')
+              f.write(updated_content)
+          EOF
+            ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/update_services.py
+          fi
 
       - name: Initialize OpenTofu
         run: |
