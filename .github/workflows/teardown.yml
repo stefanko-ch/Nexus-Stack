@@ -53,8 +53,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          chmod +x .github/scripts/log-to-d1.sh
-          .github/scripts/log-to-d1.sh warn "Teardown workflow started"
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            chmod +x .github/scripts/log-to-d1.sh
+            .github/scripts/log-to-d1.sh warn "Teardown workflow started"
+          fi
 
       - name: Install OpenTofu
         uses: opentofu/setup-opentofu@v1
@@ -142,4 +144,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
-        run: .github/scripts/log-to-d1.sh info "Teardown workflow completed"
+        run: |
+          [ -f .github/scripts/log-to-d1.sh ] && .github/scripts/log-to-d1.sh info "Teardown workflow completed" || true
