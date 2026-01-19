@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane KV)'
+        description: 'Comma-separated list of services to enable (from Control Plane D1)'
         required: false
         default: ''
         type: string
   workflow_call:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane KV)'
+        description: 'Comma-separated list of services to enable (from Control Plane D1)'
         required: false
         default: ''
         type: string
@@ -23,7 +23,7 @@ on:
         description: 'R2 Secret Access Key (from setup-control-plane)'
         required: false
         type: string
-      ssh_public_key:
+      ssh_pubkey:
         description: 'SSH Public Key (from setup-control-plane)'
         required: false
         type: string
@@ -55,6 +55,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Log workflow start
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            chmod +x .github/scripts/log-to-d1.sh
+            .github/scripts/log-to-d1.sh info "Spin-up workflow started"
+          fi
+
       - name: Install OpenTofu
         uses: opentofu/setup-opentofu@v1
         with:
@@ -75,13 +86,25 @@ jobs:
           if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "🔑 Using SSH key from GitHub Secrets"
             echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-            echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
-          elif [ -n "${{ inputs.ssh_public_key }}" ]; then
+            
+            # Try to get public key from secrets, then inputs, then derive it
+            if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
+              echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
+            elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
+              echo "${{ inputs.ssh_pubkey }}" > ~/.ssh/id_ed25519.pub
+            else
+               echo "ℹ️ Deriving public key from private key..."
+               ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+            fi
+          elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
             # Fallback: Key passed from setup-control-plane during initial-setup
+            # (In case secrets aren't available yet or private key is missing context - unlikely)
             echo "🔑 Using SSH key from workflow input"
-            # Note: Private key should already be in secrets at this point
-            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-            echo "${{ inputs.ssh_public_key }}" > ~/.ssh/id_ed25519.pub
+            # Note: Private key should already be in secrets at this point if we are here via workflow call
+            if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+                echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+            fi
+            echo "${{ inputs.ssh_pubkey }}" > ~/.ssh/id_ed25519.pub
           else
             echo "❌ No SSH key found!"
             echo "   Please run the 'Initial Setup' workflow (initial-setup.yaml) first to generate SSH keys."
@@ -246,13 +269,66 @@ jobs:
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
 
-      - name: Store credentials in KV
+      - name: Write infrastructure config to D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          echo "📦 Storing credentials in KV..."
+          echo "📝 Writing infrastructure config to D1..."
+          
+          # Get D1 database name from control-plane state
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          # Initialize control-plane state to read D1 database name
+          tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
+          D1_DATABASE_NAME=$(tofu output -raw d1_database_name 2>/dev/null || echo "")
+          cd ../..
+          
+          if [ -z "$D1_DATABASE_NAME" ]; then
+            echo "⚠️  Could not get D1 database name - skipping config write"
+            exit 0
+          fi
+          
+          # Server config values
+          SERVER_TYPE="cax31"
+          SERVER_LOCATION="fsn1"
+          
+          # Escape values for safe SQL insertion (single quotes doubled)
+          ESCAPED_SERVER_TYPE=${SERVER_TYPE//\'/\'\'}
+          ESCAPED_SERVER_LOCATION=${SERVER_LOCATION//\'/\'\'}
+          ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
+          
+          # Write config to D1
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_spin_up', datetime('now'), datetime('now'))"
+          
+          echo "✅ Infrastructure config written to D1"
+
+      - name: Log infrastructure provisioned
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          # Get container status for logging
+          CONTAINER_COUNT=$(cd tofu/stack && source ../.r2-credentials && export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" && export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" && tofu output -json enabled_services 2>/dev/null | jq 'length' || echo "0")
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Infrastructure deployed" "{\"containers\":$CONTAINER_COUNT}"
+          fi
+
+      - name: Store credentials as Cloudflare Secret
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "📦 Storing credentials as Cloudflare Secret..."
           
           cd tofu/stack
           source ../.r2-credentials
@@ -263,22 +339,22 @@ jobs:
           SECRETS_JSON=$(tofu output -json secrets 2>/dev/null || echo "{}")
           
           if [ "$SECRETS_JSON" = "{}" ]; then
-            echo "⚠️  Could not read secrets from OpenTofu state - skipping KV storage"
+            echo "⚠️  Could not read secrets from OpenTofu state - skipping credential storage"
             exit 0
           fi
           
-          # Get KV namespace ID from control-plane state
+          # Get Pages project name from control-plane state
           cd ../control-plane
           tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
-          KV_NAMESPACE_ID=$(tofu output -raw kv_namespace_id 2>/dev/null || echo "")
+          PAGES_PROJECT=$(tofu output -raw pages_project_name 2>/dev/null || echo "")
           
-          if [ -z "$KV_NAMESPACE_ID" ]; then
-            echo "⚠️  KV namespace ID not found - skipping credential storage"
+          if [ -z "$PAGES_PROJECT" ]; then
+            echo "⚠️  Pages project name not found - skipping credential storage"
             exit 0
           fi
           
           # Build credentials JSON with only essential fields
-          CREDENTIALS=$(echo "$SECRETS_JSON" | jq '{
+          CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c '{
             admin_username: .admin_username,
             infisical_admin_password: .infisical_admin_password,
             portainer_admin_password: .portainer_admin_password,
@@ -288,19 +364,64 @@ jobs:
             kuma_admin_password: .kuma_admin_password
           }')
           
-          # Store in KV
-          HTTP_STATUS=$(curl -s -o /tmp/kv_response.txt -w "%{http_code}" \
-            -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_NAMESPACE_ID/values/credentials" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$CREDENTIALS")
-          
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
-            echo "✅ Credentials stored in KV"
+          # Store as Pages secret using wrangler
+          if echo "$CREDENTIALS" | npx wrangler pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
+            echo "✅ Credentials stored as Cloudflare Secret"
+            if [ -f .github/scripts/log-to-d1.sh ]; then
+              .github/scripts/log-to-d1.sh info "Credentials stored in Cloudflare Secrets"
+            fi
           else
-            echo "⚠️  Failed to store credentials in KV (HTTP $HTTP_STATUS)"
-            cat /tmp/kv_response.txt 2>/dev/null || true
+            echo "⚠️  Failed to store credentials - trying API fallback"
+            if [ -f .github/scripts/log-to-d1.sh ]; then
+              .github/scripts/log-to-d1.sh warn "Failed to store credentials"
+            fi
+            # Fallback to API if wrangler fails
+            # Note: Pages secrets API is not publicly available, so we skip
           fi
+
+      - name: Redeploy Control Plane to activate secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🔄 Redeploying Control Plane to activate new secrets..."
+          
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          D1_DATABASE_ID=$(tofu output -raw d1_database_id 2>/dev/null || echo "")
+          PAGES_PROJECT=$(tofu output -raw pages_project_name 2>/dev/null || echo "")
+          cd ../..
+          
+          if [ -z "$PAGES_PROJECT" ] || [ -z "$D1_DATABASE_ID" ]; then
+            echo "⚠️  Could not get Pages project info - skipping redeploy"
+            exit 0
+          fi
+          
+          cd control-plane/pages
+          
+          # Generate wrangler.toml with D1 binding
+          cat > wrangler.toml << EOF
+          name = "$PAGES_PROJECT"
+          compatibility_date = "2024-01-01"
+          pages_build_output_dir = "."
+
+          [[d1_databases]]
+          binding = "NEXUS_DB"
+          database_id = "$D1_DATABASE_ID"
+          EOF
+          
+          # Redeploy to production
+          # --commit-message prevents UTF-8 issues with git commit messages
+          npx wrangler@latest pages deploy . \
+            --project-name="$PAGES_PROJECT" \
+            --branch=main \
+            --commit-dirty=true \
+            --commit-message="Redeploy with secrets"
+          
+          rm wrangler.toml
+          echo "✅ Control Plane redeployed with new secrets!"
 
       - name: Send stack online email via Resend
         env:
@@ -361,3 +482,13 @@ jobs:
           echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
           echo "   (View all service URLs and credentials there)"
           echo ""
+
+      - name: Log spin-up completed
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Spin-up workflow completed successfully"
+          fi

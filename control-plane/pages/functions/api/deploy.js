@@ -5,6 +5,9 @@
  * Triggers the GitHub Actions setup-control-plane.yaml workflow.
  * Includes validation, error handling, and retry logic.
  */
+
+import { logApiCall, logError } from './_utils/logger.js';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
   
@@ -18,6 +21,11 @@ export async function onRequestPost(context) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+
+  // Log the API call
+  await logApiCall(env.NEXUS_DB, '/api/deploy', 'POST', {
+    action: 'trigger_setup_control_plane',
+  });
 
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/setup-control-plane.yaml/dispatches`;
   

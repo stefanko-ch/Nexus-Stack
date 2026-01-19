@@ -184,7 +184,7 @@ If inaccessible:
 
 - **Frontend**: Static HTML served by Cloudflare Pages
 - **API**: Cloudflare Pages Functions (serverless)
-- **Storage**: Cloudflare KV for configuration
+- **Storage**: Cloudflare D1 for configuration, Cloudflare Secrets for credentials
 - **Workflows**: Triggered via GitHub Actions API
 
 ### API Endpoints

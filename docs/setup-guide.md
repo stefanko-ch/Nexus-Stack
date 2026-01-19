@@ -74,7 +74,7 @@ ssh-keygen -t ed25519 -C "nexus"
    | Account | Access: Service Tokens | Edit |
    | Account | Access: Organizations, Identity Providers, and Groups | Edit |
    | Account | Workers R2 Storage | Edit |
-   | Account | Workers KV Storage | Edit |
+   | Account | D1 | Edit |
    | Account | Workers Scripts | Edit |
    | Account | Cloudflare Pages | Edit |
    | Zone | DNS | Edit |
@@ -82,7 +82,7 @@ ssh-keygen -t ed25519 -C "nexus"
 
    > **Note:** 
    > - "Workers R2 Storage" is required for the remote state backend
-   > - "Workers KV Storage" is required for KV namespaces used by the scheduler
+   > - "D1" is required for the database used by the Control Plane
    > - "Workers Scripts" is required for the scheduled teardown worker
    > - "Cloudflare Pages" is required for the Control Plane
    > - "Access: Organizations" is required for revoking Zero Trust sessions during `make teardown`
@@ -323,7 +323,7 @@ Once saved, all future deployments will use these secrets automatically.
 
 ### Scheduled Teardown (Cost Saving)
 
-Scheduled teardown is optional and managed via the Control Plane (Cloudflare Worker + KV).
+Scheduled teardown is optional and managed via the Control Plane (Cloudflare Worker + D1).
 Enable or disable it at runtime without changing GitHub Actions.
 
 ### Local + CI Coexistence

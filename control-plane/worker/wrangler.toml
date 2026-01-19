@@ -2,10 +2,10 @@ name = "nexus-scheduled-teardown"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-# KV Namespace for storing scheduled teardown settings
-[[kv_namespaces]]
-binding = "SCHEDULED_TEARDOWN"
-id = ""  # Will be created via Terraform
+# D1 Database for storing scheduled teardown settings
+[[d1_databases]]
+binding = "NEXUS_DB"
+database_id = ""  # Will be created via Terraform
 
 # Scheduled Events (Cron Triggers)
 # Runs daily at configured time (default: 22:00 Europe/Zurich = 21:00 UTC)

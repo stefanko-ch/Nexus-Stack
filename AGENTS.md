@@ -59,7 +59,7 @@ Nexus-Stack/
 │   │   ├── outputs.tf          # Output definitions
 │   │   └── providers.tf        # Provider configuration
 │   └── control-plane/          # Control Plane state (separate)
-│       ├── main.tf             # Pages, Worker, KV, Access
+│       ├── main.tf             # Pages, Worker, D1, Access
 │       ├── variables.tf        # Input variable definitions
 │       ├── outputs.tf          # Output definitions
 │       └── providers.tf        # Provider configuration
@@ -324,7 +324,7 @@ All Hetzner/Cloudflare resources use `${local.resource_prefix}` prefix (derived 
 - SSH Key: `nexus-stefanko-ch-key`
 - Tunnel: `nexus-stefanko-ch`
 - Access Apps: `nexus-stefanko-ch <ServiceName>`
-- KV Namespace: `nexus-stefanko-ch-kv`
+- D1 Database: `nexus-stefanko-ch-db`
 - Worker: `nexus-stefanko-ch-worker`
 - Pages Project: `nexus-stefanko-ch-control`
 

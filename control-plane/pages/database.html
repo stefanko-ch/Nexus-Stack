@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database - Nexus Control Plane</title>
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: #1a1a2e;
+      --accent: #00ff88;
+      --accent-dim: #00cc6a;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border: #2a2a3e;
+      --error: #ff4444;
+      --warning: #ffaa00;
+      --info: #00aaff;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    h1 {
+      color: var(--accent);
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    h2 {
+      color: var(--accent);
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .back-link {
+      color: var(--accent);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+    
+    .back-link:hover { text-decoration: underline; }
+    
+    .section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .btn {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+    
+    .btn:hover { background: var(--accent-dim); }
+    
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    
+    .btn-secondary:hover { border-color: var(--accent); }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 1rem;
+    }
+    
+    th {
+      background: var(--bg-card);
+      color: var(--accent);
+      text-align: left;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    tr:last-child td { border-bottom: none; }
+    
+    tr:hover { background: var(--bg-card); }
+    
+    .key { color: var(--accent); font-weight: 500; }
+    
+    .value { color: var(--text-primary); }
+    
+    .timestamp {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    
+    .enabled { color: var(--accent); }
+    .disabled { color: var(--error); }
+    
+    .empty {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--accent);
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 0.5rem;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    
+    .card:hover { border-color: var(--accent); }
+    
+    .card h3 {
+      color: var(--accent);
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .card p {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    
+    .card .count {
+      font-size: 2rem;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🗄️ Database</h1>
+      <a href="/" class="back-link">← Back to Control Plane</a>
+    </header>
+    
+    <div class="card-grid">
+      <div class="card">
+        <h3>📋 Logs</h3>
+        <div class="count" id="logsCount">-</div>
+        <p>Workflow and system logs</p>
+        <a href="/logs.html" class="btn">View Logs →</a>
+      </div>
+      
+      <div class="card">
+        <h3>⚙️ Config</h3>
+        <div class="count" id="configCount">-</div>
+        <p>Scheduled teardown settings</p>
+        <button class="btn btn-secondary" onclick="scrollTo('configSection')">View Below ↓</button>
+      </div>
+      
+      <div class="card">
+        <h3>📦 Services</h3>
+        <div class="count" id="servicesCount">-</div>
+        <p>Enabled/disabled services</p>
+        <button class="btn btn-secondary" onclick="scrollTo('servicesSection')">View Below ↓</button>
+      </div>
+    </div>
+    
+    <div class="section" id="configSection">
+      <h2>⚙️ Config Table</h2>
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="loadConfig()">🔄 Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Value</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody id="configTable">
+          <tr><td colspan="3" class="loading"><span class="spinner"></span> Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="section" id="servicesSection">
+      <h2>📦 Services Table</h2>
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="loadServices()">🔄 Refresh</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody id="servicesTable">
+          <tr><td colspan="3" class="loading"><span class="spinner"></span> Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function scrollTo(id) {
+      document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/scheduled-teardown');
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        const config = data.config || {};
+        const rows = [
+          { key: 'teardown_enabled', value: config.enabled ? 'true' : 'false' },
+          { key: 'teardown_timezone', value: config.timezone || '-' },
+          { key: 'teardown_time', value: config.teardownTime || '-' },
+          { key: 'notification_time', value: config.notificationTime || '-' },
+          { key: 'delay_until', value: config.delayUntil || '-' },
+        ];
+        
+        document.getElementById('configCount').textContent = rows.length;
+        document.getElementById('configTable').innerHTML = rows.map(r => `
+          <tr>
+            <td class="key">${r.key}</td>
+            <td class="value">${r.value}</td>
+            <td class="timestamp">-</td>
+          </tr>
+        `).join('');
+        
+      } catch (err) {
+        document.getElementById('configTable').innerHTML = 
+          `<tr><td colspan="3" class="empty" style="color: var(--error)">Error: ${err.message}</td></tr>`;
+      }
+    }
+    
+    async function loadServices() {
+      try {
+        const res = await fetch('/api/services');
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        const services = data.services || [];
+        
+        document.getElementById('servicesCount').textContent = services.length;
+        
+        if (services.length === 0) {
+          document.getElementById('servicesTable').innerHTML = 
+            '<tr><td colspan="3" class="empty">No services configured</td></tr>';
+          return;
+        }
+        
+        document.getElementById('servicesTable').innerHTML = services.map(s => `
+          <tr>
+            <td class="key">${s.name}</td>
+            <td class="${s.enabled ? 'enabled' : 'disabled'}">${s.enabled ? '✓ Enabled' : '✗ Disabled'}</td>
+            <td class="timestamp">-</td>
+          </tr>
+        `).join('');
+        
+      } catch (err) {
+        document.getElementById('servicesTable').innerHTML = 
+          `<tr><td colspan="3" class="empty" style="color: var(--error)">Error: ${err.message}</td></tr>`;
+      }
+    }
+    
+    async function loadLogsCount() {
+      try {
+        const res = await fetch('/api/logs?limit=1');
+        const data = await res.json();
+        if (data.success) {
+          // Just show that logs exist
+          document.getElementById('logsCount').textContent = data.count > 0 ? '✓' : '0';
+        }
+      } catch {
+        document.getElementById('logsCount').textContent = '-';
+      }
+    }
+    
+    // Initial load
+    loadConfig();
+    loadServices();
+    loadLogsCount();
+  </script>
+</body>
+</html>

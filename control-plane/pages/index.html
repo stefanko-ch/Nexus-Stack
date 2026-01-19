@@ -102,6 +102,28 @@
             opacity: 0.7;
         }
 
+        .header-nav {
+            margin-top: 1.5rem;
+        }
+
+        .nav-link {
+            display: inline-block;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .nav-link:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
         /* Status Panel */
         .status-panel {
             background: rgba(0, 20, 10, 0.8);
@@ -687,6 +709,9 @@
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
             <p class="tagline">Control Panel</p>
+            <nav class="header-nav">
+                <a href="/database.html" class="nav-link">🗄️ Show Database</a>
+            </nav>
         </header>
 
         <!-- Status Panel -->
@@ -765,7 +790,9 @@
         <!-- Services Panel -->
         <div class="services-panel">
             <h2><span class="icon">🧩</span> Services</h2>
-            <p style="color: #607080; font-size: 0.85rem; margin-bottom: 1rem;">🚧 Enable/disable services feature coming soon</p>
+            <div style="background: rgba(100, 150, 255, 0.1); border: 1px solid rgba(100, 150, 255, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <p style="color: #6496ff; font-size: 0.85rem; margin: 0;">🚧 <strong>Coming Soon</strong> — Service toggles will allow you to enable/disable services directly from the Control Plane. For now, services are configured via <code>services.tfvars</code>.</p>
+            </div>
             <div class="service-list" id="services-list">
                 <p style="color: #607080; font-size: 0.8rem;">Loading...</p>
             </div>
@@ -836,33 +863,44 @@
                 console.log('[fetchInfo] Data received:', JSON.stringify(data, null, 2));
                 
                 if (data.success) {
-                    // Update server info
-                    document.getElementById('info-server-type').textContent = data.server?.type || 'Unknown';
-                    document.getElementById('info-server-location').textContent = data.server?.location || 'Unknown';
-                    document.getElementById('info-domain').textContent = data.server?.domain || 'Unknown';
+                    // API returns data in 'info' object
+                    const info = data.info || {};
                     
-                    // Update workflow timestamps
-                    if (data.workflows?.lastSpinUp) {
-                        const date = new Date(data.workflows.lastSpinUp);
+                    // Update server info
+                    document.getElementById('info-server-type').textContent = info.server?.type || 'Unknown';
+                    document.getElementById('info-server-location').textContent = info.server?.location || 'Unknown';
+                    document.getElementById('info-domain').textContent = info.server?.domain || 'Unknown';
+                    
+                    // Update workflow timestamps (from D1 via server object)
+                    const lastSpinUp = info.server?.lastSpinUp || info.time?.lastDeploy;
+                    const lastTeardown = info.server?.lastTeardown || info.time?.lastTeardown;
+                    
+                    if (lastSpinUp) {
+                        const date = new Date(lastSpinUp);
                         document.getElementById('info-last-deploy').textContent = date.toLocaleString('de-CH');
                     } else {
                         document.getElementById('info-last-deploy').textContent = 'Never';
                     }
                     
-                    if (data.workflows?.lastTeardown) {
-                        const date = new Date(data.workflows.lastTeardown);
+                    if (lastTeardown) {
+                        const date = new Date(lastTeardown);
                         document.getElementById('info-last-teardown').textContent = date.toLocaleString('de-CH');
                     } else {
                         document.getElementById('info-last-teardown').textContent = 'Never';
                     }
                     
                     // Update uptime
-                    if (data.uptime) {
-                        document.getElementById('info-uptime').textContent = data.uptime;
-                    } else if (data.workflows?.lastSpinUp) {
-                        const lastSpinUp = new Date(data.workflows.lastSpinUp);
+                    if (info.time?.uptime) {
+                        const uptime = info.time.uptime;
+                        if (uptime.days > 0) {
+                            document.getElementById('info-uptime').textContent = `${uptime.days}d ${uptime.hours}h ${uptime.minutes}m`;
+                        } else {
+                            document.getElementById('info-uptime').textContent = `${uptime.hours}h ${uptime.minutes}m`;
+                        }
+                    } else if (lastSpinUp) {
+                        const spinUpDate = new Date(lastSpinUp);
                         const now = new Date();
-                        const diffMs = now - lastSpinUp;
+                        const diffMs = now - spinUpDate;
                         const hours = Math.floor(diffMs / (1000 * 60 * 60));
                         const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
                         document.getElementById('info-uptime').textContent = `${hours}h ${minutes}m`;
@@ -1148,6 +1186,9 @@
                 const name = document.createElement('div');
                 name.className = 'service-name';
                 name.textContent = service.name;
+                if (service.core) {
+                    name.innerHTML += ' <span style="color: #ff6b6b; font-size: 0.7rem;">(core)</span>';
+                }
 
                 const description = document.createElement('div');
                 description.className = 'service-description';
@@ -1157,14 +1198,20 @@
                 details.appendChild(description);
 
                 const toggle = document.createElement('div');
-                toggle.className = 'toggle-switch service-toggle disabled';
+                toggle.className = 'toggle-switch service-toggle';
                 if (service.enabled) {
                     toggle.classList.add('active');
                 }
+                if (service.core) {
+                    toggle.classList.add('disabled');
+                    toggle.title = 'Core service - cannot be disabled';
+                }
 
+                // Service toggles disabled for now - Coming Soon feature
+                toggle.classList.add('disabled');
+                toggle.title = 'Coming Soon — Service toggles will be available in a future update';
                 toggle.addEventListener('click', () => {
-                    // Feature disabled - show coming soon message
-                    showToast('Enable/disable services feature coming soon', 'success');
+                    showToast('Coming Soon — Service toggles will be available in a future update', 'info');
                 });
 
                 item.appendChild(details);
@@ -1195,9 +1242,8 @@
                     } else {
                         toggleEl.classList.remove('active');
                     }
-                    showToast('Service updated. Spin up triggered.', 'success');
+                    showToast('Service updated. Click "Spin Up" to deploy.', 'success');
                     loadServices();
-                    setTimeout(fetchStatus, 2000);
                 } else {
                     showToast(data.error || 'Failed to update service', 'error');
                 }
