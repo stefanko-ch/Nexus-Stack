@@ -810,15 +810,16 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
         cat << 'MJ_EOF' > /tmp/kuma-setup.js
 const { io } = require("socket.io-client");
 
-// Use polling transport as primary for reliability in container environment
-const socket = io("http://localhost:3001", { 
+// Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues
+const socket = io("http://127.0.0.1:3001", { 
     transports: ["polling", "websocket"],
     reconnection: true,
     reconnectionAttempts: 5,
-    timeout: 10000
+    timeout: 10000,
+    forceNew: true
 });
 
-console.log("Attempting connection...");
+console.log("Attempting connection to http://127.0.0.1:3001...");
 
 socket.on("connect", () => {
     console.log("CONNECTED");
@@ -915,11 +916,12 @@ const { io } = require("socket.io-client");
 const desired = JSON.parse(process.env.DESIRED);
 
 // Robust connection setup
-const socket = io("http://localhost:3001", { 
+const socket = io("http://127.0.0.1:3001", { 
     transports: ["polling", "websocket"],
     reconnection: true,
     reconnectionAttempts: 5,
-    timeout: 10000 
+    timeout: 10000,
+    forceNew: true
 });
 
 let added = 0, deleted = 0;
