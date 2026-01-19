@@ -838,10 +838,10 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     else
         # Kuma uses socket.io for setup - run via container's node
         # Parameters are separate: setup(username, password, callback) - NOT an object!
-        # Use only websocket transport as in the original working version
+        # Use polling transport - websocket doesn't work reliably inside container
         SETUP_SCRIPT='
 const { io } = require("socket.io-client");
-const socket = io("http://localhost:3001", { transports: ["websocket"] });
+const socket = io("http://localhost:3001", { transports: ["polling"] });
 socket.on("connect", () => {
     socket.emit("needSetup", (needSetup) => {
         if (!needSetup) { console.log("ALREADY_CONFIGURED"); process.exit(0); }
@@ -901,14 +901,14 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
         done
         DESIRED_JSON="$DESIRED_JSON]"
         
-        # Prepare Monitor Sync Script - use websocket transport like setup script
+        # Prepare Monitor Sync Script - use polling transport like setup script
         # Escape single quotes in JSON for shell embedding
         DESIRED_ESCAPED=$(echo "$DESIRED_JSON" | sed "s/'/'\\\\''/g")
         
         SYNC_SCRIPT='
 const { io } = require("socket.io-client");
 const desired = JSON.parse(process.env.DESIRED);
-const socket = io("http://localhost:3001", { transports: ["websocket"] });
+const socket = io("http://localhost:3001", { transports: ["polling"] });
 let added = 0, deleted = 0;
 let existingMonitors = {};
 socket.on("monitorList", (data) => { existingMonitors = data; });
