@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.5.0...v0.6.0) (2026-01-19)
+
+
+### 🚀 Features
+
+* **control-plane:** migrate from KV to D1 database ([#146](https://github.com/stefanko-ch/Nexus-Stack/issues/146)) ([fb665c3](https://github.com/stefanko-ch/Nexus-Stack/commit/fb665c3c1091aec15ec2b968dcb25c5d322eacf7))
+
 ## [0.5.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.4.0...v0.5.0) (2026-01-18)
 
 
