@@ -82,21 +82,31 @@ export async function onRequestGet(context) {
     };
 
     // Get server info from D1 config (primary) or env vars (fallback)
-    let serverType = 'cax31';
-    let serverLocation = 'fsn1';
-    let domain = env.DOMAIN || 'unknown';
+    let serverType = null;
+    let serverLocation = null;
+    let domain = null;
+    let lastSpinUp = null;
+    let lastTeardown = null;
 
     if (env.NEXUS_DB) {
-      serverType = await getConfig(env.NEXUS_DB, 'server_type', env.SERVER_TYPE || 'cax31');
-      serverLocation = await getConfig(env.NEXUS_DB, 'server_location', env.SERVER_LOCATION || 'fsn1');
-      const d1Domain = await getConfig(env.NEXUS_DB, 'domain', null);
-      if (d1Domain) domain = d1Domain;
+      serverType = await getConfig(env.NEXUS_DB, 'server_type', null);
+      serverLocation = await getConfig(env.NEXUS_DB, 'server_location', null);
+      domain = await getConfig(env.NEXUS_DB, 'domain', null);
+      lastSpinUp = await getConfig(env.NEXUS_DB, 'last_spin_up', null);
+      lastTeardown = await getConfig(env.NEXUS_DB, 'last_teardown', null);
     }
+
+    // Fallback to env vars if D1 doesn't have values
+    if (!serverType) serverType = env.SERVER_TYPE || null;
+    if (!serverLocation) serverLocation = env.SERVER_LOCATION || null;
+    if (!domain) domain = env.DOMAIN || null;
 
     info.server = {
       type: serverType,
       location: serverLocation,
       domain: domain,
+      lastSpinUp: lastSpinUp,
+      lastTeardown: lastTeardown,
     };
 
     // Get scheduled teardown config from D1

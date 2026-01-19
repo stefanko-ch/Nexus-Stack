@@ -866,16 +866,19 @@
                     document.getElementById('info-server-location').textContent = data.server?.location || 'Unknown';
                     document.getElementById('info-domain').textContent = data.server?.domain || 'Unknown';
                     
-                    // Update workflow timestamps
-                    if (data.workflows?.lastSpinUp) {
-                        const date = new Date(data.workflows.lastSpinUp);
+                    // Update workflow timestamps (from D1 via server object)
+                    const lastSpinUp = data.server?.lastSpinUp || data.workflows?.lastSpinUp;
+                    const lastTeardown = data.server?.lastTeardown || data.workflows?.lastTeardown;
+                    
+                    if (lastSpinUp) {
+                        const date = new Date(lastSpinUp);
                         document.getElementById('info-last-deploy').textContent = date.toLocaleString('de-CH');
                     } else {
                         document.getElementById('info-last-deploy').textContent = 'Never';
                     }
                     
-                    if (data.workflows?.lastTeardown) {
-                        const date = new Date(data.workflows.lastTeardown);
+                    if (lastTeardown) {
+                        const date = new Date(lastTeardown);
                         document.getElementById('info-last-teardown').textContent = date.toLocaleString('de-CH');
                     } else {
                         document.getElementById('info-last-teardown').textContent = 'Never';
@@ -884,10 +887,10 @@
                     // Update uptime
                     if (data.uptime) {
                         document.getElementById('info-uptime').textContent = data.uptime;
-                    } else if (data.workflows?.lastSpinUp) {
-                        const lastSpinUp = new Date(data.workflows.lastSpinUp);
+                    } else if (lastSpinUp) {
+                        const spinUpDate = new Date(lastSpinUp);
                         const now = new Date();
-                        const diffMs = now - lastSpinUp;
+                        const diffMs = now - spinUpDate;
                         const hours = Math.floor(diffMs / (1000 * 60 * 60));
                         const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
                         document.getElementById('info-uptime').textContent = `${hours}h ${minutes}m`;
