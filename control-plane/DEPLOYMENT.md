@@ -1,5 +1,8 @@
 # Control Plane Deployment Checklist
 
+> ⚠️ **Control Plane is deployed automatically via GitHub Actions workflows.**
+> Manual deployment is for debugging only.
+
 ## Pre-Deployment
 
 - [ ] Review code changes
@@ -25,20 +28,19 @@ github_repo  = "Nexus-Stack"        # Repository name
 
 ## Deployment Steps
 
-### 1. Deploy via Terraform
+### 1. Deploy via GitHub Actions (Recommended)
 
 ```bash
-# Make sure .env is loaded
-source .env
-
-# Deploy infrastructure (includes control plane)
-make up
+# Run the initial setup workflow
+gh workflow run initial-setup.yaml
 ```
 
 This creates:
 - ✅ Cloudflare Pages project (`nexus-{domain}-control`, e.g., `nexus-stefanko-ch-control`)
 - ✅ DNS record (`control.domain.com`)
 - ✅ Cloudflare Access protection
+- ✅ D1 database with schema
+- ✅ All environment variables configured automatically
 
 ### 2. Set GitHub Token Secret
 
@@ -171,14 +173,13 @@ npx wrangler pages deploy . --project-name=nexus-{domain}-control
 
 ### Update Control Plane Code
 
-```bash
-git pull origin main
-cd control-plane/pages
-# Replace {domain} with your domain (e.g., nexus-stefanko-ch-control)
-npx wrangler pages deploy . --project-name=nexus-{domain}-control
-```
+Control Plane is automatically updated when you push to the main branch.
+GitHub Actions will redeploy the Control Plane.
 
-Or let **Cloudflare Pages** auto-deploy on push (if connected to Git).
+Or trigger manually:
+```bash
+gh workflow run setup-control-plane.yaml
+```
 
 ## Rollback
 

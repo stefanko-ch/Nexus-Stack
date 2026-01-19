@@ -19,6 +19,8 @@
 
 > ⚠️ **Disclaimer:** This project is currently under active development. Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
 
+> 📋 **Deployment Method:** This project uses **GitHub Actions exclusively**. Local deployment is not supported as it bypasses the Control Plane architecture.
+
 ## What This Does
 
 ### Infrastructure
@@ -39,7 +41,7 @@
 - **Secrets Management** - Centralized in Infisical with auto-provisioning
 
 ### Developer Experience
-- **GitHub Actions Deploy** - No local tools required
+- **GitHub Actions Only** - No local tools required, fully automated deployment
 - **Modular Stacks** - Enable/disable services via Control Plane
 - **Auto-Setup** - Admin users created automatically with generated passwords
 - **Info Page** - Dashboard with all service URLs and credentials

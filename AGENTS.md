@@ -51,8 +51,8 @@ Nexus-Stack/
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── backend.hcl             # Shared R2 backend configuration
-│   ├── services.tfvars         # Service configuration (enabled/disabled)
-│   ├── config.tfvars.example   # Template for user config
+│   ├── services.tfvars             # Service configuration (enabled/disabled)
+│   ├── config.tfvars.example.dev   # Template for local dev (not for production)
 │   ├── stack/                  # Server, tunnel, services state
 │   │   ├── main.tf             # Core infrastructure (server, tunnel, DNS)
 │   │   ├── variables.tf        # Input variable definitions
@@ -87,17 +87,23 @@ Nexus-Stack/
 
 ## Key Commands
 
+**Deployment (via GitHub Actions only):**
 ```bash
-make init    # First-time setup (creates config, initializes tofu)
-make up      # Deploy everything (infrastructure + containers)
-make down    # Destroy all infrastructure
-make status  # Show running containers
-make ssh     # SSH into server via Cloudflare Tunnel
-make logs    # View container logs
-make plan    # Preview infrastructure changes
-make urls    # Show service URLs
-make secrets # Show all service credentials
+gh workflow run initial-setup.yaml  # First-time setup
+gh workflow run spin-up.yml         # Re-deploy after teardown
+gh workflow run teardown.yml        # Stop infrastructure
+gh workflow run destroy-all.yml -f confirm=DESTROY  # Full cleanup
 ```
+
+**Debugging Tools (local, requires SSH):**
+```bash
+make status     # Show running containers
+make ssh        # SSH into server via Cloudflare Tunnel
+make logs       # View container logs
+make ssh-setup  # Setup SSH config
+```
+
+> ⚠️ **Note:** Local deployment via `make up` is not supported. Use GitHub Actions.
 
 ## Development Guidelines
 
@@ -135,8 +141,7 @@ When adding a new Docker stack, **all locations must be updated**:
    - Add descriptive header comment with service URL
 
 2. **Register the service in Terraform:**
-   - Add to `services` map in `tofu/config.tfvars.example` (for documentation)
-   - Add to `services` map in `tofu/stack/config.tfvars` (for deployment)
+   - Add to `services` map in `tofu/services.tfvars`
    - Use matching port number from docker-compose.yml
 
 3. **Update README.md:**

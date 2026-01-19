@@ -4,7 +4,7 @@ This document provides detailed information about all available Docker stacks in
 
 ## Docker Image Versions
 
-Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`tofu/image-versions.tfvars`](../tofu/image-versions.tfvars).
+Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`tofu/services.tfvars`](../tofu/services.tfvars).
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
@@ -40,7 +40,7 @@ Images are pinned to **major versions** where supported for automatic security p
 - **Exact** (e.g., `:v0.155.5`) - Full control, manual all updates
 - **Latest** - Always newest version (when no semver available)
 
-**To upgrade**: Edit the version in `tofu/image-versions.tfvars` and run Spin-Up.
+**To upgrade**: Edit the version in `tofu/services.tfvars` and run Spin-Up.
 
 ---
 

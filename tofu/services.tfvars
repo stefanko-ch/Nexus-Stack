@@ -20,10 +20,6 @@
 # These services cannot be disabled from the Control Plane.
 # =============================================================================
 
-# =============================================================================
-# Services
-# =============================================================================
-
 services = {
   it-tools = {
     enabled     = true
@@ -31,6 +27,7 @@ services = {
     port        = 8080
     public      = false
     description = "Collection of handy online tools for developers - encoders, converters, generators, and more."
+    image       = "corentinth/it-tools:latest"
   }
 
   excalidraw = {
@@ -39,6 +36,7 @@ services = {
     port        = 8082
     public      = false
     description = "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
+    image       = "excalidraw/excalidraw:latest"
   }
 
   portainer = {
@@ -47,6 +45,7 @@ services = {
     port        = 9090
     public      = false
     description = "Docker container management UI for easy deployment and monitoring."
+    image       = "portainer/portainer-ce:lts"
   }
 
   uptime-kuma = {
@@ -55,6 +54,7 @@ services = {
     port        = 3001
     public      = false
     description = "A fancy self-hosted monitoring tool for tracking service uptime and status."
+    image       = "louislam/uptime-kuma:2"
   }
 
   infisical = {
@@ -64,6 +64,11 @@ services = {
     public      = false
     core        = true
     description = "Open-source secret management platform for teams."
+    image       = "infisical/infisical:v0.155.5"
+    support_images = {
+      postgres = "postgres:14-alpine"
+      redis    = "redis:7-alpine"
+    }
   }
 
   grafana = {
@@ -72,6 +77,14 @@ services = {
     port        = 3100
     public      = false
     description = "Observability platform for metrics, logs, and traces visualization."
+    image       = "grafana/grafana:11.6"
+    support_images = {
+      prometheus    = "prom/prometheus:v3.9.1"
+      loki          = "grafana/loki:3"
+      promtail      = "grafana/promtail:3"
+      cadvisor      = "ghcr.io/google/cadvisor:0.56"
+      node-exporter = "prom/node-exporter:v1.10.2"
+    }
   }
 
   info = {
@@ -81,6 +94,7 @@ services = {
     public      = false
     core        = true
     description = "Landing page showing all your Nexus Stack services and their status."
+    image       = "nginx:alpine"
   }
 
   kestra = {
@@ -89,6 +103,10 @@ services = {
     port        = 8085
     public      = false
     description = "Open-source orchestration and scheduling platform for data pipelines and workflows."
+    image       = "kestra/kestra:v1.0"
+    support_images = {
+      postgres = "postgres:16-alpine"
+    }
   }
 
   n8n = {
@@ -97,6 +115,10 @@ services = {
     port        = 5678
     public      = false
     description = "Workflow automation tool with 400+ integrations for connecting apps and services."
+    image       = "n8nio/n8n:1"
+    support_images = {
+      postgres = "postgres:16-alpine"
+    }
   }
 
   marimo = {
@@ -105,6 +127,7 @@ services = {
     port        = 2718
     public      = false
     description = "Reactive Python notebook with SQL support, reproducible and git-friendly."
+    image       = "ghcr.io/marimo-team/marimo:latest-sql"
   }
 
   mailpit = {
@@ -114,6 +137,7 @@ services = {
     public      = false
     core        = true
     description = "Email testing tool that catches all outgoing emails for inspection and testing."
+    image       = "axllent/mailpit:v1.28"
   }
 
   metabase = {
@@ -122,6 +146,10 @@ services = {
     port        = 3000
     public      = false
     description = "Open-source business intelligence and analytics tool for data visualization."
+    image       = "metabase/metabase:v0.58.x"
+    support_images = {
+      postgres = "postgres:16-alpine"
+    }
   }
 
   redpanda = {
@@ -130,6 +158,7 @@ services = {
     port        = 9644
     public      = false
     description = "Kafka-compatible streaming platform that is simpler, faster, and more cost-effective."
+    image       = "redpandadata/redpanda:v24.3"
   }
 
   redpanda-console = {
@@ -138,6 +167,7 @@ services = {
     port        = 8180
     public      = false
     description = "Web UI for managing and debugging Redpanda/Kafka workloads."
+    image       = "redpandadata/console:v2.8"
   }
 
   cloudbeaver = {
@@ -146,6 +176,7 @@ services = {
     port        = 8978
     public      = false
     description = "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
+    image       = "dbeaver/cloudbeaver:24"
   }
 
   mage = {
@@ -154,6 +185,10 @@ services = {
     port        = 6789
     public      = false
     description = "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
+    image       = "mageai/mageai:latest"
+    support_images = {
+      postgres = "postgres:14-alpine"
+    }
   }
 
   minio = {
@@ -162,5 +197,6 @@ services = {
     port        = 9001
     public      = false
     description = "High-performance S3-compatible object storage for data lakes, backups, and ML models."
+    image       = "minio/minio:latest"
   }
 }

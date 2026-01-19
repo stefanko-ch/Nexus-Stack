@@ -13,7 +13,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 TFVARS_FILE="$PROJECT_ROOT/tofu/stack/config.tfvars"
-IMAGE_VERSIONS_FILE="$PROJECT_ROOT/tofu/image-versions.tfvars"
+SERVICES_FILE="$PROJECT_ROOT/tofu/services.tfvars"
 TEMPLATE_FILE="$PROJECT_ROOT/stacks/info/html/index.template.html"
 OUTPUT_FILE="$PROJECT_ROOT/stacks/info/html/index.html"
 
@@ -124,41 +124,58 @@ TOTAL_COUNT=$(echo "$SERVICES_JSON" | python3 -c "import sys, json; d=json.load(
 
 echo -e "  Services: ${GREEN}$ACTIVE_COUNT${NC} active / $TOTAL_COUNT total"
 
-# Parse image versions from tfvars
+# Extract image versions from services (image field + support_images)
 IMAGE_VERSIONS_JSON="{}"
-if [ -f "$IMAGE_VERSIONS_FILE" ]; then
+if [ -f "$SERVICES_FILE" ]; then
     IMAGE_VERSIONS_JSON=$(python3 << PYEOF
 import re
 import json
 
-with open("$IMAGE_VERSIONS_FILE", 'r') as f:
+with open("$SERVICES_FILE", 'r') as f:
     content = f.read()
 
-# Find image_versions block
-match = re.search(r'image_versions\s*=\s*\{(.*?)^\}', content, re.MULTILINE | re.DOTALL)
-if not match:
-    print("{}")
-    exit(0)
-
-block = match.group(1)
 versions = {}
 
-for line in block.split('\n'):
-    line = line.strip()
-    if not line or line.startswith('#'):
+# Find all service blocks and extract image fields
+# Match: service_name = { ... image = "image:tag" ... }
+service_pattern = r'(\w[\w-]*)\s*=\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
+
+for match in re.finditer(service_pattern, content, re.MULTILINE | re.DOTALL):
+    service_name = match.group(1)
+    block = match.group(2)
+    
+    # Skip if this looks like the services wrapper block
+    if service_name == 'services':
         continue
     
-    # Parse: key = "value"
-    m = re.match(r'^([\w-]+)\s*=\s*"([^"]+)"', line)
-    if m:
-        key = m.group(1)
-        value = m.group(2)
+    # Extract main image field
+    image_match = re.search(r'^\s*image\s*=\s*"([^"]+)"', block, re.MULTILINE)
+    if image_match:
+        image = image_match.group(1)
         # Extract just the tag from "image:tag"
-        if ':' in value:
-            tag = value.split(':')[-1]
+        if ':' in image:
+            tag = image.split(':')[-1]
         else:
-            tag = value
-        versions[key] = tag
+            tag = image
+        versions[service_name] = tag
+    
+    # Extract support_images block
+    support_match = re.search(r'support_images\s*=\s*\{([^}]+)\}', block)
+    if support_match:
+        support_block = support_match.group(1)
+        for line in support_block.split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            m = re.match(r'^([\w-]+)\s*=\s*"([^"]+)"', line)
+            if m:
+                key = m.group(1)
+                value = m.group(2)
+                if ':' in value:
+                    tag = value.split(':')[-1]
+                else:
+                    tag = value
+                versions[key] = tag
 
 print(json.dumps(versions, indent=2))
 PYEOF
