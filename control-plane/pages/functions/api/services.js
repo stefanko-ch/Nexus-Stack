@@ -1,21 +1,31 @@
 /**
  * Manage services configuration
- * GET /api/services - Get all services with their enabled status
- * POST /api/services - Enable/disable a service (stored in D1)
+ * GET /api/services - Get all services with enabled/deployed status
+ * POST /api/services - Enable/disable a service (staged in D1, not deployed)
  * 
  * Service definitions come from tofu/services.tfvars (read-only)
- * Enabled status is stored in Cloudflare D1 database (services table)
+ * Service state is stored in Cloudflare D1 database (services table):
+ *   - enabled: what the user wants (staged state)
+ *   - deployed: what is currently running
  */
 
 import { logApiCall, logError } from './_utils/logger.js';
 
 // D1 Helper Functions
-async function getEnabledServicesFromD1(db) {
+
+/**
+ * Get service states from D1 (both enabled and deployed)
+ * Returns: { serviceName: { enabled: bool, deployed: bool }, ... }
+ */
+async function getServiceStatesFromD1(db) {
   try {
-    const results = await db.prepare('SELECT name, enabled FROM services').all();
+    const results = await db.prepare('SELECT name, enabled, deployed FROM services').all();
     const map = {};
     for (const row of results.results || []) {
-      map[row.name] = row.enabled === 1;
+      map[row.name] = {
+        enabled: row.enabled === 1,
+        deployed: row.deployed === 1,
+      };
     }
     return map;
   } catch {
@@ -23,8 +33,17 @@ async function getEnabledServicesFromD1(db) {
   }
 }
 
+/**
+ * Set service enabled state (staged, not deployed yet)
+ */
 async function setServiceEnabled(db, name, enabled) {
-  await db.prepare('INSERT OR REPLACE INTO services (name, enabled, updated_at) VALUES (?, ?, datetime("now"))').bind(name, enabled ? 1 : 0).run();
+  // Get current deployed state to preserve it
+  const current = await db.prepare('SELECT deployed FROM services WHERE name = ?').bind(name).first();
+  const deployed = current ? current.deployed : 0;
+  
+  await db.prepare(
+    'INSERT OR REPLACE INTO services (name, enabled, deployed, updated_at) VALUES (?, ?, ?, datetime("now"))'
+  ).bind(name, enabled ? 1 : 0, deployed).run();
 }
 
 function decodeBase64(input) {
@@ -36,7 +55,6 @@ function decodeBase64(input) {
 
 /**
  * Parse services.tfvars to extract service definitions
- * Now only reads: subdomain, port, public, core, description
  * The 'enabled' field in tfvars is used as the DEFAULT value only
  */
 function parseServicesConfig(content) {
@@ -131,35 +149,8 @@ async function fetchServicesFile(env) {
 }
 
 /**
- * Trigger spin-up workflow with enabled services list
- */
-async function triggerSpinUp(env, enabledServices) {
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/spin-up.yml/dispatches`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'Nexus-Stack-Control-Plane',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ 
-      ref: 'main',
-      inputs: {
-        enabled_services: enabledServices.join(',')
-      }
-    }),
-  });
-
-  if (response.status !== 204) {
-    const errorText = await response.text();
-    throw new Error(`Failed to trigger spin-up (${response.status}): ${errorText.substring(0, 200)}`);
-  }
-}
-
-/**
  * GET /api/services
- * Returns all services with their current enabled status
+ * Returns all services with their enabled and deployed status
  */
 export async function onRequestGet(context) {
   const { env } = context;
@@ -180,31 +171,44 @@ export async function onRequestGet(context) {
     const content = decodeBase64(file.content || '');
     const serviceDefinitions = parseServicesConfig(content);
 
-    // Fetch enabled status from D1
-    const enabledMap = env.NEXUS_DB ? await getEnabledServicesFromD1(env.NEXUS_DB) : {};
+    // Fetch service states from D1
+    const stateMap = env.NEXUS_DB ? await getServiceStatesFromD1(env.NEXUS_DB) : {};
 
-    // Merge: use D1 value if exists, otherwise use default from tfvars
-    const services = serviceDefinitions.map(svc => ({
-      name: svc.name,
-      subdomain: svc.subdomain,
-      port: svc.port,
-      public: svc.public,
-      core: svc.core,
-      description: svc.description,
-      // Use D1 value if set, otherwise use default from tfvars
-      enabled: Object.hasOwn(enabledMap, svc.name) 
-        ? enabledMap[svc.name] 
-        : svc.defaultEnabled,
-    }));
+    // Merge: use D1 values if exist, otherwise use defaults from tfvars
+    let pendingChangesCount = 0;
+    const services = serviceDefinitions.map(svc => {
+      const state = stateMap[svc.name];
+      const enabled = state ? state.enabled : svc.defaultEnabled;
+      const deployed = state ? state.deployed : svc.defaultEnabled;
+      const hasPendingChange = enabled !== deployed;
+      
+      if (hasPendingChange) {
+        pendingChangesCount++;
+      }
+
+      return {
+        name: svc.name,
+        subdomain: svc.subdomain,
+        port: svc.port,
+        public: svc.public,
+        core: svc.core,
+        description: svc.description,
+        enabled,      // What user wants (staged)
+        deployed,     // What is currently running
+        pending: hasPendingChange,
+      };
+    });
 
     return new Response(JSON.stringify({
       success: true,
       services,
+      pendingChangesCount,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Services GET error:', error);
+    await logError(env.NEXUS_DB, '/api/services', 'GET', error);
     return new Response(JSON.stringify({
       success: false,
       error: error.message || 'Failed to load services',
@@ -285,7 +289,7 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Save to D1 (no deployment - user clicks Spin Up when ready)
+    // Save to D1 (staged, not deployed yet)
     await setServiceEnabled(env.NEXUS_DB, serviceName, enabled);
 
     // Log the service toggle
@@ -295,27 +299,27 @@ export async function onRequestPost(context) {
       enabled: enabled,
     });
 
-    // Get updated enabled map for response
-    const enabledMap = await getEnabledServicesFromD1(env.NEXUS_DB);
-    const enabledServices = serviceDefinitions
-      .filter(svc => {
-        if (Object.hasOwn(enabledMap, svc.name)) {
-          return enabledMap[svc.name];
-        }
-        return svc.defaultEnabled;
-      })
-      .map(svc => svc.name);
+    // Get updated state for response
+    const stateMap = await getServiceStatesFromD1(env.NEXUS_DB);
+    let pendingChangesCount = 0;
+    
+    for (const svc of serviceDefinitions) {
+      const state = stateMap[svc.name];
+      if (state && state.enabled !== state.deployed) {
+        pendingChangesCount++;
+      }
+    }
 
     return new Response(JSON.stringify({
       success: true,
       message: `Service ${serviceName} ${enabled ? 'enabled' : 'disabled'}. Click "Spin Up" to deploy changes.`,
-      enabledServices,
-      pendingChanges: true,
+      pendingChangesCount,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Services POST error:', error);
+    await logError(env.NEXUS_DB, '/api/services', 'POST', error);
     return new Response(JSON.stringify({
       success: false,
       error: error.message || 'Failed to update service',

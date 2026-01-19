@@ -482,6 +482,17 @@ jobs:
           echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
           echo "   (View all service URLs and credentials there)"
           echo ""
+      
+      - name: Sync deployed state to D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          # Sync deployed = enabled in D1 after successful deployment
+          if [ -f .github/scripts/sync-deployed-state.sh ]; then
+            .github/scripts/sync-deployed-state.sh
+          fi
 
       - name: Log spin-up completed
         env:

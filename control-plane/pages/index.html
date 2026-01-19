@@ -409,6 +409,35 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        
+        /* Pending changes indicators */
+        .service-pending {
+            border-left: 3px solid #ffd700;
+        }
+        
+        .pending-label {
+            font-size: 0.65rem;
+            background: #ffd700;
+            color: #000;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            margin-left: 0.5rem;
+            font-weight: bold;
+        }
+        
+        .pending-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffd700;
+            color: #000;
+            font-size: 0.7rem;
+            font-weight: bold;
+            width: 1.2rem;
+            height: 1.2rem;
+            border-radius: 50%;
+            margin-left: 0.5rem;
+        }
 
         /* Info Panel */
         .info-panel {
@@ -1161,9 +1190,27 @@
                 const data = await response.json();
                 if (data.success) {
                     renderServices(data.services || []);
+                    updatePendingBadge(data.pendingChangesCount || 0);
                 }
             } catch (error) {
                 console.error('Failed to load services:', error);
+            }
+        }
+        
+        function updatePendingBadge(count) {
+            const spinUpBtn = document.getElementById('btn-spin-up');
+            if (!spinUpBtn) return;
+            
+            // Remove existing badge if any
+            const existingBadge = spinUpBtn.querySelector('.pending-badge');
+            if (existingBadge) existingBadge.remove();
+            
+            if (count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'pending-badge';
+                badge.textContent = count;
+                badge.title = `${count} pending service change${count > 1 ? 's' : ''}`;
+                spinUpBtn.appendChild(badge);
             }
         }
 
@@ -1179,6 +1226,11 @@
             services.forEach(service => {
                 const item = document.createElement('div');
                 item.className = 'service-item';
+                
+                // Add pending class for visual indication
+                if (service.pending) {
+                    item.classList.add('service-pending');
+                }
 
                 const details = document.createElement('div');
                 details.className = 'service-details';
@@ -1188,6 +1240,10 @@
                 name.textContent = service.name;
                 if (service.core) {
                     name.innerHTML += ' <span style="color: #ff6b6b; font-size: 0.7rem;">(core)</span>';
+                }
+                if (service.pending) {
+                    const pendingLabel = service.enabled ? 'WILL ENABLE' : 'WILL DISABLE';
+                    name.innerHTML += ` <span class="pending-label">${pendingLabel}</span>`;
                 }
 
                 const description = document.createElement('div');
@@ -1205,14 +1261,13 @@
                 if (service.core) {
                     toggle.classList.add('disabled');
                     toggle.title = 'Core service - cannot be disabled';
+                } else {
+                    // Enable toggle for non-core services
+                    toggle.addEventListener('click', () => {
+                        const newState = !toggle.classList.contains('active');
+                        updateServiceToggle(service.name, newState, toggle);
+                    });
                 }
-
-                // Service toggles disabled for now - Coming Soon feature
-                toggle.classList.add('disabled');
-                toggle.title = 'Coming Soon — Service toggles will be available in a future update';
-                toggle.addEventListener('click', () => {
-                    showToast('Coming Soon — Service toggles will be available in a future update', 'info');
-                });
 
                 item.appendChild(details);
                 item.appendChild(toggle);
