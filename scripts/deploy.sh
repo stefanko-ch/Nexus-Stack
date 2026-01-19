@@ -802,6 +802,9 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     if [ "$KUMA_READY" = "false" ]; then
         echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 120s - skipping config${NC}"
     else
+        # Give socket.io a moment to be fully ready after HTTP responds
+        sleep 3
+        
         # Kuma uses socket.io for setup - run via container's node
         # Parameters are separate: setup(username, password, callback) - NOT an object!
         SETUP_SCRIPT='
