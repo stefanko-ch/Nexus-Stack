@@ -461,32 +461,27 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     echo "  Configuring Infisical..."
     
     # Wait for Infisical to be ready (optimized: check container status first)
-    echo "  Waiting for Infisical to be ready..."
+    echo "  Waiting for Infisical to be ready (may take up to 2min)..."
     INFISICAL_READY=false
     # First check if container is running (faster than HTTP)
-    for i in $(seq 1 10); do
+    for i in $(seq 1 20); do
         CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' infisical 2>/dev/null" || echo "")
         if [ "$CONTAINER_STATUS" = "running" ]; then
             break
         fi
-        sleep 1
+        sleep 2
     done
-    # Then check HTTP endpoint with shorter intervals initially
-    for i in $(seq 1 20); do
+    # Then check HTTP endpoint (allow up to 120s total)
+    for i in $(seq 1 40); do
         if ssh nexus "curl -s --connect-timeout 3 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null | grep -q 'initialized'; then
             INFISICAL_READY=true
             break
         fi
-        # Start with 1s intervals, increase to 2s after 10 retries
-        if [ $i -lt 10 ]; then
-            sleep 1
-        else
-            sleep 2
-        fi
+        sleep 3
     done
     
     if [ "$INFISICAL_READY" = "false" ]; then
-        echo -e "${YELLOW}  ⚠ Infisical not responding after 60s - skipping config${NC}"
+        echo -e "${YELLOW}  ⚠ Infisical not responding after 120s - skipping config${NC}"
     else
     # Check if already initialized
     INIT_CHECK=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null || echo "")
@@ -780,30 +775,31 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     echo "  Configuring Uptime Kuma..."
     
     # Wait for Uptime Kuma container to be ready
-    echo "  Waiting for Uptime Kuma to be ready..."
+    echo "  Waiting for Uptime Kuma to be ready (may take up to 90s)..."
     KUMA_READY=false
     
-    # First check if container is running
-    for i in $(seq 1 10); do
+    # First check if container is running (allow up to 30s for container start)
+    for i in $(seq 1 15); do
         CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' uptime-kuma 2>/dev/null" || echo "")
         if [ "$CONTAINER_STATUS" = "running" ]; then
             break
         fi
-        sleep 1
+        sleep 2
     done
     
     # Check if container has healthcheck configured
     HAS_HEALTHCHECK=$(ssh nexus "docker inspect --format='{{if .State.Health}}yes{{else}}no{{end}}' uptime-kuma 2>/dev/null" || echo "no")
     
     if [ "$HAS_HEALTHCHECK" = "yes" ]; then
-        # Wait for healthcheck to report healthy
+        # Wait for healthcheck to report healthy (healthcheck has 60s start_period)
+        # Allow up to 90s total
         for i in $(seq 1 30); do
             KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
             if [ "$KUMA_HEALTH" = "healthy" ]; then
                 KUMA_READY=true
                 break
             fi
-            sleep 2
+            sleep 3
         done
     else
         # No healthcheck - wait for HTTP response on port 3001
@@ -813,12 +809,12 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
                 KUMA_READY=true
                 break
             fi
-            sleep 2
+            sleep 3
         done
     fi
     
     if [ "$KUMA_READY" = "false" ]; then
-        echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 60s - skipping config${NC}"
+        echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 90s - skipping config${NC}"
     else
         # Kuma uses socket.io for setup - run via container's node
         # Parameters are separate: setup(username, password, callback) - NOT an object!

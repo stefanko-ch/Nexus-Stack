@@ -19,7 +19,7 @@ image_versions = {
   # -------------------------------------------------------------------------
   cloudbeaver      = "dbeaver/cloudbeaver:24"                # Major: 24.x.x
   excalidraw       = "excalidraw/excalidraw:latest"          # No semver tags available
-  grafana          = "grafana/grafana:11"                    # Major: 11.x.x (12 tag not yet available)
+  grafana          = "grafana/grafana:11.6"                  # Grafana 11.6.x (tag :11 doesn't exist)
   infisical        = "infisical/infisical:v0.155.5"          # No major tags, exact only
   it-tools         = "corentinth/it-tools:latest"            # Date-based tags only
   kestra           = "kestra/kestra:v1.0"                    # Minor series: v1.0 (LTS)
