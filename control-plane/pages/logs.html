@@ -334,12 +334,11 @@
         
         const logs = data.logs || [];
         
-        // Update stats
-        document.getElementById('stats').innerHTML = `
-          Showing <span>${logs.length}</span> logs
-          ${source ? ` from <span>${source}</span>` : ''}
-          ${level ? ` with level <span>${level}</span>` : ''}
-        `;
+        // Update stats (escape filter values even though they come from select elements)
+        const statsHtml = ['Showing <span>' + logs.length + '</span> logs'];
+        if (source) statsHtml.push(' from <span>' + escapeHtml(source) + '</span>');
+        if (level) statsHtml.push(' with level <span>' + escapeHtml(level) + '</span>');
+        document.getElementById('stats').innerHTML = statsHtml.join('');
         
         if (logs.length === 0) {
           document.getElementById('logsTable').innerHTML = 
