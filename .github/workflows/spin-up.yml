@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane D1)'
+        description: 'Comma-separated list of services to enable (empty = use defaults from services.tfvars)'
         required: false
         default: ''
         type: string
   workflow_call:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (from Control Plane D1)'
+        description: 'Comma-separated list of services to enable (passed by Control Plane from D1)'
         required: false
         default: ''
         type: string
