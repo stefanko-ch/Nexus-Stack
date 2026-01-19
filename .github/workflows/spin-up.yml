@@ -393,10 +393,12 @@ jobs:
           EOF
           
           # Redeploy to production
+          # --commit-message prevents UTF-8 issues with git commit messages
           npx wrangler@latest pages deploy . \
             --project-name="$PAGES_PROJECT" \
             --branch=main \
-            --commit-dirty=true
+            --commit-dirty=true \
+            --commit-message="Redeploy with secrets"
           
           rm wrangler.toml
           echo "✅ Control Plane redeployed with new secrets!"

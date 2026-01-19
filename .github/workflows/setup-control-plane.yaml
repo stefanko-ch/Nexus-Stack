@@ -488,10 +488,12 @@ jobs:
           
           # Deploy to production with D1 binding
           # --commit-dirty=true suppresses warning about uncommitted wrangler.toml
+          # --commit-message prevents UTF-8 issues with git commit messages
           npx wrangler@latest pages deploy . \
             --project-name="$PROJECT_NAME" \
             --branch=main \
-            --commit-dirty=true
+            --commit-dirty=true \
+            --commit-message="Deploy Control Plane"
           
           # Clean up generated wrangler.toml
           rm wrangler.toml
