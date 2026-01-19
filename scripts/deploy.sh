@@ -792,7 +792,6 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     
     if [ "$HAS_HEALTHCHECK" = "yes" ]; then
         # Wait for healthcheck to report healthy
-        # The healthcheck has start_period: 60s, so we need to wait longer
         echo "  Container has healthcheck, waiting for healthy status..."
         for i in $(seq 1 40); do
             KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
@@ -801,8 +800,26 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
                 echo "  Container is healthy"
                 break
             fi
+            # Show progress every 10 iterations
+            if [ $((i % 10)) -eq 0 ]; then
+                echo "  Still waiting... (health status: $KUMA_HEALTH)"
+            fi
             sleep 3
         done
+        
+        # Fallback: If healthcheck never becomes healthy, try HTTP check
+        if [ "$KUMA_READY" = "false" ]; then
+            echo "  Healthcheck didn't pass, trying HTTP fallback..."
+            for i in $(seq 1 10); do
+                HTTP_CHECK=$(ssh nexus "curl -sf http://localhost:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
+                if [ "$HTTP_CHECK" = "ok" ]; then
+                    KUMA_READY=true
+                    echo "  HTTP responding - proceeding with setup"
+                    break
+                fi
+                sleep 2
+            done
+        fi
     else
         # No healthcheck - wait for HTTP response on port 3001
         echo "  No healthcheck, waiting for HTTP response..."
