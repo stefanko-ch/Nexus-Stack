@@ -265,7 +265,9 @@ jobs:
         run: |
           # Get container status for logging
           CONTAINER_COUNT=$(cd tofu/stack && source ../.r2-credentials && export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" && export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" && tofu output -json enabled_services 2>/dev/null | jq 'length' || echo "0")
-          [ -f .github/scripts/log-to-d1.sh ] && .github/scripts/log-to-d1.sh info "Infrastructure deployed" "{\"containers\":$CONTAINER_COUNT}" || true
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Infrastructure deployed" "{\"containers\":$CONTAINER_COUNT}"
+          fi
 
       - name: Store credentials as Cloudflare Secret
         env:
@@ -310,14 +312,16 @@ jobs:
           }')
           
           # Store as Pages secret using wrangler
-          echo "$CREDENTIALS" | npx wrangler pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null
-          
-          if [ $? -eq 0 ]; then
+          if echo "$CREDENTIALS" | npx wrangler pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
             echo "✅ Credentials stored as Cloudflare Secret"
-            [ -f .github/scripts/log-to-d1.sh ] && .github/scripts/log-to-d1.sh info "Credentials stored in Cloudflare Secrets" || true
+            if [ -f .github/scripts/log-to-d1.sh ]; then
+              .github/scripts/log-to-d1.sh info "Credentials stored in Cloudflare Secrets"
+            fi
           else
             echo "⚠️  Failed to store credentials - trying API fallback"
-            [ -f .github/scripts/log-to-d1.sh ] && .github/scripts/log-to-d1.sh warn "Failed to store credentials" || true
+            if [ -f .github/scripts/log-to-d1.sh ]; then
+              .github/scripts/log-to-d1.sh warn "Failed to store credentials"
+            fi
             # Fallback to API if wrangler fails
             # Note: Pages secrets API is not publicly available, so we skip
           fi
@@ -430,4 +434,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          [ -f .github/scripts/log-to-d1.sh ] && .github/scripts/log-to-d1.sh info "Spin-up workflow completed successfully" || true
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Spin-up workflow completed successfully"
+          fi

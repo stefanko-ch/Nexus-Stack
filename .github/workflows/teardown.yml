@@ -145,4 +145,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          [ -f .github/scripts/log-to-d1.sh ] && .github/scripts/log-to-d1.sh info "Teardown workflow completed" || true
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Teardown workflow completed"
+          fi
