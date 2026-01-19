@@ -17,6 +17,7 @@
 # - mailpit: Required for email testing by other services
 # - infisical: Required for secret management
 # - info: Dashboard showing all services
+# - wetty: Required for browser-based terminal access (security-critical)
 # These services cannot be disabled from the Control Plane.
 # =============================================================================
 
@@ -209,11 +210,12 @@ services = {
   }
 
   wetty = {
-    enabled     = false
+    enabled     = true
     subdomain   = "wetty"
     port        = 3002
     public      = false
-    description = "Web-based SSH terminal that allows you to access your server via a web browser without requiring SSH client software."
+    core        = true
+    description = "Web-based SSH terminal that allows you to access your server via a web browser without requiring SSH client software. Uses public key authentication only for security."
     image       = "wettyoss/wetty:latest"
   }
 }

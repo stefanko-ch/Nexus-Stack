@@ -5,6 +5,12 @@
 # Provides a full terminal experience without requiring SSH client software.
 # Access via: https://wetty.your-domain.com
 # Default port: 3002
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - Uses SSH public key authentication only (no passwords)
+# - Session timeout after 1 hour of inactivity
+# - Rate limiting via Cloudflare Access
 # =============================================================================
 
 services:
@@ -18,10 +24,21 @@ services:
       - SSHHOST=host.docker.internal
       - SSHPORT=22
       - SSHUSER=root
+      # Security: Only allow public key authentication (no passwords)
+      - SSHAUTH=publickey
+      # Session timeout: 1 hour (3600000ms)
+      - WETTY_TIMEOUT=3600000
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - app-network
+    # Health check (using curl which is available in the image)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   app-network:
