@@ -2,6 +2,15 @@
 set -e
 
 # =============================================================================
+# ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
+# =============================================================================
+# This script is for local development/debugging ONLY.
+# Production deployments use GitHub Actions workflows.
+#
+# Local deployment bypasses the Control Plane architecture and is not supported.
+# =============================================================================
+
+# =============================================================================
 # Nexus-Stack Deploy Script
 # Runs after tofu apply to start containers
 # =============================================================================

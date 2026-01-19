@@ -58,8 +58,11 @@ output "enabled_services" {
 }
 
 output "image_versions" {
-  description = "Docker image versions for each service"
-  value       = var.image_versions
+  description = "Docker image versions for each service (extracted from services config)"
+  value = merge(
+    { for name, svc in var.services : name => svc.image if svc.image != "" },
+    merge([for name, svc in var.services : svc.support_images if svc.support_images != null]...)
+  )
 }
 
 # =============================================================================

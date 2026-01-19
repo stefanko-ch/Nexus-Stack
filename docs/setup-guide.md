@@ -2,6 +2,8 @@
 
 This guide walks you through the complete setup of Nexus Stack.
 
+> ⚠️ **This project uses GitHub Actions exclusively. Local deployment is not supported.**
+
 ---
 
 ## 📋 Prerequisites
@@ -11,22 +13,12 @@ This guide walks you through the complete setup of Nexus Stack.
 - [ ] **Hetzner Cloud Account** — [Sign up](https://console.hetzner.cloud/)
 - [ ] **Cloudflare Account** — [Sign up](https://dash.cloudflare.com/sign-up)
 - [ ] **Domain on Cloudflare** — DNS must be managed by Cloudflare
+- [ ] **GitHub Account** — Repository for the project
 
-### Local Tools
+### Optional Accounts
 
-- [ ] **OpenTofu** ≥ 1.6 — `brew install opentofu`
-- [ ] **cloudflared** CLI — `brew install cloudflared`
-- [ ] **jq** — `brew install jq`
-- [ ] **SSH Key** (Ed25519 recommended)
-
-### Quick Install (macOS)
-
-```bash
-brew install opentofu cloudflared jq
-
-# Create SSH key if you don't have one
-ssh-keygen -t ed25519 -C "nexus"
-```
+- [ ] **[Resend](https://resend.com)** — For email notifications (credentials, status updates)
+- [ ] **[Docker Hub](https://hub.docker.com)** — Increases pull rate limits for Docker images
 
 ---
 
@@ -85,7 +77,7 @@ ssh-keygen -t ed25519 -C "nexus"
    > - "D1" is required for the database used by the Control Plane
    > - "Workers Scripts" is required for the scheduled teardown worker
    > - "Cloudflare Pages" is required for the Control Plane
-   > - "Access: Organizations" is required for revoking Zero Trust sessions during `make teardown`
+   > - "Access: Organizations" is required for revoking Zero Trust sessions during teardown
    > - "Access: Service Tokens" enables headless SSH authentication for CI/CD
 
 6. **Account Resources:** Include → All accounts (or specific)
@@ -95,184 +87,13 @@ ssh-keygen -t ed25519 -C "nexus"
 
 ---
 
-## 3️⃣ Configure Nexus
+## 3️⃣ Configure GitHub Secrets
 
-Nexus-Stack uses **two config files** for security:
-
-### Create Configuration Files
-
-```bash
-# From project root
-make init
-
-# Copy and edit secrets file
-cp .env.example .env
-nano .env
-```
-
-### Edit .env (Secrets - never commit!)
-
-```bash
-export TF_VAR_hcloud_token="YOUR_HCLOUD_TOKEN"
-export TF_VAR_cloudflare_api_token="YOUR_CLOUDFLARE_TOKEN"
-export TF_VAR_cloudflare_account_id="YOUR_ACCOUNT_ID"
-```
-
-### Edit tofu/stack/config.tfvars (Settings)
-
-```hcl
-# Cloudflare Zone (non-sensitive)
-cloudflare_zone_id = "YOUR_ZONE_ID"
-
-# Your domain (resource names are derived from this)
-domain = "yourdomain.com"
-
-# Admin email - full access including SSH
-admin_email = "admin@example.com"
-
-# Regular user email - all services except SSH (optional)
-# user_email = "user@example.com"
-```
-
-> 💡 **Why two files?** Secrets in `.env` can be set as GitHub Actions secrets for CI/CD, while `config.tfvars` can be safely committed.
-
----
-
-## 4️⃣ Deploy
-
-### Initialize
-
-```bash
-# First time: create R2 bucket for remote state
-source .env && make init
-```
-
-### Apply
-
-```bash
-# Deploy everything
-source .env && make up
-```
-
-This will:
-1. Create R2 bucket for remote state (first run only)
-2. Initialize OpenTofu with remote backend
-3. Create the Hetzner server
-4. Set up Cloudflare Tunnel
-5. Configure DNS records
-6. Deploy all Docker stacks
-
-### First deployment takes ~5 minutes
-
-The server needs to:
-- Boot up
-- Run cloud-init (install Docker, cloudflared)
-- Start all containers
-
----
-
-## 5️⃣ Access Your Services
-
-After deployment, your services are available at:
-
-| Service | URL |
-|---------|-----|
-| Dashboard | `https://info.yourdomain.com` |
-| Grafana | `https://grafana.yourdomain.com` |
-| Vault | `https://vault.yourdomain.com` |
-| Status | `https://status.yourdomain.com` |
-| Portainer | `https://portainer.yourdomain.com` |
-| IT-Tools | `https://it-tools.yourdomain.com` |
-
-### First Login
-
-1. Open any service URL
-2. Cloudflare Access will prompt for your email
-3. Enter the email you configured in `admin_email`
-4. Check your inbox for the verification code
-5. Enter the code — you're in!
-
-### View Passwords
-
-```bash
-make secrets
-```
-
----
-
-## 6️⃣ SSH Access
-
-SSH also goes through Cloudflare Tunnel. The deploy script automatically configures your SSH:
-
-```bash
-# Simply run:
-ssh nexus
-```
-
-### Service Token (Automatic)
-
-Nexus-Stack automatically creates a Cloudflare Service Token that enables SSH without browser login. This is configured automatically during `make up`.
-
-Benefits:
-- **No browser popup** — SSH works immediately
-- **CI/CD ready** — Perfect for automated workflows
-- **Persistent** — No re-authentication needed
-
-The SSH config uses the Service Token:
-```
-Host nexus
-  HostName ssh.yourdomain.com
-  User root
-  ProxyCommand bash -c 'TUNNEL_SERVICE_TOKEN_ID=xxx TUNNEL_SERVICE_TOKEN_SECRET=xxx cloudflared access ssh --hostname %h'
-```
-
-### Manual Login (Fallback)
-
-If the Service Token is not available, authenticate via browser:
-
-```bash
-cloudflared access login https://ssh.yourdomain.com
-```
-
----
-
-## 🧹 Teardown
-
-### Teardown Infrastructure (keep state)
-
-```bash
-# Local
-make teardown
-
-# Or via GitHub Actions (no confirmation needed)
-gh workflow run teardown.yml
-```
-
-> This deletes the server but keeps the R2 state bucket for future deployments.
-
-### Full Cleanup (delete everything)
-
-```bash
-# Local
-make destroy-all
-
-# Or via GitHub Actions (requires "DESTROY" confirmation)
-gh workflow run destroy-all.yml -f confirm=DESTROY
-```
-
-> ⚠️ This deletes everything: server, R2 bucket, API tokens, local credentials.
-
----
-
-## 🤖 GitHub Actions Deployment
-
-You can deploy entirely via GitHub Actions - no local tools required!
-
-### Initial GitHub Secrets (before first deploy)
-
-Add these secrets to your repo:
+Add these secrets to your GitHub repository:
 
 **Settings → Secrets and variables → Actions → New repository secret**
+
+### Required Secrets
 
 | Secret Name | Source | Description |
 |-------------|--------|-------------|
@@ -282,15 +103,31 @@ Add these secrets to your repo:
 | `HCLOUD_TOKEN` | Hetzner console | API token |
 | `DOMAIN` | Your domain | e.g. `example.com` |
 | `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
-| `TF_VAR_user_email` | User email | User - all services except SSH (optional) |
-| `INFISICAL_TOKEN` | Infisical dashboard | Optional |
 
-### First Setup
+### Optional Secrets
+
+| Secret Name | Description |
+|-------------|-------------|
+| `TF_VAR_user_email` | User - all services except SSH |
+| `RESEND_API_KEY` | Email notifications via Resend |
+| `DOCKERHUB_USERNAME` | Docker Hub username (higher pull limits) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
+
+---
+
+## 4️⃣ Deploy via GitHub Actions
+
+### Initial Setup
+
+Run the initial setup workflow:
 
 ```bash
-# Run the initial setup workflow
 gh workflow run initial-setup.yaml
 ```
+
+Or via GitHub UI:
+1. Go to **Actions** → **Initial Setup**
+2. Click **Run workflow**
 
 On **first run**, the pipeline will:
 1. Create the R2 bucket automatically
@@ -311,7 +148,38 @@ After the first deploy, add these two additional secrets:
 
 Once saved, all future deployments will use these secrets automatically.
 
-### Available Workflows
+---
+
+## 5️⃣ Access Your Services
+
+After deployment, your services are available at:
+
+| Service | URL |
+|---------|-----|
+| **Control Plane** | `https://control.yourdomain.com` |
+| **Dashboard** | `https://info.yourdomain.com` |
+| **Grafana** | `https://grafana.yourdomain.com` |
+| **Portainer** | `https://portainer.yourdomain.com` |
+| **IT-Tools** | `https://it-tools.yourdomain.com` |
+
+### First Login
+
+1. Open any service URL
+2. Cloudflare Access will prompt for your email
+3. Enter the email you configured in `TF_VAR_admin_email`
+4. Check your inbox for the verification code
+5. Enter the code — you're in!
+
+### View Credentials
+
+Use the Control Plane to view or email credentials:
+- Open `https://control.yourdomain.com`
+- Click **"Email Credentials"** to receive them via email
+- Or check **Infisical** at `https://infisical.yourdomain.com`
+
+---
+
+## 6️⃣ GitHub Actions Workflows
 
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
@@ -321,214 +189,119 @@ Once saved, all future deployments will use these secrets automatically.
 | Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
 | Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
 
-### Scheduled Teardown (Cost Saving)
+### Control Plane
 
-Scheduled teardown is optional and managed via the Control Plane (Cloudflare Worker + D1).
-Enable or disable it at runtime without changing GitHub Actions.
+Manage your infrastructure via the web interface at `https://control.YOUR_DOMAIN`:
 
-### Local + CI Coexistence
+- ⚡ **Spin Up / Teardown** - Start and stop infrastructure with one click
+- 🧩 **Services** - Enable/disable services dynamically
+- ⏰ **Scheduled Teardown** - Auto-shutdown to save costs
+- 📧 **Email Credentials** - Send login credentials to your inbox
 
-Both local and CI deployments share the same remote state in R2:
-- ✅ Deploy locally, destroy via CI
-- ✅ Deploy via CI, SSH locally  
-- ✅ Multiple team members with same state
+---
+
+## 7️⃣ SSH Access (Optional)
+
+SSH access is available for debugging purposes. All SSH traffic goes through Cloudflare Tunnel.
+
+### Setup SSH Config
+
+Add to your `~/.ssh/config`:
+
+```
+Host nexus
+  HostName ssh.yourdomain.com
+  User root
+  ProxyCommand cloudflared access ssh --hostname %h
+```
+
+**Requirements:**
+- `cloudflared` installed: `brew install cloudflared`
+- Cloudflare Access configured for SSH
+
+### Test Connection
+
+```bash
+ssh nexus
+```
+
+You'll be prompted for Cloudflare Access authentication on first connection.
 
 ---
 
 ## 🔧 Troubleshooting
 
-### "Cloud-init timeout"
-
-The server is still booting. Wait a few minutes and try again:
-
-```bash
-make deploy --skip-wait
-```
-
 ### "Tunnel not connecting"
 
-Check if cloudflared is running on the server:
-
-```bash
-ssh nexus
-systemctl status cloudflared
-```
+Check GitHub Actions logs for the spin-up workflow. The tunnel may take a few minutes to become active.
 
 ### "Permission denied"
 
-Make sure your email matches `admin_email` in nexus.tfvars.
+Make sure your email matches `TF_VAR_admin_email` in GitHub Secrets.
 
----
+### "Service not accessible"
 
-## 📚 Next Steps
-
-- Add more stacks by editing `nexus.tfvars`
-- Check Grafana for logs and metrics
-- Set up alerts in Uptime Kuma
-- Store secrets in Vault
+1. Check Control Plane status at `https://control.yourdomain.com`
+2. Verify the service is enabled
+3. Check if infrastructure is running (may be torn down)
 
 ---
 
 ## 📧 Email Notifications via Resend (Optional)
 
-After deployment, Nexus-Stack can automatically send you an email with all service credentials. This requires Resend setup.
-
-### Why Resend?
-
-- **Free tier**: 3,000 emails/month, 100 emails/day
-- **Domain verification**: Send from `nexus@yourdomain.com`
-- **Simple API**: Easy integration with GitHub Actions
-- **No SMTP server needed**: Direct API integration
+After deployment, Nexus-Stack can automatically send you an email with all service credentials.
 
 ### Setup Steps
 
-#### 1. Create Resend Account
-
-1. Go to [resend.com](https://resend.com)
-2. Sign up (free account)
-3. Verify your email address
-
-#### 2. Add Your Domain
-
-1. In Resend Dashboard → **Domains** → **Add Domain**
-2. Enter your domain (e.g., `nexus-stack.ch`)
-3. Click **Add Domain**
-
-#### 3. Verify Domain (DNS Records)
-
-Resend will show you DNS records to add. Add these in **Cloudflare DNS**:
+1. **Create Resend Account** at [resend.com](https://resend.com)
+2. **Add Your Domain** in Resend Dashboard → **Domains**
+3. **Verify Domain** by adding DNS records to Cloudflare:
 
 **SPF Record (TXT):**
 ```
 Type: TXT
-Name: @ (or your domain)
+Name: @
 Content: v=spf1 include:resend.com ~all
-TTL: Auto
 ```
 
 **DKIM Record (TXT):**
 ```
 Type: TXT
-Name: resend._domainkey (or similar)
+Name: resend._domainkey
 Content: [provided by Resend]
-TTL: Auto
 ```
 
-**DMARC Record (TXT) - Optional but recommended:**
-```
-Type: TXT
-Name: _dmarc
-Content: v=DMARC1; p=none; rua=mailto:admin@yourdomain.com
-TTL: Auto
-```
-
-**Steps in Cloudflare:**
-1. Go to Cloudflare Dashboard → Your Domain → **DNS**
-2. Click **Add record**
-3. Add each record as shown above
-4. Wait 5-10 minutes for DNS propagation
-
-#### 4. Verify Domain in Resend
-
-1. Go back to Resend Dashboard → **Domains**
-2. Click **Verify** next to your domain
-3. Wait for verification (usually 1-2 minutes)
-4. Status should change to **Verified** ✅
-
-#### 5. Create API Key
-
-1. Resend Dashboard → **API Keys** → **Create API Key**
-2. Name: `Nexus-Stack`
-3. Permission: **Sending access**
-4. Click **Create**
-5. **Copy the API key** (starts with `re_` - you'll only see it once!)
-
-#### 6. Add API Key to GitHub Secrets
-
-```bash
-gh secret set RESEND_API_KEY --body "re_xxxxxxxxxxxxx"
-```
-
-Or manually:
-1. GitHub → Repository → **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Name: `RESEND_API_KEY`
-4. Value: Your Resend API key
-5. Click **Add secret**
-
-### Test Email
-
-After deployment, check your email (`ADMIN_EMAIL` secret) for:
-- Subject: `🚀 Nexus-Stack Deployed - Your Credentials`
-- Contains: Infisical admin password and service URLs
-
-### Troubleshooting
-
-**Email not received?**
-- Check GitHub Actions logs for email step
-- Verify `RESEND_API_KEY` secret is set correctly
-- Check Resend Dashboard → **Logs** for delivery status
-- Verify `ADMIN_EMAIL` secret matches your email
-
-**Domain verification failed?**
-- Double-check DNS records in Cloudflare
-- Wait 10-15 minutes for DNS propagation
-- Verify records match exactly what Resend shows
-- Check Cloudflare DNS logs for any issues
-
-**Using a different sender email?**
-- Edit `.github/workflows/setup-control-plane.yaml` line 221
-- Change `nexus@$DOMAIN` to your preferred email
-- Must be from verified domain (e.g., `admin@yourdomain.com`)
+4. **Create API Key** in Resend Dashboard → **API Keys**
+5. **Add to GitHub Secrets:**
+   ```bash
+   gh secret set RESEND_API_KEY --body "re_xxxxxxxxxxxxx"
+   ```
 
 ---
 
 ## 🐳 Docker Hub Credentials (Optional)
 
-Docker Hub limits anonymous image pulls to **100 pulls per 6 hours per IP**. During frequent deployments, this limit can be reached quickly since each stack requires multiple images.
+Docker Hub limits anonymous image pulls to **100 pulls per 6 hours per IP**. Adding credentials increases this to 200 pulls/6h.
 
-### Benefits of Docker Hub Login
-
-- **Without login**: 100 pulls/6h (anonymous)
-- **With login**: 200 pulls/6h (free account)
-
-### Setup for GitHub Actions
+### Setup
 
 1. **Create Docker Hub Access Token:**
    - Go to https://hub.docker.com/settings/security
    - Click **"New Access Token"**
-   - Name: `Nexus-Stack`
-   - Permissions: **Read** (sufficient for pulls)
-   - Click **Generate**
-   - **Copy the token** (starts with `dckr_pat_`)
+   - Permissions: **Read**
+   - **Copy the token**
 
 2. **Set GitHub Secrets:**
    ```bash
-   gh secret set DOCKERHUB_USERNAME --body "your-dockerhub-username"
-   gh secret set DOCKERHUB_TOKEN --body "dckr_pat_xxxxxxxxxxxxx"
+   gh secret set DOCKERHUB_USERNAME --body "your-username"
+   gh secret set DOCKERHUB_TOKEN --body "dckr_pat_xxxxx"
    ```
 
-3. **Verify:**
-   ```bash
-   gh secret list | grep DOCKERHUB
-   ```
+---
 
-The deployment workflow will automatically use these credentials if set.
+## 📚 Next Steps
 
-### Setup for Local Deployment
-
-Add to your `.env` file:
-
-```bash
-export TF_VAR_dockerhub_username="your-dockerhub-username"
-export TF_VAR_dockerhub_token="dckr_pat_xxxxxxxxxxxxx"
-```
-
-Or add to `tofu/stack/config.tfvars`:
-
-```hcl
-dockerhub_username = "your-dockerhub-username"
-dockerhub_token    = "dckr_pat_xxxxxxxxxxxxx"
-```
-
-The `deploy.sh` script will automatically log in to Docker Hub during deployment if credentials are provided.
+- Enable/disable services via Control Plane
+- Check Grafana for logs and metrics
+- Set up alerts in Uptime Kuma
+- Store secrets in Infisical
