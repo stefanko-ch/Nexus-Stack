@@ -807,9 +807,10 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
         
         # Kuma uses socket.io for setup - run via container's node
         # Parameters are separate: setup(username, password, callback) - NOT an object!
+        # Use polling transport - more reliable than websocket for localhost connections
         SETUP_SCRIPT='
 const { io } = require("socket.io-client");
-const socket = io("http://localhost:3001", { transports: ["websocket"] });
+const socket = io("http://localhost:3001", { transports: ["polling", "websocket"] });
 socket.on("connect", () => {
     socket.emit("needSetup", (needSetup) => {
         if (!needSetup) { console.log("ALREADY_CONFIGURED"); process.exit(0); }
@@ -874,14 +875,13 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
         SYNC_SCRIPT='
 const { io } = require("socket.io-client");
 const desired = JSON.parse(process.env.DESIRED);
-const socket = io("http://localhost:3001", { transports: ["websocket"] });
+const socket = io("http://localhost:3001", { transports: ["polling", "websocket"] });
 let added = 0, deleted = 0;
 let existingMonitors = {};
 
 socket.on("monitorList", (data) => {
     existingMonitors = data;
 });
-
 socket.on("connect", () => {
     socket.emit("login", { username: process.env.KUMA_USER, password: process.env.KUMA_PASS }, async (res) => {
         if (!res || !res.ok) { console.log("LOGIN_FAILED"); process.exit(1); }

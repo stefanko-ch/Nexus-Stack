@@ -27,5 +27,5 @@ jobs:
       r2_access_key_id: ${{ needs.setup-control-plane.outputs.r2_access_key_id }}
       r2_secret_access_key: ${{ needs.setup-control-plane.outputs.r2_secret_access_key }}
       # Pass SSH public key (private key is saved as secret by setup-control-plane)
-      ssh_public_key: ${{ needs.setup-control-plane.outputs.ssh_public_key }}
+      ssh_pubkey: ${{ needs.setup-control-plane.outputs.ssh_pubkey }}
     secrets: inherit
