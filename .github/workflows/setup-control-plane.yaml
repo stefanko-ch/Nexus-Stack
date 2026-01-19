@@ -86,9 +86,11 @@ jobs:
             
             if [ -n "$GH_TOKEN" ]; then
               echo "🔐 Saving SSH keys to GitHub Secrets..."
-              if gh secret set SSH_PRIVATE_KEY -b "$SSH_PRIVATE_KEY" 2>/dev/null && \
-                 gh secret set SSH_PUBLIC_KEY -b "$SSH_PUBLIC_KEY" 2>/dev/null; then
-                echo "✅ SSH keys saved to GitHub Secrets"
+              # Note: We only save the Private Key as a secret. 
+              # The Public Key is passed as an output and not stored as a secret to avoid 
+              # "Skip output... contains secret" warnings in GitHub Actions.
+              if gh secret set SSH_PRIVATE_KEY -b "$SSH_PRIVATE_KEY" 2>/dev/null; then
+                echo "✅ SSH Private Key saved to GitHub Secrets"
                 echo "ssh_key_created=true" >> $GITHUB_OUTPUT
               else
                 echo "⚠️  Failed to save SSH keys - GH_SECRETS_TOKEN may need 'repo' scope"
