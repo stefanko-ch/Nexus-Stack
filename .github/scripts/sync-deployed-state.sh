@@ -38,9 +38,29 @@ import os
 with open('tofu/services.tfvars', 'r') as f:
     content = f.read()
 
-# Match service blocks
-pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
-matches = re.findall(pattern, content)
+# Match service blocks by locating the start of each block, then
+# scanning forward to find the matching closing brace so that
+# nested braces are handled correctly.
+pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{'
+matches = []
+
+for match in re.finditer(pattern, content):
+    name = match.group(1)
+    # Position of the opening brace '{'
+    start = match.end() - 1
+    depth = 1
+    i = start + 1
+    while i < len(content) and depth > 0:
+        ch = content[i]
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                block = content[start + 1:i]
+                matches.append((name, block))
+                break
+        i += 1
 
 sql_statements = []
 for name, block in matches:

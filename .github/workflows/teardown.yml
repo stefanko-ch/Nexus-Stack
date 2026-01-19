@@ -137,7 +137,8 @@ jobs:
               new_block = re.sub(r'(enabled\s*=\s*)(true|false)', r'\g<1>' + ('true' if should_enable else 'false'), block)
               return f'{service_name} = {{{new_block}}}'
 
-          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
+          # Pattern handles nested braces (e.g., support_images blocks)
+          pattern = r'(?s)([a-zA-Z0-9-]+)\s*=\s*\{((?:[^{}]|\{[^{}]*\})*)\}'
           updated_content = re.sub(pattern, replace_enabled, content)
 
           with open('tofu/stack/config.tfvars', 'a') as f:

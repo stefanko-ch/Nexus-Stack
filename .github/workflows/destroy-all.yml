@@ -115,15 +115,68 @@ jobs:
           with open('tofu/services.tfvars', 'r') as f:
               content = f.read()
 
-          def replace_enabled(match):
-              service_name = match.group(1)
-              block = match.group(2)
-              should_enable = service_name in enabled_set
-              new_block = re.sub(r'(enabled\s*=\s*)(true|false)', r'\g<1>' + ('true' if should_enable else 'false'), block)
-              return f'{service_name} = {{{new_block}}}'
+          service_pattern = re.compile(r'([a-zA-Z0-9-]+)\s*=\s*\{')
 
-          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
-          updated_content = re.sub(pattern, replace_enabled, content)
+          def update_services(content: str) -> str:
+              result_parts = []
+              pos = 0
+
+              while True:
+                  match = service_pattern.search(content, pos)
+                  if not match:
+                      # Append any remaining content and stop
+                      result_parts.append(content[pos:])
+                      break
+
+                  service_name = match.group(1)
+                  # Position of the opening brace '{'
+                  brace_start = content.find('{', match.start())
+                  if brace_start == -1:
+                      # Should not happen if pattern matched, but fail-safe
+                      result_parts.append(content[pos:])
+                      break
+
+                  # Append text before this service block
+                  result_parts.append(content[pos:match.start()])
+
+                  # Walk forward to find the matching closing brace, tracking nested braces
+                  depth = 0
+                  i = brace_start
+                  end = None
+                  while i < len(content):
+                      ch = content[i]
+                      if ch == '{':
+                          depth += 1
+                      elif ch == '}':
+                          depth -= 1
+                          if depth == 0:
+                              end = i
+                              break
+                      i += 1
+
+                  if end is None:
+                      # Unbalanced braces; append the rest and stop
+                      result_parts.append(content[match.start():])
+                      break
+
+                  block_inner = content[brace_start + 1:end]
+                  should_enable = service_name in enabled_set
+                  # Update the enabled flag inside the block
+                  new_block_inner = re.sub(
+                      r'(enabled\s*=\s*)(true|false)',
+                      r'\1' + ('true' if should_enable else 'false'),
+                      block_inner,
+                  )
+
+                  # Reconstruct the full service block
+                  result_parts.append(f'{service_name} = {{{new_block_inner}}}')
+
+                  # Continue searching after the end of this block
+                  pos = end + 1
+
+              return ''.join(result_parts)
+
+          updated_content = update_services(content)
 
           with open('tofu/stack/config.tfvars', 'a') as f:
               f.write('\n# Services (from D1)\n')
