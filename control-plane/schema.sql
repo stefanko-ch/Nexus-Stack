@@ -17,10 +17,16 @@ CREATE TABLE IF NOT EXISTS config (
 -- Stores which services are enabled in the Control Plane UI
 -- enabled = what the user wants (staged)
 -- deployed = what is currently running
+-- Metadata (subdomain, port, etc.) is synced from services.tfvars
 CREATE TABLE IF NOT EXISTS services (
     name TEXT PRIMARY KEY,
     enabled INTEGER NOT NULL DEFAULT 0,
     deployed INTEGER NOT NULL DEFAULT 0,
+    subdomain TEXT DEFAULT '',
+    port INTEGER DEFAULT 0,
+    public INTEGER DEFAULT 0,
+    core INTEGER DEFAULT 0,
+    description TEXT DEFAULT '',
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
