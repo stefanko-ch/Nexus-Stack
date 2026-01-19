@@ -811,7 +811,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
         if [ "$KUMA_READY" = "false" ]; then
             echo "  Healthcheck didn't pass, trying HTTP fallback..."
             for i in $(seq 1 10); do
-                HTTP_CHECK=$(ssh nexus "curl -sf http://localhost:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
+                HTTP_CHECK=$(ssh nexus "curl -sf http://127.0.0.1:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
                 if [ "$HTTP_CHECK" = "ok" ]; then
                     KUMA_READY=true
                     echo "  HTTP responding - proceeding with setup"
@@ -824,7 +824,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
         # No healthcheck - wait for HTTP response on port 3001
         echo "  No healthcheck, waiting for HTTP response..."
         for i in $(seq 1 40); do
-            HTTP_CHECK=$(ssh nexus "curl -sf http://localhost:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
+            HTTP_CHECK=$(ssh nexus "curl -sf http://127.0.0.1:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
             if [ "$HTTP_CHECK" = "ok" ]; then
                 KUMA_READY=true
                 break
@@ -836,25 +836,56 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     if [ "$KUMA_READY" = "false" ]; then
         echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 120s - skipping config${NC}"
     else
-        # Kuma uses socket.io for setup - run via container's node
-        # Parameters are separate: setup(username, password, callback) - NOT an object!
-        # Use polling transport - websocket doesn't work reliably inside container
+        # Kuma uses socket.io for setup - use Kuma's built-in socket.io-client 
+        # Direct database approach doesn't work because password hashing requires Kuma's internal modules
+        # Use dynamic import to handle ESM/CJS modules properly
         SETUP_SCRIPT='
-const { io } = require("socket.io-client");
-const socket = io("http://localhost:3001", { transports: ["polling"] });
-socket.on("connect", () => {
-    socket.emit("needSetup", (needSetup) => {
-        if (!needSetup) { console.log("ALREADY_CONFIGURED"); process.exit(0); }
-        socket.emit("setup", process.env.KUMA_USER, process.env.KUMA_PASS, (res) => {
-            if (res && res.ok) { console.log("SUCCESS"); process.exit(0); }
-            else { console.log("FAILED"); process.exit(1); }
+(async () => {
+    try {
+        const { io } = require("socket.io-client");
+        const socket = io("http://127.0.0.1:3001", { 
+            transports: ["polling"],
+            timeout: 10000,
+            forceNew: true
         });
-    });
-});
-socket.on("connect_error", (err) => { console.log("CONNECTION_ERROR: " + err.message); process.exit(1); });
-setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
+        
+        socket.on("connect", () => {
+            socket.emit("needSetup", (needSetup) => {
+                if (!needSetup) { 
+                    console.log("ALREADY_CONFIGURED"); 
+                    socket.disconnect();
+                    process.exit(0); 
+                }
+                socket.emit("setup", process.env.KUMA_USER, process.env.KUMA_PASS, (res) => {
+                    socket.disconnect();
+                    if (res && res.ok) { 
+                        console.log("SUCCESS"); 
+                        process.exit(0); 
+                    } else { 
+                        console.log("SETUP_FAILED: " + JSON.stringify(res)); 
+                        process.exit(1); 
+                    }
+                });
+            });
+        });
+        
+        socket.on("connect_error", (err) => { 
+            console.log("CONNECTION_ERROR: " + err.message); 
+            process.exit(1); 
+        });
+        
+        setTimeout(() => { 
+            console.log("TIMEOUT"); 
+            socket.disconnect();
+            process.exit(1); 
+        }, 20000);
+    } catch (err) {
+        console.log("SCRIPT_ERROR: " + err.message);
+        process.exit(1);
+    }
+})();
 '
-        # Run in /app where node_modules is located
+        # Run in /app where node_modules is located - use 127.0.0.1 explicitly
         KUMA_RESULT=$(ssh nexus "docker exec -w /app -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' uptime-kuma node -e '$SETUP_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
         
         if echo "$KUMA_RESULT" | grep -q "SUCCESS"; then
@@ -906,36 +937,60 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
         DESIRED_ESCAPED=$(echo "$DESIRED_JSON" | sed "s/'/'\\\\''/g")
         
         SYNC_SCRIPT='
-const { io } = require("socket.io-client");
-const desired = JSON.parse(process.env.DESIRED);
-const socket = io("http://localhost:3001", { transports: ["polling"] });
-let added = 0, deleted = 0;
-let existingMonitors = {};
-socket.on("monitorList", (data) => { existingMonitors = data; });
-socket.on("connect", () => {
-    socket.emit("login", { username: process.env.KUMA_USER, password: process.env.KUMA_PASS }, async (res) => {
-        if (!res || !res.ok) { console.log("LOGIN_FAILED"); process.exit(1); }
-        await new Promise(resolve => { socket.emit("getMonitorList", () => setTimeout(resolve, 1000)); });
-        const existing = Object.values(existingMonitors);
-        const existingUrls = existing.map(m => m.url);
-        const desiredUrls = desired.map(m => m.url);
-        for (const m of desired) {
-            if (!existingUrls.includes(m.url)) {
-                const monitor = { type: "http", name: m.name, url: m.url, method: "GET", interval: 60, retryInterval: 60, maxretries: 3, accepted_statuscodes: ["200-299", "401", "403"], active: true };
-                await new Promise(resolve => { socket.emit("add", monitor, (r) => { if (r && r.ok) added++; resolve(); }); });
-            }
-        }
-        for (const m of existing) {
-            if (m.type === "http" && !desiredUrls.includes(m.url)) {
-                await new Promise(resolve => { socket.emit("deleteMonitor", m.id, (r) => { if (r && r.ok) deleted++; resolve(); }); });
-            }
-        }
-        console.log("SYNC:" + added + ":" + deleted + ":" + desired.length);
-        process.exit(0);
-    });
-});
-socket.on("connect_error", (err) => { console.log("CONNECTION_ERROR: " + err.message); process.exit(1); });
-setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 30000);
+(async () => {
+    try {
+        const { io } = require("socket.io-client");
+        const desired = JSON.parse(process.env.DESIRED);
+        const socket = io("http://127.0.0.1:3001", { 
+            transports: ["polling"],
+            timeout: 10000,
+            forceNew: true
+        });
+        let added = 0, deleted = 0;
+        let existingMonitors = {};
+        socket.on("monitorList", (data) => { existingMonitors = data; });
+        socket.on("connect", () => {
+            socket.emit("login", { username: process.env.KUMA_USER, password: process.env.KUMA_PASS }, async (res) => {
+                if (!res || !res.ok) { 
+                    console.log("LOGIN_FAILED"); 
+                    socket.disconnect();
+                    process.exit(1); 
+                }
+                await new Promise(resolve => { socket.emit("getMonitorList", () => setTimeout(resolve, 1000)); });
+                const existing = Object.values(existingMonitors);
+                const existingUrls = existing.map(m => m.url);
+                const desiredUrls = desired.map(m => m.url);
+                for (const m of desired) {
+                    if (!existingUrls.includes(m.url)) {
+                        const monitor = { type: "http", name: m.name, url: m.url, method: "GET", interval: 60, retryInterval: 60, maxretries: 3, accepted_statuscodes: ["200-299", "401", "403"], active: true };
+                        await new Promise(resolve => { socket.emit("add", monitor, (r) => { if (r && r.ok) added++; resolve(); }); });
+                    }
+                }
+                for (const m of existing) {
+                    if (m.type === "http" && !desiredUrls.includes(m.url)) {
+                        await new Promise(resolve => { socket.emit("deleteMonitor", m.id, (r) => { if (r && r.ok) deleted++; resolve(); }); });
+                    }
+                }
+                console.log("SYNC:" + added + ":" + deleted + ":" + desired.length);
+                socket.disconnect();
+                process.exit(0);
+            });
+        });
+        socket.on("connect_error", (err) => { 
+            console.log("CONNECTION_ERROR: " + err.message); 
+            socket.disconnect();
+            process.exit(1); 
+        });
+        setTimeout(() => { 
+            console.log("TIMEOUT"); 
+            socket.disconnect();
+            process.exit(1); 
+        }, 30000);
+    } catch (err) {
+        console.log("SCRIPT_ERROR: " + err.message);
+        process.exit(1);
+    }
+})();
 '
         # Run in /app where node_modules is located
         SYNC_RESULT=$(ssh nexus "docker exec -w /app -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' -e DESIRED='$DESIRED_ESCAPED' uptime-kuma node -e '$SYNC_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
