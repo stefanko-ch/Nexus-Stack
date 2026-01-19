@@ -1,36 +1,53 @@
 #!/bin/bash
 # =============================================================================
-# Sync Deployed State to D1
+# Sync Services to D1
 # =============================================================================
-# After a successful spin-up, set deployed = enabled for all services.
-# This marks staged changes as deployed.
+# After a successful spin-up:
+# 1. Initialize services from services.tfvars to D1 (metadata sync)
+# 2. Set deployed = enabled for all services (mark as deployed)
 #
 # Environment variables required:
-#   CLOUDFLARE_API_TOKEN  - Cloudflare API token with D1 access
-#   CLOUDFLARE_ACCOUNT_ID - Cloudflare account ID
-#   DOMAIN                - Domain for database name derivation
+#   DOMAIN - Domain for Control Plane URL
 # =============================================================================
 
 set -e
 
 # Validate required environment variables
-if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${DOMAIN:-}" ]; then
-  echo "⚠️ Missing required env vars for D1 sync - skipping"
+if [ -z "${DOMAIN:-}" ]; then
+  echo "⚠️ Missing DOMAIN env var - skipping D1 sync"
   exit 0
 fi
 
-# Derive D1 database name from domain
-D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+CONTROL_PLANE_URL="https://control.${DOMAIN}"
 
-echo "📊 Syncing deployed state to D1..."
+echo "📊 Syncing services to D1..."
 
-# Update all services: set deployed = enabled
-SQL="UPDATE services SET deployed = enabled, updated_at = datetime('now') WHERE deployed != enabled"
+# Step 1: Initialize services from services.tfvars
+echo "  Initializing services from services.tfvars..."
+INIT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${CONTROL_PLANE_URL}/api/services/init" \
+  -H "Content-Type: application/json" || echo -e "\n000")
+INIT_HTTP_CODE=$(echo "$INIT_RESPONSE" | tail -n1)
+INIT_BODY=$(echo "$INIT_RESPONSE" | sed '$d')
 
-if npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$SQL" 2>/dev/null; then
-  echo "✅ Deployed state synced to D1"
+if [ "$INIT_HTTP_CODE" -ge 200 ] && [ "$INIT_HTTP_CODE" -lt 300 ]; then
+  echo "  ✅ Services initialized from services.tfvars"
+  echo "$INIT_BODY" | jq -r '.message // empty' 2>/dev/null || true
 else
-  echo "⚠️ Failed to sync deployed state (non-critical)"
+  echo "  ⚠️ Failed to initialize services (HTTP $INIT_HTTP_CODE) - continuing"
 fi
 
+# Step 2: Sync deployed state
+echo "  Syncing deployed state..."
+SYNC_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${CONTROL_PLANE_URL}/api/services/sync-deployed" \
+  -H "Content-Type: application/json" || echo -e "\n000")
+SYNC_HTTP_CODE=$(echo "$SYNC_RESPONSE" | tail -n1)
+SYNC_BODY=$(echo "$SYNC_RESPONSE" | sed '$d')
+
+if [ "$SYNC_HTTP_CODE" -ge 200 ] && [ "$SYNC_HTTP_CODE" -lt 300 ]; then
+  echo "  ✅ Deployed state synced"
+else
+  echo "  ⚠️ Failed to sync deployed state (HTTP $SYNC_HTTP_CODE)"
+fi
+
+echo "✅ D1 sync complete"
 exit 0
