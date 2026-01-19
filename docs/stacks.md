@@ -503,7 +503,7 @@ Redpanda Console is a developer-friendly web UI for managing and debugging your 
 
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
 
-**Web-based SSH terminal**
+**Web-based SSH terminal (Core Service)**
 
 A terminal over HTTP/HTTPS that allows you to access your server via a web browser. Provides a full terminal experience without requiring SSH client software.
 
@@ -512,25 +512,41 @@ A terminal over HTTP/HTTPS that allows you to access your server via a web brows
 - **No SSH client needed** - Useful for environments where SSH client installation is restricted
 - **Full terminal experience** - Complete terminal functionality in your browser
 - **Cloudflare Access protected** - Secure access via email OTP authentication
-- **Complements existing tools** - Works alongside existing terminal access via `cloudflared access ssh`
+- **Public key authentication only** - No password authentication for enhanced security
+- **Session timeout** - Automatic disconnect after 1 hour of inactivity
+- **Core service** - Always enabled, cannot be disabled
+
+**Security Features:**
+- ✅ **Public key authentication only** - `SSHAUTH=publickey` prevents password-based logins
+- ✅ **Cloudflare Access** - Email OTP required before accessing Wetty interface
+- ✅ **Session timeout** - 1 hour inactivity timeout to prevent abandoned sessions
+- ✅ **Rate limiting** - Cloudflare Access provides built-in rate limiting
+- ✅ **HTTPS only** - All traffic encrypted via Cloudflare Tunnel
+- ✅ **No direct SSH exposure** - SSH daemon only accessible via localhost
 
 **Use cases:**
 - Quick terminal access without setting up SSH clients
 - Educational demos and teaching server management
 - Access from devices where SSH client installation is restricted
 - Fallback terminal access method via browser
+- Emergency access when SSH client is unavailable
 
 | Setting | Value |
 |---------|-------|
 | Default Port | `3002` |
 | Suggested Subdomain | `wetty` |
 | Public Access | **Never** (always protected) |
+| Core Service | **Yes** (always enabled) |
+| Authentication | Public key only (no passwords) |
+| Session Timeout | 1 hour inactivity |
 | Website | [GitHub](https://github.com/butlerx/wetty) |
 | Source | [GitHub](https://github.com/butlerx/wetty) |
 
-> ✅ **Auto-configured:** Wetty connects to the server's SSH daemon, so existing SSH authentication applies. Users can login with their server credentials (root or other users configured on the server).
+> ✅ **Auto-configured:** Wetty connects to the server's SSH daemon using public key authentication only. Users must have their SSH public key configured on the server (same as regular SSH access).
 
-> ℹ️ **Note:** Wetty provides a fallback terminal access method via browser. For production use, consider using `cloudflared access ssh` for a more secure, token-based authentication.
+> 🔒 **Security:** Wetty is configured with `SSHAUTH=publickey` to prevent password-based authentication. Only users with SSH keys configured on the server can access the terminal.
+
+> ⚠️ **Core Service:** Wetty is a core service and cannot be disabled. It provides essential browser-based terminal access for server management.
 
 ---
 
