@@ -3,8 +3,26 @@
  * GET /api/scheduled-teardown - Get current configuration
  * POST /api/scheduled-teardown - Update configuration
  * 
- * Configuration stored in Cloudflare KV (via Worker)
+ * Configuration stored in Cloudflare D1 database
  */
+
+// D1 Helper Functions
+async function getConfig(db, key, defaultValue = null) {
+  try {
+    const result = await db.prepare('SELECT value FROM config WHERE key = ?').bind(key).first();
+    return result ? result.value : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+async function setConfig(db, key, value) {
+  await db.prepare('INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, datetime("now"))').bind(key, value).run();
+}
+
+async function deleteConfig(db, key) {
+  await db.prepare('DELETE FROM config WHERE key = ?').bind(key).run();
+}
 
 /**
  * Convert a time in a specific timezone to UTC Date
@@ -47,10 +65,10 @@ function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
 export async function onRequestGet(context) {
   const { env } = context;
   
-  if (!env.SCHEDULED_TEARDOWN) {
+  if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
-      error: 'Scheduled teardown worker not configured'
+      error: 'D1 database not configured'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -58,11 +76,11 @@ export async function onRequestGet(context) {
   }
 
   try {
-    const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
-    const timezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
-    const teardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
-    const notificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
-    const delayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
+    const enabled = await getConfig(env.NEXUS_DB, 'teardown_enabled', 'true');
+    const timezone = await getConfig(env.NEXUS_DB, 'teardown_timezone', 'Europe/Zurich');
+    const teardownTime = await getConfig(env.NEXUS_DB, 'teardown_time', '22:00');
+    const notificationTime = await getConfig(env.NEXUS_DB, 'notification_time', '21:45');
+    const delayUntil = await getConfig(env.NEXUS_DB, 'delay_until', null);
     
     // Calculate next teardown time
     let nextTeardown = null;
@@ -138,10 +156,10 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
   const { env, request } = context;
   
-  if (!env.SCHEDULED_TEARDOWN) {
+  if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
-      error: 'Scheduled teardown worker not configured'
+      error: 'D1 database not configured'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -188,33 +206,33 @@ export async function onRequestPost(context) {
     if (delayHours !== undefined) {
       const delayMs = delayHours * 60 * 60 * 1000;
       const delayUntil = new Date(Date.now() + delayMs).toISOString();
-      await env.SCHEDULED_TEARDOWN.put('delay_until', delayUntil);
+      await setConfig(env.NEXUS_DB, 'delay_until', delayUntil);
     }
 
-    // Update KV store
+    // Update D1 database
     if (enabled !== undefined) {
-      await env.SCHEDULED_TEARDOWN.put('enabled', enabled ? 'true' : 'false');
+      await setConfig(env.NEXUS_DB, 'teardown_enabled', enabled ? 'true' : 'false');
       // Clear delay when disabling
       if (!enabled) {
-        await env.SCHEDULED_TEARDOWN.delete('delay_until');
+        await deleteConfig(env.NEXUS_DB, 'delay_until');
       }
     }
     if (timezone) {
-      await env.SCHEDULED_TEARDOWN.put('timezone', timezone);
+      await setConfig(env.NEXUS_DB, 'teardown_timezone', timezone);
     }
     if (teardownTime) {
-      await env.SCHEDULED_TEARDOWN.put('teardown_time', teardownTime);
+      await setConfig(env.NEXUS_DB, 'teardown_time', teardownTime);
     }
     if (notificationTime) {
-      await env.SCHEDULED_TEARDOWN.put('notification_time', notificationTime);
+      await setConfig(env.NEXUS_DB, 'notification_time', notificationTime);
     }
 
     // Get updated config
-    const updatedEnabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
-    const updatedTimezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
-    const updatedTeardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
-    const updatedNotificationTime = await env.SCHEDULED_TEARDOWN.get('notification_time') || '21:45';
-    const updatedDelayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
+    const updatedEnabled = await getConfig(env.NEXUS_DB, 'teardown_enabled', 'true');
+    const updatedTimezone = await getConfig(env.NEXUS_DB, 'teardown_timezone', 'Europe/Zurich');
+    const updatedTeardownTime = await getConfig(env.NEXUS_DB, 'teardown_time', '22:00');
+    const updatedNotificationTime = await getConfig(env.NEXUS_DB, 'notification_time', '21:45');
+    const updatedDelayUntil = await getConfig(env.NEXUS_DB, 'delay_until', null);
 
     return new Response(JSON.stringify({
       success: true,

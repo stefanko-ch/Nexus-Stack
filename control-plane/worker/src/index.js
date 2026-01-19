@@ -5,16 +5,45 @@
  * 1. Email notification (15 minutes before teardown)
  * 2. Teardown workflow (at configured time)
  * 
- * Configuration stored in KV: SCHEDULED_TEARDOWN
- * - enabled: "true" | "false"
- * - timezone: "Europe/Zurich" (default)
+ * Configuration stored in Cloudflare D1 database (NEXUS_DB)
+ * - teardown_enabled: "true" | "false"
+ * - teardown_timezone: "Europe/Zurich" (default)
  * - teardown_time: "22:00" (default)
  * - notification_time: "21:45" (default, 15 min before)
  */
 
+// D1 Helper Functions
+async function getConfigValue(db, key, defaultValue = null) {
+  try {
+    const result = await db.prepare('SELECT value FROM config WHERE key = ?').bind(key).first();
+    return result ? result.value : defaultValue;
+  } catch (error) {
+    console.error('Failed to get config value from D1 for key:', key, error);
+    return defaultValue;
+  }
+}
+
+async function deleteConfigValue(db, key) {
+  await db.prepare('DELETE FROM config WHERE key = ?').bind(key).run();
+}
+
+async function logToD1(db, level, message, metadata = null) {
+  if (!db) return;
+  try {
+    const metadataJson = metadata ? JSON.stringify(metadata) : null;
+    await db.prepare(
+      'INSERT INTO logs (source, level, message, metadata) VALUES (?, ?, ?, ?)'
+    ).bind('worker', level, message, metadataJson).run();
+  } catch (error) {
+    console.error('Failed to log to D1:', error);
+  }
+}
+
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(handleScheduledTeardown(event, env));
+    // Run log cleanup weekly (on the first cron trigger)
+    ctx.waitUntil(cleanupOldLogs(env));
   },
 
   async fetch(request, env) {
@@ -29,12 +58,48 @@ export default {
   },
 };
 
+// Clean up logs older than 30 days
+async function cleanupOldLogs(env) {
+  if (!env.NEXUS_DB) return;
+  
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = cutoff.toISOString().replace('T', ' ').substring(0, 19);
+    
+    const result = await env.NEXUS_DB.prepare(
+      'DELETE FROM logs WHERE created_at < ?'
+    ).bind(cutoffStr).run();
+    
+    const deletedCount = result.meta?.changes || 0;
+    if (deletedCount > 0) {
+      console.log(`Cleaned up ${deletedCount} old log entries`);
+      await logToD1(env.NEXUS_DB, 'info', 'Log cleanup completed', { deletedCount });
+    }
+  } catch (error) {
+    console.error('Failed to cleanup old logs:', error);
+  }
+}
+
 async function handleScheduledTeardown(event, env) {
   try {
-    // Get configuration from KV
-    const config = await getConfig(env.SCHEDULED_TEARDOWN);
+    // Check if D1 database is configured
+    if (!env.NEXUS_DB) {
+      console.log('D1 database not configured');
+      return;
+    }
+
+    // Log worker execution
+    await logToD1(env.NEXUS_DB, 'info', 'Scheduled worker triggered', {
+      cron: event.cron,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Get configuration from D1
+    const config = await getConfig(env.NEXUS_DB);
     
     if (config.enabled !== 'true') {
+      await logToD1(env.NEXUS_DB, 'debug', 'Scheduled teardown is disabled');
       console.log('Scheduled teardown is disabled');
       return;
     }
@@ -45,11 +110,16 @@ async function handleScheduledTeardown(event, env) {
       const now = new Date();
       if (now < delayUntil) {
         const hoursRemaining = Math.ceil((delayUntil - now) / (1000 * 60 * 60));
+        await logToD1(env.NEXUS_DB, 'info', 'Teardown delayed', {
+          delayUntil: delayUntil.toISOString(),
+          hoursRemaining,
+        });
         console.log(`Scheduled teardown is delayed until ${delayUntil.toISOString()} (${hoursRemaining} hours remaining)`);
         return;
       } else {
         // Delay has expired, clear it
-        await env.SCHEDULED_TEARDOWN.delete('delay_until');
+        await deleteConfigValue(env.NEXUS_DB, 'delay_until');
+        await logToD1(env.NEXUS_DB, 'info', 'Delay expired, teardown will proceed');
         console.log('Delay period expired, teardown will proceed');
       }
     }
@@ -74,23 +144,29 @@ async function handleScheduledTeardown(event, env) {
     
     // Check if it's notification time or teardown time
     if (currentHour === notificationHour && currentMinute === notificationMinute) {
+      await logToD1(env.NEXUS_DB, 'info', 'Sending teardown notification email');
       await sendNotification(env, config);
     } else if (currentHour === teardownHour && currentMinute === teardownMinute) {
+      await logToD1(env.NEXUS_DB, 'warn', 'Triggering scheduled teardown');
       await triggerTeardown(env, config);
     } else {
       console.log(`Not time for notification (${notificationHour}:${String(notificationMinute).padStart(2, '0')} UTC) or teardown (${teardownHour}:${String(teardownMinute).padStart(2, '0')} UTC)`);
     }
   } catch (error) {
     console.error('Error in scheduled teardown:', error);
+    await logToD1(env.NEXUS_DB, 'error', 'Scheduled teardown error', {
+      error: error.message,
+      stack: error.stack?.substring(0, 500),
+    });
   }
 }
 
-async function getConfig(kv) {
-  const enabled = await kv.get('enabled') || 'true';
-  const timezone = await kv.get('timezone') || 'Europe/Zurich';
-  const teardownTime = await kv.get('teardown_time') || '22:00';
-  const notificationTime = await kv.get('notification_time') || '21:45';
-  const delayUntil = await kv.get('delay_until') || null;
+async function getConfig(db) {
+  const enabled = await getConfigValue(db, 'teardown_enabled', 'true');
+  const timezone = await getConfigValue(db, 'teardown_timezone', 'Europe/Zurich');
+  const teardownTime = await getConfigValue(db, 'teardown_time', '22:00');
+  const notificationTime = await getConfigValue(db, 'notification_time', '21:45');
+  const delayUntil = await getConfigValue(db, 'delay_until', null);
   
   return { enabled, timezone, teardownTime, notificationTime, delayUntil };
 }

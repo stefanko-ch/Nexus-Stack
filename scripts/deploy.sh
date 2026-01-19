@@ -461,32 +461,27 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     echo "  Configuring Infisical..."
     
     # Wait for Infisical to be ready (optimized: check container status first)
-    echo "  Waiting for Infisical to be ready..."
+    echo "  Waiting for Infisical to be ready (may take up to 2min)..."
     INFISICAL_READY=false
     # First check if container is running (faster than HTTP)
-    for i in $(seq 1 10); do
+    for i in $(seq 1 20); do
         CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' infisical 2>/dev/null" || echo "")
         if [ "$CONTAINER_STATUS" = "running" ]; then
             break
         fi
-        sleep 1
+        sleep 2
     done
-    # Then check HTTP endpoint with shorter intervals initially
-    for i in $(seq 1 20); do
+    # Then check HTTP endpoint (allow up to 120s total)
+    for i in $(seq 1 40); do
         if ssh nexus "curl -s --connect-timeout 3 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null | grep -q 'initialized'; then
             INFISICAL_READY=true
             break
         fi
-        # Start with 1s intervals, increase to 2s after 10 retries
-        if [ $i -lt 10 ]; then
-            sleep 1
-        else
-            sleep 2
-        fi
+        sleep 3
     done
     
     if [ "$INFISICAL_READY" = "false" ]; then
-        echo -e "${YELLOW}  ⚠ Infisical not responding after 60s - skipping config${NC}"
+        echo -e "${YELLOW}  ⚠ Infisical not responding after 120s - skipping config${NC}"
     else
     # Check if already initialized
     INIT_CHECK=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null || echo "")
@@ -775,184 +770,23 @@ if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; th
     fi
 fi
 
+# -----------------------------------------------------------------------------
+# TODO: Fix Uptime Kuma auto-configuration (Issue #145)
+# -----------------------------------------------------------------------------
+# The Socket.io-based setup fails with "server error" when connecting from
+# inside the container. This needs investigation - possibly a socket.io
+# client/server version mismatch or container networking issue.
+# For now, users must configure Uptime Kuma manually on first login.
+# Credentials are available in Infisical.
+# -----------------------------------------------------------------------------
 # Configure Uptime Kuma admin
-if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; then
-    echo "  Configuring Uptime Kuma..."
-    
-    # Wait for Uptime Kuma container to be ready (optimized: check status first)
-    echo "  Waiting for Uptime Kuma to be ready..."
-    KUMA_READY=false
-    # First check if container is running (faster than health check)
-    for i in $(seq 1 10); do
-        CONTAINER_STATUS=$(ssh nexus "docker inspect --format='{{.State.Status}}' uptime-kuma 2>/dev/null" || echo "")
-        if [ "$CONTAINER_STATUS" = "running" ]; then
-            break
-        fi
-        sleep 1
-    done
-    # Then check health status with shorter intervals initially
-    for i in $(seq 1 20); do
-        KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
-        if [ "$KUMA_HEALTH" = "healthy" ]; then
-            KUMA_READY=true
-            break
-        fi
-        # Start with 1s intervals, increase to 2s after 10 retries
-        if [ $i -lt 10 ]; then
-            sleep 1
-        else
-            sleep 2
-        fi
-    done
-    
-    if [ "$KUMA_READY" = "false" ]; then
-        echo -e "${YELLOW}  ⚠ Uptime Kuma not healthy after 60s - skipping config${NC}"
-    else
-        # Kuma uses socket.io for setup - run via container's node
-        # Parameters are separate: setup(username, password, callback) - NOT an object!
-        SETUP_SCRIPT='
-const { io } = require("socket.io-client");
-const socket = io("http://localhost:3001", { transports: ["websocket"] });
-socket.on("connect", () => {
-    socket.emit("needSetup", (needSetup) => {
-        if (!needSetup) { console.log("ALREADY_CONFIGURED"); process.exit(0); }
-        socket.emit("setup", process.env.KUMA_USER, process.env.KUMA_PASS, (res) => {
-            if (res && res.ok) { console.log("SUCCESS"); process.exit(0); }
-            else { console.log("FAILED"); process.exit(1); }
-        });
-    });
-});
-socket.on("connect_error", (err) => { console.log("CONNECTION_ERROR: " + err.message); process.exit(1); });
-setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
-'
-        # Run in /app where node_modules is located
-        KUMA_RESULT=$(ssh nexus "docker exec -w /app -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' uptime-kuma node -e '$SETUP_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
-        
-        if echo "$KUMA_RESULT" | grep -q "SUCCESS"; then
-            echo -e "${GREEN}  ✓ Uptime Kuma admin created (user: $ADMIN_USERNAME)${NC}"
-            KUMA_SETUP_SUCCESS=true
-        elif echo "$KUMA_RESULT" | grep -q "ALREADY_CONFIGURED"; then
-            echo -e "${YELLOW}  ⚠ Uptime Kuma already configured${NC}"
-            KUMA_SETUP_SUCCESS=true
-        else
-            echo -e "${YELLOW}  ⚠ Kuma auto-setup failed - configure manually at first login${NC}"
-            echo -e "${YELLOW}    Credentials available in Infisical${NC}"
-            KUMA_SETUP_SUCCESS=false
-        fi
-        
-        # Sync monitors for all enabled services (add missing, remove disabled)
-        # This runs on every deploy, not just first setup
-        echo "  Syncing service monitors..."
-        
-        # Get service URLs from tofu output
-        SERVICE_URLS=$(cd "$TOFU_DIR" && tofu output -json service_urls 2>/dev/null || echo "{}")
-        
-        # Build desired monitors JSON array (services that should be monitored)
-        DESIRED_JSON="["
-        FIRST=true
-        for service in $ENABLED_LIST; do
-            # Skip uptime-kuma itself
-            [ "$service" = "uptime-kuma" ] && continue
-            
-            # Get the URL for this service
-            SERVICE_URL=$(echo "$SERVICE_URLS" | jq -r ".\"$service\" // empty")
-            [ -z "$SERVICE_URL" ] && continue
-            
-            # Format service name for display (capitalize, replace dashes)
-            DISPLAY_NAME=$(echo "$service" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
-            
-            if [ "$FIRST" = "true" ]; then
-                FIRST=false
-            else
-                DESIRED_JSON="$DESIRED_JSON,"
-            fi
-            
-            DESIRED_JSON="$DESIRED_JSON{\"name\":\"$DISPLAY_NAME\",\"url\":\"$SERVICE_URL\"}"
-        done
-        DESIRED_JSON="$DESIRED_JSON]"
-        
-        # Sync monitors via socket.io (add missing, delete removed)
-        SYNC_SCRIPT='
-const { io } = require("socket.io-client");
-const desired = JSON.parse(process.env.DESIRED);
-const socket = io("http://localhost:3001", { transports: ["websocket"] });
-let added = 0, deleted = 0;
-let existingMonitors = {};
+# if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; then
+#     ... (disabled - see TODO above)
+# fi
 
-socket.on("monitorList", (data) => {
-    existingMonitors = data;
-});
-
-socket.on("connect", () => {
-    socket.emit("login", { username: process.env.KUMA_USER, password: process.env.KUMA_PASS }, async (res) => {
-        if (!res || !res.ok) { console.log("LOGIN_FAILED"); process.exit(1); }
-        
-        // Get current monitors
-        await new Promise(resolve => {
-            socket.emit("getMonitorList", () => setTimeout(resolve, 500));
-        });
-        
-        const existing = Object.values(existingMonitors);
-        const existingUrls = existing.map(m => m.url);
-        const desiredUrls = desired.map(m => m.url);
-        
-        // Add missing monitors
-        for (const m of desired) {
-            if (!existingUrls.includes(m.url)) {
-                const monitor = {
-                    type: "http",
-                    name: m.name,
-                    url: m.url,
-                    method: "GET",
-                    interval: 60,
-                    retryInterval: 60,
-                    maxretries: 3,
-                    accepted_statuscodes: ["200-299", "401", "403"],
-                    active: true
-                };
-                await new Promise(resolve => {
-                    socket.emit("add", monitor, (r) => { if (r && r.ok) added++; resolve(); });
-                });
-            }
-        }
-        
-        // Delete monitors for disabled services
-        for (const m of existing) {
-            if (!desiredUrls.includes(m.url)) {
-                await new Promise(resolve => {
-                    socket.emit("deleteMonitor", m.id, (r) => { if (r && r.ok) deleted++; resolve(); });
-                });
-            }
-        }
-        
-        console.log("SYNC:" + added + ":" + deleted + ":" + desired.length);
-        process.exit(0);
-    });
-});
-socket.on("connect_error", () => { console.log("CONNECTION_ERROR"); process.exit(1); });
-setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 30000);
-'
-        # Escape the JSON for shell
-        DESIRED_ESCAPED=$(echo "$DESIRED_JSON" | sed "s/'/'\\\\''/g")
-        
-        # Run in /app where node_modules is located
-        SYNC_RESULT=$(ssh nexus "docker exec -w /app -e KUMA_USER='$ADMIN_USERNAME' -e KUMA_PASS='$KUMA_PASS' -e DESIRED='$DESIRED_ESCAPED' uptime-kuma node -e '$SYNC_SCRIPT'" 2>&1 || echo "EXEC_FAILED")
-        
-        if echo "$SYNC_RESULT" | grep -q "SYNC:"; then
-            SYNC_DATA=$(echo "$SYNC_RESULT" | grep "SYNC:" | head -1)
-            ADDED_COUNT=$(echo "$SYNC_DATA" | cut -d: -f2)
-            DELETED_COUNT=$(echo "$SYNC_DATA" | cut -d: -f3)
-            TOTAL_COUNT=$(echo "$SYNC_DATA" | cut -d: -f4)
-            
-            if [ "$ADDED_COUNT" = "0" ] && [ "$DELETED_COUNT" = "0" ]; then
-                echo -e "${GREEN}  ✓ Monitors in sync ($TOTAL_COUNT services)${NC}"
-            else
-                echo -e "${GREEN}  ✓ Monitors synced: +$ADDED_COUNT added, -$DELETED_COUNT removed ($TOTAL_COUNT total)${NC}"
-            fi
-        else
-            echo -e "${YELLOW}  ⚠ Failed to sync monitors${NC}"
-        fi
-    fi
+if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma"; then
+    echo -e "${YELLOW}  ⚠ Uptime Kuma requires manual setup on first login${NC}"
+    echo -e "${YELLOW}    Credentials available in Infisical${NC}"
 fi
 
 # Wait for all background configuration jobs to complete

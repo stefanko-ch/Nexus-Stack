@@ -269,6 +269,22 @@
             transform: none;
         }
 
+        .service-card.no-link {
+            opacity: 0.6;
+            border-color: rgba(100, 112, 128, 0.3);
+            cursor: default;
+        }
+
+        .service-card.no-link:hover {
+            border-color: rgba(100, 112, 128, 0.5);
+            box-shadow: none;
+            transform: none;
+        }
+
+        .service-card.no-link .service-name {
+            color: #607080;
+        }
+
         footer {
             text-align: center;
             padding: 2rem;
@@ -367,12 +383,16 @@
             return IMAGE_VERSIONS[serviceName] || null;
         }
 
+        // Services without a web UI (backend/infrastructure services)
+        const noLinkServices = ['redpanda', 'mailpit'];
+
         function createServiceCard(name, service, isActive) {
             const url = `https://${service.subdomain}.${DOMAIN}`;
             const description = service.description || 'No description available';
             const version = getVersion(name);
             const card = document.createElement('div');
-            card.className = `service-card ${isActive ? '' : 'disabled'}`;
+            const hasNoLink = noLinkServices.includes(name);
+            card.className = `service-card ${isActive ? '' : 'disabled'} ${hasNoLink ? 'no-link' : ''}`;
             
             // Format name for display
             const displayName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -381,7 +401,10 @@
             const displayVersion = version && version.startsWith('v') ? version : `v${version}`;
             const versionTag = version ? `<span class="service-version">${displayVersion}</span>` : '';
             
-            if (isActive) {
+            // Backend services badge
+            const backendBadge = hasNoLink ? '<span class="service-status" style="background: rgba(100, 112, 128, 0.2); border-color: rgba(100, 112, 128, 0.4); color: #607080;">Backend</span>' : '';
+            
+            if (isActive && !hasNoLink) {
                 card.innerHTML = `
                     <a href="${url}" target="_blank">
                         <div class="service-header">
@@ -394,6 +417,19 @@
                             ${versionTag}
                         </div>
                     </a>
+                `;
+            } else if (isActive && hasNoLink) {
+                // Backend service without clickable link
+                card.innerHTML = `
+                    <div class="service-header">
+                        <span class="service-name">${displayName}</span>
+                        ${backendBadge}
+                    </div>
+                    <p class="service-description">${description}</p>
+                    <div class="service-footer">
+                        <span class="service-url" style="opacity: 0.4;">${url}</span>
+                        ${versionTag}
+                    </div>
                 `;
             } else {
                 card.innerHTML = `

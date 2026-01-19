@@ -1,11 +1,31 @@
 /**
  * Manage services configuration
  * GET /api/services - Get all services with their enabled status
- * POST /api/services - Enable/disable a service (stored in KV)
+ * POST /api/services - Enable/disable a service (stored in D1)
  * 
  * Service definitions come from tofu/services.tfvars (read-only)
- * Enabled status is stored in Cloudflare KV (SCHEDULED_TEARDOWN namespace)
+ * Enabled status is stored in Cloudflare D1 database (services table)
  */
+
+import { logApiCall, logError } from './_utils/logger.js';
+
+// D1 Helper Functions
+async function getEnabledServicesFromD1(db) {
+  try {
+    const results = await db.prepare('SELECT name, enabled FROM services').all();
+    const map = {};
+    for (const row of results.results || []) {
+      map[row.name] = row.enabled === 1;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+async function setServiceEnabled(db, name, enabled) {
+  await db.prepare('INSERT OR REPLACE INTO services (name, enabled, updated_at) VALUES (?, ?, datetime("now"))').bind(name, enabled ? 1 : 0).run();
+}
 
 function decodeBase64(input) {
   if (typeof atob === 'function') {
@@ -111,35 +131,6 @@ async function fetchServicesFile(env) {
 }
 
 /**
- * Get enabled services from KV
- * Returns object like { "it-tools": true, "grafana": false }
- */
-async function getEnabledServices(env) {
-  if (!env.SCHEDULED_TEARDOWN) {
-    return null;
-  }
-  const data = await env.SCHEDULED_TEARDOWN.get('services_enabled');
-  if (!data) {
-    return {};
-  }
-  try {
-    return JSON.parse(data);
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Save enabled services to KV
- */
-async function saveEnabledServices(env, enabledMap) {
-  if (!env.SCHEDULED_TEARDOWN) {
-    throw new Error('KV namespace not configured');
-  }
-  await env.SCHEDULED_TEARDOWN.put('services_enabled', JSON.stringify(enabledMap));
-}
-
-/**
  * Trigger spin-up workflow with enabled services list
  */
 async function triggerSpinUp(env, enabledServices) {
@@ -189,10 +180,10 @@ export async function onRequestGet(context) {
     const content = decodeBase64(file.content || '');
     const serviceDefinitions = parseServicesConfig(content);
 
-    // Fetch enabled status from KV
-    const enabledMap = await getEnabledServices(env) || {};
+    // Fetch enabled status from D1
+    const enabledMap = env.NEXUS_DB ? await getEnabledServicesFromD1(env.NEXUS_DB) : {};
 
-    // Merge: use KV value if exists, otherwise use default from tfvars
+    // Merge: use D1 value if exists, otherwise use default from tfvars
     const services = serviceDefinitions.map(svc => ({
       name: svc.name,
       subdomain: svc.subdomain,
@@ -200,7 +191,7 @@ export async function onRequestGet(context) {
       public: svc.public,
       core: svc.core,
       description: svc.description,
-      // Use KV value if set, otherwise use default from tfvars
+      // Use D1 value if set, otherwise use default from tfvars
       enabled: Object.hasOwn(enabledMap, svc.name) 
         ? enabledMap[svc.name] 
         : svc.defaultEnabled,
@@ -226,7 +217,8 @@ export async function onRequestGet(context) {
 
 /**
  * POST /api/services
- * Enable/disable a service and trigger spin-up
+ * Enable/disable a service (saves to D1 only, no deployment)
+ * Use the Spin Up button to deploy changes
  */
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -241,10 +233,10 @@ export async function onRequestPost(context) {
     });
   }
 
-  if (!env.SCHEDULED_TEARDOWN) {
+  if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
-      error: 'KV namespace not configured. Re-run the deploy workflow to set up KV bindings.',
+      error: 'D1 database not configured. Re-run the deploy workflow to set up D1 bindings.',
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -293,32 +285,32 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Get current enabled map from KV
-    const enabledMap = await getEnabledServices(env) || {};
-    
-    // Update the service status
-    enabledMap[serviceName] = enabled;
-    
-    // Save to KV
-    await saveEnabledServices(env, enabledMap);
+    // Save to D1 (no deployment - user clicks Spin Up when ready)
+    await setServiceEnabled(env.NEXUS_DB, serviceName, enabled);
 
-    // Build list of all enabled services for spin-up
+    // Log the service toggle
+    await logApiCall(env.NEXUS_DB, '/api/services', 'POST', {
+      action: 'toggle_service',
+      service: serviceName,
+      enabled: enabled,
+    });
+
+    // Get updated enabled map for response
+    const enabledMap = await getEnabledServicesFromD1(env.NEXUS_DB);
     const enabledServices = serviceDefinitions
       .filter(svc => {
-        if (enabledMap.hasOwnProperty(svc.name)) {
+        if (Object.hasOwn(enabledMap, svc.name)) {
           return enabledMap[svc.name];
         }
         return svc.defaultEnabled;
       })
       .map(svc => svc.name);
 
-    // Trigger spin-up with the enabled services
-    await triggerSpinUp(env, enabledServices);
-
     return new Response(JSON.stringify({
       success: true,
-      message: `Service ${serviceName} ${enabled ? 'enabled' : 'disabled'}. Spin-up triggered.`,
+      message: `Service ${serviceName} ${enabled ? 'enabled' : 'disabled'}. Click "Spin Up" to deploy changes.`,
       enabledServices,
+      pendingChanges: true,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });

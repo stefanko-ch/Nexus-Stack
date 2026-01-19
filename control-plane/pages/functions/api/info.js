@@ -3,7 +3,18 @@
  * GET /api/info
  * 
  * Returns server info, time information, scheduled teardown details, and workflow details
+ * Configuration stored in Cloudflare D1 database
  */
+
+// D1 Helper Functions
+async function getConfig(db, key, defaultValue = null) {
+  try {
+    const result = await db.prepare('SELECT value FROM config WHERE key = ?').bind(key).first();
+    return result ? result.value : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
 
 /**
  * Convert a time in a specific timezone to UTC Date
@@ -70,29 +81,40 @@ export async function onRequestGet(context) {
       workflows: {},
     };
 
-    // Debug: Log environment variables
-    console.log('[INFO API] Environment check:', {
-      SERVER_TYPE: env.SERVER_TYPE ? 'SET' : 'MISSING',
-      SERVER_LOCATION: env.SERVER_LOCATION ? 'SET' : 'MISSING',
-      DOMAIN: env.DOMAIN ? 'SET' : 'MISSING',
-      GITHUB_TOKEN: env.GITHUB_TOKEN ? 'SET' : 'MISSING',
-      GITHUB_OWNER: env.GITHUB_OWNER ? 'SET' : 'MISSING',
-      GITHUB_REPO: env.GITHUB_REPO ? 'SET' : 'MISSING',
-    });
+    // Get server info from D1 config (primary) or env vars (fallback)
+    let serverType = null;
+    let serverLocation = null;
+    let domain = null;
+    let lastSpinUp = null;
+    let lastTeardown = null;
 
-    // Get server info from environment variables (set by Terraform)
+    if (env.NEXUS_DB) {
+      serverType = await getConfig(env.NEXUS_DB, 'server_type', null);
+      serverLocation = await getConfig(env.NEXUS_DB, 'server_location', null);
+      domain = await getConfig(env.NEXUS_DB, 'domain', null);
+      lastSpinUp = await getConfig(env.NEXUS_DB, 'last_spin_up', null);
+      lastTeardown = await getConfig(env.NEXUS_DB, 'last_teardown', null);
+    }
+
+    // Fallback to env vars if D1 doesn't have values
+    if (!serverType) serverType = env.SERVER_TYPE || null;
+    if (!serverLocation) serverLocation = env.SERVER_LOCATION || null;
+    if (!domain) domain = env.DOMAIN || null;
+
     info.server = {
-      type: env.SERVER_TYPE || 'cax31',
-      location: env.SERVER_LOCATION || 'fsn1',
-      domain: env.DOMAIN || 'unknown',
+      type: serverType,
+      location: serverLocation,
+      domain: domain,
+      lastSpinUp: lastSpinUp,
+      lastTeardown: lastTeardown,
     };
 
-    // Get scheduled teardown config
-    if (env.SCHEDULED_TEARDOWN) {
-      const enabled = await env.SCHEDULED_TEARDOWN.get('enabled') || 'true';
-      const timezone = await env.SCHEDULED_TEARDOWN.get('timezone') || 'Europe/Zurich';
-      const teardownTime = await env.SCHEDULED_TEARDOWN.get('teardown_time') || '22:00';
-      const delayUntil = await env.SCHEDULED_TEARDOWN.get('delay_until') || null;
+    // Get scheduled teardown config from D1
+    if (env.NEXUS_DB) {
+      const enabled = await getConfig(env.NEXUS_DB, 'teardown_enabled', 'true');
+      const timezone = await getConfig(env.NEXUS_DB, 'teardown_timezone', 'Europe/Zurich');
+      const teardownTime = await getConfig(env.NEXUS_DB, 'teardown_time', '22:00');
+      const delayUntil = await getConfig(env.NEXUS_DB, 'delay_until', null);
       
       info.scheduledTeardown = {
         enabled: enabled === 'true',
@@ -107,7 +129,7 @@ export async function onRequestGet(context) {
         const timeFormatRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
         if (!timeFormatRegex.test(teardownTime)) {
           // Log warning for invalid format
-          console.warn(`Invalid teardown_time format in KV: "${teardownTime}". Expected HH:MM format. Skipping next teardown calculation.`);
+          console.warn(`Invalid teardown_time format in D1: "${teardownTime}". Expected HH:MM format. Skipping next teardown calculation.`);
           // Skip calculation if invalid format
           info.scheduledTeardown.nextTeardown = null;
           info.scheduledTeardown.timeRemaining = null;

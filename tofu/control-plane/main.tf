@@ -17,14 +17,19 @@ locals {
 }
 
 # -----------------------------------------------------------------------------
-# Scheduled Teardown Worker (must be defined before Pages Project for KV binding)
+# D1 Database for Control Plane State
 # -----------------------------------------------------------------------------
+# Stores: scheduled teardown config, enabled services
+# Does NOT store: credentials (those go in Cloudflare Secrets)
 
-# KV Namespace for scheduled teardown configuration
-resource "cloudflare_workers_kv_namespace" "scheduled_teardown" {
+resource "cloudflare_d1_database" "nexus" {
   account_id = var.cloudflare_account_id
-  title      = "${local.resource_prefix}-kv"
+  name       = "${local.resource_prefix}-db"
 }
+
+# -----------------------------------------------------------------------------
+# Scheduled Teardown Worker
+# -----------------------------------------------------------------------------
 
 # Cloudflare Worker for scheduled teardown
 resource "cloudflare_workers_script" "scheduled_teardown" {
@@ -33,9 +38,9 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
   content    = file("${path.module}/../../control-plane/worker/src/index.js")
   module     = true
 
-  kv_namespace_binding {
-    name         = "SCHEDULED_TEARDOWN"
-    namespace_id = cloudflare_workers_kv_namespace.scheduled_teardown.id
+  d1_database_binding {
+    name        = "NEXUS_DB"
+    database_id = cloudflare_d1_database.nexus.id
   }
 
   # Environment variables for worker
@@ -107,11 +112,11 @@ resource "cloudflare_pages_project" "control_plane" {
         SERVER_LOCATION = var.server_location
       }
       
-      kv_namespaces = {
-        SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
+      d1_databases = {
+        NEXUS_DB = cloudflare_d1_database.nexus.id
       }
       
-      # Note: GITHUB_TOKEN and RESEND_API_KEY are set via wrangler secret
+      # Note: GITHUB_TOKEN, RESEND_API_KEY, and CREDENTIALS_JSON are set via wrangler secret
       # (secrets block in Terraform isn't supported for Pages yet)
     }
 
@@ -126,8 +131,8 @@ resource "cloudflare_pages_project" "control_plane" {
         SERVER_LOCATION = var.server_location
       }
       
-      kv_namespaces = {
-        SCHEDULED_TEARDOWN = cloudflare_workers_kv_namespace.scheduled_teardown.id
+      d1_databases = {
+        NEXUS_DB = cloudflare_d1_database.nexus.id
       }
     }
   }

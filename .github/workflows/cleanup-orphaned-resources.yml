@@ -23,57 +23,39 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Cleanup KV Namespace
+      - name: Cleanup D1 Database
         run: |
-          echo "🔍 Finding KV Namespace..."
+          echo "🔍 Finding D1 Database..."
           # Resource prefix is derived from domain (e.g., stefanko.ch -> nexus-stefanko-ch)
           DOMAIN="${{ secrets.DOMAIN }}"
           RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
-          KV_NAMESPACE_TITLE="${RESOURCE_PREFIX}-kv"
+          D1_DATABASE_NAME="${RESOURCE_PREFIX}-db"
           
-          # Get all KV namespaces
-          KV_NAMESPACES_RESPONSE=$(curl -s \
-            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/storage/kv/namespaces" \
+          # Get all D1 databases
+          D1_DATABASES_RESPONSE=$(curl -s \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type: application/json")
           
-          KV_NAMESPACE_ID=$(echo "$KV_NAMESPACES_RESPONSE" | jq -r ".result[] | select(.title == \"$KV_NAMESPACE_TITLE\") | .id" 2>/dev/null || echo "")
+          D1_DATABASE_ID=$(echo "$D1_DATABASES_RESPONSE" | jq -r ".result[] | select(.name == \"$D1_DATABASE_NAME\") | .uuid" 2>/dev/null || echo "")
           
-          if [ -n "$KV_NAMESPACE_ID" ] && [ "$KV_NAMESPACE_ID" != "null" ]; then
-            echo "  Found KV Namespace ID: $KV_NAMESPACE_ID"
+          if [ -n "$D1_DATABASE_ID" ] && [ "$D1_DATABASE_ID" != "null" ]; then
+            echo "  Found D1 Database ID: $D1_DATABASE_ID"
             
-            # Delete all keys first
-            echo "  Deleting keys in namespace..."
-            KEYS_RESPONSE=$(curl -s \
-              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/storage/kv/namespaces/$KV_NAMESPACE_ID/keys" \
+            # Delete the database
+            D1_DELETE_RESPONSE=$(curl -s -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/$D1_DATABASE_ID" \
               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
               -H "Content-Type: application/json")
             
-            KEYS=$(echo "$KEYS_RESPONSE" | jq -r '.result[].name' 2>/dev/null || echo "")
-            
-            if [ -n "$KEYS" ]; then
-              for key in $KEYS; do
-                curl -s -X DELETE \
-                  "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/storage/kv/namespaces/$KV_NAMESPACE_ID/values/$key" \
-                  -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" >/dev/null 2>&1 || true
-              done
-              echo "  ✓ Keys deleted"
-            fi
-            
-            # Delete the namespace
-            KV_DELETE_RESPONSE=$(curl -s -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/storage/kv/namespaces/$KV_NAMESPACE_ID" \
-              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-              -H "Content-Type: application/json")
-            
-            if echo "$KV_DELETE_RESPONSE" | grep -q '"success":true'; then
-              echo "✅ KV Namespace deleted"
+            if echo "$D1_DELETE_RESPONSE" | grep -q '"success":true'; then
+              echo "✅ D1 Database deleted"
             else
-              echo "⚠️  Could not delete KV Namespace"
-              echo "$KV_DELETE_RESPONSE" | jq '.' 2>/dev/null || echo "$KV_DELETE_RESPONSE"
+              echo "⚠️  Could not delete D1 Database"
+              echo "$D1_DELETE_RESPONSE" | jq '.' 2>/dev/null || echo "$D1_DELETE_RESPONSE"
             fi
           else
-            echo "⚠️  KV Namespace not found (may already be deleted)"
+            echo "⚠️  D1 Database not found (may already be deleted)"
           fi
 
       - name: Cleanup Access Application

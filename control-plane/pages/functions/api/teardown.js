@@ -5,6 +5,9 @@
  * Triggers the GitHub Actions teardown.yml workflow.
  * Includes validation and error handling.
  */
+
+import { logApiCall, logError } from './_utils/logger.js';
+
 export async function onRequestPost(context) {
   const { env, request } = context;
   
@@ -18,6 +21,12 @@ export async function onRequestPost(context) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+
+  // Log the API call
+  await logApiCall(env.NEXUS_DB, '/api/teardown', 'POST', {
+    action: 'trigger_teardown',
+    source: 'control-plane-ui',
+  });
 
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/teardown.yml/dispatches`;
   
