@@ -51,11 +51,14 @@ FULL_METADATA=$(echo "$METADATA" | jq -c \
   '. + {workflow: $workflow, run_id: $run_id, job: $job}' 2>/dev/null || echo '{}')
 
 # Escape single quotes in message and metadata for SQL
+# Note: wrangler d1 execute doesn't support parameterized queries via CLI
+# Single-quote escaping is sufficient here as inputs come from GitHub Actions variables
 ESCAPED_MESSAGE="${MESSAGE//\'/\'\'}"
 ESCAPED_METADATA="${FULL_METADATA//\'/\'\'}"
+ESCAPED_LEVEL="${LEVEL//\'/\'\'}"
 
 # Insert log entry
-SQL="INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', '$LEVEL', '$ESCAPED_MESSAGE', '$ESCAPED_METADATA')"
+SQL="INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', '$ESCAPED_LEVEL', '$ESCAPED_MESSAGE', '$ESCAPED_METADATA')"
 
 # Execute via wrangler (silent on success)
 if npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$SQL" 2>/dev/null; then

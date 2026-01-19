@@ -93,7 +93,7 @@ jobs:
             elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
               echo "${{ inputs.ssh_pubkey }}" > ~/.ssh/id_ed25519.pub
             else
-               echo "ℹ️  Deriving public key from private key..."
+               echo "ℹ️ Deriving public key from private key..."
                ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
             fi
           elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
@@ -297,10 +297,15 @@ jobs:
           SERVER_TYPE="cax31"
           SERVER_LOCATION="fsn1"
           
+          # Escape values for safe SQL insertion (single quotes doubled)
+          ESCAPED_SERVER_TYPE=${SERVER_TYPE//\'/\'\'}
+          ESCAPED_SERVER_LOCATION=${SERVER_LOCATION//\'/\'\'}
+          ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
+          
           # Write config to D1
-          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$SERVER_TYPE', datetime('now'))"
-          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$SERVER_LOCATION', datetime('now'))"
-          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$DOMAIN', datetime('now'))"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_spin_up', datetime('now'), datetime('now'))"
           
           echo "✅ Infrastructure config written to D1"

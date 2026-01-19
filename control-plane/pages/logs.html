@@ -350,11 +350,11 @@
         document.getElementById('logsTable').innerHTML = logs.map(log => `
           <tr>
             <td class="timestamp">${formatTime(log.created_at)}</td>
-            <td class="source">${log.source || '-'}</td>
-            <td><span class="level level-${log.level}">${log.level}</span></td>
+            <td class="source">${escapeHtml(log.source || '-')}</td>
+            <td><span class="level level-${escapeHtml(log.level)}">${escapeHtml(log.level)}</span></td>
             <td class="message">${escapeHtml(log.message)}</td>
-            <td class="timestamp">${log.run_id || '-'}</td>
-            <td class="metadata">${log.metadata ? `<pre>${JSON.stringify(log.metadata, null, 2)}</pre>` : '-'}</td>
+            <td class="timestamp">${escapeHtml(log.run_id || '-')}</td>
+            <td class="metadata">${log.metadata ? `<pre>${escapeHtml(JSON.stringify(log.metadata, null, 2))}</pre>` : '-'}</td>
           </tr>
         `).join('');
         

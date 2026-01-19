@@ -441,11 +441,13 @@ jobs:
           # Initialize schema
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
           
-          # Store domain in D1 config
-          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$DOMAIN', datetime('now'))"
+          # Store domain in D1 config (escape single quotes)
+          ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
           
-          # Add initial log entry
-          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Control Plane initialized', '{\"workflow\": \"setup-control-plane\", \"run_id\": \"${{ github.run_id }}\"}')"
+          # Add initial log entry (sanitize run_id as numeric)
+          RUN_ID=$(printf '%d' "${{ github.run_id }}" 2>/dev/null || echo "0")
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Control Plane initialized', '{\"workflow\": \"setup-control-plane\", \"run_id\": $RUN_ID}')"
           
           echo "✅ D1 database schema initialized!"
 

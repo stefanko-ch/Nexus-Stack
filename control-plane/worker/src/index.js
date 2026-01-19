@@ -17,7 +17,8 @@ async function getConfigValue(db, key, defaultValue = null) {
   try {
     const result = await db.prepare('SELECT value FROM config WHERE key = ?').bind(key).first();
     return result ? result.value : defaultValue;
-  } catch {
+  } catch (error) {
+    console.error('Failed to get config value from D1 for key:', key, error);
     return defaultValue;
   }
 }
