@@ -775,7 +775,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
     echo "  Configuring Uptime Kuma..."
     
     # Wait for Uptime Kuma container to be ready
-    echo "  Waiting for Uptime Kuma to be ready (may take up to 90s)..."
+    echo "  Waiting for Uptime Kuma to be ready (may take up to 120s)..."
     KUMA_READY=false
     
     # First check if container is running (allow up to 30s for container start)
@@ -787,34 +787,20 @@ if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma" && [ -n "$KUMA_PASS" ]; the
         sleep 2
     done
     
-    # Check if container has healthcheck configured
-    HAS_HEALTHCHECK=$(ssh nexus "docker inspect --format='{{if .State.Health}}yes{{else}}no{{end}}' uptime-kuma 2>/dev/null" || echo "no")
-    
-    if [ "$HAS_HEALTHCHECK" = "yes" ]; then
-        # Wait for healthcheck to report healthy (healthcheck has 60s start_period)
-        # Allow up to 90s total
-        for i in $(seq 1 30); do
-            KUMA_HEALTH=$(ssh nexus "docker inspect --format='{{.State.Health.Status}}' uptime-kuma 2>/dev/null" || echo "")
-            if [ "$KUMA_HEALTH" = "healthy" ]; then
-                KUMA_READY=true
-                break
-            fi
-            sleep 3
-        done
-    else
-        # No healthcheck - wait for HTTP response on port 3001
-        for i in $(seq 1 30); do
-            HTTP_CHECK=$(ssh nexus "curl -sf http://localhost:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
-            if [ "$HTTP_CHECK" = "ok" ]; then
-                KUMA_READY=true
-                break
-            fi
-            sleep 3
-        done
-    fi
+    # Wait for Uptime Kuma to respond on HTTP (most reliable check)
+    # The healthcheck has a 60s start_period, so we check HTTP directly
+    # Allow up to 120s total (40 iterations * 3 seconds)
+    for i in $(seq 1 40); do
+        HTTP_CHECK=$(ssh nexus "curl -sf http://localhost:3001 -o /dev/null && echo ok" 2>/dev/null || echo "")
+        if [ "$HTTP_CHECK" = "ok" ]; then
+            KUMA_READY=true
+            break
+        fi
+        sleep 3
+    done
     
     if [ "$KUMA_READY" = "false" ]; then
-        echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 90s - skipping config${NC}"
+        echo -e "${YELLOW}  ⚠ Uptime Kuma not ready after 120s - skipping config${NC}"
     else
         # Kuma uses socket.io for setup - run via container's node
         # Parameters are separate: setup(username, password, callback) - NOT an object!
