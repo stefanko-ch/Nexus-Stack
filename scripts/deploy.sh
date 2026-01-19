@@ -831,6 +831,8 @@ setTimeout(() => { console.log("TIMEOUT"); process.exit(1); }, 15000);
         else
             echo -e "${YELLOW}  ⚠ Kuma auto-setup failed - configure manually at first login${NC}"
             echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+            # Debug: show the actual error
+            echo -e "${YELLOW}    Debug output: $KUMA_RESULT${NC}"
             KUMA_SETUP_SUCCESS=false
         fi
         
