@@ -1,0 +1,28 @@
+# =============================================================================
+# Wetty - Web-based SSH Terminal
+# =============================================================================
+# A terminal over HTTP/HTTPS that allows you to access your server via a web browser.
+# Provides a full terminal experience without requiring SSH client software.
+# Access via: https://wetty.your-domain.com
+# Default port: 3002
+# =============================================================================
+
+services:
+  wetty:
+    image: ${IMAGE_WETTY:-wettyoss/wetty:latest}
+    container_name: wetty
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      - SSHHOST=host.docker.internal
+      - SSHPORT=22
+      - SSHUSER=root
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

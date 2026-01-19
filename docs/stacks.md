@@ -499,6 +499,41 @@ Redpanda Console is a developer-friendly web UI for managing and debugging your 
 
 ---
 
+## Wetty
+
+![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
+
+**Web-based SSH terminal**
+
+A terminal over HTTP/HTTPS that allows you to access your server via a web browser. Provides a full terminal experience without requiring SSH client software.
+
+**Features:**
+- **Browser-based SSH** - Access server terminal from any device with a web browser
+- **No SSH client needed** - Useful for environments where SSH client installation is restricted
+- **Full terminal experience** - Complete terminal functionality in your browser
+- **Cloudflare Access protected** - Secure access via email OTP authentication
+- **Complements existing tools** - Works alongside existing terminal access via `cloudflared access ssh`
+
+**Use cases:**
+- Quick terminal access without setting up SSH clients
+- Educational demos and teaching server management
+- Access from devices where SSH client installation is restricted
+- Fallback terminal access method via browser
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3002` |
+| Suggested Subdomain | `wetty` |
+| Public Access | **Never** (always protected) |
+| Website | [GitHub](https://github.com/butlerx/wetty) |
+| Source | [GitHub](https://github.com/butlerx/wetty) |
+
+> ✅ **Auto-configured:** Wetty connects to the server's SSH daemon, so existing SSH authentication applies. Users can login with their server credentials (root or other users configured on the server).
+
+> ℹ️ **Note:** Wetty provides a fallback terminal access method via browser. For production use, consider using `cloudflared access ssh` for a more secure, token-based authentication.
+
+---
+
 ## Enabling a Stack
 
 To enable any stack, add it to your `tofu/config.tfvars`:
