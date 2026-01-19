@@ -1,5 +1,14 @@
 #!/bin/bash
 # =============================================================================
+# ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
+# =============================================================================
+# This script is for local development/debugging ONLY.
+# Production deployments use GitHub Actions which handle R2 setup automatically.
+#
+# Local deployment bypasses the Control Plane architecture and is not supported.
+# =============================================================================
+
+# =============================================================================
 # Nexus-Stack - R2 Bootstrap Script
 # =============================================================================
 # Automatically creates R2 bucket and API credentials for OpenTofu state

@@ -111,11 +111,14 @@ variable "admin_username" {
 variable "services" {
   description = "Map of services to expose via Cloudflare Tunnel"
   type = map(object({
-    enabled     = bool
-    subdomain   = string
-    port        = number
-    public      = bool   # true = no auth, false = behind Cloudflare Access
-    description = optional(string, "")
+    enabled        = bool
+    subdomain      = string
+    port           = number
+    public         = bool   # true = no auth, false = behind Cloudflare Access
+    description    = optional(string, "")
+    core           = optional(bool, false)
+    image          = optional(string, "")
+    support_images = optional(map(string), {})
   }))
   default = {}
 }
@@ -135,16 +138,6 @@ variable "dockerhub_token" {
   type        = string
   sensitive   = true
   default     = ""
-}
-
-# =============================================================================
-# Docker Image Versions
-# =============================================================================
-
-variable "image_versions" {
-  description = "Map of service names to their Docker image:tag"
-  type        = map(string)
-  default     = {}
 }
 
 # =============================================================================
