@@ -231,6 +231,15 @@ jobs:
           with open('tofu/services.tfvars', 'r') as f:
               content = f.read()
 
+          # Extract the inner content of the services = { ... } block
+          # This skips the outer wrapper to avoid matching "services" as a service name
+          inner_match = re.search(r'^services\s*=\s*\{(.+)\}\s*$', content, re.DOTALL | re.MULTILINE)
+          if not inner_match:
+              # Fallback: use content as-is
+              inner_content = content
+          else:
+              inner_content = inner_match.group(1)
+
           # Find all service blocks and update enabled status
           def replace_enabled(match):
               service_name = match.group(1)
@@ -249,12 +258,38 @@ jobs:
                   block
               )
               
-              return f'{service_name} = {{{new_block}}}'
+              return f'  {service_name} = {{{new_block}}}'
 
           # Match service blocks like: service-name = { ... }
-          # Pattern handles multiline blocks by matching content between { and }
-          pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{([^}]+)\}'
-          updated_content = re.sub(pattern, replace_enabled, content)
+          # Pattern handles multiline blocks with nested braces for support_images
+          pattern = r'(\s*)([a-zA-Z0-9_-]+)\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}'
+          
+          def replace_with_indent(match):
+              indent = match.group(1)
+              service_name = match.group(2)
+              block = match.group(3)
+              
+              # Skip nested blocks like support_images
+              if not re.search(r'enabled\s*=', block):
+                  return match.group(0)
+              
+              # Check if this is a core service (core = true)
+              is_core = re.search(r'core\s*=\s*true', block) is not None
+              
+              # Core services are always enabled, others follow D1 state
+              should_enable = is_core or service_name in enabled_set
+              
+              # Replace enabled = true/false with the correct value
+              new_block = re.sub(
+                  r'(enabled\s*=\s*)(true|false)',
+                  r'\g<1>' + ('true' if should_enable else 'false'),
+                  block
+              )
+              
+              return f'{indent}{service_name} = {{{new_block}}}'
+
+          updated_inner = re.sub(pattern, replace_with_indent, inner_content)
+          updated_content = f'services = {{{updated_inner}}}'
 
           with open('tofu/stack/config.tfvars', 'a') as f:
               f.write('\n# Services (enabled via Control Plane)\n')
