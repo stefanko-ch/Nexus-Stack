@@ -20,7 +20,7 @@
 #   TF_VAR_domain                - Domain name (used for bucket naming)
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'

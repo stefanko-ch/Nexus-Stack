@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # =============================================================================
 # ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
@@ -445,6 +445,111 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# Setup SSH-Agent for Wetty (if enabled)
+# -----------------------------------------------------------------------------
+if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
+    echo ""
+    echo -e "${YELLOW}[5.5/7] Setting up SSH-Agent for Wetty...${NC}"
+    ssh nexus "
+        # Create SSH directory if it doesn't exist
+        mkdir -p /root/.ssh
+        chmod 700 /root/.ssh
+        
+        # Generate SSH key pair for Wetty if it doesn't exist
+        WETTY_KEY_PATH=\"/root/.ssh/id_ed25519_wetty\"
+        if [ ! -f \"\$WETTY_KEY_PATH\" ]; then
+            echo '  Generating SSH key pair for Wetty...'
+            ssh-keygen -t ed25519 -f \"\$WETTY_KEY_PATH\" -N '' -C 'wetty-auto-generated' >/dev/null 2>&1
+            chmod 600 \"\$WETTY_KEY_PATH\"
+            chmod 644 \"\$WETTY_KEY_PATH.pub\"
+            echo '  ✓ SSH key pair generated for Wetty'
+        else
+            echo '  ✓ SSH key pair already exists for Wetty'
+        fi
+        
+        # Add public key to authorized_keys if not already present
+        WETTY_PUBKEY=\$(cat \"\$WETTY_KEY_PATH.pub\")
+        if ! grep -q \"\$WETTY_PUBKEY\" /root/.ssh/authorized_keys 2>/dev/null; then
+            echo \"\$WETTY_PUBKEY\" >> /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+            echo '  ✓ Public key added to authorized_keys'
+        else
+            echo '  ✓ Public key already in authorized_keys'
+        fi
+        
+        # Create SSH-Agent socket directory if it doesn't exist
+        SSH_AGENT_DIR=\"/tmp/ssh-agent\"
+        mkdir -p \"\$SSH_AGENT_DIR\"
+        
+        # Helper function to check if SSH-Agent is responsive
+        check_ssh_agent() {
+            if ssh-add -l >/dev/null 2>&1; then
+                return 0
+            else
+                return 1
+            fi
+        }
+        
+        # Check if SSH-Agent is already running (check for existing socket)
+        SSH_AUTH_SOCK_FILE=\"\$SSH_AGENT_DIR/agent.sock\"
+        if [ -S \"\$SSH_AUTH_SOCK_FILE\" ]; then
+            export SSH_AUTH_SOCK=\"\$SSH_AUTH_SOCK_FILE\"
+            # Test if agent is still responsive
+            if check_ssh_agent; then
+                echo '  ✓ SSH-Agent already running'
+            else
+                # Socket exists but agent is dead, remove it
+                rm -f \"\$SSH_AUTH_SOCK_FILE\"
+                unset SSH_AUTH_SOCK
+            fi
+        fi
+        
+        # Start SSH-Agent if not running
+        if [ -z \"\${SSH_AUTH_SOCK:-}\" ] || [ ! -S \"\$SSH_AUTH_SOCK\" ]; then
+            # Start SSH-Agent with socket in known location
+            eval \$(ssh-agent -a \"\$SSH_AUTH_SOCK_FILE\" -s) >/dev/null 2>&1
+            export SSH_AUTH_SOCK=\"\$SSH_AUTH_SOCK_FILE\"
+            echo '  ✓ SSH-Agent started'
+        fi
+        
+        # Add SSH key to agent if not already added
+        if [ -f \"\$WETTY_KEY_PATH\" ]; then
+            # Get key fingerprint for comparison
+            KEY_FINGERPRINT=\$(ssh-keygen -lf \"\$WETTY_KEY_PATH\" 2>/dev/null | awk '{print \$2}' || echo \"\")
+            
+            # Check if key is already in agent by comparing fingerprints
+            KEY_IN_AGENT=false
+            if [ -n \"\$KEY_FINGERPRINT\" ] && check_ssh_agent && ssh-add -l 2>/dev/null | grep -q \"\$KEY_FINGERPRINT\"; then
+                KEY_IN_AGENT=true
+            fi
+            
+            if [ \"\$KEY_IN_AGENT\" = \"false\" ]; then
+                # Add key to agent
+                if ssh-add \"\$WETTY_KEY_PATH\" 2>&1; then
+                    echo '  ✓ SSH key added to agent'
+                else
+                    echo -e \"  ${YELLOW}⚠ Failed to add SSH key to agent${NC}\"
+                fi
+            else
+                echo '  ✓ SSH key already in agent'
+            fi
+        else
+            echo -e \"  ${YELLOW}⚠ SSH key not found at $WETTY_KEY_PATH${NC}\"
+        fi
+        
+        # Export SSH_AUTH_SOCK path in wetty .env file for docker-compose
+        WETTY_ENV=\"/opt/docker-server/stacks/wetty/.env\"
+        if [ -f \"\$WETTY_ENV\" ]; then
+            # Remove existing SSH_AUTH_SOCK line if present
+            sed -i '/^SSH_AUTH_SOCK=/d' \"\$WETTY_ENV\"
+        fi
+        echo \"SSH_AUTH_SOCK=\$SSH_AUTH_SOCK\" >> \"\$WETTY_ENV\"
+        echo '  ✓ SSH_AUTH_SOCK exported to wetty .env'
+    "
+    echo -e "${GREEN}  ✓ SSH-Agent configured for Wetty${NC}"
+fi
+
+# -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
@@ -455,34 +560,83 @@ echo ""
 echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
 
 ssh nexus "
-set -e
+set -euo pipefail
 # Export image versions from global .env
 if [ -f /opt/docker-server/stacks/.env ]; then
     set -a
     source /opt/docker-server/stacks/.env
     set +a
 fi
+
+STARTED_SERVICES=()
+FAILED_SERVICES=()
+PIDS=()
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
         (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+        PID=\$!
+        PIDS+=(\$PID)
+        STARTED_SERVICES+=(\"\$service:\$PID\")
     else
         echo \"[DEBUG] docker-compose.yml not found for \$service\" >&2
+        FAILED_SERVICES+=(\"\$service (no docker-compose.yml)\")
     fi
 done
-wait
+
+# Wait for all background jobs and collect exit codes
+FAILED_COUNT=0
+for i in \"\${!PIDS[@]}\"; do
+    PID=\${PIDS[\$i]}
+    SERVICE_PID_PAIR=\${STARTED_SERVICES[\$i]}
+    SERVICE_NAME=\$(echo \"\$SERVICE_PID_PAIR\" | cut -d: -f1)
+    
+    if wait \$PID; then
+        # Verify container is actually running
+        if docker ps --format '{{.Names}}' | grep -q \"^\${SERVICE_NAME}\$\"; then
+            echo \"  ✓ \$SERVICE_NAME started and running\"
+        else
+            echo \"  ⚠️  \$SERVICE_NAME started but container not found in 'docker ps'\" >&2
+            FAILED_SERVICES+=(\"\$SERVICE_NAME (container not running)\")
+            FAILED_COUNT=\$((FAILED_COUNT + 1))
+        fi
+    else
+        EXIT_CODE=\$?
+        echo \"  ✗ \$SERVICE_NAME failed to start (exit code: \$EXIT_CODE)\" >&2
+        FAILED_SERVICES+=(\"\$SERVICE_NAME (exit code: \$EXIT_CODE)\")
+        FAILED_COUNT=\$((FAILED_COUNT + 1))
+    fi
+done
+
 echo ''
-echo '  ✓ All enabled stacks started'
+if [ \$FAILED_COUNT -eq 0 ] && [ \${#FAILED_SERVICES[@]} -eq 0 ]; then
+    echo '  ✓ All enabled stacks started successfully'
+else
+    echo \"  ⚠️  Started \${#STARTED_SERVICES[@]} services, \$FAILED_COUNT failed\" >&2
+    echo \"  Failed services: \${FAILED_SERVICES[*]}\" >&2
+    exit 1
+fi
 " 2>&1 | tee /tmp/docker-start.log
 
-echo -e "${GREEN}  ✓ All containers started${NC}"
+DOCKER_EXIT_CODE=${PIPESTATUS[0]}
+if [ $DOCKER_EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}  ✓ All containers started successfully${NC}"
+else
+    echo -e "${RED}  ✗ Some containers failed to start${NC}"
+    echo -e "${YELLOW}  Check /tmp/docker-start.log for details${NC}"
+    exit $DOCKER_EXIT_CODE
+fi
 
 # -----------------------------------------------------------------------------
 # Auto-configure services
 # -----------------------------------------------------------------------------
 echo ""
 echo -e "${YELLOW}[7/7] Auto-configuring services...${NC}"
+
+# Initialize array for background configuration jobs
+CONFIG_JOBS=()
 
 # Configure Infisical admin and push secrets
 if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
@@ -609,7 +763,7 @@ EOF
     {"secretKey": "UPTIME_KUMA_PASSWORD", "secretValue": "$KUMA_PASS", "tagIds": ["$KUMA_TAG"]},
     {"secretKey": "GRAFANA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
-    {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$N8N_TAG"]},
+    {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$KESTRA_TAG"]},
     {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": ["$KESTRA_TAG"]},
@@ -821,6 +975,8 @@ fi
 if [ ${#CONFIG_JOBS[@]} -gt 0 ]; then
     echo "  Waiting for background configuration jobs to complete..."
     wait "${CONFIG_JOBS[@]}"
+else
+    echo "  No background configuration jobs to wait for"
 fi
 
 # -----------------------------------------------------------------------------

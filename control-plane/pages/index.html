@@ -104,6 +104,10 @@
 
         .header-nav {
             margin-top: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
         }
 
         .nav-link {
@@ -740,6 +744,7 @@
             <p class="tagline">Control Panel</p>
             <nav class="header-nav">
                 <a href="/database.html" class="nav-link">🗄️ Show Database</a>
+                <a href="#" id="info-link" class="nav-link" target="_blank">ℹ️ Show Info</a>
             </nav>
         </header>
 
@@ -896,6 +901,13 @@
                     document.getElementById('info-server-type').textContent = info.server?.type || 'Unknown';
                     document.getElementById('info-server-location').textContent = info.server?.location || 'Unknown';
                     document.getElementById('info-domain').textContent = info.server?.domain || 'Unknown';
+                    
+                    // Update Info link
+                    const domain = info.server?.domain || window.location.hostname.replace('control.', '');
+                    const infoLink = document.getElementById('info-link');
+                    if (infoLink && domain) {
+                        infoLink.href = `https://info.${domain}`;
+                    }
                     
                     // Update workflow timestamps (from D1 via server object)
                     const lastSpinUp = info.server?.lastSpinUp || info.time?.lastDeploy;
@@ -1300,7 +1312,12 @@
                     } else {
                         toggleEl.classList.remove('active');
                     }
+                    // Update badge immediately from POST response (no race condition)
+                    if (typeof data.pendingChangesCount !== 'undefined') {
+                        updatePendingBadge(data.pendingChangesCount);
+                    }
                     showToast('Service updated. Click "Spin Up" to deploy.', 'success');
+                    // Refresh service list (badge already updated, but list needs refresh)
                     loadServices();
                 } else {
                     showToast(data.error || 'Failed to update service', 'error');
@@ -1490,6 +1507,29 @@
             }, interval);
         }
         
+        // Set Info link fallback (in case domain is not yet loaded)
+        const infoLink = document.getElementById('info-link');
+        if (infoLink && (!infoLink.href || infoLink.href === '#')) {
+            const hostname = window.location.hostname;
+            if (hostname.startsWith('control.')) {
+                infoLink.href = `https://info.${hostname.replace('control.', '')}`;
+            } else {
+                // Fallback: extract domain by removing leftmost subdomain label
+                // Handles multi-part TLDs (e.g., example.co.uk) correctly
+                const parts = hostname.split('.');
+                if (parts.length > 2) {
+                    // Remove leftmost label (subdomain) to get domain
+                    const domain = parts.slice(1).join('.');
+                    if (domain && domain !== hostname) {
+                        infoLink.href = `https://info.${domain}`;
+                    }
+                } else if (parts.length === 2) {
+                    // Already a domain (no subdomain)
+                    infoLink.href = `https://info.${hostname}`;
+                }
+            }
+        }
+
         // Initial health check and status fetch
         checkHealth();
         fetchInfo();
