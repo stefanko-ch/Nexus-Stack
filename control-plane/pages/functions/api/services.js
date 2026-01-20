@@ -12,6 +12,23 @@
 import { logApiCall, logError } from './_utils/logger.js';
 
 /**
+ * Validate service name to prevent injection attacks
+ * Only allows lowercase letters, numbers, hyphens, and underscores
+ * @param {string} name - Service name to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+function validateServiceName(name) {
+  if (typeof name !== 'string') {
+    return false;
+  }
+  if (name.length === 0 || name.length > 63) {
+    return false;
+  }
+  // Only allow: lowercase letters, numbers, hyphens, underscores
+  return /^[a-z0-9_-]+$/.test(name);
+}
+
+/**
  * GET /api/services
  * Returns all services from D1
  */
@@ -107,6 +124,17 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({
         success: false,
         error: 'Invalid payload. Expected { service: string, enabled: boolean }',
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate service name format to prevent injection attacks
+    if (!validateServiceName(serviceName)) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Invalid service name format. Service names must be 1-63 characters long and contain only lowercase letters, numbers, hyphens, and underscores.`,
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
