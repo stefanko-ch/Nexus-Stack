@@ -126,31 +126,25 @@ async function handleScheduledTeardown(event, env) {
 
     const now = new Date();
     const currentTime = now.toISOString();
-    const cronTime = event.cron; // e.g., "0 21 * * *"
+    const cronSchedule = event.cron; // e.g., "0 21 * * *" or "45 20 * * *"
     
-    console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronTime})`);
+    console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronSchedule})`);
 
-    // Convert configured times from timezone to UTC
-    const notificationTimeUTC = timeInTimezoneToUTC(config.notificationTime, config.timezone);
-    const teardownTimeUTC = timeInTimezoneToUTC(config.teardownTime, config.timezone);
-    
-    // Get current UTC time components
-    const currentHour = now.getUTCHours();
-    const currentMinute = now.getUTCMinutes();
-    const notificationHour = notificationTimeUTC.getUTCHours();
-    const notificationMinute = notificationTimeUTC.getUTCMinutes();
-    const teardownHour = teardownTimeUTC.getUTCHours();
-    const teardownMinute = teardownTimeUTC.getUTCMinutes();
-    
-    // Check if it's notification time or teardown time
-    if (currentHour === notificationHour && currentMinute === notificationMinute) {
+    // Determine action based on which cron trigger fired
+    // Cron triggers are defined in tofu/control-plane/main.tf:
+    // - Notification: "45 20 * * *" (20:45 UTC)
+    // - Teardown: "0 21 * * *" (21:00 UTC)
+    if (cronSchedule === "45 20 * * *") {
+      // Notification cron triggered
       await logToD1(env.NEXUS_DB, 'info', 'Sending teardown notification email');
       await sendNotification(env, config);
-    } else if (currentHour === teardownHour && currentMinute === teardownMinute) {
+    } else if (cronSchedule === "0 21 * * *") {
+      // Teardown cron triggered
       await logToD1(env.NEXUS_DB, 'warn', 'Triggering scheduled teardown');
       await triggerTeardown(env, config);
     } else {
-      console.log(`Not time for notification (${notificationHour}:${String(notificationMinute).padStart(2, '0')} UTC) or teardown (${teardownHour}:${String(teardownMinute).padStart(2, '0')} UTC)`);
+      console.log(`Unknown cron schedule: ${cronSchedule} - no action taken`);
+      await logToD1(env.NEXUS_DB, 'warn', 'Unknown cron schedule', { cron: cronSchedule });
     }
   } catch (error) {
     console.error('Error in scheduled teardown:', error);
