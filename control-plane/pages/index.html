@@ -1312,7 +1312,12 @@
                     } else {
                         toggleEl.classList.remove('active');
                     }
+                    // Update badge immediately from POST response (no race condition)
+                    if (typeof data.pendingChangesCount !== 'undefined') {
+                        updatePendingBadge(data.pendingChangesCount);
+                    }
                     showToast('Service updated. Click "Spin Up" to deploy.', 'success');
+                    // Refresh service list (badge already updated, but list needs refresh)
                     loadServices();
                 } else {
                     showToast(data.error || 'Failed to update service', 'error');
