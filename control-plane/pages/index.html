@@ -104,6 +104,10 @@
 
         .header-nav {
             margin-top: 1.5rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
         }
 
         .nav-link {
@@ -740,6 +744,7 @@
             <p class="tagline">Control Panel</p>
             <nav class="header-nav">
                 <a href="/database.html" class="nav-link">🗄️ Show Database</a>
+                <a href="#" id="info-link" class="nav-link" target="_blank">ℹ️ Show Info</a>
             </nav>
         </header>
 
@@ -896,6 +901,13 @@
                     document.getElementById('info-server-type').textContent = info.server?.type || 'Unknown';
                     document.getElementById('info-server-location').textContent = info.server?.location || 'Unknown';
                     document.getElementById('info-domain').textContent = info.server?.domain || 'Unknown';
+                    
+                    // Update Info link
+                    const domain = info.server?.domain || window.location.hostname.replace('control.', '');
+                    const infoLink = document.getElementById('info-link');
+                    if (infoLink && domain) {
+                        infoLink.href = `https://info.${domain}`;
+                    }
                     
                     // Update workflow timestamps (from D1 via server object)
                     const lastSpinUp = info.server?.lastSpinUp || info.time?.lastDeploy;
@@ -1490,6 +1502,21 @@
             }, interval);
         }
         
+        // Set Info link fallback (in case domain is not yet loaded)
+        const infoLink = document.getElementById('info-link');
+        if (infoLink && !infoLink.href || infoLink.href === '#') {
+            const hostname = window.location.hostname;
+            if (hostname.startsWith('control.')) {
+                infoLink.href = `https://info.${hostname.replace('control.', '')}`;
+            } else {
+                // Fallback: try to extract domain from hostname
+                const domain = hostname.split('.').slice(-2).join('.');
+                if (domain && domain !== hostname) {
+                    infoLink.href = `https://info.${domain}`;
+                }
+            }
+        }
+
         // Initial health check and status fetch
         checkHealth();
         fetchInfo();
