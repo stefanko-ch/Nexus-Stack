@@ -4,7 +4,7 @@ This document provides detailed information about all available Docker stacks in
 
 ## Docker Image Versions
 
-Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`tofu/services.tfvars`](../tofu/services.tfvars).
+Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`services.yaml`](../services.yaml).
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
@@ -40,7 +40,7 @@ Images are pinned to **major versions** where supported for automatic security p
 - **Exact** (e.g., `:v0.155.5`) - Full control, manual all updates
 - **Latest** - Always newest version (when no semver available)
 
-**To upgrade**: Edit the version in `tofu/services.tfvars` and run Spin-Up.
+**To upgrade**: Edit the version in `services.yaml` and run Spin-Up.
 
 ---
 
@@ -598,23 +598,23 @@ networks:
     external: true
 ```
 
-### 2. Add to services.tfvars
+### 2. Add to services.yaml
 
-Add to `tofu/services.tfvars`:
+Add to `services.yaml` (in project root):
 
-```hcl
-services = {
+```yaml
+services:
   # ... existing services ...
   
-  my-app = {
-    enabled     = true
-    subdomain   = "my-app"     # → https://my-app.yourdomain.com
-    port        = 8090         # Must match docker-compose port
-    public      = false        # false = requires login, true = public
-    description = "My awesome application"
-  }
-}
+  my-app:
+    subdomain: "my-app"         # → https://my-app.yourdomain.com
+    port: 8090                  # Must match docker-compose port
+    public: false               # false = requires login, true = public
+    description: "My awesome application"
+    image: "myorg/my-app:latest"
 ```
+
+> **Note:** No `enabled` field needed - runtime state is managed by D1 (Control Plane).
 
 ### 3. Deploy
 
@@ -630,7 +630,7 @@ That's it! OpenTofu automatically creates:
 
 ## Disabling Services
 
-Services can be disabled via the **Control Plane** web interface, or by setting `enabled = false` in `services.tfvars`.
+Services can be disabled via the **Control Plane** web interface. The enabled/disabled state is stored in Cloudflare D1 - not in the `services.yaml` file.
 
 When disabled:
 1. DNS record is removed from Cloudflare
