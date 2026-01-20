@@ -519,6 +519,13 @@ Use prefixes that match commit types:
 
 ## Closing Issues via PRs
 
+**When creating a Pull Request, always check if there is a corresponding Issue that should be closed by the PR.**
+
+Before creating a PR:
+1. Search for related issues using `gh issue list` or by checking the repository issues
+2. Look for issues that match the PR's purpose (feature requests, bug reports, etc.)
+3. If a matching issue is found, include the closing keyword in the PR description
+
 Use keywords in PR descriptions to automatically close issues when merged:
 
 ```markdown
@@ -527,7 +534,7 @@ Closes #4
 Fixes #3
 ```
 
-This creates a clear link between PRs and the issues they resolve.
+This creates a clear link between PRs and the issues they resolve and helps maintain project organization.
 
 ## Creating GitHub Issues and Pull Requests
 
