@@ -101,9 +101,13 @@ for name, config in services.items():
 # Write to temp files
 with open('/tmp/init_services.sql', 'w') as f:
     f.write('\n'.join(insert_statements))
+    if insert_statements:  # Ensure file ends with newline
+        f.write('\n')
 
 with open('/tmp/update_services.sql', 'w') as f:
     f.write('\n'.join(update_statements))
+    if update_statements:  # Ensure file ends with newline
+        f.write('\n')
 
 print(f"  Generated {len(insert_statements)} service insert statements")
 print(f"  Generated {len(update_statements)} service update statements")
