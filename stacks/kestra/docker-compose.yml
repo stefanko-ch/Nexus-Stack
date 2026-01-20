@@ -58,6 +58,15 @@ services:
             tmp-dir:
               path: /tmp/kestra-wd/tmp
           url: ${KESTRA_URL}
+      # SMTP configuration for email testing via Mailpit
+      - KESTRA_EE_MAILSERVICE_HOST=mailpit
+      - KESTRA_EE_MAILSERVICE_PORT=1025
+      - KESTRA_EE_MAILSERVICE_USERNAME=test
+      - KESTRA_EE_MAILSERVICE_PASSWORD=test
+      - KESTRA_EE_MAILSERVICE_FROM=kestra@${DOMAIN}
+      - KESTRA_EE_MAILSERVICE_FROMNAME=Kestra
+      - KESTRA_EE_MAILSERVICE_AUTH=true
+      - KESTRA_EE_MAILSERVICE_STARTTLSENABLE=false
     volumes:
       - kestra-data:/app/storage
       - /var/run/docker.sock:/var/run/docker.sock

@@ -332,6 +332,10 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 
 > ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Use `make secrets` to view the credentials.
 
+> 📧 **Email Notifications:** Kestra is pre-configured to send email notifications via Mailpit for testing. When Mailpit is enabled, all emails sent by Kestra workflows (notifications, alerts, etc.) will appear in the Mailpit web UI (`https://mailpit.your-domain.com`) instead of being sent to real recipients. This allows you to test email functionality without sending actual emails.
+
+> ⚠️ **Note:** Kestra's SMTP configuration uses Enterprise Edition features. If you're using the Community Edition, email functionality may not be available.
+
 ### Architecture
 
 The stack includes:
@@ -366,6 +370,8 @@ n8n is a free and source-available workflow automation tool that allows you to c
 | Source | [GitHub](https://github.com/n8n-io/n8n) |
 
 > ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Use `make secrets` to view the credentials.
+
+> 📧 **Email Testing:** n8n is pre-configured to send emails via Mailpit for testing. When Mailpit is enabled, all emails sent by n8n workflows will appear in the Mailpit web UI (`https://mailpit.your-domain.com`) instead of being sent to real recipients. This allows you to test email functionality without sending actual emails.
 
 ---
 
@@ -458,6 +464,39 @@ Access MinIO Console at `https://minio.<domain>` to:
 - **S3 API**: `http://localhost:9000` (cluster/localhost only - not exposed via tunnel)
 
 For S3 API access from external applications, use the Console UI or SSH tunnel. Direct S3 API exposure via Cloudflare Tunnel is not configured by default for security reasons.
+
+---
+
+## Mailpit
+
+![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
+
+**Email testing tool for catching and inspecting SMTP emails**
+
+Mailpit is an email testing tool that catches all outgoing SMTP emails, allowing you to inspect them without actually sending emails. Perfect for development and testing workflows.
+
+**Features:**
+- Catches all SMTP emails sent by your applications
+- Web UI for viewing emails (HTML, plain text, attachments)
+- REST API for programmatic access
+- No actual emails sent - perfect for testing
+- Accepts any SMTP credentials (no authentication required)
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8025` (Web UI) |
+| SMTP Port | `1025` (internal Docker network only) |
+| Suggested Subdomain | `mailpit` |
+| Public Access | **Never** (always protected) |
+| Default Enabled | **No** (enable via Control Plane when needed) |
+| Website | [mailpit.axllent.org](https://mailpit.axllent.org) |
+| Source | [GitHub](https://github.com/axllent/mailpit) |
+
+> ✅ **Pre-configured:** n8n and Kestra are automatically configured to send emails to Mailpit when enabled. Simply enable Mailpit via the Control Plane, and all emails from these services will appear in the Mailpit web UI.
+
+> 💡 **Usage:** Enable Mailpit via the Control Plane when you need to test email functionality. Emails sent by n8n workflows and Kestra notifications will automatically be caught and displayed in the Mailpit web UI at `https://mailpit.your-domain.com`.
+
+> 🔒 **Security:** Mailpit is protected by Cloudflare Access (email OTP authentication). The SMTP server (port 1025) is only accessible within the Docker network, not exposed externally.
 
 ---
 

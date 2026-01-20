@@ -25,6 +25,15 @@ services:
       # Database (SQLite by default, can upgrade to PostgreSQL)
       - DB_TYPE=sqlite
       - DB_SQLITE_VACUUM_ON_STARTUP=true
+      # SMTP configuration for email testing via Mailpit
+      - N8N_EMAIL_MODE=smtp
+      - N8N_SMTP_HOST=mailpit
+      - N8N_SMTP_PORT=1025
+      - N8N_SMTP_USER=test
+      - N8N_SMTP_PASS=test
+      - N8N_SMTP_SENDER=n8n@${DOMAIN}
+      - N8N_SMTP_SSL=false
+      - N8N_SMTP_STARTTLS=false
     volumes:
       - n8n_data:/home/node/.n8n
     networks:

@@ -12,7 +12,6 @@
 # Note: You also need stacks/<service>/docker-compose.yml for the container!
 #
 # CORE SERVICES (core: true):
-# - mailpit: Required for email testing by other services
 # - infisical: Required for secret management
 # - info: Dashboard showing all services
 # These services are automatically enabled during initial setup and cannot be
@@ -102,7 +101,6 @@ services:
     subdomain: "mailpit"
     port: 8025
     public: false
-    core: true
     description: "Email testing tool that catches all outgoing emails for inspection and testing."
     image: "axllent/mailpit:v1.28"
 
