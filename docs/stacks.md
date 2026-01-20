@@ -24,6 +24,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
@@ -111,6 +112,41 @@ A collaborative whiteboard tool that lets you create beautiful hand-drawn like d
 | Public Access | Recommended for sharing |
 | Website | [excalidraw.com](https://excalidraw.com) |
 | Source | [GitHub](https://github.com/excalidraw/excalidraw) |
+
+---
+
+## Draw.io
+
+![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)
+
+**Flowchart and diagramming tool for technical diagrams**
+
+Draw.io (also known as diagrams.net) is a professional diagramming tool that allows you to create a wide variety of technical diagrams. Features include:
+- Flowcharts and process diagrams
+- UML diagrams (class, sequence, use case, etc.)
+- Network diagrams and architecture diagrams
+- Entity-relationship diagrams (ERD)
+- BPMN diagrams
+- Export to multiple formats (PNG, SVG, PDF, XML)
+- Integration with Google Drive, OneDrive, GitHub, GitLab
+- Extensive shape libraries and templates
+- Collaborative editing support
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8083` |
+| Suggested Subdomain | `drawio` |
+| Public Access | **Never** (always protected) |
+| Default Enabled | **No** (enable via Control Plane when needed) |
+| Authentication | None (protected by Cloudflare Access) |
+| Website | [draw.io](https://draw.io) |
+| Source | [GitHub](https://github.com/jgraph/drawio) |
+
+> ✅ **Auto-configured:** Draw.io runs without any additional configuration. Simply enable it via the Control Plane and access it at `https://drawio.your-domain.com`.
+
+> 🔒 **Security:** Draw.io is protected by Cloudflare Access (email OTP authentication). No additional authentication is required at the application level.
+
+> 💡 **Usage:** Enable Draw.io via the Control Plane when you need to create technical diagrams, flowcharts, or documentation.
 
 ---
 

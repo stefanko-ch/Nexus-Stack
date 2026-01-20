@@ -34,6 +34,13 @@ services:
     description: "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
     image: "excalidraw/excalidraw:latest"
 
+  drawio:
+    subdomain: "drawio"
+    port: 8083
+    public: false
+    description: "Flowchart and diagramming tool for creating technical diagrams, flowcharts, and UML diagrams."
+    image: "jgraph/drawio:latest"
+
   grafana:
     subdomain: "grafana"
     port: 3100
