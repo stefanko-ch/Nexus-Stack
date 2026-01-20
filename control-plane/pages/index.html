@@ -1509,7 +1509,7 @@
         
         // Set Info link fallback (in case domain is not yet loaded)
         const infoLink = document.getElementById('info-link');
-        if (infoLink && !infoLink.href || infoLink.href === '#') {
+        if (infoLink && (!infoLink.href || infoLink.href === '#')) {
             const hostname = window.location.hostname;
             if (hostname.startsWith('control.')) {
                 infoLink.href = `https://info.${hostname.replace('control.', '')}`;
