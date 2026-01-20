@@ -138,6 +138,16 @@ async function handleScheduledTeardown(event, env) {
     const notificationCron = env.NOTIFICATION_CRON || "45 20 * * *";
     const teardownCron = env.TEARDOWN_CRON || "0 21 * * *";
 
+    // Validate cron format (5 fields: minute hour day month weekday)
+    const cronFormatRegex = /^(\S+\s+){4}\S+$/;
+    if (!cronFormatRegex.test(notificationCron) || !cronFormatRegex.test(teardownCron)) {
+      console.warn(`Invalid cron format detected - notification: ${notificationCron}, teardown: ${teardownCron}`);
+      await logToD1(env.NEXUS_DB, 'warn', 'Invalid cron format in environment variables', {
+        notificationCron,
+        teardownCron
+      });
+    }
+
     if (cronSchedule === notificationCron) {
       // Notification cron triggered
       await logToD1(env.NEXUS_DB, 'info', 'Sending teardown notification email');

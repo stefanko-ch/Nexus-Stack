@@ -481,12 +481,21 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
         SSH_AGENT_DIR=\"/tmp/ssh-agent\"
         mkdir -p \"\$SSH_AGENT_DIR\"
         
+        # Helper function to check if SSH-Agent is responsive
+        check_ssh_agent() {
+            if ssh-add -l >/dev/null 2>&1; then
+                return 0
+            else
+                return 1
+            fi
+        }
+        
         # Check if SSH-Agent is already running (check for existing socket)
         SSH_AUTH_SOCK_FILE=\"\$SSH_AGENT_DIR/agent.sock\"
         if [ -S \"\$SSH_AUTH_SOCK_FILE\" ]; then
             export SSH_AUTH_SOCK=\"\$SSH_AUTH_SOCK_FILE\"
             # Test if agent is still responsive
-            if ssh-add -l >/dev/null 2>&1; then
+            if check_ssh_agent; then
                 echo '  ✓ SSH-Agent already running'
             else
                 # Socket exists but agent is dead, remove it
@@ -510,7 +519,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
             
             # Check if key is already in agent by comparing fingerprints
             KEY_IN_AGENT=false
-            if [ -n \"\$KEY_FINGERPRINT\" ] && ssh-add -l 2>/dev/null | grep -q \"\$KEY_FINGERPRINT\"; then
+            if [ -n \"\$KEY_FINGERPRINT\" ] && check_ssh_agent && ssh-add -l 2>/dev/null | grep -q \"\$KEY_FINGERPRINT\"; then
                 KEY_IN_AGENT=true
             fi
             
