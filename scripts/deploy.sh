@@ -465,13 +465,15 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
     echo ""
     echo -e "${YELLOW}[5.5/7] Setting up SSH-Agent for Wetty...${NC}"
+    # Define WETTY_KEY_PATH outside SSH command so it can be used later
+    WETTY_KEY_PATH="/root/.ssh/id_ed25519_wetty"
     ssh nexus "
         # Create SSH directory if it doesn't exist
         mkdir -p /root/.ssh
         chmod 700 /root/.ssh
         
         # Generate SSH key pair for Wetty if it doesn't exist
-        WETTY_KEY_PATH=\"/root/.ssh/id_ed25519_wetty\"
+        WETTY_KEY_PATH=\"$WETTY_KEY_PATH\"
         if [ ! -f \"\$WETTY_KEY_PATH\" ]; then
             echo '  Generating SSH key pair for Wetty...'
             ssh-keygen -t ed25519 -f \"\$WETTY_KEY_PATH\" -N '' -C 'wetty-auto-generated' >/dev/null 2>&1
