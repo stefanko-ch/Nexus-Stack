@@ -513,13 +513,13 @@ A terminal over HTTP/HTTPS that allows you to access your server via a web brows
 - **Full terminal experience** - Complete terminal functionality in your browser
 - **Cloudflare Access protected** - Secure access via email OTP authentication
 - **Public key authentication only** - No password authentication for enhanced security
-- **Session timeout** - Automatic disconnect after 1 hour of inactivity
+- **Short session duration** - Cloudflare Access sessions expire after 1 hour for enhanced security
 - **Core service** - Always enabled, cannot be disabled
 
 **Security Features:**
 - ✅ **Public key authentication only** - `SSHAUTH=publickey` prevents password-based logins
 - ✅ **Cloudflare Access** - Email OTP required before accessing Wetty interface
-- ✅ **Session timeout** - 1 hour inactivity timeout to prevent abandoned sessions
+- ✅ **Short session duration** - Cloudflare Access sessions expire after 1 hour (enhanced security)
 - ✅ **Rate limiting** - Cloudflare Access provides built-in rate limiting
 - ✅ **HTTPS only** - All traffic encrypted via Cloudflare Tunnel
 - ✅ **No direct SSH exposure** - SSH daemon only accessible via localhost
@@ -538,7 +538,7 @@ A terminal over HTTP/HTTPS that allows you to access your server via a web brows
 | Public Access | **Never** (always protected) |
 | Default Enabled | **No** (enable via Control Plane when needed) |
 | Authentication | Public key only (no passwords) |
-| Session Timeout | 1 hour inactivity |
+| Cloudflare Access Session | 1 hour (re-authentication required) |
 | Website | [GitHub](https://github.com/butlerx/wetty) |
 | Source | [GitHub](https://github.com/butlerx/wetty) |
 
