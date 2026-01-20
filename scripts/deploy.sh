@@ -451,6 +451,32 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
     echo ""
     echo -e "${YELLOW}[5.5/7] Setting up SSH-Agent for Wetty...${NC}"
     ssh nexus "
+        # Create SSH directory if it doesn't exist
+        mkdir -p /root/.ssh
+        chmod 700 /root/.ssh
+        
+        # Generate SSH key pair for Wetty if it doesn't exist
+        WETTY_KEY_PATH=\"/root/.ssh/id_ed25519_wetty\"
+        if [ ! -f \"\$WETTY_KEY_PATH\" ]; then
+            echo '  Generating SSH key pair for Wetty...'
+            ssh-keygen -t ed25519 -f \"\$WETTY_KEY_PATH\" -N '' -C 'wetty-auto-generated' >/dev/null 2>&1
+            chmod 600 \"\$WETTY_KEY_PATH\"
+            chmod 644 \"\$WETTY_KEY_PATH.pub\"
+            echo '  ✓ SSH key pair generated for Wetty'
+        else
+            echo '  ✓ SSH key pair already exists for Wetty'
+        fi
+        
+        # Add public key to authorized_keys if not already present
+        WETTY_PUBKEY=\$(cat \"\$WETTY_KEY_PATH.pub\")
+        if ! grep -q \"\$WETTY_PUBKEY\" /root/.ssh/authorized_keys 2>/dev/null; then
+            echo \"\$WETTY_PUBKEY\" >> /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+            echo '  ✓ Public key added to authorized_keys'
+        else
+            echo '  ✓ Public key already in authorized_keys'
+        fi
+        
         # Create SSH-Agent socket directory if it doesn't exist
         SSH_AGENT_DIR=\"/tmp/ssh-agent\"
         mkdir -p \"\$SSH_AGENT_DIR\"
@@ -478,17 +504,28 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
         fi
         
         # Add SSH key to agent if not already added
-        SSH_KEY_PATH=\"/root/.ssh/id_ed25519\"
-        if [ -f \"\$SSH_KEY_PATH\" ]; then
-            # Check if key is already in agent
-            if ! ssh-add -l 2>/dev/null | grep -q \"\$SSH_KEY_PATH\"; then
-                ssh-add \"\$SSH_KEY_PATH\" 2>/dev/null || true
-                echo '  ✓ SSH key added to agent'
+        if [ -f \"\$WETTY_KEY_PATH\" ]; then
+            # Get key fingerprint for comparison
+            KEY_FINGERPRINT=\$(ssh-keygen -lf \"\$WETTY_KEY_PATH\" 2>/dev/null | awk '{print \$2}' || echo \"\")
+            
+            # Check if key is already in agent by comparing fingerprints
+            KEY_IN_AGENT=false
+            if [ -n \"\$KEY_FINGERPRINT\" ] && ssh-add -l 2>/dev/null | grep -q \"\$KEY_FINGERPRINT\"; then
+                KEY_IN_AGENT=true
+            fi
+            
+            if [ \"\$KEY_IN_AGENT\" = \"false\" ]; then
+                # Add key to agent
+                if ssh-add \"\$WETTY_KEY_PATH\" 2>&1; then
+                    echo '  ✓ SSH key added to agent'
+                else
+                    echo -e '  ${YELLOW}⚠ Failed to add SSH key to agent${NC}'
+                fi
             else
                 echo '  ✓ SSH key already in agent'
             fi
         else
-            echo -e "  ${YELLOW}⚠ SSH key not found at \$SSH_KEY_PATH${NC}"
+            echo -e "  ${YELLOW}⚠ SSH key not found at \$WETTY_KEY_PATH${NC}"
         fi
         
         # Export SSH_AUTH_SOCK path in wetty .env file for docker-compose
