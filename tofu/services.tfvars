@@ -209,7 +209,7 @@ services = {
   }
 
   wetty = {
-    enabled     = false
+    enabled     = true
     subdomain   = "wetty"
     port        = 3002
     public      = false
