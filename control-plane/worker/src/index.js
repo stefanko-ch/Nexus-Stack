@@ -180,8 +180,16 @@ async function getConfig(db) {
 }
 
 async function sendNotification(env, config) {
-  if (!env.RESEND_API_KEY || !env.ADMIN_EMAIL || !env.DOMAIN) {
-    console.log('Missing required environment variables for notification');
+  // Check for required environment variables and log what's missing
+  const missingVars = [];
+  if (!env.RESEND_API_KEY) missingVars.push('RESEND_API_KEY');
+  if (!env.ADMIN_EMAIL) missingVars.push('ADMIN_EMAIL');
+  if (!env.DOMAIN) missingVars.push('DOMAIN');
+  
+  if (missingVars.length > 0) {
+    const errorMsg = `Missing required environment variables for notification: ${missingVars.join(', ')}`;
+    console.error(errorMsg);
+    await logToD1(env.NEXUS_DB, 'error', errorMsg, { missingVars });
     return;
   }
 
@@ -240,13 +248,25 @@ async function sendNotification(env, config) {
 
     if (response.ok) {
       const recipientMsg = userEmail ? `${userEmail} (cc: ${env.ADMIN_EMAIL})` : env.ADMIN_EMAIL;
-      console.log(`✅ Notification email sent to ${recipientMsg}`);
+      const successMsg = `✅ Notification email sent to ${recipientMsg}`;
+      console.log(successMsg);
+      await logToD1(env.NEXUS_DB, 'info', successMsg, { recipient: recipientMsg });
     } else {
       const error = await response.text();
-      console.error(`⚠️ Failed to send notification: ${response.status} - ${error}`);
+      const errorMsg = `⚠️ Failed to send notification: ${response.status} - ${error}`;
+      console.error(errorMsg);
+      await logToD1(env.NEXUS_DB, 'error', errorMsg, { 
+        status: response.status, 
+        error: error.substring(0, 500) 
+      });
     }
   } catch (error) {
-    console.error('Error sending notification:', error);
+    const errorMsg = `Error sending notification: ${error.message}`;
+    console.error(errorMsg, error);
+    await logToD1(env.NEXUS_DB, 'error', errorMsg, { 
+      error: error.message,
+      stack: error.stack?.substring(0, 500) 
+    });
   }
 }
 
