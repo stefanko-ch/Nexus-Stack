@@ -132,7 +132,9 @@ async function handleScheduledTeardown(event, env) {
 
     // Determine action based on which cron trigger fired
     // Cron schedules are configurable via environment variables (set in tofu/control-plane/main.tf)
-    // Defaults: NOTIFICATION_CRON="45 20 * * *" (20:45 UTC), TEARDOWN_CRON="0 21 * * *" (21:00 UTC)
+    // Defaults: NOTIFICATION_CRON="45 20 * * *" (20:45 UTC), TEARDOWN_CRON="0 21 * * *"
+    // If environment variables are missing or empty, defaults are used. If incorrectly formatted,
+    // the cron schedule comparison will fail and the action will be logged as unknown (no action taken).
     const notificationCron = env.NOTIFICATION_CRON || "45 20 * * *";
     const teardownCron = env.TEARDOWN_CRON || "0 21 * * *";
 
