@@ -25,7 +25,9 @@ function validateServiceName(name) {
     return false;
   }
   // Only allow: lowercase letters, numbers, hyphens, underscores
-  return /^[a-z0-9_-]+$/.test(name);
+  // Ensure the name starts and ends with an alphanumeric character
+  // This prevents issues with DNS names and file paths
+  return /^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$/.test(name);
 }
 
 /**
