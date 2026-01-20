@@ -217,13 +217,29 @@ PYEOF
     INSERT_COUNT=0
     INSERT_FAILED=0
     INSERT_FAILED_SERVICES=()
-    while IFS= read -r sql; do
+    while IFS= read -r sql || [ -n "$sql" ]; do
+      # Skip empty lines
+      if [ -z "$sql" ] || [ -z "${sql// }" ]; then
+        continue
+      fi
+      
       # Extract service name from SQL for logging
       SERVICE_NAME=$(echo "$sql" | sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p" | head -1)
       
+      # Skip if service name extraction failed
+      if [ -z "$SERVICE_NAME" ]; then
+        echo "    ⚠️  Could not extract service name from SQL, skipping..." >&2
+        SQL_PREVIEW=$(echo "$sql" | head -c 200)
+        echo "      SQL: ${SQL_PREVIEW}..." >&2
+        continue
+      fi
+      
       # Execute with error capture (but sanitize output)
+      # Temporarily disable 'set -e' for this command to handle errors gracefully
+      set +e
       WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1)
       WRANGLER_EXIT=$?
+      set -e
       
       if [ $WRANGLER_EXIT -eq 0 ]; then
         INSERT_COUNT=$((INSERT_COUNT + 1))
@@ -231,9 +247,11 @@ PYEOF
         
         # Verify service actually exists in D1
         # Note: Verification is optional - INSERT success is the primary indicator
+        set +e
         VERIFY_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
           --command "SELECT name FROM services WHERE name = '$SERVICE_NAME'" 2>&1)
         VERIFY_EXIT=$?
+        set -e
         
         if [ $VERIFY_EXIT -eq 0 ]; then
           # Check if result exists and contains the service name
@@ -257,6 +275,7 @@ PYEOF
         # Log SQL statement for debugging (truncated if too long)
         SQL_PREVIEW=$(echo "$sql" | head -c 200)
         echo "      SQL: ${SQL_PREVIEW}..." >&2
+        # Continue processing other services even if one fails
       fi
     done < /tmp/init_services.sql
     
@@ -282,13 +301,29 @@ PYEOF
     UPDATE_COUNT=0
     UPDATE_FAILED=0
     UPDATE_FAILED_SERVICES=()
-    while IFS= read -r sql; do
+    while IFS= read -r sql || [ -n "$sql" ]; do
+      # Skip empty lines
+      if [ -z "$sql" ] || [ -z "${sql// }" ]; then
+        continue
+      fi
+      
       # Extract service name from SQL for logging
       SERVICE_NAME=$(echo "$sql" | sed -n "s/.*WHERE name = '\([^']*\)'.*/\1/p" | head -1)
       
+      # Skip if service name extraction failed
+      if [ -z "$SERVICE_NAME" ]; then
+        echo "    ⚠️  Could not extract service name from SQL, skipping..." >&2
+        SQL_PREVIEW=$(echo "$sql" | head -c 200)
+        echo "      SQL: ${SQL_PREVIEW}..." >&2
+        continue
+      fi
+      
       # Execute with error capture (but sanitize output)
+      # Temporarily disable 'set -e' for this command to handle errors gracefully
+      set +e
       WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1)
       WRANGLER_EXIT=$?
+      set -e
       
       if [ $WRANGLER_EXIT -eq 0 ]; then
         UPDATE_COUNT=$((UPDATE_COUNT + 1))
@@ -299,6 +334,7 @@ PYEOF
         SANITIZED_ERROR=$(sanitize_error "$WRANGLER_OUTPUT")
         echo "    ✗ Failed to update: $SERVICE_NAME" >&2
         echo "      Error: $SANITIZED_ERROR" >&2
+        # Continue processing other services even if one fails
       fi
     done < /tmp/update_services.sql
     if [ $UPDATE_FAILED -eq 0 ]; then
