@@ -72,6 +72,13 @@ services:
       postgres: "postgres:14-alpine"
       redis: "redis:7-alpine"
 
+  gitea:
+    subdomain: "gitea"
+    port: 3003
+    public: false
+    description: "Self-hosted Git server - lightweight alternative to GitHub/GitLab with repository mirroring support."
+    image: "gitea/gitea:latest"
+
   it-tools:
     subdomain: "it-tools"
     port: 8080

@@ -106,6 +106,12 @@ resource "random_password" "minio_root" {
   special = false
 }
 
+# Gitea admin password
+resource "random_password" "gitea_admin" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================

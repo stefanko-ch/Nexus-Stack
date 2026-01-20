@@ -111,6 +111,9 @@ output "secrets" {
     # MinIO
     minio_root_password = random_password.minio_root.result
 
+    # Gitea
+    gitea_admin_password = random_password.gitea_admin.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

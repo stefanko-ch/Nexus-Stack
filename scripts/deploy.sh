@@ -93,6 +93,7 @@ METABASE_PASS=$(echo "$SECRETS_JSON" | jq -r '.metabase_admin_password // empty'
 CLOUDBEAVER_PASS=$(echo "$SECRETS_JSON" | jq -r '.cloudbeaver_admin_password // empty')
 MAGE_PASS=$(echo "$SECRETS_JSON" | jq -r '.mage_admin_password // empty')
 MINIO_ROOT_PASS=$(echo "$SECRETS_JSON" | jq -r '.minio_root_password // empty')
+GITEA_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_admin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -385,6 +386,19 @@ MINIO_ROOT_USER=admin
 MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASS
 EOF
     echo -e "${GREEN}  ✓ MinIO .env generated${NC}"
+fi
+
+# Generate Gitea .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "gitea"; then
+    echo "  Generating Gitea config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/gitea/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+GITEA_ADMIN_USERNAME=${ADMIN_USERNAME}
+GITEA_ADMIN_PASSWORD=${GITEA_PASS}
+GITEA_ADMIN_EMAIL=${ADMIN_EMAIL}
+DOMAIN=${DOMAIN}
+EOF
+    echo -e "${GREEN}  ✓ Gitea .env generated${NC}"
 fi
 
 # Sync only enabled stacks

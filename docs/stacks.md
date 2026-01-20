@@ -19,6 +19,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
 | n8n | `n8nio/n8n` | `1` | Major |
 | Kestra | `kestra/kestra` | `v1` | Major |
+| Gitea | `gitea/gitea` | `latest` | Latest ² |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | Metabase | `metabase/metabase` | `v0.58.x` | Minor |
 | Mailpit | `axllent/mailpit` | `v1` | Major |
@@ -305,6 +306,47 @@ The stack comes with three ready-to-use dashboards:
 ```
 
 > ✅ **Auto-configured:** Admin password is set via environment variables during deployment. Dashboards and datasources are pre-provisioned. Use `make secrets` to view the credentials.
+
+---
+
+## Gitea
+
+![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)
+
+**Self-hosted Git server with repository mirroring support**
+
+Gitea is a lightweight, self-hosted Git server that provides a GitHub-like experience. Perfect for private repositories, repository mirroring, and CI/CD integration.
+
+**Features:**
+- Git repository hosting (public and private)
+- Issues and Pull Requests
+- Repository mirroring (GitHub, GitLab, Gitea)
+- Webhooks for CI/CD integration (n8n, Kestra, etc.)
+- Wiki and code search
+- Gitea Actions (built-in CI/CD)
+- Lightweight and fast (SQLite by default)
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3003` |
+| Suggested Subdomain | `gitea` |
+| Public Access | **Never** (always protected) |
+| Default Enabled | **No** (enable via Control Plane when needed) |
+| Authentication | Admin user auto-created |
+| Database | SQLite (stored in Docker volume) |
+| Website | [gitea.io](https://gitea.io) |
+| Source | [GitHub](https://github.com/go-gitea/gitea) |
+
+> ✅ **Auto-configured:** Admin user is automatically created during first deployment. Credentials are available in Infisical. Use `make secrets` to view them.
+
+> 🔄 **Repository Mirroring:** Gitea supports mirroring repositories from GitHub, GitLab, and other Git servers. Configure mirrors in the Gitea UI:
+> - **Pull Mirror**: Sync from external source (e.g., GitHub → Gitea)
+> - **Push Mirror**: Push to external destination (e.g., Gitea → GitHub)
+> - Useful for backups, offline access, or migration
+
+> 🔗 **Webhooks Integration:** Gitea webhooks can trigger workflows in n8n or Kestra for automated deployments, notifications, or CI/CD pipelines.
+
+> 💡 **Usage:** Enable Gitea via the Control Plane when you need self-hosted Git repositories, repository mirroring, or Git-based CI/CD workflows.
 
 ---
 

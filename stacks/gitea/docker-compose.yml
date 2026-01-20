@@ -1,0 +1,75 @@
+# =============================================================================
+# Gitea - Self-hosted Git Server
+# =============================================================================
+# Lightweight alternative to GitHub/GitLab with repository mirroring support.
+# Access via: https://gitea.your-domain.com
+# Default port: 3003
+#
+# Features:
+#   - Git repository hosting
+#   - Issues and Pull Requests
+#   - Repository mirroring (GitHub, GitLab, etc.)
+#   - Webhooks for CI/CD integration
+#   - Wiki and code search
+#   - Gitea Actions (CI/CD)
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - Admin user auto-created on first startup
+# - User registration disabled (only admin can create users)
+# =============================================================================
+
+services:
+  gitea:
+    image: ${IMAGE_GITEA:-gitea/gitea:latest}
+    container_name: gitea
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    env_file:
+      - .env
+    environment:
+      # Database (SQLite - no separate container needed)
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__database__PATH=/data/gitea/gitea.db
+      # Server configuration
+      - GITEA__server__ROOT_URL=https://gitea.${DOMAIN}
+      - GITEA__server__DOMAIN=gitea.${DOMAIN}
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__PROTOCOL=https
+      # Security
+      - GITEA__security__INSTALL_LOCK=true
+      # Service settings
+      - GITEA__service__DISABLE_REGISTRATION=true
+      # User settings
+      - USER_UID=1000
+      - USER_GID=1000
+    volumes:
+      - gitea-data:/data
+    networks:
+      - app-network
+    # Entrypoint override to create admin user on first startup
+    entrypoint: ["/bin/sh","-c"]
+    command: |
+      /usr/local/bin/gitea migrate
+      /usr/local/bin/gitea admin user create \
+        --username "${GITEA_ADMIN_USERNAME}" \
+        --password "${GITEA_ADMIN_PASSWORD}" \
+        --email "${GITEA_ADMIN_EMAIL}" \
+        --admin \
+        --must-change-password=false || true
+      /usr/bin/entrypoint /usr/bin/s6-svscan /etc/s6
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  gitea-data:
+
+networks:
+  app-network:
+    external: true
