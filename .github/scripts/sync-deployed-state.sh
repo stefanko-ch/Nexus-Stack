@@ -81,6 +81,7 @@ for match in re.finditer(pattern, inner_content):
 
 insert_statements = []
 update_statements = []
+service_names = []
 for name, block in matches:
     # Only process blocks that have an 'enabled' field (real services)
     # This filters out any nested blocks we might have missed
@@ -88,6 +89,8 @@ for name, block in matches:
     if not enabled_match:
         # Skip blocks without enabled field (not a real service)
         continue
+    
+    service_names.append(name)
     
     # Extract values from block
     subdomain_match = re.search(r'subdomain\s*=\s*"([^"]*)"', block)
@@ -125,24 +128,57 @@ with open('/tmp/update_services.sql', 'w') as f:
 
 print(f"  Generated {len(insert_statements)} service insert statements")
 print(f"  Generated {len(update_statements)} service update statements")
+print(f"  Services found: {', '.join(sorted(service_names))}")
 PYEOF
 
   # Execute the INSERT SQL (for new services)
   if [ -f /tmp/init_services.sql ] && [ -s /tmp/init_services.sql ]; then
+    INSERT_COUNT=0
+    INSERT_FAILED=0
     while IFS= read -r sql; do
-      npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>/dev/null || true
+      # Extract service name from SQL for logging
+      SERVICE_NAME=$(echo "$sql" | sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p" | head -1)
+      if npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1 >/dev/null; then
+        INSERT_COUNT=$((INSERT_COUNT + 1))
+        echo "    ✓ Inserted/verified: $SERVICE_NAME"
+      else
+        INSERT_FAILED=$((INSERT_FAILED + 1))
+        echo "    ✗ Failed to insert: $SERVICE_NAME" >&2
+      fi
     done < /tmp/init_services.sql
-    echo "  ✅ New services inserted"
+    if [ $INSERT_FAILED -eq 0 ]; then
+      echo "  ✅ New services inserted ($INSERT_COUNT services)"
+    else
+      echo "  ⚠️  Inserted $INSERT_COUNT services, $INSERT_FAILED failed"
+    fi
     rm -f /tmp/init_services.sql
+  else
+    echo "  ℹ️  No new services to insert"
   fi
 
   # Execute the UPDATE SQL (for existing services - syncs metadata)
   if [ -f /tmp/update_services.sql ] && [ -s /tmp/update_services.sql ]; then
+    UPDATE_COUNT=0
+    UPDATE_FAILED=0
     while IFS= read -r sql; do
-      npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>/dev/null || true
+      # Extract service name from SQL for logging
+      SERVICE_NAME=$(echo "$sql" | sed -n "s/.*WHERE name = '\([^']*\)'.*/\1/p" | head -1)
+      if npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1 >/dev/null; then
+        UPDATE_COUNT=$((UPDATE_COUNT + 1))
+        echo "    ✓ Updated metadata: $SERVICE_NAME"
+      else
+        UPDATE_FAILED=$((UPDATE_FAILED + 1))
+        echo "    ✗ Failed to update: $SERVICE_NAME" >&2
+      fi
     done < /tmp/update_services.sql
-    echo "  ✅ Existing services metadata synced"
+    if [ $UPDATE_FAILED -eq 0 ]; then
+      echo "  ✅ Existing services metadata synced ($UPDATE_COUNT services)"
+    else
+      echo "  ⚠️  Updated $UPDATE_COUNT services, $UPDATE_FAILED failed"
+    fi
     rm -f /tmp/update_services.sql
+  else
+    echo "  ℹ️  No services to update"
   fi
 else
   echo "  ⚠️ services.tfvars not found - skipping sync"
