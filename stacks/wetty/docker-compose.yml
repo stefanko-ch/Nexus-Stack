@@ -23,6 +23,8 @@ services:
     command:
       - "--port"
       - "3000"
+      - "--base"
+      - "/"
       - "--ssh-host"
       - "host.docker.internal"
       - "--ssh-port"
