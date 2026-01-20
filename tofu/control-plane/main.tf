@@ -69,6 +69,16 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
     text = var.github_repo
   }
 
+  plain_text_binding {
+    name = "NOTIFICATION_CRON"
+    text = "45 20 * * *"  # Notification at 20:45 UTC (21:45 CET)
+  }
+
+  plain_text_binding {
+    name = "TEARDOWN_CRON"
+    text = "0 21 * * *"  # Teardown at 21:00 UTC (22:00 CET)
+  }
+
   # Note: RESEND_API_KEY and GITHUB_TOKEN are set via setup-control-plane-secrets.sh
 }
 

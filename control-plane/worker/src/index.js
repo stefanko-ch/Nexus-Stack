@@ -131,14 +131,16 @@ async function handleScheduledTeardown(event, env) {
     console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronSchedule})`);
 
     // Determine action based on which cron trigger fired
-    // Cron triggers are defined in tofu/control-plane/main.tf:
-    // - Notification: "45 20 * * *" (20:45 UTC)
-    // - Teardown: "0 21 * * *" (21:00 UTC)
-    if (cronSchedule === "45 20 * * *") {
+    // Cron schedules are configurable via environment variables (set in tofu/control-plane/main.tf)
+    // Defaults: NOTIFICATION_CRON="45 20 * * *" (20:45 UTC), TEARDOWN_CRON="0 21 * * *" (21:00 UTC)
+    const notificationCron = env.NOTIFICATION_CRON || "45 20 * * *";
+    const teardownCron = env.TEARDOWN_CRON || "0 21 * * *";
+
+    if (cronSchedule === notificationCron) {
       // Notification cron triggered
       await logToD1(env.NEXUS_DB, 'info', 'Sending teardown notification email');
       await sendNotification(env, config);
-    } else if (cronSchedule === "0 21 * * *") {
+    } else if (cronSchedule === teardownCron) {
       // Teardown cron triggered
       await logToD1(env.NEXUS_DB, 'warn', 'Triggering scheduled teardown');
       await triggerTeardown(env, config);

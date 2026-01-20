@@ -1514,10 +1514,18 @@
             if (hostname.startsWith('control.')) {
                 infoLink.href = `https://info.${hostname.replace('control.', '')}`;
             } else {
-                // Fallback: try to extract domain from hostname
-                const domain = hostname.split('.').slice(-2).join('.');
-                if (domain && domain !== hostname) {
-                    infoLink.href = `https://info.${domain}`;
+                // Fallback: extract domain by removing leftmost subdomain label
+                // Handles multi-part TLDs (e.g., example.co.uk) correctly
+                const parts = hostname.split('.');
+                if (parts.length > 2) {
+                    // Remove leftmost label (subdomain) to get domain
+                    const domain = parts.slice(1).join('.');
+                    if (domain && domain !== hostname) {
+                        infoLink.href = `https://info.${domain}`;
+                    }
+                } else if (parts.length === 2) {
+                    // Already a domain (no subdomain)
+                    infoLink.href = `https://info.${hostname}`;
                 }
             }
         }

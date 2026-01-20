@@ -111,73 +111,9 @@ jobs:
           fi
           
           # Generate services config from services.yaml
-          cat > /tmp/generate_services_tfvars.py << 'EOF'
-          import yaml
-          import os
-          import sys
-
-          enabled_input = os.environ.get('ENABLED_SERVICES', '')
-          enabled_set = set(s.strip() for s in enabled_input.split(',') if s.strip())
-
-          try:
-              with open('services.yaml', 'r') as f:
-                  data = yaml.safe_load(f)
-          except Exception as e:
-              print(f"Error reading services.yaml: {e}", file=sys.stderr)
-              sys.exit(1)
-
-          if not data or 'services' not in data:
-              print("No services found in services.yaml", file=sys.stderr)
-              sys.exit(1)
-
-          services = data['services']
-          output_lines = ['', '# Services (from services.yaml, enabled state from D1)', 'services = {']
-
-          for name, config in sorted(services.items()):
-              subdomain = config.get('subdomain', name)
-              port = config.get('port', 0)
-              public = 'true' if config.get('public', False) else 'false'
-              core = config.get('core', False)
-              description = config.get('description', '').replace('"', '\\"')
-              image = config.get('image', '')
-              
-              # Core services are always enabled, others follow D1 state
-              is_core = core
-              if enabled_set:
-                  should_enable = is_core or name in enabled_set
-              else:
-                  should_enable = is_core
-              
-              enabled = 'true' if should_enable else 'false'
-              
-              output_lines.append(f'  {name} = {{')
-              output_lines.append(f'    enabled     = {enabled}')
-              output_lines.append(f'    subdomain   = "{subdomain}"')
-              output_lines.append(f'    port        = {port}')
-              output_lines.append(f'    public      = {public}')
-              if core:
-                  output_lines.append(f'    core        = true')
-              output_lines.append(f'    description = "{description}"')
-              output_lines.append(f'    image       = "{image}"')
-              
-              support_images = config.get('support_images', {})
-              if support_images:
-                  output_lines.append('    support_images = {')
-                  for img_name, img_value in support_images.items():
-                      output_lines.append(f'      {img_name} = "{img_value}"')
-                  output_lines.append('    }')
-              
-              output_lines.append('  }')
-              output_lines.append('')
-
-          output_lines.append('}')
-
-          with open('tofu/stack/config.tfvars', 'a') as f:
-              f.write('\n'.join(output_lines))
-
-          print(f"Generated services config for {len(services)} services")
-          EOF
-          ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/generate_services_tfvars.py
+          # Use shared script to avoid code duplication
+          chmod +x .github/scripts/generate-services-tfvars.py
+          ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
           
           # Control Plane config
           cat > tofu/control-plane/config.tfvars << EOF
