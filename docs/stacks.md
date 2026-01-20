@@ -4,7 +4,7 @@ This document provides detailed information about all available Docker stacks in
 
 ## Docker Image Versions
 
-Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`tofu/services.tfvars`](../tofu/services.tfvars).
+Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`services.yaml`](../services.yaml).
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
@@ -40,7 +40,7 @@ Images are pinned to **major versions** where supported for automatic security p
 - **Exact** (e.g., `:v0.155.5`) - Full control, manual all updates
 - **Latest** - Always newest version (when no semver available)
 
-**To upgrade**: Edit the version in `tofu/services.tfvars` and run Spin-Up.
+**To upgrade**: Edit the version in `services.yaml` and run Spin-Up.
 
 ---
 
@@ -499,6 +499,57 @@ Redpanda Console is a developer-friendly web UI for managing and debugging your 
 
 ---
 
+## Wetty
+
+![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
+
+**Web-based SSH terminal**
+
+A terminal over HTTP/HTTPS that allows you to access your server via a web browser. Provides a full terminal experience without requiring SSH client software.
+
+**Features:**
+- **Browser-based SSH** - Access server terminal from any device with a web browser
+- **No SSH client needed** - Useful for environments where SSH client installation is restricted
+- **Full terminal experience** - Complete terminal functionality in your browser
+- **Cloudflare Access protected** - Secure access via email OTP authentication
+- **Public key authentication only** - No password authentication for enhanced security
+- **Session timeout** - Automatic disconnect after 1 hour of inactivity
+- **Core service** - Always enabled, cannot be disabled
+
+**Security Features:**
+- ✅ **Public key authentication only** - `SSHAUTH=publickey` prevents password-based logins
+- ✅ **Cloudflare Access** - Email OTP required before accessing Wetty interface
+- ✅ **Session timeout** - 1 hour inactivity timeout to prevent abandoned sessions
+- ✅ **Rate limiting** - Cloudflare Access provides built-in rate limiting
+- ✅ **HTTPS only** - All traffic encrypted via Cloudflare Tunnel
+- ✅ **No direct SSH exposure** - SSH daemon only accessible via localhost
+
+**Use cases:**
+- Quick terminal access without setting up SSH clients
+- Educational demos and teaching server management
+- Access from devices where SSH client installation is restricted
+- Fallback terminal access method via browser
+- Emergency access when SSH client is unavailable
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3002` |
+| Suggested Subdomain | `wetty` |
+| Public Access | **Never** (always protected) |
+| Default Enabled | **No** (enable via Control Plane when needed) |
+| Authentication | Public key only (no passwords) |
+| Session Timeout | 1 hour inactivity |
+| Website | [GitHub](https://github.com/butlerx/wetty) |
+| Source | [GitHub](https://github.com/butlerx/wetty) |
+
+> ✅ **Auto-configured:** Wetty connects to the server's SSH daemon using public key authentication only. Users must have their SSH public key configured on the server (same as regular SSH access).
+
+> 🔒 **Security:** Wetty is configured with `SSHAUTH=publickey` to prevent password-based authentication. Only users with SSH keys configured on the server can access the terminal.
+
+> 💡 **Usage:** Enable Wetty via the Control Plane when you need browser-based terminal access. It's disabled by default to reduce attack surface.
+
+---
+
 ## Enabling a Stack
 
 To enable any stack, add it to your `tofu/config.tfvars`:
@@ -547,23 +598,23 @@ networks:
     external: true
 ```
 
-### 2. Add to services.tfvars
+### 2. Add to services.yaml
 
-Add to `tofu/services.tfvars`:
+Add to `services.yaml` (in project root):
 
-```hcl
-services = {
+```yaml
+services:
   # ... existing services ...
   
-  my-app = {
-    enabled     = true
-    subdomain   = "my-app"     # → https://my-app.yourdomain.com
-    port        = 8090         # Must match docker-compose port
-    public      = false        # false = requires login, true = public
-    description = "My awesome application"
-  }
-}
+  my-app:
+    subdomain: "my-app"         # → https://my-app.yourdomain.com
+    port: 8090                  # Must match docker-compose port
+    public: false               # false = requires login, true = public
+    description: "My awesome application"
+    image: "myorg/my-app:latest"
 ```
+
+> **Note:** No `enabled` field needed - runtime state is managed by D1 (Control Plane).
 
 ### 3. Deploy
 
@@ -579,7 +630,7 @@ That's it! OpenTofu automatically creates:
 
 ## Disabling Services
 
-Services can be disabled via the **Control Plane** web interface, or by setting `enabled = false` in `services.tfvars`.
+Services can be disabled via the **Control Plane** web interface. The enabled/disabled state is stored in Cloudflare D1 - not in the `services.yaml` file.
 
 When disabled:
 1. DNS record is removed from Cloudflare

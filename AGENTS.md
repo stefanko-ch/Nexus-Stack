@@ -41,6 +41,7 @@ Nexus-Stack/
 ├── Makefile                    # Main entry point - all commands here
 ├── README.md                   # User documentation
 ├── AGENTS.md                   # Agent instructions (this file)
+├── services.yaml               # Service metadata (subdomain, port, description, image)
 ├── .github/
 │   └── workflows/             # GitHub Actions workflows
 │       ├── initial-setup.yaml  # Initial setup (triggers Control Plane + Spin Up)
@@ -51,7 +52,6 @@ Nexus-Stack/
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── backend.hcl             # Shared R2 backend configuration
-│   ├── services.tfvars             # Service configuration (enabled/disabled)
 │   ├── config.tfvars.example.dev   # Template for local dev (not for production)
 │   ├── stack/                  # Server, tunnel, services state
 │   │   ├── main.tf             # Core infrastructure (server, tunnel, DNS)
@@ -140,9 +140,10 @@ When adding a new Docker stack, **all locations must be updated**:
    - Include `networks: app-network` (external: true)
    - Add descriptive header comment with service URL
 
-2. **Register the service in Terraform:**
-   - Add to `services` map in `tofu/services.tfvars`
+2. **Register the service in services.yaml:**
+   - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
+   - No `enabled` field needed - D1 manages runtime state
 
 3. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
@@ -161,15 +162,18 @@ When adding a new Docker stack, **all locations must be updated**:
 ```
 Find logos at [simpleicons.org](https://simpleicons.org/)
 
-**Example service entry:**
-```hcl
-portainer = {
-  enabled   = true
-  subdomain = "portainer"    # → https://portainer.domain.com
-  port      = 9090           # Must match docker-compose port
-  public    = false          # false = requires Cloudflare Access login
-}
+**Example service entry (services.yaml):**
+```yaml
+portainer:
+  subdomain: "portainer"       # → https://portainer.domain.com
+  port: 9090                   # Must match docker-compose port
+  public: false                # false = requires Cloudflare Access login
+  description: "Docker container management UI"
+  image: "portainer/portainer-ce:lts"
 ```
+
+> **Note:** The `enabled` field is NOT in services.yaml - it's managed by D1 (Control Plane).
+> Core services have `core: true` and are always enabled.
 
 **Example password resource (in main.tf):**
 ```hcl
@@ -189,7 +193,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "myservice" && [ -n "$MYSERVICE_PASS" ]; 
 fi
 ```
 
-> **Note:** The `services` map in tfvars configures Cloudflare (DNS, Tunnel, Access), while the `stacks/` folder contains the Docker Compose definitions. Both must be in sync.
+> **Note:** The `services.yaml` file defines service metadata (subdomain, port, image), while `stacks/` contains Docker Compose definitions. Both must be in sync. Runtime state (enabled/disabled) is stored in Cloudflare D1 and managed via the Control Plane.
 
 ### Sensitive Data Handling
 
@@ -400,6 +404,35 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 
 **Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
 
+### Commit and Push Workflow
+
+**When making code changes, follow this workflow:**
+
+1. **After making changes, immediately inform the user** what exactly was changed:
+   - Describe the specific files modified
+   - Explain what was added, removed, or changed
+   - Mention any important details or considerations
+
+2. **Commit the changes immediately** after informing the user:
+   - Use conventional commit format: `type(scope): description`
+   - Include a detailed commit message explaining what was done
+   - Stage only the relevant files
+
+3. **Ask the user before pushing**:
+   - After committing, ask: "Soll ich pushen?" or "Should I push?"
+   - Wait for explicit confirmation before pushing to remote
+   - Do NOT push automatically unless explicitly requested
+
+**Example workflow:**
+```
+1. Make code changes
+2. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
+3. git commit -m "fix(ci): Add R2 bucket cleanup..."
+4. "Soll ich pushen?" / "Should I push?"
+5. Wait for user confirmation
+6. git push (only if confirmed)
+```
+
 ### PR Titles for Release Notes
 
 **PR titles are used to generate release notes.** The release pipeline extracts PR titles (not individual commits) to create the changelog. Therefore:
@@ -519,6 +552,13 @@ Use prefixes that match commit types:
 
 ## Closing Issues via PRs
 
+**When creating a Pull Request, always check if there is a corresponding Issue that should be closed by the PR.**
+
+Before creating a PR:
+1. Search for related issues using `gh issue list` or by checking the repository issues
+2. Look for issues that match the PR's purpose (feature requests, bug reports, etc.)
+3. If a matching issue is found, include the closing keyword in the PR description
+
 Use keywords in PR descriptions to automatically close issues when merged:
 
 ```markdown
@@ -527,7 +567,7 @@ Closes #4
 Fixes #3
 ```
 
-This creates a clear link between PRs and the issues they resolve.
+This creates a clear link between PRs and the issues they resolve and helps maintain project organization.
 
 ## Creating GitHub Issues and Pull Requests
 

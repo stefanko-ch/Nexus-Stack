@@ -13,7 +13,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 TFVARS_FILE="$PROJECT_ROOT/tofu/stack/config.tfvars"
-SERVICES_FILE="$PROJECT_ROOT/tofu/services.tfvars"
+SERVICES_YAML_FILE="$PROJECT_ROOT/services.yaml"
 TEMPLATE_FILE="$PROJECT_ROOT/stacks/info/html/index.template.html"
 OUTPUT_FILE="$PROJECT_ROOT/stacks/info/html/index.html"
 
@@ -25,9 +25,14 @@ NC='\033[0m'
 
 echo -e "${GREEN}📄 Generating Info Page...${NC}"
 
+# Debug logging
+LOG_FILE="/tmp/debug.log"
+echo "{\"location\":\"generate-info-page.sh:26\",\"message\":\"Starting info page generation\",\"data\":{\"tfvars_file\":\"$TFVARS_FILE\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 # Check if required files exist
 if [ ! -f "$TFVARS_FILE" ]; then
     echo -e "${RED}Error: config.tfvars not found at $TFVARS_FILE${NC}"
+    echo "{\"location\":\"generate-info-page.sh:30\",\"message\":\"config.tfvars not found\",\"data\":{\"tfvars_file\":\"$TFVARS_FILE\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     exit 1
 fi
 
@@ -46,7 +51,7 @@ fi
 
 echo -e "  Domain: ${GREEN}$DOMAIN${NC}"
 
-# Use Python to parse tfvars and generate JSON (more reliable than awk)
+# Parse services from config.tfvars (HCL format with enabled state)
 SERVICES_JSON=$(python3 << PYEOF
 import re
 import json
@@ -113,8 +118,11 @@ PYEOF
 )
 
 # Validate JSON
+echo "{\"location\":\"generate-info-page.sh:116\",\"message\":\"Validating services JSON\",\"data\":{\"services_json_length\":${#SERVICES_JSON}},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 if ! echo "$SERVICES_JSON" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
     echo -e "${RED}Error: Failed to parse services from config.tfvars${NC}"
+    echo "{\"location\":\"generate-info-page.sh:117\",\"message\":\"JSON validation failed\",\"data\":{\"services_json_preview\":\"${SERVICES_JSON:0:200}\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     exit 1
 fi
 
@@ -124,63 +132,49 @@ TOTAL_COUNT=$(echo "$SERVICES_JSON" | python3 -c "import sys, json; d=json.load(
 
 echo -e "  Services: ${GREEN}$ACTIVE_COUNT${NC} active / $TOTAL_COUNT total"
 
-# Extract image versions from services (image field + support_images)
+# Extract image versions from services.yaml using YAML parser
 IMAGE_VERSIONS_JSON="{}"
-if [ -f "$SERVICES_FILE" ]; then
+if [ -f "$SERVICES_YAML_FILE" ]; then
     IMAGE_VERSIONS_JSON=$(python3 << PYEOF
-import re
+import yaml
 import json
 
-with open("$SERVICES_FILE", 'r') as f:
-    content = f.read()
+with open("$SERVICES_YAML_FILE", 'r') as f:
+    data = yaml.safe_load(f)
+
+if not data or 'services' not in data:
+    print("{}")
+    exit(0)
 
 versions = {}
+services = data['services']
 
-# Find all service blocks and extract image fields
-# Match: service_name = { ... image = "image:tag" ... }
-service_pattern = r'(\w[\w-]*)\s*=\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}'
-
-for match in re.finditer(service_pattern, content, re.MULTILINE | re.DOTALL):
-    service_name = match.group(1)
-    block = match.group(2)
-    
-    # Skip if this looks like the services wrapper block
-    if service_name == 'services':
-        continue
-    
-    # Extract main image field
-    image_match = re.search(r'^\s*image\s*=\s*"([^"]+)"', block, re.MULTILINE)
-    if image_match:
-        image = image_match.group(1)
-        # Extract just the tag from "image:tag"
+for service_name, config in services.items():
+    # Extract main image version
+    image = config.get('image', '')
+    if image:
         if ':' in image:
             tag = image.split(':')[-1]
         else:
             tag = image
         versions[service_name] = tag
     
-    # Extract support_images block
-    support_match = re.search(r'support_images\s*=\s*\{([^}]+)\}', block)
-    if support_match:
-        support_block = support_match.group(1)
-        for line in support_block.split('\n'):
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            m = re.match(r'^([\w-]+)\s*=\s*"([^"]+)"', line)
-            if m:
-                key = m.group(1)
-                value = m.group(2)
-                if ':' in value:
-                    tag = value.split(':')[-1]
-                else:
-                    tag = value
-                versions[key] = tag
+    # Extract support_images versions
+    support_images = config.get('support_images', {})
+    if support_images:
+        for img_name, img_value in support_images.items():
+            if ':' in img_value:
+                tag = img_value.split(':')[-1]
+            else:
+                tag = img_value
+            versions[img_name] = tag
 
 print(json.dumps(versions, indent=2))
 PYEOF
 )
-    echo -e "  Image versions: ${GREEN}loaded${NC}"
+    echo -e "  Image versions: ${GREEN}loaded from services.yaml${NC}"
+else
+    echo -e "  ${YELLOW}Warning: services.yaml not found - image versions not available${NC}"
 fi
 
 # Get current date
@@ -211,5 +205,7 @@ with open(output_path, 'w') as f:
 
 print(f"  Output: {output_path}")
 PYEOF
+
+echo "{\"location\":\"generate-info-page.sh:215\",\"message\":\"Info page generation completed\",\"data\":{\"output_file\":\"$OUTPUT_FILE\",\"file_exists\":$([ -f "$OUTPUT_FILE" ] && echo "true" || echo "false")},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
 
 echo -e "${GREEN}✓ Info page generated successfully!${NC}"

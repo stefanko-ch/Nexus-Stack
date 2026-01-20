@@ -262,10 +262,17 @@ resource "null_resource" "start_tunnel" {
     inline = [
       "echo 'Waiting for cloud-init to complete...'",
       "cloud-init status --wait || true",
-      "echo 'Starting Cloudflare Tunnel...'",
+      "echo 'Installing/updating Cloudflare Tunnel...'",
+      # Stop existing service if running (in case of tunnel update)
+      "systemctl stop cloudflared 2>/dev/null || true",
+      # Install/update tunnel with new token
       "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
       "systemctl enable cloudflared",
       "systemctl start cloudflared",
+      # Wait a moment for service to start
+      "sleep 3",
+      # Verify tunnel is running
+      "systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'",
       "echo 'Tunnel started successfully!'"
     ]
 
