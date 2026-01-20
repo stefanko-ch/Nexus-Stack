@@ -215,77 +215,9 @@ jobs:
           fi
           
           # Generate services config from services.yaml
-          # Parse YAML and generate HCL format for OpenTofu
-          cat > /tmp/generate_services_tfvars.py << 'EOF'
-          import yaml
-          import os
-          import sys
-
-          enabled_input = os.environ.get('ENABLED_SERVICES', '')
-          enabled_set = set(s.strip() for s in enabled_input.split(',') if s.strip())
-
-          try:
-              with open('services.yaml', 'r') as f:
-                  data = yaml.safe_load(f)
-          except Exception as e:
-              print(f"Error reading services.yaml: {e}", file=sys.stderr)
-              sys.exit(1)
-
-          if not data or 'services' not in data:
-              print("No services found in services.yaml", file=sys.stderr)
-              sys.exit(1)
-
-          services = data['services']
-          output_lines = ['', '# Services (from services.yaml, enabled state from D1)', 'services = {']
-
-          for name, config in sorted(services.items()):
-              subdomain = config.get('subdomain', name)
-              port = config.get('port', 0)
-              public = 'true' if config.get('public', False) else 'false'
-              core = config.get('core', False)
-              description = config.get('description', '').replace('"', '\\"')
-              image = config.get('image', '')
-              
-              # Core services are always enabled, others follow D1 state
-              # If no D1 state yet (empty enabled_set), only core services are enabled
-              is_core = core
-              if enabled_set:
-                  should_enable = is_core or name in enabled_set
-              else:
-                  # No D1 state - only enable core services
-                  should_enable = is_core
-              
-              enabled = 'true' if should_enable else 'false'
-              
-              output_lines.append(f'  {name} = {{')
-              output_lines.append(f'    enabled     = {enabled}')
-              output_lines.append(f'    subdomain   = "{subdomain}"')
-              output_lines.append(f'    port        = {port}')
-              output_lines.append(f'    public      = {public}')
-              if core:
-                  output_lines.append(f'    core        = true')
-              output_lines.append(f'    description = "{description}"')
-              output_lines.append(f'    image       = "{image}"')
-              
-              # Handle support_images
-              support_images = config.get('support_images', {})
-              if support_images:
-                  output_lines.append('    support_images = {')
-                  for img_name, img_value in support_images.items():
-                      output_lines.append(f'      {img_name} = "{img_value}"')
-                  output_lines.append('    }')
-              
-              output_lines.append('  }')
-              output_lines.append('')
-
-          output_lines.append('}')
-
-          with open('tofu/stack/config.tfvars', 'a') as f:
-              f.write('\n'.join(output_lines))
-
-          print(f"Generated services config for {len(services)} services")
-          EOF
-          ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/generate_services_tfvars.py
+          # Use shared script to avoid code duplication
+          chmod +x .github/scripts/generate-services-tfvars.py
+          ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
 
       - name: Initialize OpenTofu
         run: |
@@ -464,6 +396,52 @@ jobs:
           rm wrangler.toml
           echo "✅ Control Plane redeployed with new secrets!"
 
+      - name: Collect debug logs
+        if: always()
+        run: |
+          echo "📋 Collecting debug logs..."
+          if [ -f /tmp/debug.log ]; then
+            mkdir -p .cursor
+            cp /tmp/debug.log .cursor/debug.log
+            echo "✅ Debug logs saved to .cursor/debug.log"
+            echo "--- Debug Log Contents ---"
+            cat .cursor/debug.log || true
+          fi
+          if [ -f /tmp/docker-start.log ]; then
+            echo "--- Docker Start Log ---"
+            cat /tmp/docker-start.log || true
+          fi
+
+      - name: Show spin-up info
+        run: |
+          echo ""
+          echo "✅ Spin-up complete!"
+          echo ""
+          echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
+          echo "   (View all service URLs and credentials there)"
+          echo ""
+      
+      - name: Sync deployed state to D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          # Sync deployed = enabled in D1 after successful deployment
+          if [ -f .github/scripts/sync-deployed-state.sh ]; then
+            .github/scripts/sync-deployed-state.sh
+          fi
+
+      - name: Log spin-up completed
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Spin-up workflow completed successfully"
+          fi
+
       - name: Send stack online email via Resend
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -513,50 +491,4 @@ jobs:
             fi
           else
             echo "⚠️  RESEND_API_KEY not configured - skipping email"
-          fi
-
-      - name: Collect debug logs
-        if: always()
-        run: |
-          echo "📋 Collecting debug logs..."
-          if [ -f /tmp/debug.log ]; then
-            mkdir -p .cursor
-            cp /tmp/debug.log .cursor/debug.log
-            echo "✅ Debug logs saved to .cursor/debug.log"
-            echo "--- Debug Log Contents ---"
-            cat .cursor/debug.log || true
-          fi
-          if [ -f /tmp/docker-start.log ]; then
-            echo "--- Docker Start Log ---"
-            cat /tmp/docker-start.log || true
-          fi
-
-      - name: Show spin-up info
-        run: |
-          echo ""
-          echo "✅ Spin-up complete!"
-          echo ""
-          echo "📋 Info Page: https://info.${{ secrets.DOMAIN }}"
-          echo "   (View all service URLs and credentials there)"
-          echo ""
-      
-      - name: Sync deployed state to D1
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-        run: |
-          # Sync deployed = enabled in D1 after successful deployment
-          if [ -f .github/scripts/sync-deployed-state.sh ]; then
-            .github/scripts/sync-deployed-state.sh
-          fi
-
-      - name: Log spin-up completed
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-        run: |
-          if [ -f .github/scripts/log-to-d1.sh ]; then
-            .github/scripts/log-to-d1.sh info "Spin-up workflow completed successfully"
           fi

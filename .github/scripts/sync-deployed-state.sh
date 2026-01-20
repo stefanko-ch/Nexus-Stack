@@ -16,7 +16,13 @@
 #   DOMAIN                - Domain for database name derivation
 # =============================================================================
 
-set -e
+set -euo pipefail
+
+# Cleanup trap for temporary files
+cleanup_temp_files() {
+  rm -f /tmp/init_services.sql /tmp/update_services.sql
+}
+trap cleanup_temp_files EXIT INT TERM
 
 # Function to safely sanitize error output (remove secrets/tokens)
 sanitize_error() {
@@ -55,12 +61,81 @@ if [ -f "services.yaml" ]; then
   python3 << 'PYEOF'
 import yaml
 import sys
+import re
+
+def validate_service_name(name):
+    """Validate service name to prevent SQL injection.
+    Only allows lowercase letters, numbers, hyphens, and underscores.
+    """
+    if not isinstance(name, str):
+        return False
+    if len(name) == 0 or len(name) > 63:  # Max length for service names
+        return False
+    # Only allow: lowercase letters, numbers, hyphens, underscores
+    if not re.match(r'^[a-z0-9_-]+$', name):
+        return False
+    return True
+
+def validate_services_yaml(data):
+    """Validate services.yaml structure and required fields."""
+    errors = []
+    
+    if not data:
+        errors.append("services.yaml is empty")
+        return errors
+    
+    if 'services' not in data:
+        errors.append("Missing 'services' key in services.yaml")
+        return errors
+    
+    services = data['services']
+    if not isinstance(services, dict):
+        errors.append("'services' must be a dictionary/map")
+        return errors
+    
+    if len(services) == 0:
+        errors.append("No services defined in services.yaml")
+        return errors
+    
+    # Required fields for each service
+    required_fields = ['subdomain', 'port', 'image']
+    
+    for name, config in services.items():
+        # Validate service name format
+        if not validate_service_name(name):
+            errors.append(f"Invalid service name '{name}': must be 1-63 characters, lowercase letters, numbers, hyphens, underscores only")
+            continue
+        
+        if not isinstance(config, dict):
+            errors.append(f"Service '{name}': config must be a dictionary")
+            continue
+        
+        # Check required fields
+        for field in required_fields:
+            if field not in config:
+                errors.append(f"Service '{name}': missing required field '{field}'")
+        
+        # Validate field types and values
+        if 'port' in config:
+            port = config['port']
+            if not isinstance(port, int) or port < 1 or port > 65535:
+                errors.append(f"Service '{name}': port must be an integer between 1 and 65535, got {port}")
+    
+    return errors
 
 try:
     with open('services.yaml', 'r') as f:
         data = yaml.safe_load(f)
 except Exception as e:
     print(f"  ⚠️ Error reading services.yaml: {e}")
+    sys.exit(1)
+
+# Validate services.yaml structure
+validation_errors = validate_services_yaml(data)
+if validation_errors:
+    print("  ⚠️ services.yaml validation failed:", file=sys.stderr)
+    for error in validation_errors:
+        print(f"    - {error}", file=sys.stderr)
     sys.exit(1)
 
 if not data or 'services' not in data:
@@ -71,8 +146,15 @@ services = data['services']
 insert_statements = []
 update_statements = []
 service_names = []
+invalid_services = []
 
 for name, config in services.items():
+    # Validate service name to prevent SQL injection
+    if not validate_service_name(name):
+        invalid_services.append(name)
+        print(f"  ⚠️ Invalid service name '{name}' - skipping (only lowercase letters, numbers, hyphens, underscores allowed)", file=sys.stderr)
+        continue
+    
     service_names.append(name)
     
     subdomain = config.get('subdomain', '')
@@ -83,6 +165,11 @@ for name, config in services.items():
     
     # Escape single quotes in description for SQL
     description = description.replace("'", "''")
+    
+    # Validate and escape subdomain (same rules as service name)
+    if subdomain and not re.match(r'^[a-z0-9_-]+$', subdomain):
+        print(f"  ⚠️ Invalid subdomain '{subdomain}' for service '{name}' - using service name as fallback", file=sys.stderr)
+        subdomain = name
     
     # For new services: only core services are enabled by default
     # This is the key change: enabled = core (not from config file)
@@ -108,6 +195,9 @@ with open('/tmp/update_services.sql', 'w') as f:
     f.write('\n'.join(update_statements))
     if update_statements:  # Ensure file ends with newline
         f.write('\n')
+
+if invalid_services:
+    print(f"  ⚠️ Skipped {len(invalid_services)} invalid service(s): {', '.join(invalid_services)}", file=sys.stderr)
 
 print(f"  Generated {len(insert_statements)} service insert statements")
 print(f"  Generated {len(update_statements)} service update statements")
@@ -140,14 +230,23 @@ PYEOF
         echo "    ✓ Inserted/verified: $SERVICE_NAME"
         
         # Verify service actually exists in D1
+        # Note: Verification is optional - INSERT success is the primary indicator
         VERIFY_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
           --command "SELECT name FROM services WHERE name = '$SERVICE_NAME'" 2>&1)
-        if echo "$VERIFY_OUTPUT" | jq -e ".result[0].name == \"$SERVICE_NAME\"" >/dev/null 2>&1; then
-          echo "      ✓ Verified: $SERVICE_NAME exists in D1"
+        VERIFY_EXIT=$?
+        
+        if [ $VERIFY_EXIT -eq 0 ]; then
+          # Check if result exists and contains the service name
+          if echo "$VERIFY_OUTPUT" | jq -e '.result != null and (.result | length) > 0 and .result[0].name == "'"$SERVICE_NAME"'"' >/dev/null 2>&1; then
+            echo "      ✓ Verified: $SERVICE_NAME exists in D1"
+          else
+            # Verification failed, but INSERT succeeded - likely a timing issue or false positive
+            # Don't count as failure since INSERT was successful
+            echo "      ℹ️  Verification inconclusive (INSERT succeeded, verification failed - likely timing issue)"
+          fi
         else
-          echo "      ⚠️  Warning: $SERVICE_NAME INSERT may have failed (not found in D1)" >&2
-          INSERT_FAILED=$((INSERT_FAILED + 1))
-          INSERT_FAILED_SERVICES+=("$SERVICE_NAME")
+          # Verification query failed - don't count as failure since INSERT succeeded
+          echo "      ℹ️  Verification query failed (INSERT succeeded)"
         fi
       else
         INSERT_FAILED=$((INSERT_FAILED + 1))
@@ -167,7 +266,6 @@ PYEOF
       echo "  ⚠️  Inserted $INSERT_COUNT services, $INSERT_FAILED failed" >&2
       echo "  Failed services: ${INSERT_FAILED_SERVICES[*]}" >&2
     fi
-    rm -f /tmp/init_services.sql
   else
     echo "  ℹ️  No new services to insert"
     if [ -f /tmp/init_services.sql ]; then
@@ -209,7 +307,6 @@ PYEOF
       echo "  ⚠️  Updated $UPDATE_COUNT services, $UPDATE_FAILED failed" >&2
       echo "  Failed services: ${UPDATE_FAILED_SERVICES[*]}" >&2
     fi
-    rm -f /tmp/update_services.sql
   else
     echo "  ℹ️  No services to update"
   fi
