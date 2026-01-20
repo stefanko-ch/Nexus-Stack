@@ -20,14 +20,18 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3000"
-    environment:
-      - SSHHOST=host.docker.internal
-      - SSHPORT=22
-      - SSHUSER=root
+    command:
+      - "--port"
+      - "3000"
+      - "--ssh-host"
+      - "host.docker.internal"
+      - "--ssh-port"
+      - "22"
+      - "--ssh-user"
+      - "root"
       # Security: Only allow public key authentication (no passwords)
-      - SSHAUTH=publickey
-      # Session timeout: 1 hour (3600000ms)
-      - WETTY_TIMEOUT=3600000
+      - "--ssh-auth"
+      - "publickey"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
