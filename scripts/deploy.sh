@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # =============================================================================
 # ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
@@ -445,6 +445,65 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# Setup SSH-Agent for Wetty (if enabled)
+# -----------------------------------------------------------------------------
+if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
+    echo ""
+    echo -e "${YELLOW}[5.5/7] Setting up SSH-Agent for Wetty...${NC}"
+    ssh nexus "
+        # Create SSH-Agent socket directory if it doesn't exist
+        SSH_AGENT_DIR=\"/tmp/ssh-agent\"
+        mkdir -p \"\$SSH_AGENT_DIR\"
+        
+        # Check if SSH-Agent is already running (check for existing socket)
+        SSH_AUTH_SOCK_FILE=\"\$SSH_AGENT_DIR/agent.sock\"
+        if [ -S \"\$SSH_AUTH_SOCK_FILE\" ]; then
+            export SSH_AUTH_SOCK=\"\$SSH_AUTH_SOCK_FILE\"
+            # Test if agent is still responsive
+            if ssh-add -l >/dev/null 2>&1; then
+                echo '  ✓ SSH-Agent already running'
+            else
+                # Socket exists but agent is dead, remove it
+                rm -f \"\$SSH_AUTH_SOCK_FILE\"
+                unset SSH_AUTH_SOCK
+            fi
+        fi
+        
+        # Start SSH-Agent if not running
+        if [ -z \"\${SSH_AUTH_SOCK:-}\" ] || [ ! -S \"\$SSH_AUTH_SOCK\" ]; then
+            # Start SSH-Agent with socket in known location
+            eval \$(ssh-agent -a \"\$SSH_AUTH_SOCK_FILE\" -s) >/dev/null 2>&1
+            export SSH_AUTH_SOCK=\"\$SSH_AUTH_SOCK_FILE\"
+            echo '  ✓ SSH-Agent started'
+        fi
+        
+        # Add SSH key to agent if not already added
+        SSH_KEY_PATH=\"/root/.ssh/id_ed25519\"
+        if [ -f \"\$SSH_KEY_PATH\" ]; then
+            # Check if key is already in agent
+            if ! ssh-add -l 2>/dev/null | grep -q \"\$SSH_KEY_PATH\"; then
+                ssh-add \"\$SSH_KEY_PATH\" 2>/dev/null || true
+                echo '  ✓ SSH key added to agent'
+            else
+                echo '  ✓ SSH key already in agent'
+            fi
+        else
+            echo -e '  ${YELLOW}⚠ SSH key not found at \$SSH_KEY_PATH${NC}'
+        fi
+        
+        # Export SSH_AUTH_SOCK path in wetty .env file for docker-compose
+        WETTY_ENV=\"/opt/docker-server/stacks/wetty/.env\"
+        if [ -f \"\$WETTY_ENV\" ]; then
+            # Remove existing SSH_AUTH_SOCK line if present
+            sed -i '/^SSH_AUTH_SOCK=/d' \"\$WETTY_ENV\"
+        fi
+        echo \"SSH_AUTH_SOCK=\$SSH_AUTH_SOCK\" >> \"\$WETTY_ENV\"
+        echo '  ✓ SSH_AUTH_SOCK exported to wetty .env'
+    "
+    echo -e "${GREEN}  ✓ SSH-Agent configured for Wetty${NC}"
+fi
+
+# -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
@@ -455,28 +514,74 @@ echo ""
 echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
 
 ssh nexus "
-set -e
+set -euo pipefail
 # Export image versions from global .env
 if [ -f /opt/docker-server/stacks/.env ]; then
     set -a
     source /opt/docker-server/stacks/.env
     set +a
 fi
+
+STARTED_SERVICES=()
+FAILED_SERVICES=()
+PIDS=()
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
         (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+        PID=\$!
+        PIDS+=(\$PID)
+        STARTED_SERVICES+=(\"\$service:\$PID\")
     else
         echo \"[DEBUG] docker-compose.yml not found for \$service\" >&2
+        FAILED_SERVICES+=(\"\$service (no docker-compose.yml)\")
     fi
 done
-wait
+
+# Wait for all background jobs and collect exit codes
+FAILED_COUNT=0
+for i in \"\${!PIDS[@]}\"; do
+    PID=\${PIDS[\$i]}
+    SERVICE_PID_PAIR=\${STARTED_SERVICES[\$i]}
+    SERVICE_NAME=\$(echo \"\$SERVICE_PID_PAIR\" | cut -d: -f1)
+    
+    if wait \$PID; then
+        # Verify container is actually running
+        if docker ps --format '{{.Names}}' | grep -q \"^\${SERVICE_NAME}\$\"; then
+            echo \"  ✓ \$SERVICE_NAME started and running\"
+        else
+            echo \"  ⚠️  \$SERVICE_NAME started but container not found in 'docker ps'\" >&2
+            FAILED_SERVICES+=(\"\$SERVICE_NAME (container not running)\")
+            FAILED_COUNT=\$((FAILED_COUNT + 1))
+        fi
+    else
+        EXIT_CODE=\$?
+        echo \"  ✗ \$SERVICE_NAME failed to start (exit code: \$EXIT_CODE)\" >&2
+        FAILED_SERVICES+=(\"\$SERVICE_NAME (exit code: \$EXIT_CODE)\")
+        FAILED_COUNT=\$((FAILED_COUNT + 1))
+    fi
+done
+
 echo ''
-echo '  ✓ All enabled stacks started'
+if [ \$FAILED_COUNT -eq 0 ] && [ \${#FAILED_SERVICES[@]} -eq 0 ]; then
+    echo '  ✓ All enabled stacks started successfully'
+else
+    echo \"  ⚠️  Started \${#STARTED_SERVICES[@]} services, \$FAILED_COUNT failed\" >&2
+    echo \"  Failed services: \${FAILED_SERVICES[*]}\" >&2
+    exit 1
+fi
 " 2>&1 | tee /tmp/docker-start.log
 
-echo -e "${GREEN}  ✓ All containers started${NC}"
+DOCKER_EXIT_CODE=${PIPESTATUS[0]}
+if [ $DOCKER_EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}  ✓ All containers started successfully${NC}"
+else
+    echo -e "${RED}  ✗ Some containers failed to start${NC}"
+    echo -e "${YELLOW}  Check /tmp/docker-start.log for details${NC}"
+    exit $DOCKER_EXIT_CODE
+fi
 
 # -----------------------------------------------------------------------------
 # Auto-configure services
@@ -609,7 +714,7 @@ EOF
     {"secretKey": "UPTIME_KUMA_PASSWORD", "secretValue": "$KUMA_PASS", "tagIds": ["$KUMA_TAG"]},
     {"secretKey": "GRAFANA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
-    {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$N8N_TAG"]},
+    {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$KESTRA_TAG"]},
     {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": ["$KESTRA_TAG"]},
