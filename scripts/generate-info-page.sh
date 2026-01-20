@@ -8,7 +8,7 @@
 # Usage: ./generate-info-page.sh
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -61,57 +61,107 @@ tfvars_path = "$TFVARS_FILE"
 with open(tfvars_path, 'r') as f:
     content = f.read()
 
-# Find services block
-services_match = re.search(r'services\s*=\s*\{(.*?)^\}', content, re.MULTILINE | re.DOTALL)
+# Find services block - match until the closing brace at the same indentation level
+services_match = re.search(r'services\s*=\s*\{', content)
 if not services_match:
     print("{}")
     exit(0)
 
-services_block = services_match.group(1)
+# Find the matching closing brace by counting braces
+start_pos = services_match.end()
+brace_count = 1
+pos = start_pos
+while pos < len(content) and brace_count > 0:
+    if content[pos] == '{':
+        brace_count += 1
+    elif content[pos] == '}':
+        brace_count -= 1
+    pos += 1
+
+services_block = content[start_pos:pos-1]
 services = {}
 
-# Parse each service block
-current_service = None
-current_props = {}
-
-for line in services_block.split('\n'):
-    line = line.strip()
+# Parse each service block with proper nested block handling
+lines = services_block.split('\n')
+i = 0
+while i < len(lines):
+    line = lines[i].strip()
     
     # Skip empty lines and comments
     if not line or line.startswith('#'):
+        i += 1
         continue
     
     # Service block start: servicename = {
     match = re.match(r'^([\w-]+)\s*=\s*\{', line)
     if match:
-        current_service = match.group(1)
-        current_props = {}
-        continue
-    
-    # Service block end
-    if line == '}' and current_service:
-        services[current_service] = current_props
-        current_service = None
-        current_props = {}
-        continue
-    
-    # Property line
-    if current_service and '=' in line:
-        # Remove trailing comma
-        line = line.rstrip(',')
-        key, value = line.split('=', 1)
-        key = key.strip()
-        value = value.strip()
+        service_name = match.group(1)
+        # Skip 'support_images' - it's not a service
+        if service_name == 'support_images':
+            # Skip the entire support_images block
+            brace_count = 1
+            i += 1
+            while i < len(lines) and brace_count > 0:
+                line = lines[i]
+                brace_count += line.count('{') - line.count('}')
+                i += 1
+            continue
         
-        # Parse value
-        if value == 'true':
-            current_props[key] = True
-        elif value == 'false':
-            current_props[key] = False
-        elif value.isdigit():
-            current_props[key] = int(value)
-        else:
-            current_props[key] = value.strip('"')
+        current_props = {}
+        brace_count = 1
+        i += 1
+        
+        # Parse service properties until closing brace
+        while i < len(lines) and brace_count > 0:
+            line = lines[i].strip()
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                i += 1
+                continue
+            
+            # Count braces for nested blocks
+            brace_count += line.count('{') - line.count('}')
+            
+            # If we hit the closing brace, we're done with this service
+            if brace_count == 0:
+                break
+            
+            # Property line (not a nested block)
+            if '=' in line and '{' not in line:
+                # Remove trailing comma
+                line = line.rstrip(',')
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Skip support_images property
+                if key == 'support_images':
+                    # Skip the nested support_images block
+                    nested_brace_count = 1
+                    i += 1
+                    while i < len(lines) and nested_brace_count > 0:
+                        nested_line = lines[i]
+                        nested_brace_count += nested_line.count('{') - nested_line.count('}')
+                        i += 1
+                    continue
+                
+                # Parse value
+                if value == 'true':
+                    current_props[key] = True
+                elif value == 'false':
+                    current_props[key] = False
+                elif value.isdigit():
+                    current_props[key] = int(value)
+                else:
+                    current_props[key] = value.strip('"')
+            
+            i += 1
+        
+        services[service_name] = current_props
+        continue
+    
+    i += 1
 
 print(json.dumps(services, indent=2))
 PYEOF

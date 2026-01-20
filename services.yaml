@@ -163,5 +163,5 @@ services:
     subdomain: "wetty"
     port: 3002
     public: false
-    description: "Web-based SSH terminal that allows you to access your server via a web browser without requiring SSH client software. Uses public key authentication only for security."
+    description: "Web-based SSH terminal for browser access to your server."
     image: "wettyoss/wetty:latest"
