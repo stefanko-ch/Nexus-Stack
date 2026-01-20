@@ -9,7 +9,7 @@
 # SECURITY:
 # - Protected by Cloudflare Access (email OTP authentication)
 # - Uses SSH public key authentication only (no passwords)
-# - Session timeout after 1 hour of inactivity
+# - Cloudflare Access session duration: 1 hour (re-authentication required)
 # - Rate limiting via Cloudflare Access
 # =============================================================================
 
