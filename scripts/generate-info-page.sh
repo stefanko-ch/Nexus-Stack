@@ -25,9 +25,14 @@ NC='\033[0m'
 
 echo -e "${GREEN}📄 Generating Info Page...${NC}"
 
+# Debug logging
+LOG_FILE="/tmp/debug.log"
+echo "{\"location\":\"generate-info-page.sh:26\",\"message\":\"Starting info page generation\",\"data\":{\"tfvars_file\":\"$TFVARS_FILE\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 # Check if required files exist
 if [ ! -f "$TFVARS_FILE" ]; then
     echo -e "${RED}Error: config.tfvars not found at $TFVARS_FILE${NC}"
+    echo "{\"location\":\"generate-info-page.sh:30\",\"message\":\"config.tfvars not found\",\"data\":{\"tfvars_file\":\"$TFVARS_FILE\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     exit 1
 fi
 
@@ -113,8 +118,11 @@ PYEOF
 )
 
 # Validate JSON
+echo "{\"location\":\"generate-info-page.sh:116\",\"message\":\"Validating services JSON\",\"data\":{\"services_json_length\":${#SERVICES_JSON}},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 if ! echo "$SERVICES_JSON" | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
     echo -e "${RED}Error: Failed to parse services from config.tfvars${NC}"
+    echo "{\"location\":\"generate-info-page.sh:117\",\"message\":\"JSON validation failed\",\"data\":{\"services_json_preview\":\"${SERVICES_JSON:0:200}\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     exit 1
 fi
 
@@ -211,5 +219,7 @@ with open(output_path, 'w') as f:
 
 print(f"  Output: {output_path}")
 PYEOF
+
+echo "{\"location\":\"generate-info-page.sh:215\",\"message\":\"Info page generation completed\",\"data\":{\"output_file\":\"$OUTPUT_FILE\",\"file_exists\":$([ -f "$OUTPUT_FILE" && echo "true" || echo "false")},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
 
 echo -e "${GREEN}✓ Info page generated successfully!${NC}"

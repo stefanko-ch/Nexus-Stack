@@ -263,8 +263,13 @@ echo -e "${YELLOW}[3/7] Preparing stacks...${NC}"
 # Get enabled services from tofu output
 ENABLED_SERVICES=$(cd "$TOFU_DIR" && tofu output -json enabled_services 2>/dev/null | jq -r '.[]')
 
+# Debug logging
+LOG_FILE="/tmp/debug.log"
+echo "{\"location\":\"deploy.sh:264\",\"message\":\"Reading enabled services from OpenTofu output\",\"data\":{\"enabled_services\":\"$ENABLED_SERVICES\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 if [ -z "$ENABLED_SERVICES" ]; then
     echo -e "${YELLOW}  Warning: No enabled services in config.tfvars${NC}"
+    echo "{\"location\":\"deploy.sh:268\",\"message\":\"No enabled services found\",\"data\":{},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     ENABLED_SERVICES=""
 fi
 
@@ -300,9 +305,15 @@ echo "$ENV_CONTENT" | ssh nexus "cat > $REMOTE_STACKS_DIR/.env"
 echo -e "${GREEN}  ✓ Global .env config created (DOMAIN + image versions)${NC}"
 
 # Generate info page if info stack is enabled
+echo "{\"location\":\"deploy.sh:303\",\"message\":\"Checking if info should be generated\",\"data\":{\"enabled_services\":\"$ENABLED_SERVICES\",\"info_in_list\":$(echo "$ENABLED_SERVICES" | grep -qw "info" && echo "true" || echo "false")},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 if echo "$ENABLED_SERVICES" | grep -qw "info"; then
     echo "  Generating info page..."
+    echo "{\"location\":\"deploy.sh:305\",\"message\":\"Generating info page\",\"data\":{},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     "$SCRIPT_DIR/generate-info-page.sh"
+    echo "{\"location\":\"deploy.sh:306\",\"message\":\"Info page generation completed\",\"data\":{\"exit_code\":$?},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+else
+    echo "{\"location\":\"deploy.sh:303\",\"message\":\"Info page NOT generated - not in enabled services\",\"data\":{},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
 fi
 
 # Generate Infisical .env from OpenTofu secrets
@@ -376,12 +387,17 @@ EOF
 fi
 
 # Sync only enabled stacks
+echo "{\"location\":\"deploy.sh:378\",\"message\":\"Starting stack sync\",\"data\":{\"enabled_services\":\"$ENABLED_SERVICES\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
+
 for service in $ENABLED_SERVICES; do
+    echo "{\"location\":\"deploy.sh:379\",\"message\":\"Processing service for sync\",\"data\":{\"service\":\"$service\",\"stack_dir_exists\":$([ -d "$STACKS_DIR/$service" ] && echo "true" || echo "false")},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     if [ -d "$STACKS_DIR/$service" ]; then
         echo "  Syncing $service..."
         rsync -av "$STACKS_DIR/$service/" "nexus:$REMOTE_STACKS_DIR/$service/"
+        echo "{\"location\":\"deploy.sh:382\",\"message\":\"Service synced\",\"data\":{\"service\":\"$service\",\"exit_code\":$?},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     else
         echo -e "${YELLOW}  Warning: Stack folder 'stacks/$service' not found - skipping${NC}"
+        echo "{\"location\":\"deploy.sh:384\",\"message\":\"Stack folder not found\",\"data\":{\"service\":\"$service\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
     fi
 done
 echo -e "${GREEN}  ✓ Stacks synced${NC}"
@@ -447,15 +463,18 @@ if [ -f /opt/docker-server/stacks/.env ]; then
     set +a
 fi
 for service in $ENABLED_LIST; do
+    echo \"[DEBUG] Checking service: \$service\" >&2
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose up -d) &
+        (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+    else
+        echo \"[DEBUG] docker-compose.yml not found for \$service\" >&2
     fi
 done
 wait
 echo ''
 echo '  ✓ All enabled stacks started'
-"
+" 2>&1 | tee /tmp/docker-start.log
 
 echo -e "${GREEN}  ✓ All containers started${NC}"
 
