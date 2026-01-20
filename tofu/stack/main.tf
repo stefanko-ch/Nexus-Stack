@@ -403,7 +403,9 @@ resource "cloudflare_zero_trust_access_application" "services" {
   name              = "${local.resource_prefix} ${title(each.key)}"
   domain            = "${each.value.subdomain}.${var.domain}"
   type              = "self_hosted"
-  session_duration  = "24h"
+  # Wetty uses shorter session duration (1h) for enhanced security
+  # Other services use 24h for better user experience
+  session_duration  = each.key == "wetty" ? "1h" : "24h"
   skip_interstitial = true
 }
 
