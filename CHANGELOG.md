@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.6.0...v0.7.0) (2026-01-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* Local deployment (make up) is no longer supported. Use GitHub Actions workflows exclusively.
+
+### 🚀 Features
+
+* **control-plane:** Add service toggles with D1 as single source of truth ([eb70181](https://github.com/stefanko-ch/Nexus-Stack/commit/eb70181f1f7c7df6241fff299454635d4e4edb38))
+* **control-plane:** Add Show Info button to header navigation ([2fdb4ca](https://github.com/stefanko-ch/Nexus-Stack/commit/2fdb4cae589b3e2896adf0681de2786a0e8c5109))
+* **control-plane:** Add staged service toggles with pending changes UI ([a59312f](https://github.com/stefanko-ch/Nexus-Stack/commit/a59312f4aa185159b12ba4750ecfe3edbc603703))
+* **stacks:** Add Wetty stack and improve service sync debugging ([ffd2848](https://github.com/stefanko-ch/Nexus-Stack/commit/ffd28485fd857ccc29b591c498b2325d88d4819c))
+* **stacks:** Add Wetty web-based SSH terminal ([ab7293c](https://github.com/stefanko-ch/Nexus-Stack/commit/ab7293cdcf47e5c1d8721346bf154e00c230a21e)), closes [#139](https://github.com/stefanko-ch/Nexus-Stack/issues/139)
+* **wetty:** Enable Wetty by default ([d6d71da](https://github.com/stefanko-ch/Nexus-Stack/commit/d6d71da890a3e2d87fb6ac8a32157262799c1050))
+* **wetty:** Make Wetty a core service with enhanced security ([ed12a86](https://github.com/stefanko-ch/Nexus-Stack/commit/ed12a868fb1066819afc5caae4cc6d1ad0678c0f))
+
+
+### 🐛 Bug Fixes
+
+* Address Copilot review comments ([1dd1e2a](https://github.com/stefanko-ch/Nexus-Stack/commit/1dd1e2a27a09d4f93ea1d704873c6eceb10f5860))
+* Address remaining PR review comments ([de863c0](https://github.com/stefanko-ch/Nexus-Stack/commit/de863c0196435aca451702fcf30d860dabb78aea))
+* Address remaining PR review comments ([44b8303](https://github.com/stefanko-ch/Nexus-Stack/commit/44b830300e77ba8af6a53dd4dcb53d2882ac1df2))
+* **ci:** Add missing generate-services-tfvars.py script ([7748f8b](https://github.com/stefanko-ch/Nexus-Stack/commit/7748f8ba7a8229011c1fb5bead3eb8e1b644969c))
+* **ci:** Add R2 bucket cleanup to destroy workflow ([ce3cc9b](https://github.com/stefanko-ch/Nexus-Stack/commit/ce3cc9b66a50daf85212a2d5d8dc58d52c5a79c2))
+* **ci:** Core services always enabled regardless of D1 state ([b359223](https://github.com/stefanko-ch/Nexus-Stack/commit/b359223a5e4140fa7c797344351229f3d9b10cb4))
+* **ci:** Fix missing newline causing last service (Wetty) to be skipped ([30715fe](https://github.com/stefanko-ch/Nexus-Stack/commit/30715fee1e9ce93150f71a868725c5434d5a9250))
+* **ci:** Fix missing newline causing last service (Wetty) to be skipped ([503237e](https://github.com/stefanko-ch/Nexus-Stack/commit/503237ea0b76393b7dd3e4ebea1645f244dc08ca))
+* **ci:** Fix regex parsing for services.tfvars ([90ec676](https://github.com/stefanko-ch/Nexus-Stack/commit/90ec676e34494f79a22f6f050b9a528038a999bc))
+* **ci:** Improve sync-deployed-state.sh with detailed logging and error handling ([a565c1f](https://github.com/stefanko-ch/Nexus-Stack/commit/a565c1f13155662063fb2dc31e53c8f1902e063c))
+* **ci:** Make D1 single source of truth for all workflows ([26fd3ec](https://github.com/stefanko-ch/Nexus-Stack/commit/26fd3ec46e84f49bd603aed9cacd91037bdddc90))
+* **ci:** Revert to wrangler for D1 sync (API behind Cloudflare Access) ([9991d63](https://github.com/stefanko-ch/Nexus-Stack/commit/9991d631867a9afb481db1a1c2fdff71be68c3c3))
+* **control-plane:** Enable Spin Up button for pending service changes ([dcecc8d](https://github.com/stefanko-ch/Nexus-Stack/commit/dcecc8d50e20145e45eefccb8fe35d3f73bec82d))
+* **control-plane:** Fix Control Plane and Info Page issues ([deecb26](https://github.com/stefanko-ch/Nexus-Stack/commit/deecb266942d898aec94d99e032c5c013a0698f5))
+* **control-plane:** Fix multiple Control Plane and Info Page issues ([ecd4094](https://github.com/stefanko-ch/Nexus-Stack/commit/ecd409472ba777f334eeba91865e738941ec8a52))
+* **pr:** Address PR review comments ([cd6bd50](https://github.com/stefanko-ch/Nexus-Stack/commit/cd6bd504a1909b446325c597b709cef2eefab2ff))
+* Resolve authentication issues and improve Control Plane UX ([e5b6930](https://github.com/stefanko-ch/Nexus-Stack/commit/e5b6930d5776e3d20632120e66d01aeacc178e38))
+* Resolve authentication issues for Kestra, n8n, and Wetty ([1dba685](https://github.com/stefanko-ch/Nexus-Stack/commit/1dba6856e151208c93c5db7c883c7540fd1a402c))
+* **scripts:** Fix service parsing to skip outer wrapper and nested blocks ([c759b24](https://github.com/stefanko-ch/Nexus-Stack/commit/c759b24fe85b8a8c31e023bc39fac4369592103f))
+* **scripts:** Generate SSH key pair for Wetty on server ([85122f7](https://github.com/stefanko-ch/Nexus-Stack/commit/85122f7e10eb78e40271aef65e467ef338e8ceb2))
+* **scripts:** Improve sync-deployed-state script with better logging and error handling ([7ec0b79](https://github.com/stefanko-ch/Nexus-Stack/commit/7ec0b79d2fc05beaecfb4c77fa304c9bf7d0eda8))
+* **scripts:** Initialize CONFIG_JOBS array to prevent unbound variable error ([48c0815](https://github.com/stefanko-ch/Nexus-Stack/commit/48c0815a319341a4c45573488ea8075dde6b2283))
+* **stacks:** Use command flags instead of env vars for wetty configuration ([b656599](https://github.com/stefanko-ch/Nexus-Stack/commit/b65659900bc97480b0ff8e9c69d6ff6bf23033de))
+* **tunnel:** Stop existing tunnel service before installing new token ([093ccba](https://github.com/stefanko-ch/Nexus-Stack/commit/093ccba373782587a35debec042315b01679f4eb))
+* **ui:** Improve domain extraction for multi-part TLDs ([17c14e8](https://github.com/stefanko-ch/Nexus-Stack/commit/17c14e885ac65575f88b4dec69bb2450636c8e61))
+* **wetty:** Fix SSH_AUTH_SOCK path in container ([2be0b8c](https://github.com/stefanko-ch/Nexus-Stack/commit/2be0b8c90944c88d323377b46c581d238d18bafe))
+* **worker:** Make cron schedules configurable via environment variables ([17c14e8](https://github.com/stefanko-ch/Nexus-Stack/commit/17c14e885ac65575f88b4dec69bb2450636c8e61))
+* **worker:** Replace time comparison with cron-based action selection ([99715c7](https://github.com/stefanko-ch/Nexus-Stack/commit/99715c764959198d0f3cf06420073ec2bdd4cb3f))
+
+
+### ♻️ Refactoring
+
+* **config:** migrate services.tfvars to services.yaml ([f92b62a](https://github.com/stefanko-ch/Nexus-Stack/commit/f92b62a5d97718446b1918d3f5b3ce738bc05baf))
+* **control-plane:** Make D1 single source of truth for services ([e321e59](https://github.com/stefanko-ch/Nexus-Stack/commit/e321e593f33209ee832cd4e2ac6ec554cbf76f4e))
+* Remove local deployment support, consolidate image versions ([08460cd](https://github.com/stefanko-ch/Nexus-Stack/commit/08460cd7f479befd41035f9cb92d95bf302b8797))
+* **sync-deployed-state:** Enhance service synchronization logic ([c84f266](https://github.com/stefanko-ch/Nexus-Stack/commit/c84f266d10cda9eead536d82dea94e6480d30fd5))
+* **wetty:** Make Wetty optional instead of core service ([9f78b70](https://github.com/stefanko-ch/Nexus-Stack/commit/9f78b70d07d73fa84f041a88afb6d6e3c3330008))
+
+
+### 📚 Documentation
+
+* Add commit and push workflow instructions for agents ([d970d2c](https://github.com/stefanko-ch/Nexus-Stack/commit/d970d2c00b9e4a9377e4315887d92b3f25fccb24))
+* **agents:** Add instruction to check for related issues when creating PRs ([092b152](https://github.com/stefanko-ch/Nexus-Stack/commit/092b15265a7e5d9aa3734fb026f1c91e50894d2e))
+* Update Wetty documentation for 1h session duration ([4297811](https://github.com/stefanko-ch/Nexus-Stack/commit/429781154f51c7c35fd42220abb0a21a8750caf9))
+
+
+### 🔧 Maintenance
+
+* Remove unused API endpoints (wrangler handles D1 sync) ([22436b4](https://github.com/stefanko-ch/Nexus-Stack/commit/22436b4e404177cd511bc37926f6baa0e4369d7c))
+
 ## [0.6.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.5.0...v0.6.0) (2026-01-19)
 
 
