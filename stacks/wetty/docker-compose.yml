@@ -38,10 +38,12 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       # SSH-Agent socket for public key authentication
-      - SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-/ssh-agent}
+      # Always use /ssh-agent in container (mounted from host)
+      - SSH_AUTH_SOCK=/ssh-agent
     volumes:
       # Mount SSH-Agent socket (read-only) for secure key access
-      - ${SSH_AUTH_SOCK:-/tmp/ssh-agent.sock}:/ssh-agent:ro
+      # Use SSH_AUTH_SOCK from .env file for host path, mount to /ssh-agent in container
+      - ${SSH_AUTH_SOCK:-/tmp/ssh-agent/agent.sock}:/ssh-agent:ro
     networks:
       - app-network
     # Health check (using curl which is available in the image)
