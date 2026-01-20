@@ -3,7 +3,9 @@
 # Sync Services to D1
 # =============================================================================
 # After a successful spin-up:
-# 1. Insert new services from services.tfvars to D1 (if not exist)
+# 1. Insert new services from services.yaml to D1 (if not exist)
+#    - Core services (core: true) are enabled by default
+#    - All other services are disabled by default
 # 2. Update existing services metadata (subdomain, port, description, core, public)
 #    while preserving the enabled state from D1 (user's Control Plane choice)
 # 3. Set deployed = enabled for all services (mark as deployed)
@@ -27,95 +29,54 @@ D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
 
 echo "📊 Syncing services to D1..."
 
-# Step 1: Initialize/Update services from services.tfvars
-if [ -f "tofu/services.tfvars" ]; then
-  echo "  Syncing services from services.tfvars..."
+# Step 1: Initialize/Update services from services.yaml
+if [ -f "services.yaml" ]; then
+  echo "  Syncing services from services.yaml..."
   
-  # Parse services.tfvars and generate INSERT/UPDATE statements
-  # Only parse actual service blocks (not the outer wrapper or nested blocks)
+  # Parse services.yaml using Python yaml library and generate INSERT/UPDATE statements
   python3 << 'PYEOF'
-import re
-import os
+import yaml
+import sys
 
-with open('tofu/services.tfvars', 'r') as f:
-    content = f.read()
+try:
+    with open('services.yaml', 'r') as f:
+        data = yaml.safe_load(f)
+except Exception as e:
+    print(f"  ⚠️ Error reading services.yaml: {e}")
+    sys.exit(1)
 
-# First, extract the inner content of services = { ... }
-# This skips the outer wrapper to avoid matching "services" as a service name
-services_match = re.search(r'^services\s*=\s*\{(.+)\}\s*$', content, re.DOTALL | re.MULTILINE)
-if not services_match:
-    print("  ⚠️ Could not find services block in services.tfvars")
-    exit(1)
+if not data or 'services' not in data:
+    print("  ⚠️ No services found in services.yaml")
+    sys.exit(1)
 
-inner_content = services_match.group(1)
-
-# Match service blocks by locating the start of each block, then
-# scanning forward to find the matching closing brace so that
-# nested braces are handled correctly.
-# Only match blocks that are direct children of the services block
-pattern = r'([a-zA-Z0-9-]+)\s*=\s*\{'
-matches = []
-
-for match in re.finditer(pattern, inner_content):
-    name = match.group(1)
-    
-    # Skip known non-service blocks
-    if name in ['services', 'support_images']:
-        continue
-    
-    # Position of the opening brace '{'
-    start = match.end() - 1
-    depth = 1
-    i = start + 1
-    while i < len(inner_content) and depth > 0:
-        ch = inner_content[i]
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                block = inner_content[start + 1:i]
-                matches.append((name, block))
-                break
-        i += 1
-
+services = data['services']
 insert_statements = []
 update_statements = []
 service_names = []
-for name, block in matches:
-    # Only process blocks that have an 'enabled' field (real services)
-    # This filters out any nested blocks we might have missed
-    enabled_match = re.search(r'enabled\s*=\s*(true|false)', block)
-    if not enabled_match:
-        # Skip blocks without enabled field (not a real service)
-        continue
-    
+
+for name, config in services.items():
     service_names.append(name)
     
-    # Extract values from block
-    subdomain_match = re.search(r'subdomain\s*=\s*"([^"]*)"', block)
-    port_match = re.search(r'port\s*=\s*(\d+)', block)
-    public_match = re.search(r'public\s*=\s*(true|false)', block)
-    core_match = re.search(r'core\s*=\s*(true|false)', block)
-    description_match = re.search(r'description\s*=\s*"([^"]*)"', block)
-    
-    enabled = 1 if enabled_match.group(1) == 'true' else 0
-    subdomain = subdomain_match.group(1) if subdomain_match else ''
-    port = int(port_match.group(1)) if port_match else 0
-    public = 1 if public_match and public_match.group(1) == 'true' else 0
-    core = 1 if core_match and core_match.group(1) == 'true' else 0
-    description = description_match.group(1) if description_match else ''
+    subdomain = config.get('subdomain', '')
+    port = config.get('port', 0)
+    public = 1 if config.get('public', False) else 0
+    core = 1 if config.get('core', False) else 0
+    description = config.get('description', '')
     
     # Escape single quotes in description for SQL
     description = description.replace("'", "''")
     
+    # For new services: only core services are enabled by default
+    # This is the key change: enabled = core (not from config file)
+    enabled = core
+    
     # INSERT OR IGNORE - only creates if not exists (preserves enabled state if already exists)
-    # For new services, use enabled state from tfvars
+    # New services: core services enabled, others disabled
     insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, description, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, '{description}', datetime('now'));"
     insert_statements.append(insert_sql)
     
     # UPDATE - sync metadata for existing services (preserve enabled state from D1)
-    # This ensures subdomain, port, description, core, public are always in sync with tfvars
+    # This ensures subdomain, port, description, core, public are always in sync with yaml
     update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, description = '{description}', updated_at = datetime('now') WHERE name = '{name}';"
     update_statements.append(update_sql)
 
@@ -181,7 +142,7 @@ PYEOF
     echo "  ℹ️  No services to update"
   fi
 else
-  echo "  ⚠️ services.tfvars not found - skipping sync"
+  echo "  ⚠️ services.yaml not found - skipping sync"
 fi
 
 # Step 2: Sync deployed state (set deployed = enabled for all)

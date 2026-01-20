@@ -1,0 +1,167 @@
+# =============================================================================
+# Nexus-Stack Services Configuration
+# =============================================================================
+# This file defines service metadata only. Runtime state (enabled/disabled) 
+# is stored in Cloudflare D1 and managed via the Control Plane.
+#
+# Each service creates:
+# - Cloudflare DNS record: <subdomain>.<domain>
+# - Cloudflare Tunnel route to localhost:<port>
+# - Cloudflare Access policy (if public = false)
+#
+# Note: You also need stacks/<service>/docker-compose.yml for the container!
+#
+# CORE SERVICES (core: true):
+# - mailpit: Required for email testing by other services
+# - infisical: Required for secret management
+# - info: Dashboard showing all services
+# These services are automatically enabled during initial setup and cannot be
+# disabled from the Control Plane.
+# =============================================================================
+
+services:
+  cloudbeaver:
+    subdomain: "cloudbeaver"
+    port: 8978
+    public: false
+    description: "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
+    image: "dbeaver/cloudbeaver:24"
+
+  excalidraw:
+    subdomain: "excalidraw"
+    port: 8082
+    public: false
+    description: "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
+    image: "excalidraw/excalidraw:latest"
+
+  grafana:
+    subdomain: "grafana"
+    port: 3100
+    public: false
+    description: "Observability platform for metrics, logs, and traces visualization."
+    image: "grafana/grafana:11.6"
+    support_images:
+      prometheus: "prom/prometheus:v3.9.1"
+      loki: "grafana/loki:3"
+      promtail: "grafana/promtail:3"
+      cadvisor: "ghcr.io/google/cadvisor:0.56"
+      node-exporter: "prom/node-exporter:v1.10.2"
+
+  info:
+    subdomain: "info"
+    port: 8090
+    public: false
+    core: true
+    description: "Landing page showing all your Nexus Stack services and their status."
+    image: "nginx:alpine"
+
+  infisical:
+    subdomain: "infisical"
+    port: 8070
+    public: false
+    core: true
+    description: "Open-source secret management platform for teams."
+    image: "infisical/infisical:v0.155.5"
+    support_images:
+      postgres: "postgres:14-alpine"
+      redis: "redis:7-alpine"
+
+  it-tools:
+    subdomain: "it-tools"
+    port: 8080
+    public: false
+    description: "Collection of handy online tools for developers - encoders, converters, generators, and more."
+    image: "corentinth/it-tools:latest"
+
+  kestra:
+    subdomain: "kestra"
+    port: 8085
+    public: false
+    description: "Open-source orchestration and scheduling platform for data pipelines and workflows."
+    image: "kestra/kestra:v1.0"
+    support_images:
+      postgres: "postgres:16-alpine"
+
+  mage:
+    subdomain: "mage"
+    port: 6789
+    public: false
+    description: "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
+    image: "mageai/mageai:latest"
+    support_images:
+      postgres: "postgres:14-alpine"
+
+  mailpit:
+    subdomain: "mailpit"
+    port: 8025
+    public: false
+    core: true
+    description: "Email testing tool that catches all outgoing emails for inspection and testing."
+    image: "axllent/mailpit:v1.28"
+
+  marimo:
+    subdomain: "marimo"
+    port: 2718
+    public: false
+    description: "Reactive Python notebook with SQL support, reproducible and git-friendly."
+    image: "ghcr.io/marimo-team/marimo:latest-sql"
+
+  metabase:
+    subdomain: "metabase"
+    port: 3000
+    public: false
+    description: "Open-source business intelligence and analytics tool for data visualization."
+    image: "metabase/metabase:v0.58.x"
+    support_images:
+      postgres: "postgres:16-alpine"
+
+  minio:
+    subdomain: "minio"
+    port: 9001
+    public: false
+    description: "High-performance S3-compatible object storage for data lakes, backups, and ML models."
+    image: "minio/minio:latest"
+
+  n8n:
+    subdomain: "n8n"
+    port: 5678
+    public: false
+    description: "Workflow automation tool with 400+ integrations for connecting apps and services."
+    image: "n8nio/n8n:1"
+    support_images:
+      postgres: "postgres:16-alpine"
+
+  portainer:
+    subdomain: "portainer"
+    port: 9090
+    public: false
+    description: "Docker container management UI for easy deployment and monitoring."
+    image: "portainer/portainer-ce:lts"
+
+  redpanda:
+    subdomain: "redpanda"
+    port: 9644
+    public: false
+    description: "Kafka-compatible streaming platform that is simpler, faster, and more cost-effective."
+    image: "redpandadata/redpanda:v24.3"
+
+  redpanda-console:
+    subdomain: "redpanda-console"
+    port: 8180
+    public: false
+    description: "Web UI for managing and debugging Redpanda/Kafka workloads."
+    image: "redpandadata/console:v2.8"
+
+  uptime-kuma:
+    subdomain: "uptime-kuma"
+    port: 3001
+    public: false
+    description: "A fancy self-hosted monitoring tool for tracking service uptime and status."
+    image: "louislam/uptime-kuma:2"
+
+  wetty:
+    subdomain: "wetty"
+    port: 3002
+    public: false
+    description: "Web-based SSH terminal that allows you to access your server via a web browser without requiring SSH client software. Uses public key authentication only for security."
+    image: "wettyoss/wetty:latest"

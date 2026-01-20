@@ -41,6 +41,7 @@ Nexus-Stack/
 ├── Makefile                    # Main entry point - all commands here
 ├── README.md                   # User documentation
 ├── AGENTS.md                   # Agent instructions (this file)
+├── services.yaml               # Service metadata (subdomain, port, description, image)
 ├── .github/
 │   └── workflows/             # GitHub Actions workflows
 │       ├── initial-setup.yaml  # Initial setup (triggers Control Plane + Spin Up)
@@ -51,7 +52,6 @@ Nexus-Stack/
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── backend.hcl             # Shared R2 backend configuration
-│   ├── services.tfvars             # Service configuration (enabled/disabled)
 │   ├── config.tfvars.example.dev   # Template for local dev (not for production)
 │   ├── stack/                  # Server, tunnel, services state
 │   │   ├── main.tf             # Core infrastructure (server, tunnel, DNS)
@@ -140,9 +140,10 @@ When adding a new Docker stack, **all locations must be updated**:
    - Include `networks: app-network` (external: true)
    - Add descriptive header comment with service URL
 
-2. **Register the service in Terraform:**
-   - Add to `services` map in `tofu/services.tfvars`
+2. **Register the service in services.yaml:**
+   - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
+   - No `enabled` field needed - D1 manages runtime state
 
 3. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
@@ -161,15 +162,18 @@ When adding a new Docker stack, **all locations must be updated**:
 ```
 Find logos at [simpleicons.org](https://simpleicons.org/)
 
-**Example service entry:**
-```hcl
-portainer = {
-  enabled   = true
-  subdomain = "portainer"    # → https://portainer.domain.com
-  port      = 9090           # Must match docker-compose port
-  public    = false          # false = requires Cloudflare Access login
-}
+**Example service entry (services.yaml):**
+```yaml
+portainer:
+  subdomain: "portainer"       # → https://portainer.domain.com
+  port: 9090                   # Must match docker-compose port
+  public: false                # false = requires Cloudflare Access login
+  description: "Docker container management UI"
+  image: "portainer/portainer-ce:lts"
 ```
+
+> **Note:** The `enabled` field is NOT in services.yaml - it's managed by D1 (Control Plane).
+> Core services have `core: true` and are always enabled.
 
 **Example password resource (in main.tf):**
 ```hcl
@@ -189,7 +193,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "myservice" && [ -n "$MYSERVICE_PASS" ]; 
 fi
 ```
 
-> **Note:** The `services` map in tfvars configures Cloudflare (DNS, Tunnel, Access), while the `stacks/` folder contains the Docker Compose definitions. Both must be in sync.
+> **Note:** The `services.yaml` file defines service metadata (subdomain, port, image), while `stacks/` contains Docker Compose definitions. Both must be in sync. Runtime state (enabled/disabled) is stored in Cloudflare D1 and managed via the Control Plane.
 
 ### Sensitive Data Handling
 
