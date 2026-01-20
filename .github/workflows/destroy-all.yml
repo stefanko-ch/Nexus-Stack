@@ -257,6 +257,67 @@ jobs:
             echo "  No R2 tokens found to delete"
           fi
 
+      - name: Delete R2 bucket and contents
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "🗑️  Deleting R2 bucket and contents..."
+          
+          # Generate bucket name (same as used in init-r2-state.sh)
+          BUCKET_NAME=$(echo "$DOMAIN" | tr '.' '-')-terraform-state
+          echo "  Bucket: $BUCKET_NAME"
+          
+          # Check if bucket exists
+          BUCKET_CHECK=$(curl -s -w "\n%{http_code}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BUCKET_NAME}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          
+          HTTP_CODE=$(echo "$BUCKET_CHECK" | tail -n1)
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "  ℹ️  Bucket '${BUCKET_NAME}' not found (may already be deleted)"
+            exit 0
+          fi
+          
+          # Delete all objects in bucket using AWS CLI (R2 is S3-compatible)
+          # Install AWS CLI if not present
+          if ! command -v aws &> /dev/null; then
+            echo "  Installing AWS CLI..."
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+            rm -rf aws awscliv2.zip
+          fi
+          
+          # Configure AWS CLI for R2
+          source tofu/.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION="auto"
+          
+          R2_ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          
+          # Delete all objects in bucket
+          echo "  Deleting all objects in bucket..."
+          aws s3 rm "s3://${BUCKET_NAME}" --recursive --endpoint-url="$R2_ENDPOINT" 2>/dev/null || echo "  No objects to delete"
+          
+          # Delete the bucket itself
+          echo "  Deleting bucket..."
+          DELETE_RESPONSE=$(curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BUCKET_NAME}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json")
+          
+          if echo "$DELETE_RESPONSE" | grep -q '"success":true'; then
+            echo "  ✅ R2 bucket deleted successfully"
+          else
+            ERROR_MSG=$(echo "$DELETE_RESPONSE" | jq -r '.errors[0].message // "Unknown error"' 2>/dev/null || echo "Unknown error")
+            echo "  ⚠️  Failed to delete bucket: ${ERROR_MSG}"
+            echo "     Bucket may not be empty or may have already been deleted"
+          fi
+
       - name: Confirm destruction
         run: |
           echo ""
