@@ -451,13 +451,13 @@ jobs:
           
           echo "✅ D1 database schema initialized!"
 
-      - name: Initialize services from services.tfvars to D1
+      - name: Initialize services from services.yaml to D1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          echo "📋 Initializing services from services.tfvars to D1..."
+          echo "📋 Initializing services from services.yaml to D1..."
           chmod +x .github/scripts/sync-deployed-state.sh
           .github/scripts/sync-deployed-state.sh
 

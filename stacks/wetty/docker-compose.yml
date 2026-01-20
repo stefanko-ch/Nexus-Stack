@@ -1,0 +1,49 @@
+# =============================================================================
+# Wetty - Web-based SSH Terminal
+# =============================================================================
+# A terminal over HTTP/HTTPS that allows you to access your server via a web browser.
+# Provides a full terminal experience without requiring SSH client software.
+# Access via: https://wetty.your-domain.com
+# Default port: 3002
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - Uses SSH public key authentication only (no passwords)
+# - Session timeout after 1 hour of inactivity
+# - Rate limiting via Cloudflare Access
+# =============================================================================
+
+services:
+  wetty:
+    image: ${IMAGE_WETTY:-wettyoss/wetty:latest}
+    container_name: wetty
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    command:
+      - "--port"
+      - "3000"
+      - "--ssh-host"
+      - "host.docker.internal"
+      - "--ssh-port"
+      - "22"
+      - "--ssh-user"
+      - "root"
+      # Security: Only allow public key authentication (no passwords)
+      - "--ssh-auth"
+      - "publickey"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    # Health check (using curl which is available in the image)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  app-network:
+    external: true

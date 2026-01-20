@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       enabled_services:
-        description: 'Comma-separated list of services to enable (empty = use defaults from services.tfvars)'
+        description: 'Comma-separated list of services to enable (empty = use D1 state)'
         required: false
         default: ''
         type: string
@@ -162,6 +162,10 @@ jobs:
           echo "✅ R2 credentials file created"
 
       - name: Generate config.tfvars
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           # Stack config (emails from secrets)
           cat > tofu/stack/config.tfvars << EOF
@@ -188,9 +192,9 @@ jobs:
           EOF
           fi
           
-          # Generate services config
+          # Generate services config from D1 (single source of truth)
           # If enabled_services input is provided (from Control Plane), use it
-          # Otherwise, read from D1 database (single source of truth)
+          # Otherwise, read from D1 database
           ENABLED_SERVICES="${{ inputs.enabled_services }}"
           
           if [ -n "$ENABLED_SERVICES" ]; then
@@ -203,100 +207,85 @@ jobs:
               --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
               | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
             
-            if [ -z "$ENABLED_SERVICES" ]; then
-              echo "⚠️ No services found in D1 - using defaults from services.tfvars"
-              cat tofu/services.tfvars >> tofu/stack/config.tfvars
-            else
+            if [ -n "$ENABLED_SERVICES" ]; then
               echo "📋 Enabled services from D1: $ENABLED_SERVICES"
+            else
+              echo "📋 No services in D1 yet - core services will be enabled by default"
             fi
           fi
           
-          # If we have enabled_services (from input or D1), generate config
-          if [ -n "$ENABLED_SERVICES" ]; then
-            # Parse services.tfvars and override enabled based on input
-            # Core services (core = true) are always enabled regardless of D1 state
-            # Write Python script to temp file to avoid YAML escaping issues
-            cat > /tmp/update_services.py << 'EOF'
-          import re
-          import sys
+          # Generate services config from services.yaml
+          # Parse YAML and generate HCL format for OpenTofu
+          cat > /tmp/generate_services_tfvars.py << 'EOF'
+          import yaml
           import os
+          import sys
 
           enabled_input = os.environ.get('ENABLED_SERVICES', '')
-          if enabled_input.strip():
-              enabled_list = enabled_input.split(',')
-          else:
-              enabled_list = []
-          enabled_set = set(s.strip() for s in enabled_list if s.strip())
+          enabled_set = set(s.strip() for s in enabled_input.split(',') if s.strip())
 
-          with open('tofu/services.tfvars', 'r') as f:
-              content = f.read()
+          try:
+              with open('services.yaml', 'r') as f:
+                  data = yaml.safe_load(f)
+          except Exception as e:
+              print(f"Error reading services.yaml: {e}", file=sys.stderr)
+              sys.exit(1)
 
-          # Extract the inner content of the services = { ... } block
-          # This skips the outer wrapper to avoid matching "services" as a service name
-          inner_match = re.search(r'^services\s*=\s*\{(.+)\}\s*$', content, re.DOTALL | re.MULTILINE)
-          if not inner_match:
-              # Fallback: use content as-is
-              inner_content = content
-          else:
-              inner_content = inner_match.group(1)
+          if not data or 'services' not in data:
+              print("No services found in services.yaml", file=sys.stderr)
+              sys.exit(1)
 
-          # Find all service blocks and update enabled status
-          def replace_enabled(match):
-              service_name = match.group(1)
-              block = match.group(2)
-              
-              # Check if this is a core service (core = true)
-              is_core = re.search(r'core\s*=\s*true', block) is not None
+          services = data['services']
+          output_lines = ['', '# Services (from services.yaml, enabled state from D1)', 'services = {']
+
+          for name, config in sorted(services.items()):
+              subdomain = config.get('subdomain', name)
+              port = config.get('port', 0)
+              public = 'true' if config.get('public', False) else 'false'
+              core = config.get('core', False)
+              description = config.get('description', '').replace('"', '\\"')
+              image = config.get('image', '')
               
               # Core services are always enabled, others follow D1 state
-              should_enable = is_core or service_name in enabled_set
+              # If no D1 state yet (empty enabled_set), only core services are enabled
+              is_core = core
+              if enabled_set:
+                  should_enable = is_core or name in enabled_set
+              else:
+                  # No D1 state - only enable core services
+                  should_enable = is_core
               
-              # Replace enabled = true/false with the correct value
-              new_block = re.sub(
-                  r'(enabled\s*=\s*)(true|false)',
-                  r'\g<1>' + ('true' if should_enable else 'false'),
-                  block
-              )
+              enabled = 'true' if should_enable else 'false'
               
-              return f'  {service_name} = {{{new_block}}}'
+              output_lines.append(f'  {name} = {{')
+              output_lines.append(f'    enabled     = {enabled}')
+              output_lines.append(f'    subdomain   = "{subdomain}"')
+              output_lines.append(f'    port        = {port}')
+              output_lines.append(f'    public      = {public}')
+              if core:
+                  output_lines.append(f'    core        = true')
+              output_lines.append(f'    description = "{description}"')
+              output_lines.append(f'    image       = "{image}"')
+              
+              # Handle support_images
+              support_images = config.get('support_images', {})
+              if support_images:
+                  output_lines.append('    support_images = {')
+                  for img_name, img_value in support_images.items():
+                      output_lines.append(f'      {img_name} = "{img_value}"')
+                  output_lines.append('    }')
+              
+              output_lines.append('  }')
+              output_lines.append('')
 
-          # Match service blocks like: service-name = { ... }
-          # Pattern handles multiline blocks with nested braces for support_images
-          pattern = r'(\s*)([a-zA-Z0-9_-]+)\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}'
-          
-          def replace_with_indent(match):
-              indent = match.group(1)
-              service_name = match.group(2)
-              block = match.group(3)
-              
-              # Skip nested blocks like support_images
-              if not re.search(r'enabled\s*=', block):
-                  return match.group(0)
-              
-              # Check if this is a core service (core = true)
-              is_core = re.search(r'core\s*=\s*true', block) is not None
-              
-              # Core services are always enabled, others follow D1 state
-              should_enable = is_core or service_name in enabled_set
-              
-              # Replace enabled = true/false with the correct value
-              new_block = re.sub(
-                  r'(enabled\s*=\s*)(true|false)',
-                  r'\g<1>' + ('true' if should_enable else 'false'),
-                  block
-              )
-              
-              return f'{indent}{service_name} = {{{new_block}}}'
-
-          updated_inner = re.sub(pattern, replace_with_indent, inner_content)
-          updated_content = f'services = {{{updated_inner}}}'
+          output_lines.append('}')
 
           with open('tofu/stack/config.tfvars', 'a') as f:
-              f.write('\n# Services (enabled via Control Plane)\n')
-              f.write(updated_content)
+              f.write('\n'.join(output_lines))
+
+          print(f"Generated services config for {len(services)} services")
           EOF
-            ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/update_services.py
-          fi
+          ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/generate_services_tfvars.py
 
       - name: Initialize OpenTofu
         run: |
@@ -316,7 +305,7 @@ jobs:
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
-          tofu apply -var-file=config.tfvars -var-file=../services.tfvars -auto-approve
+          tofu apply -var-file=config.tfvars -auto-approve
           cd ../..
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
@@ -524,6 +513,22 @@ jobs:
             fi
           else
             echo "⚠️  RESEND_API_KEY not configured - skipping email"
+          fi
+
+      - name: Collect debug logs
+        if: always()
+        run: |
+          echo "📋 Collecting debug logs..."
+          if [ -f /tmp/debug.log ]; then
+            mkdir -p .cursor
+            cp /tmp/debug.log .cursor/debug.log
+            echo "✅ Debug logs saved to .cursor/debug.log"
+            echo "--- Debug Log Contents ---"
+            cat .cursor/debug.log || true
+          fi
+          if [ -f /tmp/docker-start.log ]; then
+            echo "--- Docker Start Log ---"
+            cat /tmp/docker-start.log || true
           fi
 
       - name: Show spin-up info

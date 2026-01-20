@@ -66,7 +66,7 @@ Click **Services** to manage which stacks are deployed.
 
 ### Enable/Disable Services
 
-Toggle services on or off. Changes are saved to `tofu/services.tfvars` in the repository.
+Toggle services on or off. Changes are saved to Cloudflare D1 database (single source of truth for runtime state).
 
 ### Deploy Changes
 
