@@ -126,31 +126,39 @@ async function handleScheduledTeardown(event, env) {
 
     const now = new Date();
     const currentTime = now.toISOString();
-    const cronTime = event.cron; // e.g., "0 21 * * *"
+    const cronSchedule = event.cron; // e.g., "0 21 * * *" or "45 20 * * *"
     
-    console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronTime})`);
+    console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronSchedule})`);
 
-    // Convert configured times from timezone to UTC
-    const notificationTimeUTC = timeInTimezoneToUTC(config.notificationTime, config.timezone);
-    const teardownTimeUTC = timeInTimezoneToUTC(config.teardownTime, config.timezone);
-    
-    // Get current UTC time components
-    const currentHour = now.getUTCHours();
-    const currentMinute = now.getUTCMinutes();
-    const notificationHour = notificationTimeUTC.getUTCHours();
-    const notificationMinute = notificationTimeUTC.getUTCMinutes();
-    const teardownHour = teardownTimeUTC.getUTCHours();
-    const teardownMinute = teardownTimeUTC.getUTCMinutes();
-    
-    // Check if it's notification time or teardown time
-    if (currentHour === notificationHour && currentMinute === notificationMinute) {
+    // Determine action based on which cron trigger fired
+    // Cron schedules are configurable via environment variables (set in tofu/control-plane/main.tf)
+    // Defaults: NOTIFICATION_CRON="45 20 * * *" (20:45 UTC), TEARDOWN_CRON="0 21 * * *"
+    // If environment variables are missing or empty, defaults are used. If incorrectly formatted,
+    // the cron schedule comparison will fail and the action will be logged as unknown (no action taken).
+    const notificationCron = env.NOTIFICATION_CRON || "45 20 * * *";
+    const teardownCron = env.TEARDOWN_CRON || "0 21 * * *";
+
+    // Validate cron format (5 fields: minute hour day month weekday)
+    const cronFormatRegex = /^(\S+\s+){4}\S+$/;
+    if (!cronFormatRegex.test(notificationCron) || !cronFormatRegex.test(teardownCron)) {
+      console.warn(`Invalid cron format detected - notification: ${notificationCron}, teardown: ${teardownCron}`);
+      await logToD1(env.NEXUS_DB, 'warn', 'Invalid cron format in environment variables', {
+        notificationCron,
+        teardownCron
+      });
+    }
+
+    if (cronSchedule === notificationCron) {
+      // Notification cron triggered
       await logToD1(env.NEXUS_DB, 'info', 'Sending teardown notification email');
       await sendNotification(env, config);
-    } else if (currentHour === teardownHour && currentMinute === teardownMinute) {
+    } else if (cronSchedule === teardownCron) {
+      // Teardown cron triggered
       await logToD1(env.NEXUS_DB, 'warn', 'Triggering scheduled teardown');
       await triggerTeardown(env, config);
     } else {
-      console.log(`Not time for notification (${notificationHour}:${String(notificationMinute).padStart(2, '0')} UTC) or teardown (${teardownHour}:${String(teardownMinute).padStart(2, '0')} UTC)`);
+      console.log(`Unknown cron schedule: ${cronSchedule} - no action taken`);
+      await logToD1(env.NEXUS_DB, 'warn', 'Unknown cron schedule', { cron: cronSchedule });
     }
   } catch (error) {
     console.error('Error in scheduled teardown:', error);
