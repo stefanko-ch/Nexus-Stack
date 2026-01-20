@@ -404,6 +404,35 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 
 **Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
 
+### Commit and Push Workflow
+
+**When making code changes, follow this workflow:**
+
+1. **After making changes, immediately inform the user** what exactly was changed:
+   - Describe the specific files modified
+   - Explain what was added, removed, or changed
+   - Mention any important details or considerations
+
+2. **Commit the changes immediately** after informing the user:
+   - Use conventional commit format: `type(scope): description`
+   - Include a detailed commit message explaining what was done
+   - Stage only the relevant files
+
+3. **Ask the user before pushing**:
+   - After committing, ask: "Soll ich pushen?" or "Should I push?"
+   - Wait for explicit confirmation before pushing to remote
+   - Do NOT push automatically unless explicitly requested
+
+**Example workflow:**
+```
+1. Make code changes
+2. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
+3. git commit -m "fix(ci): Add R2 bucket cleanup..."
+4. "Soll ich pushen?" / "Should I push?"
+5. Wait for user confirmation
+6. git push (only if confirmed)
+```
+
 ### PR Titles for Release Notes
 
 **PR titles are used to generate release notes.** The release pipeline extracts PR titles (not individual commits) to create the changelog. Therefore:
