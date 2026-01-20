@@ -3,8 +3,10 @@
 # Sync Services to D1
 # =============================================================================
 # After a successful spin-up:
-# 1. Initialize services from services.tfvars to D1 (if not exist)
-# 2. Set deployed = enabled for all services (mark as deployed)
+# 1. Insert new services from services.tfvars to D1 (if not exist)
+# 2. Update existing services metadata (subdomain, port, description, core, public)
+#    while preserving the enabled state from D1 (user's Control Plane choice)
+# 3. Set deployed = enabled for all services (mark as deployed)
 #
 # Environment variables required:
 #   CLOUDFLARE_API_TOKEN  - Cloudflare API token with D1 access
@@ -25,11 +27,11 @@ D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
 
 echo "📊 Syncing services to D1..."
 
-# Step 1: Initialize services from services.tfvars (insert if not exist)
+# Step 1: Initialize/Update services from services.tfvars
 if [ -f "tofu/services.tfvars" ]; then
-  echo "  Initializing services from services.tfvars..."
+  echo "  Syncing services from services.tfvars..."
   
-  # Parse services.tfvars and generate INSERT statements
+  # Parse services.tfvars and generate INSERT/UPDATE statements
   # Only parse actual service blocks (not the outer wrapper or nested blocks)
   python3 << 'PYEOF'
 import re
@@ -77,7 +79,8 @@ for match in re.finditer(pattern, inner_content):
                 break
         i += 1
 
-sql_statements = []
+insert_statements = []
+update_statements = []
 for name, block in matches:
     # Only process blocks that have an 'enabled' field (real services)
     # This filters out any nested blocks we might have missed
@@ -103,27 +106,46 @@ for name, block in matches:
     # Escape single quotes in description for SQL
     description = description.replace("'", "''")
     
-    # INSERT OR IGNORE - only creates if not exists, preserves enabled state
-    sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, description, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, '{description}', datetime('now'));"
-    sql_statements.append(sql)
+    # INSERT OR IGNORE - only creates if not exists (preserves enabled state if already exists)
+    # For new services, use enabled state from tfvars
+    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, description, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, '{description}', datetime('now'));"
+    insert_statements.append(insert_sql)
+    
+    # UPDATE - sync metadata for existing services (preserve enabled state from D1)
+    # This ensures subdomain, port, description, core, public are always in sync with tfvars
+    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, description = '{description}', updated_at = datetime('now') WHERE name = '{name}';"
+    update_statements.append(update_sql)
 
-# Write to temp file
+# Write to temp files
 with open('/tmp/init_services.sql', 'w') as f:
-    f.write('\n'.join(sql_statements))
+    f.write('\n'.join(insert_statements))
 
-print(f"  Generated {len(sql_statements)} service init statements")
+with open('/tmp/update_services.sql', 'w') as f:
+    f.write('\n'.join(update_statements))
+
+print(f"  Generated {len(insert_statements)} service insert statements")
+print(f"  Generated {len(update_statements)} service update statements")
 PYEOF
 
-  # Execute the init SQL
+  # Execute the INSERT SQL (for new services)
   if [ -f /tmp/init_services.sql ] && [ -s /tmp/init_services.sql ]; then
     while IFS= read -r sql; do
       npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>/dev/null || true
     done < /tmp/init_services.sql
-    echo "  ✅ Services initialized"
+    echo "  ✅ New services inserted"
     rm -f /tmp/init_services.sql
   fi
+
+  # Execute the UPDATE SQL (for existing services - syncs metadata)
+  if [ -f /tmp/update_services.sql ] && [ -s /tmp/update_services.sql ]; then
+    while IFS= read -r sql; do
+      npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>/dev/null || true
+    done < /tmp/update_services.sql
+    echo "  ✅ Existing services metadata synced"
+    rm -f /tmp/update_services.sql
+  fi
 else
-  echo "  ⚠️ services.tfvars not found - skipping init"
+  echo "  ⚠️ services.tfvars not found - skipping sync"
 fi
 
 # Step 2: Sync deployed state (set deployed = enabled for all)
