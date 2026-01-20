@@ -49,17 +49,32 @@ services:
       - gitea-data:/data
     networks:
       - app-network
-    # Entrypoint override to create admin user on first startup
+    # Entrypoint override to create admin user after Gitea starts
     entrypoint: ["/bin/sh","-c"]
     command: |
-      /usr/local/bin/gitea migrate
-      /usr/local/bin/gitea admin user create \
-        --username "${GITEA_ADMIN_USERNAME}" \
-        --password "${GITEA_ADMIN_PASSWORD}" \
-        --email "${GITEA_ADMIN_EMAIL}" \
-        --admin \
-        --must-change-password=false || true
-      /usr/bin/entrypoint /usr/bin/s6-svscan /etc/s6
+      # Add migration and admin user creation to s6 setup script
+      echo "su-exec git /usr/local/bin/gitea migrate" >> /etc/s6/gitea/setup
+      # Start Gitea normally with s6, then create admin user in background
+      (
+        # Wait for Gitea to be ready
+        echo "Waiting for Gitea to start..."
+        sleep 10
+        until wget --no-verbose --tries=1 --spider http://localhost:3000/api/healthz 2>/dev/null; do
+          sleep 2
+        done
+        echo "Gitea is ready, creating admin user..."
+        # Create admin user if it doesn't exist
+        su-exec git /usr/local/bin/gitea admin user list --admin 2>/dev/null | grep -q "${GITEA_ADMIN_USERNAME}" || \
+          su-exec git /usr/local/bin/gitea admin user create \
+            --username "${GITEA_ADMIN_USERNAME}" \
+            --password "${GITEA_ADMIN_PASSWORD}" \
+            --email "${GITEA_ADMIN_EMAIL}" \
+            --admin \
+            --must-change-password=false || true
+        echo "Admin user setup complete"
+      ) &
+      # Start s6 normally
+      exec /usr/bin/entrypoint /usr/bin/s6-svscan /etc/s6
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
