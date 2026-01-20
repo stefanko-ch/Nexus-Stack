@@ -589,6 +589,9 @@ fi
 echo ""
 echo -e "${YELLOW}[7/7] Auto-configuring services...${NC}"
 
+# Initialize array for background configuration jobs
+CONFIG_JOBS=()
+
 # Configure Infisical admin and push secrets
 if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     echo "  Configuring Infisical..."
@@ -926,6 +929,8 @@ fi
 if [ ${#CONFIG_JOBS[@]} -gt 0 ]; then
     echo "  Waiting for background configuration jobs to complete..."
     wait "${CONFIG_JOBS[@]}"
+else
+    echo "  No background configuration jobs to wait for"
 fi
 
 # -----------------------------------------------------------------------------
