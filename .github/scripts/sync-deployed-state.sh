@@ -204,108 +204,48 @@ print(f"  Generated {len(update_statements)} service update statements")
 print(f"  Services found: {', '.join(sorted(service_names))}")
 PYEOF
 
-  # Execute the INSERT SQL (for new services)
+  # Execute the INSERT SQL (for new services) - BATCH execution to avoid rate limits
   if [ -f /tmp/init_services.sql ] && [ -s /tmp/init_services.sql ]; then
-    INSERT_STMT_COUNT=$(wc -l < /tmp/init_services.sql | tr -d ' ')
-    echo "  Found $INSERT_STMT_COUNT INSERT statements"
-    echo "  First few services to insert:"
-    head -5 /tmp/init_services.sql | while IFS= read -r sql; do
+    INSERT_COUNT=$(wc -l < /tmp/init_services.sql | tr -d ' ')
+    echo "  Executing $INSERT_COUNT INSERT statements in batch..."
+    
+    # Show which services will be inserted
+    echo "  Services to insert:"
+    while IFS= read -r sql; do
       SERVICE_NAME=$(echo "$sql" | sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p" | head -1)
       echo "    - $SERVICE_NAME"
-    done
-    
-    INSERT_COUNT=0
-    INSERT_FAILED=0
-    INSERT_FAILED_SERVICES=()
-    while IFS= read -r sql; do
-      # Extract service name from SQL for logging
-      SERVICE_NAME=$(echo "$sql" | sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p" | head -1)
-      
-      # Execute with error capture (but sanitize output)
-      WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1)
-      WRANGLER_EXIT=$?
-      
-      if [ $WRANGLER_EXIT -eq 0 ]; then
-        INSERT_COUNT=$((INSERT_COUNT + 1))
-        echo "    ✓ Inserted/verified: $SERVICE_NAME"
-        
-        # Verify service actually exists in D1
-        # Note: Verification is optional - INSERT success is the primary indicator
-        VERIFY_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
-          --command "SELECT name FROM services WHERE name = '$SERVICE_NAME'" 2>&1)
-        VERIFY_EXIT=$?
-        
-        if [ $VERIFY_EXIT -eq 0 ]; then
-          # Check if result exists and contains the service name
-          if echo "$VERIFY_OUTPUT" | jq -e '.result != null and (.result | length) > 0 and .result[0].name == "'"$SERVICE_NAME"'"' >/dev/null 2>&1; then
-            echo "      ✓ Verified: $SERVICE_NAME exists in D1"
-          else
-            # Verification failed, but INSERT succeeded - likely a timing issue or false positive
-            # Don't count as failure since INSERT was successful
-            echo "      ℹ️  Verification inconclusive (INSERT succeeded, verification failed - likely timing issue)"
-          fi
-        else
-          # Verification query failed - don't count as failure since INSERT succeeded
-          echo "      ℹ️  Verification query failed (INSERT succeeded)"
-        fi
-      else
-        INSERT_FAILED=$((INSERT_FAILED + 1))
-        INSERT_FAILED_SERVICES+=("$SERVICE_NAME")
-        SANITIZED_ERROR=$(sanitize_error "$WRANGLER_OUTPUT")
-        echo "    ✗ Failed to insert: $SERVICE_NAME" >&2
-        echo "      Error: $SANITIZED_ERROR" >&2
-        # Log SQL statement for debugging (truncated if too long)
-        SQL_PREVIEW=$(echo "$sql" | head -c 200)
-        echo "      SQL: ${SQL_PREVIEW}..." >&2
-      fi
     done < /tmp/init_services.sql
     
-    if [ $INSERT_FAILED -eq 0 ]; then
-      echo "  ✅ New services inserted ($INSERT_COUNT services)"
+    # Execute ALL INSERTs in a single batch call (avoids rate limits)
+    WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+      --remote --file /tmp/init_services.sql 2>&1) || true
+    WRANGLER_EXIT=$?
+    
+    if [ $WRANGLER_EXIT -eq 0 ]; then
+      echo "  ✅ Batch INSERT completed ($INSERT_COUNT services)"
     else
-      echo "  ⚠️  Inserted $INSERT_COUNT services, $INSERT_FAILED failed" >&2
-      echo "  Failed services: ${INSERT_FAILED_SERVICES[*]}" >&2
+      SANITIZED_ERROR=$(sanitize_error "$WRANGLER_OUTPUT")
+      echo "  ⚠️ Batch INSERT had issues (may be partial): $SANITIZED_ERROR" >&2
     fi
   else
     echo "  ℹ️  No new services to insert"
-    if [ -f /tmp/init_services.sql ]; then
-      echo "  ⚠️  SQL file exists but is empty"
-    else
-      echo "  ⚠️  SQL file not found"
-    fi
   fi
 
-  # Execute the UPDATE SQL (for existing services - syncs metadata)
+  # Execute the UPDATE SQL (for existing services - syncs metadata) - BATCH execution
   if [ -f /tmp/update_services.sql ] && [ -s /tmp/update_services.sql ]; then
-    UPDATE_STMT_COUNT=$(wc -l < /tmp/update_services.sql | tr -d ' ')
-    echo "  Found $UPDATE_STMT_COUNT UPDATE statements"
-    UPDATE_COUNT=0
-    UPDATE_FAILED=0
-    UPDATE_FAILED_SERVICES=()
-    while IFS= read -r sql; do
-      # Extract service name from SQL for logging
-      SERVICE_NAME=$(echo "$sql" | sed -n "s/.*WHERE name = '\([^']*\)'.*/\1/p" | head -1)
-      
-      # Execute with error capture (but sanitize output)
-      WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1)
-      WRANGLER_EXIT=$?
-      
-      if [ $WRANGLER_EXIT -eq 0 ]; then
-        UPDATE_COUNT=$((UPDATE_COUNT + 1))
-        echo "    ✓ Updated metadata: $SERVICE_NAME"
-      else
-        UPDATE_FAILED=$((UPDATE_FAILED + 1))
-        UPDATE_FAILED_SERVICES+=("$SERVICE_NAME")
-        SANITIZED_ERROR=$(sanitize_error "$WRANGLER_OUTPUT")
-        echo "    ✗ Failed to update: $SERVICE_NAME" >&2
-        echo "      Error: $SANITIZED_ERROR" >&2
-      fi
-    done < /tmp/update_services.sql
-    if [ $UPDATE_FAILED -eq 0 ]; then
-      echo "  ✅ Existing services metadata synced ($UPDATE_COUNT services)"
+    UPDATE_COUNT=$(wc -l < /tmp/update_services.sql | tr -d ' ')
+    echo "  Executing $UPDATE_COUNT UPDATE statements in batch..."
+    
+    # Execute ALL UPDATEs in a single batch call (avoids rate limits)
+    WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+      --remote --file /tmp/update_services.sql 2>&1) || true
+    WRANGLER_EXIT=$?
+    
+    if [ $WRANGLER_EXIT -eq 0 ]; then
+      echo "  ✅ Batch UPDATE completed ($UPDATE_COUNT services)"
     else
-      echo "  ⚠️  Updated $UPDATE_COUNT services, $UPDATE_FAILED failed" >&2
-      echo "  Failed services: ${UPDATE_FAILED_SERVICES[*]}" >&2
+      SANITIZED_ERROR=$(sanitize_error "$WRANGLER_OUTPUT")
+      echo "  ⚠️ Batch UPDATE had issues (may be partial): $SANITIZED_ERROR" >&2
     fi
   else
     echo "  ℹ️  No services to update"
