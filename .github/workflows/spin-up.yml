@@ -133,6 +133,21 @@ jobs:
             # Trim whitespace and newlines from secrets to avoid auth issues
             R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
             R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
+            
+            # Debug: Check if secrets are available (without exposing values)
+            if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+              echo "⚠️  R2 credentials from secrets are empty"
+              echo "   R2_ACCESS_KEY_ID length: ${#R2_ACCESS_KEY_ID}"
+              echo "   R2_SECRET_ACCESS_KEY length: ${#R2_SECRET_ACCESS_KEY}"
+              echo ""
+              echo "   This might happen if:"
+              echo "   1. The 'Initial Setup' workflow hasn't been run yet"
+              echo "   2. The secrets weren't saved properly in setup-control-plane"
+              echo "   3. The secrets are in a different repository scope"
+              echo ""
+              echo "   Please run the 'Initial Setup' workflow (initial-setup.yaml) first,"
+              echo "   or manually set R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in GitHub Settings → Secrets → Actions."
+            fi
           fi
           
           # Validate credentials are not empty

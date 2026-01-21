@@ -27,6 +27,13 @@ services:
     description: "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
     image: "dbeaver/cloudbeaver:24"
 
+  drawio:
+    subdomain: "drawio"
+    port: 8083
+    public: false
+    description: "Flowchart and diagramming tool for creating technical diagrams, flowcharts, and UML diagrams."
+    image: "jgraph/drawio:latest"
+
   excalidraw:
     subdomain: "excalidraw"
     port: 8082
@@ -95,7 +102,6 @@ services:
     subdomain: "mailpit"
     port: 8025
     public: false
-    core: true
     description: "Email testing tool that catches all outgoing emails for inspection and testing."
     image: "axllent/mailpit:v1.28"
 
