@@ -1,0 +1,27 @@
+# =============================================================================
+# Draw.io (diagrams.net) - Flowchart and Diagramming Tool
+# =============================================================================
+# Professional diagramming tool for creating flowcharts, UML diagrams,
+# network diagrams, and technical documentation.
+# Access via: https://drawio.your-domain.com
+# Default port: 8083
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - No authentication required at application level
+# =============================================================================
+
+services:
+  drawio:
+    image: ${IMAGE_DRAWIO:-jgraph/drawio:latest}
+    container_name: drawio
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
