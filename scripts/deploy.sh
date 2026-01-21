@@ -688,68 +688,55 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
         if echo "$INIT_CHECK" | grep -q '"initialized":true'; then
             echo -e "${YELLOW}  ⚠ Infisical already configured - attempting to sync secrets${NC}"
             
-            # For already initialized instances, use /api/v1/auth/signin endpoint
-            SIGNIN_JSON=$(cat <<EOF
-{"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS"}
+            # For already initialized instances, use Infisical CLI to login and get token
+            # Install Infisical CLI if not already installed
+            echo "  Ensuring Infisical CLI is installed..."
+            ssh nexus "which infisical >/dev/null 2>&1 || (curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.deb.sh' | sudo -E bash && sudo apt-get install -y infisical)" >/dev/null 2>&1 || true
+            
+            # Try to get organization ID from bootstrap (even if it fails, it may return org info)
+            BOOTSTRAP_JSON=$(cat <<EOF
+{"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS", "organization": "Nexus"}
 EOF
 )
-            SIGNIN_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' -X POST 'http://localhost:8070/api/v1/auth/signin' \
+            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
                 -H 'Content-Type: application/json' \
-                -d '$(echo "$SIGNIN_JSON" | tr -d '\n')'" 2>&1 || echo "")
+                -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
             
-            SIGNIN_HTTP_CODE=$(echo "$SIGNIN_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
-            SIGNIN_RESPONSE=$(echo "$SIGNIN_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
+            # Try to extract org ID from bootstrap response (may be present even if bootstrap fails)
+            ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // .organization._id // empty' 2>/dev/null)
             
-            if [ "$SIGNIN_HTTP_CODE" != "200" ]; then
-                echo -e "${YELLOW}  ⚠ Signin failed (HTTP ${SIGNIN_HTTP_CODE:-unknown})${NC}"
-                if [ -n "$SIGNIN_RESPONSE" ]; then
-                    ERROR_MSG=$(echo "$SIGNIN_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "Invalid response format")
-                    echo -e "${YELLOW}    Error: $ERROR_MSG${NC}"
-                    # Log full response for debugging
-                    SIGNIN_PREVIEW=$(echo "$SIGNIN_RESPONSE" | head -c 500)
-                    echo -e "${DIM}    Response: $SIGNIN_PREVIEW${NC}"
+            # Use CLI to login and get token
+            echo "  Logging in via Infisical CLI..."
+            if [ -n "$ORG_ID" ]; then
+                INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
+                    --email '$ADMIN_EMAIL' \
+                    --password '$INFISICAL_PASS' \
+                    --organization-id '$ORG_ID' \
+                    --plain --silent 2>/dev/null" || echo "")
+            else
+                # Try without org ID first to get token, then fetch org ID
+                INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
+                    --email '$ADMIN_EMAIL' \
+                    --password '$INFISICAL_PASS' \
+                    --plain --silent 2>/dev/null" || echo "")
+                
+                if [ -n "$INFISICAL_TOKEN" ]; then
+                    # Get organization ID
+                    ORG_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/organization' \
+                        -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
+                    ORG_ID=$(echo "$ORG_RESULT" | jq -r '.organization._id // .organization.id // empty' 2>/dev/null)
                 fi
+            fi
+            
+            if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+                echo -e "${YELLOW}  ⚠ Could not authenticate with Infisical CLI${NC}"
                 echo -e "${YELLOW}    Secrets sync skipped - check credentials in Infisical${NC}"
                 INFISICAL_TOKEN=""
                 ORG_ID=""
             else
-                # Extract token from signin response
-                INFISICAL_TOKEN=$(echo "$SIGNIN_RESPONSE" | jq -r '.token // .accessToken // .identity.credentials.token // empty' 2>/dev/null)
-                
-                if [ -z "$INFISICAL_TOKEN" ]; then
-                    echo -e "${YELLOW}  ⚠ Signin succeeded but no token in response${NC}"
-                    SIGNIN_PREVIEW=$(echo "$SIGNIN_RESPONSE" | head -c 500)
-                    echo -e "${DIM}    Response: $SIGNIN_PREVIEW${NC}"
-                    INFISICAL_TOKEN=""
-                    ORG_ID=""
-                else
-                    echo -e "${GREEN}  ✓ Authentication successful${NC}"
-                    
-                    # Get organization ID using the token
-                    echo "  Fetching organization information..."
-                    ORG_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' 'http://localhost:8070/api/v1/organization' \
-                        -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
-                    
-                    ORG_HTTP_CODE=$(echo "$ORG_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
-                    ORG_RESPONSE=$(echo "$ORG_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
-                    
-                    ORG_ID=$(echo "$ORG_RESPONSE" | jq -r '.organization._id // .organization.id // empty' 2>/dev/null)
-                    
-                    if [ -z "$ORG_ID" ] || [ "$ORG_HTTP_CODE" != "200" ]; then
-                        echo -e "${YELLOW}  ⚠ Failed to get organization ID (HTTP ${ORG_HTTP_CODE:-unknown})${NC}"
-                        if [ -n "$ORG_RESPONSE" ]; then
-                            ORG_ERROR_MSG=$(echo "$ORG_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "Invalid response format")
-                            echo -e "${YELLOW}    Error: $ORG_ERROR_MSG${NC}"
-                        fi
-                        echo -e "${YELLOW}    Secrets sync skipped${NC}"
-                        INFISICAL_TOKEN=""
-                        ORG_ID=""
-                    else
-                        echo -e "${GREEN}  ✓ Organization ID retrieved${NC}"
-                        # Continue with project lookup and secret pushing (reuse logic below)
-                        INFISICAL_ALREADY_INITIALIZED=true
-                    fi
-                fi
+                echo -e "${GREEN}  ✓ Authentication successful via Infisical CLI${NC}"
+                # Continue with project lookup and secret pushing (reuse logic below)
+                INFISICAL_ALREADY_INITIALIZED=true
             fi
         else
             INFISICAL_ALREADY_INITIALIZED=false
