@@ -747,11 +747,12 @@ EOF
                     fi
                     
                     # Using v4 API which supports tagIds
-                    # Note: Use "dev" environment (default) - "prod" may not exist in new projects
+                    # Environment can be overridden via INFISICAL_ENV (default: dev)
+                    # Note: "prod" may not exist in new Infisical projects
                     SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
 {
   "projectId": "$PROJECT_ID",
-  "environment": "dev",
+  "environment": "${INFISICAL_ENV:-dev}",
   "secretPath": "/",
   "secrets": [
     {"secretKey": "DOMAIN", "secretValue": "$DOMAIN", "tagIds": ["$CONFIG_TAG"]},

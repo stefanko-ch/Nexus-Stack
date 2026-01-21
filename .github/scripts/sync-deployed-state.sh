@@ -217,9 +217,11 @@ PYEOF
     done < /tmp/init_services.sql
     
     # Execute ALL INSERTs in a single batch call (avoids rate limits)
+    set +e
     WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
-      --remote --file /tmp/init_services.sql 2>&1) || true
+      --remote --file /tmp/init_services.sql 2>&1)
     WRANGLER_EXIT=$?
+    set -e
     
     if [ $WRANGLER_EXIT -eq 0 ]; then
       echo "  ✅ Batch INSERT completed ($INSERT_COUNT services)"
@@ -237,9 +239,11 @@ PYEOF
     echo "  Executing $UPDATE_COUNT UPDATE statements in batch..."
     
     # Execute ALL UPDATEs in a single batch call (avoids rate limits)
+    set +e
     WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
-      --remote --file /tmp/update_services.sql 2>&1) || true
+      --remote --file /tmp/update_services.sql 2>&1)
     WRANGLER_EXIT=$?
+    set -e
     
     if [ $WRANGLER_EXIT -eq 0 ]; then
       echo "  ✅ Batch UPDATE completed ($UPDATE_COUNT services)"
