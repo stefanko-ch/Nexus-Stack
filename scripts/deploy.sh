@@ -682,36 +682,95 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
     if [ "$INFISICAL_READY" = "false" ]; then
         echo -e "${YELLOW}  ⚠ Infisical not responding after 120s - skipping config${NC}"
     else
-    # Check if already initialized
-    INIT_CHECK=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null || echo "")
-    
-    if echo "$INIT_CHECK" | grep -q '"initialized":true'; then
-        echo -e "${YELLOW}  ⚠ Infisical already configured - skipping setup${NC}"
-        # WARNING: Infisical will NOT auto-populate secrets for newly enabled services.
-        # After initial bootstrap, new service secrets (e.g. MinIO) must be added
-        # manually via the Infisical UI, or perform a full destroy/spin-up cycle
-        # to bootstrap fresh with all current service credentials.
-    else
-        # Build JSON payload locally and base64 encode to avoid escaping issues
-        BOOTSTRAP_JSON=$(cat <<EOF
+        # Check if already initialized
+        INIT_CHECK=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/admin/config'" 2>/dev/null || echo "")
+        
+        if echo "$INIT_CHECK" | grep -q '"initialized":true'; then
+            echo -e "${YELLOW}  ⚠ Infisical already configured - attempting to sync secrets${NC}"
+            
+            # Try to get token via bootstrap (may return token even if already initialized)
+            BOOTSTRAP_JSON=$(cat <<EOF
 {"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS", "organization": "Nexus"}
 EOF
 )
-        # Bootstrap with admin user
-        BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
-            -H 'Content-Type: application/json' \
-            -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
-        
-        if echo "$BOOTSTRAP_RESULT" | grep -q '"user"'; then
-            echo -e "${GREEN}  ✓ Infisical admin created (user: $ADMIN_EMAIL)${NC}"
+            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
+                -H 'Content-Type: application/json' \
+                -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
             
-            # Extract token and org ID for pushing secrets
+            # Extract token and org ID (bootstrap may return token even if user exists)
             INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESULT" | jq -r '.identity.credentials.token // empty')
             ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // empty')
             
-            if [ -n "$INFISICAL_TOKEN" ] && [ -n "$ORG_ID" ]; then
-                echo "  Creating Nexus secrets project..."
+            if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+                echo -e "${YELLOW}  ⚠ Could not get authentication token - secrets sync skipped${NC}"
+                echo -e "${YELLOW}    New service secrets must be added manually via Infisical UI${NC}"
+            else
+                # Continue with project lookup and secret pushing (reuse logic below)
+                INFISICAL_ALREADY_INITIALIZED=true
+            fi
+        else
+            INFISICAL_ALREADY_INITIALIZED=false
+            # Build JSON payload locally and base64 encode to avoid escaping issues
+            BOOTSTRAP_JSON=$(cat <<EOF
+{"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS", "organization": "Nexus"}
+EOF
+)
+            # Bootstrap with admin user
+            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
+                -H 'Content-Type: application/json' \
+                -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
+            
+            if echo "$BOOTSTRAP_RESULT" | grep -q '"user"'; then
+                echo -e "${GREEN}  ✓ Infisical admin created (user: $ADMIN_EMAIL)${NC}"
                 
+                # Extract token and org ID for pushing secrets
+                INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESULT" | jq -r '.identity.credentials.token // empty')
+                ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // empty')
+            elif echo "$BOOTSTRAP_RESULT" | grep -q 'already'; then
+                echo -e "${YELLOW}  ⚠ Infisical already configured${NC}"
+                # Try to extract token anyway (bootstrap may return token even if user exists)
+                INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESULT" | jq -r '.identity.credentials.token // empty')
+                ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // empty')
+            else
+                echo -e "${YELLOW}  ⚠ Infisical bootstrap failed${NC}"
+                INFISICAL_TOKEN=""
+                ORG_ID=""
+            fi
+        fi
+        
+        # Common logic for both bootstrap and already-initialized cases
+        if [ -n "$INFISICAL_TOKEN" ] && [ -n "$ORG_ID" ]; then
+            # Find or create project
+            if [ "${INFISICAL_ALREADY_INITIALIZED:-false}" = "true" ]; then
+                echo "  Looking up Nexus Stack project..."
+                # Try to find existing project
+                PROJECTS_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v2/workspace' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
+                
+                PROJECT_ID=$(echo "$PROJECTS_RESULT" | jq -r '.workspaces[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
+                
+                if [ -z "$PROJECT_ID" ]; then
+                    PROJECT_ID=$(echo "$PROJECTS_RESULT" | jq -r '.projects[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
+                fi
+                
+                if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
+                    echo -e "${GREEN}  ✓ Found existing project 'Nexus Stack'${NC}"
+                else
+                    echo "  Project not found - creating new project..."
+                    PROJECT_JSON="{\"projectName\": \"Nexus Stack\", \"organizationId\": \"$ORG_ID\"}"
+                    PROJECT_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v2/workspace' \
+                        -H 'Authorization: Bearer $INFISICAL_TOKEN' \
+                        -H 'Content-Type: application/json' \
+                        -d '$PROJECT_JSON'" 2>&1 || echo "")
+                    
+                    PROJECT_ID=$(echo "$PROJECT_RESULT" | jq -r '.project.id // .workspace.id // empty')
+                    
+                    if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
+                        echo -e "${GREEN}  ✓ Project 'Nexus Stack' created${NC}"
+                    fi
+                fi
+            else
+                echo "  Creating Nexus secrets project..."
                 # Create a project for Nexus secrets
                 PROJECT_JSON="{\"projectName\": \"Nexus Stack\", \"organizationId\": \"$ORG_ID\"}"
                 PROJECT_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v2/workspace' \
@@ -723,47 +782,50 @@ EOF
                 
                 if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
                     echo -e "${GREEN}  ✓ Project 'Nexus Stack' created${NC}"
-                    
-                    # Create tags for organizing secrets
-                    echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "config" "ssh"; do
-                        TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
-                        ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
-                            -H 'Authorization: Bearer $INFISICAL_TOKEN' \
-                            -H 'Content-Type: application/json' \
-                            -d '$TAG_JSON'" >/dev/null 2>&1 || true
-                    done
-                    
-                    # Get tag IDs
-                    TAGS_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
-                        -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
-                    
-                    INFISICAL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="infisical") | .id // empty' 2>/dev/null)
-                    PORTAINER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="portainer") | .id // empty' 2>/dev/null)
-                    KUMA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="uptime-kuma") | .id // empty' 2>/dev/null)
-                    GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
-                    N8N_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="n8n") | .id // empty' 2>/dev/null)
-                    KESTRA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="kestra") | .id // empty' 2>/dev/null)
-                    METABASE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="metabase") | .id // empty' 2>/dev/null)
-                    CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
-                    MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
-                    MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
-                    CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
-                    SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
-                    
-                    echo -e "${GREEN}  ✓ Tags created${NC}"
-                    echo "  Pushing secrets to Infisical..."
-                    
-                    # Build secrets payload with usernames and tags
-                    # Prepare SSH private key for JSON (base64 encode to handle newlines)
-                    SSH_KEY_SECRET=""
-                    if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
-                        SSH_KEY_BASE64=$(echo "$SSH_PRIVATE_KEY_CONTENT" | base64 | tr -d '\n')
-                        SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
-                    fi
-                    
-                    # Using v4 API which supports tagIds
-                    SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
+                fi
+            fi
+            
+            if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
+                # Create tags for organizing secrets (idempotent - will not fail if tags already exist)
+                echo "  Ensuring tags exist..."
+                for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "config" "ssh"; do
+                    TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
+                    ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
+                        -H 'Authorization: Bearer $INFISICAL_TOKEN' \
+                        -H 'Content-Type: application/json' \
+                        -d '$TAG_JSON'" >/dev/null 2>&1 || true
+                done
+                
+                # Get tag IDs
+                TAGS_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
+                
+                INFISICAL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="infisical") | .id // empty' 2>/dev/null)
+                PORTAINER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="portainer") | .id // empty' 2>/dev/null)
+                KUMA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="uptime-kuma") | .id // empty' 2>/dev/null)
+                GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
+                N8N_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="n8n") | .id // empty' 2>/dev/null)
+                KESTRA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="kestra") | .id // empty' 2>/dev/null)
+                METABASE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="metabase") | .id // empty' 2>/dev/null)
+                CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
+                MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
+                MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
+                SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
+                
+                echo -e "${GREEN}  ✓ Tags ready${NC}"
+                echo "  Pushing secrets to Infisical..."
+                
+                # Build secrets payload with usernames and tags
+                # Prepare SSH private key for JSON (base64 encode to handle newlines)
+                SSH_KEY_SECRET=""
+                if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
+                    SSH_KEY_BASE64=$(echo "$SSH_PRIVATE_KEY_CONTENT" | base64 | tr -d '\n')
+                    SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
+                fi
+                
+                # Using v4 API which supports tagIds (upserts existing secrets)
+                SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
 {
   "projectId": "$PROJECT_ID",
   "environment": "prod",
@@ -796,33 +858,29 @@ EOF
 }
 SECRETS_EOF
 )
-                    
-                    SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
-                        -H 'Authorization: Bearer $INFISICAL_TOKEN' \
-                        -H 'Content-Type: application/json' \
-                        -d '$(echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
-                    
-                    if echo "$SECRETS_RESULT" | grep -qE '"secrets"|"secretKey"'; then
-                        echo -e "${GREEN}  ✓ All secrets pushed to Infisical (with tags)${NC}"
-                        if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
-                            echo -e "${GREEN}  ✓ SSH private key stored (base64 encoded)${NC}"
-                            echo -e "${DIM}    Decode with: base64 -d <<< \"\$SSH_PRIVATE_KEY_BASE64\" > ~/.ssh/nexus_key${NC}"
-                        fi
-                    else
-                        echo -e "${YELLOW}  ⚠ Failed to push secrets${NC}"
+                
+                SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN' \
+                    -H 'Content-Type: application/json' \
+                    -d '$(echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
+                
+                if echo "$SECRETS_RESULT" | grep -qE '"secrets"|"secretKey"'; then
+                    echo -e "${GREEN}  ✓ All secrets pushed to Infisical (with tags)${NC}"
+                    if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
+                        echo -e "${GREEN}  ✓ SSH private key stored (base64 encoded)${NC}"
+                        echo -e "${DIM}    Decode with: base64 -d <<< \"\$SSH_PRIVATE_KEY_BASE64\" > ~/.ssh/nexus_key${NC}"
                     fi
                 else
-                    echo -e "${YELLOW}  ⚠ Failed to create project${NC}"
+                    echo -e "${YELLOW}  ⚠ Failed to push secrets${NC}"
+                    echo -e "${DIM}    Response: $SECRETS_RESULT${NC}"
                 fi
+            else
+                echo -e "${YELLOW}  ⚠ Failed to find or create project${NC}"
             fi
-        elif echo "$BOOTSTRAP_RESULT" | grep -q 'already'; then
-            echo -e "${YELLOW}  ⚠ Infisical already configured${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ Infisical bootstrap failed${NC}"
         fi
     fi
     fi  # End of INFISICAL_READY check
-fi
+fi  # End of if echo "$ENABLED_SERVICES" | grep -qw "infisical"
 
 # Configure Portainer admin (non-blocking, can run in parallel with other configs)
 if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; then
