@@ -878,7 +878,6 @@ SECRETS_EOF
                 echo -e "${YELLOW}  ⚠ Failed to find or create project${NC}"
             fi
         fi
-    fi
     fi  # End of INFISICAL_READY check
 fi  # End of if echo "$ENABLED_SERVICES" | grep -qw "infisical"
 
