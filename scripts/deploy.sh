@@ -704,24 +704,39 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
             fi
             
             # For already initialized instances, we need organization ID for CLI login
-            # The organization ID should be stored from the first bootstrap
-            # Try to get it from bootstrap response first (even if bootstrap fails, it may return org info)
-            BOOTSTRAP_JSON=$(cat <<EOF
+            # Try to get it from saved file first (from first bootstrap)
+            echo "  Looking for saved organization ID..."
+            ORG_ID=$(ssh nexus "cat /opt/docker-server/.infisical-org-id 2>/dev/null" | tr -d '\n' || echo "")
+            
+            # If not found in file, try to get it from bootstrap response (even if bootstrap fails, it may return org info)
+            if [ -z "$ORG_ID" ]; then
+                echo "  Organization ID not found in saved file - trying bootstrap response..."
+                BOOTSTRAP_JSON=$(cat <<EOF
 {"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS", "organization": "Nexus"}
 EOF
 )
-            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
-                -H 'Content-Type: application/json' \
-                -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
-            
-            # Try to extract org ID from bootstrap response (may be present even if bootstrap fails)
-            # Check multiple possible response formats
-            ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // .organization._id // .orgId // empty' 2>/dev/null)
-            
-            # Debug: Log bootstrap response if org ID not found
-            if [ -z "$ORG_ID" ] && [ -n "$BOOTSTRAP_RESULT" ]; then
-                BOOTSTRAP_PREVIEW=$(echo "$BOOTSTRAP_RESULT" | head -c 500)
-                echo -e "${DIM}    Bootstrap response (no org ID found): $BOOTSTRAP_PREVIEW${NC}"
+                BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
+                    -H 'Content-Type: application/json' \
+                    -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
+                
+                # Try to extract org ID from bootstrap response (may be present even if bootstrap fails)
+                # Check multiple possible response formats
+                ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // .organization._id // .orgId // empty' 2>/dev/null)
+                
+                # If found, save it for future use
+                if [ -n "$ORG_ID" ]; then
+                    echo "  Saving organization ID for future deployments..."
+                    ssh nexus "echo '$ORG_ID' > /opt/docker-server/.infisical-org-id" 2>/dev/null || true
+                    echo -e "${GREEN}  ✓ Organization ID saved${NC}"
+                else
+                    # Debug: Log bootstrap response if org ID not found
+                    if [ -n "$BOOTSTRAP_RESULT" ]; then
+                        BOOTSTRAP_PREVIEW=$(echo "$BOOTSTRAP_RESULT" | head -c 500)
+                        echo -e "${DIM}    Bootstrap response (no org ID found): $BOOTSTRAP_PREVIEW${NC}"
+                    fi
+                fi
+            else
+                echo -e "${GREEN}  ✓ Organization ID found in saved file${NC}"
             fi
             
             # If org ID still not found, we cannot use CLI login (requires org ID)
@@ -785,12 +800,17 @@ EOF
                 
                 # Extract token and org ID for pushing secrets
                 INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.identity.credentials.token // empty')
-                ORG_ID=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.organization.id // empty')
+                ORG_ID=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.organization.id // .organization._id // empty')
                 
                 if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
                     echo -e "${YELLOW}  ⚠ Bootstrap succeeded but token/org ID missing${NC}"
                     INFISICAL_TOKEN=""
                     ORG_ID=""
+                else
+                    # Save organization ID to file for future use
+                    echo "  Saving organization ID for future deployments..."
+                    ssh nexus "echo '$ORG_ID' > /opt/docker-server/.infisical-org-id" 2>/dev/null || true
+                    echo -e "${GREEN}  ✓ Organization ID saved${NC}"
                 fi
             elif echo "$BOOTSTRAP_RESPONSE" | grep -q 'already'; then
                 echo -e "${YELLOW}  ⚠ Infisical already configured - this should not happen in bootstrap path${NC}"
