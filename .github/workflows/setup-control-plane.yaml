@@ -152,7 +152,20 @@ jobs:
           
           # Run the init script
           chmod +x scripts/init-r2-state.sh
-          ./scripts/init-r2-state.sh
+          if ! ./scripts/init-r2-state.sh; then
+            echo "❌ init-r2-state.sh script failed"
+            exit 1
+          fi
+          
+          # Verify credentials file was created
+          if [ ! -f tofu/.r2-credentials ]; then
+            echo "❌ R2 credentials file not found after running init script"
+            echo "   Expected location: tofu/.r2-credentials"
+            echo "   Current directory: $(pwd)"
+            echo "   Contents of tofu/ directory:"
+            ls -la tofu/ 2>/dev/null || echo "   (tofu/ directory does not exist)"
+            exit 1
+          fi
           
           # Read the generated credentials
           if [ -f tofu/.r2-credentials ]; then
@@ -247,7 +260,21 @@ jobs:
       - name: Export R2 credentials for spin-up workflow
         id: r2_credentials
         run: |
+          # Check if credentials file exists (from either init_r2 or Create R2 credentials step)
+          if [ ! -f tofu/.r2-credentials ]; then
+            echo "❌ R2 credentials file not found!"
+            echo "   Expected location: tofu/.r2-credentials"
+            exit 1
+          fi
+          
           source tofu/.r2-credentials
+          
+          # Verify credentials were loaded
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "❌ R2 credentials are empty after sourcing file!"
+            exit 1
+          fi
+          
           # Note: Don't mask credentials here - masking prevents them from being
           # passed as workflow outputs (GitHub blocks outputs containing masked values)
           # The credentials will be masked by the receiving workflow when used
