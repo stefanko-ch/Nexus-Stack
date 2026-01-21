@@ -703,7 +703,9 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
                 fi
             fi
             
-            # Try to get organization ID from bootstrap (even if it fails, it may return org info)
+            # For already initialized instances, we need organization ID for CLI login
+            # The organization ID should be stored from the first bootstrap
+            # Try to get it from bootstrap response first (even if bootstrap fails, it may return org info)
             BOOTSTRAP_JSON=$(cat <<EOF
 {"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS", "organization": "Nexus"}
 EOF
@@ -713,31 +715,33 @@ EOF
                 -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
             
             # Try to extract org ID from bootstrap response (may be present even if bootstrap fails)
-            ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // .organization._id // empty' 2>/dev/null)
+            # Check multiple possible response formats
+            ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // .organization._id // .orgId // empty' 2>/dev/null)
             
-            # Use CLI to login and get token (only if CLI is installed)
-            if ssh nexus "which infisical >/dev/null 2>&1"; then
-                echo "  Logging in via Infisical CLI..."
-                if [ -n "$ORG_ID" ]; then
-                    INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
-                        --email '$ADMIN_EMAIL' \
-                        --password '$INFISICAL_PASS' \
-                        --organization-id '$ORG_ID' \
-                        --plain --silent 2>&1" || echo "")
-                else
-                    # Try without org ID first to get token, then fetch org ID
-                    INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
-                        --email '$ADMIN_EMAIL' \
-                        --password '$INFISICAL_PASS' \
-                        --plain --silent 2>&1" || echo "")
-                    
-                    if [ -n "$INFISICAL_TOKEN" ] && ! echo "$INFISICAL_TOKEN" | grep -qi "error\|failed"; then
-                        # Get organization ID
-                        ORG_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/organization' \
-                            -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
-                        ORG_ID=$(echo "$ORG_RESULT" | jq -r '.organization._id // .organization.id // empty' 2>/dev/null)
-                    fi
-                fi
+            # Debug: Log bootstrap response if org ID not found
+            if [ -z "$ORG_ID" ] && [ -n "$BOOTSTRAP_RESULT" ]; then
+                BOOTSTRAP_PREVIEW=$(echo "$BOOTSTRAP_RESULT" | head -c 500)
+                echo -e "${DIM}    Bootstrap response (no org ID found): $BOOTSTRAP_PREVIEW${NC}"
+            fi
+            
+            # If org ID still not found, we cannot use CLI login (requires org ID)
+            # The organization ID must be obtained from the first bootstrap
+            # For now, we skip secrets sync - user must manually add secrets or perform full destroy/spin-up
+            if [ -z "$ORG_ID" ]; then
+                echo -e "${YELLOW}  ⚠ Could not determine organization ID${NC}"
+                echo -e "${YELLOW}    Organization ID is required for CLI login but not available${NC}"
+                echo -e "${YELLOW}    Secrets sync skipped - add secrets manually via Infisical UI${NC}"
+                echo -e "${YELLOW}    Or perform a full destroy/spin-up cycle to bootstrap fresh${NC}"
+                INFISICAL_TOKEN=""
+                ORG_ID=""
+            elif ssh nexus "which infisical >/dev/null 2>&1"; then
+                # We have org ID and CLI is installed - proceed with login
+                echo "  Logging in via Infisical CLI (org ID: $ORG_ID)..."
+                INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
+                    --email '$ADMIN_EMAIL' \
+                    --password '$INFISICAL_PASS' \
+                    --organization-id '$ORG_ID' \
+                    --plain --silent 2>&1" || echo "")
                 
                 # Validate token (should not contain error messages)
                 if [ -n "$INFISICAL_TOKEN" ] && echo "$INFISICAL_TOKEN" | grep -qi "error\|failed"; then
@@ -745,11 +749,8 @@ EOF
                     INFISICAL_TOKEN=""
                 fi
                 
-                if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+                if [ -z "$INFISICAL_TOKEN" ]; then
                     echo -e "${YELLOW}  ⚠ Could not authenticate with Infisical CLI${NC}"
-                    if [ -n "$INFISICAL_TOKEN" ]; then
-                        echo -e "${DIM}    CLI output: $(echo "$INFISICAL_TOKEN" | head -c 200)${NC}"
-                    fi
                     echo -e "${YELLOW}    Secrets sync skipped - check credentials in Infisical${NC}"
                     INFISICAL_TOKEN=""
                     ORG_ID=""
@@ -793,12 +794,15 @@ EOF
                 fi
             elif echo "$BOOTSTRAP_RESPONSE" | grep -q 'already'; then
                 echo -e "${YELLOW}  ⚠ Infisical already configured - this should not happen in bootstrap path${NC}"
-                # Try to extract token anyway (bootstrap may return token even if user exists)
+                # Try to extract token and org ID anyway (bootstrap may return them even if user exists)
                 INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.identity.credentials.token // empty')
-                ORG_ID=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.organization.id // empty')
+                ORG_ID=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.organization.id // .organization._id // empty')
                 
                 if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
-                    echo -e "${YELLOW}    Token/org ID not available - secrets sync skipped${NC}"
+                    echo -e "${YELLOW}    Token/org ID not available in bootstrap response${NC}"
+                    # Log full response for debugging
+                    BOOTSTRAP_PREVIEW=$(echo "$BOOTSTRAP_RESPONSE" | head -c 500)
+                    echo -e "${DIM}    Bootstrap response: $BOOTSTRAP_PREVIEW${NC}"
                     INFISICAL_TOKEN=""
                     ORG_ID=""
                 fi
