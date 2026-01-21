@@ -691,7 +691,17 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
             # For already initialized instances, use Infisical CLI to login and get token
             # Install Infisical CLI if not already installed
             echo "  Ensuring Infisical CLI is installed..."
-            ssh nexus "which infisical >/dev/null 2>&1 || (curl -1sLf 'https://dl.cloudsmith.io/public/infisical/infisical-cli/setup.deb.sh' | sudo -E bash && sudo apt-get install -y infisical)" >/dev/null 2>&1 || true
+            if ! ssh nexus "which infisical >/dev/null 2>&1"; then
+                echo "  Installing Infisical CLI..."
+                ssh nexus "curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | sudo -E bash && sudo apt-get update && sudo apt-get install -y infisical" >/dev/null 2>&1
+                if ! ssh nexus "which infisical >/dev/null 2>&1"; then
+                    echo -e "${YELLOW}  ⚠ Failed to install Infisical CLI${NC}"
+                    INFISICAL_TOKEN=""
+                    ORG_ID=""
+                else
+                    echo -e "${GREEN}  ✓ Infisical CLI installed${NC}"
+                fi
+            fi
             
             # Try to get organization ID from bootstrap (even if it fails, it may return org info)
             BOOTSTRAP_JSON=$(cat <<EOF
@@ -705,38 +715,53 @@ EOF
             # Try to extract org ID from bootstrap response (may be present even if bootstrap fails)
             ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // .organization._id // empty' 2>/dev/null)
             
-            # Use CLI to login and get token
-            echo "  Logging in via Infisical CLI..."
-            if [ -n "$ORG_ID" ]; then
-                INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
-                    --email '$ADMIN_EMAIL' \
-                    --password '$INFISICAL_PASS' \
-                    --organization-id '$ORG_ID' \
-                    --plain --silent 2>/dev/null" || echo "")
-            else
-                # Try without org ID first to get token, then fetch org ID
-                INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
-                    --email '$ADMIN_EMAIL' \
-                    --password '$INFISICAL_PASS' \
-                    --plain --silent 2>/dev/null" || echo "")
-                
-                if [ -n "$INFISICAL_TOKEN" ]; then
-                    # Get organization ID
-                    ORG_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/organization' \
-                        -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
-                    ORG_ID=$(echo "$ORG_RESULT" | jq -r '.organization._id // .organization.id // empty' 2>/dev/null)
+            # Use CLI to login and get token (only if CLI is installed)
+            if ssh nexus "which infisical >/dev/null 2>&1"; then
+                echo "  Logging in via Infisical CLI..."
+                if [ -n "$ORG_ID" ]; then
+                    INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
+                        --email '$ADMIN_EMAIL' \
+                        --password '$INFISICAL_PASS' \
+                        --organization-id '$ORG_ID' \
+                        --plain --silent 2>&1" || echo "")
+                else
+                    # Try without org ID first to get token, then fetch org ID
+                    INFISICAL_TOKEN=$(ssh nexus "INFISICAL_API_URL=http://localhost:8070 infisical login \
+                        --email '$ADMIN_EMAIL' \
+                        --password '$INFISICAL_PASS' \
+                        --plain --silent 2>&1" || echo "")
+                    
+                    if [ -n "$INFISICAL_TOKEN" ] && ! echo "$INFISICAL_TOKEN" | grep -qi "error\|failed"; then
+                        # Get organization ID
+                        ORG_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v1/organization' \
+                            -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
+                        ORG_ID=$(echo "$ORG_RESULT" | jq -r '.organization._id // .organization.id // empty' 2>/dev/null)
+                    fi
                 fi
-            fi
-            
-            if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
-                echo -e "${YELLOW}  ⚠ Could not authenticate with Infisical CLI${NC}"
-                echo -e "${YELLOW}    Secrets sync skipped - check credentials in Infisical${NC}"
+                
+                # Validate token (should not contain error messages)
+                if [ -n "$INFISICAL_TOKEN" ] && echo "$INFISICAL_TOKEN" | grep -qi "error\|failed"; then
+                    echo -e "${YELLOW}  ⚠ CLI login returned error: $(echo "$INFISICAL_TOKEN" | head -c 200)${NC}"
+                    INFISICAL_TOKEN=""
+                fi
+                
+                if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+                    echo -e "${YELLOW}  ⚠ Could not authenticate with Infisical CLI${NC}"
+                    if [ -n "$INFISICAL_TOKEN" ]; then
+                        echo -e "${DIM}    CLI output: $(echo "$INFISICAL_TOKEN" | head -c 200)${NC}"
+                    fi
+                    echo -e "${YELLOW}    Secrets sync skipped - check credentials in Infisical${NC}"
+                    INFISICAL_TOKEN=""
+                    ORG_ID=""
+                else
+                    echo -e "${GREEN}  ✓ Authentication successful via Infisical CLI${NC}"
+                    # Continue with project lookup and secret pushing (reuse logic below)
+                    INFISICAL_ALREADY_INITIALIZED=true
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Infisical CLI not available - secrets sync skipped${NC}"
                 INFISICAL_TOKEN=""
                 ORG_ID=""
-            else
-                echo -e "${GREEN}  ✓ Authentication successful via Infisical CLI${NC}"
-                # Continue with project lookup and secret pushing (reuse logic below)
-                INFISICAL_ALREADY_INITIALIZED=true
             fi
         else
             INFISICAL_ALREADY_INITIALIZED=false
