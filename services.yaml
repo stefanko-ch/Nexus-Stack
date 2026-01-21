@@ -102,7 +102,6 @@ services:
     subdomain: "mailpit"
     port: 8025
     public: false
-    core: true
     description: "Email testing tool that catches all outgoing emails for inspection and testing."
     image: "axllent/mailpit:v1.28"
 
