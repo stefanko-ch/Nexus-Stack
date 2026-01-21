@@ -747,10 +747,11 @@ EOF
                     fi
                     
                     # Using v4 API which supports tagIds
+                    # Note: Use "dev" environment (default) - "prod" may not exist in new projects
                     SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
 {
   "projectId": "$PROJECT_ID",
-  "environment": "prod",
+  "environment": "dev",
   "secretPath": "/",
   "secrets": [
     {"secretKey": "DOMAIN", "secretValue": "$DOMAIN", "tagIds": ["$CONFIG_TAG"]},
@@ -786,14 +787,20 @@ SECRETS_EOF
                         -H 'Content-Type: application/json' \
                         -d '$(echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
                     
-                    if echo "$SECRETS_RESULT" | grep -qE '"secrets"|"secretKey"'; then
-                        echo -e "${GREEN}  ✓ All secrets pushed to Infisical (with tags)${NC}"
+                    # Check for actual success (secrets array present) and no error
+                    if echo "$SECRETS_RESULT" | grep -q '"error"'; then
+                        echo -e "${YELLOW}  ⚠ Failed to push secrets - API error${NC}"
+                        echo -e "${DIM}    Response: $(echo "$SECRETS_RESULT" | head -c 300)${NC}"
+                    elif echo "$SECRETS_RESULT" | jq -e '.secrets | length > 0' >/dev/null 2>&1; then
+                        SECRETS_COUNT=$(echo "$SECRETS_RESULT" | jq '.secrets | length' 2>/dev/null || echo "?")
+                        echo -e "${GREEN}  ✓ $SECRETS_COUNT secrets pushed to Infisical (dev environment)${NC}"
                         if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
                             echo -e "${GREEN}  ✓ SSH private key stored (base64 encoded)${NC}"
                             echo -e "${DIM}    Decode with: base64 -d <<< \"\$SSH_PRIVATE_KEY_BASE64\" > ~/.ssh/nexus_key${NC}"
                         fi
                     else
-                        echo -e "${YELLOW}  ⚠ Failed to push secrets${NC}"
+                        echo -e "${YELLOW}  ⚠ Failed to push secrets - unexpected response${NC}"
+                        echo -e "${DIM}    Response: $(echo "$SECRETS_RESULT" | head -c 300)${NC}"
                     fi
                 else
                     echo -e "${YELLOW}  ⚠ Failed to create project${NC}"
