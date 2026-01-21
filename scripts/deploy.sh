@@ -688,25 +688,60 @@ if echo "$ENABLED_SERVICES" | grep -qw "infisical"; then
         if echo "$INIT_CHECK" | grep -q '"initialized":true'; then
             echo -e "${YELLOW}  ⚠ Infisical already configured - attempting to sync secrets${NC}"
             
-            # Try to get token via bootstrap (may return token even if already initialized)
-            BOOTSTRAP_JSON=$(cat <<EOF
-{"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS", "organization": "Nexus"}
+            # Use login endpoint for already initialized instances (bootstrap doesn't return token if user exists)
+            LOGIN_JSON=$(cat <<EOF
+{"email": "$ADMIN_EMAIL", "password": "$INFISICAL_PASS"}
 EOF
 )
-            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
+            LOGIN_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' -X POST 'http://localhost:8070/api/v1/auth/login' \
                 -H 'Content-Type: application/json' \
-                -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
+                -d '$(echo "$LOGIN_JSON" | tr -d '\n')'" 2>&1 || echo "")
             
-            # Extract token and org ID (bootstrap may return token even if user exists)
-            INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESULT" | jq -r '.identity.credentials.token // empty')
-            ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // empty')
+            # Extract HTTP status code
+            HTTP_CODE=$(echo "$LOGIN_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+            LOGIN_RESPONSE=$(echo "$LOGIN_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
             
-            if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
-                echo -e "${YELLOW}  ⚠ Could not get authentication token - secrets sync skipped${NC}"
-                echo -e "${YELLOW}    New service secrets must be added manually via Infisical UI${NC}"
+            # Extract token from login response
+            INFISICAL_TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token // empty' 2>/dev/null)
+            
+            if [ -z "$INFISICAL_TOKEN" ] || [ "$HTTP_CODE" != "200" ]; then
+                echo -e "${YELLOW}  ⚠ Login failed (HTTP ${HTTP_CODE:-unknown})${NC}"
+                if [ -n "$LOGIN_RESPONSE" ]; then
+                    ERROR_MSG=$(echo "$LOGIN_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "Invalid response format")
+                    echo -e "${YELLOW}    Error: $ERROR_MSG${NC}"
+                fi
+                echo -e "${YELLOW}    Secrets sync skipped - check credentials in Infisical${NC}"
+                INFISICAL_TOKEN=""
+                ORG_ID=""
             else
-                # Continue with project lookup and secret pushing (reuse logic below)
-                INFISICAL_ALREADY_INITIALIZED=true
+                echo -e "${GREEN}  ✓ Login successful${NC}"
+                
+                # Get organization ID using the token
+                echo "  Fetching organization information..."
+                ORG_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' 'http://localhost:8070/api/v1/organization' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
+                
+                # Extract HTTP status code
+                ORG_HTTP_CODE=$(echo "$ORG_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+                ORG_RESPONSE=$(echo "$ORG_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
+                
+                # Extract organization ID from response
+                ORG_ID=$(echo "$ORG_RESPONSE" | jq -r '.organization._id // .organization.id // empty' 2>/dev/null)
+                
+                if [ -z "$ORG_ID" ] || [ "$ORG_HTTP_CODE" != "200" ]; then
+                    echo -e "${YELLOW}  ⚠ Failed to get organization ID (HTTP ${ORG_HTTP_CODE:-unknown})${NC}"
+                    if [ -n "$ORG_RESPONSE" ]; then
+                        ORG_ERROR_MSG=$(echo "$ORG_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "Invalid response format")
+                        echo -e "${YELLOW}    Error: $ORG_ERROR_MSG${NC}"
+                    fi
+                    echo -e "${YELLOW}    Secrets sync skipped${NC}"
+                    INFISICAL_TOKEN=""
+                    ORG_ID=""
+                else
+                    echo -e "${GREEN}  ✓ Organization ID retrieved${NC}"
+                    # Continue with project lookup and secret pushing (reuse logic below)
+                    INFISICAL_ALREADY_INITIALIZED=true
+                fi
             fi
         else
             INFISICAL_ALREADY_INITIALIZED=false
@@ -716,23 +751,51 @@ EOF
 EOF
 )
             # Bootstrap with admin user
-            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
+            BOOTSTRAP_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' -X POST 'http://localhost:8070/api/v1/admin/bootstrap' \
                 -H 'Content-Type: application/json' \
                 -d '$(echo "$BOOTSTRAP_JSON" | tr -d '\n')'" 2>&1 || echo "")
             
-            if echo "$BOOTSTRAP_RESULT" | grep -q '"user"'; then
+            # Extract HTTP status code
+            BOOTSTRAP_HTTP_CODE=$(echo "$BOOTSTRAP_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+            BOOTSTRAP_RESPONSE=$(echo "$BOOTSTRAP_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
+            
+            if echo "$BOOTSTRAP_RESPONSE" | grep -q '"user"'; then
                 echo -e "${GREEN}  ✓ Infisical admin created (user: $ADMIN_EMAIL)${NC}"
                 
                 # Extract token and org ID for pushing secrets
-                INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESULT" | jq -r '.identity.credentials.token // empty')
-                ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // empty')
-            elif echo "$BOOTSTRAP_RESULT" | grep -q 'already'; then
-                echo -e "${YELLOW}  ⚠ Infisical already configured${NC}"
+                INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.identity.credentials.token // empty')
+                ORG_ID=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.organization.id // empty')
+                
+                if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+                    echo -e "${YELLOW}  ⚠ Bootstrap succeeded but token/org ID missing${NC}"
+                    INFISICAL_TOKEN=""
+                    ORG_ID=""
+                fi
+            elif echo "$BOOTSTRAP_RESPONSE" | grep -q 'already'; then
+                echo -e "${YELLOW}  ⚠ Infisical already configured - this should not happen in bootstrap path${NC}"
                 # Try to extract token anyway (bootstrap may return token even if user exists)
-                INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESULT" | jq -r '.identity.credentials.token // empty')
-                ORG_ID=$(echo "$BOOTSTRAP_RESULT" | jq -r '.organization.id // empty')
+                INFISICAL_TOKEN=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.identity.credentials.token // empty')
+                ORG_ID=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.organization.id // empty')
+                
+                if [ -z "$INFISICAL_TOKEN" ] || [ -z "$ORG_ID" ]; then
+                    echo -e "${YELLOW}    Token/org ID not available - secrets sync skipped${NC}"
+                    INFISICAL_TOKEN=""
+                    ORG_ID=""
+                fi
             else
                 echo -e "${YELLOW}  ⚠ Infisical bootstrap failed${NC}"
+                if [ -n "$BOOTSTRAP_HTTP_CODE" ]; then
+                    echo -e "${YELLOW}    HTTP Status: $BOOTSTRAP_HTTP_CODE${NC}"
+                fi
+                if [ -n "$BOOTSTRAP_RESPONSE" ]; then
+                    BOOTSTRAP_ERROR_MSG=$(echo "$BOOTSTRAP_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "")
+                    if [ -n "$BOOTSTRAP_ERROR_MSG" ] && [ "$BOOTSTRAP_ERROR_MSG" != "null" ]; then
+                        echo -e "${YELLOW}    Error: $BOOTSTRAP_ERROR_MSG${NC}"
+                    else
+                        RESPONSE_PREVIEW=$(echo "$BOOTSTRAP_RESPONSE" | head -c 200)
+                        echo -e "${DIM}    Response preview: $RESPONSE_PREVIEW${NC}"
+                    fi
+                fi
                 INFISICAL_TOKEN=""
                 ORG_ID=""
             fi
@@ -744,13 +807,17 @@ EOF
             if [ "${INFISICAL_ALREADY_INITIALIZED:-false}" = "true" ]; then
                 echo "  Looking up Nexus Stack project..."
                 # Try to find existing project
-                PROJECTS_RESULT=$(ssh nexus "curl -s 'http://localhost:8070/api/v2/workspace' \
-                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>/dev/null || echo "{}")
+                PROJECTS_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' 'http://localhost:8070/api/v2/workspace' \
+                    -H 'Authorization: Bearer $INFISICAL_TOKEN'" 2>&1 || echo "")
                 
-                PROJECT_ID=$(echo "$PROJECTS_RESULT" | jq -r '.workspaces[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
+                # Extract HTTP status code
+                PROJECTS_HTTP_CODE=$(echo "$PROJECTS_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+                PROJECTS_RESPONSE=$(echo "$PROJECTS_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
+                
+                PROJECT_ID=$(echo "$PROJECTS_RESPONSE" | jq -r '.workspaces[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
                 
                 if [ -z "$PROJECT_ID" ]; then
-                    PROJECT_ID=$(echo "$PROJECTS_RESULT" | jq -r '.projects[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
+                    PROJECT_ID=$(echo "$PROJECTS_RESPONSE" | jq -r '.projects[]? | select(.name=="Nexus Stack") | .id // empty' 2>/dev/null)
                 fi
                 
                 if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
@@ -758,30 +825,54 @@ EOF
                 else
                     echo "  Project not found - creating new project..."
                     PROJECT_JSON="{\"projectName\": \"Nexus Stack\", \"organizationId\": \"$ORG_ID\"}"
-                    PROJECT_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v2/workspace' \
+                    PROJECT_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' -X POST 'http://localhost:8070/api/v2/workspace' \
                         -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                         -H 'Content-Type: application/json' \
                         -d '$PROJECT_JSON'" 2>&1 || echo "")
                     
-                    PROJECT_ID=$(echo "$PROJECT_RESULT" | jq -r '.project.id // .workspace.id // empty')
+                    # Extract HTTP status code
+                    PROJECT_HTTP_CODE=$(echo "$PROJECT_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+                    PROJECT_RESPONSE=$(echo "$PROJECT_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
                     
-                    if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
+                    PROJECT_ID=$(echo "$PROJECT_RESPONSE" | jq -r '.project.id // .workspace.id // empty' 2>/dev/null)
+                    
+                    if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ] && [ "$PROJECT_HTTP_CODE" = "200" ]; then
                         echo -e "${GREEN}  ✓ Project 'Nexus Stack' created${NC}"
+                    elif [ "$PROJECT_HTTP_CODE" != "200" ]; then
+                        echo -e "${YELLOW}  ⚠ Failed to create project (HTTP ${PROJECT_HTTP_CODE:-unknown})${NC}"
+                        if [ -n "$PROJECT_RESPONSE" ]; then
+                            PROJECT_ERROR_MSG=$(echo "$PROJECT_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "")
+                            if [ -n "$PROJECT_ERROR_MSG" ] && [ "$PROJECT_ERROR_MSG" != "null" ]; then
+                                echo -e "${YELLOW}    Error: $PROJECT_ERROR_MSG${NC}"
+                            fi
+                        fi
                     fi
                 fi
             else
                 echo "  Creating Nexus secrets project..."
                 # Create a project for Nexus secrets
                 PROJECT_JSON="{\"projectName\": \"Nexus Stack\", \"organizationId\": \"$ORG_ID\"}"
-                PROJECT_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v2/workspace' \
+                PROJECT_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' -X POST 'http://localhost:8070/api/v2/workspace' \
                     -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                     -H 'Content-Type: application/json' \
                     -d '$PROJECT_JSON'" 2>&1 || echo "")
                 
-                PROJECT_ID=$(echo "$PROJECT_RESULT" | jq -r '.project.id // .workspace.id // empty')
+                # Extract HTTP status code
+                PROJECT_HTTP_CODE=$(echo "$PROJECT_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+                PROJECT_RESPONSE=$(echo "$PROJECT_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
                 
-                if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
+                PROJECT_ID=$(echo "$PROJECT_RESPONSE" | jq -r '.project.id // .workspace.id // empty' 2>/dev/null)
+                
+                if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ] && [ "$PROJECT_HTTP_CODE" = "200" ]; then
                     echo -e "${GREEN}  ✓ Project 'Nexus Stack' created${NC}"
+                elif [ "$PROJECT_HTTP_CODE" != "200" ]; then
+                    echo -e "${YELLOW}  ⚠ Failed to create project (HTTP ${PROJECT_HTTP_CODE:-unknown})${NC}"
+                    if [ -n "$PROJECT_RESPONSE" ]; then
+                        PROJECT_ERROR_MSG=$(echo "$PROJECT_RESPONSE" | jq -r '.message // .error // "Unknown error"' 2>/dev/null || echo "")
+                        if [ -n "$PROJECT_ERROR_MSG" ] && [ "$PROJECT_ERROR_MSG" != "null" ]; then
+                            echo -e "${YELLOW}    Error: $PROJECT_ERROR_MSG${NC}"
+                        fi
+                    fi
                 fi
             fi
             
@@ -814,14 +905,44 @@ EOF
                 SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                 
                 echo -e "${GREEN}  ✓ Tags ready${NC}"
+                
+                # Debug: Check if tag IDs are empty (would cause API to fail)
+                if [ -z "$CONFIG_TAG" ] || [ -z "$INFISICAL_TAG" ]; then
+                    echo -e "${YELLOW}  ⚠ Warning: Some tag IDs are empty - secrets may not be tagged correctly${NC}"
+                fi
+                
                 echo "  Pushing secrets to Infisical..."
                 
                 # Build secrets payload with usernames and tags
+                # Only include tagIds if the tag ID is not empty
+                # Helper function to build tagIds array (only if tag exists)
+                build_tag_ids() {
+                    local tag_id="$1"
+                    if [ -n "$tag_id" ] && [ "$tag_id" != "null" ] && [ "$tag_id" != "empty" ]; then
+                        echo "[\"$tag_id\"]"
+                    else
+                        echo "[]"
+                    fi
+                }
+                
+                CONFIG_TAG_IDS=$(build_tag_ids "$CONFIG_TAG")
+                INFISICAL_TAG_IDS=$(build_tag_ids "$INFISICAL_TAG")
+                PORTAINER_TAG_IDS=$(build_tag_ids "$PORTAINER_TAG")
+                KUMA_TAG_IDS=$(build_tag_ids "$KUMA_TAG")
+                GRAFANA_TAG_IDS=$(build_tag_ids "$GRAFANA_TAG")
+                N8N_TAG_IDS=$(build_tag_ids "$N8N_TAG")
+                KESTRA_TAG_IDS=$(build_tag_ids "$KESTRA_TAG")
+                METABASE_TAG_IDS=$(build_tag_ids "$METABASE_TAG")
+                CLOUDBEAVER_TAG_IDS=$(build_tag_ids "$CLOUDBEAVER_TAG")
+                MAGE_TAG_IDS=$(build_tag_ids "$MAGE_TAG")
+                MINIO_TAG_IDS=$(build_tag_ids "$MINIO_TAG")
+                SSH_TAG_IDS=$(build_tag_ids "$SSH_TAG")
+                
                 # Prepare SSH private key for JSON (base64 encode to handle newlines)
                 SSH_KEY_SECRET=""
                 if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
                     SSH_KEY_BASE64=$(echo "$SSH_PRIVATE_KEY_CONTENT" | base64 | tr -d '\n')
-                    SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
+                    SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": $SSH_TAG_IDS}"
                 fi
                 
                 # Using v4 API which supports tagIds (upserts existing secrets)
@@ -831,51 +952,88 @@ EOF
   "environment": "prod",
   "secretPath": "/",
   "secrets": [
-    {"secretKey": "DOMAIN", "secretValue": "$DOMAIN", "tagIds": ["$CONFIG_TAG"]},
-    {"secretKey": "ADMIN_EMAIL", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$CONFIG_TAG"]},
-    {"secretKey": "ADMIN_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$CONFIG_TAG"]},
-    {"secretKey": "INFISICAL_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$INFISICAL_TAG"]},
-    {"secretKey": "INFISICAL_PASSWORD", "secretValue": "$INFISICAL_PASS", "tagIds": ["$INFISICAL_TAG"]},
-    {"secretKey": "PORTAINER_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$PORTAINER_TAG"]},
-    {"secretKey": "PORTAINER_PASSWORD", "secretValue": "$PORTAINER_PASS", "tagIds": ["$PORTAINER_TAG"]},
-    {"secretKey": "UPTIME_KUMA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$KUMA_TAG"]},
-    {"secretKey": "UPTIME_KUMA_PASSWORD", "secretValue": "$KUMA_PASS", "tagIds": ["$KUMA_TAG"]},
-    {"secretKey": "GRAFANA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GRAFANA_TAG"]},
-    {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
-    {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$N8N_TAG"]},
-    {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]},
-    {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$KESTRA_TAG"]},
-    {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": ["$KESTRA_TAG"]},
-    {"secretKey": "METABASE_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$METABASE_TAG"]},
-    {"secretKey": "METABASE_PASSWORD", "secretValue": "$METABASE_PASS", "tagIds": ["$METABASE_TAG"]},
-    {"secretKey": "CLOUDBEAVER_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$CLOUDBEAVER_TAG"]},
-    {"secretKey": "CLOUDBEAVER_PASSWORD", "secretValue": "$CLOUDBEAVER_PASS", "tagIds": ["$CLOUDBEAVER_TAG"]},
-    {"secretKey": "MAGE_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$MAGE_TAG"]},
-    {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
-    {"secretKey": "MINIO_ROOT_USER", "secretValue": "admin", "tagIds": ["$MINIO_TAG"]},
-    {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "DOMAIN", "secretValue": "$DOMAIN", "tagIds": $CONFIG_TAG_IDS},
+    {"secretKey": "ADMIN_EMAIL", "secretValue": "$ADMIN_EMAIL", "tagIds": $CONFIG_TAG_IDS},
+    {"secretKey": "ADMIN_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": $CONFIG_TAG_IDS},
+    {"secretKey": "INFISICAL_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": $INFISICAL_TAG_IDS},
+    {"secretKey": "INFISICAL_PASSWORD", "secretValue": "$INFISICAL_PASS", "tagIds": $INFISICAL_TAG_IDS},
+    {"secretKey": "PORTAINER_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": $PORTAINER_TAG_IDS},
+    {"secretKey": "PORTAINER_PASSWORD", "secretValue": "$PORTAINER_PASS", "tagIds": $PORTAINER_TAG_IDS},
+    {"secretKey": "UPTIME_KUMA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": $KUMA_TAG_IDS},
+    {"secretKey": "UPTIME_KUMA_PASSWORD", "secretValue": "$KUMA_PASS", "tagIds": $KUMA_TAG_IDS},
+    {"secretKey": "GRAFANA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": $GRAFANA_TAG_IDS},
+    {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": $GRAFANA_TAG_IDS},
+    {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": $N8N_TAG_IDS},
+    {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": $N8N_TAG_IDS},
+    {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": $KESTRA_TAG_IDS},
+    {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": $KESTRA_TAG_IDS},
+    {"secretKey": "METABASE_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": $METABASE_TAG_IDS},
+    {"secretKey": "METABASE_PASSWORD", "secretValue": "$METABASE_PASS", "tagIds": $METABASE_TAG_IDS},
+    {"secretKey": "CLOUDBEAVER_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": $CLOUDBEAVER_TAG_IDS},
+    {"secretKey": "CLOUDBEAVER_PASSWORD", "secretValue": "$CLOUDBEAVER_PASS", "tagIds": $CLOUDBEAVER_TAG_IDS},
+    {"secretKey": "MAGE_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": $MAGE_TAG_IDS},
+    {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": $MAGE_TAG_IDS},
+    {"secretKey": "MINIO_ROOT_USER", "secretValue": "admin", "tagIds": $MINIO_TAG_IDS},
+    {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": $MINIO_TAG_IDS}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
 )
                 
-                SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
+                # Debug: Log the payload (without sensitive values)
+                SECRET_COUNT=$(echo "$SECRETS_PAYLOAD" | jq '.secrets | length' 2>/dev/null || echo 'unknown')
+                echo "  Debug: Payload prepared (projectId: $PROJECT_ID, secrets count: $SECRET_COUNT)"
+                
+                SECRETS_RESULT=$(ssh nexus "curl -s -w '\nHTTP_CODE:%{http_code}' -X POST 'http://localhost:8070/api/v4/secrets/batch' \
                     -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                     -H 'Content-Type: application/json' \
-                    -d '$(echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
+                    -d '$(echo "$SECRETS_PAYLOAD" | jq -c . 2>/dev/null || echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
                 
-                if echo "$SECRETS_RESULT" | grep -qE '"secrets"|"secretKey"'; then
+                # Extract HTTP status code
+                HTTP_CODE=$(echo "$SECRETS_RESULT" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "")
+                SECRETS_RESPONSE=$(echo "$SECRETS_RESULT" | sed 's/HTTP_CODE:[0-9]*$//' | tr -d '\n')
+                
+                # Check if API call was successful (HTTP 200-299 or response contains secrets array)
+                if [ -n "$HTTP_CODE" ] && [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                    echo -e "${GREEN}  ✓ All secrets pushed to Infisical (HTTP $HTTP_CODE)${NC}"
+                    if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
+                        echo -e "${GREEN}  ✓ SSH private key stored (base64 encoded)${NC}"
+                        echo -e "${DIM}    Decode with: base64 -d <<< \"\$SSH_PRIVATE_KEY_BASE64\" > ~/.ssh/nexus_key${NC}"
+                    fi
+                elif echo "$SECRETS_RESPONSE" | jq -e '.secrets' >/dev/null 2>&1; then
+                    # Fallback: Check if response contains secrets array (v4 API returns secrets array on success)
                     echo -e "${GREEN}  ✓ All secrets pushed to Infisical (with tags)${NC}"
                     if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
                         echo -e "${GREEN}  ✓ SSH private key stored (base64 encoded)${NC}"
                         echo -e "${DIM}    Decode with: base64 -d <<< \"\$SSH_PRIVATE_KEY_BASE64\" > ~/.ssh/nexus_key${NC}"
                     fi
                 else
-                    echo -e "${YELLOW}  ⚠ Failed to push secrets${NC}"
-                    echo -e "${DIM}    Response: $SECRETS_RESULT${NC}"
+                    echo -e "${YELLOW}  ⚠ Failed to push secrets to Infisical${NC}"
+                    if [ -n "$HTTP_CODE" ]; then
+                        echo -e "${YELLOW}    HTTP Status: $HTTP_CODE${NC}"
+                    else
+                        echo -e "${YELLOW}    HTTP Status: unknown (no response received)${NC}"
+                    fi
+                    
+                    # Extract error message from response (if available)
+                    if [ -n "$SECRETS_RESPONSE" ]; then
+                        ERROR_MSG=$(echo "$SECRETS_RESPONSE" | jq -r '.message // .error // .errors[0].msg // "Unknown error"' 2>/dev/null || echo "")
+                        if [ -n "$ERROR_MSG" ] && [ "$ERROR_MSG" != "null" ]; then
+                            echo -e "${YELLOW}    Error: $ERROR_MSG${NC}"
+                        else
+                            # Log first 200 chars of response for debugging (may contain useful info)
+                            RESPONSE_PREVIEW=$(echo "$SECRETS_RESPONSE" | head -c 200)
+                            echo -e "${DIM}    Response preview: $RESPONSE_PREVIEW${NC}"
+                        fi
+                    fi
+                    
+                    echo -e "${YELLOW}    Secrets are available in OpenTofu outputs - check with 'make secrets'${NC}"
+                    # Don't fail the deployment if secrets push fails
                 fi
             else
-                echo -e "${YELLOW}  ⚠ Failed to find or create project${NC}"
+                echo -e "${YELLOW}  ⚠ Failed to find or create project 'Nexus Stack'${NC}"
+                echo -e "${YELLOW}    Secrets sync skipped - project must exist in Infisical${NC}"
+                echo -e "${YELLOW}    You can create the project manually in the Infisical UI${NC}"
             fi
         fi
     fi  # End of INFISICAL_READY check
