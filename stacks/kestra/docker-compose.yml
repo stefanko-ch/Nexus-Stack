@@ -41,11 +41,10 @@ services:
             password: ${KESTRA_DB_PASSWORD}
         kestra:
           server:
-            # Basic Auth disabled - using Cloudflare Access for authentication
-            # basic-auth:
-            #   enabled: true
-            #   username: ${KESTRA_ADMIN_USER}
-            #   password: ${KESTRA_ADMIN_PASSWORD}
+            basic-auth:
+              enabled: true
+              username: ${KESTRA_ADMIN_USER}
+              password: ${KESTRA_ADMIN_PASSWORD}
           repository:
             type: postgres
           storage:

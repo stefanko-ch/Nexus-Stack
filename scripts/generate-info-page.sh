@@ -126,7 +126,21 @@ while i < len(lines):
             # If we hit the closing brace, we're done with this service
             if brace_count == 0:
                 break
-            
+
+            # Skip nested blocks (like support_images = { ... })
+            if '=' in line and '{' in line:
+                # This is a nested block start, skip it entirely
+                nested_brace_count = 1
+                i += 1
+                while i < len(lines) and nested_brace_count > 0:
+                    nested_line = lines[i]
+                    nested_brace_count += nested_line.count('{') - nested_line.count('}')
+                    i += 1
+                # Adjust brace_count: we already counted the opening brace,
+                # and the closing brace was consumed in the nested loop
+                brace_count -= 1
+                continue
+
             # Property line (not a nested block)
             if '=' in line and '{' not in line:
                 # Remove trailing comma

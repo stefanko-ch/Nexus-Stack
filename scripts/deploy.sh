@@ -2,12 +2,10 @@
 set -euo pipefail
 
 # =============================================================================
-# ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
+# Nexus-Stack Deployment Script
 # =============================================================================
-# This script is for local development/debugging ONLY.
-# Production deployments use GitHub Actions workflows.
-#
-# Local deployment bypasses the Control Plane architecture and is not supported.
+# Called by GitHub Actions spin-up workflow after infrastructure is provisioned.
+# Syncs Docker stacks to server and starts enabled containers.
 # =============================================================================
 
 # =============================================================================
@@ -47,10 +45,10 @@ if [ -f "$PROJECT_ROOT/tofu/.r2-credentials" ]; then
     export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 fi
 
-# Check if we can access state (remote or local)
+# Check if we can access state
 cd "$TOFU_DIR"
 if ! tofu state list >/dev/null 2>&1; then
-    echo -e "${RED}Error: No OpenTofu state found. Run 'make up' first.${NC}"
+    echo -e "${RED}Error: No OpenTofu state found. Infrastructure must be provisioned first.${NC}"
     exit 1
 fi
 cd "$PROJECT_ROOT"
@@ -535,7 +533,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
                 echo '  ✓ SSH key already in agent'
             fi
         else
-            echo -e \"  ${YELLOW}⚠ SSH key not found at $WETTY_KEY_PATH${NC}\"
+            echo -e \"  ${YELLOW}⚠ SSH key not found at \$WETTY_KEY_PATH${NC}\"
         fi
         
         # Export SSH_AUTH_SOCK path in wetty .env file for docker-compose
@@ -891,9 +889,9 @@ fi
 # Configure Metabase admin account
 if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; then
     echo "  Configuring Metabase..."
-    
-    # Get Metabase port from services config (default: 3000)
-    METABASE_PORT=$(echo "$SERVICES_JSON" | jq -r '.metabase.port // 3000')
+
+    # Metabase port (from services.yaml)
+    METABASE_PORT=3000
     
     # Quick health check (max 10s - for already running instances)
     echo "  Checking Metabase status..."

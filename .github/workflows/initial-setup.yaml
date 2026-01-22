@@ -2,6 +2,12 @@ name: Initial Setup
 
 on:
   workflow_dispatch:
+    inputs:
+      enabled_services:
+        description: 'Comma-separated list of services to enable (empty = core services only)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -17,9 +23,73 @@ jobs:
     uses: ./.github/workflows/setup-control-plane.yaml
     secrets: inherit
 
+  configure-initial-services:
+    name: Configure Initial Services
+    needs: setup-control-plane
+    if: ${{ inputs.enabled_services != '' }}
+    runs-on: ubuntu-latest
+    outputs:
+      enabled_services: ${{ steps.build-list.outputs.enabled_services }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DOMAIN: ${{ secrets.DOMAIN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build enabled services list
+        id: build-list
+        run: |
+          # Start with core services (always enabled)
+          CORE_SERVICES="infisical,mailpit,info"
+          USER_SERVICES="${{ inputs.enabled_services }}"
+
+          # Combine core + user-selected services
+          if [ -n "$USER_SERVICES" ]; then
+            SERVICES="$CORE_SERVICES,$USER_SERVICES"
+          else
+            SERVICES="$CORE_SERVICES"
+          fi
+
+          # Remove duplicates and empty values, sort
+          SERVICES=$(echo "$SERVICES" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+
+          echo "enabled_services=$SERVICES" >> $GITHUB_OUTPUT
+          echo "📋 Enabled services: $SERVICES"
+
+      - name: Update D1 with selected services
+        run: |
+          D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+          ENABLED_SERVICES="${{ steps.build-list.outputs.enabled_services }}"
+
+          echo "📝 Updating D1 database: $D1_DATABASE_NAME"
+          echo "   Services to enable: $ENABLED_SERVICES"
+
+          # Create SQL file to batch updates (avoids D1 rate limits)
+          printf '%s\n' \
+            '-- Reset non-core services to disabled' \
+            'UPDATE services SET enabled = 0 WHERE core = 0;' \
+            > /tmp/enable_services.sql
+
+          # Add UPDATE statements for each selected service
+          IFS=',' read -ra SERVICE_ARRAY <<< "$ENABLED_SERVICES"
+          for service in "${SERVICE_ARRAY[@]}"; do
+            service=$(echo "$service" | tr -d '[:space:]')
+            if [ -n "$service" ]; then
+              echo "UPDATE services SET enabled = 1 WHERE name = '$service';" >> /tmp/enable_services.sql
+            fi
+          done
+
+          # Execute all updates in one batch
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --file /tmp/enable_services.sql
+
+          echo "✅ D1 updated with initial service selection"
+
   spin-up:
     name: Spin Up Nexus-Stack
-    needs: setup-control-plane
+    needs: [setup-control-plane, configure-initial-services]
+    if: ${{ always() && needs.setup-control-plane.result == 'success' }}
     uses: ./.github/workflows/spin-up.yml
     with:
       # Pass R2 credentials from setup-control-plane to spin-up
@@ -28,4 +98,6 @@ jobs:
       r2_secret_access_key: ${{ needs.setup-control-plane.outputs.r2_secret_access_key }}
       # Pass SSH public key (private key is saved as secret by setup-control-plane)
       ssh_pubkey: ${{ needs.setup-control-plane.outputs.ssh_pubkey }}
+      # Pass enabled services (if configured, otherwise spin-up reads from D1)
+      enabled_services: ${{ needs.configure-initial-services.outputs.enabled_services || '' }}
     secrets: inherit
