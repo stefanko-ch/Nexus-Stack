@@ -533,7 +533,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
                 echo '  ✓ SSH key already in agent'
             fi
         else
-            echo -e \"  ${YELLOW}⚠ SSH key not found at $WETTY_KEY_PATH${NC}\"
+            echo -e \"  ${YELLOW}⚠ SSH key not found at \$WETTY_KEY_PATH${NC}\"
         fi
         
         # Export SSH_AUTH_SOCK path in wetty .env file for docker-compose
