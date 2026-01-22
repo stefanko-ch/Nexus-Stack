@@ -889,9 +889,9 @@ fi
 # Configure Metabase admin account
 if echo "$ENABLED_SERVICES" | grep -qw "metabase" && [ -n "$METABASE_PASS" ]; then
     echo "  Configuring Metabase..."
-    
-    # Get Metabase port from services config (default: 3000)
-    METABASE_PORT=$(echo "$SERVICES_JSON" | jq -r '.metabase.port // 3000')
+
+    # Metabase port (from services.yaml)
+    METABASE_PORT=3000
     
     # Quick health check (max 10s - for already running instances)
     echo "  Checking Metabase status..."
