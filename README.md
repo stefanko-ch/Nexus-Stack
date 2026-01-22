@@ -153,6 +153,18 @@ This setup achieves **zero open ports** after deployment:
 | [Stacks](docs/stacks.md) | Available services and how to add new ones |
 | [Contributing](docs/CONTRIBUTING.md) | How to contribute to the project |
 
+## How It Works
+
+For a detailed explanation of how this infrastructure works under the hood - including the Docker deployment on Hetzner and the Cloudflare Zero Trust Tunnel security setup - check out this article:
+
+**[Secure Hetzner Docker Deployment via Cloudflare Zero Trust Tunnel](https://medium.com/@stefanko-ch/secure-hetzner-docker-deployment-via-cloudflare-zero-trust-tunnel-8f716c4631ce)**
+
+The article covers:
+- Setting up a Hetzner Cloud server with Docker
+- Configuring Cloudflare Tunnel for secure access
+- Achieving zero open ports with Cloudflare Zero Trust
+- Best practices for production deployments
+
 ## License
 
 [MIT](LICENSE)
