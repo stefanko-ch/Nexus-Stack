@@ -67,10 +67,10 @@ jobs:
           echo "   Services to enable: $ENABLED_SERVICES"
 
           # Create SQL file to batch updates (avoids D1 rate limits)
-          cat > /tmp/enable_services.sql << 'EOF'
-          -- Reset non-core services to disabled
-          UPDATE services SET enabled = 0 WHERE core = 0;
-          EOF
+          printf '%s\n' \
+            '-- Reset non-core services to disabled' \
+            'UPDATE services SET enabled = 0 WHERE core = 0;' \
+            > /tmp/enable_services.sql
 
           # Add UPDATE statements for each selected service
           IFS=',' read -ra SERVICE_ARRAY <<< "$ENABLED_SERVICES"
