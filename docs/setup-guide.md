@@ -122,12 +122,21 @@ Add these secrets to your GitHub repository:
 Run the initial setup workflow:
 
 ```bash
+# Core services only (infisical, mailpit, info)
 gh workflow run initial-setup.yaml
+
+# With additional services pre-selected
+gh workflow run initial-setup.yaml -f enabled_services="grafana,n8n,portainer"
 ```
 
 Or via GitHub UI:
 1. Go to **Actions** → **Initial Setup**
 2. Click **Run workflow**
+3. *(Optional)* Enter comma-separated services in `enabled_services` field
+
+**Available services:** `grafana`, `n8n`, `portainer`, `uptime-kuma`, `minio`, `metabase`, `kestra`, `it-tools`, `wetty`, `cloudbeaver`, `excalidraw`, `drawio`, `mage`, `marimo`, `redpanda`, `redpanda-console`
+
+> **Note:** Core services (infisical, mailpit, info) are always enabled automatically.
 
 On **first run**, the pipeline will:
 1. Create the R2 bucket automatically
@@ -183,7 +192,7 @@ Use the Control Plane to view or email credentials:
 
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
-| Initial Setup | `gh workflow run initial-setup.yaml` | None | One-time setup (Control Plane + Spin Up) |
+| Initial Setup | `gh workflow run initial-setup.yaml [-f enabled_services="..."]` | None | One-time setup (Control Plane + Spin Up) |
 | Setup Control Plane | `gh workflow run setup-control-plane.yaml` | None | Setup Control Plane only |
 | Spin Up | `gh workflow run spin-up.yml` | None | Re-create infrastructure after teardown |
 | Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
