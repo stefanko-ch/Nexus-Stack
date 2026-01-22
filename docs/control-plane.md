@@ -38,7 +38,7 @@ Deploys the Hetzner server and all enabled services.
 
 ### 💤 Teardown
 
-Stops infrastructure to save costs. Your configuration are preserved. At the moment, you will lose data in the stack, because the server itself will be destroyed. I plan do add a feature in the future, to keep the data in the stacks. 
+Stops infrastructure to save costs. Your configurations are preserved. At the moment, you will lose data in the stack because the server itself will be destroyed. I plan to add a feature in the future to keep the data in the stacks. 
 
 **What's kept:**
 - Control Plane (always available)
