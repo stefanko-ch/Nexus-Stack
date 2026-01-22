@@ -137,6 +137,7 @@ export async function onRequestGet(context) {
         delayUntil,
         nextTeardown,
         timeRemaining,
+        allowDisable: env.ALLOW_DISABLE_AUTO_SHUTDOWN === 'true',
       },
     }), {
       status: 200,
@@ -177,6 +178,17 @@ export async function onRequestPost(context) {
         error: 'enabled must be true or false',
       }), {
         status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate if disabling is allowed
+    if (enabled === false && env.ALLOW_DISABLE_AUTO_SHUTDOWN !== 'true') {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Disabling auto-shutdown is not permitted by infrastructure policy',
+      }), {
+        status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -242,6 +254,7 @@ export async function onRequestPost(context) {
         teardownTime: updatedTeardownTime,
         notificationTime: updatedNotificationTime,
         delayUntil: updatedDelayUntil,
+        allowDisable: env.ALLOW_DISABLE_AUTO_SHUTDOWN === 'true',
       },
       message: 'Configuration updated successfully',
     }), {

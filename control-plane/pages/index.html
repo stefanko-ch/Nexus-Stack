@@ -320,6 +320,16 @@
             left: 27px;
         }
 
+        .toggle-switch.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .toggle-switch.disabled::after {
+            background: #888;
+        }
+
         .delay-btn {
             background: rgba(255, 170, 0, 0.1);
             border: 1px solid rgba(255, 170, 0, 0.4);
@@ -1071,7 +1081,16 @@
             const toggle = document.getElementById('toggle-scheduled-teardown');
             const info = document.getElementById('scheduled-info');
             const delayBtn = document.getElementById('btn-delay-teardown');
-            
+
+            // Handle toggle disable policy
+            if (config.allowDisable === false) {
+                toggle.classList.add('disabled');
+                toggle.title = 'Auto-shutdown cannot be disabled (infrastructure policy)';
+            } else {
+                toggle.classList.remove('disabled');
+                toggle.title = '';
+            }
+
             if (config.enabled) {
                 toggle.classList.add('active');
                 const now = new Date();
@@ -1109,9 +1128,15 @@
 
         async function toggleScheduledTeardown() {
             const toggle = document.getElementById('toggle-scheduled-teardown');
+
+            // Prevent action if toggle is disabled
+            if (toggle.classList.contains('disabled')) {
+                return;
+            }
+
             const isEnabled = toggle.classList.contains('active');
             const newState = !isEnabled;
-            
+
             try {
                 const response = await fetch(`${API_URL}/api/scheduled-teardown`, {
                     method: 'POST',
@@ -1119,7 +1144,14 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled: newState })
                 });
-                
+
+                // Handle policy violation
+                if (response.status === 403) {
+                    const data = await response.json();
+                    showToast(data.error || 'Action not permitted', 'error');
+                    return;
+                }
+
                 if (response.ok) {
                     const data = await response.json();
                     if (data.success) {

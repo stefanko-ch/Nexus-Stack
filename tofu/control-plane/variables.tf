@@ -58,3 +58,9 @@ variable "github_repo" {
   type        = string
   default     = "Nexus-Stack"
 }
+
+variable "allow_disable_auto_shutdown" {
+  description = "Allow users to disable automatic daily teardown. When false, users can only delay teardown but cannot disable it."
+  type        = bool
+  default     = false
+}
