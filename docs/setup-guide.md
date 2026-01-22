@@ -238,6 +238,38 @@ You'll be prompted for Cloudflare Access authentication on first connection.
 
 ---
 
+## ⚙️ Optional Configuration
+
+### Auto-Shutdown Policy
+
+By default, users cannot disable the automatic daily teardown feature via the Control Plane. This ensures cost control for shared environments (e.g., student labs).
+
+**To change this behavior**, edit `tofu/control-plane/variables.tf` or set via environment variable:
+
+```hcl
+# Allow users to disable auto-shutdown
+allow_disable_auto_shutdown = true
+```
+
+**Default behavior** (`false`):
+- Toggle switch is visible but grayed out
+- Users can see if auto-shutdown is enabled
+- Users can delay teardown by 2 hours
+- Users cannot disable auto-shutdown entirely
+
+**Permissive behavior** (`true`):
+- Users have full control over auto-shutdown
+- Suitable for personal deployments or trusted environments
+
+After changing this setting, re-deploy the Control Plane:
+```bash
+gh workflow run setup-control-plane.yaml
+```
+
+See [Control Plane User Guide](control-plane.md#administrator-policy-infrastructure-level) for details.
+
+---
+
 ## 🔧 Troubleshooting
 
 ### "Tunnel not connecting"
