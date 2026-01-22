@@ -384,7 +384,7 @@
         }
 
         // Services without a web UI (backend/infrastructure services)
-        const noLinkServices = ['redpanda', 'mailpit'];
+        const noLinkServices = ['redpanda'];
 
         function createServiceCard(name, service, isActive) {
             const url = `https://${service.subdomain}.${DOMAIN}`;
