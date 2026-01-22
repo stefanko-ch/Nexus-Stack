@@ -70,10 +70,12 @@ flowchart LR
         A[Fork Repository] --> B[Create Accounts]
         B --> B1[Hetzner]
         B --> B2[Cloudflare]
+        B --> B3[Resend]
+        B --> B4[Docker Hub - Optional]
     end
 
     subgraph config ["2. Configuration"]
-        B1 & B2 --> C[Generate API Tokens]
+        B1 & B2 & B3 --> C[Generate API Tokens]
         C --> D[Add GitHub Secrets]
     end
 
