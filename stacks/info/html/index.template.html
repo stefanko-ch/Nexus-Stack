@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Stack — Dashboard</title>
+    <title>Nexus Stack — Info Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -331,7 +331,7 @@
         <header>
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
-            <p class="tagline">Dashboard</p>
+            <p class="tagline">Info Dashboard</p>
             
             <div class="stats">
                 <div class="stat">
@@ -384,7 +384,7 @@
         }
 
         // Services without a web UI (backend/infrastructure services)
-        const noLinkServices = ['redpanda', 'mailpit'];
+        const noLinkServices = ['redpanda'];
 
         function createServiceCard(name, service, isActive) {
             const url = `https://${service.subdomain}.${DOMAIN}`;

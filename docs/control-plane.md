@@ -38,12 +38,12 @@ Deploys the Hetzner server and all enabled services.
 
 ### 💤 Teardown
 
-Stops infrastructure to save costs. Your data and configuration are preserved.
+Stops infrastructure to save costs. Your configurations are preserved. At the moment, you will lose data in the stack because the server itself will be destroyed. I plan to add a feature in the future to keep the data in the stacks. 
 
 **What's kept:**
 - Control Plane (always available)
 - OpenTofu state in Cloudflare R2
-- All configuration
+- All configuration in Cloudflare D1
 
 **What's removed:**
 - Hetzner server (and associated costs)
@@ -72,20 +72,6 @@ Toggle services on or off. Changes are saved to Cloudflare D1 database (single s
 
 After changing services, click **Deploy with Changes** to apply. This triggers a Spin Up workflow with the updated configuration.
 
-### Available Services
-
-| Service | Description |
-|---------|-------------|
-| IT-Tools | Developer utilities |
-| Excalidraw | Whiteboard for diagrams |
-| Portainer | Docker management |
-| Uptime Kuma | Monitoring |
-| Infisical | Secrets management |
-| Grafana | Observability stack |
-| Kestra | Workflow orchestration |
-| n8n | Automation |
-| Mailpit | Email testing |
-
 ---
 
 ## Scheduled Teardown
@@ -99,23 +85,6 @@ Automatically tear down infrastructure daily to save costs.
 3. Configure time and timezone
 4. Click **Save**
 
-### Enable via API
-
-```bash
-# Enable with default settings (22:00 Europe/Zurich)
-curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": true}'
-
-# Custom time
-curl -X POST https://control.YOUR_DOMAIN/api/scheduled-teardown \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": true, "timezone": "Europe/Zurich", "teardownTime": "23:00"}'
-
-# Check current settings
-curl https://control.YOUR_DOMAIN/api/scheduled-teardown
-```
-
 ### How It Works
 
 1. **21:45** - Email notification sent (15 min warning)
@@ -123,7 +92,30 @@ curl https://control.YOUR_DOMAIN/api/scheduled-teardown
 
 Times are configurable. Notification is always 15 minutes before teardown.
 
----
+### Delay Teardown
+
+Use the **Delay Teardown by 2 Hours** button to postpone the next scheduled teardown. This is useful when you need more time to complete work.
+
+The delay can be used multiple times and works regardless of other settings.
+
+### Administrator Policy (Infrastructure-Level)
+
+**Note for administrators:** The infrastructure can be configured to prevent users from disabling auto-shutdown entirely.
+
+When `allow_disable_auto_shutdown = false` is set in the Terraform configuration (default):
+- The toggle switch is **visible but disabled** (grayed out)
+- Users can see if auto-shutdown is enabled but cannot turn it off
+- The **Delay by 2 Hours** button remains functional
+- API rejects any attempts to disable auto-shutdown (403 Forbidden)
+
+This setting provides cost control for shared environments (e.g., student labs) while maintaining operational flexibility through delays.
+
+To allow users to fully control auto-shutdown, set in your Terraform configuration:
+```hcl
+allow_disable_auto_shutdown = true
+```
+
+Then re-deploy the Control Plane via `gh workflow run setup-control-plane.yaml`.
 
 ## Credentials Email
 

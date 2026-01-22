@@ -113,13 +113,14 @@ resource "cloudflare_pages_project" "control_plane" {
   deployment_configs {
     production {
       environment_variables = {
-        GITHUB_OWNER    = var.github_owner
-        GITHUB_REPO     = var.github_repo
-        DOMAIN          = var.domain
-        ADMIN_EMAIL     = var.admin_email
-        USER_EMAIL      = var.user_email
-        SERVER_TYPE     = var.server_type
-        SERVER_LOCATION = var.server_location
+        GITHUB_OWNER                 = var.github_owner
+        GITHUB_REPO                  = var.github_repo
+        DOMAIN                       = var.domain
+        ADMIN_EMAIL                  = var.admin_email
+        USER_EMAIL                   = var.user_email
+        SERVER_TYPE                  = var.server_type
+        SERVER_LOCATION              = var.server_location
+        ALLOW_DISABLE_AUTO_SHUTDOWN  = tostring(var.allow_disable_auto_shutdown)
       }
       
       d1_databases = {
@@ -132,13 +133,14 @@ resource "cloudflare_pages_project" "control_plane" {
 
     preview {
       environment_variables = {
-        GITHUB_OWNER    = var.github_owner
-        GITHUB_REPO     = var.github_repo
-        DOMAIN          = var.domain
-        ADMIN_EMAIL     = var.admin_email
-        USER_EMAIL      = var.user_email
-        SERVER_TYPE     = var.server_type
-        SERVER_LOCATION = var.server_location
+        GITHUB_OWNER                 = var.github_owner
+        GITHUB_REPO                  = var.github_repo
+        DOMAIN                       = var.domain
+        ADMIN_EMAIL                  = var.admin_email
+        USER_EMAIL                   = var.user_email
+        SERVER_TYPE                  = var.server_type
+        SERVER_LOCATION              = var.server_location
+        ALLOW_DISABLE_AUTO_SHUTDOWN  = tostring(var.allow_disable_auto_shutdown)
       }
       
       d1_databases = {

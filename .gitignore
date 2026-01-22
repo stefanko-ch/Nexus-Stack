@@ -46,6 +46,8 @@ terraform.rc
 .idea/
 .vscode/
 .cursorrules
+.cursor/
+.claude/
 
 # Logs
 *.log

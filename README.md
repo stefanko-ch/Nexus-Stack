@@ -32,7 +32,7 @@
 ### Automation
 - **Control Plane** - Web UI to manage infrastructure (spin up, teardown, services)
 - **GitHub Actions** - Full CI/CD deployment without local tools
-- **Scheduled Teardown** - Optional daily auto-shutdown to save costs
+- **Scheduled Teardown** - Optional daily auto-shutdown to save costs (with configurable policy to prevent users from disabling it)
 - **Email Notifications** - Credentials and status emails via Resend
 
 ### Security
@@ -61,6 +61,35 @@
 After deployment you'll have:
 - `https://control.yourdomain.com` - Control Plane to manage infrastructure
 - `https://info.yourdomain.com` - Service dashboard with credentials
+
+### Quick Start Flow
+
+```mermaid
+flowchart LR
+    subgraph prep ["1. Preparation"]
+        A[Fork Repository] --> B[Create Accounts]
+        B --> B1[Hetzner]
+        B --> B2[Cloudflare]
+        B --> B3[Resend]
+        B --> B4[Docker Hub - Optional]
+    end
+
+    subgraph config ["2. Configuration"]
+        B1 & B2 & B3 --> C[Generate API Tokens]
+        C --> D[Add GitHub Secrets]
+    end
+
+    subgraph deploy ["3. Deploy"]
+        D --> E[Run Initial Setup]
+        E --> F[Control Plane Ready]
+        F --> G[Services Running]
+    end
+
+    subgraph access ["4. Access"]
+        G --> H[Login via Email OTP]
+        H --> I[Use Services]
+    end
+```
 
 ## Available Stacks
 
@@ -118,13 +147,54 @@ Manage your Nexus-Stack infrastructure via web interface at `https://control.YOU
 
 | Workflow | Description |
 |----------|-------------|
-| **Initial Setup** | One-time setup (Control Plane + Spin Up) |
+| **Initial Setup** | One-time setup (Control Plane + Spin Up). Supports `enabled_services` parameter to pre-select services. |
 | **Spin Up** | Re-create infrastructure after teardown |
 | **Teardown** | Teardown infrastructure (keeps state) |
 | **Destroy All** | Delete everything |
 | **Cleanup Orphaned Resources** | Manual cleanup of orphaned Cloudflare resources |
 
+**Pre-select services during Initial Setup:**
+```bash
+gh workflow run initial-setup.yaml -f enabled_services="grafana,n8n,portainer"
+```
+
 → See [docs/setup-guide.md](docs/setup-guide.md) for configuration details.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph GH ["GitHub"]
+        Actions["GitHub Actions"]
+        Secrets["Secrets"]
+    end
+
+    subgraph CF ["Cloudflare"]
+        DNS["DNS"]
+        Access["Zero Trust Access"]
+        Tunnel["Tunnel"]
+        Pages["Control Plane"]
+        D1[("D1 Database")]
+        R2[("R2 State")]
+    end
+
+    subgraph HZ ["Hetzner Cloud"]
+        FW["Firewall (0 ports)"]
+        Server["Ubuntu 24.04 ARM"]
+        Agent["cloudflared"]
+        subgraph Docker ["Docker Containers"]
+            Infisical & Grafana & n8n & More["..."]
+        end
+    end
+
+    Actions -->|Deploy| Server
+    Actions -->|State| R2
+    Pages --> D1
+    DNS --> Tunnel
+    Tunnel --> Agent
+    Agent --> Docker
+    Access -.->|Protects| Tunnel
+```
 
 ## Security
 
@@ -137,6 +207,19 @@ This setup achieves **zero open ports** after deployment:
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
 
+```mermaid
+flowchart LR
+    User(["User"]) --> DNS["DNS Lookup"]
+    DNS --> Edge["Cloudflare Edge"]
+    Edge --> Auth{"Cloudflare Access"}
+    Auth -->|"Not authenticated"| OTP["Email OTP"]
+    OTP --> Auth
+    Auth -->|"Authenticated"| Tunnel["Tunnel"]
+    Tunnel --> Agent["cloudflared"]
+    Agent --> Container["Docker Service"]
+    Container --> Response(["Response"])
+```
+
 - Services are protected by Cloudflare Access (email OTP)
 - Set `public = true` in config if you want a service publicly accessible
 
@@ -145,8 +228,21 @@ This setup achieves **zero open ports** after deployment:
 | Document | Description |
 |----------|-------------|
 | [Setup Guide](docs/setup-guide.md) | Complete installation and configuration |
+| [Control Plane Guide](docs/control-plane.md) | How to use the Control Plane web interface |
 | [Stacks](docs/stacks.md) | Available services and how to add new ones |
 | [Contributing](docs/CONTRIBUTING.md) | How to contribute to the project |
+
+## How It Works
+
+For a detailed explanation of how this infrastructure works under the hood - including the Docker deployment on Hetzner and the Cloudflare Zero Trust Tunnel security setup - check out this article:
+
+**[Secure Hetzner Docker Deployment via Cloudflare Zero Trust Tunnel](https://medium.com/@stefanko-ch/secure-hetzner-docker-deployment-via-cloudflare-zero-trust-tunnel-8f716c4631ce)**
+
+## Project Website
+
+Learn more about Nexus-Stack and explore the full documentation:
+
+**[https://nexus-stack.ch/](https://nexus-stack.ch/)**
 
 ## License
 

@@ -12,7 +12,6 @@
 # Note: You also need stacks/<service>/docker-compose.yml for the container!
 #
 # CORE SERVICES (core: true):
-# - mailpit: Required for email testing by other services
 # - infisical: Required for secret management
 # - info: Dashboard showing all services
 # These services are automatically enabled during initial setup and cannot be

@@ -1,18 +1,10 @@
 #!/bin/bash
 # =============================================================================
-# ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
+# Nexus-Stack - R2 State Backend Bootstrap
 # =============================================================================
-# This script is for local development/debugging ONLY.
-# Production deployments use GitHub Actions which handle R2 setup automatically.
-#
-# Local deployment bypasses the Control Plane architecture and is not supported.
-# =============================================================================
-
-# =============================================================================
-# Nexus-Stack - R2 Bootstrap Script
-# =============================================================================
-# Automatically creates R2 bucket and API credentials for OpenTofu state
-# This runs before 'tofu init' to solve the chicken-and-egg problem
+# Called by GitHub Actions setup-control-plane workflow.
+# Creates R2 bucket and API credentials for OpenTofu remote state.
+# This runs before 'tofu init' to solve the chicken-and-egg problem.
 #
 # Required environment variables:
 #   TF_VAR_cloudflare_api_token  - Cloudflare API token

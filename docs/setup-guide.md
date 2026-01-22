@@ -122,12 +122,21 @@ Add these secrets to your GitHub repository:
 Run the initial setup workflow:
 
 ```bash
+# Core services only (infisical, mailpit, info)
 gh workflow run initial-setup.yaml
+
+# With additional services pre-selected
+gh workflow run initial-setup.yaml -f enabled_services="grafana,n8n,portainer"
 ```
 
 Or via GitHub UI:
 1. Go to **Actions** → **Initial Setup**
 2. Click **Run workflow**
+3. *(Optional)* Enter comma-separated services in `enabled_services` field
+
+**Available services:** `grafana`, `n8n`, `portainer`, `uptime-kuma`, `minio`, `metabase`, `kestra`, `it-tools`, `wetty`, `cloudbeaver`, `excalidraw`, `drawio`, `mage`, `marimo`, `redpanda`, `redpanda-console`
+
+> **Note:** Core services (infisical, mailpit, info) are always enabled automatically.
 
 On **first run**, the pipeline will:
 1. Create the R2 bucket automatically
@@ -183,7 +192,7 @@ Use the Control Plane to view or email credentials:
 
 | Workflow | Command | Confirmation | Description |
 |----------|---------|--------------|-------------|
-| Initial Setup | `gh workflow run initial-setup.yaml` | None | One-time setup (Control Plane + Spin Up) |
+| Initial Setup | `gh workflow run initial-setup.yaml [-f enabled_services="..."]` | None | One-time setup (Control Plane + Spin Up) |
 | Setup Control Plane | `gh workflow run setup-control-plane.yaml` | None | Setup Control Plane only |
 | Spin Up | `gh workflow run spin-up.yml` | None | Re-create infrastructure after teardown |
 | Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
@@ -226,6 +235,38 @@ ssh nexus
 ```
 
 You'll be prompted for Cloudflare Access authentication on first connection.
+
+---
+
+## ⚙️ Optional Configuration
+
+### Auto-Shutdown Policy
+
+By default, users cannot disable the automatic daily teardown feature via the Control Plane. This ensures cost control for shared environments (e.g., student labs).
+
+**To change this behavior**, edit `tofu/control-plane/variables.tf` or set via environment variable:
+
+```hcl
+# Allow users to disable auto-shutdown
+allow_disable_auto_shutdown = true
+```
+
+**Default behavior** (`false`):
+- Toggle switch is visible but grayed out
+- Users can see if auto-shutdown is enabled
+- Users can delay teardown by 2 hours
+- Users cannot disable auto-shutdown entirely
+
+**Permissive behavior** (`true`):
+- Users have full control over auto-shutdown
+- Suitable for personal deployments or trusted environments
+
+After changing this setting, re-deploy the Control Plane:
+```bash
+gh workflow run setup-control-plane.yaml
+```
+
+See [Control Plane User Guide](control-plane.md#administrator-policy-infrastructure-level) for details.
 
 ---
 
