@@ -228,6 +228,7 @@ flowchart LR
 | Document | Description |
 |----------|-------------|
 | [Setup Guide](docs/setup-guide.md) | Complete installation and configuration |
+| [Control Plane Guide](docs/control-plane.md) | How to use the Control Plane web interface |
 | [Stacks](docs/stacks.md) | Available services and how to add new ones |
 | [Contributing](docs/CONTRIBUTING.md) | How to contribute to the project |
 
