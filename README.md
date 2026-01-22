@@ -32,7 +32,7 @@
 ### Automation
 - **Control Plane** - Web UI to manage infrastructure (spin up, teardown, services)
 - **GitHub Actions** - Full CI/CD deployment without local tools
-- **Scheduled Teardown** - Optional daily auto-shutdown to save costs
+- **Scheduled Teardown** - Optional daily auto-shutdown to save costs (with configurable policy to prevent users from disabling it)
 - **Email Notifications** - Credentials and status emails via Resend
 
 ### Security

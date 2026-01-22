@@ -92,6 +92,31 @@ Automatically tear down infrastructure daily to save costs.
 
 Times are configurable. Notification is always 15 minutes before teardown.
 
+### Delay Teardown
+
+Use the **Delay Teardown by 2 Hours** button to postpone the next scheduled teardown. This is useful when you need more time to complete work.
+
+The delay can be used multiple times and works regardless of other settings.
+
+### Administrator Policy (Infrastructure-Level)
+
+**Note for administrators:** The infrastructure can be configured to prevent users from disabling auto-shutdown entirely.
+
+When `allow_disable_auto_shutdown = false` is set in the Terraform configuration (default):
+- The toggle switch is **visible but disabled** (grayed out)
+- Users can see if auto-shutdown is enabled but cannot turn it off
+- The **Delay by 2 Hours** button remains functional
+- API rejects any attempts to disable auto-shutdown (403 Forbidden)
+
+This setting provides cost control for shared environments (e.g., student labs) while maintaining operational flexibility through delays.
+
+To allow users to fully control auto-shutdown, set in your Terraform configuration:
+```hcl
+allow_disable_auto_shutdown = true
+```
+
+Then re-deploy the Control Plane via `gh workflow run setup-control-plane.yaml`.
+
 ## Credentials Email
 
 Click **Send Credentials** to receive an email with all service passwords.
