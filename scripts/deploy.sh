@@ -2,12 +2,10 @@
 set -euo pipefail
 
 # =============================================================================
-# ⚠️  DEVELOPMENT ONLY - NOT FOR PRODUCTION USE
+# Nexus-Stack Deployment Script
 # =============================================================================
-# This script is for local development/debugging ONLY.
-# Production deployments use GitHub Actions workflows.
-#
-# Local deployment bypasses the Control Plane architecture and is not supported.
+# Called by GitHub Actions spin-up workflow after infrastructure is provisioned.
+# Syncs Docker stacks to server and starts enabled containers.
 # =============================================================================
 
 # =============================================================================
@@ -47,10 +45,10 @@ if [ -f "$PROJECT_ROOT/tofu/.r2-credentials" ]; then
     export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 fi
 
-# Check if we can access state (remote or local)
+# Check if we can access state
 cd "$TOFU_DIR"
 if ! tofu state list >/dev/null 2>&1; then
-    echo -e "${RED}Error: No OpenTofu state found. Run 'make up' first.${NC}"
+    echo -e "${RED}Error: No OpenTofu state found. Infrastructure must be provisioned first.${NC}"
     exit 1
 fi
 cd "$PROJECT_ROOT"
