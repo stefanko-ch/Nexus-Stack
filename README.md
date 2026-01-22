@@ -62,6 +62,33 @@ After deployment you'll have:
 - `https://control.yourdomain.com` - Control Plane to manage infrastructure
 - `https://info.yourdomain.com` - Service dashboard with credentials
 
+### Quick Start Flow
+
+```mermaid
+flowchart LR
+    subgraph prep ["1. Preparation"]
+        A[Fork Repository] --> B[Create Accounts]
+        B --> B1[Hetzner]
+        B --> B2[Cloudflare]
+    end
+
+    subgraph config ["2. Configuration"]
+        B1 & B2 --> C[Generate API Tokens]
+        C --> D[Add GitHub Secrets]
+    end
+
+    subgraph deploy ["3. Deploy"]
+        D --> E[Run Initial Setup]
+        E --> F[Control Plane Ready]
+        F --> G[Services Running]
+    end
+
+    subgraph access ["4. Access"]
+        G --> H[Login via Email OTP]
+        H --> I[Use Services]
+    end
+```
+
 ## Available Stacks
 
 ![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
@@ -131,6 +158,42 @@ gh workflow run initial-setup.yaml -f enabled_services="grafana,n8n,portainer"
 
 → See [docs/setup-guide.md](docs/setup-guide.md) for configuration details.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph GH ["GitHub"]
+        Actions["GitHub Actions"]
+        Secrets["Secrets"]
+    end
+
+    subgraph CF ["Cloudflare"]
+        DNS["DNS"]
+        Access["Zero Trust Access"]
+        Tunnel["Tunnel"]
+        Pages["Control Plane"]
+        D1[("D1 Database")]
+        R2[("R2 State")]
+    end
+
+    subgraph HZ ["Hetzner Cloud"]
+        FW["Firewall (0 ports)"]
+        Server["Ubuntu 24.04 ARM"]
+        Agent["cloudflared"]
+        subgraph Docker ["Docker Containers"]
+            Infisical & Grafana & n8n & More["..."]
+        end
+    end
+
+    Actions -->|Deploy| Server
+    Actions -->|State| R2
+    Pages --> D1
+    DNS --> Tunnel
+    Tunnel --> Agent
+    Agent --> Docker
+    Access -.->|Protects| Tunnel
+```
+
 ## Security
 
 This setup achieves **zero open ports** after deployment:
@@ -141,6 +204,19 @@ This setup achieves **zero open ports** after deployment:
 4. All future SSH access goes through Cloudflare Tunnel
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
+
+```mermaid
+flowchart LR
+    User(["User"]) --> DNS["DNS Lookup"]
+    DNS --> Edge["Cloudflare Edge"]
+    Edge --> Auth{"Cloudflare Access"}
+    Auth -->|"Not authenticated"| OTP["Email OTP"]
+    OTP --> Auth
+    Auth -->|"Authenticated"| Tunnel["Tunnel"]
+    Tunnel --> Agent["cloudflared"]
+    Agent --> Container["Docker Service"]
+    Container --> Response(["Response"])
+```
 
 - Services are protected by Cloudflare Access (email OTP)
 - Set `public = true` in config if you want a service publicly accessible
@@ -159,11 +235,6 @@ For a detailed explanation of how this infrastructure works under the hood - inc
 
 **[Secure Hetzner Docker Deployment via Cloudflare Zero Trust Tunnel](https://medium.com/@stefanko-ch/secure-hetzner-docker-deployment-via-cloudflare-zero-trust-tunnel-8f716c4631ce)**
 
-The article covers:
-- Setting up a Hetzner Cloud server with Docker
-- Configuring Cloudflare Tunnel for secure access
-- Achieving zero open ports with Cloudflare Zero Trust
-- Best practices for production deployments
 
 ## License
 
