@@ -21,6 +21,8 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
     volumes:
       - mailpit-data:/data
+    ports:
+      - "8025:8025"
     networks:
       - app-network
     # SMTP port exposed only internally for other containers
