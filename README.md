@@ -118,11 +118,16 @@ Manage your Nexus-Stack infrastructure via web interface at `https://control.YOU
 
 | Workflow | Description |
 |----------|-------------|
-| **Initial Setup** | One-time setup (Control Plane + Spin Up) |
+| **Initial Setup** | One-time setup (Control Plane + Spin Up). Supports `enabled_services` parameter to pre-select services. |
 | **Spin Up** | Re-create infrastructure after teardown |
 | **Teardown** | Teardown infrastructure (keeps state) |
 | **Destroy All** | Delete everything |
 | **Cleanup Orphaned Resources** | Manual cleanup of orphaned Cloudflare resources |
+
+**Pre-select services during Initial Setup:**
+```bash
+gh workflow run initial-setup.yaml -f enabled_services="grafana,n8n,portainer"
+```
 
 → See [docs/setup-guide.md](docs/setup-guide.md) for configuration details.
 
