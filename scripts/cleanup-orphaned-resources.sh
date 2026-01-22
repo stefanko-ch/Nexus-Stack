@@ -161,4 +161,4 @@ fi
 echo ""
 echo -e "${GREEN}Cleanup complete!${NC}"
 echo ""
-echo "You can now run 'make up' or deploy via GitHub Actions again."
+echo "You can now deploy via GitHub Actions again."
