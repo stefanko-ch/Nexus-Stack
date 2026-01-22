@@ -150,7 +150,7 @@ def main():
         if support_images:
             output_lines.append('    support_images = {')
             for img_name, img_value in support_images.items():
-                output_lines.append(f'      {img_name} = "{img_value}"')
+                output_lines.append(f'      "{img_name}" = "{img_value}"')
             output_lines.append('    }')
         
         output_lines.append('  }')
