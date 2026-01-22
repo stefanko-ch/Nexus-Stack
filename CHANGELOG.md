@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.7.0...v0.8.0) (2026-01-22)
+
+
+### 🚀 Features
+
+* **control-plane:** Add configurable policy to prevent auto-shutdown disable ([3ee0b4c](https://github.com/stefanko-ch/Nexus-Stack/commit/3ee0b4ccd33ee4cf4845cd0e62e03a9298d8a441))
+* **docs:** Migrate agent instructions to CLAUDE.md and fix Mailpit UI ([e15655b](https://github.com/stefanko-ch/Nexus-Stack/commit/e15655b5fee300dc5759057a149a574ba4fa485a))
+* **initial-setup:** Add enabled_services parameter for pre-selecting services ([e24e974](https://github.com/stefanko-ch/Nexus-Stack/commit/e24e974dfed3f6ff516caa0cdfea82c71d8a7250))
+* **stacks:** Add Draw.io and fix D1 sync rate limits ([1e0ccd7](https://github.com/stefanko-ch/Nexus-Stack/commit/1e0ccd7dd0dd3364f1338d6171dc5e758e524046))
+* **stacks:** Add Draw.io diagramming tool ([4bcecc6](https://github.com/stefanko-ch/Nexus-Stack/commit/4bcecc6b3a21ce45a577af01aed3d5c66b6f5bbc))
+* **stack:** Service fixes, auto-shutdown policy, and documentation updates ([a089656](https://github.com/stefanko-ch/Nexus-Stack/commit/a089656f78e1b289779d6fb9377770a86ce76e6e))
+
+
+### 🐛 Bug Fixes
+
+* Address Copilot code review feedback ([af56167](https://github.com/stefanko-ch/Nexus-Stack/commit/af56167d1bcd362d93b22af9b95b5207b6274f29))
+* Address PR review comments ([40eca99](https://github.com/stefanko-ch/Nexus-Stack/commit/40eca998b86f287fdbfc6f21f9665d2fd3aa8408))
+* **ci:** Improve R2 credentials error handling ([918759c](https://github.com/stefanko-ch/Nexus-Stack/commit/918759c7a724ae79f801dda67cbbea8d1600c336))
+* **ci:** Improve R2 credentials error messages in spin-up ([5bb0518](https://github.com/stefanko-ch/Nexus-Stack/commit/5bb0518498ac5fa59eb7f13d79682c1bd8133e72))
+* **ci:** Use batch SQL execution to avoid D1 rate limits ([577e2d6](https://github.com/stefanko-ch/Nexus-Stack/commit/577e2d6f2abf654bfe32d61957728c03f9699c5f))
+* **deploy:** Fix Metabase port configuration ([fe5b2d8](https://github.com/stefanko-ch/Nexus-Stack/commit/fe5b2d8723e85490d50645e6da4e51c4738bb794))
+* **deploy:** Fix Wetty SSH key path variable escaping ([d4a5aea](https://github.com/stefanko-ch/Nexus-Stack/commit/d4a5aeae0ba660729d74e4086128a9d5c9536ae9))
+* **docs:** Add Resend and Docker Hub to Quick Start Flow diagram ([48480f4](https://github.com/stefanko-ch/Nexus-Stack/commit/48480f468adbd0582ddd8b74456a8240a64ffac4))
+* **info-page:** Change title from Dashboard to Info Dashboard ([ca605c9](https://github.com/stefanko-ch/Nexus-Stack/commit/ca605c96fa68dcd5bf1d9f1c0bcee9ac3155b121))
+* **info-page:** Skip nested support_images blocks correctly ([9b970f1](https://github.com/stefanko-ch/Nexus-Stack/commit/9b970f11159c826cd0cca85e28d177bf9f7386cc))
+* **scripts:** Add missing DIM color variable definition ([ec17f14](https://github.com/stefanko-ch/Nexus-Stack/commit/ec17f14b19e1c0700f6b9dd0d060753cec107582))
+* **scripts:** Use dev environment for Infisical secrets ([9becc99](https://github.com/stefanko-ch/Nexus-Stack/commit/9becc99b405b51e15ca62023768517f2963395e3))
+* **services:** Remove core flag from mailpit ([dc7a0e4](https://github.com/stefanko-ch/Nexus-Stack/commit/dc7a0e497d9c2907db609b6afd9bed9be5fa2ffa))
+* **stacks:** Fix Mailpit and Kestra configuration issues ([2b28ea1](https://github.com/stefanko-ch/Nexus-Stack/commit/2b28ea16addc89f6b3b3648bee1614798152b475))
+
+
+### 📚 Documentation
+
+* Add 'How It Works' section with Medium article reference ([99228a1](https://github.com/stefanko-ch/Nexus-Stack/commit/99228a17adbe7fffcb5ae28a55d2a1adf9005c99))
+* Add documentation for auto-shutdown policy configuration ([f8f6b45](https://github.com/stefanko-ch/Nexus-Stack/commit/f8f6b4563d5711590bbd9111724a06347b260f87))
+* Add Mermaid diagrams for setup flow, architecture and security ([a4396b7](https://github.com/stefanko-ch/Nexus-Stack/commit/a4396b7c81780fbd1011493ddb85ca00dd3589bd))
+* Add Nexus-Stack story article to README ([0989e94](https://github.com/stefanko-ch/Nexus-Stack/commit/0989e94235671a8e78ac6670e4932c013ccc6c76))
+* Add Nexus-Stack story article to README ([02fc35f](https://github.com/stefanko-ch/Nexus-Stack/commit/02fc35f7d09a92782e7b9fa050173e06734f0aae))
+* Add project website link to README ([6a61ca6](https://github.com/stefanko-ch/Nexus-Stack/commit/6a61ca6f78e1bda0577440da077bbd29b7aa7bc6))
+
+
+### 🔧 Maintenance
+
+* Clean up deployment documentation and update services ([8f6d2b2](https://github.com/stefanko-ch/Nexus-Stack/commit/8f6d2b2b53b83634357a758ee1fe3fd72f4594b1))
+* Remove .cursor folder and add to gitignore ([3c76b3a](https://github.com/stefanko-ch/Nexus-Stack/commit/3c76b3a18a577859879b7e74b71564f79107c5fa))
+* Remove local deployment references from code ([994de6b](https://github.com/stefanko-ch/Nexus-Stack/commit/994de6b09932b6729919d40ff79d33d29225970c))
+* Remove Makefile and add Control Plane Guide to docs ([a992531](https://github.com/stefanko-ch/Nexus-Stack/commit/a99253132b3c4f3a3c14ff2b567871e6bb28faa7))
+
 ## [0.7.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.6.0...v0.7.0) (2026-01-20)
 
 
