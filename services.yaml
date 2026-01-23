@@ -53,6 +53,15 @@ services:
       cadvisor: "ghcr.io/google/cadvisor:0.56"
       node-exporter: "prom/node-exporter:v1.10.2"
 
+  hoppscotch:
+    subdomain: "hoppscotch"
+    port: 3003
+    public: false
+    description: "Open-source API testing platform (Postman alternative)."
+    image: "hoppscotch/hoppscotch:latest"
+    support_images:
+      postgres: "postgres:15-alpine"
+
   info:
     subdomain: "info"
     port: 8090

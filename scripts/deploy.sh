@@ -91,6 +91,10 @@ METABASE_PASS=$(echo "$SECRETS_JSON" | jq -r '.metabase_admin_password // empty'
 CLOUDBEAVER_PASS=$(echo "$SECRETS_JSON" | jq -r '.cloudbeaver_admin_password // empty')
 MAGE_PASS=$(echo "$SECRETS_JSON" | jq -r '.mage_admin_password // empty')
 MINIO_ROOT_PASS=$(echo "$SECRETS_JSON" | jq -r '.minio_root_password // empty')
+HOPPSCOTCH_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_db_password // empty')
+HOPPSCOTCH_JWT=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_jwt_secret // empty')
+HOPPSCOTCH_SESSION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_session_secret // empty')
+HOPPSCOTCH_ENCRYPTION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_encryption_key // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -383,6 +387,36 @@ MINIO_ROOT_USER=admin
 MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASS
 EOF
     echo -e "${GREEN}  ✓ MinIO .env generated${NC}"
+fi
+
+# Generate Hoppscotch .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "hoppscotch"; then
+    echo "  Generating Hoppscotch config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/hoppscotch/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+DATABASE_URL=postgres://hoppscotch:${HOPPSCOTCH_DB_PASS}@hoppscotch-db:5432/hoppscotch
+POSTGRES_PASSWORD=${HOPPSCOTCH_DB_PASS}
+JWT_SECRET=${HOPPSCOTCH_JWT}
+SESSION_SECRET=${HOPPSCOTCH_SESSION}
+DATA_ENCRYPTION_KEY=${HOPPSCOTCH_ENCRYPTION}
+REDIRECT_URL=https://hoppscotch.${DOMAIN}
+WHITELISTED_ORIGINS=https://hoppscotch.${DOMAIN}
+VITE_BASE_URL=https://hoppscotch.${DOMAIN}
+VITE_SHORTCODE_BASE_URL=https://hoppscotch.${DOMAIN}
+VITE_ADMIN_URL=https://hoppscotch.${DOMAIN}/admin
+VITE_BACKEND_GQL_URL=https://hoppscotch.${DOMAIN}/backend/graphql
+VITE_BACKEND_WS_URL=wss://hoppscotch.${DOMAIN}/backend/graphql
+VITE_BACKEND_API_URL=https://hoppscotch.${DOMAIN}/backend/v1
+VITE_ALLOWED_AUTH_PROVIDERS=EMAIL
+MAILER_USE_CUSTOM_CONFIGS=true
+MAILER_SMTP_ENABLE=false
+TOKEN_SALT_COMPLEXITY=10
+MAGIC_LINK_TOKEN_VALIDITY=3
+REFRESH_TOKEN_VALIDITY=604800000
+ACCESS_TOKEN_VALIDITY=86400000
+ENABLE_SUBPATH_BASED_ACCESS=false
+EOF
+    echo -e "${GREEN}  ✓ Hoppscotch .env generated${NC}"
 fi
 
 # Sync only enabled stacks
