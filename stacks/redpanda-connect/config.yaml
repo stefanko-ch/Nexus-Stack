@@ -1,0 +1,31 @@
+# =============================================================================
+# Redpanda Connect - Default Pipeline Configuration
+# =============================================================================
+# This is a simple HTTP echo pipeline that demonstrates the framework.
+# Replace this with your own pipeline configuration.
+#
+# Documentation: https://docs.redpanda.com/redpanda-connect/
+# =============================================================================
+
+http:
+  enabled: true
+  address: "0.0.0.0:4195"
+
+input:
+  http_server:
+    path: /post
+    timeout: 5s
+
+pipeline:
+  processors:
+    - mapping: |
+        root = this
+        root.processed_at = now()
+        root.processed_by = "redpanda-connect"
+
+output:
+  stdout: {}
+
+# Metrics endpoint: /metrics (Prometheus format)
+# Health endpoint: /ready
+# Version endpoint: /version
