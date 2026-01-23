@@ -158,14 +158,14 @@ services:
     image: "redpandadata/console:v2.8"
 
   redpanda-connect:
-    subdomain: "connect"
+    subdomain: "redpanda-connect"
     port: 4195
     public: false
     description: "Declarative data streaming framework for real-time pipelines."
     image: "redpandadata/connect:latest"
 
   redpanda-datagen:
-    subdomain: "datagen"
+    subdomain: "redpanda-datagen"
     port: 4196
     public: false
     description: "Test data generator for Redpanda topics."

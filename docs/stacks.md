@@ -518,7 +518,7 @@ Redpanda Connect (formerly Benthos) is a high-performance stream processor that 
 | Setting | Value |
 |---------|-------|
 | Default Port | `4195` |
-| Suggested Subdomain | `connect` |
+| Suggested Subdomain | `redpanda-connect` |
 | Public Access | No (data pipelines) |
 | Website | [redpanda.com](https://redpanda.com) |
 | Docs | [docs.redpanda.com/redpanda-connect](https://docs.redpanda.com/redpanda-connect/) |
@@ -561,7 +561,7 @@ A separate stack for generating realistic test data into Redpanda topics. Uses R
 | Setting | Value |
 |---------|-------|
 | Default Port | `4196` |
-| Suggested Subdomain | `datagen` |
+| Suggested Subdomain | `redpanda-datagen` |
 | Public Access | No (test data generator) |
 | Target Topic | `test-events` |
 | Message Rate | 1 message/second |
