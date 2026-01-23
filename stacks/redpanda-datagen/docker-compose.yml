@@ -16,7 +16,7 @@ services:
     ports:
       - "4196:4195"
     volumes:
-      - ./config.yaml:/benthos.yaml:ro
+      - ./config.yaml:/connect.yaml:ro
     networks:
       - app-network
     healthcheck:
