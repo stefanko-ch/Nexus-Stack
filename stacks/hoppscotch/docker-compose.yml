@@ -20,7 +20,7 @@ services:
       - .env
     # Run migrations before starting the app
     command: >
-      sh -c "pnpm exec prisma migrate deploy && node /usr/src/app/aio_run.mjs"
+      sh -c "pnpm exec prisma migrate deploy && exec node /usr/src/app/aio_run.mjs"
     networks:
       - app-network
       - hoppscotch-internal
