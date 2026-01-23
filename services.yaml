@@ -88,6 +88,13 @@ services:
     description: "Collection of handy online tools for developers - encoders, converters, generators, and more."
     image: "corentinth/it-tools:latest"
 
+  kafka-ui:
+    subdomain: "kafka-ui"
+    port: 8181
+    public: false
+    description: "Modern web UI for Apache Kafka / Redpanda management."
+    image: "provectuslabs/kafka-ui:latest"
+
   kestra:
     subdomain: "kestra"
     port: 8085

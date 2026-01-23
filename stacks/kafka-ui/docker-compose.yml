@@ -1,0 +1,35 @@
+# =============================================================================
+# Kafka-UI - Web UI for Apache Kafka / Redpanda
+# =============================================================================
+# Modern web interface for managing and monitoring Kafka/Redpanda clusters.
+# Features: topic management, message browsing, consumer groups, schema registry.
+#
+# Access: https://kafka-ui.<domain>
+# Docs: https://docs.kafka-ui.provectus.io/
+# =============================================================================
+
+services:
+  kafka-ui:
+    image: ${IMAGE_KAFKA_UI:-provectuslabs/kafka-ui:latest}
+    container_name: kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8181:8080"
+    environment:
+      # Enable dynamic configuration via UI
+      - DYNAMIC_CONFIG_ENABLED=true
+      # Redpanda cluster configuration
+      - KAFKA_CLUSTERS_0_NAME=redpanda
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=redpanda:9092
+      - KAFKA_CLUSTERS_0_SCHEMAREGISTRY=http://redpanda:8081
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  app-network:
+    external: true
