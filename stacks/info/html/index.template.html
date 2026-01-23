@@ -384,7 +384,7 @@
         }
 
         // Services without a web UI (backend/infrastructure services)
-        const noLinkServices = ['redpanda'];
+        const noLinkServices = ['redpanda', 'redpanda-connect', 'redpanda-datagen'];
 
         function createServiceCard(name, service, isActive) {
             const url = `https://${service.subdomain}.${DOMAIN}`;
