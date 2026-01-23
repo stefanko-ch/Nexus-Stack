@@ -99,6 +99,7 @@ flowchart LR
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
+![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)
 ![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
@@ -111,7 +112,6 @@ flowchart LR
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
 ![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
 ![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
-![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
