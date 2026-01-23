@@ -106,6 +106,27 @@ resource "random_password" "minio_root" {
   special = false
 }
 
+# Hoppscotch secrets
+resource "random_password" "hoppscotch_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "hoppscotch_jwt" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "hoppscotch_session" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "hoppscotch_encryption" {
+  length  = 32
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================

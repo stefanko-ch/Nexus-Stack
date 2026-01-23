@@ -110,6 +110,7 @@ flowchart LR
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
 ![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
 ![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
+![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
@@ -121,6 +122,7 @@ flowchart LR
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
+| **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
