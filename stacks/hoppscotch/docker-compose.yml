@@ -10,25 +10,6 @@
 # =============================================================================
 
 services:
-  # Run database migrations before starting the main app
-  hoppscotch-migrate:
-    image: ${IMAGE_HOPPSCOTCH:-hoppscotch/hoppscotch:latest}
-    container_name: hoppscotch-migrate
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        cd /app/backend
-        node dist/migrate-infra-config.js
-        node dist/run-migrations.js
-    env_file:
-      - .env
-    networks:
-      - hoppscotch-internal
-    depends_on:
-      hoppscotch-db:
-        condition: service_healthy
-    restart: "no"
-
   hoppscotch:
     image: ${IMAGE_HOPPSCOTCH:-hoppscotch/hoppscotch:latest}
     container_name: hoppscotch
@@ -43,8 +24,6 @@ services:
     depends_on:
       hoppscotch-db:
         condition: service_healthy
-      hoppscotch-migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/ping"]
       interval: 30s
