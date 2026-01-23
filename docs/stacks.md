@@ -29,6 +29,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
+| Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
+| Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
 ¹ No major version tags available, requires manual updates.  
@@ -496,6 +498,108 @@ Redpanda Console is a developer-friendly web UI for managing and debugging your 
 | Public Access | No (cluster management) |
 | Website | [redpanda.com](https://redpanda.com) |
 | Source | [GitHub](https://github.com/redpanda-data/console) |
+
+---
+
+## Redpanda Connect
+
+![Redpanda Connect](https://img.shields.io/badge/Redpanda_Connect-E4405F?logo=redpanda&logoColor=white)
+
+**Declarative data streaming framework for real-time pipelines**
+
+Redpanda Connect (formerly Benthos) is a high-performance stream processor that makes building data pipelines simple. Features include:
+- Declarative YAML configuration
+- Hundreds of connectors (Kafka, PostgreSQL, S3, HTTP, etc.)
+- Built-in data transformation with Bloblang
+- Stateless and easy to scale
+- Real-time and batch processing
+- Prometheus metrics endpoint
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `4195` |
+| Suggested Subdomain | `connect` |
+| Public Access | No (data pipelines) |
+| Website | [redpanda.com](https://redpanda.com) |
+| Docs | [docs.redpanda.com/redpanda-connect](https://docs.redpanda.com/redpanda-connect/) |
+| Source | [GitHub](https://github.com/redpanda-data/connect) |
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `/ready` | Health check endpoint |
+| `/metrics` | Prometheus metrics |
+| `/version` | Version information |
+
+### Configuration
+
+The pipeline configuration is in `stacks/redpanda-connect/config.yaml`. By default, a simple HTTP echo pipeline is configured. Replace with your own pipeline configuration.
+
+Example pipeline to stream from Redpanda to stdout:
+```yaml
+input:
+  kafka:
+    addresses: ["redpanda:9092"]
+    topics: ["my-topic"]
+    consumer_group: "my-consumer"
+
+output:
+  stdout: {}
+```
+
+---
+
+## Redpanda Datagen
+
+![Redpanda Datagen](https://img.shields.io/badge/Redpanda_Datagen-E4405F?logo=redpanda&logoColor=white)
+
+**Test data generator for Redpanda topics**
+
+A separate stack for generating realistic test data into Redpanda topics. Uses Redpanda Connect with a pre-configured data generation pipeline. Enable this service via the Control Panel when you need test data - disable it when not needed to avoid overhead.
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `4196` |
+| Suggested Subdomain | `datagen` |
+| Public Access | No (test data generator) |
+| Target Topic | `test-events` |
+| Message Rate | 1 message/second |
+
+### Generated Data Format
+
+The datagen produces realistic e-commerce event data:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "user_id": 4523,
+  "event_type": "purchase",
+  "amount": 249,
+  "metadata": {
+    "browser": "Chrome",
+    "country": "DE"
+  }
+}
+```
+
+### Event Types
+
+| Event | Description |
+|-------|-------------|
+| `click` | User clicked on an element |
+| `view` | User viewed a page |
+| `purchase` | User made a purchase (includes amount) |
+| `signup` | User signed up |
+
+### Usage
+
+1. **Enable** the `redpanda-datagen` service in the Control Panel
+2. **View data** in Redpanda Console at the `test-events` topic
+3. **Disable** when done testing to stop data generation
+
+> ℹ️ **Note:** Data generation runs continuously while the service is enabled (1 msg/sec). Disable via Control Panel when not needed.
 
 ---
 

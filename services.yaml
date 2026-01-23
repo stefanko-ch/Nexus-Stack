@@ -157,6 +157,20 @@ services:
     description: "Web UI for managing and debugging Redpanda/Kafka workloads."
     image: "redpandadata/console:v2.8"
 
+  redpanda-connect:
+    subdomain: "connect"
+    port: 4195
+    public: false
+    description: "Declarative data streaming framework for real-time pipelines."
+    image: "redpandadata/connect:latest"
+
+  redpanda-datagen:
+    subdomain: "datagen"
+    port: 4196
+    public: false
+    description: "Test data generator for Redpanda topics."
+    image: "redpandadata/connect:latest"
+
   uptime-kuma:
     subdomain: "uptime-kuma"
     port: 3001
