@@ -14,7 +14,12 @@ services:
   hoppscotch-migrate:
     image: ${IMAGE_HOPPSCOTCH:-hoppscotch/hoppscotch:latest}
     container_name: hoppscotch-migrate
-    command: sh -c "cd /dist/backend && node ./dist/migrate-infra-config.js && node ./dist/run-migrations.js"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cd /app/backend
+        node dist/migrate-infra-config.js
+        node dist/run-migrations.js
     env_file:
       - .env
     networks:
