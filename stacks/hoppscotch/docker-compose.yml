@@ -18,6 +18,9 @@ services:
       - "3003:80"
     env_file:
       - .env
+    # Run migrations before starting the app
+    command: >
+      sh -c "pnpm exec prisma migrate deploy && node /usr/src/app/aio_run.mjs"
     networks:
       - app-network
       - hoppscotch-internal
