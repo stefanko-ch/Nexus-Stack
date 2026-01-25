@@ -15,7 +15,7 @@ services:
     container_name: hoppscotch
     restart: unless-stopped
     ports:
-      - "3003:80"
+      - "3003:3000"
     env_file:
       - .env
     # Run migrations before starting the app
@@ -28,7 +28,7 @@ services:
       hoppscotch-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/ping"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 3
