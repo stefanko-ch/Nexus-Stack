@@ -95,6 +95,7 @@ HOPPSCOTCH_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_db_password // em
 HOPPSCOTCH_JWT=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_jwt_secret // empty')
 HOPPSCOTCH_SESSION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_session_secret // empty')
 HOPPSCOTCH_ENCRYPTION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_encryption_key // empty')
+MELTANO_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.meltano_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -417,6 +418,16 @@ ACCESS_TOKEN_VALIDITY=86400000
 ENABLE_SUBPATH_BASED_ACCESS=false
 EOF
     echo -e "${GREEN}  ✓ Hoppscotch .env generated${NC}"
+fi
+
+# Generate Meltano .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "meltano"; then
+    echo "  Generating Meltano config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/meltano/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+MELTANO_DB_PASSWORD=${MELTANO_DB_PASS}
+EOF
+    echo -e "${GREEN}  ✓ Meltano .env generated${NC}"
 fi
 
 # Sync only enabled stacks
@@ -742,7 +753,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "meltano" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -764,6 +775,7 @@ EOF
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    MELTANO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="meltano") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -809,7 +821,8 @@ EOF
     {"secretKey": "MAGE_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MINIO_ROOT_USER", "secretValue": "admin", "tagIds": ["$MINIO_TAG"]},
-    {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF

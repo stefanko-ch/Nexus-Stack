@@ -106,6 +106,7 @@ flowchart LR
 ![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
 ![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
 ![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
+![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)
 ![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)
@@ -130,6 +131,7 @@ flowchart LR
 | **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
+| **Meltano** | Open-source data integration platform for building modular data pipelines | [meltano.com](https://meltano.com) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |

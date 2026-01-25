@@ -127,6 +127,15 @@ services:
     description: "Reactive Python notebook with SQL support, reproducible and git-friendly."
     image: "ghcr.io/marimo-team/marimo:latest-sql"
 
+  meltano:
+    subdomain: "meltano"
+    port: 5000
+    public: false
+    description: "Open-source data integration platform for building modular data pipelines."
+    image: "meltanolabs/meltano:latest"
+    support_images:
+      postgres: "postgres:16-alpine"
+
   metabase:
     subdomain: "metabase"
     port: 3000
