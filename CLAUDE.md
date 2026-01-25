@@ -18,6 +18,15 @@
 - In code comments: Use emojis only for visual markers (e.g., `// ⚠️ Warning:` or `// ✅ Success`)
 - In documentation: Use emojis sparingly in section headers or callouts
 
+## No Advertising or Branding
+
+**NEVER add advertising or branding footers to any content:**
+- NO "Generated with Claude Code" or similar footers in PRs, Issues, or documentation
+- NO links to Anthropic, Claude, or any AI tool providers
+- NO promotional language or branding
+- The user pays for the service and should not see advertising in their project content
+- Keep all content professional and focused on the technical task at hand
+
 ## Project Overview
 
 Nexus-Stack is an **open-source infrastructure-as-code project** that provides one-command deployment of Docker services on Hetzner Cloud with Cloudflare Zero Trust protection. It achieves **zero open ports** by routing all traffic through Cloudflare Tunnel.
@@ -148,8 +157,14 @@ When adding a new Docker stack, **all locations must be updated**:
 3. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
    - Add row to the "Available Stacks" table with description and website link
+   - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
 
-4. **Add admin credentials (if service has admin UI):**
+4. **Update docs/stacks.md:**
+   - Add a new section with stack badge, description, and configuration details
+   - Include port, subdomain, default credentials (if any), and special setup instructions
+   - Add entry to the Docker Image Update Policy table at the top
+
+5. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
    - Add password to `secrets` output in `tofu/stack/outputs.tf`
    - Add auto-setup API call in `scripts/deploy.sh` (Step 6/6)

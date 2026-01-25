@@ -213,28 +213,12 @@ Manage your infrastructure via the web interface at `https://control.YOUR_DOMAIN
 
 SSH access is available for debugging purposes. All SSH traffic goes through Cloudflare Tunnel.
 
-### Setup SSH Config
+For detailed instructions on setting up SSH access, including:
+- Getting the SSH key from Infisical
+- Handling changing host keys after server recreation
+- Service Token authentication for CI/CD
 
-Add to your `~/.ssh/config`:
-
-```
-Host nexus
-  HostName ssh.yourdomain.com
-  User root
-  ProxyCommand cloudflared access ssh --hostname %h
-```
-
-**Requirements:**
-- `cloudflared` installed: `brew install cloudflared`
-- Cloudflare Access configured for SSH
-
-### Test Connection
-
-```bash
-ssh nexus
-```
-
-You'll be prompted for Cloudflare Access authentication on first connection.
+See the **[SSH Access Guide](ssh-access.md)**.
 
 ---
 
@@ -285,6 +269,10 @@ Make sure your email matches `TF_VAR_admin_email` in GitHub Secrets.
 1. Check Control Plane status at `https://control.yourdomain.com`
 2. Verify the service is enabled
 3. Check if infrastructure is running (may be torn down)
+
+### Need more help?
+
+For in-depth debugging including container logs, health checks, and service-specific troubleshooting, see the **[Debugging Guide](debugging.md)**.
 
 ---
 

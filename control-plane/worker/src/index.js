@@ -181,7 +181,14 @@ async function getConfig(db) {
 
 async function sendNotification(env, config) {
   if (!env.RESEND_API_KEY || !env.ADMIN_EMAIL || !env.DOMAIN) {
-    console.log('Missing required environment variables for notification');
+    const missingVars = [];
+    if (!env.RESEND_API_KEY) missingVars.push('RESEND_API_KEY');
+    if (!env.ADMIN_EMAIL) missingVars.push('ADMIN_EMAIL');
+    if (!env.DOMAIN) missingVars.push('DOMAIN');
+
+    const message = `Missing required environment variables for notification: ${missingVars.join(', ')}`;
+    console.log(message);
+    await logToD1(env.NEXUS_DB, 'warn', message);
     return;
   }
 
@@ -190,7 +197,7 @@ async function sendNotification(env, config) {
 
   try {
     const teardownTime = `${config.teardownTime} ${getTimezoneAbbr(config.timezone)}`;
-    
+
     const emailHtml = `
       <div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px">
         <h1 style="color:#ffaa00">⚠️ Scheduled Teardown Reminder</h1>
@@ -240,25 +247,44 @@ async function sendNotification(env, config) {
 
     if (response.ok) {
       const recipientMsg = userEmail ? `${userEmail} (cc: ${env.ADMIN_EMAIL})` : env.ADMIN_EMAIL;
-      console.log(`✅ Notification email sent to ${recipientMsg}`);
+      const message = `Notification email sent to ${recipientMsg}`;
+      console.log(`✅ ${message}`);
+      await logToD1(env.NEXUS_DB, 'info', message);
     } else {
-      const error = await response.text();
-      console.error(`⚠️ Failed to send notification: ${response.status} - ${error}`);
+      const errorText = await response.text();
+      const message = `Failed to send notification email: HTTP ${response.status}`;
+      console.error(`⚠️ ${message} - ${errorText}`);
+      await logToD1(env.NEXUS_DB, 'error', message, {
+        status: response.status,
+        error: errorText,
+      });
     }
   } catch (error) {
-    console.error('Error sending notification:', error);
+    const message = 'Exception while sending notification email';
+    console.error(`Error sending notification:`, error);
+    await logToD1(env.NEXUS_DB, 'error', message, {
+      error: error.message,
+      stack: error.stack?.substring(0, 500),
+    });
   }
 }
 
 async function triggerTeardown(env, config) {
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
-    console.log('Missing required environment variables for teardown');
+    const missingVars = [];
+    if (!env.GITHUB_TOKEN) missingVars.push('GITHUB_TOKEN');
+    if (!env.GITHUB_OWNER) missingVars.push('GITHUB_OWNER');
+    if (!env.GITHUB_REPO) missingVars.push('GITHUB_REPO');
+
+    const message = `Missing required environment variables for teardown: ${missingVars.join(', ')}`;
+    console.log(message);
+    await logToD1(env.NEXUS_DB, 'error', message);
     return;
   }
 
   try {
     const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/teardown.yml/dispatches`;
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -276,13 +302,30 @@ async function triggerTeardown(env, config) {
     });
 
     if (response.status === 204) {
-      console.log('✅ Teardown workflow triggered successfully');
+      const message = 'Teardown workflow triggered successfully';
+      console.log(`✅ ${message}`);
+      await logToD1(env.NEXUS_DB, 'info', message, {
+        owner: env.GITHUB_OWNER,
+        repo: env.GITHUB_REPO,
+      });
     } else {
-      const error = await response.text();
-      console.error(`⚠️ Failed to trigger teardown: ${response.status} - ${error}`);
+      const errorText = await response.text();
+      const message = `Failed to trigger teardown workflow: HTTP ${response.status}`;
+      console.error(`⚠️ ${message} - ${errorText}`);
+      await logToD1(env.NEXUS_DB, 'error', message, {
+        status: response.status,
+        error: errorText,
+        owner: env.GITHUB_OWNER,
+        repo: env.GITHUB_REPO,
+      });
     }
   } catch (error) {
-    console.error('Error triggering teardown:', error);
+    const message = 'Exception while triggering teardown';
+    console.error(`Error triggering teardown:`, error);
+    await logToD1(env.NEXUS_DB, 'error', message, {
+      error: error.message,
+      stack: error.stack?.substring(0, 500),
+    });
   }
 }
 

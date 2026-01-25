@@ -1,0 +1,61 @@
+# =============================================================================
+# Hoppscotch - Open Source API Testing Platform
+# =============================================================================
+# Self-hosted alternative to Postman for API development and testing.
+# Includes team collaboration, collections, environments, and more.
+#
+# Access: https://hoppscotch.<domain>
+# Admin: https://hoppscotch.<domain>/admin
+# Docs: https://docs.hoppscotch.io/
+# =============================================================================
+
+services:
+  hoppscotch:
+    image: ${IMAGE_HOPPSCOTCH:-hoppscotch/hoppscotch:latest}
+    container_name: hoppscotch
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    env_file:
+      - .env
+    # Run migrations before starting the app
+    command: >
+      sh -c "pnpm exec prisma migrate deploy && exec node /usr/src/app/aio_run.mjs"
+    networks:
+      - app-network
+      - hoppscotch-internal
+    depends_on:
+      hoppscotch-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  hoppscotch-db:
+    image: postgres:15-alpine
+    container_name: hoppscotch-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=hoppscotch
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hoppscotch}
+      - POSTGRES_DB=hoppscotch
+    volumes:
+      - hoppscotch-db-data:/var/lib/postgresql/data
+    networks:
+      - hoppscotch-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hoppscotch"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  hoppscotch-db-data:
+
+networks:
+  app-network:
+    external: true
+  hoppscotch-internal:
+    driver: bridge
