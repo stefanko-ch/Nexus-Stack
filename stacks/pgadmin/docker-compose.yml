@@ -1,0 +1,39 @@
+# =============================================================================
+# pgAdmin - PostgreSQL Database Management Tool
+# =============================================================================
+# Web-based administration tool for PostgreSQL databases.
+# Provides a rich GUI for managing databases, running queries, and more.
+#
+# Access: https://pgadmin.<domain>
+# Docs: https://www.pgadmin.org/docs/
+# =============================================================================
+
+services:
+  pgadmin:
+    image: ${IMAGE_PGADMIN:-dpage/pgadmin4:latest}
+    container_name: pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${ADMIN_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+      - PGADMIN_CONFIG_SERVER_MODE=True
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  pgadmin-data:
+
+networks:
+  app-network:
+    external: true

@@ -8,6 +8,7 @@ Images are pinned to **major versions** where supported for automatic security p
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
+| Adminer | `adminer` | `latest` | Latest ² |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
@@ -31,6 +32,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Meltano | `meltanolabs/meltano` | `latest` | Latest ² |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
+| PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
+| pgAdmin | `dpage/pgadmin4` | `latest` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
@@ -47,6 +50,42 @@ Images are pinned to **major versions** where supported for automatic security p
 - **Latest** - Always newest version (when no semver available)
 
 **To upgrade**: Edit the version in `services.yaml` and run Spin-Up.
+
+---
+
+## Adminer
+
+![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
+
+**Lightweight database management tool**
+
+Adminer is a full-featured database management tool written in a single PHP file. Despite its small size, it supports a wide range of databases and provides essential features for database administration. Features include:
+- Support for PostgreSQL, MySQL, SQLite, MS SQL, Oracle, MongoDB, and more
+- SQL query editor with syntax highlighting
+- Table structure viewer and editor
+- Data import/export (SQL, CSV)
+- User and permission management
+- Lightweight alternative to phpMyAdmin or pgAdmin
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8888` |
+| Suggested Subdomain | `adminer` |
+| Public Access | No (database access) |
+| Website | [adminer.org](https://www.adminer.org) |
+| Source | [GitHub](https://github.com/vrana/adminer) |
+
+### Usage
+
+1. Access Adminer at `https://adminer.<domain>`
+2. Select database system (PostgreSQL, MySQL, etc.)
+3. Enter connection details:
+   - **Server**: `postgres` (for standalone PostgreSQL) or service name
+   - **Username**: `postgres` (or service-specific user)
+   - **Password**: From Infisical (`POSTGRES_PASSWORD`)
+   - **Database**: `postgres` (or specific database)
+
+> ℹ️ **Note:** Adminer has no persistent configuration - you enter connection details on each login.
 
 ---
 
@@ -142,6 +181,106 @@ A lightweight management UI that allows you to easily manage your Docker environ
 | Source | [GitHub](https://github.com/portainer/portainer) |
 
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## pgAdmin
+
+![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)
+
+**PostgreSQL administration and development platform**
+
+pgAdmin is the most popular and feature-rich Open Source administration and development platform for PostgreSQL. Features include:
+- Graphical query builder and SQL editor
+- Database object browser and editor
+- Visual explain plans for query optimization
+- Server dashboard with monitoring
+- Backup and restore functionality
+- User and permission management
+- Support for PostgreSQL 10+ and all PostgreSQL extensions
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `5050` |
+| Suggested Subdomain | `pgadmin` |
+| Public Access | No (database administration) |
+| Website | [pgadmin.org](https://www.pgadmin.org) |
+| Source | [GitHub](https://github.com/pgadmin-org/pgadmin4) |
+
+### Usage
+
+1. Access pgAdmin at `https://pgadmin.<domain>`
+2. Login with credentials from Infisical (`PGADMIN_USERNAME` / `PGADMIN_PASSWORD`)
+3. Add a new server connection:
+   - **Name**: Nexus PostgreSQL (or custom name)
+   - **Host**: `postgres` (Docker network hostname)
+   - **Port**: `5432`
+   - **Username**: `postgres`
+   - **Password**: From Infisical (`POSTGRES_PASSWORD`)
+   - **Maintenance database**: `postgres`
+
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use Infisical to view the credentials.
+
+---
+
+## PostgreSQL
+
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)
+
+**Powerful open-source relational database (internal-only)**
+
+PostgreSQL is a powerful, open-source object-relational database system with over 35 years of active development. This stack provides a standalone PostgreSQL server accessible only within the Docker network.
+
+**Important:** This service has **no web UI** and **no external access**. It runs only on the internal Docker network.
+
+| Setting | Value |
+|---------|-------|
+| Internal Port | `5432` |
+| External Access | **None** (internal-only) |
+| Default User | `postgres` |
+| Default Database | `postgres` |
+| Website | [postgresql.org](https://www.postgresql.org) |
+| Source | [GitHub](https://github.com/postgres/postgres) |
+
+### Access Methods
+
+PostgreSQL is accessible via:
+
+1. **pgAdmin or Adminer** (Web UIs)
+   - Enable `pgadmin` or `adminer` stack
+   - Connect to `postgres:5432`
+
+2. **From other Docker containers**
+   - Connection string: `postgresql://postgres:<password>@postgres:5432/postgres`
+   - Get password from Infisical (`POSTGRES_PASSWORD`)
+
+3. **Via SSH Tunnel** (for local tools like DBeaver, DataGrip)
+   ```bash
+   ssh -L 5432:postgres:5432 nexus
+   # Then connect to localhost:5432
+   ```
+
+4. **Via Wetty** (terminal access)
+   - Enable `wetty` stack
+   - Run: `docker exec -it postgres psql -U postgres`
+
+### Creating Databases and Users
+
+```bash
+# Via Wetty or SSH
+docker exec -it postgres psql -U postgres
+
+-- Create a new database
+CREATE DATABASE myapp;
+
+-- Create a new user
+CREATE USER myapp_user WITH PASSWORD 'secure_password';
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON DATABASE myapp TO myapp_user;
+```
+
+> 🔒 **Security:** PostgreSQL is not exposed to the internet. All access is via internal Docker network or SSH tunnel.
 
 ---
 

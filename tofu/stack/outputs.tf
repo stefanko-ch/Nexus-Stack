@@ -120,6 +120,12 @@ output "secrets" {
     # Meltano
     meltano_db_password = random_password.meltano_db.result
 
+    # PostgreSQL
+    postgres_password = random_password.postgres.result
+
+    # pgAdmin
+    pgadmin_password = random_password.pgadmin.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

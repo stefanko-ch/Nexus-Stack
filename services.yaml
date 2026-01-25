@@ -19,6 +19,13 @@
 # =============================================================================
 
 services:
+  adminer:
+    subdomain: "adminer"
+    port: 8888
+    public: false
+    description: "Lightweight database management tool supporting PostgreSQL, MySQL, SQLite, and more."
+    image: "adminer:latest"
+
   cloudbeaver:
     subdomain: "cloudbeaver"
     port: 8978
@@ -167,6 +174,20 @@ services:
     public: false
     description: "Docker container management UI for easy deployment and monitoring."
     image: "portainer/portainer-ce:lts"
+
+  pgadmin:
+    subdomain: "pgadmin"
+    port: 5050
+    public: false
+    description: "Web-based PostgreSQL administration tool for managing databases and running queries."
+    image: "dpage/pgadmin4:latest"
+
+  postgres:
+    port: 5432
+    public: false
+    internal_only: true
+    description: "PostgreSQL database server - accessible only internally or via pgAdmin/Adminer."
+    image: "postgres:17-alpine"
 
   redpanda:
     subdomain: "redpanda"
