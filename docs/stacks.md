@@ -10,6 +10,7 @@ Images are pinned to **major versions** where supported for automatic security p
 |---------|-------|-----|----------|
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | Grafana | `grafana/grafana` | `12` | Major |
+| Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
 | Prometheus | `prom/prometheus` | `v3` | Major |
 | Loki | `grafana/loki` | `3` | Major |
 | Promtail | `grafana/promtail` | `3` | Major |
@@ -18,6 +19,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Portainer | `portainer/portainer-ce` | `2` | Major |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
 | n8n | `n8nio/n8n` | `1` | Major |
+| Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
 | Kestra | `kestra/kestra` | `v1` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | Metabase | `metabase/metabase` | `v0.58.x` | Minor |
@@ -29,6 +31,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
+| Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
+| Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
 ¹ No major version tags available, requires manual updates.  
@@ -272,6 +276,78 @@ The stack comes with three ready-to-use dashboards:
 
 ---
 
+## Hoppscotch
+
+![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)
+
+**Open-source API testing platform (Postman alternative)**
+
+Hoppscotch is a lightweight, open-source API development ecosystem that offers a fast and beautiful interface for testing APIs. Features include:
+- REST, GraphQL, WebSocket, and SSE support
+- Team collaboration with shared workspaces
+- Collections and environments management
+- Pre-request and post-request scripts
+- Authentication helpers (OAuth, Basic, Bearer, API Key)
+- Request history and favorites
+- Import/export with Postman, OpenAPI, and HAR formats
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3003` |
+| Suggested Subdomain | `hoppscotch` |
+| Admin Path | `/admin` |
+| Public Access | No (API testing tool) |
+| Website | [hoppscotch.io](https://hoppscotch.io) |
+| Source | [GitHub](https://github.com/hoppscotch/hoppscotch) |
+
+### Architecture
+
+The stack includes:
+- **Hoppscotch AIO** - All-in-one container with frontend, backend, and admin
+- **PostgreSQL** - Database for users, teams, and collections
+
+### Authentication
+
+Hoppscotch uses email magic links for authentication by default. No OAuth configuration is required.
+
+> ℹ️ **Note:** This stack uses the official AIO (All-In-One) container which includes the main app, admin dashboard, and API backend in a single container.
+
+---
+
+## Kafka-UI
+
+![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)
+
+**Modern web UI for Apache Kafka / Redpanda management**
+
+Kafka-UI is a free, open-source web UI for monitoring and managing Apache Kafka and Redpanda clusters. Features include:
+- Multi-cluster management in one place
+- Topic creation and configuration
+- Real-time message browsing with filtering
+- Consumer group monitoring with lag tracking
+- Schema Registry support (Avro, JSON Schema, Protobuf)
+- KSQL DB integration
+- Live message tailing
+- Topic data comparison
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8181` |
+| Suggested Subdomain | `kafka-ui` |
+| Public Access | No (cluster management) |
+| Website | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
+| Source | [GitHub](https://github.com/provectus/kafka-ui) |
+
+### Pre-configured Connection
+
+Kafka-UI is automatically configured to connect to the Redpanda cluster:
+- **Bootstrap Servers:** `redpanda:9092`
+- **Schema Registry:** `http://redpanda:8081`
+
+> Dynamic configuration is enabled - you can add additional clusters via the UI settings.
+
+---
+
 ## Kestra
 
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
@@ -496,6 +572,108 @@ Redpanda Console is a developer-friendly web UI for managing and debugging your 
 | Public Access | No (cluster management) |
 | Website | [redpanda.com](https://redpanda.com) |
 | Source | [GitHub](https://github.com/redpanda-data/console) |
+
+---
+
+## Redpanda Connect
+
+![Redpanda Connect](https://img.shields.io/badge/Redpanda_Connect-E4405F?logo=redpanda&logoColor=white)
+
+**Declarative data streaming framework for real-time pipelines**
+
+Redpanda Connect (formerly Benthos) is a high-performance stream processor that makes building data pipelines simple. Features include:
+- Declarative YAML configuration
+- Hundreds of connectors (Kafka, PostgreSQL, S3, HTTP, etc.)
+- Built-in data transformation with Bloblang
+- Stateless and easy to scale
+- Real-time and batch processing
+- Prometheus metrics endpoint
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `4195` |
+| Suggested Subdomain | `redpanda-connect` |
+| Public Access | No (data pipelines) |
+| Website | [redpanda.com](https://redpanda.com) |
+| Docs | [docs.redpanda.com/redpanda-connect](https://docs.redpanda.com/redpanda-connect/) |
+| Source | [GitHub](https://github.com/redpanda-data/connect) |
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `/ready` | Health check endpoint |
+| `/metrics` | Prometheus metrics |
+| `/version` | Version information |
+
+### Configuration
+
+The pipeline configuration is in `stacks/redpanda-connect/config.yaml`. By default, a simple HTTP echo pipeline is configured. Replace with your own pipeline configuration.
+
+Example pipeline to stream from Redpanda to stdout:
+```yaml
+input:
+  kafka:
+    addresses: ["redpanda:9092"]
+    topics: ["my-topic"]
+    consumer_group: "my-consumer"
+
+output:
+  stdout: {}
+```
+
+---
+
+## Redpanda Datagen
+
+![Redpanda Datagen](https://img.shields.io/badge/Redpanda_Datagen-E4405F?logo=redpanda&logoColor=white)
+
+**Test data generator for Redpanda topics**
+
+A separate stack for generating realistic test data into Redpanda topics. Uses Redpanda Connect with a pre-configured data generation pipeline. Enable this service via the Control Panel when you need test data - disable it when not needed to avoid overhead.
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `4196` |
+| Suggested Subdomain | `redpanda-datagen` |
+| Public Access | No (test data generator) |
+| Target Topic | `test-events` |
+| Message Rate | 1 message/second |
+
+### Generated Data Format
+
+The datagen produces realistic e-commerce event data:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "user_id": 4523,
+  "event_type": "purchase",
+  "amount": 249,
+  "metadata": {
+    "browser": "Chrome",
+    "country": "DE"
+  }
+}
+```
+
+### Event Types
+
+| Event | Description |
+|-------|-------------|
+| `click` | User clicked on an element |
+| `view` | User viewed a page |
+| `purchase` | User made a purchase (includes amount) |
+| `signup` | User signed up |
+
+### Usage
+
+1. **Enable** the `redpanda-datagen` service in the Control Panel
+2. **View data** in Redpanda Console at the `test-events` topic
+3. **Disable** when done testing to stop data generation
+
+> ℹ️ **Note:** Data generation runs continuously while the service is enabled (1 msg/sec). Disable via Control Panel when not needed.
 
 ---
 

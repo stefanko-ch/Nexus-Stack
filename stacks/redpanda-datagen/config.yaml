@@ -1,0 +1,40 @@
+# =============================================================================
+# Redpanda Datagen - Test Data Generator Configuration
+# =============================================================================
+# Generates realistic e-commerce event data and sends it to Redpanda.
+# Data is generated every second while the container is running.
+#
+# Target topic: test-events
+# Message format: JSON
+# =============================================================================
+
+http:
+  enabled: true
+  address: "0.0.0.0:4195"
+
+input:
+  generate:
+    interval: 1s
+    count: 0  # infinite (runs while container is up)
+    mapping: |
+      root.id = uuid_v4()
+      root.timestamp = now()
+      root.user_id = random_int(min: 1, max: 10000)
+      let event_type = ["click", "view", "purchase", "signup"].index(random_int(min: 0, max: 3))
+      root.event_type = $event_type
+      root.amount = if $event_type == "purchase" { random_int(min: 10, max: 500) } else { null }
+      root.metadata = {
+        "browser": ["Chrome", "Firefox", "Safari", "Edge"].index(random_int(min: 0, max: 3)),
+        "country": ["US", "DE", "CH", "UK", "FR"].index(random_int(min: 0, max: 4))
+      }
+
+output:
+  kafka:
+    addresses:
+      - redpanda:9092
+    topic: test-events
+    client_id: redpanda-datagen
+    compression: snappy
+
+# Metrics endpoint: /metrics (Prometheus format)
+# Health endpoint: /ready

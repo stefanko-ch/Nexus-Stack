@@ -111,6 +111,12 @@ output "secrets" {
     # MinIO
     minio_root_password = random_password.minio_root.result
 
+    # Hoppscotch
+    hoppscotch_db_password    = random_password.hoppscotch_db.result
+    hoppscotch_jwt_secret     = random_password.hoppscotch_jwt.result
+    hoppscotch_session_secret = random_password.hoppscotch_session.result
+    hoppscotch_encryption_key = random_password.hoppscotch_encryption.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

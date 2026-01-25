@@ -53,6 +53,15 @@ services:
       cadvisor: "ghcr.io/google/cadvisor:0.56"
       node-exporter: "prom/node-exporter:v1.10.2"
 
+  hoppscotch:
+    subdomain: "hoppscotch"
+    port: 3003
+    public: false
+    description: "Open-source API testing platform (Postman alternative)."
+    image: "hoppscotch/hoppscotch:latest"
+    support_images:
+      postgres: "postgres:15-alpine"
+
   info:
     subdomain: "info"
     port: 8090
@@ -78,6 +87,13 @@ services:
     public: false
     description: "Collection of handy online tools for developers - encoders, converters, generators, and more."
     image: "corentinth/it-tools:latest"
+
+  kafka-ui:
+    subdomain: "kafka-ui"
+    port: 8181
+    public: false
+    description: "Modern web UI for Apache Kafka / Redpanda management."
+    image: "provectuslabs/kafka-ui:latest"
 
   kestra:
     subdomain: "kestra"
@@ -156,6 +172,20 @@ services:
     public: false
     description: "Web UI for managing and debugging Redpanda/Kafka workloads."
     image: "redpandadata/console:v2.8"
+
+  redpanda-connect:
+    subdomain: "redpanda-connect"
+    port: 4195
+    public: false
+    description: "Declarative data streaming framework for real-time pipelines."
+    image: "redpandadata/connect:latest"
+
+  redpanda-datagen:
+    subdomain: "redpanda-datagen"
+    port: 4196
+    public: false
+    description: "Test data generator for Redpanda topics."
+    image: "redpandadata/connect:latest"
 
   uptime-kuma:
     subdomain: "uptime-kuma"
