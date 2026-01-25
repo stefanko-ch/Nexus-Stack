@@ -133,6 +133,18 @@ resource "random_password" "meltano_db" {
   special = false
 }
 
+# PostgreSQL password
+resource "random_password" "postgres" {
+  length  = 24
+  special = false
+}
+
+# pgAdmin password
+resource "random_password" "pgadmin" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================
@@ -245,6 +257,12 @@ locals {
     for key, service in var.services :
     key => service if service.enabled
   }
+
+  # Filter services that have a subdomain (exclude internal-only services like PostgreSQL)
+  enabled_services_with_subdomain = {
+    for key, service in local.enabled_services :
+    key => service if can(service.subdomain) && service.subdomain != null && service.subdomain != ""
+  }
 }
 
 # Tunnel configuration - dynamic based on services
@@ -261,7 +279,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
 
     # Dynamic service ingress rules
     dynamic "ingress_rule" {
-      for_each = local.enabled_services
+      for_each = local.enabled_services_with_subdomain
       content {
         hostname = "${ingress_rule.value.subdomain}.${var.domain}"
         service  = "http://localhost:${ingress_rule.value.port}"
@@ -361,7 +379,7 @@ resource "cloudflare_record" "ssh" {
 
 # Dynamic DNS records for all enabled services
 resource "cloudflare_record" "services" {
-  for_each = local.enabled_services
+  for_each = local.enabled_services_with_subdomain
 
   zone_id = var.cloudflare_zone_id
   name    = each.value.subdomain
@@ -424,7 +442,7 @@ resource "cloudflare_zero_trust_access_policy" "ssh_service_token" {
 
 # Dynamic Access Applications for all enabled services
 resource "cloudflare_zero_trust_access_application" "services" {
-  for_each = local.enabled_services
+  for_each = local.enabled_services_with_subdomain
 
   zone_id           = var.cloudflare_zone_id
   name              = "${local.resource_prefix} ${title(each.key)}"
@@ -439,7 +457,7 @@ resource "cloudflare_zero_trust_access_application" "services" {
 # Dynamic Access Policies for all enabled services (Email OTP)
 resource "cloudflare_zero_trust_access_policy" "services_email" {
   for_each = {
-    for k, v in local.enabled_services : k => v
+    for k, v in local.enabled_services_with_subdomain : k => v
     if !v.public
   }
 
