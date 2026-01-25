@@ -213,28 +213,12 @@ Manage your infrastructure via the web interface at `https://control.YOUR_DOMAIN
 
 SSH access is available for debugging purposes. All SSH traffic goes through Cloudflare Tunnel.
 
-### Setup SSH Config
+For detailed instructions on setting up SSH access, including:
+- Getting the SSH key from Infisical
+- Handling changing host keys after server recreation
+- Service Token authentication for CI/CD
 
-Add to your `~/.ssh/config`:
-
-```
-Host nexus
-  HostName ssh.yourdomain.com
-  User root
-  ProxyCommand cloudflared access ssh --hostname %h
-```
-
-**Requirements:**
-- `cloudflared` installed: `brew install cloudflared`
-- Cloudflare Access configured for SSH
-
-### Test Connection
-
-```bash
-ssh nexus
-```
-
-You'll be prompted for Cloudflare Access authentication on first connection.
+See the **[SSH Access Guide](ssh-access.md)**.
 
 ---
 
