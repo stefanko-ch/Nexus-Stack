@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.8.0...v0.9.0) (2026-01-25)
+
+
+### 🚀 Features
+
+* **stacks:** Add Hoppscotch API testing platform ([f93b682](https://github.com/stefanko-ch/Nexus-Stack/commit/f93b682bbf4f34dced4a682bae081305d81a4e84))
+* **stacks:** Add Hoppscotch, Kafka-UI, and SSH/debugging docs ([3a9a4dc](https://github.com/stefanko-ch/Nexus-Stack/commit/3a9a4dcc943ff7c7d68d1fa6920281bfa3864202))
+* **stacks:** Add Kafka-UI web interface for Redpanda ([af84d60](https://github.com/stefanko-ch/Nexus-Stack/commit/af84d6009edabafe0e23c91e0450f6d9f552ed84))
+* **stacks:** Add Redpanda Connect and Datagen stacks ([ba8e912](https://github.com/stefanko-ch/Nexus-Stack/commit/ba8e912c30c296112cc60e14836c46873090d3e1)), closes [#125](https://github.com/stefanko-ch/Nexus-Stack/issues/125) [#140](https://github.com/stefanko-ch/Nexus-Stack/issues/140)
+
+
+### 🐛 Bug Fixes
+
+* **hoppscotch:** Update port mapping for new AIO image architecture ([4fa161a](https://github.com/stefanko-ch/Nexus-Stack/commit/4fa161a083de9a445aaf01c6a549576b476affaf))
+* **hoppscotch:** Use exec to prevent container shutdown ([1c02aea](https://github.com/stefanko-ch/Nexus-Stack/commit/1c02aeac2528bc68896460e7defbca0669d7b4cf))
+* **info-page:** Mark redpanda-connect and redpanda-datagen as non-clickable ([ba34976](https://github.com/stefanko-ch/Nexus-Stack/commit/ba349763f2c9d5031c300b1129b71b231c9d07e5))
+* **stacks:** Add database migration step for Hoppscotch ([d26ab37](https://github.com/stefanko-ch/Nexus-Stack/commit/d26ab372842f196f3e22546fa832fad3d4a2b58b))
+* **stacks:** Correct subdomain names for Redpanda Connect and Datagen ([32c75f7](https://github.com/stefanko-ch/Nexus-Stack/commit/32c75f7a558f57ae330dd7d91d27702f89d82d5a))
+* **stacks:** Fix Bloblang mapping in redpanda-datagen ([0a8de7a](https://github.com/stefanko-ch/Nexus-Stack/commit/0a8de7a209a3f5b5caea11c39f9b4ac6f9f43936))
+* **stacks:** Fix config path for Redpanda Connect containers ([d3e95c9](https://github.com/stefanko-ch/Nexus-Stack/commit/d3e95c91fa2eba76a722d1f2e5237c957c432ee6))
+* **stacks:** Fix migration paths for Hoppscotch ([349bceb](https://github.com/stefanko-ch/Nexus-Stack/commit/349bceb41741b58498856a011de33bf13edd320f))
+* **stacks:** Remove manual migration step for Hoppscotch ([82077d7](https://github.com/stefanko-ch/Nexus-Stack/commit/82077d7cd0efcc8515550968892de9f54cac96ba))
+* **stacks:** Use correct Prisma migration command for Hoppscotch ([5e0a9e4](https://github.com/stefanko-ch/Nexus-Stack/commit/5e0a9e4b614d77ae0c3bcdef58e526b2d38f6ea9))
+* **worker:** Add D1 logging for GitHub API errors ([a7f55a7](https://github.com/stefanko-ch/Nexus-Stack/commit/a7f55a71c0a54ddab00ee4f47d54f811adda080d))
+
+
+### 📚 Documentation
+
+* Add comprehensive debugging guide ([6c6db17](https://github.com/stefanko-ch/Nexus-Stack/commit/6c6db17f2902bb73f69fd57e0a8e0eb8a5f9b634))
+* Add comprehensive SSH access guide ([e78a7af](https://github.com/stefanko-ch/Nexus-Stack/commit/e78a7af12228a03f34085e84e1545cf036f63809))
+* Add no-advertising policy to agent instructions ([de6048c](https://github.com/stefanko-ch/Nexus-Stack/commit/de6048cff5c74ca843722b36ab067c0e8a4b373d))
+* Fix badge order and improve stack addition guidelines ([7e87025](https://github.com/stefanko-ch/Nexus-Stack/commit/7e87025774e62d47a8385673f48bfaa7248b76b3))
+
 ## [0.8.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.7.0...v0.8.0) (2026-01-22)
 
 
