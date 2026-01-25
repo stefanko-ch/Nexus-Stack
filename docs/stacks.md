@@ -29,6 +29,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
+| Meltano | `meltanolabs/meltano` | `latest` | Latest ² |
+| PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
@@ -432,6 +434,55 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 | Source | [GitHub](https://github.com/metabase/metabase) |
 
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## Meltano
+
+![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)
+
+**Open-source data integration platform for building modular data pipelines**
+
+Meltano is a modular, open-source data integration platform that allows data teams to build, test, and deploy custom data pipelines. Features include:
+- Modular architecture with Singer protocol support
+- 500+ pre-built data connectors (Tap/Target plugins)
+- dbt integration for transformations
+- Version control friendly with Git-based configs
+- State management for incremental loading
+- Web UI for pipeline management and monitoring
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `5000` |
+| Suggested Subdomain | `meltano` |
+| Public Access | No (data pipelines) |
+| Database | PostgreSQL 16 |
+| Website | [meltano.com](https://meltano.com) |
+| Source | [GitHub](https://github.com/meltanolabs/meltano) |
+
+### Architecture
+
+The stack includes:
+- **Meltano** - Main application with web UI
+- **PostgreSQL** - Database for metadata storage
+
+### Configuration
+
+Meltano uses PostgreSQL for metadata storage. All project data (pipelines, schedules, logs) is persisted in the `meltano-data` volume.
+
+### Getting Started
+
+1. Access Meltano at `https://meltano.<domain>`
+2. Initialize a new project or use the existing one
+3. Add extractors (taps) and loaders (targets) via UI or CLI
+4. Create and schedule your pipelines
+
+### CLI Access via Wetty
+
+If Wetty is enabled, you can access Meltano CLI:
+```bash
+docker exec -it meltano meltano --help
+```
 
 ---
 

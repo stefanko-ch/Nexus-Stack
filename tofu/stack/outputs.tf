@@ -117,6 +117,9 @@ output "secrets" {
     hoppscotch_session_secret = random_password.hoppscotch_session.result
     hoppscotch_encryption_key = random_password.hoppscotch_encryption.result
 
+    # Meltano
+    meltano_db_password = random_password.meltano_db.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

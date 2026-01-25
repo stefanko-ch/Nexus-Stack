@@ -1,0 +1,64 @@
+# =============================================================================
+# Meltano - Open Source Data Integration Platform
+# =============================================================================
+# Build modular data pipelines with 500+ connectors using the Singer protocol.
+# Includes dbt integration for transformations and web UI for management.
+#
+# Access: https://meltano.<domain>
+# Docs: https://docs.meltano.com/
+# =============================================================================
+
+services:
+  meltano:
+    image: ${IMAGE_MELTANO:-meltanolabs/meltano:latest}
+    container_name: meltano
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - MELTANO_DATABASE_URI=postgresql://meltano:${MELTANO_DB_PASSWORD}@meltano-db:5432/meltano
+      - MELTANO_PROJECT_ROOT=/project
+      - MELTANO_CLI_LOG_LEVEL=INFO
+    volumes:
+      - meltano-data:/project
+    networks:
+      - app-network
+      - meltano-internal
+    depends_on:
+      meltano-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command: ui
+
+  meltano-db:
+    image: postgres:16-alpine
+    container_name: meltano-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=meltano
+      - POSTGRES_PASSWORD=${MELTANO_DB_PASSWORD}
+      - POSTGRES_DB=meltano
+    volumes:
+      - meltano-db-data:/var/lib/postgresql/data
+    networks:
+      - meltano-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meltano -d meltano"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  meltano-data:
+  meltano-db-data:
+
+networks:
+  app-network:
+    external: true
+  meltano-internal:
+    driver: bridge

@@ -127,6 +127,12 @@ resource "random_password" "hoppscotch_encryption" {
   special = false
 }
 
+# Meltano database password
+resource "random_password" "meltano_db" {
+  length  = 24
+  special = false
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================
