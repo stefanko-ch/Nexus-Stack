@@ -270,6 +270,10 @@ Make sure your email matches `TF_VAR_admin_email` in GitHub Secrets.
 2. Verify the service is enabled
 3. Check if infrastructure is running (may be torn down)
 
+### Need more help?
+
+For in-depth debugging including container logs, health checks, and service-specific troubleshooting, see the **[Debugging Guide](debugging.md)**.
+
 ---
 
 ## 📧 Email Notifications via Resend (Optional)
