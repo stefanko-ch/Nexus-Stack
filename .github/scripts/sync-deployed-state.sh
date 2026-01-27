@@ -98,22 +98,28 @@ def validate_services_yaml(data):
         return errors
     
     # Required fields for each service
-    required_fields = ['subdomain', 'port', 'image']
-    
+    # Note: subdomain is not required for internal_only services
+    required_fields = ['port', 'image']
+
     for name, config in services.items():
         # Validate service name format
         if not validate_service_name(name):
             errors.append(f"Invalid service name '{name}': must be 1-63 characters, lowercase letters, numbers, hyphens, underscores only")
             continue
-        
+
         if not isinstance(config, dict):
             errors.append(f"Service '{name}': config must be a dictionary")
             continue
-        
+
         # Check required fields
         for field in required_fields:
             if field not in config:
                 errors.append(f"Service '{name}': missing required field '{field}'")
+
+        # Check subdomain is present for non-internal services
+        is_internal_only = config.get('internal_only', False)
+        if not is_internal_only and 'subdomain' not in config:
+            errors.append(f"Service '{name}': missing required field 'subdomain' (required for non-internal services)")
         
         # Validate field types and values
         if 'port' in config:

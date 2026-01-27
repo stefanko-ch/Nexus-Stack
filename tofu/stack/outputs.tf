@@ -45,9 +45,9 @@ output "tunnel_id" {
 }
 
 output "service_urls" {
-  description = "URLs for all enabled services"
+  description = "URLs for all enabled services with a subdomain"
   value = {
-    for key, service in local.enabled_services :
+    for key, service in local.enabled_services_with_subdomain :
     key => "https://${service.subdomain}.${var.domain}"
   }
 }
@@ -116,6 +116,15 @@ output "secrets" {
     hoppscotch_jwt_secret     = random_password.hoppscotch_jwt.result
     hoppscotch_session_secret = random_password.hoppscotch_session.result
     hoppscotch_encryption_key = random_password.hoppscotch_encryption.result
+
+    # Meltano
+    meltano_db_password = random_password.meltano_db.result
+
+    # PostgreSQL
+    postgres_password = random_password.postgres.result
+
+    # pgAdmin
+    pgadmin_password = random_password.pgadmin.result
 
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username

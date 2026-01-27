@@ -93,51 +93,59 @@ flowchart LR
 
 ## Available Stacks
 
-![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
+![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
+![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
 ![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
-![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
-![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
-![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)
+![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
+![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
+![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
 ![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
-![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
-![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
+![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
 ![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)
+![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
+![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)
 ![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
+![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
+![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
+![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)
+![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)
 ![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)
-![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
-![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
-![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
+![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
-![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 
 | Stack | Description | Website |
 |-------|-------------|--------|
-| **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
+| **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
+| **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
-| **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
-| **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
-| **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
+| **Info** | Landing page with service overview dashboard | — |
+| **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
+| **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
 | **Kafka-UI** | Modern web UI for Apache Kafka / Redpanda management | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
-| **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
-| **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
+| **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
+| **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
+| **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
+| **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
+| **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
+| **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
+| **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
+| **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
-| **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
-| **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
-| **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
+| **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |
-| **Info** | Landing page with service overview dashboard | — |
 
 → See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.
 
