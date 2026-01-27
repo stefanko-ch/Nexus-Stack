@@ -848,6 +848,7 @@ EOF
     {"secretKey": "MINIO_ROOT_USER", "secretValue": "admin", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},
+    {"secretKey": "POSTGRES_USERNAME", "secretValue": "postgres", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "POSTGRES_PASSWORD", "secretValue": "$POSTGRES_PASS", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "PGADMIN_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$PGADMIN_TAG"]},
     {"secretKey": "PGADMIN_PASSWORD", "secretValue": "$PGADMIN_PASS", "tagIds": ["$PGADMIN_TAG"]}$SSH_KEY_SECRET

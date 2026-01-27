@@ -81,12 +81,12 @@ Adminer is a full-featured database management tool written in a single PHP file
 2. Login page shows pre-filled connection details:
    - **System**: PostgreSQL (select if not pre-selected)
    - **Server**: `postgres` (pre-filled)
-   - **Username**: `postgres`
-   - **Password**: Enter password from Infisical (`POSTGRES_PASSWORD`)
+   - **Username**: From Infisical (`POSTGRES_USERNAME`)
+   - **Password**: From Infisical (`POSTGRES_PASSWORD`)
    - **Database**: `postgres` (or leave empty to see all databases)
 3. Click "Login"
 
-> ℹ️ **Note:** Server hostname is pre-configured as `postgres`. You only need to enter the username and password on each login (Adminer doesn't save credentials).
+> ℹ️ **Note:** Server hostname is pre-configured as `postgres`. Get username and password from Infisical - you need to enter them on each login (Adminer doesn't save credentials).
 
 ---
 
@@ -214,9 +214,11 @@ pgAdmin is the most popular and feature-rich Open Source administration and deve
 2. Login with credentials from Infisical (`PGADMIN_USERNAME` / `PGADMIN_PASSWORD`)
 3. **Pre-configured server:** The "Nexus PostgreSQL" server appears automatically in the left sidebar
 4. Click on the server and enter the password from Infisical (`POSTGRES_PASSWORD`)
+   - Username is pre-configured as `postgres` (from `POSTGRES_USERNAME` in Infisical)
+   - You only need to enter the password
 5. The password is saved for future logins
 
-> ✅ **Auto-configured:** Both the admin account and PostgreSQL server connection are pre-configured. You only need to enter the PostgreSQL password once.
+> ✅ **Auto-configured:** Both the admin account and PostgreSQL server connection (including username) are pre-configured. You only need to enter the PostgreSQL password once.
 
 ---
 
