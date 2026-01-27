@@ -665,7 +665,7 @@ docker exec -it meltano meltano logs
 
 ## Soda Core
 
-![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=soda&logoColor=white)
+![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)
 
 **CLI-based data quality testing tool using SodaCL checks**
 
