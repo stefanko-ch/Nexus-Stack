@@ -387,23 +387,26 @@
         const noLinkServices = ['redpanda', 'redpanda-connect', 'redpanda-datagen'];
 
         function createServiceCard(name, service, isActive) {
-            const url = `https://${service.subdomain}.${DOMAIN}`;
+            // Check if service has a subdomain (internal-only services don't)
+            const hasSubdomain = service.subdomain && service.subdomain !== '';
+            const url = hasSubdomain ? `https://${service.subdomain}.${DOMAIN}` : 'Internal-only';
             const description = service.description || 'No description available';
             const version = getVersion(name);
             const card = document.createElement('div');
-            const hasNoLink = noLinkServices.includes(name);
+            // Service has no link if explicitly listed OR if it has no subdomain (internal-only)
+            const hasNoLink = noLinkServices.includes(name) || !hasSubdomain;
             card.className = `service-card ${isActive ? '' : 'disabled'} ${hasNoLink ? 'no-link' : ''}`;
-            
+
             // Format name for display
             const displayName = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-            
+
             // Handle version display - some already have 'v' prefix, some don't
             const displayVersion = version && version.startsWith('v') ? version : `v${version}`;
             const versionTag = version ? `<span class="service-version">${displayVersion}</span>` : '';
-            
-            // Backend services badge
-            const backendBadge = hasNoLink ? '<span class="service-status" style="background: rgba(100, 112, 128, 0.2); border-color: rgba(100, 112, 128, 0.4); color: #607080;">Backend</span>' : '';
-            
+
+            // Badge for services without web UI
+            const internalBadge = hasNoLink ? '<span class="service-status" style="background: rgba(100, 112, 128, 0.2); border-color: rgba(100, 112, 128, 0.4); color: #607080;">Internal-only</span>' : '';
+
             if (isActive && !hasNoLink) {
                 card.innerHTML = `
                     <a href="${url}" target="_blank">
@@ -419,15 +422,15 @@
                     </a>
                 `;
             } else if (isActive && hasNoLink) {
-                // Backend service without clickable link
+                // Internal-only service without clickable link
                 card.innerHTML = `
                     <div class="service-header">
                         <span class="service-name">${displayName}</span>
-                        ${backendBadge}
+                        ${internalBadge}
                     </div>
                     <p class="service-description">${description}</p>
                     <div class="service-footer">
-                        <span class="service-url" style="opacity: 0.4;">${url}</span>
+                        <span class="service-url" style="opacity: 0.4;">CLI or Database Access</span>
                         ${versionTag}
                     </div>
                 `;

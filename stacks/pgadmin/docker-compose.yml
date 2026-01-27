@@ -22,6 +22,7 @@ services:
       - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
     volumes:
       - pgadmin-data:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json:ro
     networks:
       - app-network
     healthcheck:

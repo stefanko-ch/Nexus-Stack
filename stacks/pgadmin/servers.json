@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Nexus PostgreSQL",
+      "Group": "Nexus Stack",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "Comment": "Standalone PostgreSQL database server. Password available in Infisical."
+    }
+  }
+}
