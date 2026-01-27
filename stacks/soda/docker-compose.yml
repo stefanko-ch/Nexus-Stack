@@ -1,0 +1,28 @@
+# =============================================================================
+# Soda Core - Data Quality Testing (CLI-only)
+# =============================================================================
+# Define data quality checks with SodaCL YAML and scan your databases.
+# Supports PostgreSQL, MySQL, Snowflake, BigQuery, and more.
+#
+# Internal Access: docker exec -it soda soda scan ...
+# Docs: https://docs.soda.io/
+# =============================================================================
+
+services:
+  soda:
+    image: ${IMAGE_SODA:-sodadata/soda-core:v3}
+    container_name: soda
+    restart: unless-stopped
+    volumes:
+      - soda-data:/workspace
+    working_dir: /workspace
+    networks:
+      - app-network
+    command: ["sleep", "infinity"]
+
+volumes:
+  soda-data:
+
+networks:
+  app-network:
+    external: true
