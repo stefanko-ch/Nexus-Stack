@@ -30,7 +30,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
-| Meltano | `meltano/meltano` | `latest` | Latest ² |
+| Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
 | pgAdmin | `dpage/pgadmin4` | `latest` | Latest ² |
@@ -580,21 +580,19 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 
 ![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)
 
-**Open-source data integration platform for building modular data pipelines**
+**Open-source CLI data integration platform for building modular data pipelines**
 
-Meltano is a modular, open-source data integration platform that allows data teams to build, test, and deploy custom data pipelines. Features include:
+Meltano is a modular, open-source data integration platform that allows data teams to build, test, and deploy custom data pipelines. It is a CLI-only tool (the web UI was removed in Meltano v3.0). Features include:
 - Modular architecture with Singer protocol support
 - 500+ pre-built data connectors (Tap/Target plugins)
 - dbt integration for transformations
 - Version control friendly with Git-based configs
 - State management for incremental loading
-- Web UI for pipeline management and monitoring
+- Job scheduling and orchestration via CLI
 
 | Setting | Value |
 |---------|-------|
-| Default Port | `5000` |
-| Suggested Subdomain | `meltano` |
-| Public Access | No (data pipelines) |
+| Internal Only | Yes (CLI access only) |
 | Database | PostgreSQL 16 |
 | Website | [meltano.com](https://meltano.com) |
 | Source | [GitHub](https://github.com/meltano/meltano) |
@@ -602,7 +600,7 @@ Meltano is a modular, open-source data integration platform that allows data tea
 ### Architecture
 
 The stack includes:
-- **Meltano** - Main application with web UI
+- **Meltano** - CLI application (runs as long-lived container)
 - **PostgreSQL** - Database for metadata storage
 
 ### Configuration
@@ -611,17 +609,29 @@ Meltano uses PostgreSQL for metadata storage. All project data (pipelines, sched
 
 ### Getting Started
 
-1. Access Meltano at `https://meltano.<domain>`
-2. Initialize a new project or use the existing one
-3. Add extractors (taps) and loaders (targets) via UI or CLI
-4. Create and schedule your pipelines
+Meltano is accessible via CLI only. Use SSH or Wetty to interact with it:
 
-### CLI Access via Wetty
-
-If Wetty is enabled, you can access Meltano CLI:
 ```bash
+# Initialize a new project
+docker exec -it meltano meltano init my-project
+
+# List available commands
 docker exec -it meltano meltano --help
+
+# Add an extractor (tap)
+docker exec -it meltano meltano add extractor tap-csv
+
+# Add a loader (target)
+docker exec -it meltano meltano add loader target-postgres
+
+# Run a pipeline
+docker exec -it meltano meltano run tap-csv target-postgres
+
+# Schedule a pipeline
+docker exec -it meltano meltano schedule add my-pipeline --extractor tap-csv --loader target-postgres --interval '@daily'
 ```
+
+> **Note:** Meltano has no web UI since v3.0. All interaction is via the CLI.
 
 ---
 

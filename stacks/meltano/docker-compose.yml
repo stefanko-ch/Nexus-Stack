@@ -1,20 +1,18 @@
 # =============================================================================
-# Meltano - Open Source Data Integration Platform
+# Meltano - Open Source Data Integration Platform (CLI-only)
 # =============================================================================
 # Build modular data pipelines with 500+ connectors using the Singer protocol.
-# Includes dbt integration for transformations and web UI for management.
+# Includes dbt integration for transformations.
 #
-# Access: https://meltano.<domain>
+# Internal Access: docker exec -it meltano meltano --help
 # Docs: https://docs.meltano.com/
 # =============================================================================
 
 services:
   meltano:
-    image: ${IMAGE_MELTANO:-meltano/meltano:latest}
+    image: ${IMAGE_MELTANO:-meltano/meltano:v4.0}
     container_name: meltano
     restart: unless-stopped
-    ports:
-      - "5000:5000"
     environment:
       - MELTANO_DATABASE_URI=postgresql://meltano:${MELTANO_DB_PASSWORD}@meltano-db:5432/meltano
       - MELTANO_PROJECT_ROOT=/project
@@ -27,13 +25,7 @@ services:
     depends_on:
       meltano-db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    command: ui
+    command: ["sleep", "infinity"]
 
   meltano-db:
     image: postgres:16-alpine

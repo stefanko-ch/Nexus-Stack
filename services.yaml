@@ -135,11 +135,11 @@ services:
     image: "ghcr.io/marimo-team/marimo:latest-sql"
 
   meltano:
-    subdomain: "meltano"
     port: 5000
     public: false
-    description: "Open-source data integration platform for building modular data pipelines."
-    image: "meltano/meltano:latest"
+    internal_only: true
+    description: "Open-source CLI data integration platform for building modular data pipelines."
+    image: "meltano/meltano:v4.0"
     support_images:
       postgres: "postgres:16-alpine"
 

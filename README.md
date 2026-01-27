@@ -134,7 +134,7 @@ flowchart LR
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
-| **Meltano** | Open-source data integration platform for building modular data pipelines | [meltano.com](https://meltano.com) |
+| **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
