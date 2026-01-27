@@ -30,7 +30,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
-| Meltano | `meltanolabs/meltano` | `latest` | Latest ² |
+| Meltano | `meltano/meltano` | `latest` | Latest ² |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
 | pgAdmin | `dpage/pgadmin4` | `latest` | Latest ² |
@@ -597,7 +597,7 @@ Meltano is a modular, open-source data integration platform that allows data tea
 | Public Access | No (data pipelines) |
 | Database | PostgreSQL 16 |
 | Website | [meltano.com](https://meltano.com) |
-| Source | [GitHub](https://github.com/meltanolabs/meltano) |
+| Source | [GitHub](https://github.com/meltano/meltano) |
 
 ### Architecture
 
