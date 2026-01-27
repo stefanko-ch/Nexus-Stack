@@ -8,6 +8,7 @@ Images are pinned to **major versions** where supported for automatic security p
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
+| Adminer | `adminer` | `latest` | Latest ² |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
@@ -29,6 +30,10 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
+| Meltano | `meltano/meltano` | `v4.0` | Minor |
+| PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
+| PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
+| pgAdmin | `dpage/pgadmin4` | `latest` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
@@ -45,6 +50,43 @@ Images are pinned to **major versions** where supported for automatic security p
 - **Latest** - Always newest version (when no semver available)
 
 **To upgrade**: Edit the version in `services.yaml` and run Spin-Up.
+
+---
+
+## Adminer
+
+![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
+
+**Lightweight database management tool**
+
+Adminer is a full-featured database management tool written in a single PHP file. Despite its small size, it supports a wide range of databases and provides essential features for database administration. Features include:
+- Support for PostgreSQL, MySQL, SQLite, MS SQL, Oracle, MongoDB, and more
+- SQL query editor with syntax highlighting
+- Table structure viewer and editor
+- Data import/export (SQL, CSV)
+- User and permission management
+- Lightweight alternative to phpMyAdmin or pgAdmin
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8888` |
+| Suggested Subdomain | `adminer` |
+| Public Access | No (database access) |
+| Website | [adminer.org](https://www.adminer.org) |
+| Source | [GitHub](https://github.com/vrana/adminer) |
+
+### Usage
+
+1. Access Adminer at `https://adminer.<domain>`
+2. Login page shows pre-filled connection details:
+   - **System**: PostgreSQL (select if not pre-selected)
+   - **Server**: `postgres` (pre-filled)
+   - **Username**: From Infisical (`POSTGRES_USERNAME`)
+   - **Password**: From Infisical (`POSTGRES_PASSWORD`)
+   - **Database**: `postgres` (or leave empty to see all databases)
+3. Click "Login"
+
+> ℹ️ **Note:** Server hostname is pre-configured as `postgres`. Get username and password from Infisical - you need to enter them on each login (Adminer doesn't save credentials).
 
 ---
 
@@ -140,6 +182,104 @@ A lightweight management UI that allows you to easily manage your Docker environ
 | Source | [GitHub](https://github.com/portainer/portainer) |
 
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## pgAdmin
+
+![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)
+
+**PostgreSQL administration and development platform**
+
+pgAdmin is the most popular and feature-rich Open Source administration and development platform for PostgreSQL. Features include:
+- Graphical query builder and SQL editor
+- Database object browser and editor
+- Visual explain plans for query optimization
+- Server dashboard with monitoring
+- Backup and restore functionality
+- User and permission management
+- Support for PostgreSQL 10+ and all PostgreSQL extensions
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `5050` |
+| Suggested Subdomain | `pgadmin` |
+| Public Access | No (database administration) |
+| Website | [pgadmin.org](https://www.pgadmin.org) |
+| Source | [GitHub](https://github.com/pgadmin-org/pgadmin4) |
+
+### Usage
+
+1. Access pgAdmin at `https://pgadmin.<domain>`
+2. Login with credentials from Infisical (`PGADMIN_USERNAME` / `PGADMIN_PASSWORD`)
+3. **Pre-configured server:** The "Nexus PostgreSQL" server appears automatically in the left sidebar
+4. Click on the server and enter the password from Infisical (`POSTGRES_PASSWORD`)
+   - Username is pre-configured as `postgres` (from `POSTGRES_USERNAME` in Infisical)
+   - You only need to enter the password
+5. The password is saved for future logins
+
+> ✅ **Auto-configured:** Both the admin account and PostgreSQL server connection (including username) are pre-configured. You only need to enter the PostgreSQL password once.
+
+---
+
+## PostgreSQL
+
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)
+
+**Powerful open-source relational database (internal-only)**
+
+PostgreSQL is a powerful, open-source object-relational database system with over 35 years of active development. This stack provides a standalone PostgreSQL server accessible only within the Docker network.
+
+**Important:** This service has **no web UI** and **no external access**. It runs only on the internal Docker network.
+
+| Setting | Value |
+|---------|-------|
+| Internal Port | `5432` |
+| External Access | **None** (internal-only) |
+| Default User | `postgres` |
+| Default Database | `postgres` |
+| Website | [postgresql.org](https://www.postgresql.org) |
+| Source | [GitHub](https://github.com/postgres/postgres) |
+
+### Access Methods
+
+PostgreSQL is accessible via:
+
+1. **pgAdmin or Adminer** (Web UIs)
+   - Enable `pgadmin` or `adminer` stack
+   - Connect to `postgres:5432`
+
+2. **From other Docker containers**
+   - Connection string: `postgresql://postgres:<password>@postgres:5432/postgres`
+   - Get password from Infisical (`POSTGRES_PASSWORD`)
+
+3. **Via SSH Tunnel** (for local tools like DBeaver, DataGrip)
+   ```bash
+   ssh -L 5432:postgres:5432 nexus
+   # Then connect to localhost:5432
+   ```
+
+4. **Via Wetty** (terminal access)
+   - Enable `wetty` stack
+   - Run: `docker exec -it postgres psql -U postgres`
+
+### Creating Databases and Users
+
+```bash
+# Via Wetty or SSH
+docker exec -it postgres psql -U postgres
+
+-- Create a new database
+CREATE DATABASE myapp;
+
+-- Create a new user
+CREATE USER myapp_user WITH PASSWORD 'secure_password';
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON DATABASE myapp TO myapp_user;
+```
+
+> 🔒 **Security:** PostgreSQL is not exposed to the internet. All access is via internal Docker network or SSH tunnel.
 
 ---
 
@@ -432,6 +572,92 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 | Source | [GitHub](https://github.com/metabase/metabase) |
 
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+
+---
+
+## Meltano
+
+![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)
+
+**Open-source CLI data integration platform for building modular data pipelines**
+
+Meltano is a modular, open-source data integration platform that allows data teams to build, test, and deploy custom data pipelines. It is a CLI-only tool (the web UI was removed in Meltano v3.0). Features include:
+- Modular architecture with Singer protocol support
+- 500+ pre-built data connectors (Tap/Target plugins)
+- dbt integration for transformations
+- Version control friendly with Git-based configs
+- State management for incremental loading
+- Job scheduling and orchestration via CLI
+
+| Setting | Value |
+|---------|-------|
+| Internal Only | Yes (CLI access only) |
+| Database | PostgreSQL 16 |
+| Website | [meltano.com](https://meltano.com) |
+| Source | [GitHub](https://github.com/meltano/meltano) |
+
+### Architecture
+
+The stack includes:
+- **Meltano** - CLI application (runs as long-lived container)
+- **PostgreSQL** - Database for metadata storage
+
+### Configuration
+
+Meltano uses PostgreSQL for metadata storage. All project data (pipelines, schedules, logs) is persisted in the `meltano-data` volume.
+
+### Getting Started
+
+Meltano is accessible via CLI only. You have two options to access the Meltano CLI:
+
+**Option 1: Web-based Terminal (Wetty)**
+
+1. Access Wetty at `https://wetty.<domain>` (requires Cloudflare Access login)
+2. In the web terminal, run Meltano commands:
+
+```bash
+docker exec -it meltano meltano --help
+```
+
+**Option 2: SSH Access**
+
+1. Connect via SSH (see [SSH Access Guide](../docs/ssh-access.md))
+2. Run Meltano commands:
+
+```bash
+ssh nexus
+docker exec -it meltano meltano --help
+```
+
+**Common Meltano Commands:**
+
+```bash
+# Initialize a new project
+docker exec -it meltano meltano init my-project
+
+# List available commands
+docker exec -it meltano meltano --help
+
+# Add an extractor (tap) - e.g., CSV files, APIs, databases
+docker exec -it meltano meltano add extractor tap-csv
+
+# Add a loader (target) - e.g., PostgreSQL, S3, Data Warehouse
+docker exec -it meltano meltano add loader target-postgres
+
+# Run a pipeline (extract + load)
+docker exec -it meltano meltano run tap-csv target-postgres
+
+# Schedule a pipeline (runs automatically)
+docker exec -it meltano meltano schedule add my-pipeline \
+  --extractor tap-csv \
+  --loader target-postgres \
+  --interval '@daily'
+
+# View logs
+docker exec -it meltano meltano logs
+```
+
+> **Note:** Meltano has no web UI since v3.0. All interaction is via the CLI through Wetty or SSH.
 
 ---
 
