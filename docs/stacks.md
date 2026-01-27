@@ -679,16 +679,15 @@ Soda Core is an open-source data quality tool that uses SodaCL (Soda Checks Lang
 | Setting | Value |
 |---------|-------|
 | Internal Only | Yes (CLI access only) |
-| Database | None (connects to shared PostgreSQL) |
+| Database | PostgreSQL 16 |
 | Website | [soda.io](https://www.soda.io) |
 | Source | [GitHub](https://github.com/sodadata/soda-core) |
 
 ### Architecture
 
-The stack is a single container:
+The stack includes:
 - **Soda Core** - CLI application (runs as long-lived container)
-
-Soda Core connects to the shared PostgreSQL stack (or any other database on `app-network`) to run data quality scans. It does not need its own database.
+- **PostgreSQL** - Database for test data and quality checks
 
 ### Configuration
 
@@ -696,13 +695,13 @@ Soda requires two types of YAML configuration files in the `/workspace` director
 
 **1. Data Source Configuration (`configuration.yml`):**
 ```yaml
-data_source shared_postgres:
+data_source soda_postgres:
   type: postgres
-  host: postgres
+  host: soda-db
   port: "5432"
-  username: postgres
-  password: ${POSTGRES_PASSWORD}
-  database: postgres
+  username: soda
+  password: ${SODA_DB_PASSWORD}
+  database: soda
 ```
 
 **2. Check Definitions (`checks.yml`):**
@@ -748,23 +747,23 @@ docker exec -it soda soda --version
 
 # Test connection to a data source
 docker exec -it soda soda test-connection \
-  -d shared_postgres \
+  -d soda_postgres \
   -c /workspace/configuration.yml
 
-# Run a scan against the shared PostgreSQL
+# Run a scan against the Soda PostgreSQL database
 docker exec -it soda soda scan \
-  -d shared_postgres \
+  -d soda_postgres \
   -c /workspace/configuration.yml \
   /workspace/checks.yml
 
 # Run a scan with verbose output
 docker exec -it soda soda scan \
-  -d shared_postgres \
+  -d soda_postgres \
   -c /workspace/configuration.yml \
   /workspace/checks.yml -V
 ```
 
-> **Note:** Soda Core has no web UI. All interaction is via the CLI through Wetty or SSH. Database credentials for the shared PostgreSQL are available in Infisical.
+> **Note:** Soda Core has no web UI. All interaction is via the CLI through Wetty or SSH. Database credentials are available in Infisical.
 
 ---
 

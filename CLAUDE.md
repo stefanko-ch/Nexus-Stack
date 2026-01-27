@@ -148,6 +148,11 @@ When adding a new Docker stack, **all locations must be updated**:
    - Use unique port (check existing stacks for used ports)
    - Include `networks: app-network` (external: true)
    - Add descriptive header comment with service URL
+   - **IMPORTANT: Each stack should have its own dedicated resources (database, Redis, etc.)**
+     - Do NOT share databases between stacks (e.g., don't use the shared PostgreSQL for new stacks)
+     - Each service requiring a database should include its own database container in the compose file
+     - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
+     - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
 
 2. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)
