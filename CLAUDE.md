@@ -250,6 +250,69 @@ cd tofu && tofu validate
 - Check `make secrets` shows correct credentials
 - Test auto-setup worked (login with generated credentials)
 
+### Testing Instructions for the User
+
+**After making changes, ALWAYS provide clear testing instructions to the user:**
+
+1. **Specify the testing method:**
+   - Can the user test on the feature branch directly?
+   - Is `gh workflow run spin-up.yml` sufficient, or does `initial-setup.yaml` need to be run?
+   - Are there any special prerequisites or configurations needed?
+
+2. **Include step-by-step instructions:**
+   ```markdown
+   ## Testing Instructions
+
+   You can test this change on the feature branch:
+
+   1. Push the feature branch to GitHub (if not already done)
+   2. Run the spin-up workflow:
+      ```bash
+      gh workflow run spin-up.yml --ref feat/your-branch
+      ```
+   3. Wait for deployment to complete (~5-10 minutes)
+   4. Verify the new service:
+      - Access https://service.your-domain.com
+      - Check credentials in Infisical
+      - Test the main functionality
+   5. Run teardown when done:
+      ```bash
+      gh workflow run teardown.yml
+      ```
+   ```
+
+3. **Mention if a full initial-setup is required:**
+   - New Terraform resources (DNS, Tunnel, Access policies) → requires `initial-setup.yaml`
+   - Only Docker/config changes → `spin-up.yml` is sufficient
+   - Control Plane changes → may need `setup-control-plane.yaml` first
+
+4. **Include verification steps:**
+   - What should work after deployment?
+   - Where to check logs if something fails?
+   - What credentials are needed (and where to find them)?
+
+**Example:**
+```markdown
+## How to Test
+
+This adds a new internal-only service. You can test it with:
+
+1. Push changes and run spin-up:
+   ```bash
+   gh workflow run spin-up.yml --ref feat/soda-stack
+   ```
+
+2. Wait for deployment, then SSH to the server:
+   ```bash
+   ssh nexus
+   docker exec -it soda soda --version
+   ```
+
+3. Verify the database password is in Infisical under `soda_db_password`
+
+No initial-setup needed since this is an internal_only service (no DNS/Tunnel changes).
+```
+
 ## Debugging Best Practices
 
 **When something doesn't work, think outside the box!**
