@@ -45,9 +45,9 @@ output "tunnel_id" {
 }
 
 output "service_urls" {
-  description = "URLs for all enabled services"
+  description = "URLs for all enabled services with a subdomain"
   value = {
-    for key, service in local.enabled_services :
+    for key, service in local.enabled_services_with_subdomain :
     key => "https://${service.subdomain}.${var.domain}"
   }
 }
