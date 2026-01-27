@@ -435,7 +435,7 @@ fi
 # Generate PostgreSQL .env from OpenTofu secrets
 if echo "$ENABLED_SERVICES" | grep -qw "postgres"; then
     echo "  Generating PostgreSQL config from OpenTofu secrets..."
-    cat > "$STACKS_DIR/postgresql/.env" << EOF
+    cat > "$STACKS_DIR/postgres/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 POSTGRES_PASSWORD=${POSTGRES_PASS}
 EOF
