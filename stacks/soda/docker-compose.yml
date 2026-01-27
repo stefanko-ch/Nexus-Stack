@@ -10,7 +10,10 @@
 
 services:
   soda:
-    image: ${IMAGE_SODA:-sodadata/soda-core:v3}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_SODA:-soda-core-arm64:3.3.7}
     container_name: soda
     restart: unless-stopped
     environment:
