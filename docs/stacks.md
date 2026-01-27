@@ -38,6 +38,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
 | Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
+| Soda Core | `sodadata/soda-core` | `v3` | Major |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
 ¹ No major version tags available, requires manual updates.  
@@ -658,6 +659,112 @@ docker exec -it meltano meltano logs
 ```
 
 > **Note:** Meltano has no web UI since v3.0. All interaction is via the CLI through Wetty or SSH.
+
+---
+
+## Soda Core
+
+![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=soda&logoColor=white)
+
+**CLI-based data quality testing tool using SodaCL checks**
+
+Soda Core is an open-source data quality tool that uses SodaCL (Soda Checks Language) to define and run data quality checks against your databases. Features include:
+- YAML-based check definitions (SodaCL)
+- Support for PostgreSQL, MySQL, Snowflake, BigQuery, and more
+- Schema validation and freshness checks
+- Row count, missing value, and duplicate detection
+- Custom SQL-based quality checks
+- Over 25 built-in metrics
+
+| Setting | Value |
+|---------|-------|
+| Internal Only | Yes (CLI access only) |
+| Database | None (connects to shared PostgreSQL) |
+| Website | [soda.io](https://www.soda.io) |
+| Source | [GitHub](https://github.com/sodadata/soda-core) |
+
+### Architecture
+
+The stack is a single container:
+- **Soda Core** - CLI application (runs as long-lived container)
+
+Soda Core connects to the shared PostgreSQL stack (or any other database on `app-network`) to run data quality scans. It does not need its own database.
+
+### Configuration
+
+Soda requires two types of YAML configuration files in the `/workspace` directory:
+
+**1. Data Source Configuration (`configuration.yml`):**
+```yaml
+data_source shared_postgres:
+  type: postgres
+  host: postgres
+  port: "5432"
+  username: postgres
+  password: ${POSTGRES_PASSWORD}
+  database: postgres
+```
+
+**2. Check Definitions (`checks.yml`):**
+```yaml
+checks for my_table:
+  - row_count > 0
+  - missing_count(column_name) = 0
+  - duplicate_count(id) = 0
+  - schema:
+      fail:
+        when required column missing: [id, name, created_at]
+  - freshness(created_at) < 1d
+```
+
+### Getting Started
+
+Soda Core is accessible via CLI only. You have two options:
+
+**Option 1: Web-based Terminal (Wetty)**
+
+1. Access Wetty at `https://wetty.<domain>` (requires Cloudflare Access login)
+2. In the web terminal, run Soda commands:
+
+```bash
+docker exec -it soda soda --help
+```
+
+**Option 2: SSH Access**
+
+1. Connect via SSH (see [SSH Access Guide](../docs/ssh-access.md))
+2. Run Soda commands:
+
+```bash
+ssh nexus
+docker exec -it soda soda --help
+```
+
+**Common Soda Commands:**
+
+```bash
+# Check Soda version
+docker exec -it soda soda --version
+
+# Test connection to a data source
+docker exec -it soda soda test-connection \
+  -d shared_postgres \
+  -c /workspace/configuration.yml
+
+# Run a scan against the shared PostgreSQL
+docker exec -it soda soda scan \
+  -d shared_postgres \
+  -c /workspace/configuration.yml \
+  /workspace/checks.yml
+
+# Run a scan with verbose output
+docker exec -it soda soda scan \
+  -d shared_postgres \
+  -c /workspace/configuration.yml \
+  /workspace/checks.yml -V
+```
+
+> **Note:** Soda Core has no web UI. All interaction is via the CLI through Wetty or SSH. Database credentials for the shared PostgreSQL are available in Infisical.
 
 ---
 
