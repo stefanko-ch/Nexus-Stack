@@ -10,7 +10,7 @@
 
 services:
   meltano:
-    image: ${IMAGE_MELTANO:-meltanolabs/meltano:latest}
+    image: ${IMAGE_MELTANO:-meltano/meltano:latest}
     container_name: meltano
     restart: unless-stopped
     ports:

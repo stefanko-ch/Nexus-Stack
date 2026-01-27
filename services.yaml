@@ -139,7 +139,7 @@ services:
     port: 5000
     public: false
     description: "Open-source data integration platform for building modular data pipelines."
-    image: "meltanolabs/meltano:latest"
+    image: "meltano/meltano:latest"
     support_images:
       postgres: "postgres:16-alpine"
 
