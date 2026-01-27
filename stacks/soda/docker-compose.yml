@@ -13,16 +13,47 @@ services:
     image: ${IMAGE_SODA:-sodadata/soda-core:v3}
     container_name: soda
     restart: unless-stopped
+    environment:
+      - SODA_DB_HOST=soda-db
+      - SODA_DB_PORT=5432
+      - SODA_DB_USER=soda
+      - SODA_DB_PASSWORD=${SODA_DB_PASSWORD}
+      - SODA_DB_NAME=soda
     volumes:
       - soda-data:/workspace
     working_dir: /workspace
     networks:
       - app-network
+      - soda-internal
+    depends_on:
+      soda-db:
+        condition: service_healthy
     command: ["sleep", "infinity"]
+
+  soda-db:
+    image: postgres:16-alpine
+    container_name: soda-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=soda
+      - POSTGRES_PASSWORD=${SODA_DB_PASSWORD}
+      - POSTGRES_DB=soda
+    volumes:
+      - soda-db-data:/var/lib/postgresql/data
+    networks:
+      - soda-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soda -d soda"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   soda-data:
+  soda-db-data:
 
 networks:
   app-network:
     external: true
+  soda-internal:
+    driver: bridge

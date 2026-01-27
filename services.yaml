@@ -223,6 +223,8 @@ services:
     internal_only: true
     description: "CLI-based data quality testing tool using SodaCL checks for database validation."
     image: "sodadata/soda-core:v3"
+    support_images:
+      postgres: "postgres:16-alpine"
 
   uptime-kuma:
     subdomain: "uptime-kuma"

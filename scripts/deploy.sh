@@ -96,6 +96,7 @@ HOPPSCOTCH_JWT=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_jwt_secret // empty')
 HOPPSCOTCH_SESSION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_session_secret // empty')
 HOPPSCOTCH_ENCRYPTION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_encryption_key // empty')
 MELTANO_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.meltano_db_password // empty')
+SODA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.soda_db_password // empty')
 POSTGRES_PASS=$(echo "$SECRETS_JSON" | jq -r '.postgres_password // empty')
 PGADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.pgadmin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
@@ -430,6 +431,16 @@ if echo "$ENABLED_SERVICES" | grep -qw "meltano"; then
 MELTANO_DB_PASSWORD=${MELTANO_DB_PASS}
 EOF
     echo -e "${GREEN}  ✓ Meltano .env generated${NC}"
+fi
+
+# Generate Soda .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "soda"; then
+    echo "  Generating Soda config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/soda/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+SODA_DB_PASSWORD=${SODA_DB_PASS}
+EOF
+    echo -e "${GREEN}  ✓ Soda .env generated${NC}"
 fi
 
 # Generate PostgreSQL .env from OpenTofu secrets
