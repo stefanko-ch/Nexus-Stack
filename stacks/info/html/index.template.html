@@ -386,6 +386,10 @@
         // Services without a web UI (backend/infrastructure services)
         const noLinkServices = ['redpanda', 'redpanda-connect', 'redpanda-datagen'];
 
+        // Service type classification for internal-only services
+        const cliServices = ['meltano'];  // CLI-only tools
+        const databaseServices = ['postgres', 'postgresql'];  // Database servers
+
         function createServiceCard(name, service, isActive) {
             // Check if service has a subdomain (internal-only services don't)
             const hasSubdomain = service.subdomain && service.subdomain !== '';
@@ -404,8 +408,20 @@
             const displayVersion = version && version.startsWith('v') ? version : `v${version}`;
             const versionTag = version ? `<span class="service-version">${displayVersion}</span>` : '';
 
+            // Determine badge and access text based on service type
+            let badgeText = 'Internal Network';
+            let accessText = 'Internal Network Access';
+
+            if (cliServices.includes(name)) {
+                badgeText = 'CLI Access';
+                accessText = 'CLI via SSH/Wetty';
+            } else if (databaseServices.includes(name)) {
+                badgeText = 'Database Access';
+                accessText = 'Database Network Access';
+            }
+
             // Badge for services without web UI
-            const internalBadge = hasNoLink ? '<span class="service-status" style="background: rgba(100, 112, 128, 0.2); border-color: rgba(100, 112, 128, 0.4); color: #607080;">Internal-only</span>' : '';
+            const internalBadge = hasNoLink ? `<span class="service-status" style="background: rgba(100, 112, 128, 0.2); border-color: rgba(100, 112, 128, 0.4); color: #607080;">${badgeText}</span>` : '';
 
             if (isActive && !hasNoLink) {
                 card.innerHTML = `
@@ -430,7 +446,7 @@
                     </div>
                     <p class="service-description">${description}</p>
                     <div class="service-footer">
-                        <span class="service-url" style="opacity: 0.4;">CLI or Database Access</span>
+                        <span class="service-url" style="opacity: 0.4;">${accessText}</span>
                         ${versionTag}
                     </div>
                 `;
