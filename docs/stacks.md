@@ -38,11 +38,12 @@ Images are pinned to **major versions** where supported for automatic security p
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
 | Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
-| Soda Core | `sodadata/soda-core` | `v3` | Major |
+| Soda Core | `soda-core-arm64` | `3.3.7` | Exact ³ |
 | Nginx (Info) | `nginx` | `alpine` | Rolling |
 
-¹ No major version tags available, requires manual updates.  
+¹ No major version tags available, requires manual updates.
 ² Only `latest` tags published, no semantic versions available.
+³ Custom build (official image doesn't support ARM64).
 
 **Strategies:**
 - **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
@@ -686,8 +687,10 @@ Soda Core is an open-source data quality tool that uses SodaCL (Soda Checks Lang
 ### Architecture
 
 The stack includes:
-- **Soda Core** - CLI application (runs as long-lived container)
+- **Soda Core** - CLI application (runs as long-lived container, custom-built for ARM64)
 - **PostgreSQL** - Database for test data and quality checks
+
+> **Note:** Soda Core uses a custom Dockerfile because the official `sodadata/soda-core` image doesn't support ARM64 architecture (required for cax31 servers).
 
 ### Configuration
 

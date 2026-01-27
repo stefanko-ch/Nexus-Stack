@@ -222,7 +222,7 @@ services:
     public: false
     internal_only: true
     description: "CLI-based data quality testing tool using SodaCL checks for database validation."
-    image: "sodadata/soda-core:v3"
+    image: "soda-core-arm64:3.3.7"
     support_images:
       postgres: "postgres:16-alpine"
 

@@ -143,7 +143,20 @@ make ssh-setup  # Setup SSH config
 
 When adding a new Docker stack, **all locations must be updated**:
 
-1. **Create the Docker Compose file:**
+1. **Verify ARM64 compatibility BEFORE creating the stack:**
+   - **CRITICAL:** Nexus-Stack runs on ARM64 servers (cax31 = Ampere Altra)
+   - Check if the Docker image supports ARM64:
+     ```bash
+     docker manifest inspect <image>:<tag> | grep -A5 architecture
+     ```
+   - If only `amd64` is listed → image does NOT support ARM64
+   - **Solutions if ARM64 not supported:**
+     - Option A: Find an alternative image that supports ARM64
+     - Option B: Create a custom Dockerfile that builds from ARM64 base (Python, Node.js, etc.)
+     - Option C: Use `docker buildx` with multi-platform builds
+   - **Example (Soda Core):** Official image only supports amd64 → custom Dockerfile with `python:3.11-slim` + `pip install soda-core-postgres`
+
+2. **Create the Docker Compose file:**
    - Create `stacks/<stack-name>/docker-compose.yml`
    - Use unique port (check existing stacks for used ports)
    - Include `networks: app-network` (external: true)
@@ -154,7 +167,7 @@ When adding a new Docker stack, **all locations must be updated**:
      - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
      - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
 
-2. **Register the service in services.yaml:**
+3. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
    - No `enabled` field needed - D1 manages runtime state
