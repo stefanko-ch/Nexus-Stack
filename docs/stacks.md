@@ -78,14 +78,15 @@ Adminer is a full-featured database management tool written in a single PHP file
 ### Usage
 
 1. Access Adminer at `https://adminer.<domain>`
-2. Select database system (PostgreSQL, MySQL, etc.)
-3. Enter connection details:
-   - **Server**: `postgres` (for standalone PostgreSQL) or service name
-   - **Username**: `postgres` (or service-specific user)
-   - **Password**: From Infisical (`POSTGRES_PASSWORD`)
-   - **Database**: `postgres` (or specific database)
+2. Login page shows pre-filled connection details:
+   - **System**: PostgreSQL (select if not pre-selected)
+   - **Server**: `postgres` (pre-filled)
+   - **Username**: `postgres`
+   - **Password**: Enter password from Infisical (`POSTGRES_PASSWORD`)
+   - **Database**: `postgres` (or leave empty to see all databases)
+3. Click "Login"
 
-> ℹ️ **Note:** Adminer has no persistent configuration - you enter connection details on each login.
+> ℹ️ **Note:** Server hostname is pre-configured as `postgres`. You only need to enter the username and password on each login (Adminer doesn't save credentials).
 
 ---
 
@@ -211,15 +212,11 @@ pgAdmin is the most popular and feature-rich Open Source administration and deve
 
 1. Access pgAdmin at `https://pgadmin.<domain>`
 2. Login with credentials from Infisical (`PGADMIN_USERNAME` / `PGADMIN_PASSWORD`)
-3. Add a new server connection:
-   - **Name**: Nexus PostgreSQL (or custom name)
-   - **Host**: `postgres` (Docker network hostname)
-   - **Port**: `5432`
-   - **Username**: `postgres`
-   - **Password**: From Infisical (`POSTGRES_PASSWORD`)
-   - **Maintenance database**: `postgres`
+3. **Pre-configured server:** The "Nexus PostgreSQL" server appears automatically in the left sidebar
+4. Click on the server and enter the password from Infisical (`POSTGRES_PASSWORD`)
+5. The password is saved for future logins
 
-> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use Infisical to view the credentials.
+> ✅ **Auto-configured:** Both the admin account and PostgreSQL server connection are pre-configured. You only need to enter the PostgreSQL password once.
 
 ---
 
