@@ -609,7 +609,28 @@ Meltano uses PostgreSQL for metadata storage. All project data (pipelines, sched
 
 ### Getting Started
 
-Meltano is accessible via CLI only. Use SSH or Wetty to interact with it:
+Meltano is accessible via CLI only. You have two options to access the Meltano CLI:
+
+**Option 1: Web-based Terminal (Wetty)**
+
+1. Access Wetty at `https://wetty.<domain>` (requires Cloudflare Access login)
+2. In the web terminal, run Meltano commands:
+
+```bash
+docker exec -it meltano meltano --help
+```
+
+**Option 2: SSH Access**
+
+1. Connect via SSH (see [SSH Access Guide](../docs/ssh-access.md))
+2. Run Meltano commands:
+
+```bash
+ssh nexus
+docker exec -it meltano meltano --help
+```
+
+**Common Meltano Commands:**
 
 ```bash
 # Initialize a new project
@@ -618,20 +639,26 @@ docker exec -it meltano meltano init my-project
 # List available commands
 docker exec -it meltano meltano --help
 
-# Add an extractor (tap)
+# Add an extractor (tap) - e.g., CSV files, APIs, databases
 docker exec -it meltano meltano add extractor tap-csv
 
-# Add a loader (target)
+# Add a loader (target) - e.g., PostgreSQL, S3, Data Warehouse
 docker exec -it meltano meltano add loader target-postgres
 
-# Run a pipeline
+# Run a pipeline (extract + load)
 docker exec -it meltano meltano run tap-csv target-postgres
 
-# Schedule a pipeline
-docker exec -it meltano meltano schedule add my-pipeline --extractor tap-csv --loader target-postgres --interval '@daily'
+# Schedule a pipeline (runs automatically)
+docker exec -it meltano meltano schedule add my-pipeline \
+  --extractor tap-csv \
+  --loader target-postgres \
+  --interval '@daily'
+
+# View logs
+docker exec -it meltano meltano logs
 ```
 
-> **Note:** Meltano has no web UI since v3.0. All interaction is via the CLI.
+> **Note:** Meltano has no web UI since v3.0. All interaction is via the CLI through Wetty or SSH.
 
 ---
 
