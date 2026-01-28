@@ -1084,19 +1084,22 @@ Terraform creates inbound Hetzner firewall rules and DNS A records pointing dire
 
 | Service | Port | DNS Record | Protocol |
 |---------|------|------------|----------|
-| **RedPanda** (Kafka) | 9092 | `kafka.<domain>` | Kafka |
-| **RedPanda** (Schema Registry) | 8081 | `schema-registry.<domain>` | HTTP |
-| **PostgreSQL** | 5432 | `db.<domain>` | PostgreSQL |
+| **RedPanda** (Kafka) | 9092 | `redpanda.<domain>` | Kafka |
+| **RedPanda** (Schema Registry) | 8081 | `redpanda-schema-registry.<domain>` | HTTP |
+| **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
 | **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
 
 ### Connection Examples
 
 ```bash
-# Kafka (from Databricks or any Kafka client)
-kafka.yourdomain.com:9092
+# RedPanda Kafka (from Databricks or any Kafka client)
+redpanda.yourdomain.com:9092
+
+# RedPanda Schema Registry
+curl http://redpanda-schema-registry.yourdomain.com:8081/subjects
 
 # PostgreSQL
-psql -h db.yourdomain.com -p 5432 -U postgres
+psql -h postgres.yourdomain.com -p 5432 -U postgres
 
 # MinIO S3 API
 aws s3 ls --endpoint-url http://s3.yourdomain.com:9000

@@ -426,6 +426,7 @@
 
   <script>
     let currentRules = [];
+    let currentDomain = '';
 
     function showToast(message, type = 'success') {
       const existing = document.querySelector('.toast');
@@ -458,6 +459,7 @@
       }
 
       const groups = groupRules(rules);
+      const domainDisplay = currentDomain || '<domain>';
       let html = '';
 
       for (const [service, serviceRules] of Object.entries(groups)) {
@@ -477,7 +479,7 @@
                   <span class="rule-label">${rule.protocol.toUpperCase()}</span>
                   ${pendingBadge}
                 </div>
-                <span class="rule-port">Port ${rule.port}${rule.dnsRecord ? ` &mdash; ${rule.dnsRecord}.*` : ''}</span>
+                <span class="rule-port">Port ${rule.port}${rule.dnsRecord ? ` &mdash; ${rule.dnsRecord}.${domainDisplay}` : ''}</span>
                 <div class="source-ip-row">
                   <span class="source-ip-label">Source IPs:</span>
                   <input type="text" class="source-ip-input"
@@ -512,10 +514,11 @@
       }
 
       section.style.display = 'block';
+      const domainDisplay = currentDomain || '<domain>';
       list.innerHTML = enabled.map(r => `
         <div class="connection-item">
           <span class="connection-label">${r.label || r.serviceName}:</span>
-          <span class="connection-host">${r.dnsRecord}.&lt;domain&gt;:${r.port}</span>
+          <span class="connection-host">${r.dnsRecord}.${domainDisplay}:${r.port}</span>
         </div>
       `).join('');
     }
@@ -528,6 +531,7 @@
         if (!data.success) throw new Error(data.error);
 
         currentRules = data.rules || [];
+        currentDomain = data.domain || '';
         renderRules(currentRules);
         renderConnectionInfo(currentRules);
       } catch (err) {

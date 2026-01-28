@@ -91,10 +91,14 @@ export async function onRequestGet(context) {
       };
     });
 
+    // Get domain from environment or config
+    const domain = env.DOMAIN || '';
+
     return new Response(JSON.stringify({
       success: true,
       rules,
       pendingChangesCount,
+      domain,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });

@@ -295,8 +295,8 @@ insert_statements = []
 
 # DNS record mapping for known services
 dns_records = {
-    'redpanda': {'kafka': 'kafka', 'schema-registry': 'schema-registry'},
-    'postgres': {'postgres': 'db'},
+    'redpanda': {'kafka': 'redpanda', 'schema-registry': 'redpanda-schema-registry'},
+    'postgres': {'postgres': 'postgres'},
     'minio': {'s3-api': 's3'},
 }
 
