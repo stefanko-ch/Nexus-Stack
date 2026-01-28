@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.9.0...v0.10.0) (2026-01-28)
+
+
+### 🚀 Features
+
+* **stacks:** Add Meltano and database management stacks ([4fa3811](https://github.com/stefanko-ch/Nexus-Stack/commit/4fa38115d02a54ef55ade4a4e1d0b1c3a11c76f5))
+* **stacks:** Add Meltano data integration platform ([7185216](https://github.com/stefanko-ch/Nexus-Stack/commit/71852167b9b4387727f55934b7555a4cca48ae31))
+* **stacks:** Add PostgreSQL, pgAdmin, and Adminer database stacks ([ab1de2c](https://github.com/stefanko-ch/Nexus-Stack/commit/ab1de2cd7b71d25ac8acac7f40bd8bfc83628fa8))
+* **stacks:** Add Soda Core data quality stack ([c67aaf5](https://github.com/stefanko-ch/Nexus-Stack/commit/c67aaf562bd40e84390336adf522a5eb0f877bc7))
+* **stacks:** Add Soda Core data quality stack ([91ef3d2](https://github.com/stefanko-ch/Nexus-Stack/commit/91ef3d2d4a4f96ce7fe7c361fb7f273ac7b4ce89))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Allow internal-only services in generate-services-tfvars.py ([485320b](https://github.com/stefanko-ch/Nexus-Stack/commit/485320ba6a69d8b892eed3572c6bdb09af92b9f6))
+* **ci:** Allow internal-only services without subdomain in validation ([c27bc72](https://github.com/stefanko-ch/Nexus-Stack/commit/c27bc728d31a4619f7c5004dad7423a41bcabf8e))
+* **docs:** Change Soda badge logo from 'soda' to 'database' ([ecd25e1](https://github.com/stefanko-ch/Nexus-Stack/commit/ecd25e174b506f43732c52ad9021cb829d8cfe4a))
+* **infisical:** Add POSTGRES_USERNAME to secrets ([d30b906](https://github.com/stefanko-ch/Nexus-Stack/commit/d30b906310ab6e2e658528a0634e31db06539bc0))
+* **meltano:** Correct Docker image name from meltanolabs to meltano ([a2c3d45](https://github.com/stefanko-ch/Nexus-Stack/commit/a2c3d45a1dc7069a553af55596903d8fcb21ac22))
+* **scripts:** Update PostgreSQL .env path to match renamed directory ([66a5a2c](https://github.com/stefanko-ch/Nexus-Stack/commit/66a5a2ce7d2c1b58c531429fe0ffa6b39db29d06))
+* **soda:** Add ARM64 support with custom Dockerfile ([47ffe98](https://github.com/stefanko-ch/Nexus-Stack/commit/47ffe98a1395c5ad8ea069f3c79b5cc0b59eac7b))
+* **stacks:** Add dedicated PostgreSQL database to Soda stack ([ba0197e](https://github.com/stefanko-ch/Nexus-Stack/commit/ba0197e9cdc0e89391921d226b7ccbcd55dbdb4f))
+* **stacks:** Improve database stack UX and Info-Page ([8cda85f](https://github.com/stefanko-ch/Nexus-Stack/commit/8cda85fb698eb2a5a86a5fd52196930e9245bbd1))
+* **stacks:** Improve Info-Page labels and healthcheck for internal services ([61204c5](https://github.com/stefanko-ch/Nexus-Stack/commit/61204c5605e23f825d3756829c43c9a6d0ad600e))
+* **stacks:** Rename postgresql folder to postgres to match service name ([6cef2ba](https://github.com/stefanko-ch/Nexus-Stack/commit/6cef2ba150ea7b59317a71b85d11cefbc09f1636))
+
+
+### ♻️ Refactoring
+
+* **meltano:** Convert to CLI-only internal service ([323721b](https://github.com/stefanko-ch/Nexus-Stack/commit/323721bc4424109d026e59bf992dadf1ee07a6f7))
+
+
+### 📚 Documentation
+
+* **instructions:** Add requirement to provide testing instructions ([a639b62](https://github.com/stefanko-ch/Nexus-Stack/commit/a639b6291750bc2fd8ab1cf863a648f35ef10435))
+* **meltano:** Clarify CLI access via Wetty and SSH ([a59663a](https://github.com/stefanko-ch/Nexus-Stack/commit/a59663a1806d8fa3bd2ca62dc039a264745ef0a7))
+* Sort stacks alphabetically in README ([bdfeb26](https://github.com/stefanko-ch/Nexus-Stack/commit/bdfeb26f7ec15ba6198b4bec1e46ff2cb8b2a992))
+
 ## [0.9.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.8.0...v0.9.0) (2026-01-25)
 
 
