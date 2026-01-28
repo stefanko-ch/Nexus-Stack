@@ -133,6 +133,12 @@ resource "random_password" "meltano_db" {
   special = false
 }
 
+# Soda database password
+resource "random_password" "soda_db" {
+  length  = 24
+  special = false
+}
+
 # PostgreSQL password
 resource "random_password" "postgres" {
   length  = 24

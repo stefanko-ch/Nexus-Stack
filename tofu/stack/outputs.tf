@@ -120,6 +120,9 @@ output "secrets" {
     # Meltano
     meltano_db_password = random_password.meltano_db.result
 
+    # Soda
+    soda_db_password = random_password.soda_db.result
+
     # PostgreSQL
     postgres_password = random_password.postgres.result
 

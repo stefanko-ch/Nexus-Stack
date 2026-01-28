@@ -143,13 +143,31 @@ make ssh-setup  # Setup SSH config
 
 When adding a new Docker stack, **all locations must be updated**:
 
-1. **Create the Docker Compose file:**
+1. **Verify ARM64 compatibility BEFORE creating the stack:**
+   - **CRITICAL:** Nexus-Stack runs on ARM64 servers (cax31 = Ampere Altra)
+   - Check if the Docker image supports ARM64:
+     ```bash
+     docker manifest inspect <image>:<tag> | grep -A5 architecture
+     ```
+   - If only `amd64` is listed → image does NOT support ARM64
+   - **Solutions if ARM64 not supported:**
+     - Option A: Find an alternative image that supports ARM64
+     - Option B: Create a custom Dockerfile that builds from ARM64 base (Python, Node.js, etc.)
+     - Option C: Use `docker buildx` with multi-platform builds
+   - **Example (Soda Core):** Official image only supports amd64 → custom Dockerfile with `python:3.11-slim` + `pip install soda-core-postgres`
+
+2. **Create the Docker Compose file:**
    - Create `stacks/<stack-name>/docker-compose.yml`
    - Use unique port (check existing stacks for used ports)
    - Include `networks: app-network` (external: true)
    - Add descriptive header comment with service URL
+   - **IMPORTANT: Each stack should have its own dedicated resources (database, Redis, etc.)**
+     - Do NOT share databases between stacks (e.g., don't use the shared PostgreSQL for new stacks)
+     - Each service requiring a database should include its own database container in the compose file
+     - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
+     - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
 
-2. **Register the service in services.yaml:**
+3. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
    - No `enabled` field needed - D1 manages runtime state
@@ -244,6 +262,69 @@ cd tofu && tofu validate
 - Verify services are accessible via their URLs
 - Check `make secrets` shows correct credentials
 - Test auto-setup worked (login with generated credentials)
+
+### Testing Instructions for the User
+
+**After making changes, ALWAYS provide clear testing instructions to the user:**
+
+1. **Specify the testing method:**
+   - Can the user test on the feature branch directly?
+   - Is `gh workflow run spin-up.yml` sufficient, or does `initial-setup.yaml` need to be run?
+   - Are there any special prerequisites or configurations needed?
+
+2. **Include step-by-step instructions:**
+   ```markdown
+   ## Testing Instructions
+
+   You can test this change on the feature branch:
+
+   1. Push the feature branch to GitHub (if not already done)
+   2. Run the spin-up workflow:
+      ```bash
+      gh workflow run spin-up.yml --ref feat/your-branch
+      ```
+   3. Wait for deployment to complete (~5-10 minutes)
+   4. Verify the new service:
+      - Access https://service.your-domain.com
+      - Check credentials in Infisical
+      - Test the main functionality
+   5. Run teardown when done:
+      ```bash
+      gh workflow run teardown.yml
+      ```
+   ```
+
+3. **Mention if a full initial-setup is required:**
+   - New Terraform resources (DNS, Tunnel, Access policies) → requires `initial-setup.yaml`
+   - Only Docker/config changes → `spin-up.yml` is sufficient
+   - Control Plane changes → may need `setup-control-plane.yaml` first
+
+4. **Include verification steps:**
+   - What should work after deployment?
+   - Where to check logs if something fails?
+   - What credentials are needed (and where to find them)?
+
+**Example:**
+```markdown
+## How to Test
+
+This adds a new internal-only service. You can test it with:
+
+1. Push changes and run spin-up:
+   ```bash
+   gh workflow run spin-up.yml --ref feat/soda-stack
+   ```
+
+2. Wait for deployment, then SSH to the server:
+   ```bash
+   ssh nexus
+   docker exec -it soda soda --version
+   ```
+
+3. Verify the database password is in Infisical under `soda_db_password`
+
+No initial-setup needed since this is an internal_only service (no DNS/Tunnel changes).
+```
 
 ## Debugging Best Practices
 
