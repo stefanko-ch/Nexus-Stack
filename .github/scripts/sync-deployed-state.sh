@@ -264,7 +264,92 @@ else
   echo "  ⚠️ services.yaml not found - skipping sync"
 fi
 
-# Step 2: Sync deployed state (set deployed = enabled for all)
+# Step 2: Sync firewall rules from services.yaml tcp_ports
+echo "🔥 Syncing firewall rules from services.yaml..."
+if [ -f "services.yaml" ]; then
+  python3 << 'FWEOF'
+import yaml
+import sys
+import re
+
+def validate_service_name(name):
+    if not isinstance(name, str):
+        return False
+    if len(name) == 0 or len(name) > 63:
+        return False
+    return bool(re.match(r'^[a-z0-9_-]+$', name))
+
+try:
+    with open('services.yaml', 'r') as f:
+        data = yaml.safe_load(f)
+except Exception as e:
+    print(f"  Warning: Error reading services.yaml for firewall sync: {e}")
+    sys.exit(0)
+
+if not data or 'services' not in data:
+    print("  No services found - skipping firewall sync")
+    sys.exit(0)
+
+services = data['services']
+insert_statements = []
+
+# DNS record mapping for known services
+dns_records = {
+    'redpanda': {'kafka': 'kafka', 'schema-registry': 'schema-registry'},
+    'postgres': {'postgres': 'db'},
+    'minio': {'s3-api': 's3'},
+}
+
+for name, config in services.items():
+    if not validate_service_name(name):
+        continue
+    tcp_ports = config.get('tcp_ports', {})
+    if not tcp_ports:
+        continue
+
+    for label, port in tcp_ports.items():
+        if not isinstance(port, int) or port < 1 or port > 65535:
+            continue
+        # Escape label for SQL
+        safe_label = label.replace("'", "''")
+        # Get DNS record from mapping
+        dns_record = dns_records.get(name, {}).get(label, '')
+        insert_sql = f"INSERT OR IGNORE INTO firewall_rules (service_name, port, protocol, label, enabled, deployed, source_ips, dns_record, updated_at) VALUES ('{name}', {port}, 'tcp', '{safe_label}', 0, 0, '', '{dns_record}', datetime('now'));"
+        insert_statements.append(insert_sql)
+
+with open('/tmp/init_firewall_rules.sql', 'w') as f:
+    f.write('\n'.join(insert_statements))
+    if insert_statements:
+        f.write('\n')
+
+print(f"  Generated {len(insert_statements)} firewall rule insert statements")
+FWEOF
+
+  if [ -f /tmp/init_firewall_rules.sql ] && [ -s /tmp/init_firewall_rules.sql ]; then
+    FW_COUNT=$(wc -l < /tmp/init_firewall_rules.sql | tr -d ' ')
+    echo "  Executing $FW_COUNT firewall rule INSERT statements..."
+
+    set +e
+    FW_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+      --remote --file /tmp/init_firewall_rules.sql 2>&1)
+    FW_EXIT=$?
+    set -e
+
+    if [ $FW_EXIT -eq 0 ]; then
+      echo "  ✅ Firewall rules synced ($FW_COUNT rules)"
+    else
+      SANITIZED_ERROR=$(sanitize_error "$FW_OUTPUT")
+      echo "  ⚠️ Firewall rules sync had issues: $SANITIZED_ERROR" >&2
+    fi
+    rm -f /tmp/init_firewall_rules.sql
+  else
+    echo "  ℹ️  No firewall rules to insert"
+  fi
+else
+  echo "  ⚠️ services.yaml not found - skipping firewall sync"
+fi
+
+# Step 3: Sync deployed state (set deployed = enabled for all)
 echo "  Syncing deployed state..."
 SQL="UPDATE services SET deployed = enabled, updated_at = datetime('now') WHERE deployed != enabled"
 
@@ -272,14 +357,29 @@ DEPLOYED_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --
 DEPLOYED_EXIT=$?
 
 if [ $DEPLOYED_EXIT -eq 0 ]; then
-  echo "  ✅ Deployed state synced"
+  echo "  ✅ Services deployed state synced"
 else
   SANITIZED_ERROR=$(sanitize_error "$DEPLOYED_OUTPUT")
-  echo "  ⚠️ Failed to sync deployed state (non-critical)" >&2
+  echo "  ⚠️ Failed to sync services deployed state (non-critical)" >&2
   echo "  Error: $SANITIZED_ERROR" >&2
 fi
 
-# Step 3: Final verification - list all services in D1
+# Step 4: Sync firewall deployed state
+echo "  Syncing firewall deployed state..."
+FW_SQL="UPDATE firewall_rules SET deployed = enabled, updated_at = datetime('now') WHERE deployed != enabled"
+
+FW_DEPLOYED_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$FW_SQL" 2>&1)
+FW_DEPLOYED_EXIT=$?
+
+if [ $FW_DEPLOYED_EXIT -eq 0 ]; then
+  echo "  ✅ Firewall deployed state synced"
+else
+  SANITIZED_ERROR=$(sanitize_error "$FW_DEPLOYED_OUTPUT")
+  echo "  ⚠️ Failed to sync firewall deployed state (non-critical)" >&2
+  echo "  Error: $SANITIZED_ERROR" >&2
+fi
+
+# Step 5: Final verification - list all services in D1
 echo "  Verifying services in D1..."
 VERIFY_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
   --command "SELECT name FROM services ORDER BY name" 2>&1)

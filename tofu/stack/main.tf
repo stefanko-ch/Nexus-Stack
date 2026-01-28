@@ -158,8 +158,17 @@ resource "random_password" "pgadmin" {
 resource "hcloud_firewall" "main" {
   name = "${local.resource_prefix}-fw"
 
-  # No inbound rules at all = true Zero Entry
-  # All traffic goes through Cloudflare Tunnel
+  # By default: No inbound rules = Zero Entry (all traffic via Cloudflare Tunnel)
+  # When firewall_rules are configured, dynamic inbound rules allow external TCP access
+  dynamic "rule" {
+    for_each = var.firewall_rules
+    content {
+      direction  = "in"
+      protocol   = rule.value.protocol
+      port       = tostring(rule.value.port)
+      source_ips = length(rule.value.source_ips) > 0 ? rule.value.source_ips : ["0.0.0.0/0", "::/0"]
+    }
+  }
 }
 
 # Temporary firewall for initial setup (SSH access)
@@ -393,6 +402,30 @@ resource "cloudflare_record" "services" {
   type    = "CNAME"
   proxied = true
   ttl     = 1
+}
+
+# =============================================================================
+# DNS A Records for External TCP Access
+# =============================================================================
+# These records point directly to the server IP (proxied = false)
+# so external clients can connect via TCP (Kafka, PostgreSQL, MinIO S3 API)
+
+locals {
+  firewall_dns_records = {
+    for key, rule in var.firewall_rules :
+    key => rule if rule.dns_record != ""
+  }
+}
+
+resource "cloudflare_record" "firewall_tcp" {
+  for_each = local.firewall_dns_records
+
+  zone_id = var.cloudflare_zone_id
+  name    = each.value.dns_record
+  content = hcloud_server.main.ipv4_address
+  type    = "A"
+  proxied = false
+  ttl     = 300
 }
 
 # =============================================================================
