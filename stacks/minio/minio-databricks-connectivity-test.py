@@ -13,7 +13,7 @@
 
 # Configuration widgets
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
-dbutils.widgets.text("root_user", "nexus-minio", "MinIO Root User (from Infisical)")
+dbutils.widgets.text("root_user", "", "MinIO Root User (from Infisical)")
 dbutils.widgets.text("root_password", "", "MinIO Root Password (from Infisical)")
 dbutils.widgets.text("bucket", "test-databricks", "Test Bucket Name")
 

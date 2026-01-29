@@ -14,7 +14,7 @@
 # Configuration widgets
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
 dbutils.widgets.text("topic", "test-topic", "Kafka Topic")
-dbutils.widgets.text("sasl_username", "nexus-redpanda", "SASL Username (from Infisical)")
+dbutils.widgets.text("sasl_username", "", "SASL Username (from Infisical)")
 dbutils.widgets.text("sasl_password", "", "SASL Password (from Infisical)")
 
 # COMMAND ----------
@@ -30,8 +30,8 @@ print(f"Testing RedPanda/Kafka at: {KAFKA_BOOTSTRAP}")
 print(f"Topic: {TOPIC}")
 print(f"SASL User: {SASL_USERNAME}")
 
-if not SASL_PASSWORD:
-    dbutils.notebook.exit("Error: SASL password required. Get it from Infisical.")
+if not SASL_USERNAME or not SASL_PASSWORD:
+    dbutils.notebook.exit("Error: SASL username and password required. Get them from Infisical.")
 
 # COMMAND ----------
 

@@ -14,7 +14,7 @@
 # Configuration widgets
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
 dbutils.widgets.text("password", "", "PostgreSQL Password (from Infisical)")
-dbutils.widgets.dropdown("user", "nexus-postgres", ["nexus-postgres"], "Database User (from Infisical)")
+dbutils.widgets.text("user", "", "Database User (from Infisical)")
 
 # COMMAND ----------
 
@@ -28,8 +28,8 @@ PG_PORT = "5432"
 print(f"Testing PostgreSQL at: {PG_HOST}:{PG_PORT}")
 print(f"User: {USER}")
 
-if not PASSWORD:
-    dbutils.notebook.exit("Error: Password required. Get it from Infisical.")
+if not USER or not PASSWORD:
+    dbutils.notebook.exit("Error: Username and password required. Get them from Infisical.")
 
 # COMMAND ----------
 
