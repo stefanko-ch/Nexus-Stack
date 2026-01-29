@@ -667,10 +667,12 @@ except:
 " 2>/dev/null)
 
             if [ -n "$FIRST_SERVICE" ]; then
-                # Check if override file exists, if so append the port
-                if [ -f "$OVERRIDE_PATH" ]; then
-                    # Add port to existing override (under the same service)
-                    python3 -c "
+                # Skip creating generic port override for redpanda - handled separately below
+                if [ "$service" != "redpanda" ]; then
+                    # Check if override file exists, if so append the port
+                    if [ -f "$OVERRIDE_PATH" ]; then
+                        # Add port to existing override (under the same service)
+                        python3 -c "
 import yaml
 with open('$OVERRIDE_PATH') as f:
     data = yaml.safe_load(f)
@@ -684,18 +686,63 @@ if port_entry not in ports:
     with open('$OVERRIDE_PATH', 'w') as f:
         yaml.dump(data, f, default_flow_style=False)
 " 2>/dev/null
-                else
-                    cat > "$OVERRIDE_PATH" << FWEOF
+                    else
+                        cat > "$OVERRIDE_PATH" << FWEOF
 services:
   $FIRST_SERVICE:
     ports:
       - "$port:$port"
 FWEOF
+                    fi
+                    echo "    Port $port exposed for $service ($FIRST_SERVICE)"
                 fi
-                echo "    Port $port exposed for $service ($FIRST_SERVICE)"
             fi
         fi
     done
+
+    # Special handling for RedPanda: Update advertised listeners for external access
+    REDPANDA_PORTS=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null | sort -n)
+    if [ -n "$REDPANDA_PORTS" ]; then
+        echo "  Configuring RedPanda for external TCP access..."
+        DOMAIN=$(cd "$TOFU_DIR" && tofu output -raw domain 2>/dev/null || echo "")
+
+        if [ -n "$DOMAIN" ]; then
+            # Build ports list
+            PORTS_LIST=""
+            for p in $REDPANDA_PORTS; do
+                PORTS_LIST="${PORTS_LIST}      - \"$p:$p\"\n"
+            done
+
+            # Create override with updated advertised listeners
+            cat > "stacks/redpanda/docker-compose.firewall.yml" << RPEOF
+services:
+  redpanda:
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://redpanda-kafka.$DOMAIN:9092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://redpanda:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+    ports:
+$(echo -e "$PORTS_LIST")
+RPEOF
+            echo "    RedPanda configured for external access:"
+            if echo "$REDPANDA_PORTS" | grep -q "9092"; then
+                echo "      Kafka: redpanda-kafka.$DOMAIN:9092"
+            fi
+            if echo "$REDPANDA_PORTS" | grep -q "8081"; then
+                echo "      Schema Registry: redpanda-schema-registry.$DOMAIN:8081"
+            fi
+        fi
+    fi
+
 else
     echo "  No firewall rules enabled (Zero Entry mode)"
 fi
