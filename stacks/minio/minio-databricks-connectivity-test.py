@@ -79,8 +79,17 @@ try:
         print(f"   - {bucket['Name']}")
 
 except Exception as e:
-    print(f"❌ Connection failed: {e}")
-    dbutils.notebook.exit("Connection test failed")
+    print(f"❌ Connection failed!")
+    print(f"   Error: {type(e).__name__}: {str(e)}")
+    print(f"\nTroubleshooting:")
+    print(f"   1. Verify firewall rule for port 9000 is enabled in Control Plane")
+    print(f"   2. Check credentials in Infisical (MINIO_ROOT_USER, MINIO_ROOT_PASSWORD)")
+    print(f"   3. Verify domain is correct: {S3_ENDPOINT}")
+    print(f"   4. Ensure MinIO is running: Check server status")
+    import traceback
+    print(f"\nFull error details:")
+    traceback.print_exc()
+    dbutils.notebook.exit(f"Connection test failed: {str(e)}")
 
 # COMMAND ----------
 
@@ -100,7 +109,9 @@ try:
         print(f"✅ Bucket '{BUCKET}' created")
 
 except Exception as e:
-    print(f"❌ Bucket creation failed: {e}")
+    print(f"❌ Bucket creation failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -129,7 +140,9 @@ try:
     print(f"\n✅ Successfully uploaded {len(test_files)} objects")
 
 except Exception as e:
-    print(f"❌ Upload failed: {e}")
+    print(f"❌ Upload failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -152,7 +165,9 @@ try:
         print(f"ℹ️  Bucket '{BUCKET}' is empty")
 
 except Exception as e:
-    print(f"❌ List objects failed: {e}")
+    print(f"❌ List objects failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -171,7 +186,9 @@ try:
     print(f"   Content: {content}")
 
 except Exception as e:
-    print(f"❌ Download failed: {e}")
+    print(f"❌ Download failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -193,7 +210,9 @@ try:
     print(f"✅ Bucket '{BUCKET}' deleted")
 
 except Exception as e:
-    print(f"❌ Cleanup failed: {e}")
+    print(f"❌ Cleanup failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 

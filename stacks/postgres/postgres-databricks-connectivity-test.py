@@ -81,8 +81,17 @@ try:
     conn.close()
 
 except Exception as e:
-    print(f"❌ Connection failed: {e}")
-    dbutils.notebook.exit("Connection test failed")
+    print(f"❌ Connection failed!")
+    print(f"   Error: {type(e).__name__}: {str(e)}")
+    print(f"\nTroubleshooting:")
+    print(f"   1. Verify firewall rule for port 5432 is enabled in Control Plane")
+    print(f"   2. Check credentials in Infisical (POSTGRES_USERNAME, POSTGRES_PASSWORD)")
+    print(f"   3. Verify domain is correct: {PG_HOST}")
+    print(f"   4. Ensure PostgreSQL is running: Check server status")
+    import traceback
+    print(f"\nFull error details:")
+    traceback.print_exc()
+    dbutils.notebook.exit(f"Connection test failed: {str(e)}")
 
 # COMMAND ----------
 
@@ -116,7 +125,9 @@ try:
     conn.close()
 
 except Exception as e:
-    print(f"❌ Table creation failed: {e}")
+    print(f"❌ Table creation failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -157,7 +168,9 @@ try:
     conn.close()
 
 except Exception as e:
-    print(f"❌ Insert failed: {e}")
+    print(f"❌ Insert failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -190,7 +203,9 @@ try:
     conn.close()
 
 except Exception as e:
-    print(f"❌ Query failed: {e}")
+    print(f"❌ Query failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -218,7 +233,9 @@ try:
     conn.close()
 
 except Exception as e:
-    print(f"❌ Cleanup failed: {e}")
+    print(f"❌ Cleanup failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 

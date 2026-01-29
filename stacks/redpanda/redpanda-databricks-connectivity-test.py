@@ -77,8 +77,17 @@ try:
 
     admin_client.close()
 except Exception as e:
-    print(f"❌ Connection failed: {e}")
-    dbutils.notebook.exit("Connection test failed")
+    print(f"❌ Connection failed!")
+    print(f"   Error: {type(e).__name__}: {str(e)}")
+    print(f"\nTroubleshooting:")
+    print(f"   1. Verify firewall rule for port 9092 is enabled in Control Plane")
+    print(f"   2. Check SASL credentials in Infisical (REDPANDA_SASL_USERNAME, REDPANDA_SASL_PASSWORD)")
+    print(f"   3. Verify domain is correct: {KAFKA_BOOTSTRAP}")
+    print(f"   4. Ensure RedPanda is running with SASL authentication on external listener")
+    import traceback
+    print(f"\nFull error details:")
+    traceback.print_exc()
+    dbutils.notebook.exit(f"Connection test failed: {str(e)}")
 
 # COMMAND ----------
 
@@ -110,7 +119,9 @@ try:
 
     admin_client.close()
 except Exception as e:
-    print(f"❌ Topic creation failed: {e}")
+    print(f"❌ Topic creation failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -146,7 +157,9 @@ try:
     print(f"\n✅ Successfully sent {len(test_messages)} messages to topic '{TOPIC}'")
 
 except Exception as e:
-    print(f"❌ Producer failed: {e}")
+    print(f"❌ Producer failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
@@ -180,7 +193,9 @@ try:
     print(f"\n✅ Successfully consumed {len(messages)} messages from topic '{TOPIC}'")
 
 except Exception as e:
-    print(f"❌ Consumer failed: {e}")
+    print(f"❌ Consumer failed: {type(e).__name__}: {str(e)}")
+    import traceback
+    traceback.print_exc()
 
 # COMMAND ----------
 
