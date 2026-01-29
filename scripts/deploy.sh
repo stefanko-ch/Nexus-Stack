@@ -1064,18 +1064,49 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; 
             fi
             sleep 1
         done
-        
+
         PORTAINER_JSON="{\"Username\":\"$ADMIN_USERNAME\",\"Password\":\"$PORTAINER_PASS\"}"
         PORTAINER_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:9090/api/users/admin/init' \
             -H 'Content-Type: application/json' \
             -d '$PORTAINER_JSON'" 2>/dev/null || echo "")
-        
+
         if echo "$PORTAINER_RESULT" | grep -q '"Id"' 2>/dev/null; then
             echo -e "${GREEN}  ✓ Portainer admin created (user: $ADMIN_USERNAME)${NC}"
         elif echo "$PORTAINER_RESULT" | grep -q 'already initialized' 2>/dev/null; then
             echo -e "${YELLOW}  ⚠ Portainer already initialized${NC}"
         else
             echo -e "${YELLOW}  ⚠ Portainer setup skipped (may already be configured)${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure RedPanda SASL authentication (for external access)
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS" ]; then
+    (
+        echo "  Configuring RedPanda SASL..."
+        # Wait for RedPanda admin API to be ready
+        for i in $(seq 1 10); do
+            if ssh nexus "docker exec redpanda curl -s --connect-timeout 2 'http://localhost:9644/v1/status/ready'" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # Create SASL user
+        USER_RESULT=$(ssh nexus "docker exec redpanda curl -s -X POST http://localhost:9644/v1/security/users \
+            -H 'Content-Type: application/json' \
+            -d '{\"username\": \"nexus-redpanda\", \"password\": \"$REDPANDA_ADMIN_PASS\", \"algorithm\": \"SCRAM-SHA-256\"}'" 2>/dev/null || echo "")
+
+        # Enable SASL (ignore errors if already enabled)
+        ssh nexus "docker exec redpanda rpk cluster config set enable_sasl true" >/dev/null 2>&1
+
+        # Verify user exists
+        USERS=$(ssh nexus "docker exec redpanda curl -s http://localhost:9644/v1/security/users" 2>/dev/null || echo "[]")
+        if echo "$USERS" | grep -q "nexus-redpanda"; then
+            echo -e "${GREEN}  ✓ RedPanda SASL configured (user: nexus-redpanda)${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ RedPanda SASL setup may have failed - check logs${NC}"
         fi
     ) &
     CONFIG_JOBS+=($!)
