@@ -37,6 +37,7 @@
 
 ### Security
 - **Zero Entry** - Zero open ports = Zero attack surface
+- **Firewall Management** - Open specific TCP ports for external access (Kafka, PostgreSQL, MinIO) via Control Plane, auto-reset on teardown
 - **Service Tokens** - Headless SSH access for CI/CD
 - **Secrets Management** - Centralized in Infisical with auto-provisioning
 
@@ -224,6 +225,8 @@ This setup achieves **zero open ports** after deployment:
 4. All future SSH access goes through Cloudflare Tunnel
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
+
+> **Firewall Management:** For TCP-based services (Kafka, PostgreSQL, MinIO S3 API), the Control Plane provides a Firewall Management page to selectively open ports. DNS A records are created pointing directly to the server IP (`proxied = false`). All firewall rules are automatically reset on every Teardown for security.
 
 ```mermaid
 flowchart LR

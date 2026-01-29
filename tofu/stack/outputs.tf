@@ -66,6 +66,15 @@ output "image_versions" {
 }
 
 # =============================================================================
+# Firewall Outputs
+# =============================================================================
+
+output "firewall_rules" {
+  description = "Enabled firewall rules for external TCP access (for deploy script)"
+  value = var.firewall_rules
+}
+
+# =============================================================================
 # Secrets Outputs
 # =============================================================================
 

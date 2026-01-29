@@ -248,6 +248,11 @@ jobs:
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
           echo "✅ Teardown timestamp written to D1"
 
+          # Reset all firewall rules to disabled (ports must be explicitly re-opened)
+          echo "🔥 Resetting firewall rules..."
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
+          echo "✅ Firewall rules reset - all ports closed for next Spin Up"
+
       - name: Log teardown completed
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

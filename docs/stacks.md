@@ -1063,6 +1063,58 @@ A terminal over HTTP/HTTPS that allows you to access your server via a web brows
 
 ---
 
+## Firewall Management (External TCP Access)
+
+The Control Plane includes a **Firewall Management** page that allows opening specific TCP ports on the Hetzner firewall for direct external access from clients like Databricks.
+
+### Why?
+
+By default, Nexus-Stack uses a "Zero Entry" security model where all ports are closed and all traffic flows through the Cloudflare Tunnel. However, the tunnel only supports HTTP/SSH protocols. Services like Kafka, PostgreSQL, and MinIO S3 API use TCP protocols that cannot be routed through the tunnel.
+
+### How It Works
+
+1. Open the **Firewall** page in the Control Plane
+2. Toggle the ports you need (e.g., Kafka 9092, PostgreSQL 5432, MinIO S3 9000)
+3. Optionally restrict source IPs (e.g., Databricks IP ranges)
+4. Click **Spin Up** to apply changes
+
+Terraform creates inbound Hetzner firewall rules and DNS A records pointing directly to the server IP (`proxied = false`, bypassing Cloudflare proxy).
+
+### Available TCP Ports
+
+| Service | Port | DNS Record | Protocol |
+|---------|------|------------|----------|
+| **RedPanda** (Kafka) | 9092 | `redpanda.<domain>` | Kafka |
+| **RedPanda** (Schema Registry) | 8081 | `redpanda-schema-registry.<domain>` | HTTP |
+| **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
+| **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
+
+### Connection Examples
+
+```bash
+# RedPanda Kafka (from Databricks or any Kafka client)
+redpanda.yourdomain.com:9092
+
+# RedPanda Schema Registry
+curl http://redpanda-schema-registry.yourdomain.com:8081/subjects
+
+# PostgreSQL
+psql -h postgres.yourdomain.com -p 5432 -U postgres
+
+# MinIO S3 API
+aws s3 ls --endpoint-url http://s3.yourdomain.com:9000
+```
+
+### Security
+
+- **Auto-Reset on Teardown:** All firewall rules are automatically reset (`enabled = 0`) when the infrastructure is torn down. Ports must be explicitly re-opened after each Spin Up.
+- **Source IP Restriction:** Each rule supports optional source IP/CIDR restriction. Open to all (`0.0.0.0/0`) if not specified.
+- **Service Authentication:** All exposed services have their own auth (PostgreSQL passwords, Kafka SASL, MinIO access keys).
+- **fail2ban:** Installed on the server, provides brute-force protection for opened ports.
+- **Pre-defined Ports Only:** Only ports defined in `services.yaml` under `tcp_ports` can be opened. No arbitrary port numbers.
+
+---
+
 ## Enabling a Stack
 
 To enable any stack, add it to your `tofu/config.tfvars`:

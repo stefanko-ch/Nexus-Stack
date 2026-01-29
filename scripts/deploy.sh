@@ -628,6 +628,79 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
 fi
 
 # -----------------------------------------------------------------------------
+# Generate Docker Compose override files for firewall TCP port exposure
+# -----------------------------------------------------------------------------
+echo ""
+echo -e "${YELLOW}  Generating firewall port overrides...${NC}"
+
+# Read firewall rules from tofu output
+FIREWALL_JSON=$(cd "$TOFU_DIR" && tofu output -json firewall_rules 2>/dev/null || echo "{}")
+
+if [ "$FIREWALL_JSON" != "{}" ] && [ -n "$FIREWALL_JSON" ]; then
+    echo "  Firewall rules found, generating Docker Compose overrides..."
+
+    # Parse firewall rules and generate override files per service
+    # Group ports by service (derive service name from the key: "service-port")
+    echo "$FIREWALL_JSON" | jq -r 'to_entries[] | "\(.key) \(.value.port)"' 2>/dev/null | while read -r key port; do
+        # Extract service name from key (e.g., "redpanda-9092" -> "redpanda")
+        service=$(echo "$key" | sed 's/-[0-9]*$//')
+
+        # Build override content - expose the port to the host
+        # Find the main service container name from the docker-compose.yml
+        OVERRIDE_PATH="stacks/$service/docker-compose.firewall.yml"
+
+        if [ -f "stacks/$service/docker-compose.yml" ]; then
+            # Get the first service name from the compose file
+            COMPOSE_SERVICE=$(head -20 "stacks/$service/docker-compose.yml" | grep -A0 'services:' | head -1)
+
+            # Create override file with port mapping
+            # We use the service name from docker-compose (first service after 'services:')
+            FIRST_SERVICE=$(python3 -c "
+import yaml, sys
+try:
+    with open('stacks/$service/docker-compose.yml') as f:
+        data = yaml.safe_load(f)
+    services = list(data.get('services', {}).keys())
+    print(services[0] if services else '')
+except:
+    print('')
+" 2>/dev/null)
+
+            if [ -n "$FIRST_SERVICE" ]; then
+                # Check if override file exists, if so append the port
+                if [ -f "$OVERRIDE_PATH" ]; then
+                    # Add port to existing override (under the same service)
+                    python3 -c "
+import yaml
+with open('$OVERRIDE_PATH') as f:
+    data = yaml.safe_load(f)
+svc = data.get('services', {}).get('$FIRST_SERVICE', {})
+ports = svc.get('ports', [])
+port_entry = '$port:$port'
+if port_entry not in ports:
+    ports.append(port_entry)
+    svc['ports'] = ports
+    data.setdefault('services', {})['$FIRST_SERVICE'] = svc
+    with open('$OVERRIDE_PATH', 'w') as f:
+        yaml.dump(data, f, default_flow_style=False)
+" 2>/dev/null
+                else
+                    cat > "$OVERRIDE_PATH" << FWEOF
+services:
+  $FIRST_SERVICE:
+    ports:
+      - "$port:$port"
+FWEOF
+                fi
+                echo "    Port $port exposed for $service ($FIRST_SERVICE)"
+            fi
+        fi
+    done
+else
+    echo "  No firewall rules enabled (Zero Entry mode)"
+fi
+
+# -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
@@ -654,7 +727,12 @@ for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+        if [ -f /opt/docker-server/stacks/\$service/docker-compose.firewall.yml ]; then
+            echo \"    (with firewall port overrides)\"
+            (cd /opt/docker-server/stacks/\$service && docker compose -f docker-compose.yml -f docker-compose.firewall.yml up -d 2>&1) &
+        else
+            (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+        fi
         PID=\$!
         PIDS+=(\$PID)
         STARTED_SERVICES+=(\"\$service:\$PID\")
