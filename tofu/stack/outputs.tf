@@ -138,6 +138,9 @@ output "secrets" {
     # pgAdmin
     pgadmin_password = random_password.pgadmin.result
 
+    # RedPanda SASL (for external Kafka access)
+    redpanda_admin_password = random_password.redpanda_admin.result
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

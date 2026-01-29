@@ -7,22 +7,31 @@
 # MAGIC **Prerequisites:**
 # MAGIC - Firewall rule for RedPanda port 9092 enabled in Control Plane
 # MAGIC - Infrastructure deployed with Spin Up
+# MAGIC - SASL credentials available in Infisical (REDPANDA_SASL_USERNAME / REDPANDA_SASL_PASSWORD)
 
 # COMMAND ----------
 
-# Configuration widget for domain
+# Configuration widgets
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
 dbutils.widgets.text("topic", "test-topic", "Kafka Topic")
+dbutils.widgets.text("sasl_username", "nexus-redpanda", "SASL Username (from Infisical)")
+dbutils.widgets.text("sasl_password", "", "SASL Password (from Infisical)")
 
 # COMMAND ----------
 
 DOMAIN = dbutils.widgets.get("domain")
 TOPIC = dbutils.widgets.get("topic")
+SASL_USERNAME = dbutils.widgets.get("sasl_username")
+SASL_PASSWORD = dbutils.widgets.get("sasl_password")
 
 KAFKA_BOOTSTRAP = f"redpanda-kafka.{DOMAIN}:9092"
 
 print(f"Testing RedPanda/Kafka at: {KAFKA_BOOTSTRAP}")
 print(f"Topic: {TOPIC}")
+print(f"SASL User: {SASL_USERNAME}")
+
+if not SASL_PASSWORD:
+    dbutils.notebook.exit("Error: SASL password required. Get it from Infisical.")
 
 # COMMAND ----------
 
@@ -53,7 +62,11 @@ try:
     admin_client = KafkaAdminClient(
         bootstrap_servers=[KAFKA_BOOTSTRAP],
         client_id='databricks-test',
-        request_timeout_ms=10000
+        request_timeout_ms=10000,
+        security_protocol='SASL_PLAINTEXT',
+        sasl_mechanism='SCRAM-SHA-256',
+        sasl_plain_username=SASL_USERNAME,
+        sasl_plain_password=SASL_PASSWORD
     )
 
     # Get cluster metadata
@@ -75,7 +88,13 @@ except Exception as e:
 # COMMAND ----------
 
 try:
-    admin_client = KafkaAdminClient(bootstrap_servers=[KAFKA_BOOTSTRAP])
+    admin_client = KafkaAdminClient(
+        bootstrap_servers=[KAFKA_BOOTSTRAP],
+        security_protocol='SASL_PLAINTEXT',
+        sasl_mechanism='SCRAM-SHA-256',
+        sasl_plain_username=SASL_USERNAME,
+        sasl_plain_password=SASL_PASSWORD
+    )
 
     # Create topic if it doesn't exist
     topic_list = [NewTopic(name=TOPIC, num_partitions=1, replication_factor=1)]
@@ -103,7 +122,11 @@ except Exception as e:
 try:
     producer = KafkaProducer(
         bootstrap_servers=[KAFKA_BOOTSTRAP],
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        security_protocol='SASL_PLAINTEXT',
+        sasl_mechanism='SCRAM-SHA-256',
+        sasl_plain_username=SASL_USERNAME,
+        sasl_plain_password=SASL_PASSWORD
     )
 
     # Send test messages
@@ -140,7 +163,11 @@ try:
         enable_auto_commit=True,
         group_id='databricks-test-consumer',
         value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-        consumer_timeout_ms=10000
+        consumer_timeout_ms=10000,
+        security_protocol='SASL_PLAINTEXT',
+        sasl_mechanism='SCRAM-SHA-256',
+        sasl_plain_username=SASL_USERNAME,
+        sasl_plain_password=SASL_PASSWORD
     )
 
     messages = []

@@ -14,7 +14,7 @@
 # Configuration widgets
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
 dbutils.widgets.text("password", "", "PostgreSQL Password (from Infisical)")
-dbutils.widgets.dropdown("user", "postgres", ["postgres"], "Database User")
+dbutils.widgets.dropdown("user", "nexus-postgres", ["nexus-postgres"], "Database User (from Infisical)")
 
 # COMMAND ----------
 

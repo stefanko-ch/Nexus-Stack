@@ -97,6 +97,7 @@ HOPPSCOTCH_SESSION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_session_secret //
 HOPPSCOTCH_ENCRYPTION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_encryption_key // empty')
 MELTANO_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.meltano_db_password // empty')
 SODA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.soda_db_password // empty')
+REDPANDA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.redpanda_admin_password // empty')
 POSTGRES_PASS=$(echo "$SECRETS_JSON" | jq -r '.postgres_password // empty')
 PGADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.pgadmin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
@@ -387,7 +388,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "minio"; then
     echo "  Generating MinIO config from OpenTofu secrets..."
     cat > "$STACKS_DIR/minio/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
-MINIO_ROOT_USER=admin
+MINIO_ROOT_USER=nexus-minio
 MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASS
 EOF
     echo -e "${GREEN}  ✓ MinIO .env generated${NC}"
@@ -398,7 +399,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "hoppscotch"; then
     echo "  Generating Hoppscotch config from OpenTofu secrets..."
     cat > "$STACKS_DIR/hoppscotch/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
-DATABASE_URL=postgres://hoppscotch:${HOPPSCOTCH_DB_PASS}@hoppscotch-db:5432/hoppscotch
+DATABASE_URL=postgres://nexus-hoppscotch:${HOPPSCOTCH_DB_PASS}@hoppscotch-db:5432/hoppscotch
 POSTGRES_PASSWORD=${HOPPSCOTCH_DB_PASS}
 JWT_SECRET=${HOPPSCOTCH_JWT}
 SESSION_SECRET=${HOPPSCOTCH_SESSION}
@@ -701,19 +702,25 @@ FWEOF
     done
 
     # Special handling for RedPanda: Update advertised listeners for external access
+    # External listener uses SASL_PLAINTEXT for authentication, internal stays PLAINTEXT
     REDPANDA_PORTS=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null | sort -n)
     if [ -n "$REDPANDA_PORTS" ]; then
-        echo "  Configuring RedPanda for external TCP access..."
+        echo "  Configuring RedPanda for external TCP access (with SASL)..."
         DOMAIN=$(cd "$TOFU_DIR" && tofu output -raw domain 2>/dev/null || echo "")
 
         if [ -n "$DOMAIN" ]; then
-            # Build ports list
+            # Build ports list - map external port to internal external listener port
+            # Host:9092 -> Container:19092 (external SASL listener)
             PORTS_LIST=""
             for p in $REDPANDA_PORTS; do
-                PORTS_LIST="${PORTS_LIST}      - \"$p:$p\"\n"
+                if [ "$p" = "9092" ]; then
+                    PORTS_LIST="${PORTS_LIST}      - \"9092:19092\"\n"
+                else
+                    PORTS_LIST="${PORTS_LIST}      - \"$p:$p\"\n"
+                fi
             done
 
-            # Create override with updated advertised listeners
+            # Create override with SASL on external listener
             cat > "stacks/redpanda/docker-compose.firewall.yml" << RPEOF
 services:
   redpanda:
@@ -730,12 +737,14 @@ services:
       - --mode dev-container
       - --smp 1
       - --default-log-level=info
+    environment:
+      RP_BOOTSTRAP_USER: "nexus-redpanda:${REDPANDA_ADMIN_PASS}"
     ports:
 $(echo -e "$PORTS_LIST")
 RPEOF
-            echo "    RedPanda configured for external access:"
+            echo "    RedPanda configured for external access (SASL):"
             if echo "$REDPANDA_PORTS" | grep -q "9092"; then
-                echo "      Kafka: redpanda-kafka.$DOMAIN:9092"
+                echo "      Kafka: redpanda-kafka.$DOMAIN:9092 (SASL_PLAINTEXT)"
             fi
             if echo "$REDPANDA_PORTS" | grep -q "8081"; then
                 echo "      Schema Registry: redpanda-schema-registry.$DOMAIN:8081"
@@ -912,7 +921,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "meltano" "postgres" "pgadmin" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "redpanda" "meltano" "postgres" "pgadmin" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -934,6 +943,7 @@ EOF
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    REDPANDA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="redpanda") | .id // empty' 2>/dev/null)
                     MELTANO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="meltano") | .id // empty' 2>/dev/null)
                     POSTGRES_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="postgres") | .id // empty' 2>/dev/null)
                     PGADMIN_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="pgadmin") | .id // empty' 2>/dev/null)
@@ -981,10 +991,12 @@ EOF
     {"secretKey": "CLOUDBEAVER_PASSWORD", "secretValue": "$CLOUDBEAVER_PASS", "tagIds": ["$CLOUDBEAVER_TAG"]},
     {"secretKey": "MAGE_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
-    {"secretKey": "MINIO_ROOT_USER", "secretValue": "admin", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "MINIO_ROOT_USER", "secretValue": "nexus-minio", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
+    {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},
-    {"secretKey": "POSTGRES_USERNAME", "secretValue": "postgres", "tagIds": ["$POSTGRES_TAG"]},
+    {"secretKey": "POSTGRES_USERNAME", "secretValue": "nexus-postgres", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "POSTGRES_PASSWORD", "secretValue": "$POSTGRES_PASS", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "PGADMIN_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$PGADMIN_TAG"]},
     {"secretKey": "PGADMIN_PASSWORD", "secretValue": "$PGADMIN_PASS", "tagIds": ["$PGADMIN_TAG"]}$SSH_KEY_SECRET

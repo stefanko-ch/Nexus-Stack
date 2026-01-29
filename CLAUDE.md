@@ -139,6 +139,14 @@ make ssh-setup  # Setup SSH config
    - Bad: `echo "Password: $ADMIN_PASS"`
    - Good: `echo "Credentials available in Infisical"`
 
+### Service Account Naming Convention
+
+All service accounts MUST use the `nexus-` prefix to prevent default username guessing:
+- Database users: `nexus-postgres`, `nexus-kestra`, `nexus-infisical`, `nexus-hoppscotch`, `nexus-soda`, `nexus-meltano`
+- Service admin accounts: `nexus-minio`, `nexus-redpanda`
+- NEVER use default names like `admin`, `postgres`, `root`, or the service name alone
+- Application admin usernames use the configurable `$ADMIN_USERNAME` variable (from `variables.tf`)
+
 ### Adding New Stacks
 
 When adding a new Docker stack, **all locations must be updated**:

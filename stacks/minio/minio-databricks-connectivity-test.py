@@ -13,15 +13,15 @@
 
 # Configuration widgets
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
-dbutils.widgets.text("access_key", "", "MinIO Access Key (from Infisical)")
-dbutils.widgets.text("secret_key", "", "MinIO Secret Key (from Infisical)")
+dbutils.widgets.text("root_user", "nexus-minio", "MinIO Root User (from Infisical)")
+dbutils.widgets.text("root_password", "", "MinIO Root Password (from Infisical)")
 dbutils.widgets.text("bucket", "test-databricks", "Test Bucket Name")
 
 # COMMAND ----------
 
 DOMAIN = dbutils.widgets.get("domain")
-ACCESS_KEY = dbutils.widgets.get("access_key")
-SECRET_KEY = dbutils.widgets.get("secret_key")
+ACCESS_KEY = dbutils.widgets.get("root_user")
+SECRET_KEY = dbutils.widgets.get("root_password")
 BUCKET = dbutils.widgets.get("bucket")
 
 S3_ENDPOINT = f"http://s3.{DOMAIN}:9000"
@@ -30,7 +30,7 @@ print(f"Testing MinIO S3 at: {S3_ENDPOINT}")
 print(f"Bucket: {BUCKET}")
 
 if not ACCESS_KEY or not SECRET_KEY:
-    dbutils.notebook.exit("Error: Access key and secret key required. Get them from Infisical.")
+    dbutils.notebook.exit("Error: Root user and root password required. Get them from Infisical.")
 
 # COMMAND ----------
 

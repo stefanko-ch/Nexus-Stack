@@ -145,6 +145,12 @@ resource "random_password" "postgres" {
   special = false
 }
 
+# RedPanda SASL admin password (for external Kafka access)
+resource "random_password" "redpanda_admin" {
+  length  = 24
+  special = false
+}
+
 # pgAdmin password
 resource "random_password" "pgadmin" {
   length  = 24
