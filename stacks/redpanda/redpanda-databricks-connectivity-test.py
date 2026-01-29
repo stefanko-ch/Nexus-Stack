@@ -14,6 +14,8 @@
 dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
 dbutils.widgets.text("topic", "test-topic", "Kafka Topic")
 
+# COMMAND ----------
+
 DOMAIN = dbutils.widgets.get("domain")
 TOPIC = dbutils.widgets.get("topic")
 

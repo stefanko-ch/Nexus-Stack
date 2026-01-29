@@ -16,6 +16,8 @@ dbutils.widgets.text("domain", "your-domain.com", "Nexus-Stack Domain")
 dbutils.widgets.text("password", "", "PostgreSQL Password (from Infisical)")
 dbutils.widgets.dropdown("user", "postgres", ["postgres"], "Database User")
 
+# COMMAND ----------
+
 DOMAIN = dbutils.widgets.get("domain")
 PASSWORD = dbutils.widgets.get("password")
 USER = dbutils.widgets.get("user")

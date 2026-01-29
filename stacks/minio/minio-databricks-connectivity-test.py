@@ -17,6 +17,8 @@ dbutils.widgets.text("access_key", "", "MinIO Access Key (from Infisical)")
 dbutils.widgets.text("secret_key", "", "MinIO Secret Key (from Infisical)")
 dbutils.widgets.text("bucket", "test-databricks", "Test Bucket Name")
 
+# COMMAND ----------
+
 DOMAIN = dbutils.widgets.get("domain")
 ACCESS_KEY = dbutils.widgets.get("access_key")
 SECRET_KEY = dbutils.widgets.get("secret_key")
