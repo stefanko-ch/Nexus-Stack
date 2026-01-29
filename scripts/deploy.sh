@@ -706,7 +706,7 @@ FWEOF
     REDPANDA_PORTS=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null | sort -n)
     if [ -n "$REDPANDA_PORTS" ]; then
         echo "  Configuring RedPanda for external TCP access (with SASL)..."
-        DOMAIN=$(cd "$TOFU_DIR" && tofu output -raw domain 2>/dev/null || echo "")
+        # DOMAIN already set from config.tfvars on line 57 - no need to read again
 
         if [ -n "$DOMAIN" ]; then
             # Build ports list - map external port to internal external listener port
