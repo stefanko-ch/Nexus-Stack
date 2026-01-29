@@ -17,7 +17,7 @@ dbutils.widgets.text("topic", "test-topic", "Kafka Topic")
 DOMAIN = dbutils.widgets.get("domain")
 TOPIC = dbutils.widgets.get("topic")
 
-KAFKA_BOOTSTRAP = f"redpanda.{DOMAIN}:9092"
+KAFKA_BOOTSTRAP = f"redpanda-kafka.{DOMAIN}:9092"
 
 print(f"Testing RedPanda/Kafka at: {KAFKA_BOOTSTRAP}")
 print(f"Topic: {TOPIC}")
