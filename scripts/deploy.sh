@@ -394,6 +394,16 @@ EOF
     echo -e "${GREEN}  ✓ MinIO .env generated${NC}"
 fi
 
+# Generate RedPanda Console .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda-console"; then
+    echo "  Generating RedPanda Console config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/redpanda-console/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+REDPANDA_ADMIN_PASS=$REDPANDA_ADMIN_PASS
+EOF
+    echo -e "${GREEN}  ✓ RedPanda Console .env generated${NC}"
+fi
+
 # Generate Hoppscotch .env from OpenTofu secrets
 if echo "$ENABLED_SERVICES" | grep -qw "hoppscotch"; then
     echo "  Generating Hoppscotch config from OpenTofu secrets..."
@@ -1101,10 +1111,13 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS"
         # Enable SASL (ignore errors if already enabled)
         ssh nexus "docker exec redpanda rpk cluster config set enable_sasl true" >/dev/null 2>&1
 
+        # Configure superuser (grants full permissions)
+        ssh nexus "docker exec redpanda rpk cluster config set superusers '[\"nexus-redpanda\"]'" >/dev/null 2>&1
+
         # Verify user exists
         USERS=$(ssh nexus "docker exec redpanda curl -s http://localhost:9644/v1/security/users" 2>/dev/null || echo "[]")
         if echo "$USERS" | grep -q "nexus-redpanda"; then
-            echo -e "${GREEN}  ✓ RedPanda SASL configured (user: nexus-redpanda)${NC}"
+            echo -e "${GREEN}  ✓ RedPanda SASL configured (user: nexus-redpanda, superuser)${NC}"
         else
             echo -e "${YELLOW}  ⚠ RedPanda SASL setup may have failed - check logs${NC}"
         fi

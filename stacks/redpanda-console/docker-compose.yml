@@ -19,6 +19,11 @@ services:
       CONSOLE_CONFIG_FILE: |
         kafka:
           brokers: ["redpanda:9092"]
+          sasl:
+            enabled: true
+            mechanism: SCRAM-SHA-256
+            username: nexus-redpanda
+            password: ${REDPANDA_ADMIN_PASS}
           schemaRegistry:
             enabled: true
             urls: ["http://redpanda:8081"]
