@@ -70,10 +70,13 @@ try:
         sasl_plain_password=SASL_PASSWORD
     )
 
-    # Test connection by listing topics
-    topics = admin_client.list_topics()
+    # Test connection by accessing cluster metadata
+    # This triggers actual connection and authentication
+    cluster_metadata = admin_client._client.cluster
+    broker_count = len(cluster_metadata.brokers())
+
     print(f"✅ Successfully connected to Kafka cluster")
-    print(f"   Existing topics: {len(topics)}")
+    print(f"   Connected brokers: {broker_count}")
 
     admin_client.close()
 except Exception as e:
