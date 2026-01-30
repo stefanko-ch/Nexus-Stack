@@ -63,20 +63,16 @@ try:
         bootstrap_servers=[KAFKA_BOOTSTRAP],
         client_id='databricks-test',
         request_timeout_ms=10000,
-        api_version='auto',  # Auto-detect protocol version
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
         sasl_plain_password=SASL_PASSWORD
     )
 
-    # Test connection by accessing cluster metadata
-    # This triggers actual connection and authentication
-    cluster_metadata = admin_client._client.cluster
-    broker_count = len(cluster_metadata.brokers())
-
+    # Test connection by listing topics
+    topics = admin_client.list_topics()
     print(f"✅ Successfully connected to Kafka cluster")
-    print(f"   Connected brokers: {broker_count}")
+    print(f"   Existing topics: {len(topics)}")
 
     admin_client.close()
 except Exception as e:
@@ -102,7 +98,6 @@ except Exception as e:
 try:
     admin_client = KafkaAdminClient(
         bootstrap_servers=[KAFKA_BOOTSTRAP],
-        api_version='auto',  # Auto-detect protocol version
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
@@ -138,7 +133,6 @@ try:
     producer = KafkaProducer(
         bootstrap_servers=[KAFKA_BOOTSTRAP],
         value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        api_version='auto',  # Auto-detect protocol version
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
@@ -182,7 +176,6 @@ try:
         group_id='databricks-test-consumer',
         value_deserializer=lambda m: json.loads(m.decode('utf-8')),
         consumer_timeout_ms=10000,
-        api_version='auto',  # Auto-detect protocol version
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
