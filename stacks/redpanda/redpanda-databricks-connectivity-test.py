@@ -63,6 +63,7 @@ try:
         bootstrap_servers=[KAFKA_BOOTSTRAP],
         client_id='databricks-test',
         request_timeout_ms=10000,
+        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
@@ -98,6 +99,7 @@ except Exception as e:
 try:
     admin_client = KafkaAdminClient(
         bootstrap_servers=[KAFKA_BOOTSTRAP],
+        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
@@ -133,6 +135,7 @@ try:
     producer = KafkaProducer(
         bootstrap_servers=[KAFKA_BOOTSTRAP],
         value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
@@ -176,6 +179,7 @@ try:
         group_id='databricks-test-consumer',
         value_deserializer=lambda m: json.loads(m.decode('utf-8')),
         consumer_timeout_ms=10000,
+        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
         security_protocol='SASL_PLAINTEXT',
         sasl_mechanism='SCRAM-SHA-256',
         sasl_plain_username=SASL_USERNAME,
