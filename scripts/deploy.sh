@@ -1091,8 +1091,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; 
     CONFIG_JOBS+=($!)
 fi
 
-# Configure RedPanda SASL authentication (for external access)
-if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS" ]; then
+# Configure RedPanda SASL authentication (only when external TCP ports are exposed)
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS" ] && [ -f "stacks/redpanda/docker-compose.firewall.yml" ]; then
     (
         echo "  Configuring RedPanda SASL..."
         # Wait for RedPanda admin API to be ready
@@ -1111,10 +1111,31 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS"
         # Enable SASL (ignore errors if already enabled)
         ssh nexus "docker exec redpanda rpk cluster config set enable_sasl true" >/dev/null 2>&1
 
+        # Enable authorization (required to enforce SASL on all listeners)
+        ssh nexus "docker exec redpanda rpk cluster config set kafka_enable_authorization true" >/dev/null 2>&1
+
         # Configure superuser (grants full permissions)
         ssh nexus "docker exec redpanda rpk cluster config set superusers '[\"nexus-redpanda\"]'" >/dev/null 2>&1
 
-        # Verify user exists
+        # Restart RedPanda to apply SASL configuration to listeners
+        echo "  Restarting RedPanda to apply SASL configuration..."
+        if ssh nexus "test -f /opt/docker-server/stacks/redpanda/docker-compose.firewall.yml" 2>/dev/null; then
+            ssh nexus "cd /opt/docker-server/stacks/redpanda && docker compose -f docker-compose.yml -f docker-compose.firewall.yml restart" >/dev/null 2>&1
+        else
+            ssh nexus "cd /opt/docker-server/stacks/redpanda && docker compose restart" >/dev/null 2>&1
+        fi
+
+        # Wait for RedPanda to be ready after restart
+        echo "  Waiting for RedPanda to be ready..."
+        sleep 5
+        for i in $(seq 1 10); do
+            if ssh nexus "docker exec redpanda curl -s --connect-timeout 2 'http://localhost:9644/v1/status/ready'" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # Verify user exists after restart
         USERS=$(ssh nexus "docker exec redpanda curl -s http://localhost:9644/v1/security/users" 2>/dev/null || echo "[]")
         if echo "$USERS" | grep -q "nexus-redpanda"; then
             echo -e "${GREEN}  ✓ RedPanda SASL configured (user: nexus-redpanda, superuser)${NC}"
