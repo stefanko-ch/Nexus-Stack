@@ -802,6 +802,14 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
             echo -e "${RED}  Failed to copy redpanda config${NC}"
             exit 1
         }
+        # Remove old redpanda.yaml file from root (if exists from previous deployment)
+        ssh nexus "rm -f /opt/docker-server/stacks/redpanda/redpanda.yaml" 2>/dev/null || true
+
+        # Set write permissions on config directory (RedPanda needs to create temp files)
+        # Try to set owner to redpanda user (101:101), fallback to world-writable
+        ssh nexus "sudo chown -R 101:101 /opt/docker-server/stacks/redpanda/config 2>/dev/null || sudo chmod -R 777 /opt/docker-server/stacks/redpanda/config" || {
+            echo -e "${YELLOW}  Warning: Could not set config directory permissions${NC}"
+        }
         echo -e "${GREEN}✓ RedPanda configuration copied (production mode)${NC}"
     else
         echo -e "${RED}  redpanda config directory not found!${NC}"
