@@ -27,7 +27,7 @@ services:
       - --default-log-level=info
     volumes:
       - redpanda-data:/var/lib/redpanda/data
-      - ./redpanda.yaml:/etc/redpanda/redpanda.yaml:ro
+      - ./config:/etc/redpanda
     networks:
       - app-network
     healthcheck:

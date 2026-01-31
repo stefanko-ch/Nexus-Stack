@@ -787,18 +787,24 @@ for override_file in stacks/*/docker-compose.firewall.yml; do
 done
 echo -e "${GREEN}✓ Firewall override files copied${NC}"
 
-# Copy RedPanda production configuration file
+# Copy RedPanda production configuration directory
 if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
     echo ""
     echo -e "${YELLOW}Copying RedPanda production configuration...${NC}"
-    if [ -f "stacks/redpanda/redpanda.yaml" ]; then
-        scp -q "stacks/redpanda/redpanda.yaml" nexus:/opt/docker-server/stacks/redpanda/ || {
-            echo -e "${RED}  Failed to copy redpanda.yaml${NC}"
+    if [ -d "stacks/redpanda/config" ]; then
+        # Create config directory on server if it doesn't exist
+        ssh nexus "mkdir -p /opt/docker-server/stacks/redpanda/config" || {
+            echo -e "${RED}  Failed to create config directory${NC}"
+            exit 1
+        }
+        # Copy entire config directory (RedPanda needs write access to /etc/redpanda/)
+        scp -rq "stacks/redpanda/config/"* nexus:/opt/docker-server/stacks/redpanda/config/ || {
+            echo -e "${RED}  Failed to copy redpanda config${NC}"
             exit 1
         }
         echo -e "${GREEN}✓ RedPanda configuration copied (production mode)${NC}"
     else
-        echo -e "${RED}  redpanda.yaml not found!${NC}"
+        echo -e "${RED}  redpanda config directory not found!${NC}"
         exit 1
     fi
 fi
