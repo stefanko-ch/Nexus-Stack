@@ -402,6 +402,12 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda-console"; then
 REDPANDA_ADMIN_PASS=$REDPANDA_ADMIN_PASS
 EOF
     echo -e "${GREEN}  ✓ RedPanda Console .env generated${NC}"
+
+    # Copy .env file to server
+    scp -q "$STACKS_DIR/redpanda-console/.env" nexus:/opt/docker-server/stacks/redpanda-console/.env || {
+        echo -e "${RED}  Failed to copy redpanda-console .env file${NC}"
+        exit 1
+    }
 fi
 
 # Generate Hoppscotch .env from OpenTofu secrets
@@ -1111,7 +1117,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS"
         # Enable SASL (ignore errors if already enabled)
         ssh nexus "docker exec redpanda rpk cluster config set enable_sasl true" >/dev/null 2>&1
 
-        # Enable authorization (required to enforce SASL on all listeners)
+        # Enable authorization (required for superusers to have permissions)
         ssh nexus "docker exec redpanda rpk cluster config set kafka_enable_authorization true" >/dev/null 2>&1
 
         # Configure superuser (grants full permissions)
