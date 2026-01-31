@@ -36,19 +36,21 @@ if not SASL_USERNAME or not SASL_PASSWORD:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Install kafka-python library
+# MAGIC ## Install confluent-kafka library
+# MAGIC
+# MAGIC Using confluent-kafka (based on librdkafka) instead of kafka-python for better RedPanda compatibility.
 
 # COMMAND ----------
 
-%pip install kafka-python
+%pip install confluent-kafka
 
 # COMMAND ----------
 
-from kafka import KafkaProducer, KafkaConsumer, KafkaAdminClient
-from kafka.admin import NewTopic
-from kafka.errors import KafkaError
+from confluent_kafka import Producer, Consumer, KafkaError, KafkaException
+from confluent_kafka.admin import AdminClient, NewTopic
 import json
 from datetime import datetime
+import sys
 
 # COMMAND ----------
 
@@ -57,25 +59,29 @@ from datetime import datetime
 
 # COMMAND ----------
 
+# Kafka configuration
+kafka_config = {
+    'bootstrap.servers': KAFKA_BOOTSTRAP,
+    'security.protocol': 'SASL_PLAINTEXT',
+    'sasl.mechanism': 'SCRAM-SHA-256',
+    'sasl.username': SASL_USERNAME,
+    'sasl.password': SASL_PASSWORD
+}
+
 try:
     print(f"Connecting to {KAFKA_BOOTSTRAP}...")
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=[KAFKA_BOOTSTRAP],
-        client_id='databricks-test',
-        request_timeout_ms=10000,
-        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
-        security_protocol='SASL_PLAINTEXT',
-        sasl_mechanism='SCRAM-SHA-256',
-        sasl_plain_username=SASL_USERNAME,
-        sasl_plain_password=SASL_PASSWORD
-    )
+    admin_client = AdminClient(kafka_config)
 
     # Test connection by listing topics
-    topics = admin_client.list_topics()
-    print(f"✅ Successfully connected to Kafka cluster")
-    print(f"   Existing topics: {len(topics)}")
+    metadata = admin_client.list_topics(timeout=10)
+    topics = metadata.topics
 
-    admin_client.close()
+    print(f"✅ Successfully connected to Kafka cluster")
+    print(f"   Cluster ID: {metadata.cluster_id}")
+    print(f"   Existing topics: {len(topics)}")
+    for topic_name in topics:
+        print(f"      - {topic_name}")
+
 except Exception as e:
     print(f"❌ Connection failed!")
     print(f"   Error: {type(e).__name__}: {str(e)}")
@@ -97,30 +103,27 @@ except Exception as e:
 # COMMAND ----------
 
 try:
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=[KAFKA_BOOTSTRAP],
-        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
-        security_protocol='SASL_PLAINTEXT',
-        sasl_mechanism='SCRAM-SHA-256',
-        sasl_plain_username=SASL_USERNAME,
-        sasl_plain_password=SASL_PASSWORD
-    )
+    admin_client = AdminClient(kafka_config)
 
     # Create topic if it doesn't exist
-    topic_list = [NewTopic(name=TOPIC, num_partitions=1, replication_factor=1)]
+    topic_list = [NewTopic(TOPIC, num_partitions=1, replication_factor=1)]
 
-    try:
-        admin_client.create_topics(new_topics=topic_list, validate_only=False)
-        print(f"✅ Topic '{TOPIC}' created")
-    except KafkaError as e:
-        if "TopicExistsError" in str(e):
-            print(f"ℹ️  Topic '{TOPIC}' already exists")
-        else:
-            raise e
+    # Create topics - this returns a dict of futures
+    fs = admin_client.create_topics(topic_list)
 
-    admin_client.close()
+    # Wait for operation to finish
+    for topic, f in fs.items():
+        try:
+            f.result()  # The result itself is None
+            print(f"✅ Topic '{topic}' created")
+        except Exception as e:
+            if "TopicExistsException" in str(e) or "TOPIC_ALREADY_EXISTS" in str(e):
+                print(f"ℹ️  Topic '{topic}' already exists")
+            else:
+                raise e
+
 except Exception as e:
-    print(f"❌ Topic creation failed: {type(e).__name__}: {str(e)}")
+    print(f"❌ Topic operation failed: {type(e).__name__}: {str(e)}")
     import traceback
     traceback.print_exc()
 
@@ -131,16 +134,20 @@ except Exception as e:
 
 # COMMAND ----------
 
+def delivery_callback(err, msg):
+    """Callback called once the message has been delivered or failed"""
+    if err:
+        print(f'❌ Message delivery failed: {err}')
+    else:
+        print(f'✅ Sent message to {msg.topic()}:{msg.partition()}:{msg.offset()}')
+
 try:
-    producer = KafkaProducer(
-        bootstrap_servers=[KAFKA_BOOTSTRAP],
-        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
-        security_protocol='SASL_PLAINTEXT',
-        sasl_mechanism='SCRAM-SHA-256',
-        sasl_plain_username=SASL_USERNAME,
-        sasl_plain_password=SASL_PASSWORD
-    )
+    producer_config = kafka_config.copy()
+    producer_config.update({
+        'client.id': 'databricks-producer'
+    })
+
+    producer = Producer(producer_config)
 
     # Send test messages
     test_messages = [
@@ -150,12 +157,23 @@ try:
     ]
 
     for msg in test_messages:
-        future = producer.send(TOPIC, value=msg)
-        record_metadata = future.get(timeout=10)
-        print(f"✅ Sent message {msg['id']} to {record_metadata.topic}:{record_metadata.partition}:{record_metadata.offset}")
+        # Convert dict to JSON string
+        value = json.dumps(msg).encode('utf-8')
 
+        # Produce message
+        producer.produce(
+            TOPIC,
+            value=value,
+            callback=delivery_callback
+        )
+
+        # Trigger delivery report callbacks
+        producer.poll(0)
+
+    # Wait for all messages to be delivered
+    print(f"\nFlushing producer...")
     producer.flush()
-    producer.close()
+
     print(f"\n✅ Successfully sent {len(test_messages)} messages to topic '{TOPIC}'")
 
 except Exception as e:
@@ -171,27 +189,48 @@ except Exception as e:
 # COMMAND ----------
 
 try:
-    consumer = KafkaConsumer(
-        TOPIC,
-        bootstrap_servers=[KAFKA_BOOTSTRAP],
-        auto_offset_reset='earliest',
-        enable_auto_commit=True,
-        group_id='databricks-test-consumer',
-        value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-        consumer_timeout_ms=10000,
-        api_version=(2, 8, 0),  # Kafka 2.8 protocol (RedPanda v24.x compatible)
-        security_protocol='SASL_PLAINTEXT',
-        sasl_mechanism='SCRAM-SHA-256',
-        sasl_plain_username=SASL_USERNAME,
-        sasl_plain_password=SASL_PASSWORD
-    )
+    consumer_config = kafka_config.copy()
+    consumer_config.update({
+        'group.id': 'databricks-test-consumer',
+        'auto.offset.reset': 'earliest',
+        'enable.auto.commit': True,
+        'client.id': 'databricks-consumer'
+    })
+
+    consumer = Consumer(consumer_config)
+    consumer.subscribe([TOPIC])
 
     messages = []
-    for message in consumer:
-        messages.append(message.value)
-        print(f"✅ Consumed: {message.value}")
+    max_messages = 10  # Prevent infinite loop
+    timeout = 10  # seconds
 
-    consumer.close()
+    print(f"Consuming messages from topic '{TOPIC}'...")
+
+    try:
+        msg_count = 0
+        while msg_count < max_messages:
+            msg = consumer.poll(timeout=1.0)
+
+            if msg is None:
+                # No message available within timeout
+                continue
+
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    # End of partition - reached the end
+                    print(f"Reached end of partition {msg.partition()}")
+                    break
+                else:
+                    raise KafkaException(msg.error())
+            else:
+                # Message successfully consumed
+                value = json.loads(msg.value().decode('utf-8'))
+                messages.append(value)
+                print(f"✅ Consumed: {value}")
+                msg_count += 1
+
+    finally:
+        consumer.close()
 
     print(f"\n✅ Successfully consumed {len(messages)} messages from topic '{TOPIC}'")
 
