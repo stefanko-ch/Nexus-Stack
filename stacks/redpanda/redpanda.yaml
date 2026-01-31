@@ -1,0 +1,57 @@
+# =============================================================================
+# RedPanda Production Configuration
+# =============================================================================
+# This configuration file enables production-ready settings for RedPanda.
+#
+# IMPORTANT: developer_mode MUST be false for production use!
+#
+# Key features:
+# - Per-listener SASL authentication (internal + external)
+# - Production defaults (5 GiB min free storage)
+# - SCRAM-SHA-256 authentication mechanism
+# =============================================================================
+
+redpanda:
+  # Kafka API listeners with per-listener authentication
+  kafka_api:
+    # Internal listener (for redpanda-console, other internal services)
+    - name: internal
+      address: 0.0.0.0
+      port: 9092
+      authentication_method: sasl  # SASL authentication required
+
+    # External listener (for Databricks and external clients)
+    - name: external
+      address: 0.0.0.0
+      port: 19092
+      authentication_method: sasl  # SASL authentication required
+
+  # Advertised addresses are set via command-line flags for flexibility
+  # See docker-compose.yml: --advertise-kafka-addr
+
+  # Admin API configuration
+  admin:
+    - name: admin
+      address: 0.0.0.0
+      port: 9644
+
+  # Developer mode MUST be false for production
+  # When true, this enables unsafe settings like fsync bypass (DATA LOSS RISK!)
+  developer_mode: false
+
+# Cluster configuration
+cluster:
+  # Auto-create topics (useful for development, can be disabled in production)
+  auto_create_topics_enabled: true
+
+  # Storage settings - production defaults
+  # Development: 1 GiB, Production: 5 GiB
+  storage_min_free_bytes: 5368709120  # 5 GiB
+
+# SASL authentication mechanisms
+# SCRAM-SHA-256 is recommended for compatibility and security
+sasl_mechanisms:
+  - SCRAM-SHA-256
+
+# Superusers are configured via rpk cluster config after startup
+# Example: rpk cluster config set superusers '["nexus-redpanda"]'

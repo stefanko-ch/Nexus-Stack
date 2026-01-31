@@ -736,7 +736,7 @@ FWEOF
                 fi
             done
 
-            # Create override with SASL on external listener
+            # Create override with SASL on external listener (production mode)
             cat > "stacks/redpanda/docker-compose.firewall.yml" << RPEOF
 services:
   redpanda:
@@ -750,11 +750,11 @@ services:
       - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
       - --rpc-addr redpanda:33145
       - --advertise-rpc-addr redpanda:33145
-      - --mode dev-container
       - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
       - --default-log-level=info
-    environment:
-      RP_BOOTSTRAP_USER: "nexus-redpanda:${REDPANDA_ADMIN_PASS}"
     ports:
 $(echo -e "$PORTS_LIST")
 RPEOF
@@ -786,6 +786,22 @@ for override_file in stacks/*/docker-compose.firewall.yml; do
     fi
 done
 echo -e "${GREEN}✓ Firewall override files copied${NC}"
+
+# Copy RedPanda production configuration file
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
+    echo ""
+    echo -e "${YELLOW}Copying RedPanda production configuration...${NC}"
+    if [ -f "stacks/redpanda/redpanda.yaml" ]; then
+        scp -q "stacks/redpanda/redpanda.yaml" nexus:/opt/docker-server/stacks/redpanda/ || {
+            echo -e "${RED}  Failed to copy redpanda.yaml${NC}"
+            exit 1
+        }
+        echo -e "${GREEN}✓ RedPanda configuration copied (production mode)${NC}"
+    else
+        echo -e "${RED}  redpanda.yaml not found!${NC}"
+        exit 1
+    fi
+fi
 
 # -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
@@ -1109,18 +1125,14 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS"
             sleep 2
         done
 
-        # Create SASL user
-        USER_RESULT=$(ssh nexus "docker exec redpanda curl -s -X POST http://localhost:9644/v1/security/users \
-            -H 'Content-Type: application/json' \
-            -d '{\"username\": \"nexus-redpanda\", \"password\": \"$REDPANDA_ADMIN_PASS\", \"algorithm\": \"SCRAM-SHA-256\"}'" 2>/dev/null || echo "")
+        # SASL is configured in redpanda.yaml - just create user and set superuser
 
-        # Enable SASL (ignore errors if already enabled)
-        ssh nexus "docker exec redpanda rpk cluster config set enable_sasl true" >/dev/null 2>&1
+        # Create SASL user using rpk
+        USER_RESULT=$(ssh nexus "docker exec redpanda rpk acl user create nexus-redpanda \
+            -p '$REDPANDA_ADMIN_PASS' \
+            --mechanism SCRAM-SHA-256 2>&1" || echo "")
 
-        # Enable authorization (required for superusers to have permissions)
-        ssh nexus "docker exec redpanda rpk cluster config set kafka_enable_authorization true" >/dev/null 2>&1
-
-        # Configure superuser (grants full permissions)
+        # Configure superuser (grants full permissions without ACLs)
         ssh nexus "docker exec redpanda rpk cluster config set superusers '[\"nexus-redpanda\"]'" >/dev/null 2>&1
 
         # Restart RedPanda to apply SASL configuration to listeners
