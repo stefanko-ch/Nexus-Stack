@@ -747,7 +747,7 @@ RPEOF
             # Generate firewall-specific redpanda.yaml from template
             # This replaces the standard redpanda.yaml when firewall is enabled
             REDPANDA_FIREWALL_CONFIG="stacks/redpanda/config/redpanda-firewall.yaml"
-            sed "s/__REDPANDA_KAFKA_DOMAIN__/redpanda-kafka.$DOMAIN/g; s/__REDPANDA_SCHEMA_REGISTRY_DOMAIN__/redpanda-schema-registry.$DOMAIN/g" \
+            sed "s/__REDPANDA_KAFKA_DOMAIN__/redpanda-kafka.$DOMAIN/g" \
                 "stacks/redpanda/config/redpanda-firewall.yaml.template" > "$REDPANDA_FIREWALL_CONFIG"
 
             echo "    RedPanda configured for external access (SASL):"

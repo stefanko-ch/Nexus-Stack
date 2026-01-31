@@ -110,22 +110,13 @@ pandaproxy:
       port: 18082
 
 # Schema Registry
+# Note: Schema Registry does not have advertised_* configuration
+# It uses the schema_registry_api addresses directly
 schema_registry:
   schema_registry_api:
     - name: internal
       address: 0.0.0.0
       port: 8081
-    - name: external
-      address: 0.0.0.0
-      port: 18081
-
-  advertised_schema_registry_api:
-    - name: internal
-      address: redpanda
-      port: 8081
-    - name: external
-      address: redpanda
-      port: 18081
 
 # Superusers are configured via rpk cluster config after startup
 # Example: rpk cluster config set superusers '["nexus-redpanda"]'
