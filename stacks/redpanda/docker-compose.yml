@@ -13,17 +13,8 @@ services:
     command:
       - redpanda
       - start
-      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda:9092,external://redpanda:19092
-      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
-      - --advertise-pandaproxy-addr internal://redpanda:8082,external://redpanda:18082
-      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
-      - --rpc-addr redpanda:33145
-      - --advertise-rpc-addr redpanda:33145
-      - --smp 1
-      - --memory 1G
-      - --reserve-memory 0M
-      - --default-log-level=info
+      # All configuration is in /etc/redpanda/redpanda.yaml
+      # No CLI flags to prevent config file rewrites
     volumes:
       - redpanda-data:/var/lib/redpanda/data
       - ./config:/etc/redpanda

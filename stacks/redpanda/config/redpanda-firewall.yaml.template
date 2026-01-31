@@ -1,12 +1,9 @@
 # =============================================================================
-# RedPanda Production Configuration
+# RedPanda Firewall Override Configuration
 # =============================================================================
-# This configuration file contains ALL settings. No command-line flags are
-# used to prevent config file rewrites that strip authentication_method fields.
-#
-# IMPORTANT: Mixing CLI flags with mounted config files causes Redpanda to
-# rewrite this file, removing fields like authentication_method.
-# See: https://github.com/redpanda-data/redpanda/issues/15902
+# This configuration is used when the firewall is opened for external TCP access.
+# The only difference from redpanda.yaml is the external advertised_kafka_api
+# address which points to the public DNS name instead of the internal hostname.
 # =============================================================================
 
 redpanda:
@@ -50,30 +47,22 @@ redpanda:
       address: redpanda
       port: 9092
     - name: external
-      address: redpanda
-      port: 19092
+      address: __REDPANDA_KAFKA_DOMAIN__  # Replaced with redpanda-kafka.nexus-stack.ch
+      port: 9092  # External clients connect to host port 9092 -> container port 19092
 
   # Developer mode MUST be false for production
-  # When true, this enables unsafe settings like fsync bypass (DATA LOSS RISK!)
   developer_mode: false
 
 # Cluster configuration
 cluster:
-  # Auto-create topics (useful for development, can be disabled in production)
   auto_create_topics_enabled: true
-
-  # Storage settings - production defaults
-  # Development: 1 GiB, Production: 5 GiB
   storage_min_free_bytes: 5368709120  # 5 GiB
 
 # SASL authentication mechanisms
-# SCRAM-SHA-256 is recommended for compatibility and security
 sasl_mechanisms:
   - SCRAM-SHA-256
 
 # RPK tuner settings
-# All tuning options are set here instead of using CLI flags
-# to prevent config file rewrites
 rpk:
   overprovisioned: true
   tune_network: false
@@ -124,8 +113,7 @@ schema_registry:
       address: redpanda
       port: 8081
     - name: external
-      address: redpanda
-      port: 18081
+      address: __REDPANDA_SCHEMA_REGISTRY_DOMAIN__  # Replaced with redpanda-schema-registry.nexus-stack.ch
+      port: 8081
 
 # Superusers are configured via rpk cluster config after startup
-# Example: rpk cluster config set superusers '["nexus-redpanda"]'

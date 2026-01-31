@@ -717,12 +717,12 @@ FWEOF
         fi
     done
 
-    # Special handling for RedPanda: Update advertised listeners for external access
-    # External listener uses SASL_PLAINTEXT for authentication, internal stays PLAINTEXT
+    # Special handling for RedPanda: Generate firewall-specific config
+    # Instead of using docker-compose override with CLI flags, we generate
+    # a firewall-specific redpanda.yaml with external advertised addresses
     REDPANDA_PORTS=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null | sort -n)
     if [ -n "$REDPANDA_PORTS" ]; then
         echo "  Configuring RedPanda for external TCP access (with SASL)..."
-        # DOMAIN already set from config.tfvars on line 57 - no need to read again
 
         if [ -n "$DOMAIN" ]; then
             # Build ports list - map external port to internal external listener port
@@ -736,27 +736,20 @@ FWEOF
                 fi
             done
 
-            # Create override with SASL on external listener (production mode)
+            # Create docker-compose override with port mappings only (no command flags)
             cat > "stacks/redpanda/docker-compose.firewall.yml" << RPEOF
 services:
   redpanda:
-    command:
-      - redpanda
-      - start
-      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda:9092,external://redpanda-kafka.$DOMAIN:9092
-      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
-      - --advertise-pandaproxy-addr internal://redpanda:8082,external://redpanda:18082
-      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
-      - --rpc-addr redpanda:33145
-      - --advertise-rpc-addr redpanda:33145
-      - --smp 1
-      - --memory 1G
-      - --reserve-memory 0M
-      - --default-log-level=info
     ports:
 $(echo -e "$PORTS_LIST")
 RPEOF
+
+            # Generate firewall-specific redpanda.yaml from template
+            # This replaces the standard redpanda.yaml when firewall is enabled
+            REDPANDA_FIREWALL_CONFIG="stacks/redpanda/config/redpanda-firewall.yaml"
+            sed "s/__REDPANDA_KAFKA_DOMAIN__/redpanda-kafka.$DOMAIN/g; s/__REDPANDA_SCHEMA_REGISTRY_DOMAIN__/redpanda-schema-registry.$DOMAIN/g" \
+                "stacks/redpanda/config/redpanda-firewall.yaml.template" > "$REDPANDA_FIREWALL_CONFIG"
+
             echo "    RedPanda configured for external access (SASL):"
             if echo "$REDPANDA_PORTS" | grep -q "9092"; then
                 echo "      Kafka: redpanda-kafka.$DOMAIN:9092 (SASL_PLAINTEXT)"
@@ -796,11 +789,25 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
             echo -e "${RED}  Failed to create config directory${NC}"
             exit 1
         }
-        # Copy entire config directory (RedPanda needs write access to /etc/redpanda/)
-        scp -rq "stacks/redpanda/config/"* nexus:/opt/docker-server/stacks/redpanda/config/ || {
-            echo -e "${RED}  Failed to copy redpanda config${NC}"
-            exit 1
-        }
+
+        # Check if firewall is enabled for RedPanda
+        REDPANDA_FIREWALL_ENABLED=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null)
+
+        if [ -n "$REDPANDA_FIREWALL_ENABLED" ] && [ -f "stacks/redpanda/config/redpanda-firewall.yaml" ]; then
+            # Firewall mode: Use the generated firewall-specific config
+            echo "  Using firewall configuration (external advertised addresses)"
+            scp -q "stacks/redpanda/config/redpanda-firewall.yaml" nexus:/opt/docker-server/stacks/redpanda/config/redpanda.yaml || {
+                echo -e "${RED}  Failed to copy firewall config${NC}"
+                exit 1
+            }
+        else
+            # Normal mode: Use standard config
+            scp -q "stacks/redpanda/config/redpanda.yaml" nexus:/opt/docker-server/stacks/redpanda/config/redpanda.yaml || {
+                echo -e "${RED}  Failed to copy redpanda config${NC}"
+                exit 1
+            }
+        fi
+
         # Remove old redpanda.yaml file from root (if exists from previous deployment)
         ssh nexus "rm -f /opt/docker-server/stacks/redpanda/redpanda.yaml" 2>/dev/null || true
 
@@ -809,7 +816,12 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
         ssh nexus "sudo chown -R 101:101 /opt/docker-server/stacks/redpanda/config 2>/dev/null || sudo chmod -R 777 /opt/docker-server/stacks/redpanda/config" || {
             echo -e "${YELLOW}  Warning: Could not set config directory permissions${NC}"
         }
-        echo -e "${GREEN}✓ RedPanda configuration copied (production mode)${NC}"
+
+        if [ -n "$REDPANDA_FIREWALL_ENABLED" ]; then
+            echo -e "${GREEN}✓ RedPanda firewall configuration copied${NC}"
+        else
+            echo -e "${GREEN}✓ RedPanda configuration copied (production mode)${NC}"
+        fi
     else
         echo -e "${RED}  redpanda config directory not found!${NC}"
         exit 1
