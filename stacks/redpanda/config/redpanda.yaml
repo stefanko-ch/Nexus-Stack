@@ -53,5 +53,12 @@ cluster:
 sasl_mechanisms:
   - SCRAM-SHA-256
 
+# RPK tuner settings
+# overprovisioned MUST be set here (not as --overprovisioned CLI flag)
+# because the CLI flag triggers a config file rewrite that strips
+# authentication_method fields (see GitHub Issue #15902)
+rpk:
+  overprovisioned: true
+
 # Superusers are configured via rpk cluster config after startup
 # Example: rpk cluster config set superusers '["nexus-redpanda"]'

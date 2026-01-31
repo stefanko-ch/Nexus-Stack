@@ -753,7 +753,6 @@ services:
       - --smp 1
       - --memory 1G
       - --reserve-memory 0M
-      - --overprovisioned
       - --default-log-level=info
     ports:
 $(echo -e "$PORTS_LIST")
