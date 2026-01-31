@@ -1145,6 +1145,13 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS"
         USERS=$(ssh nexus "docker exec redpanda curl -s http://localhost:9644/v1/security/users" 2>/dev/null || echo "[]")
         if echo "$USERS" | grep -q "nexus-redpanda"; then
             echo -e "${GREEN}  ✓ RedPanda SASL configured (user: nexus-redpanda, superuser)${NC}"
+
+            # Restart redpanda-console to connect with SASL credentials
+            if echo "$ENABLED_SERVICES" | grep -qw "redpanda-console"; then
+                echo "  Restarting RedPanda Console to connect with SASL..."
+                ssh nexus "cd /opt/docker-server/stacks/redpanda-console && docker compose restart" >/dev/null 2>&1
+                sleep 3
+            fi
         else
             echo -e "${YELLOW}  ⚠ RedPanda SASL setup may have failed - check logs${NC}"
         fi
