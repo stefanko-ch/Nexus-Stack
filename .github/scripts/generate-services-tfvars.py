@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Generate services configuration for OpenTofu from services.yaml
+Generate services and firewall configuration for OpenTofu from services.yaml
 
-This script reads services.yaml and generates the services block for
-tofu/stack/config.tfvars, taking into account which services are enabled
-in D1 (passed via ENABLED_SERVICES environment variable).
+This script reads services.yaml and generates the services and firewall_rules
+blocks for tofu/stack/config.tfvars, taking into account which services are
+enabled in D1 (passed via ENABLED_SERVICES environment variable) and which
+firewall rules are enabled (passed via FIREWALL_RULES environment variable).
 
 Usage:
-    ENABLED_SERVICES="service1,service2" python3 generate-services-tfvars.py
+    ENABLED_SERVICES="service1,service2" \
+    FIREWALL_RULES="redpanda:9092:kafka::kafka;postgres:5432:postgres::db" \
+    python3 generate-services-tfvars.py
 
-The script appends the services configuration to tofu/stack/config.tfvars.
+The script appends the configuration to tofu/stack/config.tfvars.
 """
 
 import yaml
@@ -166,10 +169,66 @@ def main():
 
     output_lines.append('}')
 
+    # Generate firewall_rules block from FIREWALL_RULES env var
+    # Format: "service:port:source_ips:dns_record;service:port:source_ips:dns_record"
+    # Records separated by ";", source_ips within a record are comma-separated CIDRs
+    firewall_input = os.environ.get('FIREWALL_RULES', '')
+    firewall_rules = []
+
+    if firewall_input.strip():
+        for entry in firewall_input.split(';'):
+            entry = entry.strip()
+            if not entry:
+                continue
+            parts = entry.split(':')
+            if len(parts) < 2:
+                print(f"Warning: Invalid firewall rule entry: {entry}", file=sys.stderr)
+                continue
+            service_name = parts[0]
+            try:
+                port = int(parts[1])
+            except ValueError:
+                print(f"Warning: Invalid port in firewall rule: {entry}", file=sys.stderr)
+                continue
+            source_ips = parts[2] if len(parts) > 2 else ''
+            dns_record = parts[3] if len(parts) > 3 else ''
+
+            # Validate that the port belongs to the service's tcp_ports
+            if service_name in services:
+                tcp_ports = services[service_name].get('tcp_ports', {})
+                if port not in tcp_ports.values():
+                    print(f"Warning: Port {port} not in tcp_ports for {service_name}, skipping", file=sys.stderr)
+                    continue
+
+            firewall_rules.append({
+                'key': f'{service_name}-{port}',
+                'port': port,
+                'source_ips': source_ips,
+                'dns_record': dns_record,
+            })
+
+    output_lines.append('')
+    output_lines.append('# Firewall rules for external TCP access (from D1)')
+    output_lines.append('firewall_rules = {')
+
+    for rule in firewall_rules:
+        source_ips_list = [ip.strip() for ip in rule['source_ips'].split(',') if ip.strip()] if rule['source_ips'] else []
+        source_ips_tf = ', '.join(f'"{ip}"' for ip in source_ips_list)
+
+        output_lines.append(f'  "{rule["key"]}" = {{')
+        output_lines.append(f'    port       = {rule["port"]}')
+        output_lines.append(f'    protocol   = "tcp"')
+        output_lines.append(f'    source_ips = [{source_ips_tf}]')
+        output_lines.append(f'    dns_record = "{rule["dns_record"]}"')
+        output_lines.append(f'  }}')
+        output_lines.append('')
+
+    output_lines.append('}')
+
     with open('tofu/stack/config.tfvars', 'a') as f:
         f.write('\n'.join(output_lines))
 
-    print(f"Generated services config for {len(services)} services")
+    print(f"Generated services config for {len(services)} services, {len(firewall_rules)} firewall rules")
 
 if __name__ == '__main__':
     main()

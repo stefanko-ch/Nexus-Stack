@@ -1,0 +1,111 @@
+# =============================================================================
+# RedPanda Firewall Override Configuration
+# =============================================================================
+# This configuration is used when the firewall is opened for external TCP access.
+# The only difference from redpanda.yaml is the external advertised_kafka_api
+# address which points to the public DNS name instead of the internal hostname.
+# =============================================================================
+
+redpanda:
+  # Node configuration
+  node_id: 0
+  data_directory: /var/lib/redpanda/data
+  seed_servers: []
+
+  # RPC server (internal cluster communication)
+  rpc_server:
+    address: 0.0.0.0
+    port: 33145
+
+  # Kafka API listeners
+  kafka_api:
+    # Internal listener (for redpanda-console, connect, datagen, schema registry)
+    # No SASL on internal - Docker network is trusted, external access via Zero Trust
+    - name: internal
+      address: 0.0.0.0
+      port: 9092
+      authentication_method: none
+
+    # External listener (for Databricks and external clients)
+    - name: external
+      address: 0.0.0.0
+      port: 19092
+      authentication_method: sasl  # SASL authentication required
+
+  # Admin API
+  admin:
+    - name: admin
+      address: 0.0.0.0
+      port: 9644
+
+  # Advertised addresses (how clients discover brokers)
+  advertised_rpc_api:
+    address: redpanda
+    port: 33145
+
+  advertised_kafka_api:
+    - name: internal
+      address: redpanda
+      port: 9092
+    - name: external
+      address: __REDPANDA_KAFKA_DOMAIN__  # Replaced with redpanda-kafka.nexus-stack.ch
+      port: 9092  # External clients connect to host port 9092 -> container port 19092
+
+  # Developer mode MUST be false for production
+  developer_mode: false
+
+# Cluster configuration
+cluster:
+  auto_create_topics_enabled: true
+  storage_min_free_bytes: 5368709120  # 5 GiB
+
+# SASL authentication mechanisms
+sasl_mechanisms:
+  - SCRAM-SHA-256
+
+# RPK tuner settings
+rpk:
+  overprovisioned: true
+  tune_network: false
+  tune_disk_scheduler: false
+  tune_disk_nomerges: false
+  tune_disk_write_cache: false
+  tune_disk_irq: false
+  tune_cpu: false
+  tune_aio_events: false
+  tune_clocksource: false
+  tune_swappiness: false
+  tune_transparent_hugepages: false
+  tune_enable_memory_locking: false
+  tune_fstrim: false
+  tune_coredump: false
+  tune_ballast_file: false
+
+# Pandaproxy (HTTP Kafka proxy)
+pandaproxy:
+  pandaproxy_api:
+    - name: internal
+      address: 0.0.0.0
+      port: 8082
+    - name: external
+      address: 0.0.0.0
+      port: 18082
+
+  advertised_pandaproxy_api:
+    - name: internal
+      address: redpanda
+      port: 8082
+    - name: external
+      address: redpanda
+      port: 18082
+
+# Schema Registry
+# Note: Schema Registry does not have advertised_* configuration
+# It uses the schema_registry_api addresses directly
+schema_registry:
+  schema_registry_api:
+    - name: internal
+      address: 0.0.0.0
+      port: 8081
+
+# Superusers are configured via rpk cluster config after startup

@@ -55,3 +55,6 @@ terraform.rc
 # Stack secrets (auto-generated on server)
 stacks/.env
 stacks/*/.env
+
+# Generated firewall override files (created by deploy.sh)
+stacks/*/docker-compose.firewall.yml

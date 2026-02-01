@@ -145,6 +145,12 @@ resource "random_password" "postgres" {
   special = false
 }
 
+# RedPanda SASL admin password (for external Kafka access)
+resource "random_password" "redpanda_admin" {
+  length  = 24
+  special = false
+}
+
 # pgAdmin password
 resource "random_password" "pgadmin" {
   length  = 24
@@ -158,13 +164,22 @@ resource "random_password" "pgadmin" {
 resource "hcloud_firewall" "main" {
   name = "${local.resource_prefix}-fw"
 
-  # No inbound rules at all = true Zero Entry
-  # All traffic goes through Cloudflare Tunnel
+  # By default: No inbound rules = Zero Entry (all traffic via Cloudflare Tunnel)
+  # When firewall_rules are configured, dynamic inbound rules allow external TCP access
+  dynamic "rule" {
+    for_each = var.firewall_rules
+    content {
+      direction  = "in"
+      protocol   = rule.value.protocol
+      port       = tostring(rule.value.port)
+      source_ips = length(rule.value.source_ips) > 0 ? rule.value.source_ips : ["0.0.0.0/0", "::/0"]
+    }
+  }
 }
 
-# Temporary firewall for initial setup (SSH access)
-resource "hcloud_firewall" "setup" {
-  name = "${local.resource_prefix}-setup-fw"
+# SSH Setup Firewall (temporary, attached via workflow)
+resource "hcloud_firewall" "ssh_setup" {
+  name = "${local.resource_prefix}-ssh-setup-fw"
 
   rule {
     direction  = "in"
@@ -172,6 +187,9 @@ resource "hcloud_firewall" "setup" {
     port       = "22"
     source_ips = ["0.0.0.0/0", "::/0"]
   }
+
+  # No apply_to block - attachment happens via API in spin-up workflow
+  # This ensures port 22 is only open during tunnel installation
 }
 
 # =============================================================================
@@ -184,7 +202,7 @@ resource "hcloud_server" "main" {
   location     = var.server_location
   image        = var.server_image
   ssh_keys     = [hcloud_ssh_key.main.id]
-  firewall_ids = [hcloud_firewall.main.id, hcloud_firewall.setup.id] # Both firewalls during setup
+  firewall_ids = [hcloud_firewall.main.id]
 
   # IPv6-only mode: Disable public IPv4 to reduce costs
   # Note: Cloudflare Tunnel works over IPv6, so no public IPv4 is needed
@@ -300,77 +318,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
 }
 
 # =============================================================================
-# Start Tunnel on Server
-# =============================================================================
-
-resource "null_resource" "start_tunnel" {
-  triggers = {
-    server_id = hcloud_server.main.id
-    tunnel_id = cloudflare_zero_trust_tunnel_cloudflared.main.id
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "echo 'Waiting for cloud-init to complete...'",
-      "cloud-init status --wait || true",
-      "echo 'Installing/updating Cloudflare Tunnel...'",
-      # Stop existing service if running (in case of tunnel update)
-      "systemctl stop cloudflared 2>/dev/null || true",
-      # Install/update tunnel with new token
-      "cloudflared service install ${cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token}",
-      "systemctl enable cloudflared",
-      "systemctl start cloudflared",
-      # Wait a moment for service to start
-      "sleep 3",
-      # Verify tunnel is running
-      "systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'",
-      "echo 'Tunnel started successfully!'"
-    ]
-
-    connection {
-      type        = "ssh"
-      user        = "root"
-      # Use IPv6 if IPv4 is disabled, otherwise use IPv4
-      host        = var.ipv6_only ? hcloud_server.main.ipv6_address : hcloud_server.main.ipv4_address
-      private_key = file(var.ssh_private_key_path)
-      agent       = false
-      timeout     = "10m"
-    }
-  }
-
-  depends_on = [
-    hcloud_server.main,
-    cloudflare_zero_trust_tunnel_cloudflared.main,
-    cloudflare_zero_trust_tunnel_cloudflared_config.main
-  ]
-}
-
-# =============================================================================
-# Close SSH Port after Tunnel is running
-# =============================================================================
-
-resource "null_resource" "close_ssh_port" {
-  triggers = {
-    tunnel_started = null_resource.start_tunnel.id
-  }
-
-  # Remove the setup firewall from the server (closes port 22)
-  provisioner "local-exec" {
-    command = <<-EOT
-      echo "Closing SSH port (removing setup firewall)..."
-      curl -s -X POST \
-        -H "Authorization: Bearer ${var.hcloud_token}" \
-        -H "Content-Type: application/json" \
-        -d '{"remove_from":[{"type":"server","server":{"id":${hcloud_server.main.id}}}]}' \
-        "https://api.hetzner.cloud/v1/firewalls/${hcloud_firewall.setup.id}/actions/remove_from_resources"
-      echo "SSH port closed. Access now only via Cloudflare Tunnel."
-    EOT
-  }
-
-  depends_on = [null_resource.start_tunnel]
-}
-
-# =============================================================================
 # DNS Records
 # =============================================================================
 
@@ -393,6 +340,30 @@ resource "cloudflare_record" "services" {
   type    = "CNAME"
   proxied = true
   ttl     = 1
+}
+
+# =============================================================================
+# DNS A Records for External TCP Access
+# =============================================================================
+# These records point directly to the server IP (proxied = false)
+# so external clients can connect via TCP (Kafka, PostgreSQL, MinIO S3 API)
+
+locals {
+  firewall_dns_records = {
+    for key, rule in var.firewall_rules :
+    key => rule if rule.dns_record != ""
+  }
+}
+
+resource "cloudflare_record" "firewall_tcp" {
+  for_each = local.firewall_dns_records
+
+  zone_id = var.cloudflare_zone_id
+  name    = each.value.dns_record
+  content = hcloud_server.main.ipv4_address
+  type    = "A"
+  proxied = false
+  ttl     = 300
 }
 
 # =============================================================================

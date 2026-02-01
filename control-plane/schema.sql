@@ -30,6 +30,28 @@ CREATE TABLE IF NOT EXISTS services (
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Firewall rules for external TCP access
+-- Controls which ports are opened on the Hetzner firewall for direct TCP connections
+-- enabled = what the user wants (staged)
+-- deployed = what is currently running
+-- Rules are reset (enabled = 0) on every Teardown for security
+CREATE TABLE IF NOT EXISTS firewall_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service_name TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    protocol TEXT NOT NULL DEFAULT 'tcp',
+    label TEXT DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 0,
+    deployed INTEGER NOT NULL DEFAULT 0,
+    source_ips TEXT DEFAULT '',
+    dns_record TEXT DEFAULT '',
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(service_name, port)
+);
+
+CREATE INDEX IF NOT EXISTS idx_firewall_rules_service ON firewall_rules(service_name);
+CREATE INDEX IF NOT EXISTS idx_firewall_rules_enabled ON firewall_rules(enabled);
+
 -- Logs
 -- Stores logs from various sources: GitHub Actions, Workers, API, health checks
 CREATE TABLE IF NOT EXISTS logs (

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firewall - Nexus Control Plane</title>
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: #1a1a2e;
+      --accent: #00ff88;
+      --accent-dim: #00cc6a;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border: #2a2a3e;
+      --error: #ff4444;
+      --warning: #ffaa00;
+      --info: #00aaff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      color: var(--accent);
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    h2 {
+      color: var(--accent);
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .back-link {
+      color: var(--accent);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .back-link:hover { text-decoration: underline; }
+
+    /* Warning Banner */
+    .warning-banner {
+      background: rgba(255, 170, 0, 0.1);
+      border: 1px solid var(--warning);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--warning);
+      line-height: 1.5;
+    }
+
+    .warning-banner strong {
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Section */
+    .section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Firewall Rule Item */
+    .rule-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+      transition: border-color 0.2s;
+    }
+
+    .rule-item:last-child { margin-bottom: 0; }
+
+    .rule-item.pending {
+      border-left: 3px solid var(--warning);
+    }
+
+    .rule-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      flex: 1;
+    }
+
+    .rule-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .rule-service {
+      font-weight: bold;
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+
+    .rule-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      padding: 0.1rem 0.5rem;
+      border-radius: 3px;
+    }
+
+    .rule-port {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .pending-label {
+      font-size: 0.65rem;
+      background: var(--warning);
+      color: #000;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-weight: bold;
+    }
+
+    /* Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 26px;
+      background: rgba(255, 68, 68, 0.2);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.3s;
+      flex-shrink: 0;
+      margin-left: 1rem;
+    }
+
+    .toggle-switch.active {
+      background: var(--error);
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: left 0.3s;
+    }
+
+    .toggle-switch.active::after {
+      left: 27px;
+    }
+
+    /* Source IP Input */
+    .source-ip-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .source-ip-input {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.4rem 0.6rem;
+      font-family: inherit;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      flex: 1;
+      max-width: 300px;
+    }
+
+    .source-ip-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .source-ip-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .source-ip-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .btn-save-ip {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      padding: 0.4rem 0.6rem;
+      font-family: inherit;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .btn-save-ip:hover {
+      border-color: var(--accent);
+    }
+
+    /* Connection Info */
+    .connection-info {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .connection-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .connection-item:last-child { border-bottom: none; }
+
+    .connection-host {
+      font-family: inherit;
+      font-size: 0.85rem;
+      color: var(--accent);
+      background: var(--bg-card);
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      user-select: all;
+    }
+
+    .connection-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    /* Service Group */
+    .service-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .service-group:last-child { margin-bottom: 0; }
+
+    .service-group-title {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Empty / Loading states */
+    .empty {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-secondary);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--accent);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      padding: 1rem 1.5rem;
+      font-size: 0.85rem;
+      z-index: 1001;
+      border-radius: 4px;
+      animation: slideIn 0.3s ease;
+    }
+
+    .toast.error {
+      background: rgba(255, 68, 68, 0.15);
+      border: 1px solid var(--error);
+      color: var(--error);
+    }
+
+    .toast.success {
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .notice {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+      line-height: 1.5;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .btn:hover { background: var(--accent-dim); }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover { border-color: var(--accent); }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Firewall Management</h1>
+      <a href="/" class="back-link">&larr; Back to Control Plane</a>
+    </header>
+
+    <div class="warning-banner">
+      <strong>Opening ports exposes services directly to the internet.</strong>
+      Opening firewall ports bypasses the Cloudflare Tunnel security model. Services will be accessible
+      via their TCP port on the server's public IP. Use source IP restrictions where possible.
+      All firewall rules are automatically reset on every Teardown.
+    </div>
+
+    <div class="section">
+      <h2>Firewall Rules</h2>
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="loadRules()">Refresh</button>
+      </div>
+      <div id="rulesContainer">
+        <div class="loading"><span class="spinner"></span> Loading firewall rules...</div>
+      </div>
+      <p class="notice">
+        Changes are staged and applied on the next Spin Up.
+        Firewall rules are reset on every Teardown &mdash; ports must be explicitly re-opened after each deployment.
+      </p>
+    </div>
+
+    <div class="connection-info" id="connectionSection" style="display: none;">
+      <h2>Connection Info</h2>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Use these hostnames to connect from external clients (e.g., Databricks).
+        DNS records are created after Spin Up.
+      </p>
+      <div id="connectionList"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentRules = [];
+    let currentDomain = '';
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function showToast(message, type = 'success') {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function groupRules(rules) {
+      const groups = {};
+      for (const rule of rules) {
+        if (!groups[rule.serviceName]) {
+          groups[rule.serviceName] = [];
+        }
+        groups[rule.serviceName].push(rule);
+      }
+      return groups;
+    }
+
+    function renderRules(rules) {
+      const container = document.getElementById('rulesContainer');
+
+      if (!rules || rules.length === 0) {
+        container.innerHTML = '<div class="empty">No firewall rules configured. Run Spin Up to initialize rules from services.yaml.</div>';
+        return;
+      }
+
+      const groups = groupRules(rules);
+      const domainDisplay = currentDomain || '<domain>';
+      let html = '';
+
+      for (const [service, serviceRules] of Object.entries(groups)) {
+        html += `<div class="service-group">`;
+        html += `<div class="service-group-title">${service}</div>`;
+
+        for (const rule of serviceRules) {
+          const pendingClass = rule.pending ? ' pending' : '';
+          const pendingBadge = rule.pending ? '<span class="pending-label">PENDING</span>' : '';
+          const toggleClass = rule.enabled ? ' active' : '';
+
+          html += `
+            <div class="rule-item${pendingClass}">
+              <div class="rule-details">
+                <div class="rule-header">
+                  <span class="rule-service">${escapeHtml(rule.label || rule.serviceName)}</span>
+                  <span class="rule-label">${escapeHtml(rule.protocol.toUpperCase())}</span>
+                  ${pendingBadge}
+                </div>
+                <span class="rule-port">Port ${rule.port}${rule.dnsRecord ? ` &mdash; ${escapeHtml(rule.dnsRecord)}.${escapeHtml(domainDisplay)}` : ''}</span>
+                <div class="source-ip-row">
+                  <span class="source-ip-label">Source IPs:</span>
+                  <input type="text" class="source-ip-input"
+                    id="ip-${rule.serviceName}-${rule.port}"
+                    value="${rule.sourceIps}"
+                    placeholder="0.0.0.0/0 (open to all)"
+                  />
+                  <button class="btn-save-ip" onclick="saveSourceIps('${rule.serviceName}', ${rule.port}, ${rule.enabled})">Save</button>
+                </div>
+              </div>
+              <div class="toggle-switch${toggleClass}"
+                onclick="toggleRule('${rule.serviceName}', ${rule.port}, ${!rule.enabled})"
+              ></div>
+            </div>
+          `;
+        }
+
+        html += `</div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function renderConnectionInfo(rules) {
+      const enabled = rules.filter(r => r.enabled && r.dnsRecord);
+      const section = document.getElementById('connectionSection');
+      const list = document.getElementById('connectionList');
+
+      if (enabled.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      const domainDisplay = currentDomain || '<domain>';
+      list.innerHTML = enabled.map(r => `
+        <div class="connection-item">
+          <span class="connection-label">${escapeHtml(r.label || r.serviceName)}:</span>
+          <span class="connection-host">${escapeHtml(r.dnsRecord)}.${escapeHtml(domainDisplay)}:${r.port}</span>
+        </div>
+      `).join('');
+    }
+
+    async function loadRules() {
+      try {
+        const res = await fetch('/api/firewall');
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error);
+
+        currentRules = data.rules || [];
+        currentDomain = data.domain || '';
+        renderRules(currentRules);
+        renderConnectionInfo(currentRules);
+      } catch (err) {
+        document.getElementById('rulesContainer').innerHTML =
+          `<div class="empty" style="color: var(--error);">Error: ${err.message}</div>`;
+      }
+    }
+
+    async function toggleRule(service, port, enabled) {
+      try {
+        const ipInput = document.getElementById(`ip-${service}-${port}`);
+        const sourceIps = ipInput ? ipInput.value.trim() : '';
+
+        const res = await fetch('/api/firewall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service, port, enabled, sourceIps }),
+        });
+
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error);
+
+        showToast(data.message);
+        await loadRules();
+      } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    async function saveSourceIps(service, port, enabled) {
+      try {
+        const ipInput = document.getElementById(`ip-${service}-${port}`);
+        const sourceIps = ipInput ? ipInput.value.trim() : '';
+
+        const res = await fetch('/api/firewall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service, port, enabled, sourceIps }),
+        });
+
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error);
+
+        showToast('Source IPs saved');
+        await loadRules();
+      } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    // Initial load
+    loadRules();
+  </script>
+</body>
+</html>
