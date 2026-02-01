@@ -699,7 +699,7 @@ except Exception as e:
     print(f'Warning: Failed to modify firewall override for $service: {e}', file=sys.stderr)
     sys.exit(1)
 " 2>&1; then
-                            echo -e "${YELLOW}  Warning: Could not modify firewall override for $service (will use fallback)${NC}" >&2
+                            echo -e "${YELLOW}  Warning: Could not modify firewall override for $service; continuing without updated firewall override${NC}" >&2
                         fi
                     else
                         cat > "$OVERRIDE_PATH" << FWEOF
@@ -824,7 +824,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
         if ! ssh nexus "sudo chown -R 101:101 /opt/docker-server/stacks/redpanda/config" 2>/dev/null; then
             echo -e "${YELLOW}  Warning: Could not set config ownership to redpanda user (101:101), using world-writable fallback${NC}" >&2
             ssh nexus "sudo chmod -R 777 /opt/docker-server/stacks/redpanda/config" || {
-                echo -e "${RED}  Error: Could not set config directory permissions${NC}" >&2
+                echo -e "${RED}  Error: Could not set world-writable (chmod 777) permissions on RedPanda config directory${NC}" >&2
                 exit 1
             }
         fi
