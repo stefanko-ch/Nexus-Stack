@@ -681,20 +681,26 @@ except Exception as e:
                     # Check if override file exists, if so append the port
                     if [ -f "$OVERRIDE_PATH" ]; then
                         # Add port to existing override (under the same service)
-                        python3 -c "
-import yaml
-with open('$OVERRIDE_PATH') as f:
-    data = yaml.safe_load(f)
-svc = data.get('services', {}).get('$FIRST_SERVICE', {})
-ports = svc.get('ports', [])
-port_entry = '$port:$port'
-if port_entry not in ports:
-    ports.append(port_entry)
-    svc['ports'] = ports
-    data.setdefault('services', {})['$FIRST_SERVICE'] = svc
-    with open('$OVERRIDE_PATH', 'w') as f:
-        yaml.dump(data, f, default_flow_style=False)
-" 2>/dev/null
+                        if ! python3 -c "
+import yaml, sys
+try:
+    with open('$OVERRIDE_PATH') as f:
+        data = yaml.safe_load(f)
+    svc = data.get('services', {}).get('$FIRST_SERVICE', {})
+    ports = svc.get('ports', [])
+    port_entry = '$port:$port'
+    if port_entry not in ports:
+        ports.append(port_entry)
+        svc['ports'] = ports
+        data.setdefault('services', {})['$FIRST_SERVICE'] = svc
+        with open('$OVERRIDE_PATH', 'w') as f:
+            yaml.dump(data, f, default_flow_style=False)
+except Exception as e:
+    print(f'Warning: Failed to modify firewall override for $service: {e}', file=sys.stderr)
+    sys.exit(1)
+" 2>&1; then
+                            echo -e "${YELLOW}  Warning: Could not modify firewall override for $service; continuing without updated firewall override${NC}" >&2
+                        fi
                     else
                         cat > "$OVERRIDE_PATH" << FWEOF
 services:
@@ -729,6 +735,9 @@ FWEOF
                     PORTS_LIST="${PORTS_LIST}      - \"$p:$p\"\n"
                 fi
             done
+
+            # Remove old override file before regenerating (avoid conflicts from previous runs)
+            rm -f "stacks/redpanda/docker-compose.firewall.yml"
 
             # Create docker-compose override with port mappings only (no command flags)
             cat > "stacks/redpanda/docker-compose.firewall.yml" << RPEOF
@@ -812,9 +821,13 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
 
         # Set write permissions on config directory (RedPanda needs to create temp files)
         # Try to set owner to redpanda user (101:101), fallback to world-writable
-        ssh nexus "sudo chown -R 101:101 /opt/docker-server/stacks/redpanda/config 2>/dev/null || sudo chmod -R 777 /opt/docker-server/stacks/redpanda/config" || {
-            echo -e "${YELLOW}  Warning: Could not set config directory permissions${NC}"
-        }
+        if ! ssh nexus "sudo chown -R 101:101 /opt/docker-server/stacks/redpanda/config" 2>/dev/null; then
+            echo -e "${YELLOW}  Warning: Could not set config ownership to redpanda user (101:101), using world-writable fallback${NC}" >&2
+            ssh nexus "sudo chmod -R 777 /opt/docker-server/stacks/redpanda/config" || {
+                echo -e "${RED}  Error: Could not set world-writable (chmod 777) permissions on RedPanda config directory${NC}" >&2
+                exit 1
+            }
+        fi
 
         if [ -n "$REDPANDA_FIREWALL_ENABLED" ]; then
             echo -e "${GREEN}✓ RedPanda firewall configuration copied${NC}"
@@ -1151,9 +1164,9 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS"
 
         # SASL is configured in redpanda.yaml - just create user and set superuser
 
-        # Create SASL user using rpk
-        USER_RESULT=$(ssh nexus "docker exec redpanda rpk acl user create nexus-redpanda \
-            -p '$REDPANDA_ADMIN_PASS' \
+        # Create SASL user using rpk (password via stdin to avoid process list exposure)
+        USER_RESULT=$(ssh nexus "echo '$REDPANDA_ADMIN_PASS' | docker exec -i redpanda rpk acl user create nexus-redpanda \
+            --password-stdin \
             --mechanism SCRAM-SHA-256 2>&1" || echo "")
 
         # Configure superuser (grants full permissions without ACLs)
