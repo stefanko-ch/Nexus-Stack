@@ -255,10 +255,7 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl
 
-      - name: Spin up infrastructure
-        env:
-          # Pass SSH private key to deploy.sh for Infisical storage
-          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Apply infrastructure
         run: |
           cd tofu/stack
           source ../.r2-credentials
@@ -266,7 +263,79 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
           tofu apply -var-file=config.tfvars -auto-approve
-          cd ../..
+
+      - name: Open SSH port temporarily
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          SERVER_ID=$(tofu output -raw server_id)
+          RESOURCE_PREFIX=$(tofu output -raw resource_prefix)
+
+          cd ../ssh-setup
+          tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
+          tofu apply -auto-approve \
+            -var="hcloud_token=$TF_VAR_hcloud_token" \
+            -var="server_id=$SERVER_ID" \
+            -var="resource_prefix=$RESOURCE_PREFIX"
+          echo "Port 22 temporarily opened for tunnel installation"
+
+      - name: Install Cloudflare Tunnel via SSH
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+          SERVER_IP=$(tofu output -raw server_ip)
+          TUNNEL_TOKEN=$(tofu output -raw tunnel_token)
+          echo "::add-mask::$TUNNEL_TOKEN"
+
+          echo "Installing Cloudflare Tunnel on $SERVER_IP..."
+
+          # Write tunnel install script (avoids heredoc indentation issues)
+          cat > /tmp/install-tunnel.sh << SCRIPT
+          #!/bin/bash
+          set -e
+          echo 'Waiting for cloud-init to complete...'
+          cloud-init status --wait || true
+          echo 'Installing/updating Cloudflare Tunnel...'
+          systemctl stop cloudflared 2>/dev/null || true
+          cloudflared service install $TUNNEL_TOKEN
+          systemctl enable cloudflared
+          systemctl start cloudflared
+          sleep 3
+          systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'
+          echo 'Tunnel started successfully!'
+          SCRIPT
+
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=10 \
+            root@"$SERVER_IP" bash < /tmp/install-tunnel.sh
+          rm -f /tmp/install-tunnel.sh
+
+      - name: Close SSH port
+        if: always()
+        run: |
+          cd tofu/ssh-setup
+          if [ -f ../.r2-credentials ]; then
+            source ../.r2-credentials
+            export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+            export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+            tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
+            tofu destroy -auto-approve \
+              -var="hcloud_token=$TF_VAR_hcloud_token" \
+              -var="server_id=0" \
+              -var="resource_prefix=unused" 2>/dev/null || true
+            echo "SSH port closed"
+          else
+            echo "R2 credentials not available - skipping SSH cleanup"
+          fi
+
+      - name: Deploy stacks
+        env:
+          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
 

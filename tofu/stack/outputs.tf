@@ -7,6 +7,22 @@ output "server_ip" {
   value       = hcloud_server.main.ipv4_address
 }
 
+output "server_id" {
+  description = "Hetzner server ID (used by ssh-setup state)"
+  value       = hcloud_server.main.id
+}
+
+output "tunnel_token" {
+  description = "Cloudflare Tunnel token for installation on server"
+  sensitive   = true
+  value       = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
+}
+
+output "resource_prefix" {
+  description = "Resource name prefix (e.g., nexus-example-com)"
+  value       = local.resource_prefix
+}
+
 output "ssh_command" {
   description = "SSH command via Cloudflare Tunnel (requires cloudflared locally)"
   value       = "cloudflared access ssh --hostname ssh.${var.domain}"
