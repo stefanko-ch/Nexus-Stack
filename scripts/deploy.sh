@@ -645,27 +645,24 @@ echo ""
 echo -e "${YELLOW}  Generating firewall port overrides...${NC}"
 
 # Read firewall rules from tofu output
-FIREWALL_JSON=$(cd "$TOFU_DIR" && tofu output -json firewall_rules 2>/dev/null || echo "{}")
+if ! FIREWALL_JSON=$(cd "$TOFU_DIR" && tofu output -json firewall_rules 2>/dev/null); then
+    echo -e "${YELLOW}  Warning: Unable to load firewall_rules from OpenTofu. No firewall overrides will be generated.${NC}" >&2
+    FIREWALL_JSON="{}"
+fi
 
 if [ "$FIREWALL_JSON" != "{}" ] && [ -n "$FIREWALL_JSON" ]; then
     echo "  Firewall rules found, generating Docker Compose overrides..."
 
     # Parse firewall rules and generate override files per service
-    # Group ports by service (derive service name from the key: "service-port")
-    echo "$FIREWALL_JSON" | jq -r 'to_entries[] | "\(.key) \(.value.port)"' 2>/dev/null | while read -r key port; do
-        # Extract service name from key (e.g., "redpanda-9092" -> "redpanda")
-        service=$(echo "$key" | sed 's/-[0-9]*$//')
+    while read -r service port; do
+        [ -z "$service" ] && continue
 
         # Build override content - expose the port to the host
         # Find the main service container name from the docker-compose.yml
         OVERRIDE_PATH="stacks/$service/docker-compose.firewall.yml"
 
         if [ -f "stacks/$service/docker-compose.yml" ]; then
-            # Get the first service name from the compose file
-            COMPOSE_SERVICE=$(head -20 "stacks/$service/docker-compose.yml" | grep -A0 'services:' | head -1)
-
-            # Create override file with port mapping
-            # We use the service name from docker-compose (first service after 'services:')
+            # Get the first service name from the docker-compose file
             FIRST_SERVICE=$(python3 -c "
 import yaml, sys
 try:
@@ -673,7 +670,8 @@ try:
         data = yaml.safe_load(f)
     services = list(data.get('services', {}).keys())
     print(services[0] if services else '')
-except:
+except Exception as e:
+    print(f'Error reading stacks/$service/docker-compose.yml: {e}', file=sys.stderr)
     print('')
 " 2>/dev/null)
 
@@ -709,7 +707,7 @@ FWEOF
                 fi
             fi
         fi
-    done
+    done < <(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | "\(.key | sub("-[0-9]+$"; "")) \(.value.port)"' 2>/dev/null)
 
     # Special handling for RedPanda: Generate firewall-specific config
     # Instead of using docker-compose override with CLI flags, we generate
@@ -719,8 +717,10 @@ FWEOF
         echo "  Configuring RedPanda for external TCP access (with SASL)..."
 
         if [ -n "$DOMAIN" ]; then
-            # Build ports list - map external port to internal external listener port
-            # Host:9092 -> Container:19092 (external SASL listener)
+            # Build ports list for RedPanda dual-listener setup:
+            # - Internal listener (port 9092): no auth, Docker network only
+            # - External listener (port 19092): SASL auth, for Databricks/external clients
+            # Host port 9092 maps to container port 19092 (external SASL listener)
             PORTS_LIST=""
             for p in $REDPANDA_PORTS; do
                 if [ "$p" = "9092" ]; then

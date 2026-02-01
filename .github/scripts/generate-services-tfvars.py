@@ -9,7 +9,7 @@ firewall rules are enabled (passed via FIREWALL_RULES environment variable).
 
 Usage:
     ENABLED_SERVICES="service1,service2" \
-    FIREWALL_RULES="redpanda:9092:kafka::kafka,postgres:5432:postgres::db" \
+    FIREWALL_RULES="redpanda:9092:kafka::kafka;postgres:5432:postgres::db" \
     python3 generate-services-tfvars.py
 
 The script appends the configuration to tofu/stack/config.tfvars.
@@ -170,12 +170,13 @@ def main():
     output_lines.append('}')
 
     # Generate firewall_rules block from FIREWALL_RULES env var
-    # Format: "service:port:source_ips:dns_record,service:port:source_ips:dns_record"
+    # Format: "service:port:source_ips:dns_record;service:port:source_ips:dns_record"
+    # Records separated by ";", source_ips within a record are comma-separated CIDRs
     firewall_input = os.environ.get('FIREWALL_RULES', '')
     firewall_rules = []
 
     if firewall_input.strip():
-        for entry in firewall_input.split(','):
+        for entry in firewall_input.split(';'):
             entry = entry.strip()
             if not entry:
                 continue
@@ -211,7 +212,7 @@ def main():
     output_lines.append('firewall_rules = {')
 
     for rule in firewall_rules:
-        source_ips_list = [ip.strip() for ip in rule['source_ips'].split(';') if ip.strip()] if rule['source_ips'] else []
+        source_ips_list = [ip.strip() for ip in rule['source_ips'].split(',') if ip.strip()] if rule['source_ips'] else []
         source_ips_tf = ', '.join(f'"{ip}"' for ip in source_ips_list)
 
         output_lines.append(f'  "{rule["key"]}" = {{')

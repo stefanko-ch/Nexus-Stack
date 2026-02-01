@@ -35,10 +35,11 @@ function validateSourceIps(sourceIps) {
   if (sourceIps.trim() === '') return true; // empty = open to all
 
   const cidrs = sourceIps.split(',').map(s => s.trim());
-  const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$|^([0-9a-fA-F:]+)(\/\d{1,3})?$/;
+  const ipv4CidrRegex = /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3})(?:\/(?:[0-9]|[12]\d|3[0-2]))?$/;
+  const ipv6CidrRegex = /^([0-9a-fA-F:]+)(?:\/(?:12[0-8]|1[01]\d|[1-9]?\d))?$/;
 
   for (const cidr of cidrs) {
-    if (!cidrRegex.test(cidr)) return false;
+    if (!ipv4CidrRegex.test(cidr) && !ipv6CidrRegex.test(cidr)) return false;
   }
   return true;
 }

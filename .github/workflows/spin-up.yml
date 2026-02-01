@@ -234,7 +234,7 @@ jobs:
           echo "🔥 Reading firewall rules from D1..."
           FIREWALL_RULES=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
             --command "SELECT service_name, port, source_ips, dns_record FROM firewall_rules WHERE enabled = 1" 2>/dev/null \
-            | jq -r '.[0].results // [] | map("\(.service_name):\(.port):\(.source_ips // ""):\(.dns_record // "")") | join(",")' 2>/dev/null || echo "")
+            | jq -r '.[0].results // [] | map("\(.service_name):\(.port):\(.source_ips // ""):\(.dns_record // "")") | join(";")' 2>/dev/null || echo "")
 
           if [ -n "$FIREWALL_RULES" ]; then
             echo "🔥 Enabled firewall rules: $FIREWALL_RULES"

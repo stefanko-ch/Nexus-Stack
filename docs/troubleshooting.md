@@ -49,7 +49,7 @@ minio              0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp, ...
 The healthcheck command `pg_isready -U nexus-postgres` defaults to connecting to a database with the same name as the user. Since the user is `nexus-postgres` but the database is named `postgres`, the healthcheck fails.
 
 **Solution:**
-This has been fixed in commit `c270d53`. If you encounter this issue, pull the latest changes and re-deploy:
+This has been fixed. If you encounter this issue, pull the latest changes and re-deploy:
 
 ```bash
 git pull origin main

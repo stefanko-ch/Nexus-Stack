@@ -310,11 +310,12 @@ for name, config in services.items():
     for label, port in tcp_ports.items():
         if not isinstance(port, int) or port < 1 or port > 65535:
             continue
-        # Escape label for SQL
+        # Escape values for SQL
         safe_label = label.replace("'", "''")
-        # Get DNS record from mapping
+        safe_name = name.replace("'", "''")
         dns_record = dns_records.get(name, {}).get(label, '')
-        insert_sql = f"INSERT OR IGNORE INTO firewall_rules (service_name, port, protocol, label, enabled, deployed, source_ips, dns_record, updated_at) VALUES ('{name}', {port}, 'tcp', '{safe_label}', 0, 0, '', '{dns_record}', datetime('now'));"
+        safe_dns_record = dns_record.replace("'", "''")
+        insert_sql = f"INSERT OR IGNORE INTO firewall_rules (service_name, port, protocol, label, enabled, deployed, source_ips, dns_record, updated_at) VALUES ('{safe_name}', {port}, 'tcp', '{safe_label}', 0, 0, '', '{safe_dns_record}', datetime('now'));"
         insert_statements.append(insert_sql)
 
 with open('/tmp/init_firewall_rules.sql', 'w') as f:

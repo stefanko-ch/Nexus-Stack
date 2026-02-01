@@ -428,6 +428,12 @@
     let currentRules = [];
     let currentDomain = '';
 
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
     function showToast(message, type = 'success') {
       const existing = document.querySelector('.toast');
       if (existing) existing.remove();
@@ -475,11 +481,11 @@
             <div class="rule-item${pendingClass}">
               <div class="rule-details">
                 <div class="rule-header">
-                  <span class="rule-service">${rule.label || rule.serviceName}</span>
-                  <span class="rule-label">${rule.protocol.toUpperCase()}</span>
+                  <span class="rule-service">${escapeHtml(rule.label || rule.serviceName)}</span>
+                  <span class="rule-label">${escapeHtml(rule.protocol.toUpperCase())}</span>
                   ${pendingBadge}
                 </div>
-                <span class="rule-port">Port ${rule.port}${rule.dnsRecord ? ` &mdash; ${rule.dnsRecord}.${domainDisplay}` : ''}</span>
+                <span class="rule-port">Port ${rule.port}${rule.dnsRecord ? ` &mdash; ${escapeHtml(rule.dnsRecord)}.${escapeHtml(domainDisplay)}` : ''}</span>
                 <div class="source-ip-row">
                   <span class="source-ip-label">Source IPs:</span>
                   <input type="text" class="source-ip-input"
@@ -517,8 +523,8 @@
       const domainDisplay = currentDomain || '<domain>';
       list.innerHTML = enabled.map(r => `
         <div class="connection-item">
-          <span class="connection-label">${r.label || r.serviceName}:</span>
-          <span class="connection-host">${r.dnsRecord}.${domainDisplay}:${r.port}</span>
+          <span class="connection-label">${escapeHtml(r.label || r.serviceName)}:</span>
+          <span class="connection-host">${escapeHtml(r.dnsRecord)}.${escapeHtml(domainDisplay)}:${r.port}</span>
         </div>
       `).join('');
     }

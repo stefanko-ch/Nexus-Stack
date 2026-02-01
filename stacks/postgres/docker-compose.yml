@@ -24,6 +24,7 @@ services:
     networks:
       - app-network
     healthcheck:
+      # -d postgres: POSTGRES_DB is 'postgres' while POSTGRES_USER is 'nexus-postgres'
       test: ["CMD-SHELL", "pg_isready -U nexus-postgres -d postgres"]
       interval: 10s
       timeout: 5s
