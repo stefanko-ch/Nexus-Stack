@@ -23,6 +23,11 @@ output "resource_prefix" {
   value       = local.resource_prefix
 }
 
+output "ssh_firewall_id" {
+  description = "SSH setup firewall ID (for workflow attach/detach via API)"
+  value       = hcloud_firewall.ssh_setup.id
+}
+
 output "ssh_command" {
   description = "SSH command via Cloudflare Tunnel (requires cloudflared locally)"
   value       = "cloudflared access ssh --hostname ssh.${var.domain}"

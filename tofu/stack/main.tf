@@ -177,6 +177,21 @@ resource "hcloud_firewall" "main" {
   }
 }
 
+# SSH Setup Firewall (temporary, attached via workflow)
+resource "hcloud_firewall" "ssh_setup" {
+  name = "${local.resource_prefix}-ssh-setup-fw"
+
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "22"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+
+  # No apply_to block - attachment happens via API in spin-up workflow
+  # This ensures port 22 is only open during tunnel installation
+}
+
 # =============================================================================
 # Server
 # =============================================================================

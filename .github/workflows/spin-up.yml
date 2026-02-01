@@ -270,16 +270,25 @@ jobs:
           source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          SERVER_ID=$(tofu output -raw server_id)
-          RESOURCE_PREFIX=$(tofu output -raw resource_prefix)
 
-          cd ../ssh-setup
-          tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
-          tofu apply -auto-approve \
-            -var="hcloud_token=$TF_VAR_hcloud_token" \
-            -var="server_id=$SERVER_ID" \
-            -var="resource_prefix=$RESOURCE_PREFIX"
-          echo "Port 22 temporarily opened for tunnel installation"
+          SERVER_ID=$(tofu output -raw server_id)
+          FIREWALL_ID=$(tofu output -raw ssh_firewall_id)
+
+          echo "Attaching SSH firewall (ID: $FIREWALL_ID) to server (ID: $SERVER_ID)..."
+
+          HTTP_STATUS=$(curl -s -o /tmp/attach_response.txt -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TF_VAR_hcloud_token" \
+            -H "Content-Type: application/json" \
+            -d "{\"apply_to\":[{\"type\":\"server\",\"server\":{\"id\":$SERVER_ID}}]}" \
+            "https://api.hetzner.cloud/v1/firewalls/$FIREWALL_ID/actions/apply_to_resources")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ SSH firewall attached - port 22 open for tunnel installation"
+          else
+            echo "❌ Failed to attach firewall (HTTP $HTTP_STATUS)"
+            cat /tmp/attach_response.txt
+            exit 1
+          fi
 
       - name: Install Cloudflare Tunnel via SSH
         run: |
@@ -291,6 +300,22 @@ jobs:
           SERVER_IP=$(tofu output -raw server_ip)
           TUNNEL_TOKEN=$(tofu output -raw tunnel_token)
           echo "::add-mask::$TUNNEL_TOKEN"
+
+          echo "Waiting for SSH to become available on $SERVER_IP..."
+          # Wait for SSH to be ready (server may still be booting)
+          for i in {1..60}; do
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \
+              root@"$SERVER_IP" "echo 'SSH ready'" 2>/dev/null; then
+              echo "✅ SSH is ready (attempt $i)"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "❌ SSH did not become available after 5 minutes"
+              exit 1
+            fi
+            echo "Attempt $i/60 - waiting 5s..."
+            sleep 5
+          done
 
           echo "Installing Cloudflare Tunnel on $SERVER_IP..."
 
@@ -317,19 +342,36 @@ jobs:
       - name: Close SSH port
         if: always()
         run: |
-          cd tofu/ssh-setup
+          cd tofu/stack
           if [ -f ../.r2-credentials ]; then
             source ../.r2-credentials
             export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
             export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-            tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
-            tofu destroy -auto-approve \
-              -var="hcloud_token=$TF_VAR_hcloud_token" \
-              -var="server_id=0" \
-              -var="resource_prefix=unused" 2>/dev/null || true
-            echo "SSH port closed"
+
+            SERVER_ID=$(tofu output -raw server_id 2>/dev/null || echo "")
+            FIREWALL_ID=$(tofu output -raw ssh_firewall_id 2>/dev/null || echo "")
+
+            if [ -n "$SERVER_ID" ] && [ -n "$FIREWALL_ID" ]; then
+              echo "Detaching SSH firewall (ID: $FIREWALL_ID) from server (ID: $SERVER_ID)..."
+
+              HTTP_STATUS=$(curl -s -o /tmp/detach_response.txt -w "%{http_code}" -X POST \
+                -H "Authorization: Bearer $TF_VAR_hcloud_token" \
+                -H "Content-Type: application/json" \
+                -d "{\"remove_from\":[{\"type\":\"server\",\"server\":{\"id\":$SERVER_ID}}]}" \
+                "https://api.hetzner.cloud/v1/firewalls/$FIREWALL_ID/actions/remove_from_resources")
+
+              if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+                echo "✅ SSH firewall detached - port 22 closed"
+              else
+                echo "⚠️ Failed to detach firewall (HTTP $HTTP_STATUS) - may already be detached"
+                cat /tmp/detach_response.txt
+                # Don't fail - firewall might already be detached
+              fi
+            else
+              echo "⚠️ Could not get server/firewall IDs - skipping detach"
+            fi
           else
-            echo "R2 credentials not available - skipping SSH cleanup"
+            echo "⚠️ R2 credentials not available - skipping SSH cleanup"
           fi
 
       - name: Deploy stacks
