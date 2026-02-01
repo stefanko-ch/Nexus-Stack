@@ -7,6 +7,27 @@ output "server_ip" {
   value       = hcloud_server.main.ipv4_address
 }
 
+output "server_id" {
+  description = "Hetzner server ID (used by ssh-setup state)"
+  value       = hcloud_server.main.id
+}
+
+output "tunnel_token" {
+  description = "Cloudflare Tunnel token for installation on server"
+  sensitive   = true
+  value       = cloudflare_zero_trust_tunnel_cloudflared.main.tunnel_token
+}
+
+output "resource_prefix" {
+  description = "Resource name prefix (e.g., nexus-example-com)"
+  value       = local.resource_prefix
+}
+
+output "ssh_firewall_id" {
+  description = "SSH setup firewall ID (for workflow attach/detach via API)"
+  value       = hcloud_firewall.ssh_setup.id
+}
+
 output "ssh_command" {
   description = "SSH command via Cloudflare Tunnel (requires cloudflared locally)"
   value       = "cloudflared access ssh --hostname ssh.${var.domain}"
@@ -63,6 +84,15 @@ output "image_versions" {
     { for name, svc in var.services : name => svc.image if svc.image != "" },
     merge([for name, svc in var.services : svc.support_images if svc.support_images != null]...)
   )
+}
+
+# =============================================================================
+# Firewall Outputs
+# =============================================================================
+
+output "firewall_rules" {
+  description = "Enabled firewall rules for external TCP access (for deploy script)"
+  value = var.firewall_rules
 }
 
 # =============================================================================
@@ -128,6 +158,9 @@ output "secrets" {
 
     # pgAdmin
     pgadmin_password = random_password.pgadmin.result
+
+    # RedPanda SASL (for external Kafka access)
+    redpanda_admin_password = random_password.redpanda_admin.result
 
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username

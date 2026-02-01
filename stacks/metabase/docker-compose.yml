@@ -17,7 +17,7 @@ services:
     environment:
       - MB_SITE_NAME=Nexus Stack Analytics
       - MB_SITE_URL=https://metabase.${DOMAIN}
-      - MB_ADMIN_EMAIL=admin@metabase.local
+      - MB_ADMIN_EMAIL=nexus@metabase.local
       - MB_ANON_TRACKING_ENABLED=false
       - JAVA_TIMEZONE=Europe/Zurich
     volumes:

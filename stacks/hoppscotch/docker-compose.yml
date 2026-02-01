@@ -38,7 +38,7 @@ services:
     container_name: hoppscotch-db
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=hoppscotch
+      - POSTGRES_USER=nexus-hoppscotch
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hoppscotch}
       - POSTGRES_DB=hoppscotch
     volumes:
@@ -46,7 +46,7 @@ services:
     networks:
       - hoppscotch-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hoppscotch"]
+      test: ["CMD-SHELL", "pg_isready -U nexus-hoppscotch"]
       interval: 5s
       timeout: 10s
       retries: 10

@@ -19,7 +19,7 @@ services:
     environment:
       - SODA_DB_HOST=soda-db
       - SODA_DB_PORT=5432
-      - SODA_DB_USER=soda
+      - SODA_DB_USER=nexus-soda
       - SODA_DB_PASSWORD=${SODA_DB_PASSWORD}
       - SODA_DB_NAME=soda
     volumes:
@@ -38,7 +38,7 @@ services:
     container_name: soda-db
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=soda
+      - POSTGRES_USER=nexus-soda
       - POSTGRES_PASSWORD=${SODA_DB_PASSWORD}
       - POSTGRES_DB=soda
     volumes:
@@ -46,7 +46,7 @@ services:
     networks:
       - soda-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U soda -d soda"]
+      test: ["CMD-SHELL", "pg_isready -U nexus-soda -d soda"]
       interval: 5s
       timeout: 5s
       retries: 10

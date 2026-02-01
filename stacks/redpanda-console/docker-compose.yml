@@ -14,11 +14,18 @@ services:
     container_name: redpanda-console
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    env_file:
+      - .env
     environment:
       CONFIG_FILEPATH: /tmp/config.yml
       CONSOLE_CONFIG_FILE: |
         kafka:
           brokers: ["redpanda:9092"]
+          sasl:
+            enabled: true
+            mechanism: SCRAM-SHA-256
+            username: nexus-redpanda
+            password: ${REDPANDA_ADMIN_PASS}
           schemaRegistry:
             enabled: true
             urls: ["http://redpanda:8081"]
