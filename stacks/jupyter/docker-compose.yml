@@ -1,0 +1,41 @@
+# =============================================================================
+# Jupyter - Interactive Computing Platform
+# =============================================================================
+# Access via: https://jupyter.${domain}
+# JupyterLab provides an interactive Python notebook environment for data
+# science, machine learning, and general-purpose computing.
+#
+# Note: Authentication is disabled (empty token) since Cloudflare Access
+# provides email OTP protection at the network level.
+# =============================================================================
+
+services:
+  jupyter:
+    image: ${IMAGE_JUPYTER:-jupyter/minimal-notebook:latest}
+    container_name: jupyter
+    restart: unless-stopped
+    user: root
+    environment:
+      JUPYTER_TOKEN: ""
+      JUPYTER_ENABLE_LAB: "yes"
+      NB_USER: jovyan
+      CHOWN_HOME: "yes"
+    ports:
+      - "8087:8888"
+    volumes:
+      - jupyter-data:/home/jovyan/work
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8888/api || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  jupyter-data:
+
+networks:
+  app-network:
+    external: true

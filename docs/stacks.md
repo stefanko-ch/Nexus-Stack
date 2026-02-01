@@ -10,6 +10,7 @@ Images are pinned to **major versions** where supported for automatic security p
 |---------|-------|-----|----------|
 | Adminer | `adminer` | `latest` | Latest ² |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
+| code-server | `codercom/code-server` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
 | Prometheus | `prom/prometheus` | `v3` | Major |
@@ -26,6 +27,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Metabase | `metabase/metabase` | `v0.58.x` | Minor |
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
+| Jupyter | `jupyter/minimal-notebook` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
@@ -116,6 +118,36 @@ CloudBeaver is an open-source cloud database management tool built on DBeaver. I
 
 ---
 
+## code-server
+
+![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)
+
+**VS Code in the browser**
+
+Run VS Code on a remote server and access it through the browser. Provides a consistent development environment accessible from any device. Features include:
+- Full VS Code experience in the browser
+- Extension marketplace support
+- Integrated terminal
+- Git integration
+- Multi-language support
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8100` |
+| Suggested Subdomain | `code` |
+| Public Access | No (development environment) |
+| Website | [coder.com](https://coder.com) |
+| Source | [GitHub](https://github.com/coder/code-server) |
+
+### Usage
+
+1. Enable the code-server service in the Control Plane
+2. Access `https://code.YOUR_DOMAIN`
+3. Authentication is handled by Cloudflare Access (no additional password)
+4. Files are persisted in a Docker volume (`code-server-data`)
+
+---
+
 ## IT-Tools
 
 ![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
@@ -136,6 +168,37 @@ A comprehensive collection of 80+ tools for developers, including:
 | Public Access | Optional (works both ways) |
 | Website | [it-tools.tech](https://it-tools.tech) |
 | Source | [GitHub](https://github.com/CorentinTh/it-tools) |
+
+---
+
+## Jupyter
+
+![Jupyter](https://img.shields.io/badge/Jupyter-F37726?logo=jupyter&logoColor=white)
+
+**Interactive computing platform for Python notebooks**
+
+JupyterLab provides a web-based interactive development environment for notebooks, code, and data. Features include:
+- Python notebooks with rich output (charts, tables, images)
+- JupyterLab interface with file browser and terminal
+- Support for multiple kernels (Python, R, Julia)
+- Markdown and LaTeX rendering
+- Interactive data visualization
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8087` |
+| Suggested Subdomain | `jupyter` |
+| Public Access | No (development environment) |
+| Website | [jupyter.org](https://jupyter.org) |
+| Source | [GitHub](https://github.com/jupyter/jupyter) |
+
+### Usage
+
+1. Enable the Jupyter service in the Control Plane
+2. Access `https://jupyter.YOUR_DOMAIN`
+3. Authentication is handled by Cloudflare Access (token auth disabled)
+4. Notebooks are persisted in a Docker volume (`jupyter-data`)
+5. The default image (`minimal-notebook`) includes Python, pip, and common scientific libraries
 
 ---
 
