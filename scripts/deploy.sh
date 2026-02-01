@@ -402,12 +402,6 @@ if echo "$ENABLED_SERVICES" | grep -qw "redpanda-console"; then
 REDPANDA_ADMIN_PASS=$REDPANDA_ADMIN_PASS
 EOF
     echo -e "${GREEN}  ✓ RedPanda Console .env generated${NC}"
-
-    # Copy .env file to server
-    scp -q "$STACKS_DIR/redpanda-console/.env" nexus:/opt/docker-server/stacks/redpanda-console/.env || {
-        echo -e "${RED}  Failed to copy redpanda-console .env file${NC}"
-        exit 1
-    }
 fi
 
 # Generate Hoppscotch .env from OpenTofu secrets
