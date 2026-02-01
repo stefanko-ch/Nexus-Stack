@@ -27,10 +27,7 @@ services:
             username: nexus-redpanda
             password: ${REDPANDA_ADMIN_PASS}
           schemaRegistry:
-            enabled: true
-            urls: ["http://redpanda:8081"]
-            username: nexus-redpanda
-            password: ${REDPANDA_ADMIN_PASS}
+            enabled: false
         redpanda:
           adminApi:
             enabled: true
