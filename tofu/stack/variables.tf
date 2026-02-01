@@ -119,6 +119,21 @@ variable "services" {
 }
 
 # =============================================================================
+# Firewall Rules (external TCP access)
+# =============================================================================
+
+variable "firewall_rules" {
+  description = "Firewall rules for external TCP access (e.g., Kafka, PostgreSQL, MinIO S3)"
+  type = map(object({
+    port       = number
+    protocol   = string
+    source_ips = list(string)
+    dns_record = optional(string, "")
+  }))
+  default = {}
+}
+
+# =============================================================================
 # Docker Hub (optional - for increased pull rate limits)
 # =============================================================================
 

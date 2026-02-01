@@ -37,7 +37,7 @@ services:
           postgres:
             url: jdbc:postgresql://kestra-postgres:5432/kestra
             driverClassName: org.postgresql.Driver
-            username: kestra
+            username: nexus-kestra
             password: ${KESTRA_DB_PASSWORD}
         kestra:
           server:
@@ -79,12 +79,12 @@ services:
       - .env
     environment:
       POSTGRES_DB: kestra
-      POSTGRES_USER: kestra
+      POSTGRES_USER: nexus-kestra
       POSTGRES_PASSWORD: ${KESTRA_DB_PASSWORD}
     volumes:
       - kestra-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kestra -d kestra"]
+      test: ["CMD-SHELL", "pg_isready -U nexus-kestra -d kestra"]
       interval: 10s
       timeout: 5s
       retries: 5

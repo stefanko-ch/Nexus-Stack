@@ -97,6 +97,7 @@ HOPPSCOTCH_SESSION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_session_secret //
 HOPPSCOTCH_ENCRYPTION=$(echo "$SECRETS_JSON" | jq -r '.hoppscotch_encryption_key // empty')
 MELTANO_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.meltano_db_password // empty')
 SODA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.soda_db_password // empty')
+REDPANDA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.redpanda_admin_password // empty')
 POSTGRES_PASS=$(echo "$SECRETS_JSON" | jq -r '.postgres_password // empty')
 PGADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.pgadmin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
@@ -387,10 +388,20 @@ if echo "$ENABLED_SERVICES" | grep -qw "minio"; then
     echo "  Generating MinIO config from OpenTofu secrets..."
     cat > "$STACKS_DIR/minio/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
-MINIO_ROOT_USER=admin
+MINIO_ROOT_USER=nexus-minio
 MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASS
 EOF
     echo -e "${GREEN}  ✓ MinIO .env generated${NC}"
+fi
+
+# Generate RedPanda Console .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda-console"; then
+    echo "  Generating RedPanda Console config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/redpanda-console/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+REDPANDA_ADMIN_PASS=$REDPANDA_ADMIN_PASS
+EOF
+    echo -e "${GREEN}  ✓ RedPanda Console .env generated${NC}"
 fi
 
 # Generate Hoppscotch .env from OpenTofu secrets
@@ -398,7 +409,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "hoppscotch"; then
     echo "  Generating Hoppscotch config from OpenTofu secrets..."
     cat > "$STACKS_DIR/hoppscotch/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
-DATABASE_URL=postgres://hoppscotch:${HOPPSCOTCH_DB_PASS}@hoppscotch-db:5432/hoppscotch
+DATABASE_URL=postgres://nexus-hoppscotch:${HOPPSCOTCH_DB_PASS}@hoppscotch-db:5432/hoppscotch
 POSTGRES_PASSWORD=${HOPPSCOTCH_DB_PASS}
 JWT_SECRET=${HOPPSCOTCH_JWT}
 SESSION_SECRET=${HOPPSCOTCH_SESSION}
@@ -628,6 +639,195 @@ if echo "$ENABLED_SERVICES" | grep -qw "wetty"; then
 fi
 
 # -----------------------------------------------------------------------------
+# Generate Docker Compose override files for firewall TCP port exposure
+# -----------------------------------------------------------------------------
+echo ""
+echo -e "${YELLOW}  Generating firewall port overrides...${NC}"
+
+# Read firewall rules from tofu output
+if ! FIREWALL_JSON=$(cd "$TOFU_DIR" && tofu output -json firewall_rules 2>/dev/null); then
+    echo -e "${YELLOW}  Warning: Unable to load firewall_rules from OpenTofu. No firewall overrides will be generated.${NC}" >&2
+    FIREWALL_JSON="{}"
+fi
+
+if [ "$FIREWALL_JSON" != "{}" ] && [ -n "$FIREWALL_JSON" ]; then
+    echo "  Firewall rules found, generating Docker Compose overrides..."
+
+    # Parse firewall rules and generate override files per service
+    while read -r service port; do
+        [ -z "$service" ] && continue
+
+        # Build override content - expose the port to the host
+        # Find the main service container name from the docker-compose.yml
+        OVERRIDE_PATH="stacks/$service/docker-compose.firewall.yml"
+
+        if [ -f "stacks/$service/docker-compose.yml" ]; then
+            # Get the first service name from the docker-compose file
+            FIRST_SERVICE=$(python3 -c "
+import yaml, sys
+try:
+    with open('stacks/$service/docker-compose.yml') as f:
+        data = yaml.safe_load(f)
+    services = list(data.get('services', {}).keys())
+    print(services[0] if services else '')
+except Exception as e:
+    print(f'Error reading stacks/$service/docker-compose.yml: {e}', file=sys.stderr)
+    print('')
+" 2>/dev/null)
+
+            if [ -n "$FIRST_SERVICE" ]; then
+                # Skip creating generic port override for redpanda - handled separately below
+                if [ "$service" != "redpanda" ]; then
+                    # Check if override file exists, if so append the port
+                    if [ -f "$OVERRIDE_PATH" ]; then
+                        # Add port to existing override (under the same service)
+                        python3 -c "
+import yaml
+with open('$OVERRIDE_PATH') as f:
+    data = yaml.safe_load(f)
+svc = data.get('services', {}).get('$FIRST_SERVICE', {})
+ports = svc.get('ports', [])
+port_entry = '$port:$port'
+if port_entry not in ports:
+    ports.append(port_entry)
+    svc['ports'] = ports
+    data.setdefault('services', {})['$FIRST_SERVICE'] = svc
+    with open('$OVERRIDE_PATH', 'w') as f:
+        yaml.dump(data, f, default_flow_style=False)
+" 2>/dev/null
+                    else
+                        cat > "$OVERRIDE_PATH" << FWEOF
+services:
+  $FIRST_SERVICE:
+    ports:
+      - "$port:$port"
+FWEOF
+                    fi
+                    echo "    Port $port exposed for $service ($FIRST_SERVICE)"
+                fi
+            fi
+        fi
+    done < <(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | "\(.key | sub("-[0-9]+$"; "")) \(.value.port)"' 2>/dev/null)
+
+    # Special handling for RedPanda: Generate firewall-specific config
+    # Instead of using docker-compose override with CLI flags, we generate
+    # a firewall-specific redpanda.yaml with external advertised addresses
+    REDPANDA_PORTS=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null | sort -n)
+    if [ -n "$REDPANDA_PORTS" ]; then
+        echo "  Configuring RedPanda for external TCP access (with SASL)..."
+
+        if [ -n "$DOMAIN" ]; then
+            # Build ports list for RedPanda dual-listener setup:
+            # - Internal listener (port 9092): no auth, Docker network only
+            # - External listener (port 19092): SASL auth, for Databricks/external clients
+            # Host port 9092 maps to container port 19092 (external SASL listener)
+            PORTS_LIST=""
+            for p in $REDPANDA_PORTS; do
+                if [ "$p" = "9092" ]; then
+                    PORTS_LIST="${PORTS_LIST}      - \"9092:19092\"\n"
+                else
+                    PORTS_LIST="${PORTS_LIST}      - \"$p:$p\"\n"
+                fi
+            done
+
+            # Create docker-compose override with port mappings only (no command flags)
+            cat > "stacks/redpanda/docker-compose.firewall.yml" << RPEOF
+services:
+  redpanda:
+    ports:
+$(echo -e "$PORTS_LIST")
+RPEOF
+
+            # Generate firewall-specific redpanda.yaml from template
+            # This replaces the standard redpanda.yaml when firewall is enabled
+            REDPANDA_FIREWALL_CONFIG="stacks/redpanda/config/redpanda-firewall.yaml"
+            sed "s/__REDPANDA_KAFKA_DOMAIN__/redpanda-kafka.$DOMAIN/g" \
+                "stacks/redpanda/config/redpanda-firewall.yaml.template" > "$REDPANDA_FIREWALL_CONFIG"
+
+            echo "    RedPanda configured for external access (SASL):"
+            if echo "$REDPANDA_PORTS" | grep -q "9092"; then
+                echo "      Kafka: redpanda-kafka.$DOMAIN:9092 (SASL_PLAINTEXT)"
+            fi
+            if echo "$REDPANDA_PORTS" | grep -q "8081"; then
+                echo "      Schema Registry: redpanda-schema-registry.$DOMAIN:8081"
+            fi
+        fi
+    fi
+
+else
+    echo "  No firewall rules enabled (Zero Entry mode)"
+fi
+
+# Copy firewall override files to server (only for enabled services)
+echo ""
+echo -e "${YELLOW}Copying firewall override files to server...${NC}"
+for override_file in stacks/*/docker-compose.firewall.yml; do
+    if [ -f "$override_file" ]; then
+        service=$(basename $(dirname "$override_file"))
+        # Only copy if service is enabled (directory exists on server)
+        if echo "$ENABLED_SERVICES" | grep -qw "$service"; then
+            echo "  Copying $service firewall override..."
+            scp -q "$override_file" nexus:/opt/docker-server/stacks/$service/ || {
+                echo -e "${RED}  Failed to copy $service firewall override${NC}"
+                exit 1
+            }
+        else
+            echo "  Skipping $service (not enabled)"
+        fi
+    fi
+done
+echo -e "${GREEN}✓ Firewall override files copied${NC}"
+
+# Copy RedPanda production configuration directory
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda"; then
+    echo ""
+    echo -e "${YELLOW}Copying RedPanda production configuration...${NC}"
+    if [ -d "stacks/redpanda/config" ]; then
+        # Create config directory on server if it doesn't exist
+        ssh nexus "mkdir -p /opt/docker-server/stacks/redpanda/config" || {
+            echo -e "${RED}  Failed to create config directory${NC}"
+            exit 1
+        }
+
+        # Check if firewall is enabled for RedPanda
+        REDPANDA_FIREWALL_ENABLED=$(echo "$FIREWALL_JSON" | jq -r 'to_entries[] | select(.key | startswith("redpanda-")) | .value.port' 2>/dev/null)
+
+        if [ -n "$REDPANDA_FIREWALL_ENABLED" ] && [ -f "stacks/redpanda/config/redpanda-firewall.yaml" ]; then
+            # Firewall mode: Use the generated firewall-specific config
+            echo "  Using firewall configuration (external advertised addresses)"
+            scp -q "stacks/redpanda/config/redpanda-firewall.yaml" nexus:/opt/docker-server/stacks/redpanda/config/redpanda.yaml || {
+                echo -e "${RED}  Failed to copy firewall config${NC}"
+                exit 1
+            }
+        else
+            # Normal mode: Use standard config
+            scp -q "stacks/redpanda/config/redpanda.yaml" nexus:/opt/docker-server/stacks/redpanda/config/redpanda.yaml || {
+                echo -e "${RED}  Failed to copy redpanda config${NC}"
+                exit 1
+            }
+        fi
+
+        # Remove old redpanda.yaml file from root (if exists from previous deployment)
+        ssh nexus "rm -f /opt/docker-server/stacks/redpanda/redpanda.yaml" 2>/dev/null || true
+
+        # Set write permissions on config directory (RedPanda needs to create temp files)
+        # Try to set owner to redpanda user (101:101), fallback to world-writable
+        ssh nexus "sudo chown -R 101:101 /opt/docker-server/stacks/redpanda/config 2>/dev/null || sudo chmod -R 777 /opt/docker-server/stacks/redpanda/config" || {
+            echo -e "${YELLOW}  Warning: Could not set config directory permissions${NC}"
+        }
+
+        if [ -n "$REDPANDA_FIREWALL_ENABLED" ]; then
+            echo -e "${GREEN}✓ RedPanda firewall configuration copied${NC}"
+        else
+            echo -e "${GREEN}✓ RedPanda configuration copied (production mode)${NC}"
+        fi
+    else
+        echo -e "${RED}  redpanda config directory not found!${NC}"
+        exit 1
+    fi
+fi
+
+# -----------------------------------------------------------------------------
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
@@ -654,7 +854,12 @@ for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
-        (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+        if [ -f /opt/docker-server/stacks/\$service/docker-compose.firewall.yml ]; then
+            echo \"    (with firewall port overrides)\"
+            (cd /opt/docker-server/stacks/\$service && docker compose -f docker-compose.yml -f docker-compose.firewall.yml up -d 2>&1) &
+        else
+            (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+        fi
         PID=\$!
         PIDS+=(\$PID)
         STARTED_SERVICES+=(\"\$service:\$PID\")
@@ -787,7 +992,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "meltano" "postgres" "pgadmin" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "redpanda" "meltano" "postgres" "pgadmin" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -809,6 +1014,7 @@ EOF
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    REDPANDA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="redpanda") | .id // empty' 2>/dev/null)
                     MELTANO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="meltano") | .id // empty' 2>/dev/null)
                     POSTGRES_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="postgres") | .id // empty' 2>/dev/null)
                     PGADMIN_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="pgadmin") | .id // empty' 2>/dev/null)
@@ -856,10 +1062,12 @@ EOF
     {"secretKey": "CLOUDBEAVER_PASSWORD", "secretValue": "$CLOUDBEAVER_PASS", "tagIds": ["$CLOUDBEAVER_TAG"]},
     {"secretKey": "MAGE_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
-    {"secretKey": "MINIO_ROOT_USER", "secretValue": "admin", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "MINIO_ROOT_USER", "secretValue": "nexus-minio", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
+    {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},
-    {"secretKey": "POSTGRES_USERNAME", "secretValue": "postgres", "tagIds": ["$POSTGRES_TAG"]},
+    {"secretKey": "POSTGRES_USERNAME", "secretValue": "nexus-postgres", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "POSTGRES_PASSWORD", "secretValue": "$POSTGRES_PASS", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "PGADMIN_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$PGADMIN_TAG"]},
     {"secretKey": "PGADMIN_PASSWORD", "secretValue": "$PGADMIN_PASS", "tagIds": ["$PGADMIN_TAG"]}$SSH_KEY_SECRET
@@ -912,18 +1120,76 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; 
             fi
             sleep 1
         done
-        
+
         PORTAINER_JSON="{\"Username\":\"$ADMIN_USERNAME\",\"Password\":\"$PORTAINER_PASS\"}"
         PORTAINER_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:9090/api/users/admin/init' \
             -H 'Content-Type: application/json' \
             -d '$PORTAINER_JSON'" 2>/dev/null || echo "")
-        
+
         if echo "$PORTAINER_RESULT" | grep -q '"Id"' 2>/dev/null; then
             echo -e "${GREEN}  ✓ Portainer admin created (user: $ADMIN_USERNAME)${NC}"
         elif echo "$PORTAINER_RESULT" | grep -q 'already initialized' 2>/dev/null; then
             echo -e "${YELLOW}  ⚠ Portainer already initialized${NC}"
         else
             echo -e "${YELLOW}  ⚠ Portainer setup skipped (may already be configured)${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure RedPanda SASL authentication (only when external TCP ports are exposed)
+if echo "$ENABLED_SERVICES" | grep -qw "redpanda" && [ -n "$REDPANDA_ADMIN_PASS" ] && [ -f "stacks/redpanda/docker-compose.firewall.yml" ]; then
+    (
+        echo "  Configuring RedPanda SASL..."
+        # Wait for RedPanda admin API to be ready
+        for i in $(seq 1 10); do
+            if ssh nexus "docker exec redpanda curl -s --connect-timeout 2 'http://localhost:9644/v1/status/ready'" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # SASL is configured in redpanda.yaml - just create user and set superuser
+
+        # Create SASL user using rpk
+        USER_RESULT=$(ssh nexus "docker exec redpanda rpk acl user create nexus-redpanda \
+            -p '$REDPANDA_ADMIN_PASS' \
+            --mechanism SCRAM-SHA-256 2>&1" || echo "")
+
+        # Configure superuser (grants full permissions without ACLs)
+        ssh nexus "docker exec redpanda rpk cluster config set superusers '[\"nexus-redpanda\"]'" >/dev/null 2>&1
+
+        # Restart RedPanda to apply SASL configuration to listeners
+        echo "  Restarting RedPanda to apply SASL configuration..."
+        if ssh nexus "test -f /opt/docker-server/stacks/redpanda/docker-compose.firewall.yml" 2>/dev/null; then
+            ssh nexus "cd /opt/docker-server/stacks/redpanda && docker compose -f docker-compose.yml -f docker-compose.firewall.yml restart" >/dev/null 2>&1
+        else
+            ssh nexus "cd /opt/docker-server/stacks/redpanda && docker compose restart" >/dev/null 2>&1
+        fi
+
+        # Wait for RedPanda to be ready after restart
+        echo "  Waiting for RedPanda to be ready..."
+        sleep 5
+        for i in $(seq 1 10); do
+            if ssh nexus "docker exec redpanda curl -s --connect-timeout 2 'http://localhost:9644/v1/status/ready'" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # Verify user exists after restart
+        USERS=$(ssh nexus "docker exec redpanda curl -s http://localhost:9644/v1/security/users" 2>/dev/null || echo "[]")
+        if echo "$USERS" | grep -q "nexus-redpanda"; then
+            echo -e "${GREEN}  ✓ RedPanda SASL configured (user: nexus-redpanda, superuser)${NC}"
+
+            # Restart redpanda-console to connect with SASL credentials
+            if echo "$ENABLED_SERVICES" | grep -qw "redpanda-console"; then
+                echo "  Restarting RedPanda Console to connect with SASL..."
+                ssh nexus "cd /opt/docker-server/stacks/redpanda-console && docker compose restart" >/dev/null 2>&1
+                sleep 3
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ RedPanda SASL setup may have failed - check logs${NC}"
         fi
     ) &
     CONFIG_JOBS+=($!)

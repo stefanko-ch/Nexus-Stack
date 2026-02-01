@@ -229,10 +229,23 @@ jobs:
             fi
           fi
           
-          # Generate services config from services.yaml
+          # Read enabled firewall rules from D1
+          D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+          echo "🔥 Reading firewall rules from D1..."
+          FIREWALL_RULES=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
+            --command "SELECT service_name, port, source_ips, dns_record FROM firewall_rules WHERE enabled = 1" 2>/dev/null \
+            | jq -r '.[0].results // [] | map("\(.service_name):\(.port):\(.source_ips // ""):\(.dns_record // "")") | join(";")' 2>/dev/null || echo "")
+
+          if [ -n "$FIREWALL_RULES" ]; then
+            echo "🔥 Enabled firewall rules: $FIREWALL_RULES"
+          else
+            echo "🔥 No firewall rules enabled (Zero Entry mode)"
+          fi
+
+          # Generate services and firewall config from services.yaml
           # Use shared script to avoid code duplication
           chmod +x .github/scripts/generate-services-tfvars.py
-          ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
+          ENABLED_SERVICES="$ENABLED_SERVICES" FIREWALL_RULES="$FIREWALL_RULES" python3 .github/scripts/generate-services-tfvars.py
 
       - name: Initialize OpenTofu
         run: |
@@ -242,10 +255,7 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl
 
-      - name: Spin up infrastructure
-        env:
-          # Pass SSH private key to deploy.sh for Infisical storage
-          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Apply infrastructure
         run: |
           cd tofu/stack
           source ../.r2-credentials
@@ -253,7 +263,127 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
           tofu apply -var-file=config.tfvars -auto-approve
-          cd ../..
+
+      - name: Open SSH port temporarily
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+          SERVER_ID=$(tofu output -raw server_id)
+          FIREWALL_ID=$(tofu output -raw ssh_firewall_id)
+
+          echo "Attaching SSH firewall (ID: $FIREWALL_ID) to server (ID: $SERVER_ID)..."
+
+          HTTP_STATUS=$(curl -s -o /tmp/attach_response.txt -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $TF_VAR_hcloud_token" \
+            -H "Content-Type: application/json" \
+            -d "{\"apply_to\":[{\"type\":\"server\",\"server\":{\"id\":$SERVER_ID}}]}" \
+            "https://api.hetzner.cloud/v1/firewalls/$FIREWALL_ID/actions/apply_to_resources")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ SSH firewall attached - port 22 open for tunnel installation"
+          else
+            echo "❌ Failed to attach firewall (HTTP $HTTP_STATUS)"
+            cat /tmp/attach_response.txt
+            exit 1
+          fi
+
+      - name: Install Cloudflare Tunnel via SSH
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+          SERVER_IP=$(tofu output -raw server_ip)
+          TUNNEL_TOKEN=$(tofu output -raw tunnel_token)
+          echo "::add-mask::$TUNNEL_TOKEN"
+
+          echo "Waiting for SSH to become available on $SERVER_IP..."
+          # Wait for SSH to be ready (server may still be booting)
+          # Max wait: 2 minutes (24 attempts * 5s = 120s)
+          for i in {1..24}; do
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \
+              root@"$SERVER_IP" "echo 'SSH ready'" 2>/dev/null; then
+              echo "✅ SSH is ready (attempt $i)"
+              break
+            fi
+            if [ $i -eq 24 ]; then
+              echo "❌ SSH did not become available after 2 minutes"
+              exit 1
+            fi
+            echo "Attempt $i/24 - waiting 5s..."
+            sleep 5
+          done
+
+          echo "Installing Cloudflare Tunnel on $SERVER_IP..."
+
+          # Write tunnel install script (avoids heredoc indentation issues)
+          cat > /tmp/install-tunnel.sh << SCRIPT
+          #!/bin/bash
+          set -e
+          echo 'Waiting for cloud-init to complete...'
+          cloud-init status --wait || true
+          echo 'Installing/updating Cloudflare Tunnel...'
+          systemctl stop cloudflared 2>/dev/null || true
+          # Uninstall existing service if present
+          if systemctl list-unit-files | grep -q cloudflared.service; then
+            echo 'Uninstalling existing cloudflared service...'
+            cloudflared service uninstall 2>/dev/null || true
+          fi
+          cloudflared service install $TUNNEL_TOKEN
+          systemctl enable cloudflared
+          systemctl start cloudflared
+          sleep 3
+          systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'
+          echo 'Tunnel started successfully!'
+          SCRIPT
+
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=10 \
+            root@"$SERVER_IP" bash < /tmp/install-tunnel.sh
+          rm -f /tmp/install-tunnel.sh
+
+      - name: Close SSH port
+        if: always()
+        run: |
+          cd tofu/stack
+          if [ -f ../.r2-credentials ]; then
+            source ../.r2-credentials
+            export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+            export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+            SERVER_ID=$(tofu output -raw server_id 2>/dev/null || echo "")
+            FIREWALL_ID=$(tofu output -raw ssh_firewall_id 2>/dev/null || echo "")
+
+            if [ -n "$SERVER_ID" ] && [ -n "$FIREWALL_ID" ]; then
+              echo "Detaching SSH firewall (ID: $FIREWALL_ID) from server (ID: $SERVER_ID)..."
+
+              HTTP_STATUS=$(curl -s -o /tmp/detach_response.txt -w "%{http_code}" -X POST \
+                -H "Authorization: Bearer $TF_VAR_hcloud_token" \
+                -H "Content-Type: application/json" \
+                -d "{\"remove_from\":[{\"type\":\"server\",\"server\":{\"id\":$SERVER_ID}}]}" \
+                "https://api.hetzner.cloud/v1/firewalls/$FIREWALL_ID/actions/remove_from_resources")
+
+              if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+                echo "✅ SSH firewall detached - port 22 closed"
+              else
+                echo "⚠️ Failed to detach firewall (HTTP $HTTP_STATUS) - may already be detached"
+                cat /tmp/detach_response.txt
+                # Don't fail - firewall might already be detached
+              fi
+            else
+              echo "⚠️ Could not get server/firewall IDs - skipping detach"
+            fi
+          else
+            echo "⚠️ R2 credentials not available - skipping SSH cleanup"
+          fi
+
+      - name: Deploy stacks
+        env:
+          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
 

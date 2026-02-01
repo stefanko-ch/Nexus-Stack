@@ -158,6 +158,8 @@ services:
     public: false
     description: "High-performance S3-compatible object storage for data lakes, backups, and ML models."
     image: "minio/minio:latest"
+    tcp_ports:
+      s3-api: 9000
 
   n8n:
     subdomain: "n8n"
@@ -188,6 +190,8 @@ services:
     internal_only: true
     description: "PostgreSQL database server - accessible only internally or via pgAdmin/Adminer."
     image: "postgres:17-alpine"
+    tcp_ports:
+      postgres: 5432
 
   redpanda:
     subdomain: "redpanda"
@@ -195,6 +199,9 @@ services:
     public: false
     description: "Kafka-compatible streaming platform that is simpler, faster, and more cost-effective."
     image: "redpandadata/redpanda:v24.3"
+    tcp_ports:
+      kafka: 9092
+      schema-registry: 8081
 
   redpanda-console:
     subdomain: "redpanda-console"

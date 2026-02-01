@@ -14,7 +14,7 @@ services:
     container_name: meltano
     restart: unless-stopped
     environment:
-      - MELTANO_DATABASE_URI=postgresql://meltano:${MELTANO_DB_PASSWORD}@meltano-db:5432/meltano
+      - MELTANO_DATABASE_URI=postgresql://nexus-meltano:${MELTANO_DB_PASSWORD}@meltano-db:5432/meltano
       - MELTANO_PROJECT_ROOT=/project
       - MELTANO_CLI_LOG_LEVEL=INFO
     volumes:
@@ -32,7 +32,7 @@ services:
     container_name: meltano-db
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=meltano
+      - POSTGRES_USER=nexus-meltano
       - POSTGRES_PASSWORD=${MELTANO_DB_PASSWORD}
       - POSTGRES_DB=meltano
     volumes:
@@ -40,7 +40,7 @@ services:
     networks:
       - meltano-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U meltano -d meltano"]
+      test: ["CMD-SHELL", "pg_isready -U nexus-meltano -d meltano"]
       interval: 5s
       timeout: 5s
       retries: 10
