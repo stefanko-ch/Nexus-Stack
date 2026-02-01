@@ -758,17 +758,22 @@ else
     echo "  No firewall rules enabled (Zero Entry mode)"
 fi
 
-# Copy firewall override files to server
+# Copy firewall override files to server (only for enabled services)
 echo ""
 echo -e "${YELLOW}Copying firewall override files to server...${NC}"
 for override_file in stacks/*/docker-compose.firewall.yml; do
     if [ -f "$override_file" ]; then
         service=$(basename $(dirname "$override_file"))
-        echo "  Copying $service firewall override..."
-        scp -q "$override_file" nexus:/opt/docker-server/stacks/$service/ || {
-            echo -e "${RED}  Failed to copy $service firewall override${NC}"
-            exit 1
-        }
+        # Only copy if service is enabled (directory exists on server)
+        if echo "$ENABLED_SERVICES" | grep -qw "$service"; then
+            echo "  Copying $service firewall override..."
+            scp -q "$override_file" nexus:/opt/docker-server/stacks/$service/ || {
+                echo -e "${RED}  Failed to copy $service firewall override${NC}"
+                exit 1
+            }
+        else
+            echo "  Skipping $service (not enabled)"
+        fi
     fi
 done
 echo -e "${GREEN}✓ Firewall override files copied${NC}"
