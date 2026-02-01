@@ -33,6 +33,13 @@ services:
     description: "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
     image: "dbeaver/cloudbeaver:24"
 
+  code-server:
+    subdomain: "code"
+    port: 8100
+    public: false
+    description: "VS Code in the browser for remote development."
+    image: "codercom/code-server:latest"
+
   drawio:
     subdomain: "drawio"
     port: 8083
@@ -94,6 +101,13 @@ services:
     public: false
     description: "Collection of handy online tools for developers - encoders, converters, generators, and more."
     image: "corentinth/it-tools:latest"
+
+  jupyter:
+    subdomain: "jupyter"
+    port: 8087
+    public: false
+    description: "Interactive computing platform for Python notebooks with JupyterLab."
+    image: "jupyter/minimal-notebook:latest"
 
   kafka-ui:
     subdomain: "kafka-ui"
