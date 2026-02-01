@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.10.0...v0.11.0) (2026-02-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **firewall:** RedPanda now runs in production mode instead of dev-container mode
+
+### 🚀 Features
+
+* **firewall:** Add Firewall Management for external TCP access ([#174](https://github.com/stefanko-ch/Nexus-Stack/issues/174)) ([7ef4fbd](https://github.com/stefanko-ch/Nexus-Stack/commit/7ef4fbd09cb2cf035232d8fccb60cabd19671314))
+
+
+### 🐛 Bug Fixes
+
+* **deploy:** Follow-up security and error handling improvements ([#179](https://github.com/stefanko-ch/Nexus-Stack/issues/179)) ([59430fc](https://github.com/stefanko-ch/Nexus-Stack/commit/59430fc36e836fcfeedb3b4180df51441dd1f08e))
+
 ## [0.10.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.9.0...v0.10.0) (2026-01-28)
 
 
