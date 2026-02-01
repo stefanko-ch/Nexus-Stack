@@ -22,11 +22,12 @@ redpanda:
 
   # Kafka API listeners
   kafka_api:
-    # Internal listener (for redpanda-console, other internal services)
+    # Internal listener (for redpanda-console, connect, datagen, schema registry)
+    # No SASL on internal - Docker network is trusted, external access via Zero Trust
     - name: internal
       address: 0.0.0.0
       port: 9092
-      authentication_method: sasl  # SASL authentication required
+      authentication_method: none
 
     # External listener (for Databricks and external clients)
     - name: external
