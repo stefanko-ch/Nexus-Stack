@@ -303,17 +303,18 @@ jobs:
 
           echo "Waiting for SSH to become available on $SERVER_IP..."
           # Wait for SSH to be ready (server may still be booting)
-          for i in {1..60}; do
+          # Max wait: 2 minutes (24 attempts * 5s = 120s)
+          for i in {1..24}; do
             if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \
               root@"$SERVER_IP" "echo 'SSH ready'" 2>/dev/null; then
               echo "✅ SSH is ready (attempt $i)"
               break
             fi
-            if [ $i -eq 60 ]; then
-              echo "❌ SSH did not become available after 5 minutes"
+            if [ $i -eq 24 ]; then
+              echo "❌ SSH did not become available after 2 minutes"
               exit 1
             fi
-            echo "Attempt $i/60 - waiting 5s..."
+            echo "Attempt $i/24 - waiting 5s..."
             sleep 5
           done
 
