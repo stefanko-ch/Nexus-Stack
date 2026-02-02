@@ -54,6 +54,17 @@ services:
     description: "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
     image: "excalidraw/excalidraw:latest"
 
+  garage:
+    subdomain: "garage"
+    port: 3909
+    public: false
+    description: "Lightweight S3-compatible object storage designed for self-hosting."
+    image: "dxflrs/garage:v2.2.0"
+    support_images:
+      webui: "khairul169/garage-webui:latest"
+    tcp_ports:
+      s3-api: 3900
+
   grafana:
     subdomain: "grafana"
     port: 3100
@@ -115,6 +126,15 @@ services:
     public: false
     description: "Modern web UI for Apache Kafka / Redpanda management."
     image: "provectuslabs/kafka-ui:latest"
+
+  lakefs:
+    subdomain: "lakefs"
+    port: 8000
+    public: false
+    description: "Git-like version control for data lakes with S3-compatible gateway (Hetzner Object Storage backend)."
+    image: "treeverse/lakefs:latest"
+    support_images:
+      postgres: "postgres:16-alpine"
 
   kestra:
     subdomain: "kestra"
@@ -184,6 +204,15 @@ services:
     support_images:
       postgres: "postgres:16-alpine"
 
+  rustfs:
+    subdomain: "rustfs"
+    port: 9003
+    public: false
+    description: "Rust-based S3-compatible object storage (MinIO alternative) with web console."
+    image: "rustfs/rustfs:latest"
+    tcp_ports:
+      s3-api: 9002
+
   portainer:
     subdomain: "portainer"
     port: 9090
@@ -225,6 +254,15 @@ services:
     tcp_ports:
       kafka: 9092
       schema-registry: 8081
+
+  seaweedfs:
+    subdomain: "seaweedfs"
+    port: 9333
+    public: false
+    description: "Distributed object storage with S3-compatible API, lightweight and fast."
+    image: "chrislusf/seaweedfs:latest"
+    tcp_ports:
+      s3-api: 8333
 
   redpanda-console:
     subdomain: "redpanda-console"

@@ -163,6 +163,49 @@ resource "random_password" "pgadmin" {
   special = false
 }
 
+# RustFS root password
+resource "random_password" "rustfs_root" {
+  length  = 24
+  special = false
+}
+
+# SeaweedFS admin password
+resource "random_password" "seaweedfs_admin" {
+  length  = 24
+  special = false
+}
+
+# Garage admin token
+resource "random_password" "garage_admin_token" {
+  length  = 32
+  special = false
+}
+
+# Garage RPC secret
+resource "random_password" "garage_rpc_secret" {
+  length  = 32
+  special = false
+}
+
+# LakeFS database password
+resource "random_password" "lakefs_db" {
+  length  = 24
+  special = false
+}
+
+# LakeFS auth encryption secret
+resource "random_password" "lakefs_encrypt_secret" {
+  length  = 32
+  special = false
+}
+
+# Hetzner Object Storage bucket for LakeFS (conditional)
+resource "minio_s3_bucket" "lakefs" {
+  count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
+  bucket = "${local.resource_prefix}-lakefs"
+  acl    = "private"
+}
+
 # =============================================================================
 # Firewall
 # =============================================================================

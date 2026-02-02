@@ -30,8 +30,12 @@ Images are pinned to **major versions** where supported for automatic security p
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Jupyter | `quay.io/jupyter/minimal-notebook` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Garage | `dxflrs/garage` | `v2.2.0` | Minor |
+| Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
+| LakeFS | `treeverse/lakefs` | `latest` | Latest ² |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
+| RustFS | `rustfs/rustfs` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
@@ -39,6 +43,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Major |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
+| SeaweedFS | `chrislusf/seaweedfs` | `latest` | Latest ² |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
@@ -941,6 +946,171 @@ Access MinIO Console at `https://minio.<domain>` to:
 - **S3 API**: `http://localhost:9000` (cluster/localhost only - not exposed via tunnel)
 
 For S3 API access from external applications, use the Console UI or SSH tunnel. Direct S3 API exposure via Cloudflare Tunnel is not configured by default for security reasons.
+
+---
+
+## RustFS
+
+![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)
+
+**Rust-based S3-compatible object storage (MinIO alternative)**
+
+RustFS is a high-performance object storage system written in Rust, designed as a drop-in replacement for MinIO. Features include:
+- Amazon S3 API compatible (~94.7% compatibility)
+- Built-in web console for bucket and object management
+- Multipart uploads and object versioning
+- Apache 2.0 license (vs MinIO's AGPLv3)
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `9003` (Console), `9002` (S3 API) |
+| Suggested Subdomain | `rustfs` |
+| Public Access | No (storage infrastructure) |
+| Website | [rustfs.com](https://rustfs.com) |
+| Source | [GitHub](https://github.com/rustfs/rustfs) |
+
+> ✅ **Auto-configured:** Root credentials are automatically created during deployment. Use `make secrets` to view them.
+
+> **Note:** RustFS is in active/alpha development. For production workloads, consider MinIO or SeaweedFS.
+
+### Usage
+
+Access RustFS Console at `https://rustfs.<domain>` to:
+- Create buckets
+- Upload/download objects
+- Manage access policies
+
+**S3 API Access:**
+- **Console UI**: `https://rustfs.<domain>` (accessible via Cloudflare Tunnel)
+- **S3 API**: Port `9002` (configurable via firewall rules for external access)
+
+---
+
+## SeaweedFS
+
+![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)
+
+**Distributed object storage with S3-compatible API**
+
+SeaweedFS is a lightweight distributed object storage system with S3 API compatibility. All components (master, volume, filer, S3 gateway) run in a single container. Features include:
+- S3-compatible API with versioning and multipart uploads
+- Master dashboard for cluster monitoring
+- Very lightweight (~500MB RAM)
+- Filer for POSIX-like file access
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `9333` (Master UI), `8333` (S3 API) |
+| Suggested Subdomain | `seaweedfs` |
+| Public Access | No (storage infrastructure) |
+| Website | [seaweedfs.com](https://seaweedfs.com) |
+| Source | [GitHub](https://github.com/seaweedfs/seaweedfs) |
+
+> ✅ **Auto-configured:** S3 credentials are automatically created during deployment. Use `make secrets` to view them.
+
+### Usage
+
+Access SeaweedFS Master UI at `https://seaweedfs.<domain>` to:
+- View cluster topology and volume allocation
+- Monitor storage usage
+
+**S3 API Access:**
+- **Master UI**: `https://seaweedfs.<domain>` (accessible via Cloudflare Tunnel)
+- **S3 API**: Port `8333` (configurable via firewall rules for external access)
+
+---
+
+## Garage
+
+![Garage](https://img.shields.io/badge/Garage-59C6A6?logo=amazons3&logoColor=white)
+
+**Lightweight S3-compatible object storage for self-hosting**
+
+Garage is an S3-compatible distributed object storage service designed for self-hosting. It runs on minimal hardware (even Raspberry Pi) and uses a separate web UI. Features include:
+- S3-compatible API (core operations)
+- Designed for unreliable networks and consumer hardware
+- Extremely lightweight resource usage
+- Third-party web UI via garage-webui
+- Can scale from single-node to multi-node cluster
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3909` (Web UI), `3900` (S3 API), `3903` (Admin API) |
+| Suggested Subdomain | `garage` |
+| Public Access | No (storage infrastructure) |
+| Website | [garagehq.deuxfleurs.fr](https://garagehq.deuxfleurs.fr) |
+| Source | [Gitea](https://git.deuxfleurs.fr/Deuxfleurs/garage) |
+
+> ✅ **Auto-configured:** Admin token and layout are automatically configured during deployment.
+
+### Architecture
+
+| Container | Purpose |
+|-----------|---------|
+| `garage` | S3 API + Admin API + RPC |
+| `garage-webui` | Third-party web UI for bucket management |
+
+### Usage
+
+Access Garage Web UI at `https://garage.<domain>` to:
+- Create and manage buckets
+- Create S3 access keys
+- View cluster health
+
+**S3 API Access:**
+- **Web UI**: `https://garage.<domain>` (accessible via Cloudflare Tunnel)
+- **S3 API**: Port `3900` (configurable via firewall rules for external access)
+
+---
+
+## LakeFS
+
+![LakeFS](https://img.shields.io/badge/LakeFS-00B4D8?logo=git&logoColor=white)
+
+**Git-like version control for data lakes**
+
+LakeFS provides Git-like version control for data stored in object storage. It uses Hetzner Object Storage as its backend. Features include:
+- Branch, commit, merge, and diff for data
+- S3-compatible gateway for transparent access
+- Built-in web UI for repository management
+- Zero-copy branching (no data duplication)
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8000` (Web UI + API + S3 Gateway) |
+| Suggested Subdomain | `lakefs` |
+| Public Access | No (data management) |
+| Website | [lakefs.io](https://lakefs.io) |
+| Source | [GitHub](https://github.com/treeverse/lakeFS) |
+
+> **Note:** LakeFS is NOT a standalone object store. It is a version control layer on top of Hetzner Object Storage. You need Hetzner Object Storage credentials configured in `config.tfvars`.
+
+### Prerequisites
+
+Hetzner Object Storage S3 credentials must be created **manually** in the [Hetzner Cloud Console](https://console.hetzner.cloud) (no API for this). Add to `config.tfvars`:
+
+```hcl
+hetzner_object_storage_access_key = "your-access-key"
+hetzner_object_storage_secret_key = "your-secret-key"
+hetzner_object_storage_server     = "fsn1.your-objectstorage.com"
+hetzner_object_storage_region     = "fsn1"
+```
+
+The LakeFS bucket is automatically created by OpenTofu via the `aminueza/minio` provider.
+
+### Architecture
+
+| Container | Purpose |
+|-----------|---------|
+| `lakefs` | Web UI + API server + S3 gateway |
+| `lakefs-db` | Dedicated PostgreSQL for metadata |
+
+### Usage
+
+1. Access LakeFS at `https://lakefs.<domain>`
+2. On first launch, create an admin user via the setup wizard
+3. Create a repository pointing to the auto-created bucket
+4. Use branches for data experimentation, merge when ready
 
 ---
 

@@ -101,6 +101,17 @@ REDPANDA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.redpanda_admin_password // 
 POSTGRES_PASS=$(echo "$SECRETS_JSON" | jq -r '.postgres_password // empty')
 PGADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.pgadmin_password // empty')
 PREFECT_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.prefect_db_password // empty')
+RUSTFS_ROOT_PASS=$(echo "$SECRETS_JSON" | jq -r '.rustfs_root_password // empty')
+SEAWEEDFS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.seaweedfs_admin_password // empty')
+GARAGE_ADMIN_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.garage_admin_token // empty')
+GARAGE_RPC_SECRET=$(echo "$SECRETS_JSON" | jq -r '.garage_rpc_secret // empty')
+LAKEFS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.lakefs_db_password // empty')
+LAKEFS_ENCRYPT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.lakefs_encrypt_secret // empty')
+HETZNER_S3_SERVER=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_server // empty')
+HETZNER_S3_REGION=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_region // empty')
+HETZNER_S3_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_access_key // empty')
+HETZNER_S3_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_secret_key // empty')
+HETZNER_S3_BUCKET=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -485,6 +496,99 @@ PREFECT_DB_PASSWORD=${PREFECT_DB_PASS}
 PREFECT_UI_API_URL=https://prefect.${DOMAIN}/api
 EOF
     echo -e "${GREEN}  ✓ Prefect .env generated${NC}"
+fi
+
+# Generate RustFS .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "rustfs"; then
+    echo "  Generating RustFS config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/rustfs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+RUSTFS_ACCESS_KEY=nexus-rustfs
+RUSTFS_SECRET_KEY=$RUSTFS_ROOT_PASS
+EOF
+    echo -e "${GREEN}  ✓ RustFS .env generated${NC}"
+fi
+
+# Generate SeaweedFS .env and s3.json from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "seaweedfs"; then
+    echo "  Generating SeaweedFS config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/seaweedfs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+SEAWEEDFS_ACCESS_KEY=nexus-seaweedfs
+SEAWEEDFS_SECRET_KEY=$SEAWEEDFS_ADMIN_PASS
+EOF
+    # Generate S3 auth config with actual credentials
+    cat > "$STACKS_DIR/seaweedfs/s3.json" << EOF
+{
+  "identities": [
+    {
+      "name": "admin",
+      "credentials": [
+        {
+          "accessKey": "nexus-seaweedfs",
+          "secretKey": "$SEAWEEDFS_ADMIN_PASS"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
+EOF
+    echo -e "${GREEN}  ✓ SeaweedFS .env and s3.json generated${NC}"
+fi
+
+# Generate Garage .env and garage.toml from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "garage"; then
+    echo "  Generating Garage config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/garage/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+GARAGE_ADMIN_TOKEN=$GARAGE_ADMIN_TOKEN
+EOF
+    # Generate garage.toml with admin token
+    cat > "$STACKS_DIR/garage/garage.toml" << EOF
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+replication_factor = 1
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "$GARAGE_ADMIN_TOKEN"
+
+[rpc]
+bind_addr = "[::]:3901"
+secret_file = "/var/lib/garage/rpc_secret"
+EOF
+    echo -e "${GREEN}  ✓ Garage .env and garage.toml generated${NC}"
+fi
+
+# Generate LakeFS .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "lakefs"; then
+    echo "  Generating LakeFS config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/lakefs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+LAKEFS_DATABASE_TYPE=postgres
+LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://nexus-lakefs:${LAKEFS_DB_PASS}@lakefs-db:5432/lakefs?sslmode=disable
+LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_ENCRYPT_SECRET}
+LAKEFS_BLOCKSTORE_TYPE=s3
+LAKEFS_BLOCKSTORE_S3_ENDPOINT=https://${HETZNER_S3_SERVER}
+LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE=true
+LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION=false
+LAKEFS_BLOCKSTORE_S3_REGION=${HETZNER_S3_REGION}
+LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${HETZNER_S3_ACCESS_KEY}
+LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${HETZNER_S3_SECRET_KEY}
+POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
+EOF
+    echo -e "${GREEN}  ✓ LakeFS .env generated${NC}"
 fi
 
 # Sync only enabled stacks
@@ -1017,7 +1121,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1039,6 +1143,10 @@ EOF
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    RUSTFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="rustfs") | .id // empty' 2>/dev/null)
+                    SEAWEEDFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="seaweedfs") | .id // empty' 2>/dev/null)
+                    GARAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="garage") | .id // empty' 2>/dev/null)
+                    LAKEFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="lakefs") | .id // empty' 2>/dev/null)
                     REDPANDA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="redpanda") | .id // empty' 2>/dev/null)
                     MELTANO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="meltano") | .id // empty' 2>/dev/null)
                     POSTGRES_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="postgres") | .id // empty' 2>/dev/null)
@@ -1090,6 +1198,12 @@ EOF
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MINIO_ROOT_USER", "secretValue": "nexus-minio", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "RUSTFS_ACCESS_KEY", "secretValue": "nexus-rustfs", "tagIds": ["$RUSTFS_TAG"]},
+    {"secretKey": "RUSTFS_SECRET_KEY", "secretValue": "$RUSTFS_ROOT_PASS", "tagIds": ["$RUSTFS_TAG"]},
+    {"secretKey": "SEAWEEDFS_ACCESS_KEY", "secretValue": "nexus-seaweedfs", "tagIds": ["$SEAWEEDFS_TAG"]},
+    {"secretKey": "SEAWEEDFS_SECRET_KEY", "secretValue": "$SEAWEEDFS_ADMIN_PASS", "tagIds": ["$SEAWEEDFS_TAG"]},
+    {"secretKey": "GARAGE_ADMIN_TOKEN", "secretValue": "$GARAGE_ADMIN_TOKEN", "tagIds": ["$GARAGE_TAG"]},
+    {"secretKey": "LAKEFS_DB_PASSWORD", "secretValue": "$LAKEFS_DB_PASS", "tagIds": ["$LAKEFS_TAG"]},
     {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},
@@ -1356,6 +1470,43 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma"; then
     echo -e "${YELLOW}  ⚠ Uptime Kuma requires manual setup on first login${NC}"
     echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+fi
+
+# Configure Garage layout (one-time setup after first start)
+if echo "$ENABLED_SERVICES" | grep -qw "garage" && [ -n "$GARAGE_ADMIN_TOKEN" ]; then
+    (
+        echo "  Configuring Garage layout..."
+        # Wait for Garage admin API to be ready
+        for i in $(seq 1 15); do
+            if ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/health" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # Check if layout is already applied (skip if so)
+        LAYOUT_STATUS=$(ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/v1/layout" 2>/dev/null || echo "")
+        if echo "$LAYOUT_STATUS" | jq -e '.stagedRoleChanges | length > 0' >/dev/null 2>&1 || ! echo "$LAYOUT_STATUS" | jq -e '.roles | length > 0' >/dev/null 2>&1; then
+            # Get node ID
+            NODE_ID=$(ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/v1/status" 2>/dev/null | jq -r '.node' || echo "")
+            if [ -n "$NODE_ID" ] && [ "$NODE_ID" != "null" ]; then
+                # Assign node to layout with 1GB capacity
+                ssh nexus "curl -sf -X POST -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' -H 'Content-Type: application/json' \
+                    http://localhost:3903/v1/layout -d '[{\"id\": \"$NODE_ID\", \"zone\": \"dc1\", \"capacity\": 1073741824, \"tags\": [\"nexus\"]}]'" >/dev/null 2>&1
+                # Apply layout
+                CURRENT_VERSION=$(ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/v1/layout" 2>/dev/null | jq -r '.version' || echo "1")
+                NEXT_VERSION=$((CURRENT_VERSION + 1))
+                ssh nexus "curl -sf -X POST -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' -H 'Content-Type: application/json' \
+                    http://localhost:3903/v1/layout/apply -d '{\"version\": $NEXT_VERSION}'" >/dev/null 2>&1
+                echo -e "${GREEN}  ✓ Garage layout configured${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Could not get Garage node ID - layout setup skipped${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ Garage layout already configured${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
 fi
 
 # Wait for all background configuration jobs to complete

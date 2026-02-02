@@ -154,6 +154,36 @@ variable "dockerhub_token" {
 # GitHub (shared with control-plane, declared here to avoid warnings)
 # =============================================================================
 
+# =============================================================================
+# Hetzner Object Storage (for LakeFS)
+# =============================================================================
+
+variable "hetzner_object_storage_access_key" {
+  description = "Hetzner Object Storage S3 access key (created in Hetzner Console)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hetzner_object_storage_secret_key" {
+  description = "Hetzner Object Storage S3 secret key (created in Hetzner Console)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "hetzner_object_storage_server" {
+  description = "Hetzner Object Storage server hostname (without https://)"
+  type        = string
+  default     = "fsn1.your-objectstorage.com"
+}
+
+variable "hetzner_object_storage_region" {
+  description = "Hetzner Object Storage region (must match server location)"
+  type        = string
+  default     = "fsn1"
+}
+
 variable "github_owner" {
   description = "GitHub repository owner (used by control-plane module)"
   type        = string
