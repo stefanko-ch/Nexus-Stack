@@ -207,6 +207,15 @@ services:
     tcp_ports:
       postgres: 5432
 
+  prefect:
+    subdomain: "prefect"
+    port: 4200
+    public: false
+    description: "Modern Python-native workflow orchestration for data pipelines and automation."
+    image: "prefecthq/prefect:3-latest"
+    support_images:
+      postgres: "postgres:16-alpine"
+
   redpanda:
     subdomain: "redpanda"
     port: 9644

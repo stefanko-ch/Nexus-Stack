@@ -153,6 +153,9 @@ output "secrets" {
     # Soda
     soda_db_password = random_password.soda_db.result
 
+    # Prefect
+    prefect_db_password = random_password.prefect_db.result
+
     # PostgreSQL
     postgres_password = random_password.postgres.result
 
