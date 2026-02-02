@@ -38,7 +38,7 @@ services:
     port: 8100
     public: false
     description: "VS Code in the browser for remote development."
-    image: "codercom/code-server:4"
+    image: "codercom/code-server:latest"
 
   drawio:
     subdomain: "drawio"
