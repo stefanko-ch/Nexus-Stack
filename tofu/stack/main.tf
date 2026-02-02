@@ -151,6 +151,12 @@ resource "random_password" "redpanda_admin" {
   special = false
 }
 
+# Prefect database password
+resource "random_password" "prefect_db" {
+  length  = 24
+  special = false
+}
+
 # pgAdmin password
 resource "random_password" "pgadmin" {
   length  = 24
