@@ -5,18 +5,16 @@
 # Run VS Code on a remote server and access it through the browser for
 # consistent development environments accessible from any device.
 #
-# Note: Password authentication is disabled since Cloudflare Access
-# provides email OTP protection at the network level.
+# Note: Password authentication is disabled (--auth none) since Cloudflare
+# Access provides email OTP protection at the network level.
 # =============================================================================
 
 services:
   code-server:
-    image: ${IMAGE_CODE_SERVER:-codercom/code-server:latest}
+    image: ${IMAGE_CODE_SERVER:-codercom/code-server:4}
     container_name: code-server
     restart: unless-stopped
-    environment:
-      DOCKER_USER: coder
-      PASSWORD: ""
+    command: ["--auth", "none", "--bind-addr", "0.0.0.0:8080"]
     ports:
       - "8100:8080"
     volumes:

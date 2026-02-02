@@ -10,7 +10,8 @@ Images are pinned to **major versions** where supported for automatic security p
 |---------|-------|-----|----------|
 | Adminer | `adminer` | `latest` | Latest ² |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
-| code-server | `codercom/code-server` | `latest` | Latest ² |
+| code-server | `codercom/code-server` | `4` | Major |
+| Draw.io | `jgraph/drawio` | `29` | Major |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
 | Prometheus | `prom/prometheus` | `v3` | Major |
@@ -27,7 +28,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Metabase | `metabase/metabase` | `v0.58.x` | Minor |
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
-| Jupyter | `jupyter/minimal-notebook` | `latest` | Latest ² |
+| Jupyter | `quay.io/jupyter/minimal-notebook` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
@@ -35,7 +36,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
-| pgAdmin | `dpage/pgadmin4` | `latest` | Latest ² |
+| pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |

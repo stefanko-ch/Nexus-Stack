@@ -38,14 +38,14 @@ services:
     port: 8100
     public: false
     description: "VS Code in the browser for remote development."
-    image: "codercom/code-server:latest"
+    image: "codercom/code-server:4"
 
   drawio:
     subdomain: "drawio"
     port: 8083
     public: false
     description: "Flowchart and diagramming tool for creating technical diagrams, flowcharts, and UML diagrams."
-    image: "jgraph/drawio:latest"
+    image: "jgraph/drawio:29"
 
   excalidraw:
     subdomain: "excalidraw"
@@ -107,7 +107,7 @@ services:
     port: 8087
     public: false
     description: "Interactive computing platform for Python notebooks with JupyterLab."
-    image: "jupyter/minimal-notebook:latest"
+    image: "quay.io/jupyter/minimal-notebook:latest"
 
   kafka-ui:
     subdomain: "kafka-ui"
@@ -196,7 +196,7 @@ services:
     port: 5050
     public: false
     description: "Web-based PostgreSQL administration tool for managing databases and running queries."
-    image: "dpage/pgadmin4:latest"
+    image: "dpage/pgadmin4:9"
 
   postgres:
     port: 5432
