@@ -11,7 +11,7 @@
 
 services:
   code-server:
-    image: ${IMAGE_CODE_SERVER:-codercom/code-server:4}
+    image: ${IMAGE_CODE_SERVER:-codercom/code-server:latest}
     container_name: code-server
     restart: unless-stopped
     command: ["--auth", "none", "--bind-addr", "0.0.0.0:8080"]

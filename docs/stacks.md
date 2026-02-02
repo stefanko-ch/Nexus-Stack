@@ -10,7 +10,7 @@ Images are pinned to **major versions** where supported for automatic security p
 |---------|-------|-----|----------|
 | Adminer | `adminer` | `latest` | Latest ² |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
-| code-server | `codercom/code-server` | `4` | Major |
+| code-server | `codercom/code-server` | `latest` | Latest ² |
 | Draw.io | `jgraph/drawio` | `29` | Major |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
