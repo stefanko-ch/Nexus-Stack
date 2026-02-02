@@ -51,6 +51,7 @@ services:
     env_file:
       - .env
     environment:
+      PREFECT_API_URL: "http://prefect:4200/api"
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://nexus-prefect:${PREFECT_DB_PASSWORD}@prefect-db:5432/prefect"
     command: prefect server services start
     depends_on:
