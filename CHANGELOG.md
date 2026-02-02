@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.11.0...v0.12.0) (2026-02-02)
+
+
+### 🚀 Features
+
+* **stacks:** Add Jupyter and code-server stacks ([aebcc18](https://github.com/stefanko-ch/Nexus-Stack/commit/aebcc18d7f466a5cd99e8547d7063033fa54b462)), closes [#31](https://github.com/stefanko-ch/Nexus-Stack/issues/31) [#45](https://github.com/stefanko-ch/Nexus-Stack/issues/45)
+* **stacks:** Add Jupyter and code-server with pre-configured auth ([034172d](https://github.com/stefanko-ch/Nexus-Stack/commit/034172d995288d22b666b37aa583e19c0c5bb14b))
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Disable auth for code-server and Jupyter, pin image versions ([de190b7](https://github.com/stefanko-ch/Nexus-Stack/commit/de190b70b2743b018a861228d2d46e3e2fe82e3f))
+* **stacks:** Revert code-server to latest (tag :4 doesn't exist) ([7d0ab97](https://github.com/stefanko-ch/Nexus-Stack/commit/7d0ab97afd0f8a233f2851ed781ddd8338ad1911))
+
 ## [0.11.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.10.0...v0.11.0) (2026-02-01)
 
 
