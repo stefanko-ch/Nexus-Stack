@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.12.0...v0.13.0) (2026-02-02)
+
+
+### 🚀 Features
+
+* **stacks:** Add Prefect workflow orchestration platform ([80b61bb](https://github.com/stefanko-ch/Nexus-Stack/commit/80b61bb537347f5e5e632584298eb03684339dea))
+* **stacks:** Add Prefect workflow orchestration platform ([81fd467](https://github.com/stefanko-ch/Nexus-Stack/commit/81fd467de20c9c6a4869438a86e8b7a3acc0a166))
+
+
+### 🐛 Bug Fixes
+
+* **prefect:** Add PREFECT_API_URL to prefect-services container ([e99430d](https://github.com/stefanko-ch/Nexus-Stack/commit/e99430d0715401b0434e379fd3b441d5ec5108ba))
+* **stacks:** Set PREFECT_UI_API_URL for Cloudflare Tunnel access ([7e86a04](https://github.com/stefanko-ch/Nexus-Stack/commit/7e86a042a2c1c4bbede0d828007c4e67011bea0c))
+
 ## [0.12.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.11.0...v0.12.0) (2026-02-02)
 
 
