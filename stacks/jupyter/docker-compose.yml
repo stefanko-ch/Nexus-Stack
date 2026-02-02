@@ -5,18 +5,20 @@
 # JupyterLab provides an interactive Python notebook environment for data
 # science, machine learning, and general-purpose computing.
 #
-# Note: Authentication is disabled (empty token) since Cloudflare Access
+# Note: Token/password authentication is disabled since Cloudflare Access
 # provides email OTP protection at the network level.
+#
+# Image: Uses quay.io registry (Docker Hub images are deprecated).
 # =============================================================================
 
 services:
   jupyter:
-    image: ${IMAGE_JUPYTER:-jupyter/minimal-notebook:latest}
+    image: ${IMAGE_JUPYTER:-quay.io/jupyter/minimal-notebook:latest}
     container_name: jupyter
     restart: unless-stopped
     user: root
+    command: start-notebook.sh --ServerApp.token='' --ServerApp.password=''
     environment:
-      JUPYTER_TOKEN: ""
       JUPYTER_ENABLE_LAB: "yes"
       NB_USER: jovyan
       CHOWN_HOME: "yes"

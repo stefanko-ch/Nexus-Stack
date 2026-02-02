@@ -10,7 +10,7 @@
 
 services:
   pgadmin:
-    image: ${IMAGE_PGADMIN:-dpage/pgadmin4:latest}
+    image: ${IMAGE_PGADMIN:-dpage/pgadmin4:9}
     container_name: pgadmin
     restart: unless-stopped
     ports:
