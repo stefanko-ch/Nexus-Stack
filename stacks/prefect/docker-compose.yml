@@ -1,0 +1,105 @@
+# =============================================================================
+# Prefect - Workflow Orchestration Platform
+# =============================================================================
+# Modern Python-native workflow orchestration for data pipelines.
+# Access via: https://prefect.<domain>
+# Default port: 4200
+#
+# Components:
+# - prefect: API server + UI
+# - prefect-services: Background services (scheduler, triggers, events)
+# - prefect-worker: Local flow executor (work pool: "local-pool")
+# - prefect-db: Dedicated PostgreSQL database
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - No built-in authentication on self-hosted Prefect Server
+# =============================================================================
+
+services:
+  prefect:
+    image: ${IMAGE_PREFECT:-prefecthq/prefect:3-latest}
+    container_name: prefect
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://nexus-prefect:${PREFECT_DB_PASSWORD}@prefect-db:5432/prefect"
+      PREFECT_SERVER_API_HOST: "0.0.0.0"
+      PREFECT_UI_API_URL: "${PREFECT_UI_API_URL}"
+    command: prefect server start --no-services
+    ports:
+      - "4200:4200"
+    volumes:
+      - prefect-data:/root/.prefect
+    depends_on:
+      prefect-db:
+        condition: service_healthy
+    networks:
+      - app-network
+      - prefect-internal
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health', timeout=2)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  prefect-services:
+    image: ${IMAGE_PREFECT:-prefecthq/prefect:3-latest}
+    container_name: prefect-services
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PREFECT_API_URL: "http://prefect:4200/api"
+      PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://nexus-prefect:${PREFECT_DB_PASSWORD}@prefect-db:5432/prefect"
+    command: prefect server services start
+    depends_on:
+      prefect:
+        condition: service_healthy
+    networks:
+      - prefect-internal
+
+  prefect-worker:
+    image: ${IMAGE_PREFECT:-prefecthq/prefect:3-latest}
+    container_name: prefect-worker
+    restart: unless-stopped
+    environment:
+      PREFECT_API_URL: "http://prefect:4200/api"
+    command: prefect worker start --pool local-pool
+    depends_on:
+      prefect:
+        condition: service_healthy
+    networks:
+      - prefect-internal
+
+  prefect-db:
+    image: postgres:16-alpine
+    container_name: prefect-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: nexus-prefect
+      POSTGRES_PASSWORD: ${PREFECT_DB_PASSWORD}
+      POSTGRES_DB: prefect
+    volumes:
+      - prefect-db-data:/var/lib/postgresql/data
+    networks:
+      - prefect-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-prefect -d prefect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  prefect-data:
+  prefect-db-data:
+
+networks:
+  app-network:
+    external: true
+  prefect-internal:
+    driver: bridge
