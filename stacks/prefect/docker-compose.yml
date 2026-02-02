@@ -26,6 +26,7 @@ services:
     environment:
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://nexus-prefect:${PREFECT_DB_PASSWORD}@prefect-db:5432/prefect"
       PREFECT_SERVER_API_HOST: "0.0.0.0"
+      PREFECT_UI_API_URL: "${PREFECT_UI_API_URL}"
     command: prefect server start --no-services
     ports:
       - "4200:4200"

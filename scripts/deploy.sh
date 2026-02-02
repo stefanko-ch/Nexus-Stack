@@ -482,6 +482,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "prefect"; then
     cat > "$STACKS_DIR/prefect/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 PREFECT_DB_PASSWORD=${PREFECT_DB_PASS}
+PREFECT_UI_API_URL=https://prefect.${DOMAIN}/api
 EOF
     echo -e "${GREEN}  ✓ Prefect .env generated${NC}"
 fi
