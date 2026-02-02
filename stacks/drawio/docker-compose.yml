@@ -14,7 +14,7 @@
 
 services:
   drawio:
-    image: ${IMAGE_DRAWIO:-jgraph/drawio:latest}
+    image: ${IMAGE_DRAWIO:-jgraph/drawio:29}
     container_name: drawio
     restart: unless-stopped
     ports:

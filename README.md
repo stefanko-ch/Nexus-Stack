@@ -96,12 +96,14 @@ flowchart LR
 
 ![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
+![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)
 ![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)
 ![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)
 ![Info](https://img.shields.io/badge/Info-00D4AA?logo=nginx&logoColor=white)
 ![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)
 ![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)
+![Jupyter](https://img.shields.io/badge/Jupyter-F37726?logo=jupyter&logoColor=white)
 ![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 ![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)
@@ -125,12 +127,14 @@ flowchart LR
 |-------|-------------|--------|
 | **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
+| **code-server** | VS Code in the browser for remote development | [coder.com](https://coder.com) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
 | **Info** | Landing page with service overview dashboard | — |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
+| **Jupyter** | Interactive computing platform for Python notebooks with JupyterLab | [jupyter.org](https://jupyter.org) |
 | **Kafka-UI** | Modern web UI for Apache Kafka / Redpanda management | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
