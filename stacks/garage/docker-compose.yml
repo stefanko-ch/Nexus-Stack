@@ -30,7 +30,7 @@ services:
       - app-network
       - garage-internal
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3903/health"]
+      test: ["CMD", "/garage", "stats"]
       interval: 30s
       timeout: 10s
       retries: 3
