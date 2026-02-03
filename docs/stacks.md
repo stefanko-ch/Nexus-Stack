@@ -1087,7 +1087,7 @@ LakeFS provides Git-like version control for data stored in object storage. Feat
 - S3-compatible gateway for transparent access
 - Built-in web UI for repository management
 - Zero-copy branching (no data duplication)
-- Automatic repository creation with `quickstart` repo
+- Automatic repository creation based on backend type
 
 | Setting | Value |
 |---------|-------|
@@ -1125,8 +1125,8 @@ If Hetzner Object Storage credentials are not configured, LakeFS automatically f
 **What's Automated:**
 - Bucket creation (if using Hetzner S3)
 - LakeFS admin user creation
-- Default `quickstart` repository creation
-- S3 backend configuration
+- Default repository creation (`HetznerObjectStorage` for S3, `LocalStorage` for local)
+- Backend configuration (S3 or local filesystem)
 
 ### Architecture
 

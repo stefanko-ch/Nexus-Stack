@@ -1576,25 +1576,27 @@ if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KE
             # Create default repository (independent of admin setup)
             echo "  Creating default repository..."
 
-            # Determine storage namespace based on configuration
+            # Determine storage namespace and repository name based on configuration
             if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
                 STORAGE_NAMESPACE="s3://${HETZNER_S3_BUCKET}/lakefs/"
                 BACKEND_TYPE="Hetzner Object Storage"
+                REPO_NAME="HetznerObjectStorage"
             else
                 STORAGE_NAMESPACE="local://data/lakefs/"
                 BACKEND_TYPE="local storage"
+                REPO_NAME="LocalStorage"
             fi
 
-            REPO_PAYLOAD="{\"name\":\"quickstart\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
+            REPO_PAYLOAD="{\"name\":\"$REPO_NAME\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
             REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/repositories' \
                 -u '$LAKEFS_ADMIN_ACCESS_KEY:$LAKEFS_ADMIN_SECRET_KEY' \
                 -H 'Content-Type: application/json' \
                 -d '$REPO_PAYLOAD'" 2>&1 || echo "")
 
             if echo "$REPO_RESULT" | grep -q '"id"'; then
-                echo -e "${GREEN}  ✓ Default repository 'quickstart' created ($BACKEND_TYPE)${NC}"
+                echo -e "${GREEN}  ✓ Repository '$REPO_NAME' created ($BACKEND_TYPE)${NC}"
             elif echo "$REPO_RESULT" | grep -q 'already exists'; then
-                echo -e "${YELLOW}  ⚠ Repository already exists${NC}"
+                echo -e "${YELLOW}  ⚠ Repository '$REPO_NAME' already exists${NC}"
             else
                 echo -e "${YELLOW}  ⚠ Repository creation skipped${NC}"
                 echo -e "${DIM}    Response: $(echo "$REPO_RESULT" | head -c 200)${NC}"
