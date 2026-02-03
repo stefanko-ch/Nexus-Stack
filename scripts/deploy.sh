@@ -1400,7 +1400,10 @@ fi
 # Configure Filestash (host, force_ssl, S3 backend)
 if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
     (
+        set +e  # Disable exit on error for background job to allow proper error handling
+
         echo "  Configuring Filestash..."
+
         # Wait for Filestash to be ready
         FILESTASH_READY=false
         for i in $(seq 1 15); do
@@ -1412,7 +1415,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
         done
 
         if [ "$FILESTASH_READY" = "false" ]; then
-            echo -e "${YELLOW}  ⚠ Filestash not ready - skipping auto-configuration${NC}"
+            echo -e "${YELLOW}  ⚠ Filestash not ready after 45s - skipping auto-configuration${NC}"
             exit 0
         fi
 
@@ -1446,9 +1449,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
                 HAS_HETZNER=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"label"[[:space:]]*:[[:space:]]*"Hetzner Storage"' || echo "")
 
                 if [ -z "$HAS_HETZNER" ]; then
-                    echo -e "${GREEN}  ✓ Adding Hetzner Storage S3 backend...${NC}"
-                    # Note: S3 connection will be available in connection list on next login
-                    # Complex sed escaping required for inserting JSON into connections array
+                    echo -e "${GREEN}  ✓ S3 backend will be available after admin login${NC}"
+                    # Note: S3 connection is pre-configured via CONFIG_JSON env var in docker-compose
                 fi
             fi
 
@@ -1458,6 +1460,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
         else
             echo -e "${YELLOW}  ⚠ Filestash config not found - will auto-initialize from CONFIG_JSON${NC}"
         fi
+
+        exit 0  # Ensure clean exit
     ) &
     CONFIG_JOBS+=($!)
 fi
