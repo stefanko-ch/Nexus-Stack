@@ -1565,39 +1565,39 @@ if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KE
 
                 if echo "$SETUP_RESULT" | grep -q 'access_key_id'; then
                     echo -e "${GREEN}  ✓ LakeFS admin created (user: nexus-lakefs)${NC}"
-
-                    # Create default repository with appropriate backend
-                    echo "  Creating default repository..."
-
-                    # Determine storage namespace based on configuration
-                    if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
-                        STORAGE_NAMESPACE="s3://${HETZNER_S3_BUCKET}/lakefs/"
-                        BACKEND_TYPE="Hetzner Object Storage"
-                    else
-                        STORAGE_NAMESPACE="local://data/lakefs/"
-                        BACKEND_TYPE="local storage"
-                    fi
-
-                    REPO_PAYLOAD="{\"name\":\"quickstart\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
-                    REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/repositories' \
-                        -u '$LAKEFS_ADMIN_ACCESS_KEY:$LAKEFS_ADMIN_SECRET_KEY' \
-                        -H 'Content-Type: application/json' \
-                        -d '$REPO_PAYLOAD'" 2>&1 || echo "")
-
-                    if echo "$REPO_RESULT" | grep -q '"id"'; then
-                        echo -e "${GREEN}  ✓ Default repository 'quickstart' created ($BACKEND_TYPE)${NC}"
-                    elif echo "$REPO_RESULT" | grep -q 'already exists'; then
-                        echo -e "${YELLOW}  ⚠ Repository already exists${NC}"
-                    else
-                        echo -e "${YELLOW}  ⚠ Repository creation skipped${NC}"
-                        echo -e "${DIM}    Response: $(echo "$REPO_RESULT" | head -c 200)${NC}"
-                    fi
                 elif echo "$SETUP_RESULT" | grep -q 'already'; then
                     echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"
                 else
                     echo -e "${YELLOW}  ⚠ LakeFS setup failed - configure manually${NC}"
                     echo -e "${DIM}    Response: $(echo "$SETUP_RESULT" | head -c 200)${NC}"
                 fi
+            fi
+
+            # Create default repository (independent of admin setup)
+            echo "  Creating default repository..."
+
+            # Determine storage namespace based on configuration
+            if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
+                STORAGE_NAMESPACE="s3://${HETZNER_S3_BUCKET}/lakefs/"
+                BACKEND_TYPE="Hetzner Object Storage"
+            else
+                STORAGE_NAMESPACE="local://data/lakefs/"
+                BACKEND_TYPE="local storage"
+            fi
+
+            REPO_PAYLOAD="{\"name\":\"quickstart\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
+            REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/repositories' \
+                -u '$LAKEFS_ADMIN_ACCESS_KEY:$LAKEFS_ADMIN_SECRET_KEY' \
+                -H 'Content-Type: application/json' \
+                -d '$REPO_PAYLOAD'" 2>&1 || echo "")
+
+            if echo "$REPO_RESULT" | grep -q '"id"'; then
+                echo -e "${GREEN}  ✓ Default repository 'quickstart' created ($BACKEND_TYPE)${NC}"
+            elif echo "$REPO_RESULT" | grep -q 'already exists'; then
+                echo -e "${YELLOW}  ⚠ Repository already exists${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Repository creation skipped${NC}"
+                echo -e "${DIM}    Response: $(echo "$REPO_RESULT" | head -c 200)${NC}"
             fi
         else
             echo -e "${YELLOW}  ⚠ LakeFS not ready after 60s - skipping setup${NC}"
