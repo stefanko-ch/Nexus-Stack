@@ -176,8 +176,10 @@ output "secrets" {
     garage_rpc_secret  = random_id.garage_rpc_secret.hex
 
     # LakeFS
-    lakefs_db_password    = random_password.lakefs_db.result
-    lakefs_encrypt_secret = random_password.lakefs_encrypt_secret.result
+    lakefs_db_password        = random_password.lakefs_db.result
+    lakefs_encrypt_secret     = random_password.lakefs_encrypt_secret.result
+    lakefs_admin_access_key   = random_string.lakefs_admin_access_key.result
+    lakefs_admin_secret_key   = random_password.lakefs_admin_secret_key.result
 
     # Hetzner Object Storage (pass-through for LakeFS)
     hetzner_s3_server     = var.hetzner_object_storage_server

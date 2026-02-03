@@ -107,6 +107,8 @@ GARAGE_ADMIN_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.garage_admin_token // empty'
 GARAGE_RPC_SECRET=$(echo "$SECRETS_JSON" | jq -r '.garage_rpc_secret // empty')
 LAKEFS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.lakefs_db_password // empty')
 LAKEFS_ENCRYPT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.lakefs_encrypt_secret // empty')
+LAKEFS_ADMIN_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.lakefs_admin_access_key // empty')
+LAKEFS_ADMIN_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.lakefs_admin_secret_key // empty')
 HETZNER_S3_SERVER=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_server // empty')
 HETZNER_S3_REGION=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_region // empty')
 HETZNER_S3_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_access_key // empty')
@@ -586,6 +588,10 @@ LAKEFS_BLOCKSTORE_S3_REGION=${HETZNER_S3_REGION}
 LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${HETZNER_S3_ACCESS_KEY}
 LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${HETZNER_S3_SECRET_KEY}
 LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
+# Auto-setup admin user (headless deployment)
+LAKEFS_INSTALLATION_USER_NAME=nexus-lakefs
+LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ADMIN_ACCESS_KEY}
+LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_ADMIN_SECRET_KEY}
 POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
 EOF
     echo -e "${GREEN}  ✓ LakeFS .env generated${NC}"
@@ -1204,6 +1210,8 @@ EOF
     {"secretKey": "SEAWEEDFS_SECRET_KEY", "secretValue": "$SEAWEEDFS_ADMIN_PASS", "tagIds": ["$SEAWEEDFS_TAG"]},
     {"secretKey": "GARAGE_ADMIN_TOKEN", "secretValue": "$GARAGE_ADMIN_TOKEN", "tagIds": ["$GARAGE_TAG"]},
     {"secretKey": "LAKEFS_DB_PASSWORD", "secretValue": "$LAKEFS_DB_PASS", "tagIds": ["$LAKEFS_TAG"]},
+    {"secretKey": "LAKEFS_ACCESS_KEY_ID", "secretValue": "$LAKEFS_ADMIN_ACCESS_KEY", "tagIds": ["$LAKEFS_TAG"]},
+    {"secretKey": "LAKEFS_SECRET_ACCESS_KEY", "secretValue": "$LAKEFS_ADMIN_SECRET_KEY", "tagIds": ["$LAKEFS_TAG"]},
     {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},

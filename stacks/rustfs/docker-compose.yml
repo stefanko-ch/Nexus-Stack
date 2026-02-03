@@ -23,20 +23,17 @@ services:
       - "9002:9002"  # S3 API
     env_file: .env
     environment:
+      RUSTFS_ROOT_USER: ${RUSTFS_ACCESS_KEY:-nexus-rustfs}
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_SECRET_KEY}
       RUSTFS_ADDRESS: ":9002"
       RUSTFS_CONSOLE_ADDRESS: ":9003"
-      RUSTFS_VOLUMES: /data
-    command: server /data
+    command: server /data --console-address :9003
     volumes:
       - rustfs_data:/data
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9002/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    # Note: RustFS minimal image doesn't include curl/wget for health checks
+    # Service health is monitored via Docker restart policy
 
 volumes:
   rustfs_data:

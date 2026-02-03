@@ -198,6 +198,21 @@ resource "random_password" "lakefs_encrypt_secret" {
   special = false
 }
 
+# LakeFS admin access key (16 chars, uppercase alphanumeric like AWS)
+resource "random_string" "lakefs_admin_access_key" {
+  length  = 16
+  special = false
+  upper   = true
+  lower   = false
+  numeric = true
+}
+
+# LakeFS admin secret key
+resource "random_password" "lakefs_admin_secret_key" {
+  length  = 40
+  special = false
+}
+
 # Hetzner Object Storage bucket for LakeFS (conditional)
 resource "minio_s3_bucket" "lakefs" {
   count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
