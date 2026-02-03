@@ -257,14 +257,21 @@ services:
       kafka: 9092
       schema-registry: 8081
 
-  seaweedfs:
+  seaweedfs-filer:
     subdomain: "seaweedfs"
-    port: 9333
+    port: 8888
     public: false
-    description: "Distributed object storage with S3-compatible API, lightweight and fast."
+    description: "SeaweedFS file browser with upload capability - the main interface for managing files."
     image: "chrislusf/seaweedfs:latest"
     tcp_ports:
       s3-api: 8333
+
+  seaweedfs-manager:
+    subdomain: "seaweedfs-manager"
+    port: 9333
+    public: false
+    description: "SeaweedFS cluster statistics and health monitoring (read-only dashboard)."
+    image: "chrislusf/seaweedfs:latest"
 
   redpanda-console:
     subdomain: "redpanda-console"

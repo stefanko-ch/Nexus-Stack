@@ -2,12 +2,11 @@
 # SeaweedFS - Distributed S3-Compatible Object Storage
 # =============================================================================
 # Lightweight distributed object storage with S3 API
-# Accessible via: https://seaweedfs.<domain>
 #
-# Ports:
-#   - 9333: Master UI (statistics/cluster status only)
-#   - 8333: S3 API (for S3-compatible tools)
-#   - 8888: Filer Web UI (file browser with upload)
+# URLs:
+#   - https://seaweedfs.<domain>         -> Filer Web UI (file browser/upload)
+#   - https://seaweedfs-manager.<domain> -> Master UI (cluster statistics)
+#   - S3 API: Port 8333 (internal, use S3-compatible tools)
 #
 # Default credentials:
 #   Access Key: ${SEAWEEDFS_ACCESS_KEY}
