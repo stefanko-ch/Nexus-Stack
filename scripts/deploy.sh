@@ -1484,29 +1484,27 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "garage" && [ -n "$GARAGE_ADMIN_TOKEN" ]; then
     (
         echo "  Configuring Garage layout..."
-        # Wait for Garage admin API to be ready
+        # Wait for Garage to be ready (check health endpoint)
         for i in $(seq 1 15); do
-            if ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/health" >/dev/null 2>&1; then
+            if ssh nexus "curl -sf http://localhost:3903/health" >/dev/null 2>&1; then
                 break
             fi
             sleep 2
         done
 
-        # Check if layout is already applied (skip if so)
-        LAYOUT_STATUS=$(ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/v1/layout" 2>/dev/null || echo "")
-        if echo "$LAYOUT_STATUS" | jq -e '.stagedRoleChanges | length > 0' >/dev/null 2>&1 || ! echo "$LAYOUT_STATUS" | jq -e '.roles | length > 0' >/dev/null 2>&1; then
-            # Get node ID
-            NODE_ID=$(ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/v1/status" 2>/dev/null | jq -r '.node' || echo "")
-            if [ -n "$NODE_ID" ] && [ "$NODE_ID" != "null" ]; then
-                # Assign node to layout with 1GB capacity
-                ssh nexus "curl -sf -X POST -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' -H 'Content-Type: application/json' \
-                    http://localhost:3903/v1/layout -d '[{\"id\": \"$NODE_ID\", \"zone\": \"dc1\", \"capacity\": 1073741824, \"tags\": [\"nexus\"]}]'" >/dev/null 2>&1
-                # Apply layout
-                CURRENT_VERSION=$(ssh nexus "curl -sf -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' http://localhost:3903/v1/layout" 2>/dev/null | jq -r '.version' || echo "1")
-                NEXT_VERSION=$((CURRENT_VERSION + 1))
-                ssh nexus "curl -sf -X POST -H 'Authorization: Bearer $GARAGE_ADMIN_TOKEN' -H 'Content-Type: application/json' \
-                    http://localhost:3903/v1/layout/apply -d '{\"version\": $NEXT_VERSION}'" >/dev/null 2>&1
-                echo -e "${GREEN}  ✓ Garage layout configured${NC}"
+        # Check if layout is already configured (roles exist)
+        LAYOUT_CHECK=$(ssh nexus "docker exec garage /garage layout show 2>&1" || echo "")
+        if echo "$LAYOUT_CHECK" | grep -q "No nodes currently have"; then
+            # Get node ID (short form, first 16 chars)
+            NODE_ID=$(ssh nexus "docker exec garage /garage node id 2>&1 | head -1 | cut -c1-16" || echo "")
+            if [ -n "$NODE_ID" ] && [ ${#NODE_ID} -ge 8 ]; then
+                # Assign node to layout with 100GB capacity
+                ssh nexus "docker exec garage /garage layout assign -z dc1 -c 100G $NODE_ID" >/dev/null 2>&1
+                # Apply layout with version 1
+                ssh nexus "docker exec garage /garage layout apply --version 1" >/dev/null 2>&1
+                # Create default access key
+                ssh nexus "docker exec garage /garage key create nexus-garage-key" >/dev/null 2>&1
+                echo -e "${GREEN}  ✓ Garage layout configured with 100GB capacity${NC}"
             else
                 echo -e "${YELLOW}  ⚠ Could not get Garage node ID - layout setup skipped${NC}"
             fi
