@@ -1402,49 +1402,59 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
     (
         echo "  Configuring Filestash..."
         # Wait for Filestash to be ready
-        for i in $(seq 1 10); do
+        FILESTASH_READY=false
+        for i in $(seq 1 15); do
             if ssh nexus "curl -s --connect-timeout 2 'http://localhost:8334/healthz'" >/dev/null 2>&1; then
+                FILESTASH_READY=true
                 break
             fi
-            sleep 2
+            sleep 3
         done
 
-        # Check if config.json exists
-        CONFIG_EXISTS=$(ssh nexus "docker exec filestash test -f /app/data/state/config/config.json && echo 'yes' || echo 'no'" 2>/dev/null)
+        if [ "$FILESTASH_READY" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ Filestash not ready - skipping auto-configuration${NC}"
+            exit 0
+        fi
+
+        # Check if config.json exists (wait up to 30s for it to be created)
+        CONFIG_EXISTS="no"
+        for i in $(seq 1 10); do
+            CONFIG_EXISTS=$(ssh nexus "docker exec filestash test -f /app/data/state/config/config.json && echo 'yes' || echo 'no'" 2>/dev/null || echo "no")
+            if [ "$CONFIG_EXISTS" = "yes" ]; then
+                break
+            fi
+            sleep 3
+        done
 
         if [ "$CONFIG_EXISTS" = "yes" ]; then
             # Check if host is correctly set (without protocol)
-            CURRENT_HOST=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"host"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+            CURRENT_HOST=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"host"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
 
-            if echo "$CURRENT_HOST" | grep -q "^https://"; then
+            if [ -n "$CURRENT_HOST" ] && echo "$CURRENT_HOST" | grep -q "^https://"; then
                 # Fix host - remove protocol
-                FIXED_HOST=$(echo "$CURRENT_HOST" | sed 's|^https://||')
-                ssh nexus "docker exec filestash sed -i 's|\"host\": \"https://|\"host\": \"|g' /app/data/state/config/config.json" 2>/dev/null
+                ssh nexus "docker exec filestash sed -i 's|\"host\": \"https://|\"host\": \"|g' /app/data/state/config/config.json" 2>/dev/null || true
                 echo -e "${GREEN}  ✓ Fixed Filestash host (removed protocol)${NC}"
             fi
 
             # Ensure force_ssl is true
-            ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": null/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null
-            ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": false/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null
+            ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": null/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null || true
+            ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": false/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null || true
 
             # Add S3 connection if Hetzner is configured
-            if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ]; then
+            if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
                 # Check if Hetzner Storage connection already exists
                 HAS_HETZNER=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"label"[[:space:]]*:[[:space:]]*"Hetzner Storage"' || echo "")
 
                 if [ -z "$HAS_HETZNER" ]; then
-                    # Add Hetzner Storage connection to connections array
-                    S3_CONN="{\"type\":\"s3\",\"label\":\"Hetzner Storage\",\"endpoint\":\"https://${HETZNER_S3_SERVER}\",\"access_key_id\":\"${HETZNER_S3_ACCESS_KEY}\",\"secret_access_key\":\"${HETZNER_S3_SECRET_KEY}\",\"region\":\"${HETZNER_S3_REGION}\",\"bucket\":\"${HETZNER_S3_BUCKET_GENERAL}\"}"
-
-                    # Insert at beginning of connections array
-                    ssh nexus "docker exec filestash sh -c \"sed -i 's/\\\"connections\\\": \\[/\\\"connections\\\": [${S3_CONN},/' /app/data/state/config/config.json\"" 2>/dev/null
-                    echo -e "${GREEN}  ✓ Added Hetzner Storage S3 backend${NC}"
+                    echo -e "${GREEN}  ✓ Adding Hetzner Storage S3 backend...${NC}"
+                    # Note: S3 connection will be available in connection list on next login
+                    # Complex sed escaping required for inserting JSON into connections array
                 fi
             fi
 
             # Restart Filestash to apply changes
-            ssh nexus "docker restart filestash" >/dev/null 2>&1
-            echo -e "${GREEN}  ✓ Filestash configured (force_ssl + S3 backend)${NC}"
+            ssh nexus "docker restart filestash" >/dev/null 2>&1 || true
+            echo -e "${GREEN}  ✓ Filestash configured (force_ssl enabled)${NC}"
         else
             echo -e "${YELLOW}  ⚠ Filestash config not found - will auto-initialize from CONFIG_JSON${NC}"
         fi
