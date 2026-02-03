@@ -135,6 +135,8 @@ services:
     image: "treeverse/lakefs:latest"
     support_images:
       postgres: "postgres:16-alpine"
+    tcp_ports:
+      s3-gateway: 8000
 
   kestra:
     subdomain: "kestra"

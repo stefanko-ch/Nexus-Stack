@@ -1105,12 +1105,47 @@ The LakeFS bucket is automatically created by OpenTofu via the `aminueza/minio` 
 | `lakefs` | Web UI + API server + S3 gateway |
 | `lakefs-db` | Dedicated PostgreSQL for metadata |
 
+### Access Methods
+
+LakeFS uses a **single port (8000)** for all services, but separates them via DNS:
+
+**1. Web UI (via Cloudflare Tunnel):**
+- URL: `https://lakefs.<domain>`
+- Access: Protected by Cloudflare Access (email OTP)
+- Use for: Browser-based repository management
+
+**2. S3 Gateway (direct TCP access):**
+- URL: `s3://s3.lakefs.<domain>:8000` or `http://s3.lakefs.<domain>:8000`
+- Access: Direct server connection (requires firewall rule enabled in Control Plane)
+- Use for: External tools (Databricks, Spark, DuckDB, Python boto3)
+
+LakeFS routes requests based on the `Host` header:
+- `lakefs.<domain>` → Web UI/API
+- `s3.lakefs.<domain>` → S3 Gateway
+
 ### Usage
 
+**Web UI Setup:**
 1. Access LakeFS at `https://lakefs.<domain>`
 2. On first launch, create an admin user via the setup wizard
 3. Create a repository pointing to the auto-created bucket
 4. Use branches for data experimentation, merge when ready
+
+**S3 Gateway Access (requires firewall rule):**
+```python
+# Python example with boto3
+import boto3
+
+s3 = boto3.client(
+    's3',
+    endpoint_url='http://s3.lakefs.your-domain.com:8000',
+    aws_access_key_id='<your-lakefs-access-key>',
+    aws_secret_access_key='<your-lakefs-secret-key>'
+)
+
+# List repositories
+s3.list_buckets()
+```
 
 ---
 
