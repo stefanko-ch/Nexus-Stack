@@ -551,6 +551,9 @@ data_dir = "/var/lib/garage/data"
 db_engine = "lmdb"
 replication_factor = 1
 
+rpc_bind_addr = "[::]:3901"
+rpc_secret = "$GARAGE_RPC_SECRET"
+
 [s3_api]
 s3_region = "garage"
 api_bind_addr = "[::]:3900"
@@ -563,10 +566,6 @@ root_domain = ".web.garage.localhost"
 [admin]
 api_bind_addr = "[::]:3903"
 admin_token = "$GARAGE_ADMIN_TOKEN"
-
-[rpc]
-bind_addr = "[::]:3901"
-secret_file = "/var/lib/garage/rpc_secret"
 EOF
     echo -e "${GREEN}  ✓ Garage .env and garage.toml generated${NC}"
 fi
