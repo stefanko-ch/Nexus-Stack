@@ -588,10 +588,8 @@ LAKEFS_BLOCKSTORE_S3_REGION=${HETZNER_S3_REGION}
 LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${HETZNER_S3_ACCESS_KEY}
 LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${HETZNER_S3_SECRET_KEY}
 LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
-# Auto-setup admin user (headless deployment)
-LAKEFS_INSTALLATION_USER_NAME=nexus-lakefs
-LAKEFS_INSTALLATION_ACCESS_KEY_ID=${LAKEFS_ADMIN_ACCESS_KEY}
-LAKEFS_INSTALLATION_SECRET_ACCESS_KEY=${LAKEFS_ADMIN_SECRET_KEY}
+# Note: LAKEFS_INSTALLATION_* vars only work with database.type=local
+# Admin user is created via API in Step 7/7
 POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
 EOF
     echo -e "${GREEN}  ✓ LakeFS .env generated${NC}"
@@ -1478,6 +1476,50 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma"; then
     echo -e "${YELLOW}  ⚠ Uptime Kuma requires manual setup on first login${NC}"
     echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+fi
+
+# Configure LakeFS admin user via API (one-time setup)
+# Note: LAKEFS_INSTALLATION_* env vars only work with database.type=local
+# Since we use PostgreSQL, we must configure via API
+if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KEY" ]; then
+    (
+        echo "  Configuring LakeFS admin user..."
+        # Wait for LakeFS to be ready
+        LAKEFS_READY=false
+        for i in $(seq 1 30); do
+            if ssh nexus "curl -sf http://localhost:8000/api/v1/healthcheck" >/dev/null 2>&1; then
+                LAKEFS_READY=true
+                break
+            fi
+            sleep 2
+        done
+
+        if [ "$LAKEFS_READY" = "true" ]; then
+            # Check if setup is already complete
+            SETUP_CHECK=$(ssh nexus "curl -s http://localhost:8000/api/v1/config" 2>/dev/null || echo "")
+            if echo "$SETUP_CHECK" | grep -q '"setup_complete":true'; then
+                echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"
+            else
+                # Create admin user via setup API
+                SETUP_PAYLOAD="{\"username\":\"nexus-lakefs\",\"key\":{\"access_key_id\":\"$LAKEFS_ADMIN_ACCESS_KEY\",\"secret_access_key\":\"$LAKEFS_ADMIN_SECRET_KEY\"}}"
+                SETUP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/setup_lakefs' \
+                    -H 'Content-Type: application/json' \
+                    -d '$SETUP_PAYLOAD'" 2>&1 || echo "")
+
+                if echo "$SETUP_RESULT" | grep -q 'access_key_id'; then
+                    echo -e "${GREEN}  ✓ LakeFS admin created (user: nexus-lakefs)${NC}"
+                elif echo "$SETUP_RESULT" | grep -q 'already'; then
+                    echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ LakeFS setup failed - configure manually${NC}"
+                    echo -e "${DIM}    Response: $(echo "$SETUP_RESULT" | head -c 200)${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ LakeFS not ready after 60s - skipping setup${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
 fi
 
 # Configure Garage layout (one-time setup after first start)

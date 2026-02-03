@@ -44,8 +44,12 @@ services:
       - "3909:3909"
     env_file: .env
     environment:
-      GARAGE_S3_ENDPOINT: http://garage:3900
-      GARAGE_ADMIN_API_ENDPOINT: http://garage:3903
+      # Garage WebUI uses API_ADMIN_KEY, API_BASE_URL, S3_ENDPOINT_URL
+      # GARAGE_ADMIN_TOKEN is loaded from .env
+      API_ADMIN_KEY: ${GARAGE_ADMIN_TOKEN}
+      API_BASE_URL: http://garage:3903
+      S3_ENDPOINT_URL: http://garage:3900
+      S3_REGION: garage
       PORT: "3909"
     depends_on:
       garage:

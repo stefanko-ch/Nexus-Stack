@@ -18,22 +18,29 @@ services:
     image: ${IMAGE_RUSTFS:-rustfs/rustfs:latest}
     container_name: rustfs
     restart: unless-stopped
+    user: "10001:10001"
     ports:
       - "9003:9003"  # Web Console
       - "9002:9002"  # S3 API
     env_file: .env
     environment:
-      RUSTFS_ROOT_USER: ${RUSTFS_ACCESS_KEY:-nexus-rustfs}
-      RUSTFS_ROOT_PASSWORD: ${RUSTFS_SECRET_KEY}
-      RUSTFS_ADDRESS: ":9002"
-      RUSTFS_CONSOLE_ADDRESS: ":9003"
-    command: server /data --console-address :9003
+      # RustFS uses RUSTFS_ACCESS_KEY/SECRET_KEY (not ROOT_USER/PASSWORD)
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-nexus-rustfs}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_ADDRESS: "0.0.0.0:9002"
+      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9003"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    command: server /data
     volumes:
       - rustfs_data:/data
     networks:
       - app-network
-    # Note: RustFS minimal image doesn't include curl/wget for health checks
-    # Service health is monitored via Docker restart policy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9002/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   rustfs_data:
