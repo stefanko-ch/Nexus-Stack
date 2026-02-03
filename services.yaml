@@ -260,6 +260,7 @@ services:
   seaweedfs-filer:
     subdomain: "seaweedfs"
     port: 8888
+    stack: "seaweedfs"
     public: false
     description: "SeaweedFS file browser with upload capability - the main interface for managing files."
     image: "chrislusf/seaweedfs:latest"
@@ -269,6 +270,7 @@ services:
   seaweedfs-manager:
     subdomain: "seaweedfs-manager"
     port: 9333
+    stack: "seaweedfs"
     public: false
     description: "SeaweedFS cluster statistics and health monitoring (read-only dashboard)."
     image: "chrislusf/seaweedfs:latest"

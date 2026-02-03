@@ -983,8 +983,18 @@ STARTED_SERVICES=()
 FAILED_SERVICES=()
 PIDS=()
 
+# Virtual services that use a parent stack (defined via 'stack' field in services.yaml)
+VIRTUAL_SERVICES=\"seaweedfs-filer seaweedfs-manager\"
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
+
+    # Skip virtual services (they're covered by their parent stack)
+    if echo \"\$VIRTUAL_SERVICES\" | grep -qw \"\$service\"; then
+        echo \"[DEBUG] Skipping virtual service \$service (uses parent stack)\" >&2
+        continue
+    fi
+
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
         if [ -f /opt/docker-server/stacks/\$service/docker-compose.firewall.yml ]; then
