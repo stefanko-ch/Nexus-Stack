@@ -986,12 +986,39 @@ PIDS=()
 # Virtual services that use a parent stack (defined via 'stack' field in services.yaml)
 VIRTUAL_SERVICES=\"seaweedfs-filer seaweedfs-manager\"
 
+# Map virtual services to their parent stack
+declare -A STACK_PARENTS
+STACK_PARENTS[\"seaweedfs-filer\"]=\"seaweedfs\"
+STACK_PARENTS[\"seaweedfs-manager\"]=\"seaweedfs\"
+
+# Ensure parent stacks are started when virtual services are enabled
+PARENT_STACKS_STARTED=\"\"
+for service in $ENABLED_LIST; do
+    PARENT=\"\${STACK_PARENTS[\$service]:-}\"
+    if [ -n \"\$PARENT\" ] && ! echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$PARENT\"; then
+        if [ -f /opt/docker-server/stacks/\$PARENT/docker-compose.yml ]; then
+            echo \"  Starting parent stack: \$PARENT (required by \$service)...\"
+            (cd /opt/docker-server/stacks/\$PARENT && docker compose up -d 2>&1) &
+            PID=\$!
+            PIDS+=(\$PID)
+            STARTED_SERVICES+=(\"\$PARENT:\$PID\")
+            PARENT_STACKS_STARTED=\"\$PARENT_STACKS_STARTED \$PARENT\"
+        fi
+    fi
+done
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
 
     # Skip virtual services (they're covered by their parent stack)
     if echo \"\$VIRTUAL_SERVICES\" | grep -qw \"\$service\"; then
         echo \"[DEBUG] Skipping virtual service \$service (uses parent stack)\" >&2
+        continue
+    fi
+
+    # Skip parent stacks that were already started
+    if echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$service\"; then
+        echo \"[DEBUG] Skipping \$service (already started as parent stack)\" >&2
         continue
     fi
 
@@ -1518,6 +1545,22 @@ if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KE
 
                 if echo "$SETUP_RESULT" | grep -q 'access_key_id'; then
                     echo -e "${GREEN}  ✓ LakeFS admin created (user: nexus-lakefs)${NC}"
+
+                    # Create default repository with Hetzner S3 backend
+                    echo "  Creating default repository..."
+                    REPO_PAYLOAD="{\"name\":\"quickstart\",\"storage_namespace\":\"s3://${HETZNER_S3_BUCKET}/lakefs/\",\"default_branch\":\"main\",\"sample_data\":false}"
+                    REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/repositories' \
+                        -u '$LAKEFS_ADMIN_ACCESS_KEY:$LAKEFS_ADMIN_SECRET_KEY' \
+                        -H 'Content-Type: application/json' \
+                        -d '$REPO_PAYLOAD'" 2>&1 || echo "")
+
+                    if echo "$REPO_RESULT" | grep -q '"id"'; then
+                        echo -e "${GREEN}  ✓ Default repository 'quickstart' created${NC}"
+                    elif echo "$REPO_RESULT" | grep -q 'already exists'; then
+                        echo -e "${YELLOW}  ⚠ Repository already exists${NC}"
+                    else
+                        echo -e "${YELLOW}  ⚠ Repository creation skipped${NC}"
+                    fi
                 elif echo "$SETUP_RESULT" | grep -q 'already'; then
                     echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"
                 else

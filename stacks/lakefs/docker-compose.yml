@@ -15,7 +15,7 @@
 
 services:
   lakefs:
-    image: ${IMAGE_LAKEFS:-treeverse/lakefs:latest}
+    image: ${IMAGE_LAKEFS:-treeverse/lakefs:1.73.0}
     container_name: lakefs
     restart: unless-stopped
     ports:

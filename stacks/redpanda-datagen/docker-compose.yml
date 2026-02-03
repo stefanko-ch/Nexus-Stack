@@ -10,7 +10,7 @@
 
 services:
   redpanda-datagen:
-    image: ${IMAGE_REDPANDA_DATAGEN:-redpandadata/connect:latest}
+    image: ${IMAGE_REDPANDA_DATAGEN:-redpandadata/connect:4.43.0}
     container_name: redpanda-datagen
     restart: unless-stopped
     ports:
