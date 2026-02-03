@@ -283,23 +283,46 @@ jobs:
           
           R2_ENDPOINT="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
           
-          # Delete all objects in bucket
-          echo "  Deleting all objects in bucket..."
-          aws s3 rm "s3://${BUCKET_NAME}" --recursive --endpoint-url="$R2_ENDPOINT" 2>/dev/null || echo "  No objects to delete"
-          
+          # List objects to see what's in the bucket
+          echo "  Checking bucket contents..."
+          OBJECT_COUNT=$(aws s3 ls "s3://${BUCKET_NAME}" --recursive --endpoint-url="$R2_ENDPOINT" 2>/dev/null | wc -l || echo "0")
+          echo "  Found $OBJECT_COUNT objects in bucket"
+
+          # Delete all objects and versions (R2 may have versioning enabled)
+          echo "  Deleting all objects and versions..."
+          aws s3api list-object-versions \
+            --bucket "${BUCKET_NAME}" \
+            --endpoint-url="$R2_ENDPOINT" \
+            --output=json 2>/dev/null | \
+          jq -r '.Versions[]?, .DeleteMarkers[]? | "\(.Key)\t\(.VersionId)"' | \
+          while IFS=$'\t' read -r key versionId; do
+            if [ -n "$key" ]; then
+              echo "    Deleting: $key (version: $versionId)"
+              aws s3api delete-object \
+                --bucket "${BUCKET_NAME}" \
+                --key "$key" \
+                --version-id "$versionId" \
+                --endpoint-url="$R2_ENDPOINT" >/dev/null 2>&1
+            fi
+          done || echo "  No versioned objects to delete"
+
+          # Delete remaining objects
+          aws s3 rm "s3://${BUCKET_NAME}" --recursive --endpoint-url="$R2_ENDPOINT" || echo "  No regular objects to delete"
+
           # Delete the bucket itself
           echo "  Deleting bucket..."
           DELETE_RESPONSE=$(curl -s -X DELETE \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BUCKET_NAME}" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json")
-          
+
           if echo "$DELETE_RESPONSE" | grep -q '"success":true'; then
             echo "  ✅ R2 bucket deleted successfully"
           else
             ERROR_MSG=$(echo "$DELETE_RESPONSE" | jq -r '.errors[0].message // "Unknown error"' 2>/dev/null || echo "Unknown error")
             echo "  ⚠️  Failed to delete bucket: ${ERROR_MSG}"
-            echo "     Bucket may not be empty or may have already been deleted"
+            echo "     Manual cleanup may be required: https://dash.cloudflare.com > R2 > ${BUCKET_NAME}"
+            echo "     Note: Bucket not being deleted won't prevent redeployment"
           fi
 
       - name: Confirm destruction
