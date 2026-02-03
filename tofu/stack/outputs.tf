@@ -181,6 +181,9 @@ output "secrets" {
     lakefs_admin_access_key   = random_string.lakefs_admin_access_key.result
     lakefs_admin_secret_key   = random_password.lakefs_admin_secret_key.result
 
+    # Filestash
+    filestash_admin_password = random_password.filestash_admin.result
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server

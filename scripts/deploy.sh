@@ -115,6 +115,7 @@ HETZNER_S3_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_access_key // 
 HETZNER_S3_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_secret_key // empty')
 HETZNER_S3_BUCKET=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket // empty')
 HETZNER_S3_BUCKET_GENERAL=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket_general // empty')
+FILESTASH_ADMIN_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.filestash_admin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -620,6 +621,13 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
     echo "  Generating Filestash config from OpenTofu secrets..."
 
+    # Generate bcrypt hash for admin password
+    if [ -n "$FILESTASH_ADMIN_PASSWORD" ]; then
+        FILESTASH_ADMIN_HASH=$(htpasswd -nbBC 10 admin "$FILESTASH_ADMIN_PASSWORD" 2>/dev/null | cut -d: -f2)
+    else
+        FILESTASH_ADMIN_HASH=""
+    fi
+
     # Check if Hetzner Object Storage is configured
     if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
         echo "  Pre-configuring Filestash with Hetzner Object Storage backend..."
@@ -644,17 +652,19 @@ FILESTASH_CONFIG
         cat > "$STACKS_DIR/filestash/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 CONFIG_JSON=${CONFIG_BASE64}
+ADMIN_PASSWORD=${FILESTASH_ADMIN_HASH}
 DOMAIN=${DOMAIN}
 EOF
-        echo -e "${GREEN}  ✓ Filestash .env generated (Hetzner Object Storage pre-configured)${NC}"
+        echo -e "${GREEN}  ✓ Filestash .env generated (S3 + admin password pre-configured)${NC}"
     else
         # Create minimal .env without S3 pre-configuration
         cat > "$STACKS_DIR/filestash/.env" << EOF
 # Auto-generated - DO NOT COMMIT
 # Note: S3 backend must be configured manually at /admin
+ADMIN_PASSWORD=${FILESTASH_ADMIN_HASH}
 DOMAIN=${DOMAIN}
 EOF
-        echo -e "${YELLOW}  ⚠ Filestash .env generated (no S3 pre-configuration - configure at /admin)${NC}"
+        echo -e "${YELLOW}  ⚠ Filestash .env generated (admin password set, configure S3 at /admin)${NC}"
     fi
 fi
 
@@ -1312,6 +1322,7 @@ EOF
     {"secretKey": "LAKEFS_ACCESS_KEY_ID", "secretValue": "$LAKEFS_ADMIN_ACCESS_KEY", "tagIds": ["$LAKEFS_TAG"]},
     {"secretKey": "LAKEFS_SECRET_ACCESS_KEY", "secretValue": "$LAKEFS_ADMIN_SECRET_KEY", "tagIds": ["$LAKEFS_TAG"]},
     {"secretKey": "FILESTASH_S3_BUCKET", "secretValue": "$HETZNER_S3_BUCKET_GENERAL", "tagIds": ["$FILESTASH_TAG"]},
+    {"secretKey": "FILESTASH_ADMIN_PASSWORD", "secretValue": "$FILESTASH_ADMIN_PASSWORD", "tagIds": ["$FILESTASH_TAG"]},
     {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},

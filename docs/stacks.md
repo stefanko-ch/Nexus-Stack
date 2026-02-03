@@ -266,12 +266,14 @@ When Hetzner Object Storage credentials are configured (via GitHub Secrets), Fil
 | Bucket | `nexus-<resource-prefix>` (shared bucket) |
 | Endpoint | Hetzner Object Storage |
 
-### First-Time Setup
+### Usage
 
 1. Access Filestash at `https://filestash.<domain>`
-2. Navigate to `/admin` to set the admin password
+2. Login to admin console at `/admin` with credentials from Infisical (`FILESTASH_ADMIN_PASSWORD`)
 3. S3 backend is pre-configured (if Hetzner credentials exist)
 4. Start browsing and uploading files
+
+> ✅ **Auto-configured:** Admin password is automatically set via bcrypt hash. S3 backend is pre-configured when Hetzner Object Storage credentials are available. Use `make secrets` to view the admin password.
 
 > **Note:** Only `latest` Docker image tag is available - no semantic versioning published.
 
