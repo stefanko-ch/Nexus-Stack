@@ -181,10 +181,9 @@ resource "random_password" "garage_admin_token" {
   special = false
 }
 
-# Garage RPC secret
-resource "random_password" "garage_rpc_secret" {
-  length  = 32
-  special = false
+# Garage RPC secret (must be 32 bytes hex-encoded = 64 hex chars)
+resource "random_id" "garage_rpc_secret" {
+  byte_length = 32  # Generates 64 hex characters (32 bytes in hex)
 }
 
 # LakeFS database password

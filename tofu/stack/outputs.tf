@@ -173,7 +173,7 @@ output "secrets" {
 
     # Garage
     garage_admin_token = random_password.garage_admin_token.result
-    garage_rpc_secret  = random_password.garage_rpc_secret.result
+    garage_rpc_secret  = random_id.garage_rpc_secret.hex
 
     # LakeFS
     lakefs_db_password    = random_password.lakefs_db.result
