@@ -181,7 +181,28 @@ When adding a new Docker stack, **all locations must be updated**:
        - "9002:9001"  # Host port 9002 → Container port 9001
      ```
 
-3. **Create the Docker Compose file:**
+3. **Pin Docker image versions:**
+   - **CRITICAL:** Always use specific version tags, NOT `latest`
+   - **Exception:** Only use `latest` for non-critical standalone tools (drawio, it-tools, wetty, code-server, jupyter, marimo, adminer, excalidraw)
+   - **Pin versions for:**
+     - All data storage services (databases, object storage, data lakes)
+     - Services with persistent state or databases
+     - Services that are part of data pipelines
+   - **How to find stable versions:**
+     - Check Docker Hub tags page for the image
+     - Use GitHub releases page for official version numbers
+     - Prefer stable releases over alpha/beta (exception: if only alpha exists, pin to specific alpha version)
+   - **Example pinned versions:**
+     ```yaml
+     # Good - pinned version
+     image: "treeverse/lakefs:1.73.0"
+
+     # Bad - unpredictable updates
+     image: "treeverse/lakefs:latest"
+     ```
+   - Update both `services.yaml` and `stacks/*/docker-compose.yml` with the same version
+
+4. **Create the Docker Compose file:**
    - Create `stacks/<stack-name>/docker-compose.yml`
    - Use unique port (verified in step 2)
    - Include `networks: app-network` (external: true)
@@ -192,22 +213,23 @@ When adding a new Docker stack, **all locations must be updated**:
      - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
      - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
 
-4. **Register the service in services.yaml:**
+5. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
+   - Use pinned image version from step 3
    - No `enabled` field needed - D1 manages runtime state
 
-5. **Update README.md:**
+6. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
    - Add row to the "Available Stacks" table with description and website link
    - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
 
-6. **Update docs/stacks.md:**
+7. **Update docs/stacks.md:**
    - Add a new section with stack badge, description, and configuration details
    - Include port, subdomain, default credentials (if any), and special setup instructions
    - Add entry to the Docker Image Update Policy table at the top
 
-7. **Add admin credentials (if service has admin UI):**
+8. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
    - Add password to `secrets` output in `tofu/stack/outputs.tf`
    - Add auto-setup API call in `scripts/deploy.sh` (Step 6/6)
