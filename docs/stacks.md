@@ -30,6 +30,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Jupyter | `quay.io/jupyter/minimal-notebook` | `latest` | Latest ² |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Filestash | `machines/filestash` | `latest` | Latest ² |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
 | LakeFS | `treeverse/lakefs` | `latest` | Latest ² |
@@ -230,6 +231,49 @@ A collaborative whiteboard tool that lets you create beautiful hand-drawn like d
 | Public Access | Recommended for sharing |
 | Website | [excalidraw.com](https://excalidraw.com) |
 | Source | [GitHub](https://github.com/excalidraw/excalidraw) |
+
+---
+
+## Filestash
+
+![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)
+
+**Web-based file manager with S3/FTP/SFTP/WebDAV backend support**
+
+Filestash is a modern file manager that makes data accessible from anywhere via a web browser. Features include:
+- S3, FTP, SFTP, WebDAV, and many more backend support
+- Clean, responsive web interface
+- Image and document previews
+- File sharing with links
+- Full-text search across files
+- Collaborative features
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8334` |
+| Suggested Subdomain | `filestash` |
+| Public Access | No (file access) |
+| Website | [filestash.app](https://www.filestash.app) |
+| Source | [GitHub](https://github.com/mickael-kerjean/filestash) |
+
+### Auto-configured S3 Backend
+
+When Hetzner Object Storage credentials are configured (via GitHub Secrets), Filestash is automatically pre-configured with an S3 connection:
+
+| Setting | Value |
+|---------|-------|
+| Connection Name | Hetzner Storage |
+| Bucket | `nexus-<resource-prefix>` (shared bucket) |
+| Endpoint | Hetzner Object Storage |
+
+### First-Time Setup
+
+1. Access Filestash at `https://filestash.<domain>`
+2. Navigate to `/admin` to set the admin password
+3. S3 backend is pre-configured (if Hetzner credentials exist)
+4. Start browsing and uploading files
+
+> **Note:** Only `latest` Docker image tag is available - no semantic versioning published.
 
 ---
 

@@ -54,6 +54,13 @@ services:
     description: "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
     image: "excalidraw/excalidraw:latest"
 
+  filestash:
+    subdomain: "filestash"
+    port: 8334
+    public: false
+    description: "Web-based file manager with S3/FTP/SFTP/WebDAV backend support."
+    image: "machines/filestash:latest"
+
   garage:
     subdomain: "garage"
     port: 3909

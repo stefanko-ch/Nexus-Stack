@@ -218,3 +218,15 @@ resource "minio_s3_bucket" "lakefs" {
   bucket = "${local.resource_prefix}-lakefs"
   acl    = "private"
 }
+
+# -----------------------------------------------------------------------------
+# Hetzner Object Storage Bucket (General Purpose)
+# -----------------------------------------------------------------------------
+# Shared bucket for services like Filestash. Persists through teardown.
+# Created conditionally when Hetzner Object Storage credentials are provided.
+
+resource "minio_s3_bucket" "general" {
+  count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
+  bucket = local.resource_prefix
+  acl    = "private"
+}

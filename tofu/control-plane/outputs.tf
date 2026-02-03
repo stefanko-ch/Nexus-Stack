@@ -37,6 +37,12 @@ output "hetzner_s3_bucket" {
   sensitive   = true
 }
 
+output "hetzner_s3_bucket_general" {
+  description = "Hetzner Object Storage bucket (general purpose, for Filestash etc.)"
+  value       = var.hetzner_object_storage_access_key != "" ? minio_s3_bucket.general[0].bucket : ""
+  sensitive   = true
+}
+
 output "hetzner_s3_server" {
   description = "Hetzner Object Storage server endpoint"
   value       = var.hetzner_object_storage_server

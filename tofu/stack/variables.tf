@@ -193,6 +193,12 @@ variable "hetzner_s3_bucket" {
   default     = ""
 }
 
+variable "hetzner_s3_bucket_general" {
+  description = "Hetzner Object Storage bucket (general purpose, from control-plane output)"
+  type        = string
+  default     = ""
+}
+
 variable "github_owner" {
   description = "GitHub repository owner (used by control-plane module)"
   type        = string

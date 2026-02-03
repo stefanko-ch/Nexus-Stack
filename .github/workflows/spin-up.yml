@@ -219,6 +219,7 @@ jobs:
           HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "fsn1.your-objectstorage.com")
           HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "fsn1")
           HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")
+          HETZNER_S3_BUCKET_GENERAL=$(tofu output -raw hetzner_s3_bucket_general 2>/dev/null || echo "")
           cd ../..
 
           # Add Hetzner Object Storage config to stack
@@ -226,6 +227,7 @@ jobs:
           hetzner_object_storage_server = "$HETZNER_S3_SERVER"
           hetzner_object_storage_region = "$HETZNER_S3_REGION"
           hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
+          hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
           EOF
 
           if [ -n "$HETZNER_S3_BUCKET" ]; then

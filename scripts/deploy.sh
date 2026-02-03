@@ -114,6 +114,7 @@ HETZNER_S3_REGION=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_region // empty')
 HETZNER_S3_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_access_key // empty')
 HETZNER_S3_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_secret_key // empty')
 HETZNER_S3_BUCKET=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket // empty')
+HETZNER_S3_BUCKET_GENERAL=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket_general // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -612,6 +613,48 @@ LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
 POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
 EOF
         echo -e "${GREEN}  ✓ LakeFS .env generated (local storage backend)${NC}"
+    fi
+fi
+
+# Generate Filestash .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
+    echo "  Generating Filestash config from OpenTofu secrets..."
+
+    # Check if Hetzner Object Storage is configured
+    if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
+        echo "  Pre-configuring Filestash with Hetzner Object Storage backend..."
+
+        # Create CONFIG_JSON with S3 backend configuration (base64 encoded)
+        CONFIG_JSON=$(cat <<FILESTASH_CONFIG
+{
+  "connections": [{
+    "type": "s3",
+    "label": "Hetzner Storage",
+    "endpoint": "https://${HETZNER_S3_SERVER}",
+    "access_key_id": "${HETZNER_S3_ACCESS_KEY}",
+    "secret_access_key": "${HETZNER_S3_SECRET_KEY}",
+    "region": "${HETZNER_S3_REGION}",
+    "bucket": "${HETZNER_S3_BUCKET_GENERAL}"
+  }]
+}
+FILESTASH_CONFIG
+)
+        CONFIG_BASE64=$(echo "$CONFIG_JSON" | base64 | tr -d '\n')
+
+        cat > "$STACKS_DIR/filestash/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+CONFIG_JSON=${CONFIG_BASE64}
+DOMAIN=${DOMAIN}
+EOF
+        echo -e "${GREEN}  ✓ Filestash .env generated (Hetzner Object Storage pre-configured)${NC}"
+    else
+        # Create minimal .env without S3 pre-configuration
+        cat > "$STACKS_DIR/filestash/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+# Note: S3 backend must be configured manually at /admin
+DOMAIN=${DOMAIN}
+EOF
+        echo -e "${YELLOW}  ⚠ Filestash .env generated (no S3 pre-configuration - configure at /admin)${NC}"
     fi
 fi
 
@@ -1182,7 +1225,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1208,6 +1251,7 @@ EOF
                     SEAWEEDFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="seaweedfs") | .id // empty' 2>/dev/null)
                     GARAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="garage") | .id // empty' 2>/dev/null)
                     LAKEFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="lakefs") | .id // empty' 2>/dev/null)
+                    FILESTASH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="filestash") | .id // empty' 2>/dev/null)
                     REDPANDA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="redpanda") | .id // empty' 2>/dev/null)
                     MELTANO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="meltano") | .id // empty' 2>/dev/null)
                     POSTGRES_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="postgres") | .id // empty' 2>/dev/null)
@@ -1267,6 +1311,7 @@ EOF
     {"secretKey": "LAKEFS_DB_PASSWORD", "secretValue": "$LAKEFS_DB_PASS", "tagIds": ["$LAKEFS_TAG"]},
     {"secretKey": "LAKEFS_ACCESS_KEY_ID", "secretValue": "$LAKEFS_ADMIN_ACCESS_KEY", "tagIds": ["$LAKEFS_TAG"]},
     {"secretKey": "LAKEFS_SECRET_ACCESS_KEY", "secretValue": "$LAKEFS_ADMIN_SECRET_KEY", "tagIds": ["$LAKEFS_TAG"]},
+    {"secretKey": "FILESTASH_S3_BUCKET", "secretValue": "$HETZNER_S3_BUCKET_GENERAL", "tagIds": ["$FILESTASH_TAG"]},
     {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},
