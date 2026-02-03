@@ -146,9 +146,57 @@ jobs:
           source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          
+
           echo "🗑️  Destroying Nexus Stack (Server, Tunnel, Services)..."
           tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "  No Nexus Stack state to destroy"
+
+      - name: Delete Hetzner Object Storage buckets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "🗑️  Deleting Hetzner Object Storage buckets..."
+
+          # Check if Hetzner credentials exist
+          if [ -z "${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}" ]; then
+            echo "  ℹ️  Hetzner Object Storage not configured - skipping bucket deletion"
+            exit 0
+          fi
+
+          # Install AWS CLI if not present
+          if ! command -v aws &> /dev/null; then
+            echo "  Installing AWS CLI..."
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+            rm -rf aws awscliv2.zip
+          fi
+
+          # Configure AWS CLI for Hetzner Object Storage
+          export AWS_ACCESS_KEY_ID="${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}"
+          export AWS_SECRET_ACCESS_KEY="${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}"
+          export AWS_DEFAULT_REGION="eu-central-1"
+
+          # Try to get endpoint from control-plane output, fallback to default
+          cd tofu/control-plane
+          HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "fsn1.your-objectstorage.com")
+          cd ../..
+
+          ENDPOINT_URL="https://${HETZNER_S3_SERVER}"
+          RESOURCE_PREFIX=$(echo "$DOMAIN" | tr '.' '-')
+
+          # Delete LakeFS bucket
+          LAKEFS_BUCKET="nexus-${RESOURCE_PREFIX}-lakefs"
+          echo "  Deleting bucket: $LAKEFS_BUCKET"
+          aws s3 rb "s3://${LAKEFS_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Bucket not found or already deleted"
+
+          # Delete General bucket
+          GENERAL_BUCKET="nexus-${RESOURCE_PREFIX}"
+          echo "  Deleting bucket: $GENERAL_BUCKET"
+          aws s3 rb "s3://${GENERAL_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Bucket not found or already deleted"
+
+          echo "  ✅ Hetzner Object Storage buckets cleanup completed"
 
       - name: Destroy Control Plane infrastructure
         run: |
@@ -158,7 +206,7 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           
           echo "🗑️  Destroying Control Plane (Pages, Worker, DNS)..."
-          tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "  No Control Plane state to destroy"
+          tofu destroy -var-file=config.tfvars -auto-approve || echo "  No Control Plane state to destroy"
 
       - name: Delete R2 secrets from GitHub
         env:
