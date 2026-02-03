@@ -182,11 +182,12 @@ output "secrets" {
     lakefs_admin_secret_key   = random_password.lakefs_admin_secret_key.result
 
     # Hetzner Object Storage (pass-through for LakeFS)
+    # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server     = var.hetzner_object_storage_server
     hetzner_s3_region     = var.hetzner_object_storage_region
     hetzner_s3_access_key = var.hetzner_object_storage_access_key
     hetzner_s3_secret_key = var.hetzner_object_storage_secret_key
-    hetzner_s3_bucket     = var.hetzner_object_storage_access_key != "" ? minio_s3_bucket.lakefs[0].bucket : ""
+    hetzner_s3_bucket     = var.hetzner_s3_bucket
 
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username

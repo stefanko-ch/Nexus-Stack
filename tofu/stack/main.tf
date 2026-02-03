@@ -213,12 +213,8 @@ resource "random_password" "lakefs_admin_secret_key" {
   special = false
 }
 
-# Hetzner Object Storage bucket for LakeFS (conditional)
-resource "minio_s3_bucket" "lakefs" {
-  count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
-  bucket = "${local.resource_prefix}-lakefs"
-  acl    = "private"
-}
+# Note: Hetzner Object Storage bucket is created in control-plane/main.tf
+# to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
 # =============================================================================
 # Firewall

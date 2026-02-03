@@ -157,6 +157,9 @@ variable "dockerhub_token" {
 # =============================================================================
 # Hetzner Object Storage (for LakeFS)
 # =============================================================================
+# Bucket is created in control-plane to survive teardown.
+# Server/region are configured in control-plane with sensible defaults.
+# Access key and secret key are secrets (stored in GitHub Secrets).
 
 variable "hetzner_object_storage_access_key" {
   description = "Hetzner Object Storage S3 access key (created in Hetzner Console)"
@@ -173,15 +176,21 @@ variable "hetzner_object_storage_secret_key" {
 }
 
 variable "hetzner_object_storage_server" {
-  description = "Hetzner Object Storage server hostname (without https://)"
+  description = "Hetzner Object Storage server (from control-plane output)"
   type        = string
   default     = "fsn1.your-objectstorage.com"
 }
 
 variable "hetzner_object_storage_region" {
-  description = "Hetzner Object Storage region (must match server location)"
+  description = "Hetzner Object Storage region (from control-plane output)"
   type        = string
   default     = "fsn1"
+}
+
+variable "hetzner_s3_bucket" {
+  description = "Hetzner Object Storage bucket name (from control-plane output)"
+  type        = string
+  default     = ""
 }
 
 variable "github_owner" {

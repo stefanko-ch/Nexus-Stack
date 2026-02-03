@@ -41,6 +41,9 @@ jobs:
       TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
       TF_VAR_github_repo: ${{ github.event.repository.name }}
+      # Hetzner Object Storage (for LakeFS bucket)
+      TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
+      TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
     
     steps:
       - name: Checkout

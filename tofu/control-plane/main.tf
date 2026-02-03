@@ -206,3 +206,15 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
     email = local.allowed_emails
   }
 }
+
+# -----------------------------------------------------------------------------
+# Hetzner Object Storage Bucket (for LakeFS)
+# -----------------------------------------------------------------------------
+# This bucket persists through teardown - only destroyed on destroy-all.
+# Created conditionally when Hetzner Object Storage credentials are provided.
+
+resource "minio_s3_bucket" "lakefs" {
+  count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
+  bucket = "${local.resource_prefix}-lakefs"
+  acl    = "private"
+}
