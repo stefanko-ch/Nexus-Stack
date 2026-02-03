@@ -21,8 +21,6 @@ services:
     ports:
       - "8334:8334"
     env_file: .env
-    environment:
-      APPLICATION_URL: https://filestash.${DOMAIN}
     volumes:
       - filestash_data:/app/data/state
     networks:
