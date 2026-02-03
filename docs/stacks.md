@@ -1125,7 +1125,7 @@ If Hetzner Object Storage credentials are not configured, LakeFS automatically f
 **What's Automated:**
 - Bucket creation (if using Hetzner S3)
 - LakeFS admin user creation
-- Default repository creation (`HetznerObjectStorage` for S3, `LocalStorage` for local)
+- Default repository creation (`hetzner-object-storage` for S3, `local-storage` for local)
 - Backend configuration (S3 or local filesystem)
 
 ### Architecture

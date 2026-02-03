@@ -280,12 +280,12 @@ LakeFS can use **Hetzner Object Storage** as a backend instead of local storage.
 
 **What happens:**
 - ✅ LakeFS automatically configures Hetzner S3 as blockstore
-- ✅ Default `HetznerObjectStorage` repository created with S3 backend
+- ✅ Default `hetzner-object-storage` repository created with S3 backend
 - ✅ All data persists in Hetzner Object Storage
 
 **Without configuration:**
 - ⚠️ LakeFS falls back to local filesystem storage
-- ⚠️ Default `LocalStorage` repository created (data lost on teardown)
+- ⚠️ Default `local-storage` repository created (data lost on teardown)
 
 ---
 

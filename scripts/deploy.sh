@@ -1580,11 +1580,11 @@ if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KE
             if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
                 STORAGE_NAMESPACE="s3://${HETZNER_S3_BUCKET}/lakefs/"
                 BACKEND_TYPE="Hetzner Object Storage"
-                REPO_NAME="HetznerObjectStorage"
+                REPO_NAME="hetzner-object-storage"
             else
                 STORAGE_NAMESPACE="local://data/lakefs/"
                 BACKEND_TYPE="local storage"
-                REPO_NAME="LocalStorage"
+                REPO_NAME="local-storage"
             fi
 
             REPO_PAYLOAD="{\"name\":\"$REPO_NAME\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
