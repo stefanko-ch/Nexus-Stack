@@ -208,12 +208,12 @@ services:
 
   rustfs:
     subdomain: "rustfs"
-    port: 9003
+    port: 9002
     public: false
     description: "Rust-based S3-compatible object storage (MinIO alternative) with web console."
     image: "rustfs/rustfs:latest"
     tcp_ports:
-      s3-api: 9002
+      s3-api: 9003
 
   portainer:
     subdomain: "portainer"
@@ -256,6 +256,13 @@ services:
     tcp_ports:
       kafka: 9092
       schema-registry: 8081
+
+  seaweedfs:
+    port: 8888
+    public: false
+    internal_only: true
+    description: "SeaweedFS distributed object storage (base service - access via filer or manager)"
+    image: "chrislusf/seaweedfs:latest"
 
   seaweedfs-filer:
     subdomain: "seaweedfs"

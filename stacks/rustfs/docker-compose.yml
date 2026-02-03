@@ -4,7 +4,7 @@
 # High-performance MinIO alternative written in Rust
 # Accessible via: https://rustfs.<domain>
 #
-# Port: 9003 (Console), 9002 (S3 API)
+# Port: 9002 (Console), 9003 (S3 API) - mapped to avoid MinIO conflicts
 #
 # Default credentials:
 #   Access Key: ${RUSTFS_ACCESS_KEY}
@@ -20,23 +20,22 @@ services:
     restart: unless-stopped
     user: "10001:10001"
     ports:
-      - "9003:9003"  # Web Console
-      - "9002:9002"  # S3 API
+      - "9002:9001"  # Web Console (host 9002 -> container 9001)
+      - "9003:9000"  # S3 API (host 9003 -> container 9000)
     env_file: .env
     environment:
       # RustFS uses RUSTFS_ACCESS_KEY/SECRET_KEY (not ROOT_USER/PASSWORD)
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-nexus-rustfs}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
-      RUSTFS_ADDRESS: "0.0.0.0:9002"
-      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9003"
+      RUSTFS_ADDRESS: ":9000"
       RUSTFS_CONSOLE_ENABLE: "true"
-    command: server /data
+    command: /data
     volumes:
       - rustfs_data:/data
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9002/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
