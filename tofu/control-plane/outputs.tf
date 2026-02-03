@@ -34,6 +34,7 @@ output "d1_database_name" {
 output "hetzner_s3_bucket" {
   description = "Hetzner Object Storage bucket name for LakeFS (empty if not configured)"
   value       = var.hetzner_object_storage_access_key != "" ? minio_s3_bucket.lakefs[0].bucket : ""
+  sensitive   = true
 }
 
 output "hetzner_s3_server" {
