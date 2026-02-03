@@ -575,7 +575,11 @@ fi
 # Generate LakeFS .env from OpenTofu secrets
 if echo "$ENABLED_SERVICES" | grep -qw "lakefs"; then
     echo "  Generating LakeFS config from OpenTofu secrets..."
-    cat > "$STACKS_DIR/lakefs/.env" << EOF
+
+    # Check if Hetzner Object Storage is configured
+    if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
+        echo "  Using Hetzner Object Storage as blockstore..."
+        cat > "$STACKS_DIR/lakefs/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 LAKEFS_DATABASE_TYPE=postgres
 LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://nexus-lakefs:${LAKEFS_DB_PASS}@lakefs-db:5432/lakefs?sslmode=disable
@@ -592,7 +596,23 @@ LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
 # Admin user is created via API in Step 7/7
 POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
 EOF
-    echo -e "${GREEN}  ✓ LakeFS .env generated${NC}"
+        echo -e "${GREEN}  ✓ LakeFS .env generated (Hetzner Object Storage backend)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Hetzner Object Storage not configured, using local storage${NC}"
+        cat > "$STACKS_DIR/lakefs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+LAKEFS_DATABASE_TYPE=postgres
+LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://nexus-lakefs:${LAKEFS_DB_PASS}@lakefs-db:5432/lakefs?sslmode=disable
+LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_ENCRYPT_SECRET}
+LAKEFS_BLOCKSTORE_TYPE=local
+LAKEFS_BLOCKSTORE_LOCAL_PATH=/data
+LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
+# Note: LAKEFS_INSTALLATION_* vars only work with database.type=local
+# Admin user is created via API in Step 7/7
+POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
+EOF
+        echo -e "${GREEN}  ✓ LakeFS .env generated (local storage backend)${NC}"
+    fi
 fi
 
 # Sync only enabled stacks
@@ -1546,20 +1566,31 @@ if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KE
                 if echo "$SETUP_RESULT" | grep -q 'access_key_id'; then
                     echo -e "${GREEN}  ✓ LakeFS admin created (user: nexus-lakefs)${NC}"
 
-                    # Create default repository with Hetzner S3 backend
+                    # Create default repository with appropriate backend
                     echo "  Creating default repository..."
-                    REPO_PAYLOAD="{\"name\":\"quickstart\",\"storage_namespace\":\"s3://${HETZNER_S3_BUCKET}/lakefs/\",\"default_branch\":\"main\",\"sample_data\":false}"
+
+                    # Determine storage namespace based on configuration
+                    if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
+                        STORAGE_NAMESPACE="s3://${HETZNER_S3_BUCKET}/lakefs/"
+                        BACKEND_TYPE="Hetzner Object Storage"
+                    else
+                        STORAGE_NAMESPACE="local://data/lakefs/"
+                        BACKEND_TYPE="local storage"
+                    fi
+
+                    REPO_PAYLOAD="{\"name\":\"quickstart\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
                     REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/repositories' \
                         -u '$LAKEFS_ADMIN_ACCESS_KEY:$LAKEFS_ADMIN_SECRET_KEY' \
                         -H 'Content-Type: application/json' \
                         -d '$REPO_PAYLOAD'" 2>&1 || echo "")
 
                     if echo "$REPO_RESULT" | grep -q '"id"'; then
-                        echo -e "${GREEN}  ✓ Default repository 'quickstart' created${NC}"
+                        echo -e "${GREEN}  ✓ Default repository 'quickstart' created ($BACKEND_TYPE)${NC}"
                     elif echo "$REPO_RESULT" | grep -q 'already exists'; then
                         echo -e "${YELLOW}  ⚠ Repository already exists${NC}"
                     else
                         echo -e "${YELLOW}  ⚠ Repository creation skipped${NC}"
+                        echo -e "${DIM}    Response: $(echo "$REPO_RESULT" | head -c 200)${NC}"
                     fi
                 elif echo "$SETUP_RESULT" | grep -q 'already'; then
                     echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"

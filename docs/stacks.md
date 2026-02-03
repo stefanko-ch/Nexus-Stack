@@ -1082,11 +1082,12 @@ Access Garage Web UI at `https://garage.<domain>` to:
 
 **Git-like version control for data lakes**
 
-LakeFS provides Git-like version control for data stored in object storage. It uses Hetzner Object Storage as its backend. Features include:
+LakeFS provides Git-like version control for data stored in object storage. Features include:
 - Branch, commit, merge, and diff for data
 - S3-compatible gateway for transparent access
 - Built-in web UI for repository management
 - Zero-copy branching (no data duplication)
+- Automatic repository creation with `quickstart` repo
 
 | Setting | Value |
 |---------|-------|
@@ -1096,20 +1097,36 @@ LakeFS provides Git-like version control for data stored in object storage. It u
 | Website | [lakefs.io](https://lakefs.io) |
 | Source | [GitHub](https://github.com/treeverse/lakeFS) |
 
-> **Note:** LakeFS is NOT a standalone object store. It is a version control layer on top of Hetzner Object Storage. You need Hetzner Object Storage credentials configured in `config.tfvars`.
+> **Note:** LakeFS is a version control layer for object storage. It can use **Hetzner Object Storage** (recommended for production) or **local filesystem** (development/testing).
 
-### Prerequisites
+### Storage Backend Configuration
 
-Hetzner Object Storage S3 credentials must be created **manually** in the [Hetzner Cloud Console](https://console.hetzner.cloud) (no API for this). Add to `config.tfvars`:
+**Option 1: Hetzner Object Storage (Recommended for Production)**
 
-```hcl
-hetzner_object_storage_access_key = "your-access-key"
-hetzner_object_storage_secret_key = "your-secret-key"
-hetzner_object_storage_server     = "fsn1.your-objectstorage.com"
-hetzner_object_storage_region     = "fsn1"
-```
+1. Create S3 credentials in [Hetzner Cloud Console](https://console.hetzner.cloud):
+   - Navigate to **Storage** → **Object Storage** → **S3 Credentials**
+   - Generate new credentials and save the **Access Key** and **Secret Key**
 
-The LakeFS bucket is automatically created by OpenTofu via the `aminueza/minio` provider.
+2. Add to **GitHub Secrets**:
+   ```
+   HETZNER_OBJECT_STORAGE_ACCESS_KEY = <your-access-key>
+   HETZNER_OBJECT_STORAGE_SECRET_KEY = <your-secret-key>
+   ```
+
+3. Deploy - LakeFS automatically configures Hetzner S3 as backend
+
+**Option 2: Local Filesystem (Automatic Fallback)**
+
+If Hetzner Object Storage credentials are not configured, LakeFS automatically falls back to local filesystem storage. No additional configuration needed, but:
+- ⚠️ Data is stored on server disk
+- ⚠️ Data is lost on teardown
+- ✅ Suitable for development/testing
+
+**What's Automated:**
+- Bucket creation (if using Hetzner S3)
+- LakeFS admin user creation
+- Default `quickstart` repository creation
+- S3 backend configuration
 
 ### Architecture
 
