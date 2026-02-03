@@ -164,9 +164,26 @@ When adding a new Docker stack, **all locations must be updated**:
      - Option C: Use `docker buildx` with multi-platform builds
    - **Example (Soda Core):** Official image only supports amd64 → custom Dockerfile with `python:3.11-slim` + `pip install soda-core-postgres`
 
-2. **Create the Docker Compose file:**
+2. **Check for port conflicts:**
+   - **CRITICAL:** Before assigning ports, check that they are not already in use by other services
+   - Search all existing ports in services.yaml:
+     ```bash
+     grep -E "^\s+(port:|[a-z-]+:) [0-9]+" services.yaml | awk '{print $2}' | sort -n
+     ```
+   - If a port conflict exists, choose different ports (both for web UI and tcp_ports)
+   - **Common conflicts:**
+     - MinIO uses 9000 (S3) and 9001 (Console)
+     - PostgreSQL uses 5432
+     - Redis uses 6379
+   - Use Docker port mapping if the service requires specific internal ports:
+     ```yaml
+     ports:
+       - "9002:9001"  # Host port 9002 → Container port 9001
+     ```
+
+3. **Create the Docker Compose file:**
    - Create `stacks/<stack-name>/docker-compose.yml`
-   - Use unique port (check existing stacks for used ports)
+   - Use unique port (verified in step 2)
    - Include `networks: app-network` (external: true)
    - Add descriptive header comment with service URL
    - **IMPORTANT: Each stack should have its own dedicated resources (database, Redis, etc.)**
@@ -175,22 +192,22 @@ When adding a new Docker stack, **all locations must be updated**:
      - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
      - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
 
-3. **Register the service in services.yaml:**
+4. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
    - No `enabled` field needed - D1 manages runtime state
 
-3. **Update README.md:**
+5. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
    - Add row to the "Available Stacks" table with description and website link
    - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
 
-4. **Update docs/stacks.md:**
+6. **Update docs/stacks.md:**
    - Add a new section with stack badge, description, and configuration details
    - Include port, subdomain, default credentials (if any), and special setup instructions
    - Add entry to the Docker Image Update Policy table at the top
 
-5. **Add admin credentials (if service has admin UI):**
+7. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
    - Add password to `secrets` output in `tofu/stack/outputs.tf`
    - Add auto-setup API call in `scripts/deploy.sh` (Step 6/6)
