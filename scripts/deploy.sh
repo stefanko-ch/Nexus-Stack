@@ -632,21 +632,31 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
     if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
         echo "  Pre-configuring Filestash with Hetzner Object Storage backend..."
 
-        # Create CONFIG_JSON with S3 backend configuration (base64 encoded)
-        CONFIG_JSON=$(cat <<FILESTASH_CONFIG
-{
-  "connections": [{
-    "type": "s3",
-    "label": "Hetzner Storage",
-    "endpoint": "https://${HETZNER_S3_SERVER}",
-    "access_key_id": "${HETZNER_S3_ACCESS_KEY}",
-    "secret_access_key": "${HETZNER_S3_SECRET_KEY}",
-    "region": "${HETZNER_S3_REGION}",
-    "bucket": "${HETZNER_S3_BUCKET_GENERAL}"
-  }]
-}
-FILESTASH_CONFIG
-)
+        # Create CONFIG_JSON with passthrough middleware for auto-connect (base64 encoded)
+        # This skips the login form - users connect directly to S3
+        # Authentication is handled by Cloudflare Access upstream
+        # IMPORTANT: middleware params MUST be JSON strings (not objects) because
+        # Filestash encrypts/decrypts these fields, and Config.Get().String()
+        # returns empty for object values in the form tree
+        CONFIG_JSON=$(jq -n \
+          --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
+          --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
+          --arg endpoint "https://${HETZNER_S3_SERVER}" \
+          --arg region "${HETZNER_S3_REGION}" \
+          --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
+          '{
+            connections: [{"type":"s3","label":"Hetzner Storage"}],
+            middleware: {
+              identity_provider: {
+                type: "passthrough",
+                params: ({"strategy":"direct"} | tojson)
+              },
+              attribute_mapping: {
+                related_backend: "Hetzner Storage",
+                params: ({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":$bucket}} | tojson)
+              }
+            }
+          }')
         CONFIG_BASE64=$(echo "$CONFIG_JSON" | base64 | tr -d '\n')
 
         cat > "$STACKS_DIR/filestash/.env" << EOF
@@ -1468,44 +1478,41 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
                     # Check if Hetzner Storage connection already exists
                     HAS_HETZNER=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"label"[[:space:]]*:[[:space:]]*"Hetzner Storage"' || echo "")
 
-                    if [ -z "$HAS_HETZNER" ]; then
-                        echo "  Configuring Hetzner S3 backend in Filestash..."
+                    # Configure S3 auto-connect via passthrough middleware
+                    echo "  Configuring Hetzner S3 backend in Filestash..."
 
-                        # Create temporary file with updated config
-                        ssh nexus "docker exec filestash cat /app/data/state/config/config.json" > /tmp/filestash-config.json 2>/dev/null || true
+                    # Create temporary file with updated config
+                    ssh nexus "docker exec filestash cat /app/data/state/config/config.json" > /tmp/filestash-config.json 2>/dev/null || true
 
-                        if [ -f /tmp/filestash-config.json ] && [ -s /tmp/filestash-config.json ]; then
-                            # Replace generic "S3" template with pre-configured Hetzner Storage
-                            jq --arg endpoint "https://${HETZNER_S3_SERVER}" \
-                               --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
-                               --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
-                               --arg region "${HETZNER_S3_REGION}" \
-                               --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
-                               '.connections = [.connections[] | if .type == "s3" and .label == "S3" then {
-                                 "type": "s3",
-                                 "label": "Hetzner Storage",
-                                 "endpoint": $endpoint,
-                                 "access_key_id": $access_key,
-                                 "secret_access_key": $secret_key,
-                                 "region": $region,
-                                 "path": $bucket
-                               } else . end]' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
+                    if [ -f /tmp/filestash-config.json ] && [ -s /tmp/filestash-config.json ]; then
+                        # Configure passthrough middleware with S3 auto-connect
+                        # This skips the login form - users connect directly to S3
+                        # Authentication is handled by Cloudflare Access upstream
+                        # IMPORTANT: params MUST be JSON strings (tojson) because Filestash
+                        # encrypts/decrypts these fields, and Config.Get().String() returns
+                        # empty for object values in the form tree
+                        jq --arg endpoint "https://${HETZNER_S3_SERVER}" \
+                           --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
+                           --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
+                           --arg region "${HETZNER_S3_REGION}" \
+                           --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
+                           '.connections = [{"type":"s3","label":"Hetzner Storage"}] | .middleware.identity_provider = {"type":"passthrough","params":({"strategy":"direct"} | tojson)} | .middleware.attribute_mapping = {"related_backend":"Hetzner Storage","params":({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":$bucket}} | tojson)}' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
 
-                            # Upload updated config back to container
-                            if [ -f /tmp/filestash-config-updated.json ] && [ -s /tmp/filestash-config-updated.json ]; then
-                                cat /tmp/filestash-config-updated.json | ssh nexus "docker exec -i filestash sh -c 'cat > /app/data/state/config/config.json'" 2>/dev/null || true
-                                rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
-                                echo -e "${GREEN}  ✓ Hetzner S3 backend configured in Filestash${NC}"
-                            else
-                                echo -e "${YELLOW}  ⚠ Failed to update Filestash config - configure S3 manually${NC}"
-                                rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
-                            fi
+                        # Upload updated config back to container and restart
+                        if [ -f /tmp/filestash-config-updated.json ] && [ -s /tmp/filestash-config-updated.json ]; then
+                            cat /tmp/filestash-config-updated.json | ssh nexus "docker exec -i filestash sh -c 'cat > /app/data/state/config/config.json'" 2>/dev/null || true
+                            rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
+
+                            # Restart to load the new middleware config
+                            ssh nexus "docker restart filestash" >/dev/null 2>&1 || true
+                            echo -e "${GREEN}  ✓ Hetzner S3 backend configured (passthrough auto-connect)${NC}"
                         else
-                            echo -e "${YELLOW}  ⚠ Could not read Filestash config - configure S3 manually${NC}"
-                            rm -f /tmp/filestash-config.json
+                            echo -e "${YELLOW}  ⚠ Failed to update Filestash config - configure S3 manually at /admin${NC}"
+                            rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
                         fi
                     else
-                        echo -e "${GREEN}  ✓ Hetzner S3 backend already configured${NC}"
+                        echo -e "${YELLOW}  ⚠ Could not read Filestash config - configure S3 manually at /admin${NC}"
+                        rm -f /tmp/filestash-config.json
                     fi
                 fi
 
