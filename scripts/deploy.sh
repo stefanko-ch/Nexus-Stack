@@ -1443,55 +1443,74 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
             ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": null/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null || true
             ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": false/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null || true
 
-            # Add S3 connection if Hetzner is configured
-            if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
-                # Check if Hetzner Storage connection already exists
-                HAS_HETZNER=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"label"[[:space:]]*:[[:space:]]*"Hetzner Storage"' || echo "")
+            # Restart Filestash to apply force_ssl changes
+            echo "  Restarting Filestash..."
+            ssh nexus "docker restart filestash" >/dev/null 2>&1 || true
 
-                if [ -z "$HAS_HETZNER" ]; then
-                    echo "  Adding Hetzner S3 backend to Filestash config..."
+            # Wait for Filestash to fully initialize after restart
+            sleep 10
 
-                    # Create temporary file with updated config
-                    ssh nexus "docker exec filestash cat /app/data/state/config/config.json" > /tmp/filestash-config.json 2>/dev/null || true
+            # Wait for Filestash to be ready after restart
+            FILESTASH_RESTARTED=false
+            for i in $(seq 1 10); do
+                if ssh nexus "curl -s --connect-timeout 2 'http://localhost:8334/healthz'" >/dev/null 2>&1; then
+                    FILESTASH_RESTARTED=true
+                    break
+                fi
+                sleep 2
+            done
 
-                    if [ -f /tmp/filestash-config.json ] && [ -s /tmp/filestash-config.json ]; then
-                        # Add Hetzner Storage to connections array using jq
-                        jq --arg endpoint "https://${HETZNER_S3_SERVER}" \
-                           --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
-                           --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
-                           --arg region "${HETZNER_S3_REGION}" \
-                           --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
-                           '.connections += [{
-                             "type": "s3",
-                             "label": "Hetzner Storage",
-                             "endpoint": $endpoint,
-                             "access_key_id": $access_key,
-                             "secret_access_key": $secret_key,
-                             "region": $region,
-                             "path": $bucket
-                           }]' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
+            if [ "$FILESTASH_RESTARTED" = "false" ]; then
+                echo -e "${YELLOW}  ⚠ Filestash not ready after restart - skipping S3 configuration${NC}"
+            else
+                # Add S3 connection if Hetzner is configured (AFTER restart)
+                if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
+                    # Check if Hetzner Storage connection already exists
+                    HAS_HETZNER=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"label"[[:space:]]*:[[:space:]]*"Hetzner Storage"' || echo "")
 
-                        # Upload updated config back to container
-                        if [ -f /tmp/filestash-config-updated.json ] && [ -s /tmp/filestash-config-updated.json ]; then
-                            cat /tmp/filestash-config-updated.json | ssh nexus "docker exec -i filestash sh -c 'cat > /app/data/state/config/config.json'" 2>/dev/null || true
-                            rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
-                            echo -e "${GREEN}  ✓ Hetzner S3 backend added to Filestash${NC}"
+                    if [ -z "$HAS_HETZNER" ]; then
+                        echo "  Adding Hetzner S3 backend to Filestash config..."
+
+                        # Create temporary file with updated config
+                        ssh nexus "docker exec filestash cat /app/data/state/config/config.json" > /tmp/filestash-config.json 2>/dev/null || true
+
+                        if [ -f /tmp/filestash-config.json ] && [ -s /tmp/filestash-config.json ]; then
+                            # Add Hetzner Storage to connections array using jq
+                            jq --arg endpoint "https://${HETZNER_S3_SERVER}" \
+                               --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
+                               --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
+                               --arg region "${HETZNER_S3_REGION}" \
+                               --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
+                               '.connections += [{
+                                 "type": "s3",
+                                 "label": "Hetzner Storage",
+                                 "endpoint": $endpoint,
+                                 "access_key_id": $access_key,
+                                 "secret_access_key": $secret_key,
+                                 "region": $region,
+                                 "path": $bucket
+                               }]' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
+
+                            # Upload updated config back to container
+                            if [ -f /tmp/filestash-config-updated.json ] && [ -s /tmp/filestash-config-updated.json ]; then
+                                cat /tmp/filestash-config-updated.json | ssh nexus "docker exec -i filestash sh -c 'cat > /app/data/state/config/config.json'" 2>/dev/null || true
+                                rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
+                                echo -e "${GREEN}  ✓ Hetzner S3 backend added to Filestash${NC}"
+                            else
+                                echo -e "${YELLOW}  ⚠ Failed to update Filestash config - configure S3 manually${NC}"
+                                rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
+                            fi
                         else
-                            echo -e "${YELLOW}  ⚠ Failed to update Filestash config - configure S3 manually${NC}"
-                            rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
+                            echo -e "${YELLOW}  ⚠ Could not read Filestash config - configure S3 manually${NC}"
+                            rm -f /tmp/filestash-config.json
                         fi
                     else
-                        echo -e "${YELLOW}  ⚠ Could not read Filestash config - configure S3 manually${NC}"
-                        rm -f /tmp/filestash-config.json
+                        echo -e "${GREEN}  ✓ Hetzner S3 backend already configured${NC}"
                     fi
-                else
-                    echo -e "${GREEN}  ✓ Hetzner S3 backend already configured${NC}"
                 fi
-            fi
 
-            # Restart Filestash to apply changes
-            ssh nexus "docker restart filestash" >/dev/null 2>&1 || true
-            echo -e "${GREEN}  ✓ Filestash configured (force_ssl enabled)${NC}"
+                echo -e "${GREEN}  ✓ Filestash configured (force_ssl enabled)${NC}"
+            fi
         else
             echo -e "${YELLOW}  ⚠ Filestash config not found - will auto-initialize from CONFIG_JSON${NC}"
         fi
