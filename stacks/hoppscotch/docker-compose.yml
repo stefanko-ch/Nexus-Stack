@@ -11,7 +11,7 @@
 
 services:
   hoppscotch:
-    image: ${IMAGE_HOPPSCOTCH:-hoppscotch/hoppscotch:latest}
+    image: ${IMAGE_HOPPSCOTCH:-hoppscotch/hoppscotch:2025.12.1}
     container_name: hoppscotch
     restart: unless-stopped
     ports:

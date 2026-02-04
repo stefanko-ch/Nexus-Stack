@@ -50,6 +50,9 @@ jobs:
       TF_VAR_dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
       TF_VAR_github_repo: ${{ github.event.repository.name }}
+      # Hetzner Object Storage (for LakeFS) - credentials are secrets
+      TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
+      TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
 
     steps:
       - name: Checkout
@@ -205,6 +208,32 @@ jobs:
           dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
           dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
           EOF
+          fi
+
+          # Get Hetzner Object Storage config from control-plane output
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
+          HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "fsn1.your-objectstorage.com")
+          HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "fsn1")
+          HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")
+          HETZNER_S3_BUCKET_GENERAL=$(tofu output -raw hetzner_s3_bucket_general 2>/dev/null || echo "")
+          cd ../..
+
+          # Add Hetzner Object Storage config to stack
+          cat >> tofu/stack/config.tfvars << EOF
+          hetzner_object_storage_server = "$HETZNER_S3_SERVER"
+          hetzner_object_storage_region = "$HETZNER_S3_REGION"
+          hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
+          hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
+          EOF
+
+          if [ -n "$HETZNER_S3_BUCKET" ]; then
+            echo "📦 Hetzner Object Storage configured (bucket: $HETZNER_S3_BUCKET)"
+          else
+            echo "⚠️  Hetzner Object Storage not configured (LakeFS will need manual setup)"
           fi
           
           # Generate services config from D1 (single source of truth)

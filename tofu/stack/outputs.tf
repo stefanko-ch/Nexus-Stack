@@ -165,6 +165,34 @@ output "secrets" {
     # RedPanda SASL (for external Kafka access)
     redpanda_admin_password = random_password.redpanda_admin.result
 
+    # RustFS
+    rustfs_root_password = random_password.rustfs_root.result
+
+    # SeaweedFS
+    seaweedfs_admin_password = random_password.seaweedfs_admin.result
+
+    # Garage
+    garage_admin_token = random_password.garage_admin_token.result
+    garage_rpc_secret  = random_id.garage_rpc_secret.hex
+
+    # LakeFS
+    lakefs_db_password        = random_password.lakefs_db.result
+    lakefs_encrypt_secret     = random_password.lakefs_encrypt_secret.result
+    lakefs_admin_access_key   = random_string.lakefs_admin_access_key.result
+    lakefs_admin_secret_key   = random_password.lakefs_admin_secret_key.result
+
+    # Filestash
+    filestash_admin_password = random_password.filestash_admin.result
+
+    # Hetzner Object Storage (pass-through for LakeFS and Filestash)
+    # Server/region/bucket come from control-plane, credentials from GitHub Secrets
+    hetzner_s3_server         = var.hetzner_object_storage_server
+    hetzner_s3_region         = var.hetzner_object_storage_region
+    hetzner_s3_access_key     = var.hetzner_object_storage_access_key
+    hetzner_s3_secret_key     = var.hetzner_object_storage_secret_key
+    hetzner_s3_bucket         = var.hetzner_s3_bucket
+    hetzner_s3_bucket_general = var.hetzner_s3_bucket_general
+
     # Docker Hub (optional)
     dockerhub_username = var.dockerhub_username
     dockerhub_token    = var.dockerhub_token

@@ -163,6 +163,65 @@ resource "random_password" "pgadmin" {
   special = false
 }
 
+# RustFS root password
+resource "random_password" "rustfs_root" {
+  length  = 24
+  special = false
+}
+
+# SeaweedFS admin password
+resource "random_password" "seaweedfs_admin" {
+  length  = 24
+  special = false
+}
+
+# Garage admin token
+resource "random_password" "garage_admin_token" {
+  length  = 32
+  special = false
+}
+
+# Garage RPC secret (must be 32 bytes hex-encoded = 64 hex chars)
+resource "random_id" "garage_rpc_secret" {
+  byte_length = 32  # Generates 64 hex characters (32 bytes in hex)
+}
+
+# LakeFS database password
+resource "random_password" "lakefs_db" {
+  length  = 24
+  special = false
+}
+
+# LakeFS auth encryption secret
+resource "random_password" "lakefs_encrypt_secret" {
+  length  = 32
+  special = false
+}
+
+# LakeFS admin access key (16 chars, uppercase alphanumeric like AWS)
+resource "random_string" "lakefs_admin_access_key" {
+  length  = 16
+  special = false
+  upper   = true
+  lower   = false
+  numeric = true
+}
+
+# LakeFS admin secret key
+resource "random_password" "lakefs_admin_secret_key" {
+  length  = 40
+  special = false
+}
+
+# Filestash admin password
+resource "random_password" "filestash_admin" {
+  length  = 24
+  special = false
+}
+
+# Note: Hetzner Object Storage bucket is created in control-plane/main.tf
+# to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
+
 # =============================================================================
 # Firewall
 # =============================================================================

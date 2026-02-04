@@ -28,9 +28,23 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 4.0"
     }
+    minio = {
+      source  = "aminueza/minio"
+      version = ">= 3.13.0"
+    }
   }
 }
 
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
+}
+
+# Hetzner Object Storage (S3-compatible, used for LakeFS bucket)
+# Only functional when hetzner_object_storage_access_key is provided
+provider "minio" {
+  minio_server   = var.hetzner_object_storage_server
+  minio_user     = var.hetzner_object_storage_access_key
+  minio_password = var.hetzner_object_storage_secret_key
+  minio_region   = var.hetzner_object_storage_region
+  minio_ssl      = true
 }

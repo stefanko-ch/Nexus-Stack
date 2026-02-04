@@ -15,7 +15,7 @@
 
 services:
   minio:
-    image: ${IMAGE_MINIO:-minio/minio:latest}
+    image: ${IMAGE_MINIO:-quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z}
     container_name: minio
     restart: unless-stopped
     ports:
