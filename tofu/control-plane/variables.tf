@@ -64,3 +64,35 @@ variable "allow_disable_auto_shutdown" {
   type        = bool
   default     = false
 }
+
+# =============================================================================
+# Hetzner Object Storage (for LakeFS)
+# =============================================================================
+# Server and region are not secrets - stored here with sensible defaults.
+# Access key and secret key are secrets - stored in GitHub Secrets.
+
+variable "hetzner_object_storage_server" {
+  description = "Hetzner Object Storage S3 endpoint (e.g., fsn1.your-objectstorage.com)"
+  type        = string
+  default     = "fsn1.your-objectstorage.com"
+}
+
+variable "hetzner_object_storage_region" {
+  description = "Hetzner Object Storage region (e.g., fsn1, nbg1, hel1)"
+  type        = string
+  default     = "fsn1"
+}
+
+variable "hetzner_object_storage_access_key" {
+  description = "Hetzner Object Storage access key (set via TF_VAR_hetzner_object_storage_access_key)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "hetzner_object_storage_secret_key" {
+  description = "Hetzner Object Storage secret key (set via TF_VAR_hetzner_object_storage_secret_key)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

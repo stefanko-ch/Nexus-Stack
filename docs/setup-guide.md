@@ -252,6 +252,41 @@ gh workflow run setup-control-plane.yaml
 
 See [Control Plane User Guide](control-plane.md#administrator-policy-infrastructure-level) for details.
 
+### Hetzner Object Storage for LakeFS
+
+LakeFS can use **Hetzner Object Storage** as a backend instead of local storage. This provides scalable, durable storage for data lake versioning.
+
+**When to use:**
+- Production data lake environments
+- Data that exceeds server disk capacity
+- Need for data persistence beyond server teardown
+
+**Setup Steps:**
+
+1. **Create S3 credentials in Hetzner Console:**
+   - Go to [Hetzner Cloud Console](https://console.hetzner.cloud/)
+   - Navigate to **Storage** → **Object Storage**
+   - Click **"S3 Credentials"** → **"Generate Credentials"**
+   - Save the **Access Key** and **Secret Key**
+
+2. **Add credentials to GitHub Secrets:**
+   ```
+   HETZNER_OBJECT_STORAGE_ACCESS_KEY = <your-access-key>
+   HETZNER_OBJECT_STORAGE_SECRET_KEY = <your-secret-key>
+   ```
+
+3. **Deploy infrastructure:**
+   The bucket and configuration are handled automatically by GitHub Actions.
+
+**What happens:**
+- ✅ LakeFS automatically configures Hetzner S3 as blockstore
+- ✅ Default `hetzner-object-storage` repository created with S3 backend
+- ✅ All data persists in Hetzner Object Storage
+
+**Without configuration:**
+- ⚠️ LakeFS falls back to local filesystem storage
+- ⚠️ Default `local-storage` repository created (data lost on teardown)
+
 ---
 
 ## 🔧 Troubleshooting

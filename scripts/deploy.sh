@@ -101,6 +101,21 @@ REDPANDA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.redpanda_admin_password // 
 POSTGRES_PASS=$(echo "$SECRETS_JSON" | jq -r '.postgres_password // empty')
 PGADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.pgadmin_password // empty')
 PREFECT_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.prefect_db_password // empty')
+RUSTFS_ROOT_PASS=$(echo "$SECRETS_JSON" | jq -r '.rustfs_root_password // empty')
+SEAWEEDFS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.seaweedfs_admin_password // empty')
+GARAGE_ADMIN_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.garage_admin_token // empty')
+GARAGE_RPC_SECRET=$(echo "$SECRETS_JSON" | jq -r '.garage_rpc_secret // empty')
+LAKEFS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.lakefs_db_password // empty')
+LAKEFS_ENCRYPT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.lakefs_encrypt_secret // empty')
+LAKEFS_ADMIN_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.lakefs_admin_access_key // empty')
+LAKEFS_ADMIN_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.lakefs_admin_secret_key // empty')
+HETZNER_S3_SERVER=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_server // empty')
+HETZNER_S3_REGION=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_region // empty')
+HETZNER_S3_ACCESS_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_access_key // empty')
+HETZNER_S3_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_secret_key // empty')
+HETZNER_S3_BUCKET=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket // empty')
+HETZNER_S3_BUCKET_GENERAL=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket_general // empty')
+FILESTASH_ADMIN_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.filestash_admin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -485,6 +500,192 @@ PREFECT_DB_PASSWORD=${PREFECT_DB_PASS}
 PREFECT_UI_API_URL=https://prefect.${DOMAIN}/api
 EOF
     echo -e "${GREEN}  ✓ Prefect .env generated${NC}"
+fi
+
+# Generate RustFS .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "rustfs"; then
+    echo "  Generating RustFS config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/rustfs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+RUSTFS_ACCESS_KEY=nexus-rustfs
+RUSTFS_SECRET_KEY=$RUSTFS_ROOT_PASS
+EOF
+    echo -e "${GREEN}  ✓ RustFS .env generated${NC}"
+fi
+
+# Generate SeaweedFS .env and s3.json from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "seaweedfs"; then
+    echo "  Generating SeaweedFS config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/seaweedfs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+SEAWEEDFS_ACCESS_KEY=nexus-seaweedfs
+SEAWEEDFS_SECRET_KEY=$SEAWEEDFS_ADMIN_PASS
+EOF
+    # Generate S3 auth config with actual credentials
+    cat > "$STACKS_DIR/seaweedfs/s3.json" << EOF
+{
+  "identities": [
+    {
+      "name": "admin",
+      "credentials": [
+        {
+          "accessKey": "nexus-seaweedfs",
+          "secretKey": "$SEAWEEDFS_ADMIN_PASS"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
+EOF
+    echo -e "${GREEN}  ✓ SeaweedFS .env and s3.json generated${NC}"
+fi
+
+# Generate Garage .env and garage.toml from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "garage"; then
+    echo "  Generating Garage config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/garage/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+GARAGE_ADMIN_TOKEN=$GARAGE_ADMIN_TOKEN
+EOF
+    # Generate garage.toml with admin token
+    cat > "$STACKS_DIR/garage/garage.toml" << EOF
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_secret = "$GARAGE_RPC_SECRET"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"
+admin_token = "$GARAGE_ADMIN_TOKEN"
+EOF
+    echo -e "${GREEN}  ✓ Garage .env and garage.toml generated${NC}"
+fi
+
+# Generate LakeFS .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "lakefs"; then
+    echo "  Generating LakeFS config from OpenTofu secrets..."
+
+    # Check if Hetzner Object Storage is configured
+    if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
+        echo "  Using Hetzner Object Storage as blockstore..."
+        cat > "$STACKS_DIR/lakefs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+LAKEFS_DATABASE_TYPE=postgres
+LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://nexus-lakefs:${LAKEFS_DB_PASS}@lakefs-db:5432/lakefs?sslmode=disable
+LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_ENCRYPT_SECRET}
+LAKEFS_BLOCKSTORE_TYPE=s3
+LAKEFS_BLOCKSTORE_S3_ENDPOINT=https://${HETZNER_S3_SERVER}
+LAKEFS_BLOCKSTORE_S3_FORCE_PATH_STYLE=true
+LAKEFS_BLOCKSTORE_S3_DISCOVER_BUCKET_REGION=false
+LAKEFS_BLOCKSTORE_S3_REGION=${HETZNER_S3_REGION}
+LAKEFS_BLOCKSTORE_S3_CREDENTIALS_ACCESS_KEY_ID=${HETZNER_S3_ACCESS_KEY}
+LAKEFS_BLOCKSTORE_S3_CREDENTIALS_SECRET_ACCESS_KEY=${HETZNER_S3_SECRET_KEY}
+LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
+# Note: LAKEFS_INSTALLATION_* vars only work with database.type=local
+# Admin user is created via API in Step 7/7
+POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
+EOF
+        echo -e "${GREEN}  ✓ LakeFS .env generated (Hetzner Object Storage backend)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Hetzner Object Storage not configured, using local storage${NC}"
+        cat > "$STACKS_DIR/lakefs/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+LAKEFS_DATABASE_TYPE=postgres
+LAKEFS_DATABASE_POSTGRES_CONNECTION_STRING=postgres://nexus-lakefs:${LAKEFS_DB_PASS}@lakefs-db:5432/lakefs?sslmode=disable
+LAKEFS_AUTH_ENCRYPT_SECRET_KEY=${LAKEFS_ENCRYPT_SECRET}
+LAKEFS_BLOCKSTORE_TYPE=local
+LAKEFS_BLOCKSTORE_LOCAL_PATH=/data
+LAKEFS_GATEWAYS_S3_DOMAIN_NAME=s3.lakefs.${DOMAIN}
+# Note: LAKEFS_INSTALLATION_* vars only work with database.type=local
+# Admin user is created via API in Step 7/7
+POSTGRES_PASSWORD=${LAKEFS_DB_PASS}
+EOF
+        echo -e "${GREEN}  ✓ LakeFS .env generated (local storage backend)${NC}"
+    fi
+fi
+
+# Generate Filestash .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
+    echo "  Generating Filestash config from OpenTofu secrets..."
+
+    # Generate bcrypt hash for admin password
+    if [ -n "$FILESTASH_ADMIN_PASSWORD" ]; then
+        if ! command -v htpasswd >/dev/null 2>&1; then
+            echo "❌ ERROR: 'htpasswd' command not found but FILESTASH_ADMIN_PASSWORD is set."
+            echo "   Please install 'apache2-utils' (Debian/Ubuntu) or 'httpd-tools' (RHEL/CentOS) on the target host."
+            exit 1
+        fi
+
+        FILESTASH_ADMIN_HASH=$(htpasswd -nbBC 10 admin "$FILESTASH_ADMIN_PASSWORD" 2>/dev/null | cut -d: -f2)
+        if [ -z "$FILESTASH_ADMIN_HASH" ]; then
+            echo "❌ ERROR: Failed to generate Filestash admin password hash with 'htpasswd'."
+            exit 1
+        fi
+    else
+        FILESTASH_ADMIN_HASH=""
+    fi
+
+    # Check if Hetzner Object Storage is configured
+    if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
+        echo "  Pre-configuring Filestash with Hetzner Object Storage backend..."
+
+        # Create CONFIG_JSON with passthrough middleware for auto-connect (base64 encoded)
+        # This skips the login form - users connect directly to S3
+        # Authentication is handled by Cloudflare Access upstream
+        # IMPORTANT: middleware params MUST be JSON strings (not objects) because
+        # Filestash encrypts/decrypts these fields, and Config.Get().String()
+        # returns empty for object values in the form tree
+        CONFIG_JSON=$(jq -n \
+          --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
+          --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
+          --arg endpoint "https://${HETZNER_S3_SERVER}" \
+          --arg region "${HETZNER_S3_REGION}" \
+          --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
+          '{
+            connections: [{"type":"s3","label":"Hetzner Storage"}],
+            middleware: {
+              identity_provider: {
+                type: "passthrough",
+                params: ({"strategy":"direct"} | tojson)
+              },
+              attribute_mapping: {
+                related_backend: "Hetzner Storage",
+                params: ({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":("/"+$bucket+"/")}} | tojson)
+              }
+            }
+          }')
+        CONFIG_BASE64=$(echo "$CONFIG_JSON" | base64 | tr -d '\n')
+
+        cat > "$STACKS_DIR/filestash/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+CONFIG_JSON=${CONFIG_BASE64}
+ADMIN_PASSWORD=${FILESTASH_ADMIN_HASH}
+DOMAIN=${DOMAIN}
+EOF
+        echo -e "${GREEN}  ✓ Filestash .env generated (S3 + admin password pre-configured)${NC}"
+    else
+        # Create minimal .env without S3 pre-configuration
+        cat > "$STACKS_DIR/filestash/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+# Note: S3 backend must be configured manually at /admin
+ADMIN_PASSWORD=${FILESTASH_ADMIN_HASH}
+DOMAIN=${DOMAIN}
+EOF
+        echo -e "${YELLOW}  ⚠ Filestash .env generated (admin password set, configure S3 at /admin)${NC}"
+    fi
 fi
 
 # Sync only enabled stacks
@@ -875,8 +1076,45 @@ STARTED_SERVICES=()
 FAILED_SERVICES=()
 PIDS=()
 
+# Virtual services that use a parent stack (defined via 'stack' field in services.yaml)
+VIRTUAL_SERVICES=\"seaweedfs-filer seaweedfs-manager\"
+
+# Map virtual services to their parent stack
+declare -A STACK_PARENTS
+STACK_PARENTS[\"seaweedfs-filer\"]=\"seaweedfs\"
+STACK_PARENTS[\"seaweedfs-manager\"]=\"seaweedfs\"
+
+# Ensure parent stacks are started when virtual services are enabled
+PARENT_STACKS_STARTED=\"\"
+for service in $ENABLED_LIST; do
+    PARENT=\"\${STACK_PARENTS[\$service]:-}\"
+    if [ -n \"\$PARENT\" ] && ! echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$PARENT\"; then
+        if [ -f /opt/docker-server/stacks/\$PARENT/docker-compose.yml ]; then
+            echo \"  Starting parent stack: \$PARENT (required by \$service)...\"
+            (cd /opt/docker-server/stacks/\$PARENT && docker compose up -d 2>&1) &
+            PID=\$!
+            PIDS+=(\$PID)
+            STARTED_SERVICES+=(\"\$PARENT:\$PID\")
+            PARENT_STACKS_STARTED=\"\$PARENT_STACKS_STARTED \$PARENT\"
+        fi
+    fi
+done
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
+
+    # Skip virtual services (they're covered by their parent stack)
+    if echo \"\$VIRTUAL_SERVICES\" | grep -qw \"\$service\"; then
+        echo \"[DEBUG] Skipping virtual service \$service (uses parent stack)\" >&2
+        continue
+    fi
+
+    # Skip parent stacks that were already started
+    if echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$service\"; then
+        echo \"[DEBUG] Skipping \$service (already started as parent stack)\" >&2
+        continue
+    fi
+
     if [ -f /opt/docker-server/stacks/\$service/docker-compose.yml ]; then
         echo \"  Starting \$service...\"
         if [ -f /opt/docker-server/stacks/\$service/docker-compose.firewall.yml ]; then
@@ -1017,7 +1255,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1039,6 +1277,11 @@ EOF
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    RUSTFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="rustfs") | .id // empty' 2>/dev/null)
+                    SEAWEEDFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="seaweedfs") | .id // empty' 2>/dev/null)
+                    GARAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="garage") | .id // empty' 2>/dev/null)
+                    LAKEFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="lakefs") | .id // empty' 2>/dev/null)
+                    FILESTASH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="filestash") | .id // empty' 2>/dev/null)
                     REDPANDA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="redpanda") | .id // empty' 2>/dev/null)
                     MELTANO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="meltano") | .id // empty' 2>/dev/null)
                     POSTGRES_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="postgres") | .id // empty' 2>/dev/null)
@@ -1090,6 +1333,16 @@ EOF
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MINIO_ROOT_USER", "secretValue": "nexus-minio", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "RUSTFS_ACCESS_KEY", "secretValue": "nexus-rustfs", "tagIds": ["$RUSTFS_TAG"]},
+    {"secretKey": "RUSTFS_SECRET_KEY", "secretValue": "$RUSTFS_ROOT_PASS", "tagIds": ["$RUSTFS_TAG"]},
+    {"secretKey": "SEAWEEDFS_ACCESS_KEY", "secretValue": "nexus-seaweedfs", "tagIds": ["$SEAWEEDFS_TAG"]},
+    {"secretKey": "SEAWEEDFS_SECRET_KEY", "secretValue": "$SEAWEEDFS_ADMIN_PASS", "tagIds": ["$SEAWEEDFS_TAG"]},
+    {"secretKey": "GARAGE_ADMIN_TOKEN", "secretValue": "$GARAGE_ADMIN_TOKEN", "tagIds": ["$GARAGE_TAG"]},
+    {"secretKey": "LAKEFS_DB_PASSWORD", "secretValue": "$LAKEFS_DB_PASS", "tagIds": ["$LAKEFS_TAG"]},
+    {"secretKey": "LAKEFS_ACCESS_KEY_ID", "secretValue": "$LAKEFS_ADMIN_ACCESS_KEY", "tagIds": ["$LAKEFS_TAG"]},
+    {"secretKey": "LAKEFS_SECRET_ACCESS_KEY", "secretValue": "$LAKEFS_ADMIN_SECRET_KEY", "tagIds": ["$LAKEFS_TAG"]},
+    {"secretKey": "FILESTASH_S3_BUCKET", "secretValue": "$HETZNER_S3_BUCKET_GENERAL", "tagIds": ["$FILESTASH_TAG"]},
+    {"secretKey": "FILESTASH_ADMIN_PASSWORD", "secretValue": "$FILESTASH_ADMIN_PASSWORD", "tagIds": ["$FILESTASH_TAG"]},
     {"secretKey": "REDPANDA_SASL_USERNAME", "secretValue": "nexus-redpanda", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "REDPANDA_SASL_PASSWORD", "secretValue": "$REDPANDA_ADMIN_PASS", "tagIds": ["$REDPANDA_TAG"]},
     {"secretKey": "MELTANO_DB_PASSWORD", "secretValue": "$MELTANO_DB_PASS", "tagIds": ["$MELTANO_TAG"]},
@@ -1160,6 +1413,126 @@ if echo "$ENABLED_SERVICES" | grep -qw "portainer" && [ -n "$PORTAINER_PASS" ]; 
         else
             echo -e "${YELLOW}  ⚠ Portainer setup skipped (may already be configured)${NC}"
         fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure Filestash (host, force_ssl, S3 backend)
+if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
+    (
+        set +e  # Disable exit on error for background job to allow proper error handling
+
+        echo "  Configuring Filestash..."
+
+        # Wait for Filestash to be ready
+        FILESTASH_READY=false
+        for i in $(seq 1 15); do
+            if ssh nexus "curl -s --connect-timeout 2 'http://localhost:8334/healthz'" >/dev/null 2>&1; then
+                FILESTASH_READY=true
+                break
+            fi
+            sleep 3
+        done
+
+        if [ "$FILESTASH_READY" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ Filestash not ready after 45s - skipping auto-configuration${NC}"
+            exit 0
+        fi
+
+        # Check if config.json exists (wait up to 30s for it to be created)
+        CONFIG_EXISTS="no"
+        for i in $(seq 1 10); do
+            CONFIG_EXISTS=$(ssh nexus "docker exec filestash test -f /app/data/state/config/config.json && echo 'yes' || echo 'no'" 2>/dev/null || echo "no")
+            if [ "$CONFIG_EXISTS" = "yes" ]; then
+                break
+            fi
+            sleep 3
+        done
+
+        if [ "$CONFIG_EXISTS" = "yes" ]; then
+            # Check if host is correctly set (without protocol)
+            CURRENT_HOST=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"host"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
+
+            if [ -n "$CURRENT_HOST" ] && echo "$CURRENT_HOST" | grep -q "^https://"; then
+                # Fix host - remove protocol
+                ssh nexus "docker exec filestash sed -i 's|\"host\": \"https://|\"host\": \"|g' /app/data/state/config/config.json" 2>/dev/null || true
+                echo -e "${GREEN}  ✓ Fixed Filestash host (removed protocol)${NC}"
+            fi
+
+            # Ensure force_ssl is true
+            ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": null/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null || true
+            ssh nexus "docker exec filestash sed -i 's/\"force_ssl\": false/\"force_ssl\": true/g' /app/data/state/config/config.json" 2>/dev/null || true
+
+            # Restart Filestash to apply force_ssl changes
+            echo "  Restarting Filestash..."
+            ssh nexus "docker restart filestash" >/dev/null 2>&1 || true
+
+            # Wait for Filestash to fully initialize after restart
+            sleep 10
+
+            # Wait for Filestash to be ready after restart
+            FILESTASH_RESTARTED=false
+            for i in $(seq 1 10); do
+                if ssh nexus "curl -s --connect-timeout 2 'http://localhost:8334/healthz'" >/dev/null 2>&1; then
+                    FILESTASH_RESTARTED=true
+                    break
+                fi
+                sleep 2
+            done
+
+            if [ "$FILESTASH_RESTARTED" = "false" ]; then
+                echo -e "${YELLOW}  ⚠ Filestash not ready after restart - skipping S3 configuration${NC}"
+            else
+                # Add S3 connection if Hetzner is configured (AFTER restart)
+                if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_ACCESS_KEY" ] && [ -n "$HETZNER_S3_SECRET_KEY" ] && [ -n "$HETZNER_S3_BUCKET_GENERAL" ]; then
+                    # Check if Hetzner Storage connection already exists
+                    HAS_HETZNER=$(ssh nexus "docker exec filestash cat /app/data/state/config/config.json" 2>/dev/null | grep -o '"label"[[:space:]]*:[[:space:]]*"Hetzner Storage"' || echo "")
+
+                    # Configure S3 auto-connect via passthrough middleware
+                    echo "  Configuring Hetzner S3 backend in Filestash..."
+
+                    # Create temporary file with updated config
+                    ssh nexus "docker exec filestash cat /app/data/state/config/config.json" > /tmp/filestash-config.json 2>/dev/null || true
+
+                    if [ -f /tmp/filestash-config.json ] && [ -s /tmp/filestash-config.json ]; then
+                        # Configure passthrough middleware with S3 auto-connect
+                        # This skips the login form - users connect directly to S3
+                        # Authentication is handled by Cloudflare Access upstream
+                        # IMPORTANT: params MUST be JSON strings (tojson) because Filestash
+                        # encrypts/decrypts these fields, and Config.Get().String() returns
+                        # empty for object values in the form tree
+                        jq --arg endpoint "https://${HETZNER_S3_SERVER}" \
+                           --arg access_key "${HETZNER_S3_ACCESS_KEY}" \
+                           --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
+                           --arg region "${HETZNER_S3_REGION}" \
+                           --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
+                           '.connections = [{"type":"s3","label":"Hetzner Storage"}] | .middleware.identity_provider = {"type":"passthrough","params":({"strategy":"direct"} | tojson)} | .middleware.attribute_mapping = {"related_backend":"Hetzner Storage","params":({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":("/"+$bucket+"/")}} | tojson)}' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
+
+                        # Upload updated config back to container and restart
+                        if [ -f /tmp/filestash-config-updated.json ] && [ -s /tmp/filestash-config-updated.json ]; then
+                            cat /tmp/filestash-config-updated.json | ssh nexus "docker exec -i filestash sh -c 'cat > /app/data/state/config/config.json'" 2>/dev/null || true
+                            rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
+
+                            # Restart to load the new middleware config
+                            ssh nexus "docker restart filestash" >/dev/null 2>&1 || true
+                            echo -e "${GREEN}  ✓ Hetzner S3 backend configured (passthrough auto-connect)${NC}"
+                        else
+                            echo -e "${YELLOW}  ⚠ Failed to update Filestash config - configure S3 manually at /admin${NC}"
+                            rm -f /tmp/filestash-config.json /tmp/filestash-config-updated.json
+                        fi
+                    else
+                        echo -e "${YELLOW}  ⚠ Could not read Filestash config - configure S3 manually at /admin${NC}"
+                        rm -f /tmp/filestash-config.json
+                    fi
+                fi
+
+                echo -e "${GREEN}  ✓ Filestash configured (force_ssl enabled)${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ Filestash config not found - will auto-initialize from CONFIG_JSON${NC}"
+        fi
+
+        exit 0  # Ensure clean exit
     ) &
     CONFIG_JOBS+=($!)
 fi
@@ -1356,6 +1729,116 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "uptime-kuma"; then
     echo -e "${YELLOW}  ⚠ Uptime Kuma requires manual setup on first login${NC}"
     echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+fi
+
+# Configure LakeFS admin user via API (one-time setup)
+# Note: LAKEFS_INSTALLATION_* env vars only work with database.type=local
+# Since we use PostgreSQL, we must configure via API
+if echo "$ENABLED_SERVICES" | grep -qw "lakefs" && [ -n "$LAKEFS_ADMIN_ACCESS_KEY" ]; then
+    (
+        echo "  Configuring LakeFS admin user..."
+        # Wait for LakeFS to be ready
+        LAKEFS_READY=false
+        for i in $(seq 1 30); do
+            if ssh nexus "curl -sf http://localhost:8000/api/v1/healthcheck" >/dev/null 2>&1; then
+                LAKEFS_READY=true
+                break
+            fi
+            sleep 2
+        done
+
+        if [ "$LAKEFS_READY" = "true" ]; then
+            # Check if setup is already complete
+            SETUP_CHECK=$(ssh nexus "curl -s http://localhost:8000/api/v1/config" 2>/dev/null || echo "")
+            if echo "$SETUP_CHECK" | grep -q '"setup_complete":true'; then
+                echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"
+            else
+                # Create admin user via setup API
+                SETUP_PAYLOAD="{\"username\":\"nexus-lakefs\",\"key\":{\"access_key_id\":\"$LAKEFS_ADMIN_ACCESS_KEY\",\"secret_access_key\":\"$LAKEFS_ADMIN_SECRET_KEY\"}}"
+                SETUP_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/setup_lakefs' \
+                    -H 'Content-Type: application/json' \
+                    -d '$SETUP_PAYLOAD'" 2>&1 || echo "")
+
+                if echo "$SETUP_RESULT" | grep -q 'access_key_id'; then
+                    echo -e "${GREEN}  ✓ LakeFS admin created (user: nexus-lakefs)${NC}"
+                elif echo "$SETUP_RESULT" | grep -q 'already'; then
+                    echo -e "${YELLOW}  ⚠ LakeFS already configured${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ LakeFS setup failed - configure manually${NC}"
+                    echo -e "${DIM}    Response: $(echo "$SETUP_RESULT" | head -c 200)${NC}"
+                fi
+            fi
+
+            # Create default repository (independent of admin setup)
+            echo "  Creating default repository..."
+
+            # Determine storage namespace and repository name based on configuration
+            if [ -n "$HETZNER_S3_SERVER" ] && [ -n "$HETZNER_S3_BUCKET" ]; then
+                STORAGE_NAMESPACE="s3://${HETZNER_S3_BUCKET}/lakefs/"
+                BACKEND_TYPE="Hetzner Object Storage"
+                REPO_NAME="hetzner-object-storage"
+            else
+                STORAGE_NAMESPACE="local://data/lakefs/"
+                BACKEND_TYPE="local storage"
+                REPO_NAME="local-storage"
+            fi
+
+            REPO_PAYLOAD="{\"name\":\"$REPO_NAME\",\"storage_namespace\":\"$STORAGE_NAMESPACE\",\"default_branch\":\"main\",\"sample_data\":false}"
+            REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8000/api/v1/repositories' \
+                -u '$LAKEFS_ADMIN_ACCESS_KEY:$LAKEFS_ADMIN_SECRET_KEY' \
+                -H 'Content-Type: application/json' \
+                -d '$REPO_PAYLOAD'" 2>&1 || echo "")
+
+            if echo "$REPO_RESULT" | grep -q '"id"'; then
+                echo -e "${GREEN}  ✓ Repository '$REPO_NAME' created ($BACKEND_TYPE)${NC}"
+            elif echo "$REPO_RESULT" | grep -q 'already exists'; then
+                echo -e "${YELLOW}  ⚠ Repository '$REPO_NAME' already exists${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Repository creation skipped${NC}"
+                echo -e "${DIM}    Response: $(echo "$REPO_RESULT" | head -c 200)${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ LakeFS not ready after 60s - skipping setup${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure Garage layout (one-time setup after first start)
+if echo "$ENABLED_SERVICES" | grep -qw "garage" && [ -n "$GARAGE_ADMIN_TOKEN" ]; then
+    (
+        echo "  Configuring Garage layout..."
+        # Wait for Garage to be ready (check health endpoint)
+        for i in $(seq 1 15); do
+            if ssh nexus "curl -sf http://localhost:3903/health" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # Check if layout is already configured (roles exist)
+        LAYOUT_CHECK=$(ssh nexus "docker exec garage /garage layout show 2>&1" || echo "")
+        if echo "$LAYOUT_CHECK" | grep -q "No nodes currently have"; then
+            # Get full node ID and validate it's a valid hex string (64 chars)
+            FULL_NODE_ID=$(ssh nexus "docker exec garage /garage node id 2>&1 | head -1" || echo "")
+            if [ -n "$FULL_NODE_ID" ] && [ ${#FULL_NODE_ID} -eq 64 ] && echo "$FULL_NODE_ID" | grep -qE '^[0-9a-fA-F]{64}$'; then
+                # Extract short form (first 16 chars) for layout commands
+                NODE_ID="${FULL_NODE_ID:0:16}"
+                # Assign node to layout with 100GB capacity
+                ssh nexus "docker exec garage /garage layout assign -z dc1 -c 100G $NODE_ID" >/dev/null 2>&1
+                # Apply layout with version 1
+                ssh nexus "docker exec garage /garage layout apply --version 1" >/dev/null 2>&1
+                # Create default access key
+                ssh nexus "docker exec garage /garage key create nexus-garage-key" >/dev/null 2>&1
+                echo -e "${GREEN}  ✓ Garage layout configured with 100GB capacity${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Could not get Garage node ID - layout setup skipped${NC}"
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ Garage layout already configured${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
 fi
 
 # Wait for all background configuration jobs to complete

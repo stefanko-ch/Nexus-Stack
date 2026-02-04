@@ -1,0 +1,40 @@
+# =============================================================================
+# Filestash - Web-based File Manager
+# =============================================================================
+# S3-compatible file manager with Hetzner Object Storage backend
+# Accessible via: https://filestash.<domain>
+#
+# Port: 8334 (Web UI)
+#
+# First-time setup:
+#   1. Access /admin and set admin password
+#   2. S3 backend is pre-configured if Hetzner Object Storage credentials exist
+#
+# Documentation: https://www.filestash.app/docs/
+# =============================================================================
+
+services:
+  filestash:
+    image: ${IMAGE_FILESTASH:-machines/filestash:latest}
+    container_name: filestash
+    restart: unless-stopped
+    ports:
+      - "8334:8334"
+    env_file: .env
+    volumes:
+      - filestash_data:/app/data/state
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8334/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  filestash_data:
+
+networks:
+  app-network:
+    external: true

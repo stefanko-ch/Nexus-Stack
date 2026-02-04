@@ -139,6 +139,46 @@ make ssh-setup  # Setup SSH config
    - Bad: `echo "Password: $ADMIN_PASS"`
    - Good: `echo "Credentials available in Infisical"`
 
+### Error Handling Principles
+
+**NEVER silently swallow errors in critical operations.** This is especially important for infrastructure destruction and deployment.
+
+1. **Critical operations must fail loudly:**
+   - Infrastructure destroy commands (Terraform/OpenTofu)
+   - Resource deletion operations
+   - Deployment steps that affect running services
+
+2. **Bad patterns to AVOID:**
+   ```bash
+   # BAD - hides all errors, workflow stays green even on failure
+   tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "No state"
+
+   # BAD - suppresses errors, continues on failure
+   tofu destroy -var-file=config.tfvars -auto-approve || echo "Failed"
+   ```
+
+3. **Good patterns to USE:**
+   ```bash
+   # GOOD - fails workflow on error with clear message
+   if ! tofu destroy -var-file=config.tfvars -auto-approve; then
+     echo "❌ ERROR: Failed to destroy infrastructure"
+     echo "   Resources may still be running - check logs above"
+     exit 1
+   fi
+   echo "✅ Infrastructure destroyed successfully"
+   ```
+
+4. **When `|| echo` is acceptable:**
+   - Reading optional configuration values: `tofu output -raw optional_value 2>/dev/null || echo ""`
+   - Checking if resources exist: `ssh-keygen -R "$HOST" 2>/dev/null || true`
+   - Logging operations that shouldn't break the flow: `echo "..." >> "$LOG_FILE" 2>/dev/null || true`
+
+5. **Why this matters:**
+   - Silent failures can leave infrastructure running → unexpected costs
+   - Users need clear feedback when operations fail
+   - Green checkmarks on failed workflows are misleading and dangerous
+   - Errors provide critical debugging information
+
 ### Service Account Naming Convention
 
 All service accounts MUST use the `nexus-` prefix to prevent default username guessing:
@@ -164,9 +204,47 @@ When adding a new Docker stack, **all locations must be updated**:
      - Option C: Use `docker buildx` with multi-platform builds
    - **Example (Soda Core):** Official image only supports amd64 → custom Dockerfile with `python:3.11-slim` + `pip install soda-core-postgres`
 
-2. **Create the Docker Compose file:**
+2. **Check for port conflicts:**
+   - **CRITICAL:** Before assigning ports, check that they are not already in use by other services
+   - Search all existing ports in services.yaml:
+     ```bash
+     grep -E "^\s+(port:|[a-z-]+:) [0-9]+" services.yaml | awk '{print $2}' | sort -n
+     ```
+   - If a port conflict exists, choose different ports (both for web UI and tcp_ports)
+   - **Common conflicts:**
+     - MinIO uses 9000 (S3) and 9001 (Console)
+     - PostgreSQL uses 5432
+     - Redis uses 6379
+   - Use Docker port mapping if the service requires specific internal ports:
+     ```yaml
+     ports:
+       - "9002:9001"  # Host port 9002 → Container port 9001
+     ```
+
+3. **Pin Docker image versions:**
+   - **CRITICAL:** Always use specific version tags, NOT `latest`
+   - **Exception:** Only use `latest` for non-critical standalone tools (drawio, it-tools, wetty, code-server, jupyter, marimo, adminer, excalidraw)
+   - **Pin versions for:**
+     - All data storage services (databases, object storage, data lakes)
+     - Services with persistent state or databases
+     - Services that are part of data pipelines
+   - **How to find stable versions:**
+     - Check Docker Hub tags page for the image
+     - Use GitHub releases page for official version numbers
+     - Prefer stable releases over alpha/beta (exception: if only alpha exists, pin to specific alpha version)
+   - **Example pinned versions:**
+     ```yaml
+     # Good - pinned version
+     image: "treeverse/lakefs:1.73.0"
+
+     # Bad - unpredictable updates
+     image: "treeverse/lakefs:latest"
+     ```
+   - Update both `services.yaml` and `stacks/*/docker-compose.yml` with the same version
+
+4. **Create the Docker Compose file:**
    - Create `stacks/<stack-name>/docker-compose.yml`
-   - Use unique port (check existing stacks for used ports)
+   - Use unique port (verified in step 2)
    - Include `networks: app-network` (external: true)
    - Add descriptive header comment with service URL
    - **IMPORTANT: Each stack should have its own dedicated resources (database, Redis, etc.)**
@@ -175,22 +253,23 @@ When adding a new Docker stack, **all locations must be updated**:
      - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
      - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
 
-3. **Register the service in services.yaml:**
+5. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)
    - Use matching port number from docker-compose.yml
+   - Use pinned image version from step 3
    - No `enabled` field needed - D1 manages runtime state
 
-3. **Update README.md:**
+6. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
    - Add row to the "Available Stacks" table with description and website link
    - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
 
-4. **Update docs/stacks.md:**
+7. **Update docs/stacks.md:**
    - Add a new section with stack badge, description, and configuration details
    - Include port, subdomain, default credentials (if any), and special setup instructions
    - Add entry to the Docker Image Update Policy table at the top
 
-5. **Add admin credentials (if service has admin UI):**
+8. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
    - Add password to `secrets` output in `tofu/stack/outputs.tf`
    - Add auto-setup API call in `scripts/deploy.sh` (Step 6/6)

@@ -54,6 +54,24 @@ services:
     description: "Virtual whiteboard for sketching hand-drawn diagrams with collaboration support."
     image: "excalidraw/excalidraw:latest"
 
+  filestash:
+    subdomain: "filestash"
+    port: 8334
+    public: false
+    description: "Web-based file manager with S3/FTP/SFTP/WebDAV backend support."
+    image: "machines/filestash:latest"
+
+  garage:
+    subdomain: "garage"
+    port: 3909
+    public: false
+    description: "Lightweight S3-compatible object storage designed for self-hosting."
+    image: "dxflrs/garage:v2.2.0"
+    support_images:
+      webui: "khairul169/garage-webui:latest"
+    tcp_ports:
+      s3-api: 3900
+
   grafana:
     subdomain: "grafana"
     port: 3100
@@ -72,7 +90,7 @@ services:
     port: 3003
     public: false
     description: "Open-source API testing platform (Postman alternative)."
-    image: "hoppscotch/hoppscotch:latest"
+    image: "hoppscotch/hoppscotch:2025.12.1"
     support_images:
       postgres: "postgres:15-alpine"
 
@@ -115,6 +133,17 @@ services:
     public: false
     description: "Modern web UI for Apache Kafka / Redpanda management."
     image: "provectuslabs/kafka-ui:latest"
+
+  lakefs:
+    subdomain: "lakefs"
+    port: 8000
+    public: false
+    description: "Git-like version control for data lakes with S3-compatible gateway (Hetzner Object Storage backend)."
+    image: "treeverse/lakefs:1.73.0"
+    support_images:
+      postgres: "postgres:16-alpine"
+    tcp_ports:
+      s3-gateway: 8000
 
   kestra:
     subdomain: "kestra"
@@ -171,7 +200,7 @@ services:
     port: 9001
     public: false
     description: "High-performance S3-compatible object storage for data lakes, backups, and ML models."
-    image: "minio/minio:latest"
+    image: "quay.io/minio/minio:RELEASE.2025-10-15T17-29-55Z"
     tcp_ports:
       s3-api: 9000
 
@@ -183,6 +212,15 @@ services:
     image: "n8nio/n8n:1"
     support_images:
       postgres: "postgres:16-alpine"
+
+  rustfs:
+    subdomain: "rustfs"
+    port: 9002
+    public: false
+    description: "Rust-based S3-compatible object storage (MinIO alternative) with web console."
+    image: "rustfs/rustfs:1.0.0-alpha.82"
+    tcp_ports:
+      s3-api: 9003
 
   portainer:
     subdomain: "portainer"
@@ -226,6 +264,31 @@ services:
       kafka: 9092
       schema-registry: 8081
 
+  seaweedfs:
+    port: 8888
+    public: false
+    internal_only: true
+    description: "SeaweedFS distributed object storage (base service - access via filer or manager)"
+    image: "chrislusf/seaweedfs:3.82"
+
+  seaweedfs-filer:
+    subdomain: "seaweedfs"
+    port: 8888
+    stack: "seaweedfs"
+    public: false
+    description: "SeaweedFS file browser with upload capability - the main interface for managing files."
+    image: "chrislusf/seaweedfs:3.82"
+    tcp_ports:
+      s3-api: 8333
+
+  seaweedfs-manager:
+    subdomain: "seaweedfs-manager"
+    port: 9333
+    stack: "seaweedfs"
+    public: false
+    description: "SeaweedFS cluster statistics and health monitoring (read-only dashboard)."
+    image: "chrislusf/seaweedfs:3.82"
+
   redpanda-console:
     subdomain: "redpanda-console"
     port: 8180
@@ -238,14 +301,14 @@ services:
     port: 4195
     public: false
     description: "Declarative data streaming framework for real-time pipelines."
-    image: "redpandadata/connect:latest"
+    image: "redpandadata/connect:4.43.0"
 
   redpanda-datagen:
     subdomain: "redpanda-datagen"
     port: 4196
     public: false
     description: "Test data generator for Redpanda topics."
-    image: "redpandadata/connect:latest"
+    image: "redpandadata/connect:4.43.0"
 
   soda:
     port: 5002
