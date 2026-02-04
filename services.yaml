@@ -332,3 +332,13 @@ services:
     public: false
     description: "Web-based SSH terminal for browser access to your server."
     image: "wettyoss/wetty:latest"
+
+  windmill:
+    subdomain: "windmill"
+    port: 8200
+    public: false
+    description: "Open-source workflow engine for scripts, workflows, and UIs with built-in code editor."
+    image: "ghcr.io/windmill-labs/windmill:1.624.0"
+    support_images:
+      lsp: "ghcr.io/windmill-labs/windmill-lsp:latest"
+      postgres: "postgres:16-alpine"
