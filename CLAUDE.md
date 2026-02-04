@@ -139,6 +139,46 @@ make ssh-setup  # Setup SSH config
    - Bad: `echo "Password: $ADMIN_PASS"`
    - Good: `echo "Credentials available in Infisical"`
 
+### Error Handling Principles
+
+**NEVER silently swallow errors in critical operations.** This is especially important for infrastructure destruction and deployment.
+
+1. **Critical operations must fail loudly:**
+   - Infrastructure destroy commands (Terraform/OpenTofu)
+   - Resource deletion operations
+   - Deployment steps that affect running services
+
+2. **Bad patterns to AVOID:**
+   ```bash
+   # BAD - hides all errors, workflow stays green even on failure
+   tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "No state"
+
+   # BAD - suppresses errors, continues on failure
+   tofu destroy -var-file=config.tfvars -auto-approve || echo "Failed"
+   ```
+
+3. **Good patterns to USE:**
+   ```bash
+   # GOOD - fails workflow on error with clear message
+   if ! tofu destroy -var-file=config.tfvars -auto-approve; then
+     echo "❌ ERROR: Failed to destroy infrastructure"
+     echo "   Resources may still be running - check logs above"
+     exit 1
+   fi
+   echo "✅ Infrastructure destroyed successfully"
+   ```
+
+4. **When `|| echo` is acceptable:**
+   - Reading optional configuration values: `tofu output -raw optional_value 2>/dev/null || echo ""`
+   - Checking if resources exist: `ssh-keygen -R "$HOST" 2>/dev/null || true`
+   - Logging operations that shouldn't break the flow: `echo "..." >> "$LOG_FILE" 2>/dev/null || true`
+
+5. **Why this matters:**
+   - Silent failures can leave infrastructure running → unexpected costs
+   - Users need clear feedback when operations fail
+   - Green checkmarks on failed workflows are misleading and dangerous
+   - Errors provide critical debugging information
+
 ### Service Account Naming Convention
 
 All service accounts MUST use the `nexus-` prefix to prevent default username guessing:
