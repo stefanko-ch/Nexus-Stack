@@ -184,6 +184,9 @@ output "secrets" {
     # Filestash
     filestash_admin_password = random_password.filestash_admin.result
 
+    # Windmill
+    windmill_db_password = random_password.windmill_db.result
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server

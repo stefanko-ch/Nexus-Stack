@@ -116,6 +116,7 @@ HETZNER_S3_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_secret_key // 
 HETZNER_S3_BUCKET=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket // empty')
 HETZNER_S3_BUCKET_GENERAL=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket_general // empty')
 FILESTASH_ADMIN_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.filestash_admin_password // empty')
+WINDMILL_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -500,6 +501,17 @@ PREFECT_DB_PASSWORD=${PREFECT_DB_PASS}
 PREFECT_UI_API_URL=https://prefect.${DOMAIN}/api
 EOF
     echo -e "${GREEN}  ✓ Prefect .env generated${NC}"
+fi
+
+# Generate Windmill .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "windmill"; then
+    echo "  Generating Windmill config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/windmill/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+WINDMILL_DB_PASSWORD=${WINDMILL_DB_PASS}
+DOMAIN=${DOMAIN}
+EOF
+    echo -e "${GREEN}  ✓ Windmill .env generated${NC}"
 fi
 
 # Generate RustFS .env from OpenTofu secrets
@@ -1255,7 +1267,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1287,6 +1299,7 @@ EOF
                     POSTGRES_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="postgres") | .id // empty' 2>/dev/null)
                     PGADMIN_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="pgadmin") | .id // empty' 2>/dev/null)
                     PREFECT_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="prefect") | .id // empty' 2>/dev/null)
+                    WINDMILL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="windmill") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -1350,7 +1363,10 @@ EOF
     {"secretKey": "POSTGRES_PASSWORD", "secretValue": "$POSTGRES_PASS", "tagIds": ["$POSTGRES_TAG"]},
     {"secretKey": "PGADMIN_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$PGADMIN_TAG"]},
     {"secretKey": "PGADMIN_PASSWORD", "secretValue": "$PGADMIN_PASS", "tagIds": ["$PGADMIN_TAG"]},
-    {"secretKey": "PREFECT_DB_PASSWORD", "secretValue": "$PREFECT_DB_PASS", "tagIds": ["$PREFECT_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "PREFECT_DB_PASSWORD", "secretValue": "$PREFECT_DB_PASS", "tagIds": ["$PREFECT_TAG"]},
+    {"secretKey": "WINDMILL_DEFAULT_LOGIN", "secretValue": "admin@windmill.dev", "tagIds": ["$WINDMILL_TAG"]},
+    {"secretKey": "WINDMILL_DEFAULT_PASSWORD", "secretValue": "changeme", "tagIds": ["$WINDMILL_TAG"]},
+    {"secretKey": "WINDMILL_DB_PASSWORD", "secretValue": "$WINDMILL_DB_PASS", "tagIds": ["$WINDMILL_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
