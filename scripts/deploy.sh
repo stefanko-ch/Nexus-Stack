@@ -653,7 +653,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
               },
               attribute_mapping: {
                 related_backend: "Hetzner Storage",
-                params: ({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":$bucket}} | tojson)
+                params: ({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":("/"+$bucket+"/")}} | tojson)
               }
             }
           }')
@@ -1496,7 +1496,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
                            --arg secret_key "${HETZNER_S3_SECRET_KEY}" \
                            --arg region "${HETZNER_S3_REGION}" \
                            --arg bucket "${HETZNER_S3_BUCKET_GENERAL}" \
-                           '.connections = [{"type":"s3","label":"Hetzner Storage"}] | .middleware.identity_provider = {"type":"passthrough","params":({"strategy":"direct"} | tojson)} | .middleware.attribute_mapping = {"related_backend":"Hetzner Storage","params":({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":$bucket}} | tojson)}' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
+                           '.connections = [{"type":"s3","label":"Hetzner Storage"}] | .middleware.identity_provider = {"type":"passthrough","params":({"strategy":"direct"} | tojson)} | .middleware.attribute_mapping = {"related_backend":"Hetzner Storage","params":({"Hetzner Storage":{"type":"s3","access_key_id":$access_key,"secret_access_key":$secret_key,"endpoint":$endpoint,"region":$region,"path":("/"+$bucket+"/")}} | tojson)}' /tmp/filestash-config.json > /tmp/filestash-config-updated.json 2>/dev/null || true
 
                         # Upload updated config back to container and restart
                         if [ -f /tmp/filestash-config-updated.json ] && [ -s /tmp/filestash-config-updated.json ]; then
