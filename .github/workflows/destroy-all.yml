@@ -30,6 +30,8 @@ jobs:
       TF_VAR_infisical_token: ${{ secrets.INFISICAL_TOKEN }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
       TF_VAR_github_repo: ${{ github.event.repository.name }}
+      TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
+      TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
 
     
     steps:
@@ -150,17 +152,27 @@ jobs:
           echo "🗑️  Destroying Nexus Stack (Server, Tunnel, Services)..."
           tofu destroy -var-file=config.tfvars -auto-approve 2>/dev/null || echo "  No Nexus Stack state to destroy"
 
-      - name: Delete Hetzner Object Storage buckets
+      - name: Destroy Control Plane infrastructure
+        run: |
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          
+          echo "🗑️  Destroying Control Plane (Pages, Worker, DNS)..."
+          tofu destroy -var-file=config.tfvars -auto-approve || echo "  No Control Plane state to destroy"
+
+      - name: Cleanup orphaned Hetzner Object Storage buckets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
-          echo "🗑️  Deleting Hetzner Object Storage buckets..."
+          echo "🗑️  Cleaning up Hetzner Object Storage buckets (fallback)..."
 
           # Check if Hetzner credentials exist
           if [ -z "${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}" ]; then
-            echo "  ℹ️  Hetzner Object Storage not configured - skipping bucket deletion"
+            echo "  ℹ️  Hetzner Object Storage not configured - skipping"
             exit 0
           fi
 
@@ -186,27 +198,27 @@ jobs:
           ENDPOINT_URL="https://${HETZNER_S3_SERVER}"
           RESOURCE_PREFIX=$(echo "$DOMAIN" | tr '.' '-')
 
-          # Delete LakeFS bucket
+          # Delete LakeFS bucket (if still exists after Terraform destroy)
           LAKEFS_BUCKET="nexus-${RESOURCE_PREFIX}-lakefs"
-          echo "  Deleting bucket: $LAKEFS_BUCKET"
-          aws s3 rb "s3://${LAKEFS_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Bucket not found or already deleted"
+          echo "  Checking bucket: $LAKEFS_BUCKET"
+          if aws s3 ls "s3://${LAKEFS_BUCKET}" --endpoint-url="$ENDPOINT_URL" 2>/dev/null; then
+            echo "    Deleting orphaned bucket: $LAKEFS_BUCKET"
+            aws s3 rb "s3://${LAKEFS_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Failed to delete bucket"
+          else
+            echo "    Bucket already deleted by Terraform"
+          fi
 
-          # Delete General bucket
+          # Delete General bucket (if still exists after Terraform destroy)
           GENERAL_BUCKET="nexus-${RESOURCE_PREFIX}"
-          echo "  Deleting bucket: $GENERAL_BUCKET"
-          aws s3 rb "s3://${GENERAL_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Bucket not found or already deleted"
+          echo "  Checking bucket: $GENERAL_BUCKET"
+          if aws s3 ls "s3://${GENERAL_BUCKET}" --endpoint-url="$ENDPOINT_URL" 2>/dev/null; then
+            echo "    Deleting orphaned bucket: $GENERAL_BUCKET"
+            aws s3 rb "s3://${GENERAL_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Failed to delete bucket"
+          else
+            echo "    Bucket already deleted by Terraform"
+          fi
 
-          echo "  ✅ Hetzner Object Storage buckets cleanup completed"
-
-      - name: Destroy Control Plane infrastructure
-        run: |
-          cd tofu/control-plane
-          source ../.r2-credentials
-          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          
-          echo "🗑️  Destroying Control Plane (Pages, Worker, DNS)..."
-          tofu destroy -var-file=config.tfvars -auto-approve || echo "  No Control Plane state to destroy"
+          echo "  ✅ Hetzner Object Storage cleanup completed"
 
       - name: Delete R2 secrets from GitHub
         env:
