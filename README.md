@@ -118,13 +118,13 @@ flowchart LR
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
 ![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)
 ![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
-![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)
 ![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)
 ![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)
-![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)
 ![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)
+![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)
+![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)
 ![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
@@ -155,13 +155,13 @@ flowchart LR
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
 | **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
-| **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
-| **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
+| **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
+| **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |

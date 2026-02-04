@@ -33,10 +33,10 @@ Images are pinned to **major versions** where supported for automatic security p
 | Filestash | `machines/filestash` | `latest` | Latest ² |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
-| LakeFS | `treeverse/lakefs` | `latest` | Latest ² |
+| LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
-| RustFS | `rustfs/rustfs` | `latest` | Latest ² |
+| RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
@@ -44,7 +44,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Major |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
-| SeaweedFS | `chrislusf/seaweedfs` | `latest` | Latest ² |
+| SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
@@ -1473,10 +1473,14 @@ Terraform creates inbound Hetzner firewall rules and DNS A records pointing dire
 
 | Service | Port | DNS Record | Protocol |
 |---------|------|------------|----------|
+| **Garage** (S3 API) | 3900 | `garage-s3.<domain>` | S3/HTTP |
+| **LakeFS** (S3 Gateway) | 8000 | `s3.lakefs.<domain>` | S3/HTTP |
+| **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
+| **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
 | **RedPanda** (Kafka) | 9092 | `redpanda.<domain>` | Kafka |
 | **RedPanda** (Schema Registry) | 8081 | `redpanda-schema-registry.<domain>` | HTTP |
-| **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
-| **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
+| **RustFS** (S3 API) | 9003 | `rustfs-s3.<domain>` | S3/HTTP |
+| **SeaweedFS** (S3 API) | 8333 | `seaweedfs-s3.<domain>` | S3/HTTP |
 
 ### Connection Examples
 
