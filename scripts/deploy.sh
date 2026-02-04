@@ -623,7 +623,17 @@ if echo "$ENABLED_SERVICES" | grep -qw "filestash"; then
 
     # Generate bcrypt hash for admin password
     if [ -n "$FILESTASH_ADMIN_PASSWORD" ]; then
+        if ! command -v htpasswd >/dev/null 2>&1; then
+            echo "❌ ERROR: 'htpasswd' command not found but FILESTASH_ADMIN_PASSWORD is set."
+            echo "   Please install 'apache2-utils' (Debian/Ubuntu) or 'httpd-tools' (RHEL/CentOS) on the target host."
+            exit 1
+        fi
+
         FILESTASH_ADMIN_HASH=$(htpasswd -nbBC 10 admin "$FILESTASH_ADMIN_PASSWORD" 2>/dev/null | cut -d: -f2)
+        if [ -z "$FILESTASH_ADMIN_HASH" ]; then
+            echo "❌ ERROR: Failed to generate Filestash admin password hash with 'htpasswd'."
+            exit 1
+        fi
     else
         FILESTASH_ADMIN_HASH=""
     fi
@@ -1809,9 +1819,11 @@ if echo "$ENABLED_SERVICES" | grep -qw "garage" && [ -n "$GARAGE_ADMIN_TOKEN" ];
         # Check if layout is already configured (roles exist)
         LAYOUT_CHECK=$(ssh nexus "docker exec garage /garage layout show 2>&1" || echo "")
         if echo "$LAYOUT_CHECK" | grep -q "No nodes currently have"; then
-            # Get node ID (short form, first 16 chars)
-            NODE_ID=$(ssh nexus "docker exec garage /garage node id 2>&1 | head -1 | cut -c1-16" || echo "")
-            if [ -n "$NODE_ID" ] && [ ${#NODE_ID} -ge 8 ]; then
+            # Get full node ID and validate it's a valid hex string (64 chars)
+            FULL_NODE_ID=$(ssh nexus "docker exec garage /garage node id 2>&1 | head -1" || echo "")
+            if [ -n "$FULL_NODE_ID" ] && [ ${#FULL_NODE_ID} -eq 64 ] && echo "$FULL_NODE_ID" | grep -qE '^[0-9a-fA-F]{64}$'; then
+                # Extract short form (first 16 chars) for layout commands
+                NODE_ID="${FULL_NODE_ID:0:16}"
                 # Assign node to layout with 100GB capacity
                 ssh nexus "docker exec garage /garage layout assign -z dc1 -c 100G $NODE_ID" >/dev/null 2>&1
                 # Apply layout with version 1
