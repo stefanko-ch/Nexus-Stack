@@ -185,6 +185,7 @@ output "secrets" {
     filestash_admin_password = random_password.filestash_admin.result
 
     # Windmill
+    windmill_admin_password = random_password.windmill_admin.result
     windmill_db_password = random_password.windmill_db.result
 
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)

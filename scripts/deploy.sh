@@ -116,6 +116,7 @@ HETZNER_S3_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_secret_key // 
 HETZNER_S3_BUCKET=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket // empty')
 HETZNER_S3_BUCKET_GENERAL=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket_general // empty')
 FILESTASH_ADMIN_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.filestash_admin_password // empty')
+WINDMILL_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_admin_password // empty')
 WINDMILL_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
@@ -1364,8 +1365,8 @@ EOF
     {"secretKey": "PGADMIN_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$PGADMIN_TAG"]},
     {"secretKey": "PGADMIN_PASSWORD", "secretValue": "$PGADMIN_PASS", "tagIds": ["$PGADMIN_TAG"]},
     {"secretKey": "PREFECT_DB_PASSWORD", "secretValue": "$PREFECT_DB_PASS", "tagIds": ["$PREFECT_TAG"]},
-    {"secretKey": "WINDMILL_DEFAULT_LOGIN", "secretValue": "admin@windmill.dev", "tagIds": ["$WINDMILL_TAG"]},
-    {"secretKey": "WINDMILL_DEFAULT_PASSWORD", "secretValue": "changeme", "tagIds": ["$WINDMILL_TAG"]},
+    {"secretKey": "WINDMILL_ADMIN_EMAIL", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$WINDMILL_TAG"]},
+    {"secretKey": "WINDMILL_ADMIN_PASSWORD", "secretValue": "$WINDMILL_ADMIN_PASS", "tagIds": ["$WINDMILL_TAG"]},
     {"secretKey": "WINDMILL_DB_PASSWORD", "secretValue": "$WINDMILL_DB_PASS", "tagIds": ["$WINDMILL_TAG"]}$SSH_KEY_SECRET
   ]
 }
@@ -1852,6 +1853,35 @@ if echo "$ENABLED_SERVICES" | grep -qw "garage" && [ -n "$GARAGE_ADMIN_TOKEN" ];
             fi
         else
             echo -e "${YELLOW}  ⚠ Garage layout already configured${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure Windmill admin (create superadmin user)
+if echo "$ENABLED_SERVICES" | grep -qw "windmill" && [ -n "$WINDMILL_ADMIN_PASS" ]; then
+    (
+        echo "  Configuring Windmill admin..."
+        # Wait for Windmill to be ready
+        for i in $(seq 1 30); do
+            if ssh nexus "curl -s --connect-timeout 2 'http://localhost:8200/api/version'" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 2
+        done
+
+        # Create superadmin user via API
+        WINDMILL_JSON="{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$WINDMILL_ADMIN_PASS\",\"super_admin\":true}"
+        WINDMILL_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8200/api/users/create' \
+            -H 'Content-Type: application/json' \
+            -d '$WINDMILL_JSON'" 2>/dev/null || echo "")
+
+        if echo "$WINDMILL_RESULT" | grep -q '"email"' 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Windmill admin created (user: $ADMIN_EMAIL)${NC}"
+        elif echo "$WINDMILL_RESULT" | grep -q 'already exists' 2>/dev/null; then
+            echo -e "${YELLOW}  ⚠ Windmill admin already exists${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Windmill setup skipped (may already be configured)${NC}"
         fi
     ) &
     CONFIG_JOBS+=($!)

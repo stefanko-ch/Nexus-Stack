@@ -219,6 +219,12 @@ resource "random_password" "filestash_admin" {
   special = false
 }
 
+# Windmill admin password
+resource "random_password" "windmill_admin" {
+  length  = 24
+  special = false
+}
+
 # Windmill database password
 resource "random_password" "windmill_db" {
   length  = 24
