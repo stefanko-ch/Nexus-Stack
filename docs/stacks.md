@@ -1490,11 +1490,11 @@ Windmill is a developer platform that turns scripts into production-grade workfl
 | `windmill-lsp` | `ghcr.io/windmill-labs/windmill-lsp:latest` | LSP code intelligence for editor |
 | `windmill-db` | `postgres:16-alpine` | Dedicated PostgreSQL database |
 
-**Default credentials:**
-- Email: `admin@windmill.dev`
-- Password: `changeme`
+**Credentials:**
+- Email: Your configured admin email (`$ADMIN_EMAIL`)
+- Password: Auto-generated (stored in Infisical)
 
-> ⚠️ **Password change:** After first login, change the default password via **Settings > Account**. Credentials are stored in Infisical for reference.
+> ✅ **Auto-configured:** Admin user is automatically created during deployment with your admin email and a generated password. Credentials are available in Infisical.
 
 **Internal connection (from other services):**
 - PostgreSQL: `windmill-db:5432` (user: `nexus-windmill`, database: `windmill`)
