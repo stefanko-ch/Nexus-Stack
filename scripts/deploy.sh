@@ -1870,7 +1870,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "windmill" && [ -n "$WINDMILL_ADMIN_PASS"
             sleep 2
         done
 
-        # Create superadmin user via API
+        # Create superadmin user via API (admin email)
         WINDMILL_JSON="{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$WINDMILL_ADMIN_PASS\",\"super_admin\":true}"
         WINDMILL_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8200/api/users/create' \
             -H 'Content-Type: application/json' \
@@ -1882,6 +1882,20 @@ if echo "$ENABLED_SERVICES" | grep -qw "windmill" && [ -n "$WINDMILL_ADMIN_PASS"
             echo -e "${YELLOW}  ⚠ Windmill admin already exists${NC}"
         else
             echo -e "${YELLOW}  ⚠ Windmill setup skipped (may already be configured)${NC}"
+        fi
+
+        # Create user account for user_email if configured
+        if [ -n "$USER_EMAIL" ] && [ "$USER_EMAIL" != "$ADMIN_EMAIL" ]; then
+            WINDMILL_USER_JSON="{\"email\":\"$USER_EMAIL\",\"password\":\"$WINDMILL_ADMIN_PASS\",\"super_admin\":false}"
+            WINDMILL_USER_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8200/api/users/create' \
+                -H 'Content-Type: application/json' \
+                -d '$WINDMILL_USER_JSON'" 2>/dev/null || echo "")
+
+            if echo "$WINDMILL_USER_RESULT" | grep -q '"email"' 2>/dev/null; then
+                echo -e "${GREEN}  ✓ Windmill user created (user: $USER_EMAIL)${NC}"
+            elif echo "$WINDMILL_USER_RESULT" | grep -q 'already exists' 2>/dev/null; then
+                echo -e "${YELLOW}  ⚠ Windmill user already exists${NC}"
+            fi
         fi
     ) &
     CONFIG_JOBS+=($!)
