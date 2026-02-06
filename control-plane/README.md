@@ -48,10 +48,12 @@ control-plane/
 │           ├── debug.js        # GET /api/debug
 │           ├── health.js       # GET /api/health
 │           └── send-credentials.js  # POST /api/send-credentials
+├── worker/
+│   └── src/
+│       └── index.js            # Scheduled teardown Worker (deployed via Terraform)
 ├── README.md                   # This file
 ├── SECURITY.md                 # Security documentation
-├── DEPLOYMENT.md               # Deployment guide
-└── wrangler.toml               # Wrangler configuration
+└── DEPLOYMENT.md               # Deployment guide
 ```
 
 ## 🔍 Debug & Info Endpoints

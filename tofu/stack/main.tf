@@ -219,6 +219,24 @@ resource "random_password" "filestash_admin" {
   special = false
 }
 
+# Windmill admin password
+resource "random_password" "windmill_admin" {
+  length  = 24
+  special = false
+}
+
+# Windmill database password
+resource "random_password" "windmill_db" {
+  length  = 24
+  special = false
+}
+
+# Windmill superadmin secret (for API automation)
+resource "random_password" "windmill_superadmin_secret" {
+  length  = 32
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
