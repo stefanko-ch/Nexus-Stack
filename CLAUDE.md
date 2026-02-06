@@ -80,8 +80,7 @@ Nexus-Stack/
 │   │   ├── functions/api/      # API endpoints (deploy, teardown, status, etc.)
 │   │   └── nexus-logo-green.png
 │   └── worker/                 # Scheduled teardown Worker
-│       ├── src/index.js        # Worker logic
-│       └── wrangler.toml       # Worker configuration
+│       └── src/index.js        # Worker logic (deployed via Terraform)
 ├── scripts/
 │   ├── deploy.sh               # Post-infrastructure deployment script
 │   ├── init-r2-state.sh        # R2 bucket + credentials setup
