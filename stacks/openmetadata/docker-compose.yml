@@ -1,0 +1,225 @@
+# =============================================================================
+# OpenMetadata - Data Catalog & Metadata Management Platform
+# =============================================================================
+# Unified platform for metadata, data governance, data quality, and
+# collaboration across your data stack.
+#
+# Features:
+#   - Automated metadata ingestion from 70+ connectors
+#   - Data lineage tracking across pipelines and services
+#   - Data quality tests and profiling
+#   - Team collaboration with conversations and tasks
+#   - Glossaries and classification tags
+#
+# Access: https://openmetadata.YOUR_DOMAIN
+# Credentials: See Infisical (OPENMETADATA_USERNAME / OPENMETADATA_PASSWORD)
+# =============================================================================
+
+# Shared environment variables for server and migration containers
+x-openmetadata-env: &openmetadata-env
+  # Core
+  OPENMETADATA_CLUSTER_NAME: openmetadata
+  SERVER_PORT: 8585
+  SERVER_ADMIN_PORT: 8586
+  LOG_LEVEL: INFO
+  # Authentication
+  AUTHORIZER_CLASS_NAME: org.openmetadata.service.security.DefaultAuthorizer
+  AUTHORIZER_REQUEST_FILTER: org.openmetadata.service.security.JwtFilter
+  AUTHORIZER_ADMIN_PRINCIPALS: "[admin]"
+  AUTHORIZER_ALLOWED_REGISTRATION_DOMAIN: '["all"]'
+  AUTHORIZER_INGESTION_PRINCIPALS: "[ingestion-bot]"
+  AUTHORIZER_PRINCIPAL_DOMAIN: ${OPENMETADATA_PRINCIPAL_DOMAIN}
+  AUTHORIZER_ENFORCE_PRINCIPAL_DOMAIN: "false"
+  AUTHORIZER_ENABLE_SECURE_SOCKET: "false"
+  AUTHENTICATION_PROVIDER: basic
+  AUTHENTICATION_PUBLIC_KEYS: "[http://openmetadata:8585/api/v1/system/config/jwks]"
+  AUTHENTICATION_AUTHORITY: "https://accounts.google.com"
+  AUTHENTICATION_ENABLE_SELF_SIGNUP: "false"
+  AUTHENTICATION_CLIENT_TYPE: public
+  AUTHENTICATION_JWT_PRINCIPAL_CLAIMS: "[email,preferred_username,sub]"
+  # JWT
+  RSA_PUBLIC_KEY_FILE_PATH: "./conf/public_key.der"
+  RSA_PRIVATE_KEY_FILE_PATH: "./conf/private_key.der"
+  JWT_ISSUER: "open-metadata.org"
+  JWT_KEY_ID: "Gb389a-9f76-gdjs-a92j-0242bk94356"
+  # Database (PostgreSQL)
+  DB_DRIVER_CLASS: org.postgresql.Driver
+  DB_SCHEME: postgresql
+  DB_PARAMS: "allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC"
+  DB_USER: nexus-openmetadata
+  DB_USER_PASSWORD: ${OPENMETADATA_DB_PASSWORD}
+  DB_HOST: openmetadata-db
+  DB_PORT: "5432"
+  OM_DATABASE: openmetadata_db
+  # Elasticsearch
+  ELASTICSEARCH_HOST: openmetadata-elasticsearch
+  ELASTICSEARCH_PORT: "9200"
+  ELASTICSEARCH_SCHEME: http
+  SEARCH_TYPE: elasticsearch
+  ELASTICSEARCH_INDEX_MAPPING_LANG: EN
+  ELASTICSEARCH_BATCH_SIZE: "100"
+  # Pipeline (Airflow Ingestion)
+  PIPELINE_SERVICE_CLIENT_ENDPOINT: http://openmetadata-ingestion:8080
+  SERVER_HOST_API_URL: http://openmetadata:8585/api
+  PIPELINE_SERVICE_CLIENT_VERIFY_SSL: "no-ssl"
+  PIPELINE_SERVICE_CLIENT_CLASS_NAME: "org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient"
+  PIPELINE_SERVICE_CLIENT_ENABLED: "true"
+  AIRFLOW_USERNAME: nexus-airflow
+  AIRFLOW_PASSWORD: ${OPENMETADATA_AIRFLOW_PASSWORD}
+  FERNET_KEY: ${OPENMETADATA_FERNET_KEY}
+  # JVM
+  OPENMETADATA_HEAP_OPTS: "-Xmx1G -Xms1G"
+  # Secrets
+  SECRET_MANAGER: db
+  # Email (disabled)
+  AUTHORIZER_ENABLE_SMTP: "false"
+  # Event Monitoring
+  EVENT_MONITOR: prometheus
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Dedicated Database (openmetadata_db + airflow_db)
+  # ---------------------------------------------------------------------------
+  openmetadata-db:
+    image: ${IMAGE_OPENMETADATA_POSTGRES:-postgres:16-alpine}
+    container_name: openmetadata-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: nexus-openmetadata
+      POSTGRES_PASSWORD: ${OPENMETADATA_DB_PASSWORD}
+      POSTGRES_DB: openmetadata_db
+    volumes:
+      - openmetadata-postgres-data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-airflow-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-openmetadata -d openmetadata_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - openmetadata-internal
+
+  # ---------------------------------------------------------------------------
+  # Elasticsearch - Search Engine (internal only)
+  # ---------------------------------------------------------------------------
+  openmetadata-elasticsearch:
+    image: ${IMAGE_OPENMETADATA_ELASTICSEARCH:-docker.elastic.co/elasticsearch/elasticsearch:8.11.4}
+    container_name: openmetadata-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
+      - xpack.security.enabled=false
+    volumes:
+      - openmetadata-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9200/_cluster/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - openmetadata-internal
+
+  # ---------------------------------------------------------------------------
+  # Database Migration (one-shot, must complete before server starts)
+  # ---------------------------------------------------------------------------
+  openmetadata-migrate:
+    image: ${IMAGE_OPENMETADATA:-docker.getcollate.io/openmetadata/server:1.6.6}
+    container_name: openmetadata-migrate
+    command: "./bootstrap/openmetadata-ops.sh migrate"
+    env_file:
+      - .env
+    environment:
+      <<: *openmetadata-env
+      MIGRATION_LIMIT_PARAM: "1200"
+    depends_on:
+      openmetadata-elasticsearch:
+        condition: service_healthy
+      openmetadata-db:
+        condition: service_healthy
+    networks:
+      - openmetadata-internal
+
+  # ---------------------------------------------------------------------------
+  # OpenMetadata Server - API + Web UI
+  # ---------------------------------------------------------------------------
+  openmetadata:
+    image: ${IMAGE_OPENMETADATA:-docker.getcollate.io/openmetadata/server:1.6.6}
+    container_name: openmetadata
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8585:8585"
+    environment:
+      <<: *openmetadata-env
+    depends_on:
+      openmetadata-elasticsearch:
+        condition: service_healthy
+      openmetadata-db:
+        condition: service_healthy
+      openmetadata-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8586/healthcheck"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks:
+      - app-network
+      - openmetadata-internal
+
+  # ---------------------------------------------------------------------------
+  # Ingestion - Airflow-based Metadata Ingestion Pipelines (internal only)
+  # ---------------------------------------------------------------------------
+  openmetadata-ingestion:
+    image: ${IMAGE_OPENMETADATA_INGESTION:-docker.getcollate.io/openmetadata/ingestion:1.6.6}
+    container_name: openmetadata-ingestion
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__OPENMETADATA_AIRFLOW_APIS__DAG_GENERATED_CONFIGS: "/opt/airflow/dag_generated_configs"
+      DB_HOST: openmetadata-db
+      DB_PORT: "5432"
+      AIRFLOW_DB: airflow_db
+      DB_USER: nexus-airflow
+      DB_SCHEME: postgresql+psycopg2
+      DB_PASSWORD: ${OPENMETADATA_AIRFLOW_PASSWORD}
+    entrypoint: /bin/bash
+    command:
+      - "/opt/airflow/ingestion_dependency.sh"
+    depends_on:
+      openmetadata-db:
+        condition: service_healthy
+      openmetadata:
+        condition: service_started
+    volumes:
+      - openmetadata-ingestion-dag-configs:/opt/airflow/dag_generated_configs
+      - openmetadata-ingestion-dags:/opt/airflow/dags
+      - openmetadata-ingestion-tmp:/tmp
+    networks:
+      - openmetadata-internal
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  openmetadata-postgres-data:
+  openmetadata-es-data:
+  openmetadata-ingestion-dag-configs:
+  openmetadata-ingestion-dags:
+  openmetadata-ingestion-tmp:
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app-network:
+    external: true
+  openmetadata-internal:
+    driver: bridge

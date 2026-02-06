@@ -213,6 +213,17 @@ services:
     support_images:
       postgres: "postgres:16-alpine"
 
+  openmetadata:
+    subdomain: "openmetadata"
+    port: 8585
+    public: false
+    description: "Open-source metadata management platform for data discovery, governance, and quality."
+    image: "docker.getcollate.io/openmetadata/server:1.6.6"
+    support_images:
+      ingestion: "docker.getcollate.io/openmetadata/ingestion:1.6.6"
+      elasticsearch: "docker.elastic.co/elasticsearch/elasticsearch:8.11.4"
+      postgres: "postgres:16-alpine"
+
   rustfs:
     subdomain: "rustfs"
     port: 9002
