@@ -1,0 +1,131 @@
+# =============================================================================
+# Windmill - Open-Source Workflow Engine
+# =============================================================================
+# Developer platform for scripts, workflows, and UIs with built-in code editor.
+# Supports Python, TypeScript, Go, Bash, SQL, and more.
+#
+# Features:
+#   - Script editor with LSP autocomplete
+#   - Workflow builder (DAGs)
+#   - App builder (custom UIs)
+#   - Schedule and webhook triggers
+#   - Approval flows and error handling
+#
+# Access: https://windmill.YOUR_DOMAIN
+# Credentials: See Infisical (WINDMILL_ADMIN_EMAIL / WINDMILL_ADMIN_PASSWORD)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Windmill Server - API + Web UI
+  # ---------------------------------------------------------------------------
+  windmill:
+    image: ${IMAGE_WINDMILL:-ghcr.io/windmill-labs/windmill:1.624.0}
+    container_name: windmill
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8200:8000"
+    environment:
+      MODE: server
+      DATABASE_URL: postgres://nexus-windmill:${WINDMILL_DB_PASSWORD}@windmill-db:5432/windmill?sslmode=disable
+      BASE_URL: https://windmill.${DOMAIN}
+      LSP_HOST: http://windmill-lsp:3001
+      SUPERADMIN_SECRET: ${WINDMILL_SUPERADMIN_SECRET}
+    depends_on:
+      windmill-db:
+        condition: service_healthy
+    networks:
+      - app-network
+      - windmill-internal
+
+  # ---------------------------------------------------------------------------
+  # Windmill Worker - Default Job Executor
+  # ---------------------------------------------------------------------------
+  windmill-worker:
+    image: ${IMAGE_WINDMILL:-ghcr.io/windmill-labs/windmill:1.624.0}
+    container_name: windmill-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MODE: worker
+      WORKER_GROUP: default
+      DATABASE_URL: postgres://nexus-windmill:${WINDMILL_DB_PASSWORD}@windmill-db:5432/windmill?sslmode=disable
+    volumes:
+      - windmill-worker-cache:/tmp/windmill/cache
+    depends_on:
+      windmill-db:
+        condition: service_healthy
+    networks:
+      - windmill-internal
+
+  # ---------------------------------------------------------------------------
+  # Windmill Native Worker - Lightweight Native Jobs
+  # ---------------------------------------------------------------------------
+  windmill-worker-native:
+    image: ${IMAGE_WINDMILL:-ghcr.io/windmill-labs/windmill:1.624.0}
+    container_name: windmill-worker-native
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MODE: worker
+      WORKER_GROUP: native
+      NUM_WORKERS: 8
+      DATABASE_URL: postgres://nexus-windmill:${WINDMILL_DB_PASSWORD}@windmill-db:5432/windmill?sslmode=disable
+    depends_on:
+      windmill-db:
+        condition: service_healthy
+    networks:
+      - windmill-internal
+
+  # ---------------------------------------------------------------------------
+  # Windmill LSP - Code Intelligence Server
+  # ---------------------------------------------------------------------------
+  windmill-lsp:
+    image: ${IMAGE_WINDMILL_LSP:-ghcr.io/windmill-labs/windmill-lsp:latest}
+    container_name: windmill-lsp
+    restart: unless-stopped
+    networks:
+      - windmill-internal
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Windmill Database
+  # ---------------------------------------------------------------------------
+  windmill-db:
+    image: ${IMAGE_WINDMILL_POSTGRES:-postgres:16-alpine}
+    container_name: windmill-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: windmill
+      POSTGRES_USER: nexus-windmill
+      POSTGRES_PASSWORD: ${WINDMILL_DB_PASSWORD}
+    volumes:
+      - windmill-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-windmill -d windmill"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - windmill-internal
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  windmill-worker-cache:
+  windmill-postgres-data:
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app-network:
+    external: true
+  windmill-internal:
+    driver: bridge

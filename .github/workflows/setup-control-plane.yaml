@@ -326,7 +326,8 @@ jobs:
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
           echo "⚙️  Setting Scheduled Teardown Worker secrets..."
-          WORKER_NAME="nexus-scheduled-teardown"
+          # Derive worker name from domain (must match Terraform naming: ${local.resource_prefix}-worker)
+          WORKER_NAME="nexus-${DOMAIN//./-}-worker"
           GITHUB_OWNER="${{ github.repository_owner }}"
           GITHUB_REPO="${{ github.event.repository.name }}"
           
