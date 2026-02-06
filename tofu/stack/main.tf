@@ -238,9 +238,12 @@ resource "random_password" "windmill_superadmin_secret" {
 }
 
 # OpenMetadata admin password
+# Note: OpenMetadata requires at least 1 special character (PasswordUtil.java)
+# override_special restricts to chars safe in JSON strings and shell heredocs
 resource "random_password" "openmetadata_admin" {
-  length  = 24
-  special = false
+  length           = 24
+  special          = true
+  override_special = "!@#%^*()_+"
 }
 
 # OpenMetadata database password
