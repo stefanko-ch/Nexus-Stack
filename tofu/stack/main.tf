@@ -231,6 +231,12 @@ resource "random_password" "windmill_db" {
   special = false
 }
 
+# Windmill superadmin secret (for API automation)
+resource "random_password" "windmill_superadmin_secret" {
+  length  = 32
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
