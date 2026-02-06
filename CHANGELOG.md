@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.14.0...v0.15.0) (2026-02-06)
+
+
+### 🚀 Features
+
+* **stacks:** Add Windmill workflow engine stack ([94fd687](https://github.com/stefanko-ch/Nexus-Stack/commit/94fd68733ddfc095501d328813c68362fc6b16b8))
+* **stacks:** Add Windmill workflow engine stack ([5a941c2](https://github.com/stefanko-ch/Nexus-Stack/commit/5a941c226f5a90322bb90510b19948daf4deb895)), closes [#176](https://github.com/stefanko-ch/Nexus-Stack/issues/176)
+* **windmill:** Auto-configure workspace and secure default credentials ([aeb4654](https://github.com/stefanko-ch/Nexus-Stack/commit/aeb4654668453ab263c4a55dfdf5b83a5ac19025))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Use dynamic worker name and remove unused wrangler.toml ([6d123fd](https://github.com/stefanko-ch/Nexus-Stack/commit/6d123fd73bb0d48fdd32cdd9b9575845cb896ea7))
+* **windmill:** Auto-configure admin user with generated credentials ([d299d35](https://github.com/stefanko-ch/Nexus-Stack/commit/d299d3592202abebc7d4857e469a1b9d026c9df1))
+* **windmill:** Create user account for $USER_EMAIL if configured ([d3bb755](https://github.com/stefanko-ch/Nexus-Stack/commit/d3bb7558156e66f6702e042533bd65ec9c28e622))
+
 ## [0.14.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.13.0...v0.14.0) (2026-02-04)
 
 
