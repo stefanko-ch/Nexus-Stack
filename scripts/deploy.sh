@@ -2015,11 +2015,20 @@ if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADM
                 -H 'Content-Type: application/json' \
                 -d @-" 2>/dev/null || echo "")
 
-            if echo "$OM_PW_RESULT" | grep -qi 'error\|fail' 2>/dev/null; then
-                echo "    Response: $(echo "$OM_PW_RESULT" | head -c 200)"
-                echo -e "${YELLOW}  ⚠ OpenMetadata password change failed - credentials in Infisical${NC}"
-            else
+            # Verify new password works by logging in with it
+            OM_NEW_PW_B64=$(echo -n "$OPENMETADATA_ADMIN_PASS" | base64)
+            OM_VERIFY_JSON=$(jq -n --arg email "admin@${OM_PRINCIPAL_DOMAIN}" --arg password "$OM_NEW_PW_B64" \
+                '{email: $email, password: $password}')
+            OM_VERIFY_RESULT=$(printf '%s' "$OM_VERIFY_JSON" | ssh nexus "curl -s -X POST 'http://localhost:8585/api/v1/users/login' \
+                -H 'Content-Type: application/json' \
+                -d @-" 2>/dev/null || echo "")
+
+            if echo "$OM_VERIFY_RESULT" | jq -r '.accessToken // empty' 2>/dev/null | grep -q '.'; then
                 echo -e "${GREEN}  ✓ OpenMetadata admin configured (user: admin@${OM_PRINCIPAL_DOMAIN})${NC}"
+            else
+                echo "    Password change response: $(echo "$OM_PW_RESULT" | head -c 200)"
+                echo "    Login verify response: $(echo "$OM_VERIFY_RESULT" | head -c 200)"
+                echo -e "${YELLOW}  ⚠ OpenMetadata password change failed - password may not meet complexity requirements${NC}"
             fi
         elif echo "$OM_LOGIN_RESULT" | grep -qi 'invalid\|unauthorized\|credentials' 2>/dev/null; then
             # Login with default password failed - already configured
