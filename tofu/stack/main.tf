@@ -237,6 +237,32 @@ resource "random_password" "windmill_superadmin_secret" {
   special = false
 }
 
+# OpenMetadata admin password
+# Note: OpenMetadata requires at least 1 special character (PasswordUtil.java)
+# override_special restricts to chars safe in JSON strings and shell heredocs
+resource "random_password" "openmetadata_admin" {
+  length           = 24
+  special          = true
+  override_special = "!@#%^*()_+"
+}
+
+# OpenMetadata database password
+resource "random_password" "openmetadata_db" {
+  length  = 24
+  special = false
+}
+
+# OpenMetadata Airflow password
+resource "random_password" "openmetadata_airflow" {
+  length  = 24
+  special = false
+}
+
+# OpenMetadata Fernet key (base64-encoded 32-byte key for Airflow encryption)
+resource "random_id" "openmetadata_fernet_key" {
+  byte_length = 32
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
