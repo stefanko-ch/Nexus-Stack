@@ -1995,7 +1995,9 @@ if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADM
         fi
 
         # Login with default credentials to get JWT token
-        OM_LOGIN_JSON=$(jq -n --arg email "admin@${OM_PRINCIPAL_DOMAIN}" --arg password "admin" \
+        # Note: OpenMetadata requires passwords to be base64 encoded in API requests
+        OM_DEFAULT_PW_B64=$(echo -n "admin" | base64)
+        OM_LOGIN_JSON=$(jq -n --arg email "admin@${OM_PRINCIPAL_DOMAIN}" --arg password "$OM_DEFAULT_PW_B64" \
             '{email: $email, password: $password}')
         OM_LOGIN_RESULT=$(printf '%s' "$OM_LOGIN_JSON" | ssh nexus "curl -s -X POST 'http://localhost:8585/api/v1/users/login' \
             -H 'Content-Type: application/json' \
@@ -2005,7 +2007,9 @@ if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADM
 
         if [ -n "$OM_TOKEN" ] && [ "$OM_TOKEN" != "null" ]; then
             # Change admin password using the password change API
-            OM_PW_JSON=$(jq -n --arg old "admin" --arg new "$OPENMETADATA_ADMIN_PASS" \
+            OM_OLD_PW_B64=$(echo -n "admin" | base64)
+            OM_NEW_PW_B64=$(echo -n "$OPENMETADATA_ADMIN_PASS" | base64)
+            OM_PW_JSON=$(jq -n --arg old "$OM_OLD_PW_B64" --arg new "$OM_NEW_PW_B64" \
                 '{username: "admin", oldPassword: $old, newPassword: $new, confirmPassword: $new, requestType: "SELF"}')
             OM_PW_RESULT=$(printf '%s' "$OM_PW_JSON" | ssh nexus "curl -s -X PUT 'http://localhost:8585/api/v1/users/password' \
                 -H 'Authorization: Bearer $OM_TOKEN' \
