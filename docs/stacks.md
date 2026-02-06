@@ -744,7 +744,7 @@ OpenMetadata is a unified platform for metadata management, data discovery, and 
 
 | Container | Image | Purpose |
 |-----------|-------|---------|
-| `openmetadata-server` | `docker.getcollate.io/openmetadata/server:1.6.6` | API server + web UI (port 8585) |
+| `openmetadata` | `docker.getcollate.io/openmetadata/server:1.6.6` | API server + web UI (port 8585) |
 | `openmetadata-migrate` | `docker.getcollate.io/openmetadata/server:1.6.6` | One-shot database migration |
 | `openmetadata-ingestion` | `docker.getcollate.io/openmetadata/ingestion:1.6.6` | Airflow-based ingestion pipelines |
 | `openmetadata-db` | `postgres:16-alpine` | Dedicated PostgreSQL (2 databases) |
