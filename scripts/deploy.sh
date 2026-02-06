@@ -124,6 +124,8 @@ OPENMETADATA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_admin_pass
 OPENMETADATA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_db_password // empty')
 OPENMETADATA_AIRFLOW_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_airflow_password // empty')
 OPENMETADATA_FERNET_KEY=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_fernet_key // empty')
+GITEA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_admin_password // empty')
+GITEA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -284,6 +286,67 @@ done
 if [ $RETRY -eq $MAX_RETRIES ]; then
     echo -e "${RED}Timeout waiting for SSH. Check Cloudflare Tunnel status.${NC}"
     exit 1
+fi
+
+# -----------------------------------------------------------------------------
+# Mount persistent volume (if configured)
+# -----------------------------------------------------------------------------
+PERSISTENT_VOLUME_ID=$(cd "$TOFU_DIR" && tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
+
+if [ "$PERSISTENT_VOLUME_ID" != "0" ] && [ -n "$PERSISTENT_VOLUME_ID" ]; then
+    echo ""
+    echo -e "${YELLOW}  Mounting persistent volume (ID: $PERSISTENT_VOLUME_ID)...${NC}"
+    ssh nexus "
+        MOUNT_POINT=/mnt/nexus-data
+
+        # Check if already mounted
+        if mountpoint -q \$MOUNT_POINT 2>/dev/null; then
+            echo '  Volume already mounted at /mnt/nexus-data'
+        else
+            mkdir -p \$MOUNT_POINT
+
+            # Find the volume device (Hetzner volumes appear as /dev/disk/by-id/scsi-0HC_Volume_*)
+            VOLUME_DEVICE=\$(ls /dev/disk/by-id/scsi-0HC_Volume_${PERSISTENT_VOLUME_ID} 2>/dev/null || echo '')
+            if [ -n \"\$VOLUME_DEVICE\" ]; then
+                mount \$VOLUME_DEVICE \$MOUNT_POINT
+                echo '  Volume mounted at /mnt/nexus-data'
+            else
+                echo '  Volume device not found via scsi ID, checking automount...'
+                if mount | grep -q \$MOUNT_POINT; then
+                    echo '  Volume auto-mounted at /mnt/nexus-data'
+                else
+                    echo '  Warning: Could not mount volume - checking /dev/sdb...'
+                    if [ -b /dev/sdb ]; then
+                        mount /dev/sdb \$MOUNT_POINT
+                        echo '  Volume mounted via /dev/sdb'
+                    fi
+                fi
+            fi
+        fi
+
+        # Add fstab entry for persistence across reboots (if not already present)
+        if ! grep -q '/mnt/nexus-data' /etc/fstab; then
+            VOLUME_DEVICE=\$(ls /dev/disk/by-id/scsi-0HC_Volume_${PERSISTENT_VOLUME_ID} 2>/dev/null || echo '/dev/sdb')
+            echo \"\$VOLUME_DEVICE /mnt/nexus-data ext4 defaults,nofail 0 2\" >> /etc/fstab
+            echo '  fstab entry added'
+        fi
+
+        # Create service subdirectories
+        mkdir -p \$MOUNT_POINT/gitea/repos
+        mkdir -p \$MOUNT_POINT/gitea/lfs
+        mkdir -p \$MOUNT_POINT/gitea/db
+
+        # Gitea runs as UID 1000 (git user)
+        chown -R 1000:1000 \$MOUNT_POINT/gitea/repos
+        chown -R 1000:1000 \$MOUNT_POINT/gitea/lfs
+
+        # PostgreSQL runs as UID 70 in alpine images
+        chown -R 70:70 \$MOUNT_POINT/gitea/db
+    "
+    echo -e "${GREEN}  ✓ Persistent volume mounted${NC}"
+else
+    echo ""
+    echo -e "${DIM}  Persistent volume not configured (persistent_volume_id=0)${NC}"
 fi
 
 # -----------------------------------------------------------------------------
@@ -534,6 +597,17 @@ OPENMETADATA_PRINCIPAL_DOMAIN=${OM_PRINCIPAL_DOMAIN}
 DOMAIN=${DOMAIN}
 EOF
     echo -e "${GREEN}  ✓ OpenMetadata .env generated${NC}"
+fi
+
+# Generate Gitea .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "gitea"; then
+    echo "  Generating Gitea config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/gitea/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+GITEA_DB_PASSWORD=${GITEA_DB_PASS}
+DOMAIN=${DOMAIN}
+EOF
+    echo -e "${GREEN}  ✓ Gitea .env generated${NC}"
 fi
 
 # Generate RustFS .env from OpenTofu secrets
@@ -1289,7 +1363,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1323,6 +1397,7 @@ EOF
                     PREFECT_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="prefect") | .id // empty' 2>/dev/null)
                     WINDMILL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="windmill") | .id // empty' 2>/dev/null)
                     OPENMETADATA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="openmetadata") | .id // empty' 2>/dev/null)
+                    GITEA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="gitea") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -1393,7 +1468,10 @@ EOF
     {"secretKey": "WINDMILL_SUPERADMIN_SECRET", "secretValue": "$WINDMILL_SUPERADMIN_SECRET", "tagIds": ["$WINDMILL_TAG"]},
     {"secretKey": "OPENMETADATA_USERNAME", "secretValue": "admin@$OM_PRINCIPAL_DOMAIN", "tagIds": ["$OPENMETADATA_TAG"]},
     {"secretKey": "OPENMETADATA_PASSWORD", "secretValue": "$OPENMETADATA_ADMIN_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
-    {"secretKey": "OPENMETADATA_DB_PASSWORD", "secretValue": "$OPENMETADATA_DB_PASS", "tagIds": ["$OPENMETADATA_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "OPENMETADATA_DB_PASSWORD", "secretValue": "$OPENMETADATA_DB_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
+    {"secretKey": "GITEA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_PASSWORD", "secretValue": "$GITEA_ADMIN_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_DB_PASSWORD", "secretValue": "$GITEA_DB_PASS", "tagIds": ["$GITEA_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -2034,6 +2112,51 @@ if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADM
             echo -e "${YELLOW}  ⚠ OpenMetadata already configured (default password already changed)${NC}"
         else
             echo -e "${YELLOW}  ⚠ OpenMetadata auto-setup failed - configure manually at first login${NC}"
+            echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure Gitea admin account
+if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
+    (
+        echo "  Configuring Gitea..."
+
+        # Wait for Gitea to be ready
+        GITEA_READY=false
+        for i in $(seq 1 30); do
+            if ssh nexus "curl -sf http://localhost:3200/api/healthz" >/dev/null 2>&1; then
+                GITEA_READY=true
+                break
+            fi
+            sleep 2
+        done
+
+        if [ "$GITEA_READY" = "true" ]; then
+            # Check if admin user already exists
+            ADMIN_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list --admin 2>/dev/null | grep -c '$ADMIN_USERNAME'" || echo "0")
+
+            if [ "$ADMIN_EXISTS" -gt 0 ]; then
+                echo -e "${YELLOW}  ⚠ Gitea admin already exists (user: $ADMIN_USERNAME)${NC}"
+            else
+                # Create admin user via CLI
+                GITEA_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
+                    --admin \
+                    --username '$ADMIN_USERNAME' \
+                    --password '$GITEA_ADMIN_PASS' \
+                    --email '$ADMIN_EMAIL' \
+                    --must-change-password=false" 2>&1 || echo "")
+
+                if echo "$GITEA_RESULT" | grep -qi "created\|success\|New user"; then
+                    echo -e "${GREEN}  ✓ Gitea admin created (user: $ADMIN_USERNAME)${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Gitea admin setup needs manual configuration${NC}"
+                    echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}  ⚠ Gitea not ready after 60s - skipping admin setup${NC}"
             echo -e "${YELLOW}    Credentials available in Infisical${NC}"
         fi
     ) &
