@@ -525,7 +525,6 @@ fi
 # Generate OpenMetadata .env from OpenTofu secrets
 if echo "$ENABLED_SERVICES" | grep -qw "openmetadata"; then
     echo "  Generating OpenMetadata config from OpenTofu secrets..."
-    OM_PRINCIPAL_DOMAIN=$(echo "$ADMIN_EMAIL" | cut -d'@' -f2)
     cat > "$STACKS_DIR/openmetadata/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 OPENMETADATA_DB_PASSWORD=${OPENMETADATA_DB_PASS}
