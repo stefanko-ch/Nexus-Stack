@@ -2010,7 +2010,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADM
             # Note: Password change API uses plain text (NOT base64 like login API)
             OM_PW_JSON=$(jq -n --arg old "admin" --arg new "$OPENMETADATA_ADMIN_PASS" \
                 '{username: "admin", oldPassword: $old, newPassword: $new, confirmPassword: $new, requestType: "SELF"}')
-            OM_PW_RESULT=$(printf '%s' "$OM_PW_JSON" | ssh nexus "curl -s -X PUT 'http://localhost:8585/api/v1/users/password' \
+            OM_PW_RESULT=$(printf '%s' "$OM_PW_JSON" | ssh nexus "curl -s -X PUT 'http://localhost:8585/api/v1/users/changePassword' \
                 -H 'Authorization: Bearer $OM_TOKEN' \
                 -H 'Content-Type: application/json' \
                 -d @-" 2>/dev/null || echo "")
