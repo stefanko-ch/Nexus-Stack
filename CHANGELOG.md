@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.15.0...v0.16.0) (2026-02-06)
+
+
+### 🚀 Features
+
+* **stacks:** Add OpenMetadata data catalog stack ([3946703](https://github.com/stefanko-ch/Nexus-Stack/commit/3946703df991264475deccc18b797a136b3db801))
+* **stacks:** Add OpenMetadata data catalog stack ([ed1ff3c](https://github.com/stefanko-ch/Nexus-Stack/commit/ed1ff3c7215f751bd123c4dff6ea47113122e9ef)), closes [#84](https://github.com/stefanko-ch/Nexus-Stack/issues/84)
+
+
+### 🐛 Bug Fixes
+
+* **scripts:** Base64 encode passwords for OpenMetadata API ([4cd1185](https://github.com/stefanko-ch/Nexus-Stack/commit/4cd11855da08cc38afa6d278c9b1101c63429e84))
+* **scripts:** Define OM_PRINCIPAL_DOMAIN unconditionally in deploy.sh ([2840d18](https://github.com/stefanko-ch/Nexus-Stack/commit/2840d186be204160ba96564fb2b140a89994a9fd))
+* **scripts:** Remove duplicate OM_PRINCIPAL_DOMAIN definition ([9633a99](https://github.com/stefanko-ch/Nexus-Stack/commit/9633a99f80e749fa931cbfbf07caea35073ae2cf))
+* **scripts:** Require special chars in OpenMetadata admin password ([6f31221](https://github.com/stefanko-ch/Nexus-Stack/commit/6f3122120ab78a856af0864fc66a6b629bb1a10a))
+* **scripts:** Use correct OpenMetadata password change endpoint ([d9f9998](https://github.com/stefanko-ch/Nexus-Stack/commit/d9f99987c8830fe8ad9d4bd749c226ef7b03279d))
+* **scripts:** Use plain text passwords for OpenMetadata password change API ([b858b96](https://github.com/stefanko-ch/Nexus-Stack/commit/b858b963ca2aa1619f6943b38eebc8ac58589b7e))
+* **stacks:** Rename openmetadata-server container to openmetadata ([7604a6d](https://github.com/stefanko-ch/Nexus-Stack/commit/7604a6d8906fec20a71fea61b6caa916bd8d15b1))
+
 ## [0.15.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.14.0...v0.15.0) (2026-02-06)
 
 
