@@ -37,6 +37,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Filestash | `machines/filestash` | `latest` | Latest ² |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
+| Gitea | `gitea/gitea` | `1.23` | Major |
+| PostgreSQL (Gitea DB) | `postgres` | `16-alpine` | Major |
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
@@ -526,6 +528,50 @@ A modern, developer-friendly alternative to HashiCorp Vault:
 > ✅ **Auto-configured:** Admin account is automatically created during deployment. A "Nexus Stack" project is created with all generated passwords pre-loaded. Use `make secrets` to view the credentials.
 
 > ℹ️ **Note:** Secrets are auto-generated on first deployment (encryption key, auth secret). These are stored in `stacks/infisical/.env`.
+
+---
+
+## Gitea
+
+![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)
+
+**Self-hosted Git service with pull requests, code review, and CI/CD**
+
+A lightweight, self-hosted Git hosting solution that provides:
+- Pull requests and code review
+- Issue tracking and project management
+- CI/CD via Gitea Actions
+- Repository mirroring from GitHub
+- HTTPS access via Cloudflare Tunnel
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3200` (-> internal 3000) |
+| Suggested Subdomain | `gitea` |
+| Public Access | No |
+| Website | [gitea.com](https://about.gitea.com) |
+| Source | [GitHub](https://github.com/go-gitea/gitea) |
+
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Credentials are stored in Infisical under the `gitea` tag.
+
+### Architecture
+
+The stack includes:
+- **Gitea** - Git service (Web UI + API)
+- **PostgreSQL** - Database for users, issues, PRs, and metadata
+
+### Persistent Storage
+
+Gitea stores repository data and its database on a **persistent Hetzner Cloud Volume** that survives teardown:
+- Git repositories: `/mnt/nexus-data/gitea/repos`
+- LFS objects: `/mnt/nexus-data/gitea/lfs`
+- PostgreSQL data: `/mnt/nexus-data/gitea/db`
+
+The volume size is configurable via `persistent_volume_size` (default: 10 GB, minimum: 10 GB).
+
+On **teardown**: Volume and all data are preserved.
+On **spin-up**: Existing data is automatically reattached. Gitea resumes with all repositories and metadata intact.
+On **destroy-all**: Volume is permanently deleted.
 
 ---
 

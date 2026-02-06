@@ -28,6 +28,10 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 4.0"
     }
+    hcloud = {
+      source  = "hetznercloud/hcloud"
+      version = "~> 1.45"
+    }
     minio = {
       source  = "aminueza/minio"
       version = ">= 3.13.0"
@@ -37,6 +41,11 @@ terraform {
 
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
+}
+
+# Hetzner Cloud (for persistent volumes that survive teardown)
+provider "hcloud" {
+  token = var.hcloud_token
 }
 
 # Hetzner Object Storage (S3-compatible, used for LakeFS bucket)

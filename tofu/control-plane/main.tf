@@ -230,3 +230,22 @@ resource "minio_s3_bucket" "general" {
   bucket = local.resource_prefix
   acl    = "private"
 }
+
+# -----------------------------------------------------------------------------
+# Hetzner Cloud Persistent Volume
+# -----------------------------------------------------------------------------
+# This volume persists through teardown - only destroyed on destroy-all.
+# Used by services that need persistent storage (e.g., Gitea repositories).
+# Mounted at /mnt/nexus-data/ on the server with subdirectories per service.
+
+resource "hcloud_volume" "persistent" {
+  name     = "${local.resource_prefix}-data"
+  size     = var.persistent_volume_size
+  location = var.server_location
+  format   = "ext4"
+
+  labels = {
+    managed_by = "opentofu"
+    purpose    = "persistent-data"
+  }
+}

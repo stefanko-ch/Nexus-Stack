@@ -52,3 +52,17 @@ output "hetzner_s3_region" {
   description = "Hetzner Object Storage region"
   value       = var.hetzner_object_storage_region
 }
+
+# -----------------------------------------------------------------------------
+# Persistent Volume
+# -----------------------------------------------------------------------------
+
+output "persistent_volume_id" {
+  description = "Hetzner Cloud Volume ID for persistent storage"
+  value       = hcloud_volume.persistent.id
+}
+
+output "persistent_volume_name" {
+  description = "Hetzner Cloud Volume name"
+  value       = hcloud_volume.persistent.name
+}

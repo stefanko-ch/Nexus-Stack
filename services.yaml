@@ -72,6 +72,15 @@ services:
     tcp_ports:
       s3-api: 3900
 
+  gitea:
+    subdomain: "gitea"
+    port: 3200
+    public: false
+    description: "Self-hosted Git service with pull requests, code review, and CI/CD."
+    image: "gitea/gitea:1.23"
+    support_images:
+      postgres: "postgres:16-alpine"
+
   grafana:
     subdomain: "grafana"
     port: 3100
