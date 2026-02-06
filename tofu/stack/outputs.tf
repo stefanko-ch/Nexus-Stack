@@ -189,6 +189,12 @@ output "secrets" {
     windmill_db_password        = random_password.windmill_db.result
     windmill_superadmin_secret  = random_password.windmill_superadmin_secret.result
 
+    # OpenMetadata
+    openmetadata_admin_password   = random_password.openmetadata_admin.result
+    openmetadata_db_password      = random_password.openmetadata_db.result
+    openmetadata_airflow_password = random_password.openmetadata_airflow.result
+    openmetadata_fernet_key       = random_id.openmetadata_fernet_key.b64_std
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server

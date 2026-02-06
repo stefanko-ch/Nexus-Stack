@@ -119,6 +119,10 @@ FILESTASH_ADMIN_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.filestash_admin_passwo
 WINDMILL_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_admin_password // empty')
 WINDMILL_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_db_password // empty')
 WINDMILL_SUPERADMIN_SECRET=$(echo "$SECRETS_JSON" | jq -r '.windmill_superadmin_secret // empty')
+OPENMETADATA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_admin_password // empty')
+OPENMETADATA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_db_password // empty')
+OPENMETADATA_AIRFLOW_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_airflow_password // empty')
+OPENMETADATA_FERNET_KEY=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_fernet_key // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -515,6 +519,21 @@ WINDMILL_SUPERADMIN_SECRET=${WINDMILL_SUPERADMIN_SECRET}
 DOMAIN=${DOMAIN}
 EOF
     echo -e "${GREEN}  ✓ Windmill .env generated${NC}"
+fi
+
+# Generate OpenMetadata .env from OpenTofu secrets
+if echo "$ENABLED_SERVICES" | grep -qw "openmetadata"; then
+    echo "  Generating OpenMetadata config from OpenTofu secrets..."
+    OM_PRINCIPAL_DOMAIN=$(echo "$ADMIN_EMAIL" | cut -d'@' -f2)
+    cat > "$STACKS_DIR/openmetadata/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+OPENMETADATA_DB_PASSWORD=${OPENMETADATA_DB_PASS}
+OPENMETADATA_AIRFLOW_PASSWORD=${OPENMETADATA_AIRFLOW_PASS}
+OPENMETADATA_FERNET_KEY=${OPENMETADATA_FERNET_KEY}
+OPENMETADATA_PRINCIPAL_DOMAIN=${OM_PRINCIPAL_DOMAIN}
+DOMAIN=${DOMAIN}
+EOF
+    echo -e "${GREEN}  ✓ OpenMetadata .env generated${NC}"
 fi
 
 # Generate RustFS .env from OpenTofu secrets
@@ -1270,7 +1289,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1303,6 +1322,7 @@ EOF
                     PGADMIN_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="pgadmin") | .id // empty' 2>/dev/null)
                     PREFECT_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="prefect") | .id // empty' 2>/dev/null)
                     WINDMILL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="windmill") | .id // empty' 2>/dev/null)
+                    OPENMETADATA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="openmetadata") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -1370,7 +1390,10 @@ EOF
     {"secretKey": "WINDMILL_ADMIN_EMAIL", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$WINDMILL_TAG"]},
     {"secretKey": "WINDMILL_ADMIN_PASSWORD", "secretValue": "$WINDMILL_ADMIN_PASS", "tagIds": ["$WINDMILL_TAG"]},
     {"secretKey": "WINDMILL_DB_PASSWORD", "secretValue": "$WINDMILL_DB_PASS", "tagIds": ["$WINDMILL_TAG"]},
-    {"secretKey": "WINDMILL_SUPERADMIN_SECRET", "secretValue": "$WINDMILL_SUPERADMIN_SECRET", "tagIds": ["$WINDMILL_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "WINDMILL_SUPERADMIN_SECRET", "secretValue": "$WINDMILL_SUPERADMIN_SECRET", "tagIds": ["$WINDMILL_TAG"]},
+    {"secretKey": "OPENMETADATA_USERNAME", "secretValue": "admin@$OM_PRINCIPAL_DOMAIN", "tagIds": ["$OPENMETADATA_TAG"]},
+    {"secretKey": "OPENMETADATA_PASSWORD", "secretValue": "$OPENMETADATA_ADMIN_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
+    {"secretKey": "OPENMETADATA_DB_PASSWORD", "secretValue": "$OPENMETADATA_DB_PASS", "tagIds": ["$OPENMETADATA_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -1943,6 +1966,63 @@ if echo "$ENABLED_SERVICES" | grep -qw "windmill" && [ -n "$WINDMILL_ADMIN_PASS"
             -d @-" >/dev/null 2>&1 || true
         echo -e "${GREEN}  ✓ Windmill default admin password secured${NC}"
 
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure OpenMetadata admin (change default password)
+if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADMIN_PASS" ]; then
+    (
+        echo "  Configuring OpenMetadata..."
+        OM_PRINCIPAL_DOMAIN=$(echo "$ADMIN_EMAIL" | cut -d'@' -f2)
+
+        # Wait for OpenMetadata to be ready (Java app, may take 2-3 min on first boot)
+        OPENMETADATA_READY=false
+        echo "  Waiting for OpenMetadata to be ready (may take up to 3min)..."
+        for i in $(seq 1 60); do
+            if ssh nexus "curl -s --connect-timeout 3 'http://localhost:8585/api/v1/system/version'" 2>/dev/null | grep -q 'version'; then
+                OPENMETADATA_READY=true
+                break
+            fi
+            sleep 3
+        done
+
+        if [ "$OPENMETADATA_READY" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ OpenMetadata not ready after 180s - skipping auto-configuration${NC}"
+            echo -e "${YELLOW}    Default credentials: admin@${OM_PRINCIPAL_DOMAIN} / admin${NC}"
+            exit 0
+        fi
+
+        # Login with default credentials to get JWT token
+        OM_LOGIN_JSON=$(jq -n --arg email "admin@${OM_PRINCIPAL_DOMAIN}" --arg password "admin" \
+            '{email: $email, password: $password}')
+        OM_LOGIN_RESULT=$(printf '%s' "$OM_LOGIN_JSON" | ssh nexus "curl -s -X POST 'http://localhost:8585/api/v1/users/login' \
+            -H 'Content-Type: application/json' \
+            -d @-" 2>/dev/null || echo "")
+
+        OM_TOKEN=$(echo "$OM_LOGIN_RESULT" | jq -r '.accessToken // empty' 2>/dev/null)
+
+        if [ -n "$OM_TOKEN" ] && [ "$OM_TOKEN" != "null" ]; then
+            # Change admin password using the password change API
+            OM_PW_JSON=$(jq -n --arg old "admin" --arg new "$OPENMETADATA_ADMIN_PASS" \
+                '{username: "admin", oldPassword: $old, newPassword: $new, confirmPassword: $new, requestType: "SELF"}')
+            OM_PW_RESULT=$(printf '%s' "$OM_PW_JSON" | ssh nexus "curl -s -X PUT 'http://localhost:8585/api/v1/users/password' \
+                -H 'Authorization: Bearer $OM_TOKEN' \
+                -H 'Content-Type: application/json' \
+                -d @-" 2>/dev/null || echo "")
+
+            if echo "$OM_PW_RESULT" | grep -qi 'error\|fail' 2>/dev/null; then
+                echo -e "${YELLOW}  ⚠ OpenMetadata password change failed - credentials in Infisical${NC}"
+            else
+                echo -e "${GREEN}  ✓ OpenMetadata admin configured (user: admin@${OM_PRINCIPAL_DOMAIN})${NC}"
+            fi
+        elif echo "$OM_LOGIN_RESULT" | grep -qi 'invalid\|unauthorized\|credentials' 2>/dev/null; then
+            # Login with default password failed - already configured
+            echo -e "${YELLOW}  ⚠ OpenMetadata already configured (default password already changed)${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ OpenMetadata auto-setup failed - configure manually at first login${NC}"
+            echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+        fi
     ) &
     CONFIG_JOBS+=($!)
 fi
