@@ -118,6 +118,7 @@ HETZNER_S3_BUCKET_GENERAL=$(echo "$SECRETS_JSON" | jq -r '.hetzner_s3_bucket_gen
 FILESTASH_ADMIN_PASSWORD=$(echo "$SECRETS_JSON" | jq -r '.filestash_admin_password // empty')
 WINDMILL_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_admin_password // empty')
 WINDMILL_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.windmill_db_password // empty')
+WINDMILL_SUPERADMIN_SECRET=$(echo "$SECRETS_JSON" | jq -r '.windmill_superadmin_secret // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -510,6 +511,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "windmill"; then
     cat > "$STACKS_DIR/windmill/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 WINDMILL_DB_PASSWORD=${WINDMILL_DB_PASS}
+WINDMILL_SUPERADMIN_SECRET=${WINDMILL_SUPERADMIN_SECRET}
 DOMAIN=${DOMAIN}
 EOF
     echo -e "${GREEN}  ✓ Windmill .env generated${NC}"
@@ -1367,7 +1369,8 @@ EOF
     {"secretKey": "PREFECT_DB_PASSWORD", "secretValue": "$PREFECT_DB_PASS", "tagIds": ["$PREFECT_TAG"]},
     {"secretKey": "WINDMILL_ADMIN_EMAIL", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$WINDMILL_TAG"]},
     {"secretKey": "WINDMILL_ADMIN_PASSWORD", "secretValue": "$WINDMILL_ADMIN_PASS", "tagIds": ["$WINDMILL_TAG"]},
-    {"secretKey": "WINDMILL_DB_PASSWORD", "secretValue": "$WINDMILL_DB_PASS", "tagIds": ["$WINDMILL_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "WINDMILL_DB_PASSWORD", "secretValue": "$WINDMILL_DB_PASS", "tagIds": ["$WINDMILL_TAG"]},
+    {"secretKey": "WINDMILL_SUPERADMIN_SECRET", "secretValue": "$WINDMILL_SUPERADMIN_SECRET", "tagIds": ["$WINDMILL_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -1858,45 +1861,88 @@ if echo "$ENABLED_SERVICES" | grep -qw "garage" && [ -n "$GARAGE_ADMIN_TOKEN" ];
     CONFIG_JOBS+=($!)
 fi
 
-# Configure Windmill admin (create superadmin user)
-if echo "$ENABLED_SERVICES" | grep -qw "windmill" && [ -n "$WINDMILL_ADMIN_PASS" ]; then
+# Configure Windmill (create admin user, workspace, secure default account)
+if echo "$ENABLED_SERVICES" | grep -qw "windmill" && [ -n "$WINDMILL_ADMIN_PASS" ] && [ -n "$WINDMILL_SUPERADMIN_SECRET" ]; then
     (
-        echo "  Configuring Windmill admin..."
-        # Wait for Windmill to be ready
+        echo "  Configuring Windmill..."
+
+        # Wait for Windmill to be ready (check version endpoint)
+        WINDMILL_READY=false
         for i in $(seq 1 30); do
             if ssh nexus "curl -s --connect-timeout 2 'http://localhost:8200/api/version'" >/dev/null 2>&1; then
+                WINDMILL_READY=true
                 break
             fi
             sleep 2
         done
 
-        # Create superadmin user via API (admin email)
-        WINDMILL_JSON="{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$WINDMILL_ADMIN_PASS\",\"super_admin\":true}"
-        WINDMILL_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8200/api/users/create' \
-            -H 'Content-Type: application/json' \
-            -d '$WINDMILL_JSON'" 2>/dev/null || echo "")
-
-        if echo "$WINDMILL_RESULT" | grep -q '"email"' 2>/dev/null; then
-            echo -e "${GREEN}  ✓ Windmill admin created (user: $ADMIN_EMAIL)${NC}"
-        elif echo "$WINDMILL_RESULT" | grep -q 'already exists' 2>/dev/null; then
-            echo -e "${YELLOW}  ⚠ Windmill admin already exists${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ Windmill setup skipped (may already be configured)${NC}"
+        if [ "$WINDMILL_READY" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ Windmill not ready after 60s - skipping auto-configuration${NC}"
+            exit 0
         fi
 
-        # Create user account for user_email if configured
+        # All API calls use SUPERADMIN_SECRET as bearer token
+        WM_AUTH="Authorization: Bearer $WINDMILL_SUPERADMIN_SECRET"
+        WM_CT="Content-Type: application/json"
+        WM_URL="http://localhost:8200/api"
+
+        # --- Step 1: Create superadmin user for ADMIN_EMAIL ---
+        WINDMILL_CREATE_JSON=$(jq -n --arg email "$ADMIN_EMAIL" --arg password "$WINDMILL_ADMIN_PASS" \
+            '{email: $email, password: $password, super_admin: true, name: "Admin"}')
+        WINDMILL_CREATE_RESULT=$(printf '%s' "$WINDMILL_CREATE_JSON" | ssh nexus "curl -s -X POST '$WM_URL/users/create' \
+            -H '$WM_AUTH' \
+            -H '$WM_CT' \
+            -d @-" 2>/dev/null || echo "")
+
+        if echo "$WINDMILL_CREATE_RESULT" | grep -q '"email"' 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Windmill admin created (user: $ADMIN_EMAIL)${NC}"
+        elif echo "$WINDMILL_CREATE_RESULT" | grep -qi 'already exists' 2>/dev/null; then
+            echo -e "${YELLOW}  ⚠ Windmill admin already exists${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Windmill admin creation: ${WINDMILL_CREATE_RESULT:-no response}${NC}"
+        fi
+
+        # --- Step 2: Create regular user for USER_EMAIL (if different from ADMIN_EMAIL) ---
         if [ -n "$USER_EMAIL" ] && [ "$USER_EMAIL" != "$ADMIN_EMAIL" ]; then
-            WINDMILL_USER_JSON="{\"email\":\"$USER_EMAIL\",\"password\":\"$WINDMILL_ADMIN_PASS\",\"super_admin\":false}"
-            WINDMILL_USER_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8200/api/users/create' \
-                -H 'Content-Type: application/json' \
-                -d '$WINDMILL_USER_JSON'" 2>/dev/null || echo "")
+            WINDMILL_USER_JSON=$(jq -n --arg email "$USER_EMAIL" --arg password "$WINDMILL_ADMIN_PASS" \
+                '{email: $email, password: $password, super_admin: false, name: "User"}')
+            WINDMILL_USER_RESULT=$(printf '%s' "$WINDMILL_USER_JSON" | ssh nexus "curl -s -X POST '$WM_URL/users/create' \
+                -H '$WM_AUTH' \
+                -H '$WM_CT' \
+                -d @-" 2>/dev/null || echo "")
 
             if echo "$WINDMILL_USER_RESULT" | grep -q '"email"' 2>/dev/null; then
                 echo -e "${GREEN}  ✓ Windmill user created (user: $USER_EMAIL)${NC}"
-            elif echo "$WINDMILL_USER_RESULT" | grep -q 'already exists' 2>/dev/null; then
+            elif echo "$WINDMILL_USER_RESULT" | grep -qi 'already exists' 2>/dev/null; then
                 echo -e "${YELLOW}  ⚠ Windmill user already exists${NC}"
             fi
         fi
+
+        # --- Step 3: Create "nexus" workspace ---
+        WINDMILL_WS_JSON=$(jq -n '{id: "nexus", name: "Nexus Stack"}')
+        WINDMILL_WS_RESULT=$(printf '%s' "$WINDMILL_WS_JSON" | ssh nexus "curl -s -X POST '$WM_URL/workspaces/create' \
+            -H '$WM_AUTH' \
+            -H '$WM_CT' \
+            -d @-" 2>/dev/null || echo "")
+
+        if [ "$WINDMILL_WS_RESULT" = "\"nexus\"" ] || echo "$WINDMILL_WS_RESULT" | grep -qi 'created' 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Windmill workspace 'nexus' created${NC}"
+        elif echo "$WINDMILL_WS_RESULT" | grep -qi 'already exists' 2>/dev/null; then
+            echo -e "${YELLOW}  ⚠ Windmill workspace 'nexus' already exists${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Windmill workspace creation: ${WINDMILL_WS_RESULT:-no response}${NC}"
+        fi
+
+        # --- Step 4: Secure the default admin@windmill.dev account ---
+        # Change the default password to a random value to prevent unauthorized access
+        RANDOM_PW=$(openssl rand -base64 32)
+        WINDMILL_DEFPW_JSON=$(jq -n --arg password "$RANDOM_PW" '{password: $password}')
+        printf '%s' "$WINDMILL_DEFPW_JSON" | ssh nexus "curl -s -X POST '$WM_URL/users/setpassword' \
+            -H '$WM_AUTH' \
+            -H '$WM_CT' \
+            -d @-" >/dev/null 2>&1 || true
+        echo -e "${GREEN}  ✓ Windmill default admin password secured${NC}"
+
     ) &
     CONFIG_JOBS+=($!)
 fi
