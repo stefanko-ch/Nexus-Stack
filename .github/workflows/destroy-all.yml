@@ -145,6 +145,7 @@ jobs:
           # Get persistent volume ID from control-plane and add to stack config
           PERSISTENT_VOLUME_ID=$(tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
           cd ../..
+          echo "" >> tofu/stack/config.tfvars
           cat >> tofu/stack/config.tfvars << EOF
           persistent_volume_id = $PERSISTENT_VOLUME_ID
           EOF
