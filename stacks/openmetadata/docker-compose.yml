@@ -32,7 +32,7 @@ x-openmetadata-env: &openmetadata-env
   AUTHORIZER_ENFORCE_PRINCIPAL_DOMAIN: "false"
   AUTHORIZER_ENABLE_SECURE_SOCKET: "false"
   AUTHENTICATION_PROVIDER: basic
-  AUTHENTICATION_PUBLIC_KEYS: "[http://openmetadata-server:8585/api/v1/system/config/jwks]"
+  AUTHENTICATION_PUBLIC_KEYS: "[http://openmetadata:8585/api/v1/system/config/jwks]"
   AUTHENTICATION_AUTHORITY: "https://accounts.google.com"
   AUTHENTICATION_ENABLE_SELF_SIGNUP: "false"
   AUTHENTICATION_CLIENT_TYPE: public
@@ -60,7 +60,7 @@ x-openmetadata-env: &openmetadata-env
   ELASTICSEARCH_BATCH_SIZE: "100"
   # Pipeline (Airflow Ingestion)
   PIPELINE_SERVICE_CLIENT_ENDPOINT: http://openmetadata-ingestion:8080
-  SERVER_HOST_API_URL: http://openmetadata-server:8585/api
+  SERVER_HOST_API_URL: http://openmetadata:8585/api
   PIPELINE_SERVICE_CLIENT_VERIFY_SSL: "no-ssl"
   PIPELINE_SERVICE_CLIENT_CLASS_NAME: "org.openmetadata.service.clients.pipeline.airflow.AirflowRESTClient"
   PIPELINE_SERVICE_CLIENT_ENABLED: "true"
@@ -145,9 +145,9 @@ services:
   # ---------------------------------------------------------------------------
   # OpenMetadata Server - API + Web UI
   # ---------------------------------------------------------------------------
-  openmetadata-server:
+  openmetadata:
     image: ${IMAGE_OPENMETADATA:-docker.getcollate.io/openmetadata/server:1.6.6}
-    container_name: openmetadata-server
+    container_name: openmetadata
     restart: unless-stopped
     env_file:
       - .env
@@ -196,7 +196,7 @@ services:
     depends_on:
       openmetadata-db:
         condition: service_healthy
-      openmetadata-server:
+      openmetadata:
         condition: service_started
     volumes:
       - openmetadata-ingestion-dag-configs:/opt/airflow/dag_generated_configs
