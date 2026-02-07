@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.16.0...v0.17.0) (2026-02-07)
+
+
+### 🚀 Features
+
+* **stacks:** Add Gitea stack with persistent Hetzner Cloud Volume ([9fb139a](https://github.com/stefanko-ch/Nexus-Stack/commit/9fb139a0bed8388b14478971017221a73cf01fc7)), closes [#158](https://github.com/stefanko-ch/Nexus-Stack/issues/158)
+* **stacks:** Add Gitea stack with persistent volume and fix scheduled teardown ([b1402c5](https://github.com/stefanko-ch/Nexus-Stack/commit/b1402c5097955fa21a872345f650d97b9e42fda0))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** add missing newline before persistent_volume_id in destroy-all ([fca8958](https://github.com/stefanko-ch/Nexus-Stack/commit/fca8958d53d8bde537019b5613bf6d2f059925c3))
+* **stacks:** add INSTALL_LOCK to Gitea to skip web installer ([4054f49](https://github.com/stefanko-ch/Nexus-Stack/commit/4054f490d7197eac2e9c9aa2f05a89bf925d7568))
+* **tofu:** merge worker cron triggers into single resource ([20c37e0](https://github.com/stefanko-ch/Nexus-Stack/commit/20c37e037c5bd562cfea237d16a3341134a6f284))
+
 ## [0.16.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.15.0...v0.16.0) (2026-02-06)
 
 
