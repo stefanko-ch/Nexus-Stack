@@ -220,6 +220,7 @@ jobs:
           HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "fsn1")
           HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")
           HETZNER_S3_BUCKET_GENERAL=$(tofu output -raw hetzner_s3_bucket_general 2>/dev/null || echo "")
+          PERSISTENT_VOLUME_ID=$(tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
           cd ../..
 
           # Add Hetzner Object Storage config to stack
@@ -228,12 +229,17 @@ jobs:
           hetzner_object_storage_region = "$HETZNER_S3_REGION"
           hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
           hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
+          persistent_volume_id          = $PERSISTENT_VOLUME_ID
           EOF
 
           if [ -n "$HETZNER_S3_BUCKET" ]; then
             echo "📦 Hetzner Object Storage configured (bucket: $HETZNER_S3_BUCKET)"
           else
             echo "⚠️  Hetzner Object Storage not configured (LakeFS will need manual setup)"
+          fi
+
+          if [ "$PERSISTENT_VOLUME_ID" != "0" ]; then
+            echo "💾 Persistent volume configured (ID: $PERSISTENT_VOLUME_ID)"
           fi
           
           # Generate services config from D1 (single source of truth)

@@ -66,6 +66,27 @@ variable "allow_disable_auto_shutdown" {
 }
 
 # =============================================================================
+# Hetzner Cloud (for persistent volumes)
+# =============================================================================
+
+variable "hcloud_token" {
+  description = "Hetzner Cloud API token (set via TF_VAR_hcloud_token)"
+  type        = string
+  sensitive   = true
+}
+
+variable "persistent_volume_size" {
+  description = "Size of the persistent Hetzner Cloud Volume in GB (minimum 10)"
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.persistent_volume_size >= 10
+    error_message = "Volume size must be at least 10 GB (Hetzner minimum)."
+  }
+}
+
+# =============================================================================
 # Hetzner Object Storage (for LakeFS)
 # =============================================================================
 # Server and region are not secrets - stored here with sensible defaults.

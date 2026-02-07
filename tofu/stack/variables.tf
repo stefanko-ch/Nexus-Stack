@@ -199,6 +199,12 @@ variable "hetzner_s3_bucket_general" {
   default     = ""
 }
 
+variable "persistent_volume_id" {
+  description = "Hetzner Cloud Volume ID for persistent storage (from control-plane output, 0 = no volume)"
+  type        = number
+  default     = 0
+}
+
 variable "github_owner" {
   description = "GitHub repository owner (used by control-plane module)"
   type        = string
