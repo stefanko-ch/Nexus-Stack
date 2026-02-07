@@ -133,14 +133,25 @@ jobs:
           source tofu/.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          
+
           # Initialize Nexus Stack state
           cd tofu/stack
           tofu init -backend-config=../backend.hcl 2>/dev/null || echo "No existing Nexus Stack state"
-          
+
           # Initialize Control Plane state
           cd ../control-plane
           tofu init -backend-config=../backend.hcl 2>/dev/null || echo "No existing Control Plane state"
+
+          # Get persistent volume ID from control-plane and add to stack config
+          PERSISTENT_VOLUME_ID=$(tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
+          cd ../..
+          echo "" >> tofu/stack/config.tfvars
+          cat >> tofu/stack/config.tfvars << EOF
+          persistent_volume_id = $PERSISTENT_VOLUME_ID
+          EOF
+          if [ "$PERSISTENT_VOLUME_ID" != "0" ]; then
+            echo "💾 Persistent volume will be destroyed (ID: $PERSISTENT_VOLUME_ID)"
+          fi
 
       - name: Destroy Nexus Stack infrastructure
         run: |

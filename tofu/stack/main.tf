@@ -263,6 +263,18 @@ resource "random_id" "openmetadata_fernet_key" {
   byte_length = 32
 }
 
+# Gitea admin password
+resource "random_password" "gitea_admin" {
+  length  = 24
+  special = false
+}
+
+# Gitea database password
+resource "random_password" "gitea_db" {
+  length  = 24
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
@@ -368,6 +380,19 @@ resource "hcloud_server" "main" {
     # Signal completion
     touch /opt/docker-server/.setup-complete
   EOT
+}
+
+# =============================================================================
+# Persistent Volume Attachment
+# =============================================================================
+# Attaches the persistent Hetzner Cloud Volume to the server.
+# Volume is created in control-plane state to survive teardown.
+
+resource "hcloud_volume_attachment" "persistent" {
+  count     = var.persistent_volume_id > 0 ? 1 : 0
+  volume_id = var.persistent_volume_id
+  server_id = hcloud_server.main.id
+  automount = true
 }
 
 # =============================================================================

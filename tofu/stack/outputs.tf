@@ -195,6 +195,10 @@ output "secrets" {
     openmetadata_airflow_password = random_password.openmetadata_airflow.result
     openmetadata_fernet_key       = random_id.openmetadata_fernet_key.b64_std
 
+    # Gitea
+    gitea_admin_password = random_password.gitea_admin.result
+    gitea_db_password    = random_password.gitea_db.result
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server
@@ -218,4 +222,9 @@ output "infisical_admin_password" {
   description = "Infisical admin password (for GitHub Secrets)"
   sensitive   = true
   value       = random_password.infisical_admin.result
+}
+
+output "persistent_volume_id" {
+  description = "Persistent volume ID (for deploy script volume mounting)"
+  value       = var.persistent_volume_id
 }

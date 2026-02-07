@@ -82,17 +82,16 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
   # Note: RESEND_API_KEY and GITHUB_TOKEN are set via setup-control-plane-secrets.sh
 }
 
-# Cron triggers for scheduled teardown (separate resource)
-resource "cloudflare_workers_cron_trigger" "scheduled_teardown_notification" {
+# Cron triggers for scheduled teardown
+# IMPORTANT: Must be a single resource — multiple resources for the same script
+# will overwrite each other (Cloudflare API replaces all schedules on each PUT)
+resource "cloudflare_workers_cron_trigger" "scheduled_teardown" {
   account_id  = var.cloudflare_account_id
   script_name = cloudflare_workers_script.scheduled_teardown.name
-  schedules   = ["45 20 * * *"]  # Notification at 20:45 UTC (21:45 CET)
-}
-
-resource "cloudflare_workers_cron_trigger" "scheduled_teardown_execution" {
-  account_id  = var.cloudflare_account_id
-  script_name = cloudflare_workers_script.scheduled_teardown.name
-  schedules   = ["0 21 * * *"]  # Teardown at 21:00 UTC (22:00 CET)
+  schedules   = [
+    "45 20 * * *",  # Notification at 20:45 UTC (21:45 CET)
+    "0 21 * * *",   # Teardown at 21:00 UTC (22:00 CET)
+  ]
 }
 
 # -----------------------------------------------------------------------------
@@ -229,4 +228,23 @@ resource "minio_s3_bucket" "general" {
   count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
   bucket = local.resource_prefix
   acl    = "private"
+}
+
+# -----------------------------------------------------------------------------
+# Hetzner Cloud Persistent Volume
+# -----------------------------------------------------------------------------
+# This volume persists through teardown - only destroyed on destroy-all.
+# Used by services that need persistent storage (e.g., Gitea repositories).
+# Mounted at /mnt/nexus-data/ on the server with subdirectories per service.
+
+resource "hcloud_volume" "persistent" {
+  name     = "${local.resource_prefix}-data"
+  size     = var.persistent_volume_size
+  location = var.server_location
+  format   = "ext4"
+
+  labels = {
+    managed_by = "opentofu"
+    purpose    = "persistent-data"
+  }
 }
