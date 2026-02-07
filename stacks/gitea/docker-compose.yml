@@ -36,6 +36,7 @@ services:
       GITEA__server__SSH_DOMAIN: gitea.${DOMAIN}
       GITEA__server__DOMAIN: gitea.${DOMAIN}
       GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__security__INSTALL_LOCK: "true"
     volumes:
       - /mnt/nexus-data/gitea/repos:/data/git/repositories
       - /mnt/nexus-data/gitea/lfs:/data/git/lfs
