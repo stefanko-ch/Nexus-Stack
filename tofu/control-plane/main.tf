@@ -82,17 +82,16 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
   # Note: RESEND_API_KEY and GITHUB_TOKEN are set via setup-control-plane-secrets.sh
 }
 
-# Cron triggers for scheduled teardown (separate resource)
-resource "cloudflare_workers_cron_trigger" "scheduled_teardown_notification" {
+# Cron triggers for scheduled teardown
+# IMPORTANT: Must be a single resource — multiple resources for the same script
+# will overwrite each other (Cloudflare API replaces all schedules on each PUT)
+resource "cloudflare_workers_cron_trigger" "scheduled_teardown" {
   account_id  = var.cloudflare_account_id
   script_name = cloudflare_workers_script.scheduled_teardown.name
-  schedules   = ["45 20 * * *"]  # Notification at 20:45 UTC (21:45 CET)
-}
-
-resource "cloudflare_workers_cron_trigger" "scheduled_teardown_execution" {
-  account_id  = var.cloudflare_account_id
-  script_name = cloudflare_workers_script.scheduled_teardown.name
-  schedules   = ["0 21 * * *"]  # Teardown at 21:00 UTC (22:00 CET)
+  schedules   = [
+    "45 20 * * *",  # Notification at 20:45 UTC (21:45 CET)
+    "0 21 * * *",   # Teardown at 21:00 UTC (22:00 CET)
+  ]
 }
 
 # -----------------------------------------------------------------------------
