@@ -10,7 +10,7 @@ Images are pinned to **major versions** where supported for automatic security p
 |---------|-------|-----|----------|
 | Adminer | `adminer` | `latest` | Latest ² |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
-| ClickHouse | `clickhouse/clickhouse-server` | `25.8.14.17-lts` | Exact (LTS) ¹ |
+| ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
 | code-server | `codercom/code-server` | `latest` | Latest ² |
 | Draw.io | `jgraph/drawio` | `29` | Major |
 | Grafana | `grafana/grafana` | `12` | Major |
