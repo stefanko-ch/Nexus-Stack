@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.17.0...v0.18.0) (2026-02-08)
+
+
+### 🚀 Features
+
+* **stacks:** Add ClickHouse analytics database ([b54d0cc](https://github.com/stefanko-ch/Nexus-Stack/commit/b54d0cc6b007d4294f00d62b4b480f50f376506b))
+* **stacks:** Add ClickHouse analytics database ([2b8aba4](https://github.com/stefanko-ch/Nexus-Stack/commit/2b8aba4d893df72967b682b4de5d9c87981284ae)), closes [#26](https://github.com/stefanko-ch/Nexus-Stack/issues/26)
+
+
+### 🐛 Bug Fixes
+
+* **control-plane:** use European date format in logs page ([af86261](https://github.com/stefanko-ch/Nexus-Stack/commit/af86261ef0119d61b77f059cc29852b56ae2df5a))
+* **stacks:** correct ClickHouse image tag to 25.8.16.34 ([7ef9830](https://github.com/stefanko-ch/Nexus-Stack/commit/7ef983066abe747806ff2710c717b5d5f6c86751))
+
 ## [0.17.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.16.0...v0.17.0) (2026-02-07)
 
 
