@@ -25,6 +25,7 @@ services:
     environment:
       CATALOG_MANAGEMENT: dynamic
     volumes:
+      - ./config.properties:/etc/trino/config.properties:ro
       - ./catalog:/etc/trino/catalog
       - trino-data:/data/trino
     networks:
