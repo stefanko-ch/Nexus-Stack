@@ -20,13 +20,11 @@ services:
     container_name: trino
     restart: unless-stopped
     ports:
-      - "8060:8080"
+      - "127.0.0.1:8060:8080"
     env_file: .env
-    environment:
-      CATALOG_MANAGEMENT: dynamic
     volumes:
       - ./config.properties:/etc/trino/config.properties:ro
-      - ./catalog:/etc/trino/catalog
+      - ./catalog:/etc/trino/catalog:ro
       - trino-data:/data/trino
     networks:
       - app-network
