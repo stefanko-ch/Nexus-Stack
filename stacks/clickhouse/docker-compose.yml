@@ -15,7 +15,7 @@
 
 services:
   clickhouse:
-    image: ${IMAGE_CLICKHOUSE:-clickhouse/clickhouse-server:25.8.14.17-lts}
+    image: ${IMAGE_CLICKHOUSE:-clickhouse/clickhouse-server:25.8.16.34}
     container_name: clickhouse
     restart: unless-stopped
     ports:

@@ -38,7 +38,7 @@ services:
     port: 8123
     public: false
     description: "Fast, open-source columnar database for real-time analytics and OLAP queries."
-    image: "clickhouse/clickhouse-server:25.8.14.17-lts"
+    image: "clickhouse/clickhouse-server:25.8.16.34"
     tcp_ports:
       native: 9004
 
