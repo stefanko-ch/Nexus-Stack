@@ -135,6 +135,9 @@ output "secrets" {
     # CloudBeaver
     cloudbeaver_admin_password = random_password.cloudbeaver_admin.result
 
+    # ClickHouse
+    clickhouse_admin_password = random_password.clickhouse_admin.result
+
     # Mage AI
     mage_admin_password = random_password.mage_admin.result
 

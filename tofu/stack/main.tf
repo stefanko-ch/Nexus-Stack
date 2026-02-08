@@ -263,6 +263,12 @@ resource "random_id" "openmetadata_fernet_key" {
   byte_length = 32
 }
 
+# ClickHouse admin password
+resource "random_password" "clickhouse_admin" {
+  length  = 24
+  special = false
+}
+
 # Gitea admin password
 resource "random_password" "gitea_admin" {
   length  = 24

@@ -33,6 +33,15 @@ services:
     description: "Web-based database management tool supporting PostgreSQL, MySQL, SQL Server, and more."
     image: "dbeaver/cloudbeaver:24"
 
+  clickhouse:
+    subdomain: "clickhouse"
+    port: 8123
+    public: false
+    description: "Fast, open-source columnar database for real-time analytics and OLAP queries."
+    image: "clickhouse/clickhouse-server:25.8.16.34"
+    tcp_ports:
+      native: 9004
+
   code-server:
     subdomain: "code"
     port: 8100

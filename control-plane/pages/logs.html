@@ -403,7 +403,7 @@
     function formatTime(isoString) {
       if (!isoString) return '-';
       const d = new Date(isoString + 'Z');
-      return d.toLocaleString();
+      return d.toLocaleString('de-CH');
     }
     
     function escapeHtml(text) {
