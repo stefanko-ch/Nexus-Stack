@@ -129,6 +129,7 @@ flowchart LR
 ![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)
 ![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)
 ![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)
+![Trino](https://img.shields.io/badge/Trino-DD00A1?logo=trino&logoColor=white)
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
 ![Windmill](https://img.shields.io/badge/Windmill-3B82F6?logo=windowsterminal&logoColor=white)
@@ -170,6 +171,7 @@ flowchart LR
 | **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
 | **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
+| **Trino** | Distributed SQL query engine for querying data across multiple sources | [trino.io](https://trino.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |

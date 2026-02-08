@@ -348,6 +348,13 @@ services:
     support_images:
       postgres: "postgres:16-alpine"
 
+  trino:
+    subdomain: "trino"
+    port: 8060
+    public: false
+    description: "Distributed SQL query engine for querying data across multiple sources (ClickHouse, PostgreSQL, and more)."
+    image: "trinodb/trino:479"
+
   uptime-kuma:
     subdomain: "uptime-kuma"
     port: 3001

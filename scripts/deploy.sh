@@ -621,6 +621,17 @@ EOF
     echo -e "${GREEN}  ✓ ClickHouse .env generated${NC}"
 fi
 
+# Generate Trino .env from OpenTofu secrets (catalog connector passwords)
+if echo "$ENABLED_SERVICES" | grep -qw "trino"; then
+    echo "  Generating Trino config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/trino/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+CLICKHOUSE_ADMIN_PASSWORD=${CLICKHOUSE_ADMIN_PASS}
+POSTGRES_PASSWORD=${POSTGRES_PASS}
+EOF
+    echo -e "${GREEN}  ✓ Trino .env generated${NC}"
+fi
+
 # Generate RustFS .env from OpenTofu secrets
 if echo "$ENABLED_SERVICES" | grep -qw "rustfs"; then
     echo "  Generating RustFS config from OpenTofu secrets..."
