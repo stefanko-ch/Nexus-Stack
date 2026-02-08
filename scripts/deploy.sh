@@ -623,7 +623,7 @@ fi
 
 # Generate Trino .env from OpenTofu secrets (catalog connector passwords)
 if echo "$ENABLED_SERVICES" | grep -qw "trino"; then
-    echo "  Generating Trino config from OpenTofu secrets..."
+    echo "  Generating Trino .env from OpenTofu secrets..."
     cat > "$STACKS_DIR/trino/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
 CLICKHOUSE_ADMIN_PASSWORD=${CLICKHOUSE_ADMIN_PASS}
