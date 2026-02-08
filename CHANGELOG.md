@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.18.0...v0.19.0) (2026-02-08)
+
+
+### 🚀 Features
+
+* **stacks:** Add Trino distributed SQL query engine ([8f60a6a](https://github.com/stefanko-ch/Nexus-Stack/commit/8f60a6a65f4ea8da7bf66474a79f18da7361b9cb))
+* **stacks:** Add Trino distributed SQL query engine ([ce07a3a](https://github.com/stefanko-ch/Nexus-Stack/commit/ce07a3a2ef7595370f0f277e5d0852f53dadc896)), closes [#91](https://github.com/stefanko-ch/Nexus-Stack/issues/91)
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** address Trino PR review feedback ([fa7c62e](https://github.com/stefanko-ch/Nexus-Stack/commit/fa7c62eece841680e687de513e3476410c0e4e47))
+* **stacks:** allow forwarded headers in Trino for Cloudflare Tunnel ([395abb5](https://github.com/stefanko-ch/Nexus-Stack/commit/395abb5786267347cbe07b465fca49f617e6bf55))
+
 ## [0.18.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.17.0...v0.18.0) (2026-02-08)
 
 
