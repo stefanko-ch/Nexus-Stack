@@ -1,0 +1,43 @@
+# =============================================================================
+# Trino - Distributed SQL Query Engine
+# =============================================================================
+# Fast, distributed SQL query engine for querying data across multiple sources.
+#
+# Access: https://trino.YOUR_DOMAIN (Web UI + query endpoint)
+#
+# Authentication: None (Cloudflare Access provides authentication)
+#
+# Pre-configured catalogs:
+#   - clickhouse: Connects to ClickHouse on the same server
+#   - postgresql: Connects to PostgreSQL on the same server
+#
+# Documentation: https://trino.io/docs/current/
+# =============================================================================
+
+services:
+  trino:
+    image: ${IMAGE_TRINO:-trinodb/trino:479}
+    container_name: trino
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8060:8080"
+    env_file: .env
+    volumes:
+      - ./config.properties:/etc/trino/config.properties:ro
+      - ./catalog:/etc/trino/catalog:ro
+      - trino-data:/data/trino
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  trino-data:
+
+networks:
+  app-network:
+    external: true
