@@ -13,6 +13,9 @@ on:
       ssh_pubkey:
         description: 'SSH Public Key (for spin-up workflow)'
         value: ${{ jobs.deploy.outputs.ssh_pubkey }}
+      ssh_private_key:
+        description: 'SSH Private Key (for spin-up during initial setup)'
+        value: ${{ jobs.deploy.outputs.ssh_private_key }}
 
 permissions:
   contents: read
@@ -29,6 +32,7 @@ jobs:
       r2_access_key_id: ${{ steps.r2_credentials.outputs.r2_access_key_id }}
       r2_secret_access_key: ${{ steps.r2_credentials.outputs.r2_secret_access_key }}
       ssh_pubkey: ${{ steps.ssh_key.outputs.ssh_pubkey }}
+      ssh_private_key: ${{ steps.ssh_key.outputs.ssh_private_key }}
     env:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -107,6 +111,14 @@ jobs:
           
           # Export public key for output (named ssh_pubkey to avoid GitHub Actions secret warning)
           echo "ssh_pubkey=$(cat ~/.ssh/id_ed25519.pub)" >> $GITHUB_OUTPUT
+
+          # Export private key for output (for initial-setup passthrough to spin-up)
+          # This follows the same pattern as r2_secret_access_key
+          {
+            echo "ssh_private_key<<SSHEOF"
+            cat ~/.ssh/id_ed25519
+            echo "SSHEOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Compute resource prefix
         id: prefix
