@@ -27,6 +27,10 @@ on:
         description: 'SSH Public Key (from setup-control-plane)'
         required: false
         type: string
+      ssh_private_key:
+        description: 'SSH Private Key (from setup-control-plane, for initial setup)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -84,37 +88,45 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          
-          # Use SSH key from secrets (created by setup-control-plane)
+
+          # Ensure newly created key files are never group/world-readable
+          umask 077
+
+          # Get private key: 1) secrets (subsequent runs), 2) workflow input (initial setup)
           if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "🔑 Using SSH key from GitHub Secrets"
-            echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-            
-            # Try to get public key from secrets, then inputs, then derive it
-            if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
-              echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
-            elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
-              echo "${{ inputs.ssh_pubkey }}" > ~/.ssh/id_ed25519.pub
-            else
-               echo "ℹ️ Deriving public key from private key..."
-               ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
-            fi
-          elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
-            # Fallback: Key passed from setup-control-plane during initial-setup
-            # (In case secrets aren't available yet or private key is missing context - unlikely)
-            echo "🔑 Using SSH key from workflow input"
-            # Note: Private key should already be in secrets at this point if we are here via workflow call
-            if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-                echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-            fi
-            echo "${{ inputs.ssh_pubkey }}" > ~/.ssh/id_ed25519.pub
+            cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF_PRIVATE_KEY
+          elif [ -n "${{ inputs.ssh_private_key }}" ]; then
+            echo "🔑 Using SSH key from workflow input (initial setup)"
+            # Mask each line of the private key to prevent log exposure
+            while IFS= read -r line; do
+              echo "::add-mask::$line"
+            done <<'EOF_MASK'
+          ${{ inputs.ssh_private_key }}
+          EOF_MASK
+            cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+          ${{ inputs.ssh_private_key }}
+          EOF_PRIVATE_KEY
           else
             echo "❌ No SSH key found!"
             echo "   Please run the 'Initial Setup' workflow (initial-setup.yaml) first to generate SSH keys."
             exit 1
           fi
-          
+
+          # Ensure correct permissions (umask handles creation, this is a safety net)
           chmod 600 ~/.ssh/id_ed25519
+
+          # Get public key: secrets, inputs, or derive from private key
+          if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
+            echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
+          elif [ -n "${{ inputs.ssh_pubkey }}" ]; then
+            echo "${{ inputs.ssh_pubkey }}" > ~/.ssh/id_ed25519.pub
+          else
+            echo "ℹ️ Deriving public key from private key..."
+            ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          fi
           chmod 644 ~/.ssh/id_ed25519.pub
           echo "✅ SSH key configured"
 
@@ -417,7 +429,7 @@ jobs:
 
       - name: Deploy stacks
         env:
-          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY || inputs.ssh_private_key }}
         run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
