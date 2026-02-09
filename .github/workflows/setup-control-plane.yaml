@@ -115,7 +115,7 @@ jobs:
           # Export private key for output (for initial-setup passthrough to spin-up)
           # This follows the same pattern as r2_secret_access_key
           # Mask the private key so it never appears in logs
-          echo "::add-mask::$(cat ~/.ssh/id_ed25519 | base64 -w0)"
+          echo "::add-mask::$(base64 -w0 < ~/.ssh/id_ed25519)"
           while IFS= read -r line; do
             echo "::add-mask::$line"
           done < ~/.ssh/id_ed25519
