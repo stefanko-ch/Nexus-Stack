@@ -125,8 +125,9 @@ async function handleScheduledTeardown(event, env) {
     }
 
     // Check if infrastructure is actually deployed before proceeding
+    // Only skip for known-not-deployed states; treat unknown/running as fail-open
     const infraState = await checkInfraStatus(env);
-    if (infraState !== 'deployed') {
+    if (infraState === 'torn-down' || infraState === 'offline') {
       const message = `Infrastructure is not deployed (state: ${infraState}), skipping scheduled teardown`;
       console.log(message);
       await logToD1(env.NEXUS_DB, 'info', message, { infraState });
@@ -189,7 +190,7 @@ async function checkInfraStatus(env) {
   }
 
   try {
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=20`;
+    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=100`;
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
@@ -241,23 +242,26 @@ async function checkInfraStatus(env) {
       return 'running';
     }
 
-    // Find the most recent completed workflow
+    // Find the most recent completed workflow (any conclusion, not just success)
     const completedRuns = allRuns
-      .filter(r => r.conclusion === 'success')
+      .filter(r => r.status === 'completed')
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
     if (completedRuns.length > 0) {
       const lastRun = completedRuns[0];
       const lastPath = lastRun.path || '';
       const lastName = lastRun.name || '';
+      const lastConclusion = lastRun.conclusion || '';
 
       if (lastPath.includes(WORKFLOW_PATHS.initialSetup) || lastName.includes('Initial Setup') ||
           lastPath.includes(WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
         return 'deployed';
       } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
-        return 'torn-down';
+        // If teardown failed, infra is likely still deployed
+        return lastConclusion === 'success' ? 'torn-down' : 'deployed';
       } else if (lastPath.includes(WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
-        return 'offline';
+        // If destroy failed, infra is at least torn down but not fully offline
+        return lastConclusion === 'success' ? 'offline' : 'torn-down';
       }
     }
 
