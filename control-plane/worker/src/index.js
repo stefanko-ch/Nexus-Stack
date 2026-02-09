@@ -124,10 +124,19 @@ async function handleScheduledTeardown(event, env) {
       }
     }
 
+    // Check if infrastructure is actually deployed before proceeding
+    const infraState = await checkInfraStatus(env);
+    if (infraState !== 'deployed') {
+      const message = `Infrastructure is not deployed (state: ${infraState}), skipping scheduled teardown`;
+      console.log(message);
+      await logToD1(env.NEXUS_DB, 'info', message, { infraState });
+      return;
+    }
+
     const now = new Date();
     const currentTime = now.toISOString();
     const cronSchedule = event.cron; // e.g., "0 21 * * *" or "45 20 * * *"
-    
+
     console.log(`Scheduled event triggered at ${currentTime} (cron: ${cronSchedule})`);
 
     // Determine action based on which cron trigger fired
@@ -166,6 +175,96 @@ async function handleScheduledTeardown(event, env) {
       error: error.message,
       stack: error.stack?.substring(0, 500),
     });
+  }
+}
+
+/**
+ * Check infrastructure status via GitHub Actions API.
+ * Returns the infra state: 'deployed', 'torn-down', 'offline', 'running', or 'unknown'.
+ */
+async function checkInfraStatus(env) {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
+    console.warn('Missing GitHub env vars for status check, assuming deployed');
+    return 'deployed'; // Fail open: if we can't check, proceed with teardown
+  }
+
+  try {
+    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=20`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Nexus-Stack-Scheduled-Teardown',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`GitHub API returned ${response.status}, assuming deployed`);
+      return 'deployed'; // Fail open
+    }
+
+    const data = await response.json();
+    if (!data.workflow_runs || !Array.isArray(data.workflow_runs)) {
+      return 'deployed'; // Fail open
+    }
+
+    const WORKFLOW_PATHS = {
+      initialSetup: 'initial-setup.yaml',
+      spinUp: 'spin-up.yml',
+      teardown: 'teardown.yml',
+      destroy: 'destroy-all.yml',
+    };
+
+    // Find the most recent run for each relevant workflow
+    const workflows = { initialSetup: null, spinUp: null, teardown: null, destroy: null };
+
+    for (const run of data.workflow_runs) {
+      const path = run.path || '';
+      const name = run.name || '';
+
+      if (!workflows.initialSetup && (path.includes(WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup'))) {
+        workflows.initialSetup = run;
+      } else if (!workflows.spinUp && (path.includes(WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up'))) {
+        workflows.spinUp = run;
+      } else if (!workflows.teardown && (path.includes(WORKFLOW_PATHS.teardown) || name.includes('Teardown'))) {
+        workflows.teardown = run;
+      } else if (!workflows.destroy && (path.includes(WORKFLOW_PATHS.destroy) || name.includes('Destroy'))) {
+        workflows.destroy = run;
+      }
+    }
+
+    // Check if any workflow is currently running
+    const allRuns = [workflows.initialSetup, workflows.spinUp, workflows.teardown, workflows.destroy].filter(Boolean);
+    const runningWorkflow = allRuns.find(r => r.status === 'in_progress' || r.status === 'queued');
+
+    if (runningWorkflow) {
+      return 'running';
+    }
+
+    // Find the most recent completed workflow
+    const completedRuns = allRuns
+      .filter(r => r.conclusion === 'success')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+    if (completedRuns.length > 0) {
+      const lastRun = completedRuns[0];
+      const lastPath = lastRun.path || '';
+      const lastName = lastRun.name || '';
+
+      if (lastPath.includes(WORKFLOW_PATHS.initialSetup) || lastName.includes('Initial Setup') ||
+          lastPath.includes(WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
+        return 'deployed';
+      } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
+        return 'torn-down';
+      } else if (lastPath.includes(WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
+        return 'offline';
+      }
+    }
+
+    return 'unknown';
+  } catch (error) {
+    console.warn('Failed to check infra status, assuming deployed:', error.message);
+    return 'deployed'; // Fail open
   }
 }
 
