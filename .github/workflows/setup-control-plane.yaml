@@ -113,12 +113,10 @@ jobs:
           echo "ssh_pubkey=$(cat ~/.ssh/id_ed25519.pub)" >> $GITHUB_OUTPUT
 
           # Export private key for output (for initial-setup passthrough to spin-up)
-          # This follows the same pattern as r2_secret_access_key
-          # Mask the private key so it never appears in logs
-          echo "::add-mask::$(base64 -w0 < ~/.ssh/id_ed25519)"
-          while IFS= read -r line; do
-            echo "::add-mask::$line"
-          done < ~/.ssh/id_ed25519
+          # Note: Don't mask private key here - masking prevents it from being
+          # passed as workflow output (GitHub blocks outputs containing masked values)
+          # AND can corrupt R2 credentials if base64 substrings match.
+          # The key will be masked by the receiving workflow (spin-up.yml) when used
           {
             echo "ssh_private_key<<SSHEOF"
             cat ~/.ssh/id_ed25519
