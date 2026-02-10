@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.19.0...v0.19.1) (2026-02-09)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** mask SSH private key in logs and harden file creation ([0bad5a6](https://github.com/stefanko-ch/Nexus-Stack/commit/0bad5a61ef0fb7ef107e0f898a417ed6de2495e2))
+* **ci:** pass SSH private key as workflow output for initial setup ([11c0421](https://github.com/stefanko-ch/Nexus-Stack/commit/11c0421eddb306f24336f0f3890d182b4656c390))
+* **ci:** pass SSH private key as workflow output for initial setup ([9d0a1fb](https://github.com/stefanko-ch/Nexus-Stack/commit/9d0a1fbb8f1336ebaefde06259aec3d7e91c9ae2))
+* **ci:** replace useless cat with input redirection (SC2002) ([320ed12](https://github.com/stefanko-ch/Nexus-Stack/commit/320ed12ae11e344db44bf0900291b73191ea3372))
+* skip scheduled teardown when infrastructure is not deployed ([1f22c7e](https://github.com/stefanko-ch/Nexus-Stack/commit/1f22c7e769c65b154527901f61e84f8a0df081cf))
+* **worker:** address PR review feedback for infra status check ([3e35544](https://github.com/stefanko-ch/Nexus-Stack/commit/3e35544cf1e83ee8c6c1c20827dd9fe67cc76324))
+* **worker:** skip scheduled teardown when infrastructure is not deployed ([9fb9f7d](https://github.com/stefanko-ch/Nexus-Stack/commit/9fb9f7d1f3d8e905a031d7cb50c179eabce41831))
+
 ## [0.19.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.18.0...v0.19.0) (2026-02-08)
 
 
