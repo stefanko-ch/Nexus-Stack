@@ -11,6 +11,9 @@
 # - prefect-worker: Local flow executor (work pool: "local-pool")
 # - prefect-db: Dedicated PostgreSQL database
 #
+# Git Integration: If Gitea is enabled, the shared workspace repo is
+# auto-cloned into /flows/ in the worker container.
+#
 # SECURITY:
 # - Protected by Cloudflare Access (email OTP authentication)
 # - No built-in authentication on self-hosted Prefect Server
@@ -65,13 +68,24 @@ services:
     image: ${IMAGE_PREFECT:-prefecthq/prefect:3-latest}
     container_name: prefect-worker
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       PREFECT_API_URL: "http://prefect:4200/api"
-    command: prefect worker start --pool local-pool
+    command: >
+      bash -c "
+        if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /flows/$$REPO_NAME/.git ]; then
+          git clone \"$$GITEA_REPO_URL\" /flows/$$REPO_NAME 2>/dev/null || true;
+        fi;
+        exec prefect worker start --pool local-pool
+      "
+    volumes:
+      - prefect-flows:/flows
     depends_on:
       prefect:
         condition: service_healthy
     networks:
+      - app-network
       - prefect-internal
 
   prefect-db:
@@ -97,6 +111,7 @@ services:
 volumes:
   prefect-data:
   prefect-db-data:
+  prefect-flows:
 
 networks:
   app-network:

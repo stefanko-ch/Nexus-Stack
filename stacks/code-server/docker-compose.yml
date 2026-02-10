@@ -7,6 +7,9 @@
 #
 # Note: Password authentication is disabled (--auth none) since Cloudflare
 # Access provides email OTP protection at the network level.
+#
+# Git Integration: If Gitea is enabled, the shared workspace repo is
+# auto-cloned and code-server opens directly in that folder.
 # =============================================================================
 
 services:
@@ -14,7 +17,18 @@ services:
     image: ${IMAGE_CODE_SERVER:-codercom/code-server:latest}
     container_name: code-server
     restart: unless-stopped
-    command: ["--auth", "none", "--bind-addr", "0.0.0.0:8080"]
+    command: >
+      bash -c "
+        if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /home/coder/$$REPO_NAME/.git ]; then
+          git clone \"$$GITEA_REPO_URL\" /home/coder/$$REPO_NAME 2>/dev/null || true;
+        fi;
+        OPEN_DIR=/home/coder;
+        if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;
+        exec code-server --auth none --bind-addr 0.0.0.0:8080 \$$OPEN_DIR
+      "
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8100:8080"
     volumes:
