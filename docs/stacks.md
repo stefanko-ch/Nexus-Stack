@@ -38,6 +38,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Filestash | `machines/filestash` | `latest` | Latest ² |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
+| Git Proxy | `nginx` | `alpine` | Latest ² |
 | Gitea | `gitea/gitea` | `1.23` | Major |
 | PostgreSQL (Gitea DB) | `postgres` | `16-alpine` | Major |
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
@@ -566,6 +567,42 @@ A modern, developer-friendly alternative to HashiCorp Vault:
 
 ---
 
+## Git Proxy
+
+![Git Proxy](https://img.shields.io/badge/Git_Proxy-009639?logo=nginx&logoColor=white)
+
+**Public HTTPS Git access for external tools (Databricks, CI/CD)**
+
+Nginx reverse proxy that forwards Git HTTPS requests to Gitea. Provides public Git clone/push/pull access for external tools without exposing the Gitea Web UI.
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `3201` (-> internal 80) |
+| Suggested Subdomain | `git` |
+| Public Access | Yes (no Cloudflare Access) |
+
+### How It Works
+
+```
+External tools ──HTTPS──> git.<domain> (PUBLIC)
+                               │ (Cloudflare Tunnel)
+                         Nginx (:3201)
+                               │ (proxy_pass)
+                         Gitea (:3000) (PRIVATE)
+```
+
+- External tools (Databricks) use `https://git.<domain>/<user>/<repo>.git` with Gitea PAT
+- Internal services (Jupyter, etc.) use `http://gitea:3000` directly via Docker network
+- Gitea Web UI at `https://gitea.<domain>` remains private (Cloudflare Access OTP)
+
+### Usage with Databricks
+
+1. Create a Personal Access Token (PAT) in Gitea
+2. In Databricks, add Git Credentials: select "GitHub" provider, use Gitea username + PAT
+3. Clone repos via: `https://git.<domain>/<user>/<repo>.git`
+
+---
+
 ## Gitea
 
 ![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)
@@ -593,7 +630,21 @@ A lightweight, self-hosted Git hosting solution that provides:
 
 The stack includes:
 - **Gitea** - Git service (Web UI + API)
+- **Git Proxy** - Nginx reverse proxy for public Git HTTPS access (separate stack)
 - **PostgreSQL** - Database for users, issues, PRs, and metadata
+
+### Shared Workspace Repo
+
+During deployment, a shared workspace repo named `nexus-<domain>-gitea` is automatically created. This repo is auto-cloned into the following services:
+
+| Service | Clone Location | Method |
+|---------|---------------|--------|
+| Jupyter | `/home/jovyan/work/<repo>` | Entrypoint + jupyterlab-git |
+| Marimo | `/app/notebooks/<repo>` | Entrypoint clone |
+| code-server | `/home/coder/<repo>` | Entrypoint clone (opens as workspace) |
+| Meltano | `/project/<repo>` | Entrypoint clone |
+| Prefect | `/flows/<repo>` (worker) | Entrypoint clone |
+| Kestra | Git sync flow | `plugin-git` SyncNamespaceFiles (every 15 min) |
 
 ### Persistent Storage
 
