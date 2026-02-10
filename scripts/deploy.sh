@@ -231,20 +231,40 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
 
     TOKEN_RETRY=0
     BACKOFF=5
-    
+    SSH_ERR=$(mktemp)
+    trap 'rm -f "$SSH_ERR"' EXIT
+
     while [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; do
-        if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
-            echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
-            break
+        if [ $TOKEN_RETRY -eq $((MAX_TOKEN_RETRIES - 1)) ]; then
+            # Last attempt: verbose SSH for full diagnostics
+            echo "  Last attempt - running with verbose SSH output..."
+            if ssh -v -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' >"$SSH_ERR" 2>&1; then
+                echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
+                cat "$SSH_ERR"
+                rm -f "$SSH_ERR"
+                trap - EXIT
+                break
+            fi
+            # Print verbose output for diagnostics
+            cat "$SSH_ERR"
+        else
+            if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o BatchMode=yes nexus 'echo ok' 2>"$SSH_ERR"; then
+                echo -e "${GREEN}  ✓ Service Token authentication successful${NC}"
+                rm -f "$SSH_ERR"
+                trap - EXIT
+                break
+            fi
         fi
         TOKEN_RETRY=$((TOKEN_RETRY + 1))
         if [ $TOKEN_RETRY -lt $MAX_TOKEN_RETRIES ]; then
             echo "  Retry $TOKEN_RETRY/$MAX_TOKEN_RETRIES - waiting ${BACKOFF}s for propagation..."
+            echo -e "  ${DIM}Last error (last 3 lines):${NC}"
+            tail -n 3 "$SSH_ERR" | sed 's/^/    /'
             sleep $BACKOFF
             BACKOFF=$((BACKOFF + 5))  # Linear increase: 5s, 10s, 15s, 20s, 25s
         fi
     done
-    
+
     if [ $TOKEN_RETRY -eq $MAX_TOKEN_RETRIES ]; then
         echo ""
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
@@ -252,8 +272,23 @@ if [ "$USE_SERVICE_TOKEN" = "true" ]; then
         echo -e "${RED}╠═══════════════════════════════════════════════════════════════╣${NC}"
         echo -e "${RED}║${NC}  Service Token authentication failed after $MAX_TOKEN_RETRIES attempts.  ${RED}║${NC}"
         echo -e "${RED}║${NC}  Browser login fallback is not supported in GitHub Actions.      ${RED}║${NC}"
-        echo -e "${RED}║${NC}  Please check that the Service Token is correctly configured.     ${RED}║${NC}"
         echo -e "${RED}╚═══════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${YELLOW}  Diagnostics:${NC}"
+        echo "  SSH Host: $SSH_HOST"
+        echo "  Service Token Client ID: [redacted]"
+        echo "  cloudflared version: $(cloudflared --version 2>&1 || echo 'not found')"
+        if command -v nslookup >/dev/null 2>&1; then
+            echo "  DNS lookup for $SSH_HOST:"
+            nslookup "$SSH_HOST" 2>&1 | head -6
+        else
+            echo "  DNS lookup: nslookup not available"
+        fi
+        echo ""
+        echo -e "${YELLOW}  Last SSH error output:${NC}"
+        cat "$SSH_ERR" 2>/dev/null || echo "    (no error output captured)"
+        rm -f "$SSH_ERR"
+        trap - EXIT
         echo ""
         exit 1
     fi
@@ -262,14 +297,20 @@ fi
 MAX_RETRIES=15
 RETRY=0
 TIMEOUT=5
+SSH_ERR=$(mktemp)
+trap 'rm -f "$SSH_ERR"' EXIT
 while [ $RETRY -lt $MAX_RETRIES ]; do
-    if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=$TIMEOUT -o BatchMode=yes nexus 'echo ok' 2>/dev/null; then
+    if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=$TIMEOUT -o BatchMode=yes nexus 'echo ok' 2>"$SSH_ERR"; then
         echo -e "${GREEN}  ✓ SSH connection established${NC}"
+        rm -f "$SSH_ERR"
+        trap - EXIT
         break
     fi
     RETRY=$((RETRY + 1))
     if [ $RETRY -lt $MAX_RETRIES ]; then
         echo "  Attempt $RETRY/$MAX_RETRIES - waiting for tunnel..."
+        echo -e "  ${DIM}Last error:${NC}"
+        tail -n 1 "$SSH_ERR" | sed 's/^/    /'
         # Increase timeout gradually: 5s, 5s, 10s, 10s, 15s...
         if [ $RETRY -lt 3 ]; then
             TIMEOUT=5
@@ -286,6 +327,10 @@ done
 
 if [ $RETRY -eq $MAX_RETRIES ]; then
     echo -e "${RED}Timeout waiting for SSH. Check Cloudflare Tunnel status.${NC}"
+    echo -e "${YELLOW}  Last SSH error:${NC}"
+    cat "$SSH_ERR" 2>/dev/null || echo "    (no error output captured)"
+    rm -f "$SSH_ERR"
+    trap - EXIT
     exit 1
 fi
 
