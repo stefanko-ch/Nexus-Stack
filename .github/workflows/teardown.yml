@@ -73,22 +73,27 @@ jobs:
       - name: Create R2 credentials from secrets
         run: |
           mkdir -p tofu
-          
+
           # Generate dynamic bucket name from domain
+          # Trim whitespace from secrets to avoid auth issues
+          R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
+          R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
           echo "📦 Using bucket: $BUCKET_NAME"
-          
-          cat > tofu/.r2-credentials << EOF
-          R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}"
-          R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}"
-          EOF
-          
+
+          cat > tofu/.r2-credentials << 'EOF'
+R2_ACCESS_KEY_ID="PLACEHOLDER_KEY_ID"
+R2_SECRET_ACCESS_KEY="PLACEHOLDER_SECRET"
+EOF
+          sed -i "s|PLACEHOLDER_KEY_ID|${R2_ACCESS_KEY_ID}|" tofu/.r2-credentials
+          sed -i "s|PLACEHOLDER_SECRET|${R2_SECRET_ACCESS_KEY}|" tofu/.r2-credentials
+
           cat > tofu/backend.hcl << EOF
-          endpoints = {
-            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          }
-          bucket = "${BUCKET_NAME}"
-          EOF
+endpoints = {
+  s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+}
+bucket = "${BUCKET_NAME}"
+EOF
 
       - name: Generate config.tfvars
         env:
@@ -98,18 +103,18 @@ jobs:
         run: |
           # Stack config (emails from secrets)
           cat > tofu/stack/config.tfvars << EOF
-          server_type     = "cax31"
-          server_location = "fsn1"
-          server_image    = "ubuntu-24.04"
-          ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
-          ssh_private_key_path = "~/.ssh/id_ed25519"
-          domain         = "${{ secrets.DOMAIN }}"
-          admin_email    = "${{ secrets.TF_VAR_admin_email }}"
-          user_email     = "${{ secrets.TF_VAR_user_email }}"
-          admin_username = "admin"
-          github_owner   = "${{ github.repository_owner }}"
-          github_repo    = "${{ github.event.repository.name }}"
-          EOF
+server_type     = "cax31"
+server_location = "fsn1"
+server_image    = "ubuntu-24.04"
+ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
+ssh_private_key_path = "~/.ssh/id_ed25519"
+domain         = "${{ secrets.DOMAIN }}"
+admin_email    = "${{ secrets.TF_VAR_admin_email }}"
+user_email     = "${{ secrets.TF_VAR_user_email }}"
+admin_username = "admin"
+github_owner   = "${{ github.repository_owner }}"
+github_repo    = "${{ github.event.repository.name }}"
+EOF
 
           # Get persistent volume ID from control-plane output
           cd tofu/control-plane
@@ -121,8 +126,8 @@ jobs:
           cd ../..
 
           cat >> tofu/stack/config.tfvars << EOF
-          persistent_volume_id = $PERSISTENT_VOLUME_ID
-          EOF
+persistent_volume_id = $PERSISTENT_VOLUME_ID
+EOF
 
           if [ "$PERSISTENT_VOLUME_ID" != "0" ]; then
             echo "💾 Persistent volume preserved (ID: $PERSISTENT_VOLUME_ID)"
@@ -142,73 +147,9 @@ jobs:
           fi
           
           # Generate services config from services.yaml
-          cat > /tmp/generate_services_tfvars.py << 'EOF'
-          import yaml
-          import os
-          import sys
-
-          enabled_input = os.environ.get('ENABLED_SERVICES', '')
-          enabled_set = set(s.strip() for s in enabled_input.split(',') if s.strip())
-
-          try:
-              with open('services.yaml', 'r') as f:
-                  data = yaml.safe_load(f)
-          except Exception as e:
-              print(f"Error reading services.yaml: {e}", file=sys.stderr)
-              sys.exit(1)
-
-          if not data or 'services' not in data:
-              print("No services found in services.yaml", file=sys.stderr)
-              sys.exit(1)
-
-          services = data['services']
-          output_lines = ['', '# Services (from services.yaml, enabled state from D1)', 'services = {']
-
-          for name, config in sorted(services.items()):
-              subdomain = config.get('subdomain', name)
-              port = config.get('port', 0)
-              public = 'true' if config.get('public', False) else 'false'
-              core = config.get('core', False)
-              description = config.get('description', '').replace('"', '\\"')
-              image = config.get('image', '')
-              
-              # Core services are always enabled, others follow D1 state
-              is_core = core
-              if enabled_set:
-                  should_enable = is_core or name in enabled_set
-              else:
-                  should_enable = is_core
-              
-              enabled = 'true' if should_enable else 'false'
-              
-              output_lines.append(f'  {name} = {{')
-              output_lines.append(f'    enabled     = {enabled}')
-              output_lines.append(f'    subdomain   = "{subdomain}"')
-              output_lines.append(f'    port        = {port}')
-              output_lines.append(f'    public      = {public}')
-              if core:
-                  output_lines.append(f'    core        = true')
-              output_lines.append(f'    description = "{description}"')
-              output_lines.append(f'    image       = "{image}"')
-              
-              support_images = config.get('support_images', {})
-              if support_images:
-                  output_lines.append('    support_images = {')
-                  for img_name, img_value in support_images.items():
-                      output_lines.append(f'      {img_name} = "{img_value}"')
-                  output_lines.append('    }')
-              
-              output_lines.append('  }')
-              output_lines.append('')
-
-          output_lines.append('}')
-
-          with open('tofu/stack/config.tfvars', 'a') as f:
-              f.write('\n'.join(output_lines))
-
-          print(f"Generated services config for {len(services)} services")
-          EOF
-          ENABLED_SERVICES="$ENABLED_SERVICES" python3 /tmp/generate_services_tfvars.py
+          # Use shared script (same as spin-up.yml)
+          chmod +x .github/scripts/generate-services-tfvars.py
+          ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
 
       - name: Initialize OpenTofu
         run: |
