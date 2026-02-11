@@ -376,6 +376,15 @@ services:
     description: "Web-based SSH terminal for browser access to your server."
     image: "wettyoss/wetty:latest"
 
+  wikijs:
+    subdomain: "wiki"
+    port: 3005
+    public: false
+    description: "Open-source wiki and knowledge base platform with Markdown, visual editor, and multi-language support."
+    image: "requarks/wiki:2.5.306"
+    support_images:
+      wikijs-postgres: "postgres:16-alpine"
+
   windmill:
     subdomain: "windmill"
     port: 8200

@@ -154,8 +154,9 @@ echo -e "  ${YELLOW}→${NC} Creating R2 API token..."
 # ID verified from Cloudflare docs: https://developers.cloudflare.com/r2/api/tokens/
 R2_STORAGE_WRITE_PERMISSION_ID="bf7481a1826f439697cb59a20b22293e"
 
-# Generate unique token name with timestamp to avoid duplicates
-TOKEN_NAME="nexus-r2-terraform-state-$(date +%Y%m%d-%H%M%S)"
+# Deterministic token name based on domain for multi-user safety
+# Allows targeted cleanup per deployment (e.g., education wrapper)
+TOKEN_NAME="nexus-r2-terraform-state-${DOMAIN_SLUG}"
 
 # Create User API token for R2 with account-level R2 permissions
 # Using account resource instead of bucket-specific resource for broader access
@@ -202,20 +203,38 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
     ERROR_MSG=$(extract_error "$TOKEN_RESPONSE")
     ERROR_CODE=$(echo "$TOKEN_RESPONSE" | grep -o '"code":[0-9]*' | head -1 | cut -d: -f2)
     
-    # Check if token already exists (non-retryable)
+    # Token already exists — delete it and retry (credentials can't be retrieved after creation)
     if echo "$TOKEN_RESPONSE" | grep -q "already exists"; then
-        echo -e "  ${YELLOW}⚠${NC}  Token 'nexus-r2-terraform-state' already exists"
-        echo ""
-        echo -e "${RED}❌ Cannot retrieve existing token credentials.${NC}"
-        echo ""
-        echo "Please either:"
-        echo "  1. Delete the existing token in Cloudflare Dashboard → My Profile → API Tokens"
-        echo "  2. Or manually create R2 API credentials and save them to $R2_CREDENTIALS_FILE:"
-        echo ""
-        echo "     R2_ACCESS_KEY_ID=\"your-access-key-id\""
-        echo "     R2_SECRET_ACCESS_KEY=\"your-secret-access-key\""
-        echo ""
-        exit 1
+        RETRY=$((RETRY + 1))
+        echo -e "  ${YELLOW}⚠${NC}  Token '${TOKEN_NAME}' already exists — deleting and recreating..."
+
+        # Find the existing token by name (using jq for reliable JSON parsing)
+        EXISTING_TOKEN_ID=$(curl -s \
+            "https://api.cloudflare.com/client/v4/user/tokens" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r --arg TOKEN_NAME "$TOKEN_NAME" \
+                '.result[] | select(.name == $TOKEN_NAME) | .id' | head -n 1)
+
+        if [ -n "$EXISTING_TOKEN_ID" ]; then
+            # Delete the existing token
+            DELETE_RESPONSE=$(curl -s -X DELETE \
+                "https://api.cloudflare.com/client/v4/user/tokens/${EXISTING_TOKEN_ID}" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+
+            if echo "$DELETE_RESPONSE" | grep -q '"success":true'; then
+                echo -e "  ${GREEN}✓${NC} Old token deleted"
+                sleep 2
+                continue  # Retry token creation
+            else
+                echo -e "  ${RED}❌ Failed to delete existing token${NC}"
+                echo "     Delete it manually: Cloudflare Dashboard → My Profile → API Tokens"
+                exit 1
+            fi
+        else
+            echo -e "  ${RED}❌ Token exists but could not find its ID${NC}"
+            echo "     Delete it manually: Cloudflare Dashboard → My Profile → API Tokens"
+            exit 1
+        fi
     fi
     
     # Retry on 500 errors or rate limits (retryable)
