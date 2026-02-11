@@ -96,9 +96,9 @@ jobs:
           if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "🔑 Using SSH key from GitHub Secrets"
             # SSH key heredocs: expression placeholders must NOT start at column 0
-            # (breaks GitHub Actions YAML parser). Keep indented - the indentation
-            # only applies to the placeholder line, not the substituted content.
-            cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+            # (breaks GitHub Actions YAML parser). Keep indented and strip leading
+            # whitespace with sed to ensure clean key content.
+            sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
           ${{ secrets.SSH_PRIVATE_KEY }}
           EOF_PRIVATE_KEY
           elif [ -n "${{ inputs.ssh_private_key }}" ]; then
@@ -109,7 +109,7 @@ jobs:
             done <<'EOF_MASK'
           ${{ inputs.ssh_private_key }}
           EOF_MASK
-            cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+            sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
           ${{ inputs.ssh_private_key }}
           EOF_PRIVATE_KEY
           else

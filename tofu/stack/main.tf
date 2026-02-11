@@ -439,7 +439,7 @@ locals {
   # Cloudflare Access is default-deny: an Application without Allow policy blocks everything
   private_services_with_subdomain = {
     for key, service in local.enabled_services_with_subdomain :
-    key => service if !service.public
+    key => service if try(service.public, false) == false
   }
 }
 
