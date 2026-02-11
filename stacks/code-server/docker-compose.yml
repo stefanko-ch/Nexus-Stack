@@ -24,7 +24,7 @@ services:
         fi;
         OPEN_DIR=/home/coder;
         if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;
-        exec code-server --auth none --bind-addr 0.0.0.0:8080 \$$OPEN_DIR
+        exec code-server --auth none --bind-addr 0.0.0.0:8080 $$OPEN_DIR
       "
     env_file:
       - path: .env
