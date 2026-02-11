@@ -278,6 +278,57 @@ jobs:
           echo "   R2_ACCESS_KEY_ID length: ${#R2_ACCESS_KEY_ID}"
           echo "   R2_SECRET_ACCESS_KEY length: ${#R2_SECRET_ACCESS_KEY}"
 
+      - name: Validate R2 credentials
+        if: steps.check_r2.outputs.r2_exists == 'true'
+        id: validate_r2
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          source tofu/.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+          BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
+          R2_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+
+          echo "🔍 Validating R2 credentials against $BUCKET_NAME..."
+          VALIDATION=$(aws s3 ls "s3://${BUCKET_NAME}" --endpoint-url="$R2_ENDPOINT" --region auto 2>&1 || true)
+
+          if echo "$VALIDATION" | grep -q "Unauthorized\|InvalidAccessKeyId\|SignatureDoesNotMatch\|AccessDenied"; then
+            echo "❌ R2 credentials are invalid (token may have been deleted externally)"
+            echo "r2_valid=false" >> $GITHUB_OUTPUT
+
+            # Delete stale GitHub Secrets so init-r2-state.sh can recreate them
+            if [ -n "$GH_TOKEN" ]; then
+              gh secret delete R2_ACCESS_KEY_ID 2>/dev/null || true
+              gh secret delete R2_SECRET_ACCESS_KEY 2>/dev/null || true
+              echo "🗑️  Stale R2 secrets deleted from GitHub"
+            fi
+          else
+            echo "✅ R2 credentials are valid"
+            echo "r2_valid=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Recreate R2 credentials (invalid token detected)
+        if: steps.validate_r2.outputs.r2_valid == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 Recreating R2 token and credentials..."
+          chmod +x scripts/init-r2-state.sh
+          if ! ./scripts/init-r2-state.sh; then
+            echo "❌ init-r2-state.sh failed"
+            exit 1
+          fi
+
+          # Save new credentials to GitHub Secrets
+          if [ -f tofu/.r2-credentials ] && [ -n "$GH_TOKEN" ]; then
+            source tofu/.r2-credentials
+            gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>/dev/null || true
+            gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>/dev/null || true
+            echo "✅ New R2 credentials saved to GitHub Secrets"
+          fi
+
       - name: Export R2 credentials for spin-up workflow
         id: r2_credentials
         run: |
