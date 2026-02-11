@@ -95,20 +95,23 @@ jobs:
           # Get private key: 1) secrets (subsequent runs), 2) workflow input (initial setup)
           if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "🔑 Using SSH key from GitHub Secrets"
+            # SSH key heredocs: ${{ }} expressions must NOT start at column 0
+            # (breaks GitHub Actions YAML parser). Keep indented - the indentation
+            # only applies to the ${{ }} placeholder line, not the substituted content.
             cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
-${{ secrets.SSH_PRIVATE_KEY }}
-EOF_PRIVATE_KEY
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF_PRIVATE_KEY
           elif [ -n "${{ inputs.ssh_private_key }}" ]; then
             echo "🔑 Using SSH key from workflow input (initial setup)"
             # Mask each line of the private key to prevent log exposure
             while IFS= read -r line; do
               echo "::add-mask::$line"
             done <<'EOF_MASK'
-${{ inputs.ssh_private_key }}
-EOF_MASK
+          ${{ inputs.ssh_private_key }}
+          EOF_MASK
             cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
-${{ inputs.ssh_private_key }}
-EOF_PRIVATE_KEY
+          ${{ inputs.ssh_private_key }}
+          EOF_PRIVATE_KEY
           else
             echo "❌ No SSH key found!"
             echo "   Please run the 'Initial Setup' workflow (initial-setup.yaml) first to generate SSH keys."
