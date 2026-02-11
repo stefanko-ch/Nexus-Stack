@@ -24,6 +24,11 @@ services:
       WOODPECKER_ADMIN: ${WOODPECKER_ADMIN:-}
       # Database: SQLite (default, stored in volume)
       WOODPECKER_DATABASE_DRIVER: sqlite3
+      # Gitea forge integration (OAuth)
+      WOODPECKER_GITEA: "true"
+      WOODPECKER_GITEA_URL: http://gitea:3000
+      WOODPECKER_GITEA_CLIENT: ${WOODPECKER_GITEA_CLIENT}
+      WOODPECKER_GITEA_SECRET: ${WOODPECKER_GITEA_SECRET}
     ports:
       - "8084:8000"
     volumes:
