@@ -541,8 +541,12 @@ jobs:
           echo "  D1 Database: $D1_DATABASE_NAME"
           cd ../..
           
-          # Initialize schema
+          # Initialize schema (creates tables if they don't exist)
           npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
+
+          # Schema migrations for existing databases
+          # admin_only column added for services that can only be toggled via GitHub Actions
+          npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN admin_only INTEGER DEFAULT 0" 2>/dev/null || true
           
           # Store domain in D1 config (escape single quotes)
           ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}

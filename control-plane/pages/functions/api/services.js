@@ -176,7 +176,7 @@ export async function onRequestPost(context) {
         success: false,
         error: `Cannot toggle ${serviceName} - it is an admin-only service managed via GitHub Actions`,
       }), {
-        status: 400,
+        status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
     }
