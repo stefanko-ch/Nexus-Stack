@@ -2461,7 +2461,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "wikijs" && [ -n "$WIKIJS_ADMIN_PASS" ]; 
         echo "  Configuring Wiki.js admin..."
         WIKIJS_EMAIL="${USER_EMAIL:-$ADMIN_EMAIL}"
         for i in $(seq 1 30); do
-            if ssh nexus "curl -s --connect-timeout 2 'http://localhost:3005/healthz'" 2>/dev/null | grep -q 'ok'; then
+            if ssh nexus "curl -fsS --connect-timeout 2 'http://localhost:3005/healthz'" 2>/dev/null | grep -qi 'ok'; then
                 break
             fi
             sleep 3
