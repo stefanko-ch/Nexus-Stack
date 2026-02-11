@@ -95,7 +95,10 @@ jobs:
           # Get private key: 1) secrets (subsequent runs), 2) workflow input (initial setup)
           if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "🔑 Using SSH key from GitHub Secrets"
-            cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+            # SSH key heredocs: expression placeholders must NOT start at column 0
+            # (breaks GitHub Actions YAML parser). Keep indented and strip leading
+            # whitespace with sed to ensure clean key content.
+            sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
           ${{ secrets.SSH_PRIVATE_KEY }}
           EOF_PRIVATE_KEY
           elif [ -n "${{ inputs.ssh_private_key }}" ]; then
@@ -106,7 +109,7 @@ jobs:
             done <<'EOF_MASK'
           ${{ inputs.ssh_private_key }}
           EOF_MASK
-            cat > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+            sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
           ${{ inputs.ssh_private_key }}
           EOF_PRIVATE_KEY
           else
@@ -181,13 +184,15 @@ jobs:
           R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
           R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
           EOF
-          
+          sed -i 's/^          //' tofu/.r2-credentials
+
           cat > tofu/backend.hcl << EOF
           endpoints = {
             s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
           bucket = "${BUCKET_NAME}"
           EOF
+          sed -i 's/^          //' tofu/backend.hcl
           
           echo "✅ R2 credentials file created"
 
@@ -202,10 +207,10 @@ jobs:
           server_type     = "cax31"
           server_location = "fsn1"
           server_image    = "ubuntu-24.04"
-          
+
           ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
           ssh_private_key_path = "~/.ssh/id_ed25519"
-          
+
           domain         = "${{ secrets.DOMAIN }}"
           admin_email    = "${{ secrets.TF_VAR_admin_email }}"
           user_email     = "${{ secrets.TF_VAR_user_email }}"
@@ -213,6 +218,7 @@ jobs:
           github_owner   = "${{ github.repository_owner }}"
           github_repo    = "${{ github.event.repository.name }}"
           EOF
+          sed -i 's/^          //' tofu/stack/config.tfvars
           
           # Add Docker Hub credentials if provided (optional)
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
@@ -220,6 +226,7 @@ jobs:
           dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
           dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
           EOF
+            sed -i 's/^          //' tofu/stack/config.tfvars
           fi
 
           # Get Hetzner Object Storage config from control-plane output
@@ -243,6 +250,7 @@ jobs:
           hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
           persistent_volume_id          = $PERSISTENT_VOLUME_ID
           EOF
+          sed -i 's/^          //' tofu/stack/config.tfvars
 
           if [ -n "$HETZNER_S3_BUCKET" ]; then
             echo "📦 Hetzner Object Storage configured (bucket: $HETZNER_S3_BUCKET)"
@@ -367,7 +375,7 @@ jobs:
 
           echo "Installing Cloudflare Tunnel on $SERVER_IP..."
 
-          # Write tunnel install script (avoids heredoc indentation issues)
+          # Write tunnel install script
           cat > /tmp/install-tunnel.sh << SCRIPT
           #!/bin/bash
           set -e
@@ -387,6 +395,7 @@ jobs:
           systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'
           echo 'Tunnel started successfully!'
           SCRIPT
+          sed -i 's/^          //' /tmp/install-tunnel.sh
 
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=10 \
             root@"$SERVER_IP" bash < /tmp/install-tunnel.sh
@@ -565,7 +574,7 @@ jobs:
           fi
           
           cd control-plane/pages
-          
+
           # Generate wrangler.toml with D1 binding
           cat > wrangler.toml << EOF
           name = "$PAGES_PROJECT"
@@ -576,6 +585,7 @@ jobs:
           binding = "NEXUS_DB"
           database_id = "$D1_DATABASE_ID"
           EOF
+          sed -i 's/^          //' wrangler.toml
           
           # Redeploy to production
           # --commit-message prevents UTF-8 issues with git commit messages

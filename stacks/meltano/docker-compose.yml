@@ -6,6 +6,9 @@
 #
 # Internal Access: docker exec -it meltano meltano --help
 # Docs: https://docs.meltano.com/
+#
+# Git Integration: If Gitea is enabled, the shared workspace repo is
+# auto-cloned into /project/.
 # =============================================================================
 
 services:
@@ -17,6 +20,24 @@ services:
       - MELTANO_DATABASE_URI=postgresql://nexus-meltano:${MELTANO_DB_PASSWORD}@meltano-db:5432/meltano
       - MELTANO_PROJECT_ROOT=/project
       - MELTANO_CLI_LOG_LEVEL=INFO
+    env_file:
+      - path: .env
+        required: false
+    command: >
+      bash -c "
+        if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
+          echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > ~/.netrc;
+          chmod 600 ~/.netrc;
+        fi;
+        if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /project/$$REPO_NAME/.git ]; then
+          if git clone \"$$GITEA_REPO_URL\" /project/$$REPO_NAME; then
+            echo '[meltano] Cloned Git repo into /project/'$$REPO_NAME;
+          else
+            echo '[meltano] Warning: Failed to clone '$$GITEA_REPO_URL >&2;
+          fi;
+        fi;
+        exec sleep infinity
+      "
     volumes:
       - meltano-data:/project
     networks:
@@ -25,7 +46,6 @@ services:
     depends_on:
       meltano-db:
         condition: service_healthy
-    command: ["sleep", "infinity"]
 
   meltano-db:
     image: postgres:16-alpine

@@ -81,6 +81,13 @@ services:
     tcp_ports:
       s3-api: 3900
 
+  git-proxy:
+    subdomain: "git"
+    port: 3201
+    public: true
+    description: "Public Git HTTPS proxy for external tools (Databricks). Forwards to Gitea with built-in authentication."
+    image: "nginx:alpine"
+
   gitea:
     subdomain: "gitea"
     port: 3200

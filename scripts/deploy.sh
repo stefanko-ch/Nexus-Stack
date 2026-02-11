@@ -60,6 +60,8 @@ OM_PRINCIPAL_DOMAIN=$(echo "$ADMIN_EMAIL" | cut -d'@' -f2)
 USER_EMAIL=$(grep -E '^user_email\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
 # Fallback to ADMIN_EMAIL if USER_EMAIL is not set
 USER_EMAIL=${USER_EMAIL:-$ADMIN_EMAIL}
+# Gitea user username derived from user_email (part before @)
+GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
 SSH_HOST="ssh.${DOMAIN}"
 
 if [ -z "$DOMAIN" ]; then
@@ -125,6 +127,7 @@ OPENMETADATA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_db_password /
 OPENMETADATA_AIRFLOW_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_airflow_password // empty')
 OPENMETADATA_FERNET_KEY=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_fernet_key // empty')
 GITEA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_admin_password // empty')
+GITEA_USER_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_user_password // empty')
 GITEA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_db_password // empty')
 CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
@@ -863,6 +866,57 @@ EOF
     fi
 fi
 
+# Generate Git workspace .env vars for services that integrate with Gitea
+# These vars enable auto-clone of the shared workspace repo at container startup.
+# The clone may fail on first deployment (Gitea starts in parallel), but succeeds
+# on subsequent spin-ups. Services are restarted in Step 7 after repo creation.
+# Security: Credentials are passed via GITEA_USERNAME/GITEA_PASSWORD env vars and
+# injected into containers via .netrc at startup (not embedded in the repo URL).
+if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
+    REPO_NAME="nexus-${DOMAIN//./-}-gitea"
+    # Use user credentials for service Git integration (not admin)
+    GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
+    # Repo URL without credentials (auth via .netrc inside containers)
+    GITEA_REPO_URL="http://gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
+    if [ -n "$GITEA_USER_PASS" ]; then
+        GITEA_GIT_USER="${GITEA_USER_USERNAME}"
+        GITEA_GIT_PASS="${GITEA_USER_PASS}"
+        GIT_AUTHOR="${GITEA_USER_USERNAME}"
+        GIT_EMAIL="${USER_EMAIL}"
+    else
+        # Fallback to admin if no user password available
+        GITEA_GIT_USER="${ADMIN_USERNAME}"
+        GITEA_GIT_PASS="${GITEA_ADMIN_PASS}"
+        GIT_AUTHOR="${ADMIN_USERNAME}"
+        GIT_EMAIL="${ADMIN_EMAIL}"
+    fi
+
+    for SERVICE in jupyter marimo code-server meltano prefect; do
+        if echo "$ENABLED_SERVICES" | grep -qw "$SERVICE"; then
+            echo "  Adding Git workspace config to $SERVICE .env..."
+            ENV_FILE="$STACKS_DIR/$SERVICE/.env"
+            # Idempotent: remove existing Gitea block before writing
+            if [ -f "$ENV_FILE" ]; then
+                sed -i '/^# >>> Gitea workspace repo/,/^# <<< Gitea workspace repo/d' "$ENV_FILE"
+            fi
+            cat >> "$ENV_FILE" << EOF
+# >>> Gitea workspace repo (auto-generated, do not edit)
+GITEA_URL=http://gitea:3000
+GITEA_REPO_URL=${GITEA_REPO_URL}
+GITEA_USERNAME=${GITEA_GIT_USER}
+GITEA_PASSWORD=${GITEA_GIT_PASS}
+GIT_AUTHOR_NAME=${GIT_AUTHOR}
+GIT_AUTHOR_EMAIL=${GIT_EMAIL}
+GIT_COMMITTER_NAME=${GIT_AUTHOR}
+GIT_COMMITTER_EMAIL=${GIT_EMAIL}
+REPO_NAME=${REPO_NAME}
+# <<< Gitea workspace repo
+EOF
+            echo -e "${GREEN}  ✓ $SERVICE Git config added${NC}"
+        fi
+    done
+fi
+
 # Sync only enabled stacks
 echo "{\"location\":\"deploy.sh:378\",\"message\":\"Starting stack sync\",\"data\":{\"enabled_services\":\"$ENABLED_SERVICES\"},\"timestamp\":$(date +%s)000,\"sessionId\":\"debug-session\",\"runId\":\"run1\"}" >> "$LOG_FILE" 2>/dev/null || true
 
@@ -1537,8 +1591,11 @@ EOF
     {"secretKey": "OPENMETADATA_USERNAME", "secretValue": "admin@$OM_PRINCIPAL_DOMAIN", "tagIds": ["$OPENMETADATA_TAG"]},
     {"secretKey": "OPENMETADATA_PASSWORD", "secretValue": "$OPENMETADATA_ADMIN_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
     {"secretKey": "OPENMETADATA_DB_PASSWORD", "secretValue": "$OPENMETADATA_DB_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
-    {"secretKey": "GITEA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GITEA_TAG"]},
-    {"secretKey": "GITEA_PASSWORD", "secretValue": "$GITEA_ADMIN_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_ADMIN_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_ADMIN_PASSWORD", "secretValue": "$GITEA_ADMIN_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_USER_USERNAME", "secretValue": "$GITEA_USER_USERNAME", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_USER_PASSWORD", "secretValue": "$GITEA_USER_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_REPO_URL", "secretValue": "https://git.${DOMAIN}/${ADMIN_USERNAME}/nexus-${DOMAIN//./-}-gitea.git", "tagIds": ["$GITEA_TAG"]},
     {"secretKey": "GITEA_DB_PASSWORD", "secretValue": "$GITEA_DB_PASS", "tagIds": ["$GITEA_TAG"]},
     {"secretKey": "CLICKHOUSE_USERNAME", "secretValue": "nexus-clickhouse", "tagIds": ["$CLICKHOUSE_TAG"]},
     {"secretKey": "CLICKHOUSE_PASSWORD", "secretValue": "$CLICKHOUSE_ADMIN_PASS", "tagIds": ["$CLICKHOUSE_TAG"]}$SSH_KEY_SECRET
@@ -2188,49 +2245,199 @@ if echo "$ENABLED_SERVICES" | grep -qw "openmetadata" && [ -n "$OPENMETADATA_ADM
     CONFIG_JOBS+=($!)
 fi
 
-# Configure Gitea admin account
+# Configure Gitea admin account and shared workspace repo
+# NOTE: This runs synchronously (not in background) because other services
+# depend on the Gitea repo being created before they can be configured.
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
-    (
-        echo "  Configuring Gitea..."
+    echo "  Configuring Gitea..."
 
-        # Wait for Gitea to be ready
-        GITEA_READY=false
-        for i in $(seq 1 30); do
-            if ssh nexus "curl -sf http://localhost:3200/api/healthz" >/dev/null 2>&1; then
-                GITEA_READY=true
-                break
-            fi
-            sleep 2
-        done
+    # Wait for Gitea to be ready
+    GITEA_READY=false
+    for i in $(seq 1 30); do
+        if ssh nexus "curl -sf http://localhost:3200/api/healthz" >/dev/null 2>&1; then
+            GITEA_READY=true
+            break
+        fi
+        sleep 2
+    done
 
-        if [ "$GITEA_READY" = "true" ]; then
-            # Check if admin user already exists
-            ADMIN_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list --admin 2>/dev/null | grep -c '$ADMIN_USERNAME'" || echo "0")
+    if [ "$GITEA_READY" = "true" ]; then
+        # Check if admin user already exists
+        ADMIN_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list --admin 2>/dev/null | grep -c '$ADMIN_USERNAME'" || echo "0")
 
-            if [ "$ADMIN_EXISTS" -gt 0 ]; then
-                echo -e "${YELLOW}  ⚠ Gitea admin already exists (user: $ADMIN_USERNAME)${NC}"
+        if [ "$ADMIN_EXISTS" -gt 0 ]; then
+            echo -e "${YELLOW}  ⚠ Gitea admin already exists (user: $ADMIN_USERNAME)${NC}"
+        else
+            # Create admin user via CLI
+            GITEA_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
+                --admin \
+                --username '$ADMIN_USERNAME' \
+                --password '$GITEA_ADMIN_PASS' \
+                --email '$ADMIN_EMAIL' \
+                --must-change-password=false" 2>&1 || echo "")
+
+            if echo "$GITEA_RESULT" | grep -qi "created\|success\|New user"; then
+                echo -e "${GREEN}  ✓ Gitea admin created (user: $ADMIN_USERNAME)${NC}"
             else
-                # Create admin user via CLI
-                GITEA_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
-                    --admin \
-                    --username '$ADMIN_USERNAME' \
-                    --password '$GITEA_ADMIN_PASS' \
-                    --email '$ADMIN_EMAIL' \
+                echo -e "${YELLOW}  ⚠ Gitea admin setup needs manual configuration${NC}"
+                echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+            fi
+        fi
+
+        # --- Create regular user account (for students/user_email) ---
+        # Extract username from user_email (part before @)
+        GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
+        if [ -n "$USER_EMAIL" ] && [ -n "$GITEA_USER_PASS" ]; then
+            USER_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list 2>/dev/null | grep -c '$GITEA_USER_USERNAME'" || echo "0")
+
+            if [ "$USER_EXISTS" -gt 0 ]; then
+                echo -e "${YELLOW}  ⚠ Gitea user already exists (user: $GITEA_USER_USERNAME)${NC}"
+            else
+                GITEA_USER_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
+                    --username '$GITEA_USER_USERNAME' \
+                    --password '$GITEA_USER_PASS' \
+                    --email '$USER_EMAIL' \
                     --must-change-password=false" 2>&1 || echo "")
 
-                if echo "$GITEA_RESULT" | grep -qi "created\|success\|New user"; then
-                    echo -e "${GREEN}  ✓ Gitea admin created (user: $ADMIN_USERNAME)${NC}"
+                if echo "$GITEA_USER_RESULT" | grep -qi "created\|success\|New user"; then
+                    echo -e "${GREEN}  ✓ Gitea user created (user: $GITEA_USER_USERNAME)${NC}"
                 else
-                    echo -e "${YELLOW}  ⚠ Gitea admin setup needs manual configuration${NC}"
-                    echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+                    echo -e "${YELLOW}  ⚠ Gitea user setup needs manual configuration${NC}"
                 fi
             fi
-        else
-            echo -e "${YELLOW}  ⚠ Gitea not ready after 60s - skipping admin setup${NC}"
-            echo -e "${YELLOW}    Credentials available in Infisical${NC}"
         fi
-    ) &
-    CONFIG_JOBS+=($!)
+
+        # --- Create shared workspace repo ---
+        REPO_NAME="nexus-${DOMAIN//./-}-gitea"
+        echo "  Creating shared workspace repo: $REPO_NAME..."
+
+        # Create API token for automation (reuse existing if present)
+        # Use curl -s (not -sf) to avoid exit code 22 on HTTP errors with set -e
+        GITEA_TOKEN=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens' \
+            -u '$ADMIN_USERNAME:$GITEA_ADMIN_PASS' \
+            -H 'Content-Type: application/json' \
+            -d '{\"name\":\"nexus-automation\",\"scopes\":[\"all\"]}'" 2>/dev/null | jq -r '.sha1 // empty')
+
+        if [ -z "$GITEA_TOKEN" ]; then
+            # Token may already exist, try to delete and recreate
+            ssh nexus "curl -s -X DELETE 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens/nexus-automation' \
+                -u '$ADMIN_USERNAME:$GITEA_ADMIN_PASS'" >/dev/null 2>&1 || true
+            GITEA_TOKEN=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens' \
+                -u '$ADMIN_USERNAME:$GITEA_ADMIN_PASS' \
+                -H 'Content-Type: application/json' \
+                -d '{\"name\":\"nexus-automation\",\"scopes\":[\"all\"]}'" 2>/dev/null | jq -r '.sha1 // empty')
+        fi
+
+        if [ -n "$GITEA_TOKEN" ]; then
+            # Create private repo (requires auth for clone and push)
+            # Use curl -s (not -sf) - repo may already exist (409), which is fine
+            REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/user/repos' \
+                -H 'Authorization: token $GITEA_TOKEN' \
+                -H 'Content-Type: application/json' \
+                -d '{
+                    \"name\": \"$REPO_NAME\",
+                    \"description\": \"Shared workspace for notebooks, workflows, and pipelines\",
+                    \"private\": true,
+                    \"auto_init\": true,
+                    \"default_branch\": \"main\"
+                }'" 2>/dev/null || echo "")
+
+            if echo "$REPO_RESULT" | jq -e '.id' >/dev/null 2>&1; then
+                echo -e "${GREEN}  ✓ Shared repo '$REPO_NAME' created (private)${NC}"
+            elif echo "$REPO_RESULT" | grep -q "already exists"; then
+                echo -e "${YELLOW}  ⚠ Repo '$REPO_NAME' already exists${NC}"
+                # Ensure existing repo is set to private
+                ssh nexus "curl -s -X PATCH 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME' \
+                    -H 'Authorization: token $GITEA_TOKEN' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"private\": true}'" >/dev/null 2>&1 || true
+            else
+                echo -e "${YELLOW}  ⚠ Repo creation returned unexpected response${NC}"
+            fi
+
+            # --- Add user as collaborator to the repo ---
+            if [ -n "$GITEA_USER_USERNAME" ] && [ -n "$GITEA_USER_PASS" ]; then
+                ssh nexus "curl -s -X PUT 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
+                    -H 'Authorization: token $GITEA_TOKEN' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"permission\": \"write\"}'" >/dev/null 2>&1 || true
+                echo -e "${GREEN}  ✓ User '$GITEA_USER_USERNAME' added as collaborator${NC}"
+            fi
+
+            # --- Restart services that have Git integration (to pick up .env vars) ---
+            # Services had their Git .env vars generated in Step 3 but Gitea wasn't
+            # ready yet. Now that the repo exists, restart them to trigger git clone.
+            RESTART_SERVICES=""
+            for SERVICE in jupyter marimo code-server meltano prefect; do
+                if echo "$ENABLED_SERVICES" | grep -qw "$SERVICE"; then
+                    RESTART_SERVICES="$RESTART_SERVICES $SERVICE"
+                fi
+            done
+
+            if [ -n "$RESTART_SERVICES" ]; then
+                echo "  Restarting services with Git integration..."
+                for SERVICE in $RESTART_SERVICES; do
+                    ssh nexus "cd $REMOTE_STACKS_DIR/$SERVICE && docker compose restart" >/dev/null 2>&1 || true
+                    echo "    Restarted $SERVICE"
+                done
+                echo -e "${GREEN}  ✓ Git-integrated services restarted${NC}"
+            fi
+
+            # --- Configure Kestra Git sync flow ---
+            if echo "$ENABLED_SERVICES" | grep -qw "kestra"; then
+                echo "  Configuring Kestra Git sync..."
+
+                # Wait for Kestra to be ready
+                KESTRA_READY=false
+                for i in $(seq 1 20); do
+                    if ssh nexus "curl -sf http://localhost:8085/api/v1/flows" >/dev/null 2>&1; then
+                        KESTRA_READY=true
+                        break
+                    fi
+                    sleep 3
+                done
+
+                if [ "$KESTRA_READY" = "true" ]; then
+                    # Store GITEA_TOKEN as Kestra secret
+                    ssh nexus "curl -sf -X PUT 'http://localhost:8085/api/v1/secrets/system/GITEA_TOKEN' \
+                        -u '${ADMIN_EMAIL}:${KESTRA_PASS}' \
+                        -H 'Content-Type: text/plain' \
+                        -d '$GITEA_TOKEN'" >/dev/null 2>&1 || true
+
+                    # Create git-sync flow (SyncNamespaceFiles from Gitea)
+                    ssh nexus "curl -sf -X POST 'http://localhost:8085/api/v1/flows' \
+                        -u '${ADMIN_EMAIL}:${KESTRA_PASS}' \
+                        -H 'Content-Type: application/x-yaml' \
+                        -d 'id: git-sync
+namespace: system
+tasks:
+  - id: sync
+    type: io.kestra.plugin.git.SyncNamespaceFiles
+    url: http://gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git
+    branch: main
+    username: ${ADMIN_USERNAME}
+    password: \"{{ secret('\''GITEA_TOKEN'\'') }}\"
+    namespace: \"{{ flow.namespace }}\"
+    gitDirectory: workflows
+triggers:
+  - id: schedule
+    type: io.kestra.core.models.triggers.types.Schedule
+    cron: \"*/15 * * * *\"'" >/dev/null 2>&1 || true
+
+                    echo -e "${GREEN}  ✓ Kestra Git sync flow created${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Kestra not ready - skipping Git sync flow${NC}"
+                fi
+            fi
+
+            echo -e "${GREEN}  ✓ Gitea workspace setup complete${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Could not create Gitea API token - skipping repo setup${NC}"
+        fi
+    else
+        echo -e "${YELLOW}  ⚠ Gitea not ready after 60s - skipping admin setup${NC}"
+        echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+    fi
 fi
 
 # Wait for all background configuration jobs to complete

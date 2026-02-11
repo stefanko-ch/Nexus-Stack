@@ -275,6 +275,12 @@ resource "random_password" "gitea_admin" {
   special = false
 }
 
+# Gitea user password (for user_email account - shared with students)
+resource "random_password" "gitea_user" {
+  length  = 24
+  special = false
+}
+
 # Gitea database password
 resource "random_password" "gitea_db" {
   length  = 24
@@ -427,6 +433,14 @@ locals {
     for key, service in local.enabled_services :
     key => service if can(service.subdomain) && service.subdomain != null && service.subdomain != ""
   }
+
+  # Filter services that need Cloudflare Access protection (non-public only)
+  # Public services (e.g., git-proxy) get DNS + Tunnel but NO Access Application
+  # Cloudflare Access is default-deny: an Application without Allow policy blocks everything
+  private_services_with_subdomain = {
+    for key, service in local.enabled_services_with_subdomain :
+    key => service if try(service.public, false) == false
+  }
 }
 
 # Tunnel configuration - dynamic based on services
@@ -557,9 +571,10 @@ resource "cloudflare_zero_trust_access_policy" "ssh_service_token" {
   }
 }
 
-# Dynamic Access Applications for all enabled services
+# Dynamic Access Applications for private services only
+# Public services (e.g., git-proxy) are excluded - they handle auth at the application level
 resource "cloudflare_zero_trust_access_application" "services" {
-  for_each = local.enabled_services_with_subdomain
+  for_each = local.private_services_with_subdomain
 
   zone_id           = var.cloudflare_zone_id
   name              = "${local.resource_prefix} ${title(each.key)}"
@@ -571,12 +586,9 @@ resource "cloudflare_zero_trust_access_application" "services" {
   skip_interstitial = true
 }
 
-# Dynamic Access Policies for all enabled services (Email OTP)
+# Dynamic Access Policies for private services (Email OTP)
 resource "cloudflare_zero_trust_access_policy" "services_email" {
-  for_each = {
-    for k, v in local.enabled_services_with_subdomain : k => v
-    if !v.public
-  }
+  for_each = local.private_services_with_subdomain
 
   zone_id        = var.cloudflare_zone_id
   application_id = cloudflare_zero_trust_access_application.services[each.key].id

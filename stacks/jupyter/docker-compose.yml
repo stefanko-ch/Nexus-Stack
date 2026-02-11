@@ -9,6 +9,9 @@
 # provides email OTP protection at the network level.
 #
 # Image: Uses quay.io registry (Docker Hub images are deprecated).
+#
+# Git Integration: If Gitea is enabled, jupyterlab-git is installed and the
+# shared workspace repo is auto-cloned into /home/jovyan/work/.
 # =============================================================================
 
 services:
@@ -17,11 +20,32 @@ services:
     container_name: jupyter
     restart: unless-stopped
     user: root
-    command: start-notebook.sh --ServerApp.token='' --ServerApp.password=''
+    command: >
+      bash -c "
+        if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
+          echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > /home/jovyan/.netrc;
+          chmod 600 /home/jovyan/.netrc;
+        fi;
+        if [ -n \"$$GITEA_REPO_URL\" ]; then
+          pip install -q jupyterlab-git==0.50.2 || echo '[jupyter] Warning: Failed to install jupyterlab-git' >&2;
+          if [ ! -d /home/jovyan/work/$$REPO_NAME/.git ]; then
+            if git clone \"$$GITEA_REPO_URL\" /home/jovyan/work/$$REPO_NAME; then
+              chown -R 1000:100 /home/jovyan/work/$$REPO_NAME;
+              echo '[jupyter] Cloned Git repo into /home/jovyan/work/'$$REPO_NAME;
+            else
+              echo '[jupyter] Warning: Failed to clone '$$GITEA_REPO_URL >&2;
+            fi;
+          fi;
+        fi;
+        exec start-notebook.sh --ServerApp.token='' --ServerApp.password=''
+      "
     environment:
       JUPYTER_ENABLE_LAB: "yes"
       NB_USER: jovyan
       CHOWN_HOME: "yes"
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8087:8888"
     volumes:
