@@ -132,6 +132,7 @@ GITEA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_db_password // empty')
 CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password // empty')
 WIKIJS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_admin_password // empty')
 WIKIJS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_db_password // empty')
+WOODPECKER_AGENT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.woodpecker_agent_secret // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -877,6 +878,17 @@ EOF
     echo -e "${GREEN}  ✓ Wiki.js .env generated${NC}"
 fi
 
+# Woodpecker CI
+if echo "$ENABLED_SERVICES" | grep -qw "woodpecker" && [ -n "$WOODPECKER_AGENT_SECRET" ]; then
+    cat > "$STACKS_DIR/woodpecker/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+DOMAIN=${DOMAIN}
+WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
+WOODPECKER_ADMIN=${ADMIN_USERNAME:-}
+EOF
+    echo -e "${GREEN}  ✓ Woodpecker CI .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1495,7 +1507,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1532,6 +1544,7 @@ EOF
                     OPENMETADATA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="openmetadata") | .id // empty' 2>/dev/null)
                     GITEA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="gitea") | .id // empty' 2>/dev/null)
                     WIKIJS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="wikijs") | .id // empty' 2>/dev/null)
+                    WOODPECKER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="woodpecker") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -1613,7 +1626,8 @@ EOF
     {"secretKey": "CLICKHOUSE_PASSWORD", "secretValue": "$CLICKHOUSE_ADMIN_PASS", "tagIds": ["$CLICKHOUSE_TAG"]},
     {"secretKey": "WIKIJS_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_PASSWORD", "secretValue": "$WIKIJS_ADMIN_PASS", "tagIds": ["$WIKIJS_TAG"]},
-    {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]},
+    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF

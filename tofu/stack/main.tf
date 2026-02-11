@@ -298,6 +298,12 @@ resource "random_password" "wikijs_db" {
   special = false
 }
 
+# Woodpecker CI
+resource "random_password" "woodpecker_agent_secret" {
+  length  = 64
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
