@@ -1,0 +1,66 @@
+# =============================================================================
+# Wiki.js - Open Source Wiki & Knowledge Base
+# =============================================================================
+# Access via: https://wiki.${domain}
+# A powerful open-source wiki platform with Markdown, visual editor,
+# multi-language support, and full-text search. All content is stored in
+# PostgreSQL and persists across teardown/spin-up cycles.
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - Admin account auto-configured with user_email
+# =============================================================================
+
+services:
+  wikijs:
+    image: ${IMAGE_WIKIJS:-requarks/wiki:2.5.306}
+    container_name: wikijs
+    restart: unless-stopped
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: wikijs-db
+      DB_PORT: 5432
+      DB_USER: nexus-wikijs
+      DB_PASS: ${WIKIJS_DB_PASSWORD}
+      DB_NAME: wikijs
+    ports:
+      - "3005:3000"
+    depends_on:
+      wikijs-db:
+        condition: service_healthy
+    networks:
+      - app-network
+      - wikijs-internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  wikijs-db:
+    image: postgres:16-alpine
+    container_name: wikijs-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-wikijs
+      POSTGRES_PASSWORD: ${WIKIJS_DB_PASSWORD}
+      POSTGRES_DB: wikijs
+    volumes:
+      - wikijs-db-data:/var/lib/postgresql/data
+    networks:
+      - wikijs-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-wikijs -d wikijs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  wikijs-db-data:
+
+networks:
+  app-network:
+    external: true
+  wikijs-internal:
+    driver: bridge

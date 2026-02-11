@@ -287,6 +287,17 @@ resource "random_password" "gitea_db" {
   special = false
 }
 
+# Wiki.js
+resource "random_password" "wikijs_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "wikijs_db" {
+  length  = 24
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 
