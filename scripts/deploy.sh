@@ -891,6 +891,37 @@ EOF
     echo -e "${GREEN}  ✓ Woodpecker CI .env generated${NC}"
 fi
 
+# Apache Spark
+if echo "$ENABLED_SERVICES" | grep -qw "spark"; then
+    cat > "$STACKS_DIR/spark/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+HETZNER_S3_ENDPOINT=${HETZNER_S3_SERVER:+https://${HETZNER_S3_SERVER}}
+HETZNER_S3_ACCESS_KEY=${HETZNER_S3_ACCESS_KEY:-}
+HETZNER_S3_SECRET_KEY=${HETZNER_S3_SECRET_KEY:-}
+SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
+SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-2g}
+EOF
+    echo -e "${GREEN}  ✓ Spark .env generated${NC}"
+fi
+
+# Jupyter PySpark
+if echo "$ENABLED_SERVICES" | grep -qw "jupyter"; then
+    # Set SPARK_MASTER based on whether Spark stack is enabled
+    if echo "$ENABLED_SERVICES" | grep -qw "spark"; then
+        JUPYTER_SPARK_MASTER="spark://spark-master:7077"
+    else
+        JUPYTER_SPARK_MASTER="local[*]"
+    fi
+    cat > "$STACKS_DIR/jupyter/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+SPARK_MASTER=${JUPYTER_SPARK_MASTER}
+HETZNER_S3_ENDPOINT=${HETZNER_S3_SERVER:+https://${HETZNER_S3_SERVER}}
+HETZNER_S3_ACCESS_KEY=${HETZNER_S3_ACCESS_KEY:-}
+HETZNER_S3_SECRET_KEY=${HETZNER_S3_SECRET_KEY:-}
+EOF
+    echo -e "${GREEN}  ✓ Jupyter PySpark .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
