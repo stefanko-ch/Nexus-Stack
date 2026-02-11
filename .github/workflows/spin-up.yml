@@ -375,26 +375,27 @@ jobs:
 
           echo "Installing Cloudflare Tunnel on $SERVER_IP..."
 
-          # Write tunnel install script (heredoc content must be left-aligned)
+          # Write tunnel install script
           cat > /tmp/install-tunnel.sh << SCRIPT
-#!/bin/bash
-set -e
-echo 'Waiting for cloud-init to complete...'
-cloud-init status --wait || true
-echo 'Installing/updating Cloudflare Tunnel...'
-systemctl stop cloudflared 2>/dev/null || true
-# Uninstall existing service if present
-if systemctl list-unit-files | grep -q cloudflared.service; then
-  echo 'Uninstalling existing cloudflared service...'
-  cloudflared service uninstall 2>/dev/null || true
-fi
-cloudflared service install $TUNNEL_TOKEN
-systemctl enable cloudflared
-systemctl start cloudflared
-sleep 3
-systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'
-echo 'Tunnel started successfully!'
-SCRIPT
+          #!/bin/bash
+          set -e
+          echo 'Waiting for cloud-init to complete...'
+          cloud-init status --wait || true
+          echo 'Installing/updating Cloudflare Tunnel...'
+          systemctl stop cloudflared 2>/dev/null || true
+          # Uninstall existing service if present
+          if systemctl list-unit-files | grep -q cloudflared.service; then
+            echo 'Uninstalling existing cloudflared service...'
+            cloudflared service uninstall 2>/dev/null || true
+          fi
+          cloudflared service install $TUNNEL_TOKEN
+          systemctl enable cloudflared
+          systemctl start cloudflared
+          sleep 3
+          systemctl status cloudflared --no-pager || echo 'Warning: Tunnel service status check failed'
+          echo 'Tunnel started successfully!'
+          SCRIPT
+          sed -i 's/^          //' /tmp/install-tunnel.sh
 
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=10 \
             root@"$SERVER_IP" bash < /tmp/install-tunnel.sh
