@@ -275,6 +275,12 @@ resource "random_password" "gitea_admin" {
   special = false
 }
 
+# Gitea user password (for user_email account - shared with students)
+resource "random_password" "gitea_user" {
+  length  = 24
+  special = false
+}
+
 # Gitea database password
 resource "random_password" "gitea_db" {
   length  = 24

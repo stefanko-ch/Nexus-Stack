@@ -200,6 +200,7 @@ output "secrets" {
 
     # Gitea
     gitea_admin_password = random_password.gitea_admin.result
+    gitea_user_password  = random_password.gitea_user.result
     gitea_db_password    = random_password.gitea_db.result
 
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
