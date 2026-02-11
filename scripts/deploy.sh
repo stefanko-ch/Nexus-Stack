@@ -60,6 +60,8 @@ OM_PRINCIPAL_DOMAIN=$(echo "$ADMIN_EMAIL" | cut -d'@' -f2)
 USER_EMAIL=$(grep -E '^user_email\s*=' "$TOFU_DIR/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
 # Fallback to ADMIN_EMAIL if USER_EMAIL is not set
 USER_EMAIL=${USER_EMAIL:-$ADMIN_EMAIL}
+# Gitea user username derived from user_email (part before @)
+GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
 SSH_HOST="ssh.${DOMAIN}"
 
 if [ -z "$DOMAIN" ]; then
@@ -125,6 +127,7 @@ OPENMETADATA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_db_password /
 OPENMETADATA_AIRFLOW_PASS=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_airflow_password // empty')
 OPENMETADATA_FERNET_KEY=$(echo "$SECRETS_JSON" | jq -r '.openmetadata_fernet_key // empty')
 GITEA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_admin_password // empty')
+GITEA_USER_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_user_password // empty')
 GITEA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_db_password // empty')
 CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
@@ -869,7 +872,18 @@ fi
 # on subsequent spin-ups. Services are restarted in Step 7 after repo creation.
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
     REPO_NAME="nexus-${DOMAIN//./-}-gitea"
-    GITEA_REPO_URL="http://${ADMIN_USERNAME}:${GITEA_ADMIN_PASS}@gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
+    # Use user credentials for service Git integration (not admin)
+    GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
+    if [ -n "$GITEA_USER_PASS" ]; then
+        GITEA_REPO_URL="http://${GITEA_USER_USERNAME}:${GITEA_USER_PASS}@gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
+        GIT_AUTHOR="${GITEA_USER_USERNAME}"
+        GIT_EMAIL="${USER_EMAIL}"
+    else
+        # Fallback to admin if no user password available
+        GITEA_REPO_URL="http://${ADMIN_USERNAME}:${GITEA_ADMIN_PASS}@gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
+        GIT_AUTHOR="${ADMIN_USERNAME}"
+        GIT_EMAIL="${ADMIN_EMAIL}"
+    fi
 
     for SERVICE in jupyter marimo code-server meltano prefect; do
         if echo "$ENABLED_SERVICES" | grep -qw "$SERVICE"; then
@@ -879,10 +893,10 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
 # Gitea workspace repo (auto-generated)
 GITEA_URL=http://gitea:3000
 GITEA_REPO_URL=${GITEA_REPO_URL}
-GIT_AUTHOR_NAME=${ADMIN_USERNAME}
-GIT_AUTHOR_EMAIL=${ADMIN_EMAIL}
-GIT_COMMITTER_NAME=${ADMIN_USERNAME}
-GIT_COMMITTER_EMAIL=${ADMIN_EMAIL}
+GIT_AUTHOR_NAME=${GIT_AUTHOR}
+GIT_AUTHOR_EMAIL=${GIT_EMAIL}
+GIT_COMMITTER_NAME=${GIT_AUTHOR}
+GIT_COMMITTER_EMAIL=${GIT_EMAIL}
 REPO_NAME=${REPO_NAME}
 EOF
             echo -e "${GREEN}  ✓ $SERVICE Git config added${NC}"
@@ -1564,8 +1578,11 @@ EOF
     {"secretKey": "OPENMETADATA_USERNAME", "secretValue": "admin@$OM_PRINCIPAL_DOMAIN", "tagIds": ["$OPENMETADATA_TAG"]},
     {"secretKey": "OPENMETADATA_PASSWORD", "secretValue": "$OPENMETADATA_ADMIN_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
     {"secretKey": "OPENMETADATA_DB_PASSWORD", "secretValue": "$OPENMETADATA_DB_PASS", "tagIds": ["$OPENMETADATA_TAG"]},
-    {"secretKey": "GITEA_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GITEA_TAG"]},
-    {"secretKey": "GITEA_PASSWORD", "secretValue": "$GITEA_ADMIN_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_ADMIN_USERNAME", "secretValue": "$ADMIN_USERNAME", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_ADMIN_PASSWORD", "secretValue": "$GITEA_ADMIN_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_USER_USERNAME", "secretValue": "$GITEA_USER_USERNAME", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_USER_PASSWORD", "secretValue": "$GITEA_USER_PASS", "tagIds": ["$GITEA_TAG"]},
+    {"secretKey": "GITEA_REPO_URL", "secretValue": "https://git.${DOMAIN}/${ADMIN_USERNAME}/nexus-${DOMAIN//./-}-gitea.git", "tagIds": ["$GITEA_TAG"]},
     {"secretKey": "GITEA_DB_PASSWORD", "secretValue": "$GITEA_DB_PASS", "tagIds": ["$GITEA_TAG"]},
     {"secretKey": "CLICKHOUSE_USERNAME", "secretValue": "nexus-clickhouse", "tagIds": ["$CLICKHOUSE_TAG"]},
     {"secretKey": "CLICKHOUSE_PASSWORD", "secretValue": "$CLICKHOUSE_ADMIN_PASS", "tagIds": ["$CLICKHOUSE_TAG"]}$SSH_KEY_SECRET
@@ -2254,6 +2271,29 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
             fi
         fi
 
+        # --- Create regular user account (for students/user_email) ---
+        # Extract username from user_email (part before @)
+        GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
+        if [ -n "$USER_EMAIL" ] && [ -n "$GITEA_USER_PASS" ]; then
+            USER_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list 2>/dev/null | grep -c '$GITEA_USER_USERNAME'" || echo "0")
+
+            if [ "$USER_EXISTS" -gt 0 ]; then
+                echo -e "${YELLOW}  ⚠ Gitea user already exists (user: $GITEA_USER_USERNAME)${NC}"
+            else
+                GITEA_USER_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
+                    --username '$GITEA_USER_USERNAME' \
+                    --password '$GITEA_USER_PASS' \
+                    --email '$USER_EMAIL' \
+                    --must-change-password=false" 2>&1 || echo "")
+
+                if echo "$GITEA_USER_RESULT" | grep -qi "created\|success\|New user"; then
+                    echo -e "${GREEN}  ✓ Gitea user created (user: $GITEA_USER_USERNAME)${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ Gitea user setup needs manual configuration${NC}"
+                fi
+            fi
+        fi
+
         # --- Create shared workspace repo ---
         REPO_NAME="nexus-${DOMAIN//./-}-gitea"
         echo "  Creating shared workspace repo: $REPO_NAME..."
@@ -2275,24 +2315,38 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
         fi
 
         if [ -n "$GITEA_TOKEN" ]; then
-            # Create repo (409 = already exists, which is fine)
+            # Create private repo (requires auth for clone and push)
             REPO_RESULT=$(ssh nexus "curl -sf -X POST 'http://localhost:3200/api/v1/user/repos' \
                 -H 'Authorization: token $GITEA_TOKEN' \
                 -H 'Content-Type: application/json' \
                 -d '{
                     \"name\": \"$REPO_NAME\",
                     \"description\": \"Shared workspace for notebooks, workflows, and pipelines\",
-                    \"private\": false,
+                    \"private\": true,
                     \"auto_init\": true,
                     \"default_branch\": \"main\"
                 }'" 2>/dev/null || echo "")
 
             if echo "$REPO_RESULT" | jq -e '.id' >/dev/null 2>&1; then
-                echo -e "${GREEN}  ✓ Shared repo '$REPO_NAME' created${NC}"
+                echo -e "${GREEN}  ✓ Shared repo '$REPO_NAME' created (private)${NC}"
             elif echo "$REPO_RESULT" | grep -q "already exists"; then
                 echo -e "${YELLOW}  ⚠ Repo '$REPO_NAME' already exists${NC}"
+                # Ensure existing repo is set to private
+                ssh nexus "curl -sf -X PATCH 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME' \
+                    -H 'Authorization: token $GITEA_TOKEN' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"private\": true}'" >/dev/null 2>&1 || true
             else
                 echo -e "${YELLOW}  ⚠ Repo creation returned unexpected response${NC}"
+            fi
+
+            # --- Add user as collaborator to the repo ---
+            if [ -n "$GITEA_USER_USERNAME" ] && [ -n "$GITEA_USER_PASS" ]; then
+                ssh nexus "curl -sf -X PUT 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
+                    -H 'Authorization: token $GITEA_TOKEN' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"permission\": \"write\"}'" >/dev/null 2>&1 || true
+                echo -e "${GREEN}  ✓ User '$GITEA_USER_USERNAME' added as collaborator${NC}"
             fi
 
             # --- Restart services that have Git integration (to pick up .env vars) ---
