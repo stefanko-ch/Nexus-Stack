@@ -20,7 +20,7 @@ services:
     environment:
       WOODPECKER_HOST: https://woodpecker.${DOMAIN}
       WOODPECKER_AGENT_SECRET: ${WOODPECKER_AGENT_SECRET}
-      WOODPECKER_OPEN: "true"
+      WOODPECKER_OPEN: "false"
       WOODPECKER_ADMIN: ${WOODPECKER_ADMIN:-}
       # Database: SQLite (default, stored in volume)
       WOODPECKER_DATABASE_DRIVER: sqlite3

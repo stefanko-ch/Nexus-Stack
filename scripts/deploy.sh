@@ -1354,6 +1354,10 @@ for service in $ENABLED_LIST; do
     fi
 done
 
+# Services that are started later after their dependencies are ready
+# Woodpecker requires Gitea OAuth credentials, so it starts after Gitea setup
+DEFERRED_SERVICES=\"woodpecker\"
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
 
@@ -1370,8 +1374,6 @@ for service in $ENABLED_LIST; do
     fi
 
     # Skip deferred services (started later after dependencies are ready)
-    # Woodpecker requires Gitea OAuth credentials, so it starts after Gitea setup
-    DEFERRED_SERVICES=\"woodpecker\"
     if echo \"\$DEFERRED_SERVICES\" | grep -qw \"\$service\"; then
         echo \"[DEBUG] Deferring \$service (started after dependency setup)\" >&2
         continue
@@ -2512,8 +2514,11 @@ WPEOF
 
                     # Sync updated .env to server and start Woodpecker
                     rsync -az "$STACKS_DIR/woodpecker/" nexus:$REMOTE_STACKS_DIR/woodpecker/
-                    ssh nexus "cd $REMOTE_STACKS_DIR/woodpecker && source /opt/docker-server/stacks/.env && docker compose up -d" 2>&1 || true
-                    echo -e "${GREEN}  ✓ Woodpecker started with Gitea forge${NC}"
+                    if ssh nexus "cd $REMOTE_STACKS_DIR/woodpecker && source /opt/docker-server/stacks/.env && docker compose up -d" 2>&1; then
+                        echo -e "${GREEN}  ✓ Woodpecker started with Gitea forge${NC}"
+                    else
+                        echo -e "${YELLOW}  ⚠ Failed to start Woodpecker - check container logs${NC}"
+                    fi
                 else
                     echo -e "${YELLOW}  ⚠ Could not create Woodpecker OAuth app in Gitea${NC}"
                 fi
