@@ -180,19 +180,19 @@ jobs:
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
           echo "📦 Using bucket: $BUCKET_NAME"
           
-          cat > tofu/.r2-credentials << 'EOF'
-R2_ACCESS_KEY_ID="PLACEHOLDER_KEY_ID"
-R2_SECRET_ACCESS_KEY="PLACEHOLDER_SECRET"
-EOF
-          sed -i "s|PLACEHOLDER_KEY_ID|${R2_ACCESS_KEY_ID}|" tofu/.r2-credentials
-          sed -i "s|PLACEHOLDER_SECRET|${R2_SECRET_ACCESS_KEY}|" tofu/.r2-credentials
+          cat > tofu/.r2-credentials << EOF
+          R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
+          EOF
+          sed -i 's/^          //' tofu/.r2-credentials
 
           cat > tofu/backend.hcl << EOF
-endpoints = {
-  s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-}
-bucket = "${BUCKET_NAME}"
-EOF
+          endpoints = {
+            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          }
+          bucket = "${BUCKET_NAME}"
+          EOF
+          sed -i 's/^          //' tofu/backend.hcl
           
           echo "✅ R2 credentials file created"
 
@@ -204,27 +204,29 @@ EOF
         run: |
           # Stack config (emails from secrets)
           cat > tofu/stack/config.tfvars << EOF
-server_type     = "cax31"
-server_location = "fsn1"
-server_image    = "ubuntu-24.04"
+          server_type     = "cax31"
+          server_location = "fsn1"
+          server_image    = "ubuntu-24.04"
 
-ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
-ssh_private_key_path = "~/.ssh/id_ed25519"
+          ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
+          ssh_private_key_path = "~/.ssh/id_ed25519"
 
-domain         = "${{ secrets.DOMAIN }}"
-admin_email    = "${{ secrets.TF_VAR_admin_email }}"
-user_email     = "${{ secrets.TF_VAR_user_email }}"
-admin_username = "admin"
-github_owner   = "${{ github.repository_owner }}"
-github_repo    = "${{ github.event.repository.name }}"
-EOF
+          domain         = "${{ secrets.DOMAIN }}"
+          admin_email    = "${{ secrets.TF_VAR_admin_email }}"
+          user_email     = "${{ secrets.TF_VAR_user_email }}"
+          admin_username = "admin"
+          github_owner   = "${{ github.repository_owner }}"
+          github_repo    = "${{ github.event.repository.name }}"
+          EOF
+          sed -i 's/^          //' tofu/stack/config.tfvars
           
           # Add Docker Hub credentials if provided (optional)
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             cat >> tofu/stack/config.tfvars << EOF
-dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
-dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
-EOF
+          dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
+          dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
+          EOF
+            sed -i 's/^          //' tofu/stack/config.tfvars
           fi
 
           # Get Hetzner Object Storage config from control-plane output
@@ -242,12 +244,13 @@ EOF
 
           # Add Hetzner Object Storage config to stack
           cat >> tofu/stack/config.tfvars << EOF
-hetzner_object_storage_server = "$HETZNER_S3_SERVER"
-hetzner_object_storage_region = "$HETZNER_S3_REGION"
-hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
-hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
-persistent_volume_id          = $PERSISTENT_VOLUME_ID
-EOF
+          hetzner_object_storage_server = "$HETZNER_S3_SERVER"
+          hetzner_object_storage_region = "$HETZNER_S3_REGION"
+          hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
+          hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
+          persistent_volume_id          = $PERSISTENT_VOLUME_ID
+          EOF
+          sed -i 's/^          //' tofu/stack/config.tfvars
 
           if [ -n "$HETZNER_S3_BUCKET" ]; then
             echo "📦 Hetzner Object Storage configured (bucket: $HETZNER_S3_BUCKET)"
@@ -570,17 +573,18 @@ SCRIPT
           fi
           
           cd control-plane/pages
-          
+
           # Generate wrangler.toml with D1 binding
           cat > wrangler.toml << EOF
-name = "$PAGES_PROJECT"
-compatibility_date = "2024-01-01"
-pages_build_output_dir = "."
+          name = "$PAGES_PROJECT"
+          compatibility_date = "2024-01-01"
+          pages_build_output_dir = "."
 
-[[d1_databases]]
-binding = "NEXUS_DB"
-database_id = "$D1_DATABASE_ID"
-EOF
+          [[d1_databases]]
+          binding = "NEXUS_DB"
+          database_id = "$D1_DATABASE_ID"
+          EOF
+          sed -i 's/^          //' wrangler.toml
           
           # Redeploy to production
           # --commit-message prevents UTF-8 issues with git commit messages

@@ -139,14 +139,15 @@ jobs:
         run: |
           # Control Plane config (emails from secrets)
           cat > tofu/control-plane/config.tfvars << EOF
-server_type     = "cax31"
-server_location = "fsn1"
-domain          = "${{ secrets.DOMAIN }}"
-admin_email     = "${{ secrets.TF_VAR_admin_email }}"
-user_email      = "${{ secrets.TF_VAR_user_email }}"
-github_owner    = "${{ github.repository_owner }}"
-github_repo     = "${{ github.event.repository.name }}"
-EOF
+          server_type     = "cax31"
+          server_location = "fsn1"
+          domain          = "${{ secrets.DOMAIN }}"
+          admin_email     = "${{ secrets.TF_VAR_admin_email }}"
+          user_email      = "${{ secrets.TF_VAR_user_email }}"
+          github_owner    = "${{ github.repository_owner }}"
+          github_repo     = "${{ github.event.repository.name }}"
+          EOF
+          sed -i 's/^          //' tofu/control-plane/config.tfvars
 
       - name: Check if R2 credentials exist
         id: check_r2
@@ -258,19 +259,19 @@ EOF
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
           echo "📦 Using bucket: $BUCKET_NAME"
           
-          cat > tofu/.r2-credentials << 'EOF'
-R2_ACCESS_KEY_ID="PLACEHOLDER_KEY_ID"
-R2_SECRET_ACCESS_KEY="PLACEHOLDER_SECRET"
-EOF
-          sed -i "s|PLACEHOLDER_KEY_ID|${R2_ACCESS_KEY_ID}|" tofu/.r2-credentials
-          sed -i "s|PLACEHOLDER_SECRET|${R2_SECRET_ACCESS_KEY}|" tofu/.r2-credentials
+          cat > tofu/.r2-credentials << EOF
+          R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
+          EOF
+          sed -i 's/^          //' tofu/.r2-credentials
 
           cat > tofu/backend.hcl << EOF
-endpoints = {
-  s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-}
-bucket = "${BUCKET_NAME}"
-EOF
+          endpoints = {
+            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          }
+          bucket = "${BUCKET_NAME}"
+          EOF
+          sed -i 's/^          //' tofu/backend.hcl
           
           # Debug: Verify credentials are set (without exposing values)
           echo "✅ R2 credentials file created"
@@ -313,11 +314,12 @@ EOF
           # Create backend config for control-plane with dynamic bucket name
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
           cat > backend.hcl << EOF
-endpoints = {
-  s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-}
-bucket = "${BUCKET_NAME}"
-EOF
+          endpoints = {
+            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          }
+          bucket = "${BUCKET_NAME}"
+          EOF
+          sed -i 's/^          //' backend.hcl
           
           tofu init -backend-config=backend.hcl
 
@@ -536,14 +538,15 @@ EOF
           # pages_build_output_dir is required for Pages to use the config
           PROJECT_NAME="${{ steps.prefix.outputs.project_name }}"
           cat > wrangler.toml << EOF
-name = "$PROJECT_NAME"
-compatibility_date = "2024-01-01"
-pages_build_output_dir = "."
+          name = "$PROJECT_NAME"
+          compatibility_date = "2024-01-01"
+          pages_build_output_dir = "."
 
-[[d1_databases]]
-binding = "NEXUS_DB"
-database_id = "$D1_DATABASE_ID"
-EOF
+          [[d1_databases]]
+          binding = "NEXUS_DB"
+          database_id = "$D1_DATABASE_ID"
+          EOF
+          sed -i 's/^          //' wrangler.toml
           
           echo "  Generated wrangler.toml with D1 binding"
           cat wrangler.toml
