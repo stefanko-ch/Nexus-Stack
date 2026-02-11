@@ -17,7 +17,7 @@ services:
     image: ${IMAGE_CODE_SERVER:-codercom/code-server:latest}
     container_name: code-server
     restart: unless-stopped
-    command: >
+    entrypoint: >
       bash -c "
         if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /home/coder/$$REPO_NAME/.git ]; then
           git clone \"$$GITEA_REPO_URL\" /home/coder/$$REPO_NAME 2>/dev/null || true;
