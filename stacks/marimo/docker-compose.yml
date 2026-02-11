@@ -20,7 +20,7 @@ services:
           apk add --no-cache git 2>/dev/null || true;
           git clone \"$$GITEA_REPO_URL\" /app/notebooks/$$REPO_NAME 2>/dev/null || true;
         fi;
-        exec marimo edit --host 0.0.0.0 --port 8080 /app/notebooks
+        exec marimo edit --host 0.0.0.0 --port 8080 --no-token /app/notebooks
       "
     env_file:
       - path: .env
