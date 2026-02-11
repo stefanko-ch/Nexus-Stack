@@ -1821,15 +1821,10 @@ Woodpecker CI is a simple, container-native continuous integration engine forked
 | `woodpecker-server` | `woodpeckerci/woodpecker-server:v3.13.0` | Web UI, API, and pipeline coordination |
 | `woodpecker-agent` | `woodpeckerci/woodpecker-agent:v3.13.0` | Pipeline executor (runs Docker containers) |
 
-**Authentication:**
-Woodpecker uses OAuth from your Git forge (GitHub, Gitea, etc.) for authentication. There is no built-in user/password system. The first user to log in via OAuth is registered, and admin users are configured via the `WOODPECKER_ADMIN` environment variable.
+**Authentication (auto-configured via Gitea):**
+Woodpecker uses OAuth from Gitea for authentication. There is no built-in user/password system. The deploy script automatically creates a Gitea OAuth application and configures Woodpecker with the credentials. Log in via your Gitea account.
 
-**Git Forge Integration (optional):**
-To connect Woodpecker with a Git forge, create an OAuth application in your forge and configure the credentials in the `.env` file:
-- **GitHub**: Create an OAuth app at `Settings → Developer settings → OAuth Apps`
-  - Homepage URL: `https://woodpecker.{domain}`
-  - Callback URL: `https://woodpecker.{domain}/authorize`
-- **Gitea** (built-in): Create an OAuth app at `Settings → Applications`
+> **Dependency:** Woodpecker requires Gitea. If Woodpecker is enabled without Gitea, Gitea is auto-enabled during deployment.
 
 **Data persistence:**
 Woodpecker uses SQLite by default. The database is stored in the `woodpecker-server-data` Docker volume on the Hetzner persistent volume, ensuring data survives teardown and spin-up.
