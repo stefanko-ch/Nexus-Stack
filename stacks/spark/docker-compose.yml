@@ -46,6 +46,14 @@ services:
     networks:
       - app-network
       - spark-internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+        reservations:
+          cpus: "0.25"
+          memory: 256m
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
       interval: 15s
@@ -65,7 +73,7 @@ services:
       SPARK_MODE: worker
       SPARK_MASTER_URL: spark://spark-master:7077
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
-      SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2g}
+      SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-3g}
       # S3 (Hetzner Object Storage) configuration
       SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
       SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
@@ -80,6 +88,14 @@ services:
       - |
         /opt/spark/sbin/start-worker.sh spark://spark-master:7077
         tail -f /opt/spark/logs/spark--org.apache.spark.deploy.worker.Worker-*.out 2>/dev/null || tail -f /dev/null
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4g
+        reservations:
+          cpus: "0.5"
+          memory: 512m
     volumes:
       - spark-worker-data:/opt/spark/work
       - spark-worker-logs:/opt/spark/logs
