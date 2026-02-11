@@ -50,7 +50,7 @@ export async function onRequestGet(context) {
 
   try {
     const results = await env.NEXUS_DB.prepare(`
-      SELECT name, enabled, deployed, subdomain, port, public, core, description
+      SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description
       FROM services
       ORDER BY name
     `).all();
@@ -71,6 +71,7 @@ export async function onRequestGet(context) {
         port: row.port || 0,
         public: row.public === 1,
         core: row.core === 1,
+        admin_only: row.admin_only === 1,
         description: row.description || '',
         enabled,
         deployed,
@@ -143,9 +144,9 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Check if service exists and get its core status
+    // Check if service exists and get its core/admin_only status
     const service = await env.NEXUS_DB.prepare(
-      'SELECT name, core, deployed FROM services WHERE name = ?'
+      'SELECT name, core, admin_only, deployed FROM services WHERE name = ?'
     ).bind(serviceName).first();
 
     if (!service) {
@@ -163,6 +164,17 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({
         success: false,
         error: `Cannot disable ${serviceName} - it is a core service required for Nexus Stack operation`,
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Block toggling admin-only services
+    if (service.admin_only === 1) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Cannot toggle ${serviceName} - it is an admin-only service managed via GitHub Actions`,
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },

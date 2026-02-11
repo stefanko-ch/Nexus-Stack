@@ -1297,6 +1297,9 @@
                 if (service.core) {
                     name.innerHTML += ' <span style="color: #ff6b6b; font-size: 0.7rem;">(core)</span>';
                 }
+                if (service.admin_only) {
+                    name.innerHTML += ' <span style="color: #888; font-size: 0.7rem;">(admin)</span>';
+                }
                 if (service.public) {
                     name.innerHTML += ' <span class="public-label">PUBLIC</span>';
                 }
@@ -1322,6 +1325,9 @@
                 if (service.core) {
                     toggle.classList.add('disabled');
                     toggle.title = 'Core service - cannot be disabled';
+                } else if (service.admin_only) {
+                    toggle.classList.add('disabled');
+                    toggle.title = 'Admin-only - managed via GitHub Actions';
                 } else {
                     // Enable toggle for non-core services
                     toggle.addEventListener('click', () => {

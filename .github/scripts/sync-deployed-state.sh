@@ -167,6 +167,7 @@ for name, config in services.items():
     port = config.get('port', 0)
     public = 1 if config.get('public', False) else 0
     core = 1 if config.get('core', False) else 0
+    admin_only = 1 if config.get('admin_only', False) else 0
     description = config.get('description', '')
     
     # Escape single quotes in description for SQL
@@ -183,12 +184,12 @@ for name, config in services.items():
     
     # INSERT OR IGNORE - only creates if not exists (preserves enabled state if already exists)
     # New services: core services enabled, others disabled
-    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, description, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, '{description}', datetime('now'));"
+    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', datetime('now'));"
     insert_statements.append(insert_sql)
     
     # UPDATE - sync metadata for existing services (preserve enabled state from D1)
     # This ensures subdomain, port, description, core, public are always in sync with yaml
-    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, description = '{description}', updated_at = datetime('now') WHERE name = '{name}';"
+    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', updated_at = datetime('now') WHERE name = '{name}';"
     update_statements.append(update_sql)
 
 # Write to temp files
