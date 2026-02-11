@@ -20,7 +20,7 @@
 services:
   spark-master:
     image: ${IMAGE_SPARK:-apache/spark:4.1.1}
-    container_name: spark-master
+    container_name: spark
     hostname: spark-master
     restart: unless-stopped
     environment:
