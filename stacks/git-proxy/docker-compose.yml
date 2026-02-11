@@ -1,0 +1,31 @@
+# =============================================================================
+# Git Proxy - Public HTTPS Git Access
+# =============================================================================
+# Nginx reverse proxy that forwards Git HTTPS requests to Gitea.
+# Provides public Git clone/push/pull access for external tools (Databricks).
+# The Gitea Web UI remains behind Cloudflare Access for security.
+#
+# Access: https://git.<domain>/<user>/<repo>.git
+# Auth: Gitea username + Personal Access Token
+# =============================================================================
+
+services:
+  git-proxy:
+    image: ${IMAGE_GIT_PROXY:-nginx:alpine}
+    container_name: git-proxy
+    restart: unless-stopped
+    ports:
+      - "3201:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+networks:
+  app-network:
+    external: true

@@ -147,6 +147,7 @@ jobs:
           github_owner    = "${{ github.repository_owner }}"
           github_repo     = "${{ github.event.repository.name }}"
           EOF
+          sed -i 's/^          //' tofu/control-plane/config.tfvars
 
       - name: Check if R2 credentials exist
         id: check_r2
@@ -262,13 +263,15 @@ jobs:
           R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
           R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
           EOF
-          
+          sed -i 's/^          //' tofu/.r2-credentials
+
           cat > tofu/backend.hcl << EOF
           endpoints = {
             s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           }
           bucket = "${BUCKET_NAME}"
           EOF
+          sed -i 's/^          //' tofu/backend.hcl
           
           # Debug: Verify credentials are set (without exposing values)
           echo "✅ R2 credentials file created"
@@ -316,6 +319,7 @@ jobs:
           }
           bucket = "${BUCKET_NAME}"
           EOF
+          sed -i 's/^          //' backend.hcl
           
           tofu init -backend-config=backend.hcl
 
@@ -542,6 +546,7 @@ jobs:
           binding = "NEXUS_DB"
           database_id = "$D1_DATABASE_ID"
           EOF
+          sed -i 's/^          //' wrangler.toml
           
           echo "  Generated wrangler.toml with D1 binding"
           cat wrangler.toml
