@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.20.0...v0.21.0) (2026-02-11)
+
+
+### 🚀 Features
+
+* **stacks:** Add Wiki.js knowledge base stack ([a741e08](https://github.com/stefanko-ch/Nexus-Stack/commit/a741e08f50b33affe474184115730398a82df823))
+* **stacks:** Add Wiki.js stack + CI/CD resilience fixes ([1612409](https://github.com/stefanko-ch/Nexus-Stack/commit/1612409fd035e84ced9a4c92f892a551dff8e1a2))
+
+
+### 🐛 Bug Fixes
+
+* Address PR review comments from Copilot ([18274c7](https://github.com/stefanko-ch/Nexus-Stack/commit/18274c7cb29ca1cf327f557abead059939742f9e))
+* Address second round of PR review comments ([98cdfc4](https://github.com/stefanko-ch/Nexus-Stack/commit/98cdfc4830b44b56ad4cd4851c0841b82915ead6))
+* **ci:** Improve Hetzner S3 bucket cleanup in destroy-all workflow ([dd37e47](https://github.com/stefanko-ch/Nexus-Stack/commit/dd37e477df0c67b6dc762e22eb5af2884e4ba9de))
+* **ci:** Remove stale .r2-credentials before recreating R2 token ([dded011](https://github.com/stefanko-ch/Nexus-Stack/commit/dded0111c656ae3cc4edd932c1fbbad227838b64))
+* **ci:** Remove unused BUCKET_NAME variable in R2 validation ([cf01353](https://github.com/stefanko-ch/Nexus-Stack/commit/cf013538d9549e93825c03d8d1b7bad0b1ce80aa))
+* **ci:** Validate numeric IDs in Close SSH port step ([858299f](https://github.com/stefanko-ch/Nexus-Stack/commit/858299f352f178dd1c042e200cb4e2e6833585fc))
+* **ci:** Validate R2 credentials before use, auto-recreate if invalid ([efa8aa2](https://github.com/stefanko-ch/Nexus-Stack/commit/efa8aa207092db94f3099a01af62de67e1705bad))
+* **scripts:** Use domain-based R2 API token naming for multi-user safety ([1df9350](https://github.com/stefanko-ch/Nexus-Stack/commit/1df9350fc535eb2a6410b58f7deac00d167fdc75))
+
 ## [0.20.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.19.1...v0.20.0) (2026-02-11)
 
 
