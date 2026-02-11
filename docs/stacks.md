@@ -1217,8 +1217,20 @@ Apache Spark provides a unified analytics engine for large-scale data processing
 ### Configuration
 
 - **Worker cores:** Configurable via `SPARK_WORKER_CORES` (default: 2)
-- **Worker memory:** Configurable via `SPARK_WORKER_MEMORY` (default: 2g)
+- **Worker memory:** Configurable via `SPARK_WORKER_MEMORY` (default: 3g)
 - **S3 access:** Pre-configured via `SPARK_HADOOP_fs_s3a_*` environment variables when Hetzner Object Storage credentials are available
+
+### Resource Limits
+
+Docker resource limits prevent Spark from consuming all server resources:
+
+| Container | CPU Limit | Memory Limit | CPU Reserved | Memory Reserved |
+|-----------|-----------|-------------|-------------|-----------------|
+| `spark-master` | 1 | 1 GB | 0.25 | 256 MB |
+| `spark-worker` | 2 | 4 GB | 0.5 | 512 MB |
+| **Total** | **3** | **5 GB** | **0.75** | **768 MB** |
+
+On a cax31 (8 vCPU, 16 GB RAM) this leaves 5 CPU and 11 GB RAM for other services.
 
 ### Usage
 
