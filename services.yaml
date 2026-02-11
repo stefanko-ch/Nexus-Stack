@@ -385,6 +385,15 @@ services:
     support_images:
       wikijs-postgres: "postgres:16-alpine"
 
+  woodpecker:
+    subdomain: "woodpecker"
+    port: 8084
+    public: false
+    description: "Lightweight Docker-native CI/CD engine with pipeline-as-code."
+    image: "woodpeckerci/woodpecker-server:v3.13.0"
+    support_images:
+      woodpecker-agent: "woodpeckerci/woodpecker-agent:v3.13.0"
+
   windmill:
     subdomain: "windmill"
     port: 8200
