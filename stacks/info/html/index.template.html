@@ -384,7 +384,7 @@
         }
 
         // Services without a web UI (backend/infrastructure services)
-        const noLinkServices = ['redpanda', 'redpanda-connect', 'redpanda-datagen'];
+        const noLinkServices = ['git-proxy', 'redpanda', 'redpanda-connect', 'redpanda-datagen'];
 
         // Service type classification for internal-only services
         const cliServices = ['meltano'];  // CLI-only tools
@@ -418,6 +418,9 @@
             } else if (databaseServices.includes(name)) {
                 badgeText = 'Database Access';
                 accessText = 'Database Network Access';
+            } else if (name === 'git-proxy') {
+                badgeText = 'Git Endpoint';
+                accessText = 'Git HTTPS Access (PAT)';
             }
 
             // Badge for services without web UI
