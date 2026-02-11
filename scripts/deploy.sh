@@ -870,17 +870,23 @@ fi
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
 # on subsequent spin-ups. Services are restarted in Step 7 after repo creation.
+# Security: Credentials are passed via GITEA_USERNAME/GITEA_PASSWORD env vars and
+# injected into containers via .netrc at startup (not embedded in the repo URL).
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
     REPO_NAME="nexus-${DOMAIN//./-}-gitea"
     # Use user credentials for service Git integration (not admin)
     GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
+    # Repo URL without credentials (auth via .netrc inside containers)
+    GITEA_REPO_URL="http://gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
     if [ -n "$GITEA_USER_PASS" ]; then
-        GITEA_REPO_URL="http://${GITEA_USER_USERNAME}:${GITEA_USER_PASS}@gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
+        GITEA_GIT_USER="${GITEA_USER_USERNAME}"
+        GITEA_GIT_PASS="${GITEA_USER_PASS}"
         GIT_AUTHOR="${GITEA_USER_USERNAME}"
         GIT_EMAIL="${USER_EMAIL}"
     else
         # Fallback to admin if no user password available
-        GITEA_REPO_URL="http://${ADMIN_USERNAME}:${GITEA_ADMIN_PASS}@gitea:3000/${ADMIN_USERNAME}/${REPO_NAME}.git"
+        GITEA_GIT_USER="${ADMIN_USERNAME}"
+        GITEA_GIT_PASS="${GITEA_ADMIN_PASS}"
         GIT_AUTHOR="${ADMIN_USERNAME}"
         GIT_EMAIL="${ADMIN_EMAIL}"
     fi
@@ -888,16 +894,23 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
     for SERVICE in jupyter marimo code-server meltano prefect; do
         if echo "$ENABLED_SERVICES" | grep -qw "$SERVICE"; then
             echo "  Adding Git workspace config to $SERVICE .env..."
-            cat >> "$STACKS_DIR/$SERVICE/.env" << EOF
-
-# Gitea workspace repo (auto-generated)
+            ENV_FILE="$STACKS_DIR/$SERVICE/.env"
+            # Idempotent: remove existing Gitea block before writing
+            if [ -f "$ENV_FILE" ]; then
+                sed -i '/^# >>> Gitea workspace repo/,/^# <<< Gitea workspace repo/d' "$ENV_FILE"
+            fi
+            cat >> "$ENV_FILE" << EOF
+# >>> Gitea workspace repo (auto-generated, do not edit)
 GITEA_URL=http://gitea:3000
 GITEA_REPO_URL=${GITEA_REPO_URL}
+GITEA_USERNAME=${GITEA_GIT_USER}
+GITEA_PASSWORD=${GITEA_GIT_PASS}
 GIT_AUTHOR_NAME=${GIT_AUTHOR}
 GIT_AUTHOR_EMAIL=${GIT_EMAIL}
 GIT_COMMITTER_NAME=${GIT_AUTHOR}
 GIT_COMMITTER_EMAIL=${GIT_EMAIL}
 REPO_NAME=${REPO_NAME}
+# <<< Gitea workspace repo
 EOF
             echo -e "${GREEN}  ✓ $SERVICE Git config added${NC}"
         fi

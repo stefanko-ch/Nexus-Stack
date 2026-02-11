@@ -25,7 +25,8 @@ services:
     container_name: prefect
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://nexus-prefect:${PREFECT_DB_PASSWORD}@prefect-db:5432/prefect"
       PREFECT_SERVER_API_HOST: "0.0.0.0"
@@ -53,7 +54,8 @@ services:
     container_name: prefect-services
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       PREFECT_API_URL: "http://prefect:4200/api"
       PREFECT_API_DATABASE_CONNECTION_URL: "postgresql+asyncpg://nexus-prefect:${PREFECT_DB_PASSWORD}@prefect-db:5432/prefect"
@@ -69,13 +71,22 @@ services:
     container_name: prefect-worker
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       PREFECT_API_URL: "http://prefect:4200/api"
     command: >
       bash -c "
+        if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
+          echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > ~/.netrc;
+          chmod 600 ~/.netrc;
+        fi;
         if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /flows/$$REPO_NAME/.git ]; then
-          git clone \"$$GITEA_REPO_URL\" /flows/$$REPO_NAME 2>/dev/null || true;
+          if git clone \"$$GITEA_REPO_URL\" /flows/$$REPO_NAME; then
+            echo '[prefect-worker] Cloned Git repo into /flows/'$$REPO_NAME;
+          else
+            echo '[prefect-worker] Warning: Failed to clone '$$GITEA_REPO_URL >&2;
+          fi;
         fi;
         exec prefect worker start --pool local-pool
       "
@@ -93,7 +104,8 @@ services:
     container_name: prefect-db
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       POSTGRES_USER: nexus-prefect
       POSTGRES_PASSWORD: ${PREFECT_DB_PASSWORD}

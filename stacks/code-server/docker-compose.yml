@@ -19,8 +19,16 @@ services:
     restart: unless-stopped
     entrypoint: >
       bash -c "
+        if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
+          echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > /home/coder/.netrc;
+          chmod 600 /home/coder/.netrc;
+        fi;
         if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /home/coder/$$REPO_NAME/.git ]; then
-          git clone \"$$GITEA_REPO_URL\" /home/coder/$$REPO_NAME 2>/dev/null || true;
+          if git clone \"$$GITEA_REPO_URL\" /home/coder/$$REPO_NAME; then
+            echo '[code-server] Cloned Git repo into /home/coder/'$$REPO_NAME;
+          else
+            echo '[code-server] Warning: Failed to clone '$$GITEA_REPO_URL >&2;
+          fi;
         fi;
         OPEN_DIR=/home/coder;
         if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;
