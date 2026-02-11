@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS services (
     port INTEGER DEFAULT 0,
     public INTEGER DEFAULT 0,
     core INTEGER DEFAULT 0,
+    admin_only INTEGER DEFAULT 0,
     description TEXT DEFAULT '',
     updated_at TEXT DEFAULT (datetime('now'))
 );

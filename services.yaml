@@ -374,6 +374,7 @@ services:
     subdomain: "wetty"
     port: 3002
     public: false
+    admin_only: true
     description: "Web-based SSH terminal for browser access to your server."
     image: "wettyoss/wetty:latest"
 
