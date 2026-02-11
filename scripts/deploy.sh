@@ -132,6 +132,7 @@ GITEA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_db_password // empty')
 CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password // empty')
 WIKIJS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_admin_password // empty')
 WIKIJS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_db_password // empty')
+WOODPECKER_AGENT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.woodpecker_agent_secret // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -877,6 +878,19 @@ EOF
     echo -e "${GREEN}  ✓ Wiki.js .env generated${NC}"
 fi
 
+# Woodpecker CI
+if echo "$ENABLED_SERVICES" | grep -qw "woodpecker" && [ -n "$WOODPECKER_AGENT_SECRET" ]; then
+    cat > "$STACKS_DIR/woodpecker/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+DOMAIN=${DOMAIN}
+WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
+WOODPECKER_ADMIN=${ADMIN_USERNAME:-}
+WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT:-}
+WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET:-}
+EOF
+    echo -e "${GREEN}  ✓ Woodpecker CI .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1340,6 +1354,10 @@ for service in $ENABLED_LIST; do
     fi
 done
 
+# Services that are started later after their dependencies are ready
+# Woodpecker requires Gitea OAuth credentials, so it starts after Gitea setup
+DEFERRED_SERVICES=\"woodpecker\"
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
 
@@ -1352,6 +1370,12 @@ for service in $ENABLED_LIST; do
     # Skip parent stacks that were already started
     if echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$service\"; then
         echo \"[DEBUG] Skipping \$service (already started as parent stack)\" >&2
+        continue
+    fi
+
+    # Skip deferred services (started later after dependencies are ready)
+    if echo \"\$DEFERRED_SERVICES\" | grep -qw \"\$service\"; then
+        echo \"[DEBUG] Deferring \$service (started after dependency setup)\" >&2
         continue
     fi
 
@@ -1495,7 +1519,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1532,6 +1556,7 @@ EOF
                     OPENMETADATA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="openmetadata") | .id // empty' 2>/dev/null)
                     GITEA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="gitea") | .id // empty' 2>/dev/null)
                     WIKIJS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="wikijs") | .id // empty' 2>/dev/null)
+                    WOODPECKER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="woodpecker") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -1613,7 +1638,10 @@ EOF
     {"secretKey": "CLICKHOUSE_PASSWORD", "secretValue": "$CLICKHOUSE_ADMIN_PASS", "tagIds": ["$CLICKHOUSE_TAG"]},
     {"secretKey": "WIKIJS_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_PASSWORD", "secretValue": "$WIKIJS_ADMIN_PASS", "tagIds": ["$WIKIJS_TAG"]},
-    {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]},
+    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}${WOODPECKER_GITEA_CLIENT:+,
+    {"secretKey": "WOODPECKER_GITEA_CLIENT", "secretValue": "$WOODPECKER_GITEA_CLIENT", "tagIds": ["$WOODPECKER_TAG"]}}${WOODPECKER_GITEA_SECRET:+,
+    {"secretKey": "WOODPECKER_GITEA_SECRET", "secretValue": "$WOODPECKER_GITEA_SECRET", "tagIds": ["$WOODPECKER_TAG"]}}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -2442,6 +2470,57 @@ triggers:
                     echo -e "${GREEN}  ✓ Kestra Git sync flow created${NC}"
                 else
                     echo -e "${YELLOW}  ⚠ Kestra not ready - skipping Git sync flow${NC}"
+                fi
+            fi
+
+            # --- Create Woodpecker CI OAuth application in Gitea ---
+            if echo "$ENABLED_SERVICES" | grep -qw "woodpecker" && [ -n "$WOODPECKER_AGENT_SECRET" ]; then
+                echo "  Creating Woodpecker CI OAuth app in Gitea..."
+
+                # Delete existing OAuth app if present (idempotent re-deploy)
+                EXISTING_APPS=$(ssh nexus "curl -s 'http://localhost:3200/api/v1/user/applications/oauth2' \
+                    -H 'Authorization: token $GITEA_TOKEN'" 2>/dev/null || echo "[]")
+                EXISTING_APP_ID=$(echo "$EXISTING_APPS" | jq -r '.[] | select(.name=="Woodpecker CI") | .id // empty' 2>/dev/null)
+                if [ -n "$EXISTING_APP_ID" ]; then
+                    ssh nexus "curl -s -X DELETE 'http://localhost:3200/api/v1/user/applications/oauth2/$EXISTING_APP_ID' \
+                        -H 'Authorization: token $GITEA_TOKEN'" >/dev/null 2>&1 || true
+                fi
+
+                # Create new OAuth application
+                OAUTH_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/user/applications/oauth2' \
+                    -H 'Authorization: token $GITEA_TOKEN' \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                        \"name\": \"Woodpecker CI\",
+                        \"redirect_uris\": [\"https://woodpecker.${DOMAIN}/authorize\"],
+                        \"confidential_client\": true
+                    }'" 2>/dev/null || echo "")
+
+                WOODPECKER_GITEA_CLIENT=$(echo "$OAUTH_RESULT" | jq -r '.client_id // empty')
+                WOODPECKER_GITEA_SECRET=$(echo "$OAUTH_RESULT" | jq -r '.client_secret // empty')
+
+                if [ -n "$WOODPECKER_GITEA_CLIENT" ] && [ -n "$WOODPECKER_GITEA_SECRET" ]; then
+                    echo -e "${GREEN}  ✓ Woodpecker OAuth app created${NC}"
+
+                    # Update Woodpecker .env with OAuth credentials
+                    cat > "$STACKS_DIR/woodpecker/.env" << WPEOF
+# Auto-generated - DO NOT COMMIT
+DOMAIN=${DOMAIN}
+WOODPECKER_AGENT_SECRET=${WOODPECKER_AGENT_SECRET}
+WOODPECKER_ADMIN=${ADMIN_USERNAME:-}
+WOODPECKER_GITEA_CLIENT=${WOODPECKER_GITEA_CLIENT}
+WOODPECKER_GITEA_SECRET=${WOODPECKER_GITEA_SECRET}
+WPEOF
+
+                    # Sync updated .env to server and start Woodpecker
+                    rsync -az "$STACKS_DIR/woodpecker/" nexus:$REMOTE_STACKS_DIR/woodpecker/
+                    if ssh nexus "cd $REMOTE_STACKS_DIR/woodpecker && source /opt/docker-server/stacks/.env && docker compose up -d" 2>&1; then
+                        echo -e "${GREEN}  ✓ Woodpecker started with Gitea forge${NC}"
+                    else
+                        echo -e "${YELLOW}  ⚠ Failed to start Woodpecker - check container logs${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}  ⚠ Could not create Woodpecker OAuth app in Gitea${NC}"
                 fi
             fi
 

@@ -1,0 +1,64 @@
+# =============================================================================
+# Woodpecker CI - Lightweight Docker-native CI/CD Engine
+# =============================================================================
+# Access via: https://woodpecker.${domain}
+# A simple, container-native CI/CD engine with pipeline-as-code.
+# Pipelines are defined in .woodpecker.yml files in your Git repositories.
+# Authentication is handled via Git forge OAuth (GitHub, Gitea, etc.).
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - Authentication delegated to Git forge (GitHub/Gitea OAuth)
+# - Agent-server communication secured via shared secret
+# =============================================================================
+
+services:
+  woodpecker-server:
+    image: ${IMAGE_WOODPECKER_SERVER:-woodpeckerci/woodpecker-server:v3.13.0}
+    container_name: woodpecker-server
+    restart: unless-stopped
+    environment:
+      WOODPECKER_HOST: https://woodpecker.${DOMAIN}
+      WOODPECKER_AGENT_SECRET: ${WOODPECKER_AGENT_SECRET}
+      WOODPECKER_OPEN: "false"
+      WOODPECKER_ADMIN: ${WOODPECKER_ADMIN:-}
+      # Database: SQLite (default, stored in volume)
+      WOODPECKER_DATABASE_DRIVER: sqlite3
+      # Gitea forge integration (OAuth)
+      WOODPECKER_GITEA: "true"
+      WOODPECKER_GITEA_URL: http://gitea:3000
+      WOODPECKER_EXPERT_FORGE_OAUTH_HOST: https://gitea.${DOMAIN}
+      WOODPECKER_GITEA_CLIENT: ${WOODPECKER_GITEA_CLIENT}
+      WOODPECKER_GITEA_SECRET: ${WOODPECKER_GITEA_SECRET}
+    ports:
+      - "8084:8000"
+    volumes:
+      - woodpecker-server-data:/var/lib/woodpecker/
+    networks:
+      - app-network
+      - woodpecker-internal
+
+  woodpecker-agent:
+    image: ${IMAGE_WOODPECKER_AGENT:-woodpeckerci/woodpecker-agent:v3.13.0}
+    container_name: woodpecker-agent
+    restart: unless-stopped
+    depends_on:
+      woodpecker-server:
+        condition: service_healthy
+    environment:
+      WOODPECKER_SERVER: woodpecker-server:9000
+      WOODPECKER_AGENT_SECRET: ${WOODPECKER_AGENT_SECRET}
+      WOODPECKER_MAX_WORKFLOWS: 2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - woodpecker-internal
+
+volumes:
+  woodpecker-server-data:
+
+networks:
+  app-network:
+    external: true
+  woodpecker-internal:
+    driver: bridge

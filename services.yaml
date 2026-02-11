@@ -92,6 +92,7 @@ services:
     subdomain: "gitea"
     port: 3200
     public: false
+    core: true
     description: "Self-hosted Git service with pull requests, code review, and CI/CD."
     image: "gitea/gitea:1.23"
     support_images:
@@ -373,6 +374,7 @@ services:
     subdomain: "wetty"
     port: 3002
     public: false
+    admin_only: true
     description: "Web-based SSH terminal for browser access to your server."
     image: "wettyoss/wetty:latest"
 
@@ -384,6 +386,15 @@ services:
     image: "requarks/wiki:2.5.306"
     support_images:
       wikijs-postgres: "postgres:16-alpine"
+
+  woodpecker:
+    subdomain: "woodpecker"
+    port: 8084
+    public: false
+    description: "Lightweight Docker-native CI/CD engine with pipeline-as-code."
+    image: "woodpeckerci/woodpecker-server:v3.13.0"
+    support_images:
+      woodpecker-agent: "woodpeckerci/woodpecker-agent:v3.13.0"
 
   windmill:
     subdomain: "windmill"

@@ -135,6 +135,7 @@ flowchart LR
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
 ![Wiki.js](https://img.shields.io/badge/Wiki.js-1976D2?logo=wikidotjs&logoColor=white)
 ![Windmill](https://img.shields.io/badge/Windmill-3B82F6?logo=windowsterminal&logoColor=white)
+![Woodpecker CI](https://img.shields.io/badge/Woodpecker_CI-4CAF50?logo=woodpeckerci&logoColor=white)
 
 | Stack | Description | Website |
 |-------|-------------|--------|
@@ -179,6 +180,7 @@ flowchart LR
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |
 | **Wiki.js** | Open-source wiki and knowledge base with Markdown and visual editor | [js.wiki](https://js.wiki) |
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
+| **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
 
 → See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.
 
