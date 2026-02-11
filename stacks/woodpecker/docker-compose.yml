@@ -26,7 +26,8 @@ services:
       WOODPECKER_DATABASE_DRIVER: sqlite3
       # Gitea forge integration (OAuth)
       WOODPECKER_GITEA: "true"
-      WOODPECKER_GITEA_URL: https://gitea.${DOMAIN}
+      WOODPECKER_GITEA_URL: http://gitea:3000
+      WOODPECKER_DEV_GITEA_OAUTH_URL: https://gitea.${DOMAIN}
       WOODPECKER_GITEA_CLIENT: ${WOODPECKER_GITEA_CLIENT}
       WOODPECKER_GITEA_SECRET: ${WOODPECKER_GITEA_SECRET}
     ports:
