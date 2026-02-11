@@ -219,12 +219,21 @@ jobs:
           ENDPOINT_URL="https://${HETZNER_S3_SERVER}"
           RESOURCE_PREFIX=$(echo "$DOMAIN" | tr '.' '-')
 
+          BUCKET_CLEANUP_FAILED=false
+
           # Delete LakeFS bucket (if still exists after Terraform destroy)
           LAKEFS_BUCKET="nexus-${RESOURCE_PREFIX}-lakefs"
           echo "  Checking bucket: $LAKEFS_BUCKET"
-          if aws s3 ls "s3://${LAKEFS_BUCKET}" --endpoint-url="$ENDPOINT_URL" 2>/dev/null; then
+          if aws s3api head-bucket --bucket "${LAKEFS_BUCKET}" --endpoint-url="$ENDPOINT_URL" 2>/dev/null; then
             echo "    Deleting orphaned bucket: $LAKEFS_BUCKET"
-            aws s3 rb "s3://${LAKEFS_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Failed to delete bucket"
+            aws s3 rm "s3://${LAKEFS_BUCKET}" --recursive --endpoint-url="$ENDPOINT_URL" 2>/dev/null || true
+            if ! aws s3 rb "s3://${LAKEFS_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>&1; then
+              echo "    ❌ ERROR: Could not delete bucket $LAKEFS_BUCKET"
+              echo "    Manual cleanup required via Hetzner Console"
+              BUCKET_CLEANUP_FAILED=true
+            else
+              echo "    ✅ Bucket $LAKEFS_BUCKET deleted"
+            fi
           else
             echo "    Bucket already deleted by Terraform"
           fi
@@ -232,14 +241,28 @@ jobs:
           # Delete General bucket (if still exists after Terraform destroy)
           GENERAL_BUCKET="nexus-${RESOURCE_PREFIX}"
           echo "  Checking bucket: $GENERAL_BUCKET"
-          if aws s3 ls "s3://${GENERAL_BUCKET}" --endpoint-url="$ENDPOINT_URL" 2>/dev/null; then
+          if aws s3api head-bucket --bucket "${GENERAL_BUCKET}" --endpoint-url="$ENDPOINT_URL" 2>/dev/null; then
             echo "    Deleting orphaned bucket: $GENERAL_BUCKET"
-            aws s3 rb "s3://${GENERAL_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>/dev/null || echo "    Failed to delete bucket"
+            aws s3 rm "s3://${GENERAL_BUCKET}" --recursive --endpoint-url="$ENDPOINT_URL" 2>/dev/null || true
+            if ! aws s3 rb "s3://${GENERAL_BUCKET}" --force --endpoint-url="$ENDPOINT_URL" 2>&1; then
+              echo "    ❌ ERROR: Could not delete bucket $GENERAL_BUCKET"
+              echo "    Manual cleanup required via Hetzner Console"
+              BUCKET_CLEANUP_FAILED=true
+            else
+              echo "    ✅ Bucket $GENERAL_BUCKET deleted"
+            fi
           else
             echo "    Bucket already deleted by Terraform"
           fi
 
-          echo "  ✅ Hetzner Object Storage cleanup completed"
+          if [ "${BUCKET_CLEANUP_FAILED}" = "true" ]; then
+            echo ""
+            echo "  ⚠️  Some Hetzner Object Storage buckets could not be deleted."
+            echo "  Delete them manually via Hetzner Console before re-deploying."
+            echo "  Next initial-setup will fail if stale buckets remain."
+          else
+            echo "  ✅ Hetzner Object Storage cleanup completed"
+          fi
 
       - name: Delete R2 secrets from GitHub
         env:
