@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.21.0...v0.22.0) (2026-02-11)
+
+
+### 🚀 Features
+
+* **control-plane:** Add admin_only flag to prevent users from toggling Wetty ([a008e9c](https://github.com/stefanko-ch/Nexus-Stack/commit/a008e9cf1381d9e34d7ad7d9683c2226cb51f277))
+* **stacks:** Add Woodpecker CI stack ([ff0155d](https://github.com/stefanko-ch/Nexus-Stack/commit/ff0155d3d89d42cb55d930a48f41c04803e1a3b9))
+* **stacks:** Add Woodpecker CI stack ([5b79872](https://github.com/stefanko-ch/Nexus-Stack/commit/5b79872bb3bb7f71235dad54a1ed5c76fe10ed6e))
+
+
+### 🐛 Bug Fixes
+
+* Address second round of PR review comments ([6dcbe24](https://github.com/stefanko-ch/Nexus-Stack/commit/6dcbe24370c8225e0e1f89f877e87a95922a186e))
+* **stacks:** Address PR review comments for Woodpecker stack ([50d8da2](https://github.com/stefanko-ch/Nexus-Stack/commit/50d8da2acf6f0451f2e5f899f10e0a44fec2222b))
+* **stacks:** Integrate Woodpecker CI with Gitea forge ([6a50bcc](https://github.com/stefanko-ch/Nexus-Stack/commit/6a50bcccfd1b8bf6248768601330bb0a0e726022))
+* **stacks:** Remove custom healthcheck from Woodpecker server ([9eb5d16](https://github.com/stefanko-ch/Nexus-Stack/commit/9eb5d1696859a6ffac7b5ef6d2561506706520b7))
+* **stacks:** Split Woodpecker Gitea URL into internal API + public OAuth ([4bbec4f](https://github.com/stefanko-ch/Nexus-Stack/commit/4bbec4ff7d291c900d9132539fd4930416860f1f))
+* **stacks:** Use correct v3 env var for Woodpecker OAuth redirect ([01b542d](https://github.com/stefanko-ch/Nexus-Stack/commit/01b542d95f6b37c43cca2f763b565cfc2ecb2263))
+* **stacks:** Use public Gitea URL for Woodpecker OAuth and make Gitea core ([cd19fc0](https://github.com/stefanko-ch/Nexus-Stack/commit/cd19fc0dec379aa195e7b72c73c3be8d2b32ec9d))
+
+
+### 📚 Documentation
+
+* Enforce logs-first debugging approach in CLAUDE.md ([8556b7f](https://github.com/stefanko-ch/Nexus-Stack/commit/8556b7f42cf2b96cbcbd010d88aef2d7a4cf3e8e))
+
 ## [0.21.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.20.0...v0.21.0) (2026-02-11)
 
 
