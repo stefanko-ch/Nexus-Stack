@@ -59,7 +59,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
 | Soda Core | `soda-core-arm64` | `3.3.7` | Exact ³ |
 | Trino | `trinodb/trino` | `479` | Exact ¹ |
-| Wiki.js | `requarks/wiki` | `2.5` | Minor |
+| Wiki.js | `requarks/wiki` | `2.5.306` | Exact ¹ |
 | PostgreSQL (Wiki.js DB) | `postgres` | `16-alpine` | Major |
 | Windmill | `ghcr.io/windmill-labs/windmill` | `1.624.0` | Exact ¹ |
 | Windmill LSP | `ghcr.io/windmill-labs/windmill-lsp` | `latest` | Latest ² |

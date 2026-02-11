@@ -381,7 +381,7 @@ services:
     port: 3005
     public: false
     description: "Open-source wiki and knowledge base platform with Markdown, visual editor, and multi-language support."
-    image: "requarks/wiki:2.5"
+    image: "requarks/wiki:2.5.306"
     support_images:
       wikijs-postgres: "postgres:16-alpine"
 
