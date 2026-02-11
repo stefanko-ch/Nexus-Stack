@@ -416,49 +416,60 @@ No initial-setup needed since this is an internal_only service (no DNS/Tunnel ch
 
 **When something doesn't work, think outside the box!**
 
-### 0. Systematic Error Analysis (CRITICAL)
+### 0. Logs First, No Guessing (CRITICAL)
 
-**NEVER jump to conclusions or make assumptions when encountering an error.**
+**NEVER speculate or make assumptions. Always check actual logs and facts first.**
 
-Before attempting any fix, perform a comprehensive analysis:
+When debugging any issue, follow this strict order:
 
-1. **Gather ALL relevant information first:**
+1. **Check logs BEFORE forming any hypothesis:**
+   - **GitHub Actions logs**: `gh run view <id> --log-failed` or `--log` with grep
+   - **Container logs on server**: `gh run view <id> --log` and search for the service name, or SSH to server for `docker logs <container>`
+   - **OpenTofu output**: Check the `Apply infrastructure` step for actual resource state
+   - **Cloudflare Tunnel config**: Check the `Install Cloudflare Tunnel` step for ingress rules
    - Read the COMPLETE error message, not just the first line
-   - Check logs from ALL involved systems (GitHub Actions, Terraform, Server, Cloudflare)
-   - Identify the EXACT point of failure in the execution flow
 
-2. **Analyze the fundamentals before complex causes:**
-   - Verify basic connectivity (IP addresses, ports, DNS)
-   - Check data formats and types (e.g., IPv6 `/64` network vs host address)
+2. **Verify actual state, don't assume:**
+   - Check what env vars are actually set in the container (not what you think they should be)
+   - Check if the container is actually running and healthy
+   - Check the actual .env file content on the server
+   - Check the actual Docker Compose file that was synced to the server
    - Confirm variable values are what you expect them to be
-   - Validate file paths, permissions, and existence
 
-3. **Consult documentation when dealing with:**
-   - Provider-specific behavior (Hetzner, Cloudflare, etc.)
-   - API response formats and data structures
-   - Platform-specific quirks (e.g., GitHub Actions environment)
+3. **Only after reading logs, analyze:**
+   - What is the exact error message?
+   - At what exact point does the flow fail?
+   - What do the logs say happened vs. what should have happened?
 
-4. **Create a hypothesis list:**
-   - List ALL possible causes, from simple to complex
-   - Start investigating from the most fundamental (network, data format)
-   - Don't skip "obvious" checks - they're often the actual problem
+4. **Consult documentation only for specific questions:**
+   - "Is env var X supported in version Y?" → check the official docs
+   - "What is the correct env var name?" → check the docs
+   - Don't research broadly when the logs already tell you the answer
 
-5. **Example of what NOT to do:**
-   - ❌ "SSH fails → must be Service Token issue" (skipped checking IP format)
-   - ❌ "Connection timeout → must be firewall" (didn't verify the IP was valid)
-   - ❌ "Auth failed → token not propagated" (didn't check if tunnel was running)
+5. **Examples of what NOT to do:**
+   - ❌ Researching "why might OAuth fail" without first reading the actual error log
+   - ❌ Guessing "Cloudflare Access probably blocks this" without checking container logs
+   - ❌ Assuming an env var works without verifying the version supports it
+   - ❌ Making multiple speculative fixes without reading what the server actually reports
 
-6. **Example of proper analysis:**
+6. **Examples of proper debugging:**
+   - ✅ "OAuth fails → check Woodpecker container logs → see exact error → fix based on what the log says"
+   - ✅ "Container unhealthy → check `docker logs woodpecker-server` → see crash reason → fix"
    - ✅ "SSH fails → What IP is being used? → `2a01:4f8:xxxx::/64` → That's a network, not a host! → Fix: append `::1`"
 
-**Remember: The simplest explanation is often correct. Check the basics FIRST.**
+**Rule: No fix attempt without first reading the relevant logs. Facts only, no speculation.**
 
-### 1. Always Check Logs First
+### 1. Where to Find Logs
 
-Before assuming client-side issues (DNS cache, browser cache, etc.), check:
-- GitHub Actions workflow logs (full output, not just summary)
-- Terraform/OpenTofu apply output
-- Container logs on the server
+| Source | How to access | What it shows |
+|--------|--------------|---------------|
+| **GitHub Actions** | `gh run view <id> --log` | Full workflow output |
+| **Failed steps only** | `gh run view <id> --log-failed` | Only failed step output |
+| **Container logs** | SSH to server: `docker logs <container>` | Application-level errors |
+| **Docker status** | SSH: `docker ps -a` | Container state (running/exited/unhealthy) |
+| **Docker inspect** | SSH: `docker inspect <container>` | Full config, env vars, health check results |
+| **Env file on server** | SSH: `cat /opt/docker-server/stacks/<service>/.env` | Actual env vars used |
+| **Tunnel config** | grep for "Updated to new configuration" in workflow logs | Actual ingress rules |
 
 ### 2. Verify Infrastructure Configuration
 
