@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.19.1...v0.20.0) (2026-02-11)
+
+
+### 🚀 Features
+
+* **control-plane:** Add PUBLIC warning badge for public services ([6c04cb4](https://github.com/stefanko-ch/Nexus-Stack/commit/6c04cb40d1badde5a0941755b8afcd39e2345519))
+* **stacks:** add Git proxy, auto-repo creation, and service Git bindings ([f0b08c4](https://github.com/stefanko-ch/Nexus-Stack/commit/f0b08c433841c8c7636f9c8a01bc836233647080))
+* **stacks:** Add Gitea Git integration with proxy, user accounts, and service bindings ([945cb2d](https://github.com/stefanko-ch/Nexus-Stack/commit/945cb2d103a1b0f9c2083e7e41b198829c54648e))
+* **stacks:** Add Gitea user account, private repo, and Infisical secrets ([19dd8cd](https://github.com/stefanko-ch/Nexus-Stack/commit/19dd8cda47998c33ba33d50d4e7be5cc499bb801))
+
+
+### 🐛 Bug Fixes
+
+* Address PR review - .netrc auth, idempotent .env, error logging ([0546d48](https://github.com/stefanko-ch/Nexus-Stack/commit/0546d48c66543dd85d0342fa6e8d28eae8ee301e))
+* **ci:** fix heredoc indentation corrupting R2 credentials and config files ([1e1ec13](https://github.com/stefanko-ch/Nexus-Stack/commit/1e1ec1381f5647d2cdd11fda9a44bfe7eb0e27fd))
+* **ci:** indent heredoc content and strip with sed to prevent YAML corruption ([7adbe0d](https://github.com/stefanko-ch/Nexus-Stack/commit/7adbe0d52e9953ec50cec8c1b30738483b7c2745))
+* **ci:** remove empty expression placeholder from comment ([8a4ba09](https://github.com/stefanko-ch/Nexus-Stack/commit/8a4ba09b2263be924e967e612a080f489f8957a3))
+* **ci:** remove SSH key masking that corrupts R2 credentials ([ad2287e](https://github.com/stefanko-ch/Nexus-Stack/commit/ad2287e309f432272f06e0270b7771fabb5404c4))
+* **ci:** remove SSH key masking that corrupts R2 credentials ([f747141](https://github.com/stefanko-ch/Nexus-Stack/commit/f747141560aa40264154f47364c9924716b1f478))
+* **ci:** restore SSH key heredoc indentation for YAML parser compatibility ([56f7125](https://github.com/stefanko-ch/Nexus-Stack/commit/56f71257ed50b239c59a53d4019fe21144dbe1c2))
+* **ci:** use indented heredocs with sed strip for YAML parser compatibility ([97e99ef](https://github.com/stefanko-ch/Nexus-Stack/commit/97e99ef4608065aaa5abbb13868aa4c66d90c392))
+* **scripts:** address PR review feedback for SSH error debugging ([9242be2](https://github.com/stefanko-ch/Nexus-Stack/commit/9242be282365a2c19a052efae98d64b96bde07a2))
+* **scripts:** show SSH errors instead of suppressing with 2&gt;/dev/null ([570ca31](https://github.com/stefanko-ch/Nexus-Stack/commit/570ca3186c5df004291c1186edb5b3933439f202))
+* **scripts:** show SSH errors instead of suppressing with 2&gt;/dev/null ([ef0342d](https://github.com/stefanko-ch/Nexus-Stack/commit/ef0342d38608caf3bd7610f4b843d5dcd389eefd))
+* **scripts:** Use curl -s instead of curl -sf for Gitea API calls ([4466f43](https://github.com/stefanko-ch/Nexus-Stack/commit/4466f430a2382c132798e6990cea94cdea03aef8))
+* **stacks:** Disable Marimo access token (behind Cloudflare Access) ([113802b](https://github.com/stefanko-ch/Nexus-Stack/commit/113802b63ad0119fc174c082030206b6f849ac51))
+* **stacks:** Fix code-server 502 caused by escaped variable in command ([bdd7b40](https://github.com/stefanko-ch/Nexus-Stack/commit/bdd7b401e293ae444f7b6fb8907f7dc11eda061d))
+* **stacks:** Use entrypoint instead of command for code-server ([c6ba2f2](https://github.com/stefanko-ch/Nexus-Stack/commit/c6ba2f27515668133e5354f47cf5709048a6bc51))
+* **tofu:** Exclude public services from Cloudflare Access Application ([4fec1e4](https://github.com/stefanko-ch/Nexus-Stack/commit/4fec1e44e10eae446ec0f1a1454649fe2b0ec5b9))
+
 ## [0.19.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.19.0...v0.19.1) (2026-02-09)
 
 
