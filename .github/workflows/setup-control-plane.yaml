@@ -315,6 +315,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🔄 Recreating R2 token and credentials..."
+          rm -f tofu/.r2-credentials  # Remove stale credentials so init script creates new token
           chmod +x scripts/init-r2-state.sh
           if ! ./scripts/init-r2-state.sh; then
             echo "❌ init-r2-state.sh failed"
