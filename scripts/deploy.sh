@@ -1639,9 +1639,9 @@ EOF
     {"secretKey": "WIKIJS_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_PASSWORD", "secretValue": "$WIKIJS_ADMIN_PASS", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]},
-    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]},
-    {"secretKey": "WOODPECKER_GITEA_CLIENT", "secretValue": "${WOODPECKER_GITEA_CLIENT:-}", "tagIds": ["$WOODPECKER_TAG"]},
-    {"secretKey": "WOODPECKER_GITEA_SECRET", "secretValue": "${WOODPECKER_GITEA_SECRET:-}", "tagIds": ["$WOODPECKER_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}${WOODPECKER_GITEA_CLIENT:+,
+    {"secretKey": "WOODPECKER_GITEA_CLIENT", "secretValue": "$WOODPECKER_GITEA_CLIENT", "tagIds": ["$WOODPECKER_TAG"]}}${WOODPECKER_GITEA_SECRET:+,
+    {"secretKey": "WOODPECKER_GITEA_SECRET", "secretValue": "$WOODPECKER_GITEA_SECRET", "tagIds": ["$WOODPECKER_TAG"]}}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
