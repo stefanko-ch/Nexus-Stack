@@ -2299,16 +2299,17 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
         echo "  Creating shared workspace repo: $REPO_NAME..."
 
         # Create API token for automation (reuse existing if present)
-        GITEA_TOKEN=$(ssh nexus "curl -sf -X POST 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens' \
+        # Use curl -s (not -sf) to avoid exit code 22 on HTTP errors with set -e
+        GITEA_TOKEN=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens' \
             -u '$ADMIN_USERNAME:$GITEA_ADMIN_PASS' \
             -H 'Content-Type: application/json' \
             -d '{\"name\":\"nexus-automation\",\"scopes\":[\"all\"]}'" 2>/dev/null | jq -r '.sha1 // empty')
 
         if [ -z "$GITEA_TOKEN" ]; then
             # Token may already exist, try to delete and recreate
-            ssh nexus "curl -sf -X DELETE 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens/nexus-automation' \
+            ssh nexus "curl -s -X DELETE 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens/nexus-automation' \
                 -u '$ADMIN_USERNAME:$GITEA_ADMIN_PASS'" >/dev/null 2>&1 || true
-            GITEA_TOKEN=$(ssh nexus "curl -sf -X POST 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens' \
+            GITEA_TOKEN=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/users/$ADMIN_USERNAME/tokens' \
                 -u '$ADMIN_USERNAME:$GITEA_ADMIN_PASS' \
                 -H 'Content-Type: application/json' \
                 -d '{\"name\":\"nexus-automation\",\"scopes\":[\"all\"]}'" 2>/dev/null | jq -r '.sha1 // empty')
@@ -2316,7 +2317,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
 
         if [ -n "$GITEA_TOKEN" ]; then
             # Create private repo (requires auth for clone and push)
-            REPO_RESULT=$(ssh nexus "curl -sf -X POST 'http://localhost:3200/api/v1/user/repos' \
+            # Use curl -s (not -sf) - repo may already exist (409), which is fine
+            REPO_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:3200/api/v1/user/repos' \
                 -H 'Authorization: token $GITEA_TOKEN' \
                 -H 'Content-Type: application/json' \
                 -d '{
@@ -2332,7 +2334,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
             elif echo "$REPO_RESULT" | grep -q "already exists"; then
                 echo -e "${YELLOW}  ⚠ Repo '$REPO_NAME' already exists${NC}"
                 # Ensure existing repo is set to private
-                ssh nexus "curl -sf -X PATCH 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME' \
+                ssh nexus "curl -s -X PATCH 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME' \
                     -H 'Authorization: token $GITEA_TOKEN' \
                     -H 'Content-Type: application/json' \
                     -d '{\"private\": true}'" >/dev/null 2>&1 || true
@@ -2342,7 +2344,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
 
             # --- Add user as collaborator to the repo ---
             if [ -n "$GITEA_USER_USERNAME" ] && [ -n "$GITEA_USER_PASS" ]; then
-                ssh nexus "curl -sf -X PUT 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
+                ssh nexus "curl -s -X PUT 'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
                     -H 'Authorization: token $GITEA_TOKEN' \
                     -H 'Content-Type: application/json' \
                     -d '{\"permission\": \"write\"}'" >/dev/null 2>&1 || true
