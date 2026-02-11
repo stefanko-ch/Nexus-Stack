@@ -130,6 +130,8 @@ GITEA_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_admin_password // empty'
 GITEA_USER_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_user_password // empty')
 GITEA_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.gitea_db_password // empty')
 CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password // empty')
+WIKIJS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_admin_password // empty')
+WIKIJS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_db_password // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -866,6 +868,15 @@ EOF
     fi
 fi
 
+# Wiki.js
+if echo "$ENABLED_SERVICES" | grep -qw "wikijs" && [ -n "$WIKIJS_DB_PASS" ]; then
+    cat > "$STACKS_DIR/wikijs/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+WIKIJS_DB_PASSWORD=${WIKIJS_DB_PASS}
+EOF
+    echo -e "${GREEN}  ✓ Wiki.js .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1484,7 +1495,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1520,6 +1531,7 @@ EOF
                     WINDMILL_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="windmill") | .id // empty' 2>/dev/null)
                     OPENMETADATA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="openmetadata") | .id // empty' 2>/dev/null)
                     GITEA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="gitea") | .id // empty' 2>/dev/null)
+                    WIKIJS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="wikijs") | .id // empty' 2>/dev/null)
                     CONFIG_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="config") | .id // empty' 2>/dev/null)
                     SSH_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="ssh") | .id // empty' 2>/dev/null)
                     
@@ -1598,7 +1610,10 @@ EOF
     {"secretKey": "GITEA_REPO_URL", "secretValue": "https://git.${DOMAIN}/${ADMIN_USERNAME}/nexus-${DOMAIN//./-}-gitea.git", "tagIds": ["$GITEA_TAG"]},
     {"secretKey": "GITEA_DB_PASSWORD", "secretValue": "$GITEA_DB_PASS", "tagIds": ["$GITEA_TAG"]},
     {"secretKey": "CLICKHOUSE_USERNAME", "secretValue": "nexus-clickhouse", "tagIds": ["$CLICKHOUSE_TAG"]},
-    {"secretKey": "CLICKHOUSE_PASSWORD", "secretValue": "$CLICKHOUSE_ADMIN_PASS", "tagIds": ["$CLICKHOUSE_TAG"]}$SSH_KEY_SECRET
+    {"secretKey": "CLICKHOUSE_PASSWORD", "secretValue": "$CLICKHOUSE_ADMIN_PASS", "tagIds": ["$CLICKHOUSE_TAG"]},
+    {"secretKey": "WIKIJS_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$WIKIJS_TAG"]},
+    {"secretKey": "WIKIJS_PASSWORD", "secretValue": "$WIKIJS_ADMIN_PASS", "tagIds": ["$WIKIJS_TAG"]},
+    {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]}$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -2438,6 +2453,41 @@ triggers:
         echo -e "${YELLOW}  ⚠ Gitea not ready after 60s - skipping admin setup${NC}"
         echo -e "${YELLOW}    Credentials available in Infisical${NC}"
     fi
+fi
+
+# Configure Wiki.js admin (uses user_email, not admin)
+if echo "$ENABLED_SERVICES" | grep -qw "wikijs" && [ -n "$WIKIJS_ADMIN_PASS" ]; then
+    (
+        echo "  Configuring Wiki.js admin..."
+        WIKIJS_EMAIL="${USER_EMAIL:-$ADMIN_EMAIL}"
+        for i in $(seq 1 30); do
+            if ssh nexus "curl -s --connect-timeout 2 'http://localhost:3005/healthz'" 2>/dev/null | grep -q 'ok'; then
+                break
+            fi
+            sleep 3
+        done
+
+        # Wiki.js finalize setup via GraphQL API
+        SETUP_PAYLOAD=$(jq -n \
+            --arg email "$WIKIJS_EMAIL" \
+            --arg pass "$WIKIJS_ADMIN_PASS" \
+            --arg url "https://wiki.${DOMAIN}" \
+            '{query: "mutation ($input: SetupInput!) { setup(input: $input) { responseResult { succeeded message } } }", variables: {input: {adminEmail: $email, adminPassword: $pass, adminPasswordConfirm: $pass, siteUrl: $url, telemetry: false}}}')
+
+        RESULT=$(printf '%s' "$SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:3005/graphql' \
+            -H 'Content-Type: application/json' \
+            -d @-" 2>&1 || echo "")
+
+        if echo "$RESULT" | grep -q '"succeeded":true'; then
+            echo -e "${GREEN}  ✓ Wiki.js admin created (user: $WIKIJS_EMAIL)${NC}"
+        elif echo "$RESULT" | grep -q 'already'; then
+            echo -e "${YELLOW}  ⚠ Wiki.js already configured${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Wiki.js auto-setup failed - configure manually at first login${NC}"
+            echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
 fi
 
 # Wait for all background configuration jobs to complete

@@ -203,6 +203,10 @@ output "secrets" {
     gitea_user_password  = random_password.gitea_user.result
     gitea_db_password    = random_password.gitea_db.result
 
+    # Wiki.js
+    wikijs_admin_password = random_password.wikijs_admin.result
+    wikijs_db_password    = random_password.wikijs_db.result
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server
