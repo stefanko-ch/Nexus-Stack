@@ -92,6 +92,7 @@ services:
     subdomain: "gitea"
     port: 3200
     public: false
+    core: true
     description: "Self-hosted Git service with pull requests, code review, and CI/CD."
     image: "gitea/gitea:1.23"
     support_images:

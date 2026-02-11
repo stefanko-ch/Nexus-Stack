@@ -420,14 +420,6 @@ if [ -z "$ENABLED_SERVICES" ]; then
     ENABLED_SERVICES=""
 fi
 
-# Service dependencies: auto-enable required services
-if echo "$ENABLED_SERVICES" | grep -qw "woodpecker"; then
-    if ! echo "$ENABLED_SERVICES" | grep -qw "gitea"; then
-        echo -e "${YELLOW}  Woodpecker CI requires Gitea as forge — auto-enabling Gitea${NC}"
-        ENABLED_SERVICES=$(printf '%s\ngitea' "$ENABLED_SERVICES")
-    fi
-fi
-
 # Create remote stacks directory
 ssh nexus "mkdir -p $REMOTE_STACKS_DIR"
 
