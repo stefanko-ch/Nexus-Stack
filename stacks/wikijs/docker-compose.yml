@@ -13,7 +13,7 @@
 
 services:
   wikijs:
-    image: ${IMAGE_WIKIJS:-requarks/wiki:2.5}
+    image: ${IMAGE_WIKIJS:-requarks/wiki:2.5.306}
     container_name: wikijs
     restart: unless-stopped
     environment:

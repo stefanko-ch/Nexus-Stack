@@ -260,6 +260,7 @@ jobs:
             echo "  ⚠️  Some Hetzner Object Storage buckets could not be deleted."
             echo "  Delete them manually via Hetzner Console before re-deploying."
             echo "  Next initial-setup will fail if stale buckets remain."
+            exit 1
           else
             echo "  ✅ Hetzner Object Storage cleanup completed"
           fi
