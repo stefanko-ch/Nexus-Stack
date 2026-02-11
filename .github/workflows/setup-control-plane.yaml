@@ -291,11 +291,13 @@ jobs:
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
           R2_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
-          echo "🔍 Validating R2 credentials against $BUCKET_NAME..."
-          VALIDATION=$(aws s3 ls "s3://${BUCKET_NAME}" --endpoint-url="$R2_ENDPOINT" --region auto 2>&1 || true)
+          echo "🔍 Validating R2 credentials via list-buckets against $R2_ENDPOINT..."
+          VALIDATION=$(aws s3api list-buckets --endpoint-url="$R2_ENDPOINT" --region auto 2>&1)
+          VALIDATION_STATUS=$?
 
-          if echo "$VALIDATION" | grep -q "Unauthorized\|InvalidAccessKeyId\|SignatureDoesNotMatch\|AccessDenied"; then
-            echo "❌ R2 credentials are invalid (token may have been deleted externally)"
+          if [ "$VALIDATION_STATUS" -ne 0 ]; then
+            echo "❌ R2 credentials are invalid (exit code $VALIDATION_STATUS)"
+            echo "$VALIDATION"
             echo "r2_valid=false" >> $GITHUB_OUTPUT
 
             # Delete stale GitHub Secrets so init-r2-state.sh can recreate them

@@ -208,12 +208,12 @@ while [ $RETRY -lt $MAX_RETRIES ]; do
         RETRY=$((RETRY + 1))
         echo -e "  ${YELLOW}⚠${NC}  Token '${TOKEN_NAME}' already exists — deleting and recreating..."
 
-        # Find the existing token by name
+        # Find the existing token by name (using jq for reliable JSON parsing)
         EXISTING_TOKEN_ID=$(curl -s \
             "https://api.cloudflare.com/client/v4/user/tokens" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            | grep -o '"id":"[^"]*","name":"'"${TOKEN_NAME}"'"' \
-            | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"$//')
+            | jq -r --arg TOKEN_NAME "$TOKEN_NAME" \
+                '.result[] | select(.name == $TOKEN_NAME) | .id' | head -n 1)
 
         if [ -n "$EXISTING_TOKEN_ID" ]; then
             # Delete the existing token
