@@ -54,8 +54,8 @@ services:
         cp /opt/spark-init.py /home/jovyan/.ipython/profile_pyspark/startup/00-spark-init.py;
         cp /home/jovyan/.ipython/profile_default/startup/00-sparksql.py /home/jovyan/.ipython/profile_pyspark/startup/01-sparksql.py;
         chown -R 1000:100 /home/jovyan/.ipython/profile_pyspark;
-        mkdir -p /usr/local/share/jupyter/kernels/pyspark_cluster;
-        cp /opt/pyspark-kernel.json /usr/local/share/jupyter/kernels/pyspark_cluster/kernel.json;
+        mkdir -p /opt/conda/share/jupyter/kernels/pyspark_cluster;
+        cp /opt/pyspark-kernel.json /opt/conda/share/jupyter/kernels/pyspark_cluster/kernel.json;
         exec start-notebook.sh --ServerApp.token='' --ServerApp.password=''
       "
     environment:
