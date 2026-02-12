@@ -19,7 +19,7 @@
 
 services:
   jupyter:
-    image: ${IMAGE_JUPYTER:-quay.io/jupyter/pyspark-notebook:latest}
+    image: ${IMAGE_JUPYTER:-quay.io/jupyter/pyspark-notebook:python-3.13}
     container_name: jupyter
     restart: unless-stopped
     user: root

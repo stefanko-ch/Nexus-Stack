@@ -33,7 +33,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Metabase | `metabase/metabase` | `v0.58.x` | Minor |
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
-| Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `latest` | Latest ² |
+| Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `python-3.13` | Minor |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
 | Filestash | `machines/filestash` | `latest` | Latest ² |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
@@ -58,8 +58,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
 | Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
 | Soda Core | `soda-core-arm64` | `3.3.7` | Exact ³ |
-| Spark Master | `apache/spark` | `4.1.1` | Exact ¹ |
-| Spark Worker | `apache/spark` | `4.1.1` | Exact ¹ |
+| Spark Master | `nexus-spark` | `4.1.1-python3.13` | Exact ³ |
+| Spark Worker | `nexus-spark` | `4.1.1-python3.13` | Exact ³ |
 | Trino | `trinodb/trino` | `479` | Exact ¹ |
 | Wiki.js | `requarks/wiki` | `2.5.306` | Exact ¹ |
 | PostgreSQL (Wiki.js DB) | `postgres` | `16-alpine` | Major |
@@ -1201,8 +1201,10 @@ Apache Spark provides a unified analytics engine for large-scale data processing
 
 | Container | Image | Purpose |
 |-----------|-------|---------|
-| `spark-master` | `apache/spark:4.1.1` | Cluster manager + Web UI (port 8088) |
-| `spark-worker` | `apache/spark:4.1.1` | Task executor (connects to master on 7077) |
+| `spark-master` | `nexus-spark:4.1.1-python3.13` | Cluster manager + Web UI (port 8088) |
+| `spark-worker` | `nexus-spark:4.1.1-python3.13` | Task executor (connects to master on 7077) |
+
+> **Custom image:** The official `apache/spark:4.1.1` ships Python 3.10 (Ubuntu 22.04), but Jupyter uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs Python 3.13 via deadsnakes PPA.
 
 ```
                     ┌─────────────────────┐
