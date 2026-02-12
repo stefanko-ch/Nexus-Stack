@@ -124,6 +124,10 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl -backend-config="key=control-plane.tfstate" -input=false >/dev/null 2>&1 || true
           PERSISTENT_VOLUME_ID=$(tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
+          # Validate ID is numeric (tofu wrapper may write ::error:: to stdout)
+          if ! echo "$PERSISTENT_VOLUME_ID" | grep -qE '^[0-9]+$'; then
+            PERSISTENT_VOLUME_ID="0"
+          fi
           cd ../..
 
           cat >> tofu/stack/config.tfvars << EOF

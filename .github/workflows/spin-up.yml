@@ -240,6 +240,10 @@ jobs:
           HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")
           HETZNER_S3_BUCKET_GENERAL=$(tofu output -raw hetzner_s3_bucket_general 2>/dev/null || echo "")
           PERSISTENT_VOLUME_ID=$(tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
+          # Validate ID is numeric (tofu wrapper may write ::error:: to stdout)
+          if ! echo "$PERSISTENT_VOLUME_ID" | grep -qE '^[0-9]+$'; then
+            PERSISTENT_VOLUME_ID="0"
+          fi
           cd ../..
 
           # Add Hetzner Object Storage config to stack
