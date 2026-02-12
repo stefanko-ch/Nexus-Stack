@@ -66,6 +66,10 @@ services:
       JUPYTER_ENABLE_LAB: "yes"
       NB_USER: jovyan
       CHOWN_HOME: "yes"
+      # PySpark is installed at /usr/local/spark/python (via SPARK_HOME),
+      # not via pip/conda. PYTHONPATH must be set explicitly because our
+      # custom command: overrides the default entrypoint that normally sets it.
+      PYTHONPATH: /usr/local/spark/python
       SPARK_MASTER: ${SPARK_MASTER:-local[*]}
       # S3 (Hetzner Object Storage) for Spark access
       SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
