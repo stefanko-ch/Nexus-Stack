@@ -281,21 +281,27 @@ jobs:
 
       - name: Cleanup R2 API tokens from Cloudflare
         run: |
-          echo "🔐 Cleaning up R2 API tokens from Cloudflare..."
-          # Find and delete all nexus-r2-terraform-state tokens
-          TOKENS=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens" \
+          echo "🔐 Cleaning up R2 API token for this deployment..."
+          # Only delete the token for THIS deployment (exact match on domain slug)
+          # Other deployments sharing the same Cloudflare account must not be affected
+          DOMAIN_SLUG=$(printf '%s' "${{ secrets.DOMAIN }}" | tr '.' '-')
+          TOKEN_NAME="nexus-r2-terraform-state-${DOMAIN_SLUG}"
+
+          TOKENS=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens?per_page=100" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            | jq -r '.result[] | select(.name | startswith("nexus-r2-terraform-state")) | .id')
-          
+            | jq -r --arg name "$TOKEN_NAME" '.result[] | select(.name == $name) | .id')
+
           if [ -n "$TOKENS" ]; then
             for token_id in $TOKENS; do
-              echo "  Deleting token: $token_id"
-              curl -s -X DELETE "https://api.cloudflare.com/client/v4/user/tokens/$token_id" \
-                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" > /dev/null
+              echo "  Deleting token: $TOKEN_NAME ($token_id)"
+              if ! curl -sSf -X DELETE "https://api.cloudflare.com/client/v4/user/tokens/$token_id" \
+                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" > /dev/null; then
+                echo "  ⚠️  Failed to delete token $token_id - check permissions"
+              fi
             done
-            echo "✅ R2 API tokens deleted"
+            echo "✅ R2 API token deleted"
           else
-            echo "  No R2 tokens found to delete"
+            echo "  No R2 token found for ${TOKEN_NAME}"
           fi
 
       - name: Delete R2 bucket and contents
