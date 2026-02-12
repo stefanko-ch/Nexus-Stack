@@ -56,10 +56,8 @@ services:
         chown -R 1000:100 /home/jovyan/.ipython/profile_pyspark;
         mkdir -p /opt/conda/share/jupyter/kernels/pyspark_cluster;
         cp /opt/pyspark-kernel.json /opt/conda/share/jupyter/kernels/pyspark_cluster/kernel.json;
-        if [ ! -f /home/jovyan/work/Getting_Started_PySpark.ipynb ]; then
-          cp /opt/Getting_Started_PySpark.ipynb /home/jovyan/work/Getting_Started_PySpark.ipynb;
-          chown 1000:100 /home/jovyan/work/Getting_Started_PySpark.ipynb;
-        fi;
+        cp /opt/Getting_Started_PySpark.ipynb /home/jovyan/work/Getting_Started_PySpark.ipynb;
+        chown 1000:100 /home/jovyan/work/Getting_Started_PySpark.ipynb;
         exec start-notebook.sh --ServerApp.token='' --ServerApp.password=''
       "
     environment:
