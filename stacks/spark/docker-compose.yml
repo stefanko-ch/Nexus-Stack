@@ -73,9 +73,6 @@ services:
       start_period: 30s
 
   spark-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: ${IMAGE_SPARK_WORKER:-nexus-spark:4.1.1-python3.13}
     container_name: spark-worker
     hostname: spark-worker
