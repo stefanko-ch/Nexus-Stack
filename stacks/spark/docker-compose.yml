@@ -100,14 +100,9 @@ services:
         reservations:
           cpus: "0.5"
           memory: 512m
-    volumes:
-      - spark-worker-data:/opt/spark/work
     networks:
       - app-network
       - spark-internal
-
-volumes:
-  spark-worker-data:
 
 networks:
   app-network:
