@@ -1709,10 +1709,12 @@ EOF
 SECRETS_EOF
 )
                     
+                    # Write payload to temp file on server to avoid SSH/shell quoting issues
+                    echo "$SECRETS_PAYLOAD" | ssh nexus "cat > /tmp/infisical-secrets.json"
                     SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
                         -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                         -H 'Content-Type: application/json' \
-                        -d '$(echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
+                        -d @/tmp/infisical-secrets.json; rm -f /tmp/infisical-secrets.json" 2>&1 || echo "")
                     
                     # Check for actual success (secrets array present) and no error
                     if echo "$SECRETS_RESULT" | grep -q '"error"'; then
