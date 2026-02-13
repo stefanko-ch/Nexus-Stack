@@ -32,6 +32,9 @@ services:
     restart: unless-stopped
     environment:
       PYSPARK_PYTHON: python3.13
+      # Bind to all interfaces so master is reachable on both
+      # app-network (for Jupyter) and spark-internal (for worker)
+      SPARK_MASTER_OPTS: "-Dspark.master.bindAddress=0.0.0.0"
       # S3 (Hetzner Object Storage) configuration via Hadoop properties
       SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
       SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
@@ -82,6 +85,8 @@ services:
         condition: service_healthy
     environment:
       PYSPARK_PYTHON: python3.13
+      # Bind to all interfaces (same multi-network reason as master)
+      SPARK_WORKER_OPTS: "-Dspark.worker.bindAddress=0.0.0.0"
       # S3 (Hetzner Object Storage) configuration
       SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
       SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
