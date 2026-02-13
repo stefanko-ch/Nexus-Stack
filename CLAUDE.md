@@ -24,6 +24,7 @@
 - NO "Generated with Claude Code" or similar footers in PRs, Issues, or documentation
 - NO links to Anthropic, Claude, or any AI tool providers
 - NO promotional language or branding
+- NO `Co-Authored-By` trailers in commit messages (e.g., `Co-Authored-By: Claude ...`)
 - The user pays for the service and should not see advertising in their project content
 - Keep all content professional and focused on the technical task at hand
 
