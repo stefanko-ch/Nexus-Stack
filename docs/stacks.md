@@ -1204,7 +1204,7 @@ Apache Spark provides a unified analytics engine for large-scale data processing
 | `spark-master` | `nexus-spark:4.1.1-python3.13` | Cluster manager + Web UI (port 8088) |
 | `spark-worker` | `nexus-spark:4.1.1-python3.13` | Task executor (connects to master on 7077) |
 
-> **Custom image:** The official `apache/spark:4.1.1` ships Python 3.10 (Ubuntu 22.04), but Jupyter uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs Python 3.13 via deadsnakes PPA.
+> **Custom image:** The official `apache/spark:4.1.1` ships Python 3.10 (Ubuntu 22.04), but Jupyter uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs Python 3.13 via deadsnakes PPA and adds `hadoop-aws` + AWS SDK v2 JARs for S3A filesystem support.
 
 ```
                     ┌─────────────────────┐
