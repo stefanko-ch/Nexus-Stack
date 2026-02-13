@@ -190,7 +190,7 @@ flowchart LR
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
 | **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
 
-→ See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.
+→ See [docs/stacks.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.
 
 ## Control Plane
 
@@ -290,7 +290,7 @@ flowchart LR
 |----------|-------------|
 | [Setup Guide](docs/setup-guide.md) | Complete installation and configuration |
 | [Control Plane Guide](docs/control-plane.md) | How to use the Control Plane web interface |
-| [Stacks](docs/stacks.md) | Available services and how to add new ones |
+| [Stacks](docs/stacks/README.md) | Available services and how to add new ones |
 | [Contributing](docs/CONTRIBUTING.md) | How to contribute to the project |
 
 ## How It Works

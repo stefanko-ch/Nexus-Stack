@@ -265,10 +265,11 @@ When adding a new Docker stack, **all locations must be updated**:
    - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
    - **IMPORTANT:** Update the stack count in the heading `## Available Stacks (N)` to reflect the new total
 
-7. **Update docs/stacks.md:**
-   - Add a new section with stack badge, description, and configuration details
+7. **Update docs/stacks/:**
+   - Create `docs/stacks/<stack-name>.md` with badge, description, and configuration details
    - Include port, subdomain, default credentials (if any), and special setup instructions
-   - Add entry to the Docker Image Update Policy table at the top
+   - Add entry to the Docker Image Versions table in `docs/stacks/README.md`
+   - Add link to the Stack Documentation table in `docs/stacks/README.md`
 
 8. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
