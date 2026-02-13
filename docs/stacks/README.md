@@ -97,6 +97,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |
 | **code-server** | VS Code in the browser | [code-server.md](code-server.md) |
+| **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Garage** | S3-compatible object storage | [garage.md](garage.md) |
