@@ -900,7 +900,7 @@ HETZNER_S3_ACCESS_KEY=${HETZNER_S3_ACCESS_KEY:-}
 HETZNER_S3_SECRET_KEY=${HETZNER_S3_SECRET_KEY:-}
 HETZNER_S3_BUCKET=${HETZNER_S3_BUCKET_GENERAL:-}
 SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
-SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-2g}
+SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-3g}
 EOF
     echo -e "${GREEN}  ✓ Spark .env generated${NC}"
 fi
@@ -1344,8 +1344,9 @@ fi
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
-# Note: --build ensures stacks with Dockerfiles (e.g. Spark) are rebuilt
-# when their Dockerfile changes. For image-only services, --build is a no-op.
+# Note: --build ensures stacks with Dockerfiles (e.g. Spark) are always rebuilt.
+# Docker build cache makes this fast when nothing changed. For image-only
+# services, --build is a no-op.
 # -----------------------------------------------------------------------------
 echo ""
 echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"

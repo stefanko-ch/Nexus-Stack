@@ -25,7 +25,7 @@ services:
     user: root
     command: >
       bash -c "
-        pip install -q sparksql-magic || echo '[jupyter] Warning: Failed to install sparksql-magic' >&2;
+        pip show sparksql-magic >/dev/null 2>&1 || pip install -q sparksql-magic==0.0.3 || echo '[jupyter] Warning: Failed to install sparksql-magic' >&2;
         mkdir -p /home/jovyan/.ipython/profile_default/startup;
         cat > /home/jovyan/.ipython/profile_default/startup/00-sparksql.py << 'PYEOF'
       try:
@@ -56,8 +56,10 @@ services:
         chown -R 1000:100 /home/jovyan/.ipython/profile_pyspark;
         mkdir -p /opt/conda/share/jupyter/kernels/pyspark_cluster;
         cp /opt/pyspark-kernel.json /opt/conda/share/jupyter/kernels/pyspark_cluster/kernel.json;
-        cp /opt/Getting_Started_PySpark.ipynb /home/jovyan/work/Getting_Started_PySpark.ipynb;
-        chown 1000:100 /home/jovyan/work/Getting_Started_PySpark.ipynb;
+        if [ ! -e /home/jovyan/work/Getting_Started_PySpark.ipynb ]; then
+          cp /opt/Getting_Started_PySpark.ipynb /home/jovyan/work/Getting_Started_PySpark.ipynb;
+          chown 1000:100 /home/jovyan/work/Getting_Started_PySpark.ipynb;
+        fi;
         exec start-notebook.sh --ServerApp.token='' --ServerApp.password=''
       "
     environment:
@@ -67,7 +69,7 @@ services:
       # PySpark is installed at /usr/local/spark/python (via SPARK_HOME),
       # not via pip/conda. PYTHONPATH must be set explicitly because our
       # custom command: overrides the default entrypoint that normally sets it.
-      PYTHONPATH: /usr/local/spark/python
+      PYTHONPATH: /usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.9-src.zip
       SPARK_MASTER: ${SPARK_MASTER:-local[*]}
       # S3 (Hetzner Object Storage) for Spark access
       SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}

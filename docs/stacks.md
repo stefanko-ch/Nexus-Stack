@@ -292,7 +292,7 @@ df = spark.read.csv("s3a://your-bucket/path/file.csv")
 3. Select the **PySpark (Spark Cluster)** kernel when creating a notebook
 4. Authentication is handled by Cloudflare Access (token auth disabled)
 5. Notebooks are persisted in a Docker volume (`jupyter-data`)
-5. PySpark and `sparksql-magic` are pre-installed; Spark SQL is auto-loaded
+6. PySpark and `sparksql-magic` are pre-installed; Spark SQL is auto-loaded
 
 ---
 
