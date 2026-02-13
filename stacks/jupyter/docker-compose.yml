@@ -1,9 +1,9 @@
 # =============================================================================
-# Jupyter - Interactive Computing Platform
+# Jupyter PySpark - Interactive Computing Platform with Spark
 # =============================================================================
 # Access via: https://jupyter.${domain}
-# JupyterLab provides an interactive Python notebook environment for data
-# science, machine learning, and general-purpose computing.
+# JupyterLab with PySpark pre-configured to connect to the Spark cluster.
+# Supports Python notebooks, PySpark, and Spark SQL (%%sparksql magic).
 #
 # Note: Token/password authentication is disabled since Cloudflare Access
 # provides email OTP protection at the network level.
@@ -12,16 +12,29 @@
 #
 # Git Integration: If Gitea is enabled, jupyterlab-git is installed and the
 # shared workspace repo is auto-cloned into /home/jovyan/work/.
+#
+# Spark Integration: Automatically connects to spark://spark-master:7077
+# when the Spark stack is enabled. Use spark.sql("...") or %%sparksql cells.
 # =============================================================================
 
 services:
   jupyter:
-    image: ${IMAGE_JUPYTER:-quay.io/jupyter/minimal-notebook:latest}
+    image: ${IMAGE_JUPYTER:-quay.io/jupyter/pyspark-notebook:python-3.13}
     container_name: jupyter
     restart: unless-stopped
     user: root
     command: >
       bash -c "
+        pip show sparksql-magic >/dev/null 2>&1 || pip install -q sparksql-magic==0.0.3 || echo '[jupyter] Warning: Failed to install sparksql-magic' >&2;
+        mkdir -p /home/jovyan/.ipython/profile_default/startup;
+        cat > /home/jovyan/.ipython/profile_default/startup/00-sparksql.py << 'PYEOF'
+      try:
+          from IPython import get_ipython
+          get_ipython().run_line_magic('load_ext', 'sparksql_magic')
+      except Exception:
+          pass
+      PYEOF
+        chown -R 1000:100 /home/jovyan/.ipython;
         if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
           echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > /home/jovyan/.netrc;
           chmod 600 /home/jovyan/.netrc;
@@ -37,12 +50,34 @@ services:
             fi;
           fi;
         fi;
+        mkdir -p /home/jovyan/.ipython/profile_pyspark/startup;
+        cp /opt/spark-init.py /home/jovyan/.ipython/profile_pyspark/startup/00-spark-init.py;
+        cp /home/jovyan/.ipython/profile_default/startup/00-sparksql.py /home/jovyan/.ipython/profile_pyspark/startup/01-sparksql.py;
+        chown -R 1000:100 /home/jovyan/.ipython/profile_pyspark;
+        mkdir -p /opt/conda/share/jupyter/kernels/pyspark_cluster;
+        cp /opt/pyspark-kernel.json /opt/conda/share/jupyter/kernels/pyspark_cluster/kernel.json;
+        if [ ! -e /home/jovyan/work/Getting_Started_PySpark.ipynb ]; then
+          cp /opt/Getting_Started_PySpark.ipynb /home/jovyan/work/Getting_Started_PySpark.ipynb;
+          chown 1000:100 /home/jovyan/work/Getting_Started_PySpark.ipynb;
+        fi;
         exec start-notebook.sh --ServerApp.token='' --ServerApp.password=''
       "
     environment:
       JUPYTER_ENABLE_LAB: "yes"
       NB_USER: jovyan
       CHOWN_HOME: "yes"
+      # PySpark is installed at /usr/local/spark/python (via SPARK_HOME),
+      # not via pip/conda. PYTHONPATH must be set explicitly because our
+      # custom command: overrides the default entrypoint that normally sets it.
+      PYTHONPATH: /usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.9-src.zip
+      SPARK_MASTER: ${SPARK_MASTER:-local[*]}
+      # S3 (Hetzner Object Storage) for Spark access
+      SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
+      SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
+      SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
+      SPARK_HADOOP_fs_s3a_path_style_access: "true"
+      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+      HETZNER_S3_BUCKET: ${HETZNER_S3_BUCKET:-}
     env_file:
       - path: .env
         required: false
@@ -50,6 +85,10 @@ services:
       - "8087:8888"
     volumes:
       - jupyter-data:/home/jovyan/work
+      - ./spark-init.py:/opt/spark-init.py:ro
+      - ./pyspark-kernel.json:/opt/pyspark-kernel.json:ro
+      - ./Getting_Started_PySpark.ipynb:/opt/Getting_Started_PySpark.ipynb:ro
+      - ./setup-s3a-jars.sh:/usr/local/bin/before-notebook.d/setup-s3a-jars.sh:ro
     networks:
       - app-network
     healthcheck:
@@ -57,7 +96,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 180s
 
 volumes:
   jupyter-data:
