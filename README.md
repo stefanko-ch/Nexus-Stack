@@ -92,7 +92,7 @@ flowchart LR
     end
 ```
 
-## Available Stacks
+## Available Stacks (44)
 
 ![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
