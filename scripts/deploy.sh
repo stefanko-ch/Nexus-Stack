@@ -937,6 +937,21 @@ EOF
     echo -e "${GREEN}  ✓ S3 Manager .env generated${NC}"
 fi
 
+# NocoDB
+if echo "$ENABLED_SERVICES" | grep -qw "nocodb"; then
+    echo "  Generating NocoDB config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/nocodb/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+NC_DB=pg://nocodb-db:5432?u=nexus-nocodb&p=${NOCODB_DB_PASS}&d=nocodb
+NC_AUTH_JWT_SECRET=${NOCODB_JWT_SECRET}
+NC_ADMIN_EMAIL=${ADMIN_EMAIL}
+NC_ADMIN_PASSWORD=${NOCODB_ADMIN_PASS}
+NC_PUBLIC_URL=https://nocodb.${DOMAIN}
+NOCODB_DB_PASSWORD=${NOCODB_DB_PASS}
+EOF
+    echo -e "${GREEN}  ✓ NocoDB .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
