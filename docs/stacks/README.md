@@ -23,8 +23,6 @@ Images are pinned to **major versions** where supported for automatic security p
 | Portainer | `portainer/portainer-ce` | `2` | Major |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
 | n8n | `n8nio/n8n` | `1` | Major |
-| NocoDB | `nocodb/nocodb` | `0.301.2` | Minor |
-| PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | OpenMetadata Server | `docker.getcollate.io/openmetadata/server` | `1.6.6` | Exact ¹ |
 | OpenMetadata Ingestion | `docker.getcollate.io/openmetadata/ingestion` | `1.6.6` | Exact ¹ |
 | Elasticsearch (OpenMetadata) | `docker.elastic.co/elasticsearch/elasticsearch` | `8.11.4` | Exact ¹ |
@@ -55,7 +53,6 @@ Images are pinned to **major versions** where supported for automatic security p
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Major |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
-| Quickwit | `quickwit/quickwit` | `0.8.1` | Minor |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -119,13 +116,11 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
-| **NocoDB** | Open-source Airtable alternative | [nocodb.md](nocodb.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
 | **Portainer** | Docker container management UI | [portainer.md](portainer.md) |
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
-| **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |
 | **Redpanda Console** | Redpanda web UI | [redpanda-console.md](redpanda-console.md) |
 | **Redpanda Connect** | Stream processing framework | [redpanda-connect.md](redpanda-connect.md) |
@@ -158,7 +153,7 @@ By default, Nexus-Stack uses a "Zero Entry" security model where all ports are c
 3. Optionally restrict source IPs (e.g., Databricks IP ranges)
 4. Click **Spin Up** to apply changes
 
-Terraform creates inbound Hetzner firewall rules and DNS A records pointing directly to the server IP (`proxied = false`, bypassing Cloudflare proxy).
+OpenTofu creates inbound Hetzner firewall rules and DNS A records pointing directly to the server IP (`proxied = false`, bypassing Cloudflare proxy).
 
 ### Available TCP Ports
 
@@ -201,22 +196,22 @@ aws s3 ls --endpoint-url http://s3.yourdomain.com:9000
 
 ## Enabling a Stack
 
-To enable any stack, add it to your `tofu/config.tfvars`:
+Service enable/disable state is managed at runtime via Cloudflare D1 and exposed through the Control Plane. You generally do **not** need to edit any OpenTofu variable files to turn services on or off.
 
-```hcl
-services = {
-  # ... existing services ...
+There are two primary ways to enable a stack:
 
-  uptime-kuma = {
-    enabled   = true
-    subdomain = "uptime-kuma"    # → https://uptime-kuma.yourdomain.com
-    port      = 3001        # Must match docker-compose port
-    public    = false       # false = requires login
-  }
-}
-```
+1. **During initial setup**
+   - Run the `initial-setup` GitHub Actions workflow.
+   - Use the workflow inputs to select which stacks should be enabled on first deployment.
+   - Complete the workflow, then run the **Spin Up** workflow to deploy.
 
-Then deploy via **Spin Up** workflow in GitHub Actions or through the Control Plane.
+2. **After setup via the Control Plane**
+   - Open the Control Plane web UI.
+   - Go to the services section.
+   - Enable or disable individual stacks using the provided toggles.
+   - The enabled/disabled state is stored in Cloudflare D1 and will be applied on the next **Spin Up**.
+
+The `services.yaml` file defines service metadata (subdomain, port, description, image, etc.), but **not** the enabled/disabled state. That state is managed exclusively through D1 / the Control Plane.
 
 ---
 

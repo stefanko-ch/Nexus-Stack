@@ -133,9 +133,6 @@ CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password
 WIKIJS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_admin_password // empty')
 WIKIJS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_db_password // empty')
 WOODPECKER_AGENT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.woodpecker_agent_secret // empty')
-NOCODB_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_admin_password // empty')
-NOCODB_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_db_password // empty')
-NOCODB_JWT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.nocodb_jwt_secret // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -940,21 +937,6 @@ EOF
     echo -e "${GREEN}  ✓ S3 Manager .env generated${NC}"
 fi
 
-# NocoDB
-if echo "$ENABLED_SERVICES" | grep -qw "nocodb"; then
-    echo "  Generating NocoDB config from OpenTofu secrets..."
-    cat > "$STACKS_DIR/nocodb/.env" << EOF
-# Auto-generated from OpenTofu secrets - DO NOT COMMIT
-NC_DB=pg://nexus-nocodb:${NOCODB_DB_PASS}@nocodb-db:5432/nocodb
-NC_AUTH_JWT_SECRET=${NOCODB_JWT_SECRET}
-NC_ADMIN_EMAIL=${ADMIN_EMAIL}
-NC_ADMIN_PASSWORD=${NOCODB_ADMIN_PASS}
-NC_PUBLIC_URL=https://nocodb.${DOMAIN}
-NOCODB_DB_PASSWORD=${NOCODB_DB_PASS}
-EOF
-    echo -e "${GREEN}  ✓ NocoDB .env generated${NC}"
-fi
-
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1584,7 +1566,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "nocodb" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1601,7 +1583,6 @@ EOF
                     KUMA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="uptime-kuma") | .id // empty' 2>/dev/null)
                     GRAFANA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="grafana") | .id // empty' 2>/dev/null)
                     N8N_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="n8n") | .id // empty' 2>/dev/null)
-                    NOCODB_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="nocodb") | .id // empty' 2>/dev/null)
                     KESTRA_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="kestra") | .id // empty' 2>/dev/null)
                     METABASE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="metabase") | .id // empty' 2>/dev/null)
                     CLOUDBEAVER_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="cloudbeaver") | .id // empty' 2>/dev/null)
@@ -1659,9 +1640,6 @@ EOF
     {"secretKey": "GRAFANA_PASSWORD", "secretValue": "$GRAFANA_PASS", "tagIds": ["$GRAFANA_TAG"]},
     {"secretKey": "N8N_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$N8N_TAG"]},
     {"secretKey": "N8N_PASSWORD", "secretValue": "$N8N_PASS", "tagIds": ["$N8N_TAG"]},
-    {"secretKey": "NOCODB_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$NOCODB_TAG"]},
-    {"secretKey": "NOCODB_PASSWORD", "secretValue": "$NOCODB_ADMIN_PASS", "tagIds": ["$NOCODB_TAG"]},
-    {"secretKey": "NOCODB_DB_PASSWORD", "secretValue": "$NOCODB_DB_PASS", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "KESTRA_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$KESTRA_TAG"]},
     {"secretKey": "KESTRA_PASSWORD", "secretValue": "$KESTRA_PASS", "tagIds": ["$KESTRA_TAG"]},
     {"secretKey": "METABASE_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$METABASE_TAG"]},

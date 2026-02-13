@@ -92,7 +92,7 @@ flowchart LR
     end
 ```
 
-## Available Stacks (47)
+## Available Stacks (45)
 
 ![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
@@ -120,13 +120,11 @@ flowchart LR
 ![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)
 ![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
-![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)
 ![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)
 ![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)
 ![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)
 ![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)
-![Quickwit](https://img.shields.io/badge/Quickwit-0C1E2C?logo=quickwit&logoColor=white)
 ![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)
@@ -170,13 +168,11 @@ flowchart LR
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
-| **NocoDB** | Open-source Airtable alternative - turn any database into a smart spreadsheet | [nocodb.com](https://nocodb.com) |
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
 | **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
-| **Quickwit** | Cloud-native log search engine built on object storage | [quickwit.io](https://quickwit.io) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
@@ -192,7 +188,7 @@ flowchart LR
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
 | **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
 
-→ See [docs/stacks.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.
+→ See [docs/stacks/README.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.
 
 ## Control Plane
 
