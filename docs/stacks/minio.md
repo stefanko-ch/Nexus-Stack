@@ -20,7 +20,7 @@ MinIO is a high-performance, S3-compatible object storage system designed for la
 | Website | [min.io](https://min.io) |
 | Source | [GitHub](https://github.com/minio/minio) |
 
-> ✅ **Auto-configured:** Root user (admin) is automatically created during deployment. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Root user (admin) is automatically created during deployment. Credentials are available in Infisical.
 
 ### Usage
 

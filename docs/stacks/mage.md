@@ -20,4 +20,4 @@ Mage is a modern replacement for Airflow, designed for building, running, and ma
 | Website | [mage.ai](https://mage.ai) |
 | Source | [GitHub](https://github.com/mage-ai/mage-ai) |
 
-> ✅ **Auto-configured:** Admin account is automatically created during deployment using your `user_email`. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account is automatically created during deployment using your `user_email`. Credentials are available in Infisical.

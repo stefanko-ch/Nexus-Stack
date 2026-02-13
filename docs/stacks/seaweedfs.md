@@ -18,7 +18,7 @@ SeaweedFS is a lightweight distributed object storage system with S3 API compati
 | Website | [seaweedfs.com](https://seaweedfs.com) |
 | Source | [GitHub](https://github.com/seaweedfs/seaweedfs) |
 
-> ✅ **Auto-configured:** S3 credentials are automatically created during deployment. Use `make secrets` to view them.
+> ✅ **Auto-configured:** S3 credentials are automatically created during deployment. Credentials are available in Infisical.
 
 ### URLs
 

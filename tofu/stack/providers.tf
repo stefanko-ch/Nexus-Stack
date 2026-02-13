@@ -7,12 +7,12 @@ terraform {
   # =============================================================================
   # State is stored in Cloudflare R2 with automatic encryption at rest (AES-256).
   # 
-  # Prerequisites (handled automatically by 'make init'):
+  # Prerequisites (handled automatically by init-r2-state.sh):
   # 1. R2 bucket is created by init-r2-state.sh (name based on domain)
   # 2. R2 API credentials are generated and stored in tofu/.r2-credentials
   # 3. Backend config (bucket + endpoint) is generated in tofu/backend.hcl
   #
-  # First-time setup: make init
+  # First-time setup: scripts/init-r2-state.sh
   # =============================================================================
   backend "s3" {
     # bucket is set dynamically via -backend-config=backend.hcl

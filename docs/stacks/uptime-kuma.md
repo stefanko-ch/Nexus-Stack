@@ -19,4 +19,4 @@ A beautiful, self-hosted monitoring tool similar to "Uptime Robot":
 | Website | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | Source | [GitHub](https://github.com/louislam/uptime-kuma) |
 
-> ✅ **Auto-configured:** Admin account is automatically created and monitors for all enabled services are added during deployment. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account is automatically created and monitors for all enabled services are added during deployment. Credentials are available in Infisical.

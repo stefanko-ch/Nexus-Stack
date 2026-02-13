@@ -20,6 +20,6 @@ A modern, developer-friendly alternative to HashiCorp Vault:
 | Website | [infisical.com](https://infisical.com) |
 | Source | [GitHub](https://github.com/Infisical/infisical) |
 
-> ✅ **Auto-configured:** Admin account is automatically created during deployment. A "Nexus Stack" project is created with all generated passwords pre-loaded. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. A "Nexus Stack" project is created with all generated passwords pre-loaded. Credentials are available in Infisical.
 
 > ℹ️ **Note:** Secrets are auto-generated on first deployment (encryption key, auth secret). These are stored in `stacks/infisical/.env`.

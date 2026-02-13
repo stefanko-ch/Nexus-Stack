@@ -20,4 +20,4 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 | Website | [metabase.com](https://www.metabase.com) |
 | Source | [GitHub](https://github.com/metabase/metabase) |
 
-> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Credentials are available in Infisical.

@@ -19,4 +19,4 @@ A beautiful, cyberpunk-styled landing page that dynamically displays all your Ne
 | Public Access | Optional (can be your landing page) |
 | Technology | nginx:alpine serving static HTML |
 
-> ℹ️ **Note:** The info page is regenerated on every `make up` deployment. It reads your service configuration from `config.tfvars` and shows the current state of all services.
+> ℹ️ **Note:** The info page is regenerated on every deployment. It reads your service configuration from `config.tfvars` and shows the current state of all services.

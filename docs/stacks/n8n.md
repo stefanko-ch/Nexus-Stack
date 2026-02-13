@@ -21,4 +21,4 @@ n8n is a free and source-available workflow automation tool that allows you to c
 | Website | [n8n.io](https://n8n.io) |
 | Source | [GitHub](https://github.com/n8n-io/n8n) |
 
-> ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Credentials are available in Infisical.

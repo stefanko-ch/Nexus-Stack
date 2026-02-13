@@ -49,4 +49,4 @@ The stack comes with three ready-to-use dashboards:
 └─────────────┘                                │
 ```
 
-> ✅ **Auto-configured:** Admin password is set via environment variables during deployment. Dashboards and datasources are pre-provisioned. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin password is set via environment variables during deployment. Dashboards and datasources are pre-provisioned. Credentials are available in Infisical.

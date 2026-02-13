@@ -19,4 +19,4 @@ A lightweight management UI that allows you to easily manage your Docker environ
 | Website | [portainer.io](https://www.portainer.io) |
 | Source | [GitHub](https://github.com/portainer/portainer) |
 
-> ✅ **Auto-configured:** Admin account is automatically created during deployment. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account is automatically created during deployment. Credentials are available in Infisical.

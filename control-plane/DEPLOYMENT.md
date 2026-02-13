@@ -70,7 +70,7 @@ npx wrangler pages secret put GITHUB_TOKEN --project-name=nexus-{domain}-control
 **Automatic deployment:**
 
 The control plane is automatically deployed:
-- Via `make up` (if `CLOUDFLARE_API_TOKEN` is set in `.env`)
+- Via GitHub Actions workflow (`setup-control-plane.yaml`)
 - Via GitHub Actions workflow (when triggered from control plane)
 
 **Manual deployment (if needed):**

@@ -20,7 +20,7 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 | Website | [kestra.io](https://kestra.io) |
 | Source | [GitHub](https://github.com/kestra-io/kestra) |
 
-> ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Use `make secrets` to view the credentials.
+> ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Credentials are available in Infisical.
 
 ### Architecture
 
@@ -28,4 +28,4 @@ The stack includes:
 - **Kestra** - Main workflow engine with web UI
 - **PostgreSQL** - Database for workflow state and metadata
 
-> ℹ️ **Note:** Admin credentials are auto-generated. Use `make secrets` to view them.
+> ℹ️ **Note:** Admin credentials are auto-generated. Credentials are available in Infisical.
