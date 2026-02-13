@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.23.0...v0.24.0) (2026-02-13)
+
+
+### 🚀 Features
+
+* **stacks:** Add S3 Manager web UI for object storage ([9c360dd](https://github.com/stefanko-ch/Nexus-Stack/commit/9c360ddecf1fe65aaf63307ef9e51ed441ad27a7))
+* **stacks:** Add S3 Manager web UI for object storage ([51a66eb](https://github.com/stefanko-ch/Nexus-Stack/commit/51a66eb90621de690255fd1d5bcb36289772dc53)), closes [#215](https://github.com/stefanko-ch/Nexus-Stack/issues/215)
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Remove https:// prefix from S3 Manager endpoint ([e1c0227](https://github.com/stefanko-ch/Nexus-Stack/commit/e1c0227c850e5ff11d496d14e94a1deba491b044))
+* **stacks:** Rename s3manager subdomain and add missing REGION env var ([3e6a92c](https://github.com/stefanko-ch/Nexus-Stack/commit/3e6a92c2e9d264725881f0e459e8aea23d17281b))
+* **tofu:** Add force_destroy to Hetzner Object Storage buckets ([21bb02d](https://github.com/stefanko-ch/Nexus-Stack/commit/21bb02db23220df4cce1be467f20fac5104a6e76))
+
+
+### 📚 Documentation
+
+* Add stack count to Available Stacks heading ([23de0e6](https://github.com/stefanko-ch/Nexus-Stack/commit/23de0e614a023fa3b9f116f26947bb8c10eef1b2))
+
+
+### 🔧 Maintenance
+
+* Remove Co-Authored-By trailers from commit convention ([f466899](https://github.com/stefanko-ch/Nexus-Stack/commit/f46689924609e63b9c8f00718cec236191d0548c))
+
 ## [0.23.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.22.0...v0.23.0) (2026-02-13)
 
 
