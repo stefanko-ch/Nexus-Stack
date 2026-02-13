@@ -1,0 +1,29 @@
+# =============================================================================
+# S3 Manager - Web-based S3 Bucket Browser
+# =============================================================================
+# Lightweight web UI for managing S3-compatible object storage buckets.
+# Connects to Hetzner Object Storage for browsing, uploading, and
+# downloading objects.
+# Access via: https://s3manager.your-domain.com
+# Default port: 8086
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - No application-level authentication (relies on Cloudflare Access)
+# =============================================================================
+
+services:
+  s3manager:
+    image: ${IMAGE_S3MANAGER:-cloudlena/s3manager:latest}
+    container_name: s3manager
+    restart: unless-stopped
+    ports:
+      - "8086:8080"
+    env_file: .env
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

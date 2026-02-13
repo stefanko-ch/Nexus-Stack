@@ -263,6 +263,7 @@ When adding a new Docker stack, **all locations must be updated**:
    - Add stack badge in the "Available Stacks" badges section
    - Add row to the "Available Stacks" table with description and website link
    - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
+   - **IMPORTANT:** Update the stack count in the heading `## Available Stacks (N)` to reflect the new total
 
 7. **Update docs/stacks.md:**
    - Add a new section with stack badge, description, and configuration details

@@ -213,9 +213,10 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
 # Created conditionally when Hetzner Object Storage credentials are provided.
 
 resource "minio_s3_bucket" "lakefs" {
-  count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
-  bucket = "${local.resource_prefix}-lakefs"
-  acl    = "private"
+  count         = var.hetzner_object_storage_access_key != "" ? 1 : 0
+  bucket        = "${local.resource_prefix}-lakefs"
+  acl           = "private"
+  force_destroy = true
 }
 
 # -----------------------------------------------------------------------------
@@ -225,9 +226,10 @@ resource "minio_s3_bucket" "lakefs" {
 # Created conditionally when Hetzner Object Storage credentials are provided.
 
 resource "minio_s3_bucket" "general" {
-  count  = var.hetzner_object_storage_access_key != "" ? 1 : 0
-  bucket = local.resource_prefix
-  acl    = "private"
+  count         = var.hetzner_object_storage_access_key != "" ? 1 : 0
+  bucket        = local.resource_prefix
+  acl           = "private"
+  force_destroy = true
 }
 
 # -----------------------------------------------------------------------------
