@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.22.0...v0.23.0) (2026-02-13)
+
+
+### 🚀 Features
+
+* **stacks:** Add Apache Spark cluster and upgrade Jupyter to PySpark ([c8dd883](https://github.com/stefanko-ch/Nexus-Stack/commit/c8dd8839220023cb15ef8be5217ced5a3f1bf9a4))
+* **stacks:** Add Apache Spark cluster with PySpark Jupyter integration ([a4e5cae](https://github.com/stefanko-ch/Nexus-Stack/commit/a4e5cae6879b01a031d196afef4cd9040e3378ee))
+* **stacks:** Add dedicated PySpark kernel to Jupyter ([d6f74a8](https://github.com/stefanko-ch/Nexus-Stack/commit/d6f74a8a667441fbc785898806e89e6b947f425f))
+* **stacks:** Add Docker resource limits to Spark containers ([a35013e](https://github.com/stefanko-ch/Nexus-Stack/commit/a35013ed3539a4148144dae8fc80d71ab0ff94b1))
+* **stacks:** Add PySpark starter notebook to Jupyter ([018c7f4](https://github.com/stefanko-ch/Nexus-Stack/commit/018c7f42688b9e332c56345b59cf0a7c6468839f))
+* **stacks:** Add S3 bucket access to Spark/Jupyter starter notebook ([639c4d1](https://github.com/stefanko-ch/Nexus-Stack/commit/639c4d1eb19561829eebdb2ee70b02c2e0b25fb0))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Address PR review comments for persistent_volume_id validation ([963cef5](https://github.com/stefanko-ch/Nexus-Stack/commit/963cef5ba5ff9e372ec44f01c2a273cfd0cbfec2))
+* **ci:** Address PR review comments for R2 token cleanup ([6c37465](https://github.com/stefanko-ch/Nexus-Stack/commit/6c37465fd105dae371d6adaef18b0f64aaf05ca3))
+* **ci:** Scope R2 token deletion to own deployment only ([4d54b24](https://github.com/stefanko-ch/Nexus-Stack/commit/4d54b24e27ed5b379534940a69dc76125dcd477b))
+* **ci:** Scope R2 token deletion to own deployment only ([ebd0f3b](https://github.com/stefanko-ch/Nexus-Stack/commit/ebd0f3b72e09095752a2a98bec920b5d2a5c6453))
+* **ci:** Validate persistent_volume_id before writing to tfvars ([5001502](https://github.com/stefanko-ch/Nexus-Stack/commit/5001502f619abfe19c9ebf23c0bd26d30d04156d))
+* **ci:** Validate persistent_volume_id before writing to tfvars ([2e1ada8](https://github.com/stefanko-ch/Nexus-Stack/commit/2e1ada809dea5b5195ba0774dd250312536505d3))
+* **stacks:** Add hadoop-aws and AWS SDK v2 JARs for S3A support ([698411d](https://github.com/stefanko-ch/Nexus-Stack/commit/698411d8c5bd79aff160b0d8b45012c414a2199a))
+* **stacks:** Add PYTHONPATH for PySpark in Jupyter container ([02dbbf9](https://github.com/stefanko-ch/Nexus-Stack/commit/02dbbf9bcf96b3ff967e42202a64e550a59a1225))
+* **stacks:** Address PR review comments for Spark stack ([97d9b62](https://github.com/stefanko-ch/Nexus-Stack/commit/97d9b62dc7df9422d3819005abe6d85ea1d976da))
+* **stacks:** Always overwrite starter notebook on Jupyter startup ([0bf6585](https://github.com/stefanko-ch/Nexus-Stack/commit/0bf658588b247e2dd7111629e4b6d81c18b686df))
+* **stacks:** Bind Spark master/worker to all network interfaces ([b31b573](https://github.com/stefanko-ch/Nexus-Stack/commit/b31b573e5698a6de3643af404e8fd9d9851f320c))
+* **stacks:** Build custom Spark image with Python 3.13 to match Jupyter ([ff46bce](https://github.com/stefanko-ch/Nexus-Stack/commit/ff46bcee0a21207a524e86e1a30637409ab42858))
+* **stacks:** Inject spark/sc into IPython user namespace ([53bf02b](https://github.com/stefanko-ch/Nexus-Stack/commit/53bf02bca430afc0ccf00f46043b89ebdcc544d6))
+* **stacks:** Move PySpark kernel config to standalone files ([dd0c7ea](https://github.com/stefanko-ch/Nexus-Stack/commit/dd0c7ea004e17643ed9fd6dcd3de4e5c17246413))
+* **stacks:** Remove duplicate build directive from Spark worker ([02a43bb](https://github.com/stefanko-ch/Nexus-Stack/commit/02a43bbf3df4b32677f9a78c67ba0857b56c0916))
+* **stacks:** Remove Spark worker volume to fix executor permissions ([9253b9c](https://github.com/stefanko-ch/Nexus-Stack/commit/9253b9cc0e049f122acaee08d4f0915a4903996d))
+* **stacks:** Rename spark-master container to spark for deploy verification ([bf3ac7f](https://github.com/stefanko-ch/Nexus-Stack/commit/bf3ac7f9d622c97bc0e9c7eb15425bb02bddef54))
+* **stacks:** Replace curl healthcheck with bash /dev/tcp for Spark ([de43e67](https://github.com/stefanko-ch/Nexus-Stack/commit/de43e6700fa631befd1a44f7b5052212337588e7))
+* **stacks:** Run Spark Master/Worker in foreground via spark-class ([fa66380](https://github.com/stefanko-ch/Nexus-Stack/commit/fa66380e36f9ad7f7fa3ce6e6a13fa4fb817c7ed))
+* **stacks:** Use before-notebook.d hook for S3A JARs and rebuild on deploy ([b6c6465](https://github.com/stefanko-ch/Nexus-Stack/commit/b6c646522f11991c9d9548813c620e80738c44ec))
+* **stacks:** Use correct kernel path for pyspark-notebook image ([1d3c570](https://github.com/stefanko-ch/Nexus-Stack/commit/1d3c57007a564feb06871c9cf9aa8c68c800e421))
+
+
+### 📚 Documentation
+
+* **stacks:** Mention S3A JARs in Spark custom image note ([9497af8](https://github.com/stefanko-ch/Nexus-Stack/commit/9497af81d81498c98e30158be5a51103d36b5e40))
+
 ## [0.22.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.21.0...v0.22.0) (2026-02-11)
 
 
