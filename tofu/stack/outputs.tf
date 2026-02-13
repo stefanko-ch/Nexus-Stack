@@ -210,6 +210,11 @@ output "secrets" {
     # Woodpecker CI
     woodpecker_agent_secret = random_password.woodpecker_agent_secret.result
 
+    # NocoDB
+    nocodb_admin_password = random_password.nocodb_admin.result
+    nocodb_db_password    = random_password.nocodb_db.result
+    nocodb_jwt_secret     = random_password.nocodb_jwt_secret.result
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server

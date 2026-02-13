@@ -1,0 +1,58 @@
+# =============================================================================
+# NocoDB - Open-Source Airtable Alternative
+# =============================================================================
+# Turns any database into a smart spreadsheet with a modern web UI.
+# Create tables, views, forms, and automations without code.
+# Access via: https://nocodb.your-domain.com
+# Default port: 8091 (mapped from internal 8080)
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - Admin account auto-configured during deployment
+# =============================================================================
+
+services:
+  nocodb:
+    image: ${IMAGE_NOCODB:-nocodb/nocodb:0.301.2}
+    container_name: nocodb
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
+    env_file: .env
+    volumes:
+      - nocodb-data:/usr/app/data
+    networks:
+      - app-network
+      - nocodb-internal
+    depends_on:
+      nocodb-db:
+        condition: service_healthy
+
+  nocodb-db:
+    image: postgres:16-alpine
+    container_name: nocodb-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=nexus-nocodb
+      - POSTGRES_PASSWORD=${NOCODB_DB_PASSWORD:-nocodb}
+      - POSTGRES_DB=nocodb
+    volumes:
+      - nocodb-db-data:/var/lib/postgresql/data
+    networks:
+      - nocodb-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-nocodb"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  nocodb-data:
+  nocodb-db-data:
+
+networks:
+  app-network:
+    external: true
+  nocodb-internal:
+    driver: bridge
