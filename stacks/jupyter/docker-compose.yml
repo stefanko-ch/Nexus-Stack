@@ -25,6 +25,16 @@ services:
     user: root
     command: >
       bash -c "
+        JARS_CACHE=/home/jovyan/work/.spark-jars;
+        if [ ! -f $$JARS_CACHE/hadoop-aws-3.4.2.jar ]; then
+          echo '[jupyter] Downloading S3A support JARs (first start only)...';
+          mkdir -p $$JARS_CACHE;
+          curl -fSL https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.4.2/hadoop-aws-3.4.2.jar -o $$JARS_CACHE/hadoop-aws-3.4.2.jar;
+          curl -fSL https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.29.52/bundle-2.29.52.jar -o $$JARS_CACHE/bundle-2.29.52.jar;
+          echo '[jupyter] S3A JARs downloaded.';
+        fi;
+        ln -sf $$JARS_CACHE/hadoop-aws-3.4.2.jar /usr/local/spark/jars/hadoop-aws-3.4.2.jar;
+        ln -sf $$JARS_CACHE/bundle-2.29.52.jar /usr/local/spark/jars/bundle-2.29.52.jar;
         pip install -q sparksql-magic || echo '[jupyter] Warning: Failed to install sparksql-magic' >&2;
         mkdir -p /home/jovyan/.ipython/profile_default/startup;
         cat > /home/jovyan/.ipython/profile_default/startup/00-sparksql.py << 'PYEOF'
@@ -93,7 +103,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 180s
 
 volumes:
   jupyter-data:
