@@ -1344,8 +1344,8 @@ fi
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
-# Note: docker compose up -d will automatically pull missing images
-# To force update images, use: docker compose pull && docker compose up -d
+# Note: --build ensures stacks with Dockerfiles (e.g. Spark) are rebuilt
+# when their Dockerfile changes. For image-only services, --build is a no-op.
 # -----------------------------------------------------------------------------
 echo ""
 echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
@@ -1378,7 +1378,7 @@ for service in $ENABLED_LIST; do
     if [ -n \"\$PARENT\" ] && ! echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$PARENT\"; then
         if [ -f /opt/docker-server/stacks/\$PARENT/docker-compose.yml ]; then
             echo \"  Starting parent stack: \$PARENT (required by \$service)...\"
-            (cd /opt/docker-server/stacks/\$PARENT && docker compose up -d 2>&1) &
+            (cd /opt/docker-server/stacks/\$PARENT && docker compose up -d --build 2>&1) &
             PID=\$!
             PIDS+=(\$PID)
             STARTED_SERVICES+=(\"\$PARENT:\$PID\")
@@ -1416,9 +1416,9 @@ for service in $ENABLED_LIST; do
         echo \"  Starting \$service...\"
         if [ -f /opt/docker-server/stacks/\$service/docker-compose.firewall.yml ]; then
             echo \"    (with firewall port overrides)\"
-            (cd /opt/docker-server/stacks/\$service && docker compose -f docker-compose.yml -f docker-compose.firewall.yml up -d 2>&1) &
+            (cd /opt/docker-server/stacks/\$service && docker compose -f docker-compose.yml -f docker-compose.firewall.yml up -d --build 2>&1) &
         else
-            (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+            (cd /opt/docker-server/stacks/\$service && docker compose up -d --build 2>&1) &
         fi
         PID=\$!
         PIDS+=(\$PID)
