@@ -45,6 +45,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
+| S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
@@ -1414,6 +1415,38 @@ Access RustFS Console at `https://rustfs.<domain>` to:
 **S3 API Access:**
 - **Console UI**: `https://rustfs.<domain>` (accessible via Cloudflare Tunnel)
 - **S3 API**: Port `9002` (configurable via firewall rules for external access)
+
+---
+
+## S3 Manager
+
+![S3 Manager](https://img.shields.io/badge/S3_Manager-2E7D32?logo=amazons3&logoColor=white)
+
+**Web-based S3 bucket browser and manager for Hetzner Object Storage**
+
+S3 Manager is a lightweight web UI written in Go for managing S3-compatible object storage. It connects to Hetzner Object Storage and provides:
+- List all buckets in an account
+- Create and delete buckets
+- List, upload, download, and delete objects
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8086` |
+| Suggested Subdomain | `s3` |
+| Public Access | No (behind Cloudflare Access) |
+| Website | [GitHub](https://github.com/cloudlena/s3manager) |
+
+> ✅ **Auto-configured:** S3 credentials are automatically injected from Hetzner Object Storage variables during deployment.
+
+### Usage
+
+Access S3 Manager at `https://s3.<domain>` to:
+- Browse existing buckets and their contents
+- Upload and download files
+- Create new buckets
+- Delete objects and buckets
+
+No application-level login is required — authentication is handled by Cloudflare Access.
 
 ---
 

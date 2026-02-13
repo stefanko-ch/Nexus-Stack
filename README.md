@@ -128,6 +128,7 @@ flowchart LR
 ![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)
 ![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)
 ![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)
+![S3 Manager](https://img.shields.io/badge/S3_Manager-2E7D32?logo=amazons3&logoColor=white)
 ![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)
 ![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)
 ![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)
@@ -174,6 +175,7 @@ flowchart LR
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
 | **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
+| **S3 Manager** | Web-based S3 bucket browser and manager for Hetzner Object Storage | [GitHub](https://github.com/cloudlena/s3manager) |
 | **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
 | **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |

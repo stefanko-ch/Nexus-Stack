@@ -924,6 +924,18 @@ EOF
     echo -e "${GREEN}  ✓ Jupyter PySpark .env generated${NC}"
 fi
 
+# S3 Manager
+if echo "$ENABLED_SERVICES" | grep -qw "s3manager"; then
+    cat > "$STACKS_DIR/s3manager/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+ACCESS_KEY_ID=${HETZNER_S3_ACCESS_KEY:-}
+SECRET_ACCESS_KEY=${HETZNER_S3_SECRET_KEY:-}
+ENDPOINT=${HETZNER_S3_SERVER:+https://${HETZNER_S3_SERVER}}
+USE_SSL=true
+EOF
+    echo -e "${GREEN}  ✓ S3 Manager .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds

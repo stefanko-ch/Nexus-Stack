@@ -259,6 +259,13 @@ services:
     tcp_ports:
       s3-api: 9003
 
+  s3manager:
+    subdomain: "s3"
+    port: 8086
+    public: false
+    description: "Web-based S3 bucket browser and manager for Hetzner Object Storage."
+    image: "cloudlena/s3manager:latest"
+
   portainer:
     subdomain: "portainer"
     port: 9090
