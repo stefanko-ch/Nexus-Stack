@@ -35,14 +35,14 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=nexus-nocodb
-      - POSTGRES_PASSWORD=${NOCODB_DB_PASSWORD:-nocodb}
+      - POSTGRES_PASSWORD=${NOCODB_DB_PASSWORD}
       - POSTGRES_DB=nocodb
     volumes:
       - nocodb-db-data:/var/lib/postgresql/data
     networks:
       - nocodb-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexus-nocodb"]
+      test: ["CMD-SHELL", "pg_isready -U nexus-nocodb -d nocodb"]
       interval: 5s
       timeout: 10s
       retries: 10
