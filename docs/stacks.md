@@ -23,6 +23,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Portainer | `portainer/portainer-ce` | `2` | Major |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
 | n8n | `n8nio/n8n` | `1` | Major |
+| NocoDB | `nocodb/nocodb` | `0.301.2` | Minor |
+| PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | OpenMetadata Server | `docker.getcollate.io/openmetadata/server` | `1.6.6` | Exact ¹ |
 | OpenMetadata Ingestion | `docker.getcollate.io/openmetadata/ingestion` | `1.6.6` | Exact ¹ |
 | Elasticsearch (OpenMetadata) | `docker.elastic.co/elasticsearch/elasticsearch` | `8.11.4` | Exact ¹ |
@@ -53,6 +55,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Major |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
+| Quickwit | `quickwit/quickwit` | `0.8.1` | Minor |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -890,6 +893,33 @@ n8n is a free and source-available workflow automation tool that allows you to c
 
 ---
 
+## NocoDB
+
+![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)
+
+**Open-source Airtable alternative**
+
+NocoDB turns any database into a smart spreadsheet with a modern web UI. Unlike read-only BI tools, NocoDB lets you create, edit, and manage data directly through multiple view types. Features include:
+- Grid, Gallery, Kanban, Form, and Calendar views
+- REST API auto-generated for every table
+- Webhooks and automations
+- Role-based access control
+- File attachments and rich field types
+- Import from CSV, Excel, and Airtable
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8091` |
+| Suggested Subdomain | `nocodb` |
+| Public Access | No (may contain sensitive data) |
+| Authentication | Admin account auto-configured |
+| Website | [nocodb.com](https://nocodb.com) |
+| Source | [GitHub](https://github.com/nocodb/nocodb) |
+
+> ✅ **Auto-configured:** Admin account is automatically configured during deployment with the project admin email. Credentials available in Infisical.
+
+---
+
 ## OpenMetadata
 
 ![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)
@@ -1664,6 +1694,53 @@ Marimo is a reactive Python notebook that's reproducible, git-friendly, and depl
 | Public Access | No (contains notebooks/code) |
 | Website | [marimo.io](https://marimo.io) |
 | Source | [GitHub](https://github.com/marimo-team/marimo) |
+
+---
+
+## Quickwit
+
+![Quickwit](https://img.shields.io/badge/Quickwit-0C1E2C?logo=quickwit&logoColor=white)
+
+**Cloud-native log search engine**
+
+Quickwit is a cloud-native search engine designed for log management and analytics, built on top of object storage. It provides sub-second search on log data with minimal infrastructure. Features include:
+- Full-text search on log data with sub-second latency
+- Built for object storage (S3, MinIO, Hetzner Object Storage)
+- OpenTelemetry-native for traces and logs ingestion
+- Elasticsearch-compatible query API
+- Standalone single-node mode (no external dependencies)
+- Decoupled compute and storage architecture
+
+| Setting | Value |
+|---------|-------|
+| Default Port | `8092` |
+| Suggested Subdomain | `quickwit` |
+| Public Access | No (log data may contain sensitive information) |
+| Website | [quickwit.io](https://quickwit.io) |
+| Source | [GitHub](https://github.com/quickwit-oss/quickwit) |
+
+### Usage
+
+1. Enable the Quickwit service in the Control Plane
+2. Access `https://quickwit.<domain>` to open the search UI
+3. Create indexes and ingest data via the REST API:
+   ```bash
+   # Create an index
+   curl -X POST https://quickwit.<domain>/api/v1/indexes \
+     -H 'Content-Type: application/yaml' \
+     --data-binary @my-index-config.yaml
+
+   # Ingest JSON data
+   curl -X POST https://quickwit.<domain>/api/v1/<index>/ingest \
+     -H 'Content-Type: application/json' \
+     --data-binary @logs.json
+   ```
+
+### Connecting to Object Storage
+
+Quickwit can use S3-compatible storage backends for index data. Configure via a `quickwit.yaml` mounted into the container. By default, data is stored locally in the `quickwit-data` Docker volume.
+
+> **Note:** ARM64 support is experimental. Report any issues to the Quickwit team.
 
 ---
 
