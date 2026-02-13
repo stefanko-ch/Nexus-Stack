@@ -150,8 +150,8 @@ services:
     subdomain: "jupyter"
     port: 8087
     public: false
-    description: "Interactive computing platform for Python notebooks with JupyterLab."
-    image: "quay.io/jupyter/minimal-notebook:latest"
+    description: "Interactive PySpark notebook platform with Spark SQL support and cluster connectivity."
+    image: "quay.io/jupyter/pyspark-notebook:python-3.13"
 
   kafka-ui:
     subdomain: "kafka-ui"
@@ -355,6 +355,15 @@ services:
     image: "soda-core-arm64:3.3.7"
     support_images:
       postgres: "postgres:16-alpine"
+
+  spark:
+    subdomain: "spark"
+    port: 8088
+    public: false
+    description: "Distributed data processing engine with standalone cluster (Master + Worker)."
+    image: "nexus-spark:4.1.1-python3.13"
+    support_images:
+      spark-worker: "nexus-spark:4.1.1-python3.13"
 
   trino:
     subdomain: "trino"

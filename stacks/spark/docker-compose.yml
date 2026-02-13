@@ -1,0 +1,124 @@
+# =============================================================================
+# Apache Spark - Distributed Data Processing Engine
+# =============================================================================
+# Access via: https://spark.${domain} (Master Web UI)
+# Apache Spark provides a unified analytics engine for large-scale data
+# processing. This stack runs a standalone cluster with one master and one
+# worker node.
+#
+# Jupyter PySpark connects to this cluster via spark://spark-master:7077
+# S3 access (Hetzner Object Storage) is pre-configured via Hadoop properties.
+#
+# IMAGE: Custom Dockerfile installs Python 3.13 (from deadsnakes PPA) on the
+# official apache/spark:4.1.1 base (Ubuntu 22.04 + Python 3.10) to match
+# Jupyter's Python version. PySpark requires matching minor versions.
+# Also includes hadoop-aws + AWS SDK v2 JARs for S3A filesystem support.
+#
+# NOTE: Uses /opt/entrypoint.sh + spark-class to run processes in foreground
+# (not start-master.sh/start-worker.sh which are daemon launchers).
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - No authentication on Spark itself (relies on Cloudflare Access)
+# =============================================================================
+
+services:
+  spark-master:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_SPARK:-nexus-spark:4.1.1-python3.13}
+    container_name: spark
+    hostname: spark-master
+    restart: unless-stopped
+    environment:
+      # Bind to all interfaces so master is reachable on both
+      # app-network (for Jupyter) and spark-internal (for worker)
+      SPARK_MASTER_OPTS: "-Dspark.master.bindAddress=0.0.0.0"
+      # S3 (Hetzner Object Storage) configuration via Hadoop properties
+      SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
+      SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
+      SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
+      SPARK_HADOOP_fs_s3a_path_style_access: "true"
+      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+    env_file:
+      - path: .env
+        required: false
+    # Run Master class directly in foreground via official entrypoint
+    entrypoint: ["/opt/entrypoint.sh"]
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - spark-master
+      - --port
+      - "7077"
+      - --webui-port
+      - "8080"
+    ports:
+      - "8088:8080"
+    networks:
+      - app-network
+      - spark-internal
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+        reservations:
+          cpus: "0.25"
+          memory: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '(echo > /dev/tcp/localhost/8080) >/dev/null 2>&1'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  spark-worker:
+    image: ${IMAGE_SPARK_WORKER:-nexus-spark:4.1.1-python3.13}
+    container_name: spark-worker
+    hostname: spark-worker
+    restart: unless-stopped
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    environment:
+      # Bind to all interfaces (same multi-network reason as master)
+      SPARK_WORKER_OPTS: "-Dspark.worker.bindAddress=0.0.0.0"
+      # S3 (Hetzner Object Storage) configuration
+      SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
+      SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
+      SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
+      SPARK_HADOOP_fs_s3a_path_style_access: "true"
+      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+    env_file:
+      - path: .env
+        required: false
+    # Run Worker class directly in foreground via official entrypoint
+    entrypoint: ["/opt/entrypoint.sh"]
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - spark://spark-master:7077
+      - --cores
+      - ${SPARK_WORKER_CORES:-2}
+      - --memory
+      - ${SPARK_WORKER_MEMORY:-3g}
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4g
+        reservations:
+          cpus: "0.5"
+          memory: 512m
+    networks:
+      - app-network
+      - spark-internal
+
+networks:
+  app-network:
+    external: true
+  spark-internal:
+    driver: bridge

@@ -130,6 +130,7 @@ flowchart LR
 ![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)
 ![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)
 ![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)
+![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)
 ![Trino](https://img.shields.io/badge/Trino-DD00A1?logo=trino&logoColor=white)
 ![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)
 ![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)
@@ -153,7 +154,7 @@ flowchart LR
 | **Info** | Landing page with service overview dashboard | — |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
-| **Jupyter** | Interactive computing platform for Python notebooks with JupyterLab | [jupyter.org](https://jupyter.org) |
+| **Jupyter** | Interactive PySpark notebook platform with Spark SQL support and cluster connectivity | [jupyter.org](https://jupyter.org) |
 | **Kafka-UI** | Modern web UI for Apache Kafka / Redpanda management | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **LakeFS** | Git-like version control for data lakes (Hetzner Object Storage backend) | [lakefs.io](https://lakefs.io) |
@@ -175,6 +176,7 @@ flowchart LR
 | **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
 | **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
+| **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |
 | **Trino** | Distributed SQL query engine for querying data across multiple sources | [trino.io](https://trino.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |

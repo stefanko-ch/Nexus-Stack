@@ -891,6 +891,39 @@ EOF
     echo -e "${GREEN}  ✓ Woodpecker CI .env generated${NC}"
 fi
 
+# Apache Spark
+if echo "$ENABLED_SERVICES" | grep -qw "spark"; then
+    cat > "$STACKS_DIR/spark/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+HETZNER_S3_ENDPOINT=${HETZNER_S3_SERVER:+https://${HETZNER_S3_SERVER}}
+HETZNER_S3_ACCESS_KEY=${HETZNER_S3_ACCESS_KEY:-}
+HETZNER_S3_SECRET_KEY=${HETZNER_S3_SECRET_KEY:-}
+HETZNER_S3_BUCKET=${HETZNER_S3_BUCKET_GENERAL:-}
+SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
+SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-3g}
+EOF
+    echo -e "${GREEN}  ✓ Spark .env generated${NC}"
+fi
+
+# Jupyter PySpark
+if echo "$ENABLED_SERVICES" | grep -qw "jupyter"; then
+    # Set SPARK_MASTER based on whether Spark stack is enabled
+    if echo "$ENABLED_SERVICES" | grep -qw "spark"; then
+        JUPYTER_SPARK_MASTER="spark://spark-master:7077"
+    else
+        JUPYTER_SPARK_MASTER="local[*]"
+    fi
+    cat > "$STACKS_DIR/jupyter/.env" << EOF
+# Auto-generated - DO NOT COMMIT
+SPARK_MASTER=${JUPYTER_SPARK_MASTER}
+HETZNER_S3_ENDPOINT=${HETZNER_S3_SERVER:+https://${HETZNER_S3_SERVER}}
+HETZNER_S3_ACCESS_KEY=${HETZNER_S3_ACCESS_KEY:-}
+HETZNER_S3_SECRET_KEY=${HETZNER_S3_SECRET_KEY:-}
+HETZNER_S3_BUCKET=${HETZNER_S3_BUCKET_GENERAL:-}
+EOF
+    echo -e "${GREEN}  ✓ Jupyter PySpark .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1311,8 +1344,9 @@ fi
 # Pre-pull Docker images (parallel)
 # -----------------------------------------------------------------------------
 # Start containers (parallel)
-# Note: docker compose up -d will automatically pull missing images
-# To force update images, use: docker compose pull && docker compose up -d
+# Note: --build ensures stacks with Dockerfiles (e.g. Spark) are always rebuilt.
+# Docker build cache makes this fast when nothing changed. For image-only
+# services, --build is a no-op.
 # -----------------------------------------------------------------------------
 echo ""
 echo -e "${YELLOW}[6/7] Starting enabled containers (parallel)...${NC}"
@@ -1345,7 +1379,7 @@ for service in $ENABLED_LIST; do
     if [ -n \"\$PARENT\" ] && ! echo \"\$PARENT_STACKS_STARTED\" | grep -qw \"\$PARENT\"; then
         if [ -f /opt/docker-server/stacks/\$PARENT/docker-compose.yml ]; then
             echo \"  Starting parent stack: \$PARENT (required by \$service)...\"
-            (cd /opt/docker-server/stacks/\$PARENT && docker compose up -d 2>&1) &
+            (cd /opt/docker-server/stacks/\$PARENT && docker compose up -d --build 2>&1) &
             PID=\$!
             PIDS+=(\$PID)
             STARTED_SERVICES+=(\"\$PARENT:\$PID\")
@@ -1383,9 +1417,9 @@ for service in $ENABLED_LIST; do
         echo \"  Starting \$service...\"
         if [ -f /opt/docker-server/stacks/\$service/docker-compose.firewall.yml ]; then
             echo \"    (with firewall port overrides)\"
-            (cd /opt/docker-server/stacks/\$service && docker compose -f docker-compose.yml -f docker-compose.firewall.yml up -d 2>&1) &
+            (cd /opt/docker-server/stacks/\$service && docker compose -f docker-compose.yml -f docker-compose.firewall.yml up -d --build 2>&1) &
         else
-            (cd /opt/docker-server/stacks/\$service && docker compose up -d 2>&1) &
+            (cd /opt/docker-server/stacks/\$service && docker compose up -d --build 2>&1) &
         fi
         PID=\$!
         PIDS+=(\$PID)
