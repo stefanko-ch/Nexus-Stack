@@ -1,0 +1,35 @@
+# =============================================================================
+# Quickwit - Cloud-Native Log Search Engine
+# =============================================================================
+# Search engine designed for log management and analytics, built on top of
+# object storage. Sub-second search on log data with minimal infrastructure.
+# Access via: https://quickwit.your-domain.com
+# Default port: 8092 (mapped from internal 7280)
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - No application-level authentication (relies on Cloudflare Access)
+# =============================================================================
+
+services:
+  quickwit:
+    image: ${IMAGE_QUICKWIT:-quickwit/quickwit:0.8.1}
+    container_name: quickwit
+    restart: unless-stopped
+    ports:
+      - "8092:7280"
+    environment:
+      QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER: "false"
+    volumes:
+      - quickwit-data:/quickwit/qwdata
+    command: ["run"]
+    networks:
+      - app-network
+
+volumes:
+  quickwit-data:
+
+networks:
+  app-network:
+    external: true

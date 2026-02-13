@@ -2636,12 +2636,12 @@ echo -e "${NC}"
 
 # Show service URLs from tofu output
 echo -e "${CYAN}🔗 Your Services:${NC}"
-cd "$TOFU_DIR" && tofu output -json service_urls 2>/dev/null | jq -r 'to_entries | .[] | "   \(.key): \(.value)"' || echo "   (run 'make urls' to see service URLs)"
+cd "$TOFU_DIR" && tofu output -json service_urls 2>/dev/null | jq -r 'to_entries | .[] | "   \(.key): \(.value)"' || echo "   (service URLs not available)"
 echo ""
 
 echo -e "${CYAN}📌 SSH Access:${NC}"
 echo -e "   ssh nexus"
 echo ""
 echo -e "${CYAN}🔐 View credentials:${NC}"
-echo -e "   make secrets"
+echo -e "   Credentials available in Infisical"
 echo ""

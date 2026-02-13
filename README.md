@@ -92,12 +92,13 @@ flowchart LR
     end
 ```
 
-## Available Stacks (44)
+## Available Stacks (45)
 
 ![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
 ![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC00?logo=clickhouse&logoColor=black)
 ![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)
+![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)
 ![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)
 ![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)
 ![Garage](https://img.shields.io/badge/Garage-59C6A6?logo=amazons3&logoColor=white)
@@ -145,6 +146,7 @@ flowchart LR
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
 | **ClickHouse** | Fast columnar database for real-time analytics and OLAP queries | [clickhouse.com](https://clickhouse.com) |
 | **code-server** | VS Code in the browser for remote development | [coder.com](https://coder.com) |
+| **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
 | **Garage** | Lightweight S3-compatible object storage for self-hosting | [garagehq.deuxfleurs.fr](https://garagehq.deuxfleurs.fr) |
@@ -186,7 +188,7 @@ flowchart LR
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
 | **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
 
-→ See [docs/stacks.md](docs/stacks.md) for detailed stack documentation and how to add new services.
+→ See [docs/stacks/README.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.
 
 ## Control Plane
 
@@ -286,7 +288,7 @@ flowchart LR
 |----------|-------------|
 | [Setup Guide](docs/setup-guide.md) | Complete installation and configuration |
 | [Control Plane Guide](docs/control-plane.md) | How to use the Control Plane web interface |
-| [Stacks](docs/stacks.md) | Available services and how to add new ones |
+| [Stacks](docs/stacks/README.md) | Available services and how to add new ones |
 | [Contributing](docs/CONTRIBUTING.md) | How to contribute to the project |
 
 ## How It Works

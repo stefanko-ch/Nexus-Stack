@@ -87,7 +87,7 @@ Response shows which environment variables are set or missing:
 
 ## 🔧 Setup
 
-The control plane infrastructure is created by Terraform when you run `make up`. The actual Pages deployment happens automatically via the Makefile (if `CLOUDFLARE_API_TOKEN` is set) or via GitHub Actions.
+The control plane infrastructure is created by OpenTofu via GitHub Actions. The Pages deployment happens automatically during the `setup-control-plane` workflow.
 
 ### Required Secrets
 
@@ -172,11 +172,9 @@ Access at `http://localhost:8788`
 ## 📝 Deployment Flow
 
 ```bash
-# Initial setup
-make init
-
-# Deploy infrastructure (including control plane)
-make up
+# Deploy via GitHub Actions
+gh workflow run initial-setup.yaml    # First-time setup
+gh workflow run spin-up.yml           # Re-deploy after teardown
 
 # Set GitHub token secret
 # → Via Cloudflare Dashboard (see above)

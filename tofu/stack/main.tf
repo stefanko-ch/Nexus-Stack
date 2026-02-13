@@ -304,6 +304,24 @@ resource "random_password" "woodpecker_agent_secret" {
   special = false
 }
 
+# NocoDB admin password
+resource "random_password" "nocodb_admin" {
+  length  = 24
+  special = false
+}
+
+# NocoDB database password
+resource "random_password" "nocodb_db" {
+  length  = 24
+  special = false
+}
+
+# NocoDB JWT secret
+resource "random_password" "nocodb_jwt_secret" {
+  length  = 32
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 

@@ -106,13 +106,12 @@ gh workflow run destroy-all.yml -f confirm=DESTROY  # Full cleanup
 
 **Debugging Tools (local, requires SSH):**
 ```bash
-make status     # Show running containers
-make ssh        # SSH into server via Cloudflare Tunnel
-make logs       # View container logs
-make ssh-setup  # Setup SSH config
+ssh nexus                          # SSH into server via Cloudflare Tunnel
+ssh nexus "docker ps"              # Show running containers
+ssh nexus "docker logs <service>"  # View container logs
 ```
 
-> ⚠️ **Note:** Local deployment via `make up` is not supported. Use GitHub Actions.
+> ⚠️ **Note:** Deployment is only supported via GitHub Actions workflows.
 
 ## Development Guidelines
 
@@ -265,17 +264,18 @@ When adding a new Docker stack, **all locations must be updated**:
    - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
    - **IMPORTANT:** Update the stack count in the heading `## Available Stacks (N)` to reflect the new total
 
-7. **Update docs/stacks.md:**
-   - Add a new section with stack badge, description, and configuration details
+7. **Update docs/stacks/:**
+   - Create `docs/stacks/<stack-name>.md` with badge, description, and configuration details
    - Include port, subdomain, default credentials (if any), and special setup instructions
-   - Add entry to the Docker Image Update Policy table at the top
+   - Add entry to the Docker Image Versions table in `docs/stacks/README.md`
+   - Add link to the Stack Documentation table in `docs/stacks/README.md`
 
 8. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`
    - Add password to `secrets` output in `tofu/stack/outputs.tf`
    - Add auto-setup API call in `scripts/deploy.sh` (Step 6/6)
    - Add password to Infisical secrets push payload
-   - Update `make secrets` command in `Makefile`
+   - Verify credentials are pushed to Infisical
 
 **Badge format:**
 ```markdown
@@ -345,10 +345,10 @@ cd tofu && tofu validate
 ### Mandatory Testing
 
 **Every change must be tested before committing.** This includes:
-- `make plan` to verify infrastructure changes
-- `make up` to test full deployment
+- `cd tofu/stack && tofu plan -var-file=config.tfvars` to verify infrastructure changes
+- Deploy via GitHub Actions (`gh workflow run spin-up.yml`)
 - Verify services are accessible via their URLs
-- Check `make secrets` shows correct credentials
+- Check credentials are available in Infisical
 - Test auto-setup worked (login with generated credentials)
 
 ### Testing Instructions for the User
