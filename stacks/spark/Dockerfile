@@ -22,8 +22,11 @@ RUN apt-get update && \
     add-apt-repository -y ppa:deadsnakes/ppa && \
     apt-get update && \
     apt-get install -y python3.13 && \
-    ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
     rm -rf /var/lib/apt/lists/*
+
+# Configure Spark to use Python 3.13 without overwriting the system python3 (3.10).
+ENV PYSPARK_PYTHON=/usr/bin/python3.13 \
+    PYSPARK_DRIVER_PYTHON=/usr/bin/python3.13
 
 # Download hadoop-aws and AWS SDK v2 bundle for S3A filesystem support.
 # Spark 4.1.x ships Hadoop 3.4.2 but does not include the hadoop-aws module.
