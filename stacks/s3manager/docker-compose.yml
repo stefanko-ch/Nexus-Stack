@@ -4,7 +4,7 @@
 # Lightweight web UI for managing S3-compatible object storage buckets.
 # Connects to Hetzner Object Storage for browsing, uploading, and
 # downloading objects.
-# Access via: https://s3.your-domain.com
+# Access via: https://s3manager.your-domain.com
 # Default port: 8086
 #
 # SECURITY:

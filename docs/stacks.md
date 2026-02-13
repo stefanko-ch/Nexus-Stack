@@ -1432,7 +1432,7 @@ S3 Manager is a lightweight web UI written in Go for managing S3-compatible obje
 | Setting | Value |
 |---------|-------|
 | Default Port | `8086` |
-| Suggested Subdomain | `s3` |
+| Suggested Subdomain | `s3manager` |
 | Public Access | No (behind Cloudflare Access) |
 | Website | [GitHub](https://github.com/cloudlena/s3manager) |
 
@@ -1440,7 +1440,7 @@ S3 Manager is a lightweight web UI written in Go for managing S3-compatible obje
 
 ### Usage
 
-Access S3 Manager at `https://s3.<domain>` to:
+Access S3 Manager at `https://s3manager.<domain>` to:
 - Browse existing buckets and their contents
 - Upload and download files
 - Create new buckets
