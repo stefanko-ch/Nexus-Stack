@@ -1630,19 +1630,27 @@ EOF
                     echo "  Pushing secrets to Infisical..."
                     
                     # Build secrets payload with usernames and tags
-                    # Prepare SSH private key for JSON (base64 encode to handle newlines)
+                    # Prepare optional secrets as pre-built JSON fragments
+                    # (avoids ${:+} brace conflicts inside heredoc that produce invalid JSON)
+                    WOODPECKER_GITEA_SECRETS=""
+                    if [ -n "${WOODPECKER_GITEA_CLIENT:-}" ]; then
+                        WOODPECKER_GITEA_SECRETS=",{\"secretKey\": \"WOODPECKER_GITEA_CLIENT\", \"secretValue\": \"$WOODPECKER_GITEA_CLIENT\", \"tagIds\": [\"$WOODPECKER_TAG\"]}"
+                    fi
+                    if [ -n "${WOODPECKER_GITEA_SECRET:-}" ]; then
+                        WOODPECKER_GITEA_SECRETS="$WOODPECKER_GITEA_SECRETS,{\"secretKey\": \"WOODPECKER_GITEA_SECRET\", \"secretValue\": \"$WOODPECKER_GITEA_SECRET\", \"tagIds\": [\"$WOODPECKER_TAG\"]}"
+                    fi
                     SSH_KEY_SECRET=""
                     if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
                         SSH_KEY_BASE64=$(echo "$SSH_PRIVATE_KEY_CONTENT" | base64 | tr -d '\n')
                         SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
                     fi
                     
-                    # Using v3 batch API which supports tagIds
+                    # Using v4 batch API which supports tagIds
                     # Environment can be overridden via INFISICAL_ENV (default: dev)
                     # Note: "prod" may not exist in new Infisical projects
                     SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
 {
-  "workspaceId": "$PROJECT_ID",
+  "projectId": "$PROJECT_ID",
   "environment": "${INFISICAL_ENV:-dev}",
   "secretPath": "/",
   "secrets": [
@@ -1708,9 +1716,7 @@ EOF
     {"secretKey": "WIKIJS_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_PASSWORD", "secretValue": "$WIKIJS_ADMIN_PASS", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]},
-    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}${WOODPECKER_GITEA_CLIENT:+,
-    {"secretKey": "WOODPECKER_GITEA_CLIENT", "secretValue": "$WOODPECKER_GITEA_CLIENT", "tagIds": ["$WOODPECKER_TAG"]}}${WOODPECKER_GITEA_SECRET:+,
-    {"secretKey": "WOODPECKER_GITEA_SECRET", "secretValue": "$WOODPECKER_GITEA_SECRET", "tagIds": ["$WOODPECKER_TAG"]}}$SSH_KEY_SECRET
+    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}$WOODPECKER_GITEA_SECRETS$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
@@ -1718,7 +1724,7 @@ SECRETS_EOF
                     
                     # Write payload to temp file on server to avoid SSH/shell quoting issues
                     echo "$SECRETS_PAYLOAD" | ssh nexus "cat > /tmp/infisical-secrets.json"
-                    SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v3/secrets/batch/raw' \
+                    SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
                         -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                         -H 'Content-Type: application/json' \
                         -d @/tmp/infisical-secrets.json; rm -f /tmp/infisical-secrets.json" 2>&1 || echo "")
