@@ -153,6 +153,7 @@ services:
     depends_on:
       - dify-api
       - dify-web
+      - dify-plugin-daemon
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
       interval: 15s
@@ -271,8 +272,12 @@ services:
       SERVER_KEY: ${DIFY_PLUGIN_DAEMON_KEY}
       DIFY_INNER_API_KEY: ${DIFY_PLUGIN_INNER_API_KEY}
       DIFY_INNER_API_URL: http://dify-api:5001
-      STORAGE_TYPE: local
-      STORAGE_LOCAL_PATH: /app/storage
+      PLUGIN_REMOTE_INSTALLING_HOST: "0.0.0.0"
+      PLUGIN_REMOTE_INSTALLING_PORT: "5003"
+      PLUGIN_WORKING_PATH: /app/storage/cwd
+      PLUGIN_STORAGE_TYPE: local
+      PLUGIN_STORAGE_LOCAL_ROOT: /app/storage
+      FORCE_VERIFYING_SIGNATURE: "true"
       MAX_PLUGIN_PACKAGE_SIZE: "52428800"
       PPROF_ENABLED: "false"
     volumes:
