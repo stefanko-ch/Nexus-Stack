@@ -118,6 +118,7 @@ services:
     subdomain: "grafana"
     port: 3100
     public: false
+    core: true
     description: "Observability platform for metrics, logs, and traces visualization."
     image: "grafana/grafana:11.6"
     support_images:
