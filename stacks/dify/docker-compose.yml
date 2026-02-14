@@ -155,7 +155,7 @@ services:
       - dify-web
       - dify-plugin-daemon
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
