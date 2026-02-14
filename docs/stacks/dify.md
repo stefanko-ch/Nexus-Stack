@@ -26,7 +26,7 @@ ecosystem.
 | `dify-worker` | `langgenius/dify-api:1.13.0` | Celery async worker (MODE=worker) |
 | `dify-worker-beat` | `langgenius/dify-api:1.13.0` | Celery beat scheduler |
 | `dify-web` | `langgenius/dify-web:1.13.0` | Next.js frontend |
-| `dify-nginx` | `nginx:alpine` | Reverse proxy (routes to web + api) |
+| `dify` | `nginx:alpine` | Reverse proxy (routes to web + api) |
 | `dify-db` | `postgres:15-alpine` | Dedicated PostgreSQL database |
 | `dify-redis` | `redis:6-alpine` | Cache and message broker |
 | `dify-weaviate` | `semitechnologies/weaviate:1.27.0` | Vector database for RAG |

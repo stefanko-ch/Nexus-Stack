@@ -143,7 +143,7 @@ services:
   # ---------------------------------------------------------------------------
   dify-nginx:
     image: ${IMAGE_DIFY_NGINX:-nginx:alpine}
-    container_name: dify-nginx
+    container_name: dify
     restart: unless-stopped
     ports:
       - "8501:80"
