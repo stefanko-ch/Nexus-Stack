@@ -38,6 +38,8 @@ x-dify-shared: &dify-shared
     # Security
     SECRET_KEY: ${DIFY_SECRET_KEY}
     INIT_PASSWORD: ${DIFY_ADMIN_PASSWORD}
+    # Database migrations
+    MIGRATION_ENABLED: "true"
     # URLs (empty = auto-detect from request)
     CONSOLE_API_URL: ""
     CONSOLE_WEB_URL: ""
