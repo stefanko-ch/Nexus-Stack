@@ -44,6 +44,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
 | Mage | `mageai/mageai` | `latest` | Latest ² |
 | MinIO | `minio/minio` | `latest` | Latest ² |
+| NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
+| PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
@@ -53,6 +55,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Major |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
+| Quickwit | `quickwit/quickwit` | `0.8.1` | Exact ¹ |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -116,11 +119,13 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
+| **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
 | **Portainer** | Docker container management UI | [portainer.md](portainer.md) |
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
+| **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |
 | **Redpanda Console** | Redpanda web UI | [redpanda-console.md](redpanda-console.md) |
 | **Redpanda Connect** | Stream processing framework | [redpanda-connect.md](redpanda-connect.md) |

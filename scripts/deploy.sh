@@ -133,6 +133,9 @@ CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password
 WIKIJS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_admin_password // empty')
 WIKIJS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_db_password // empty')
 WOODPECKER_AGENT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.woodpecker_agent_secret // empty')
+NOCODB_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_admin_password // empty')
+NOCODB_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_db_password // empty')
+NOCODB_JWT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.nocodb_jwt_secret // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -1581,7 +1584,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "nocodb" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1604,6 +1607,7 @@ EOF
                     CLICKHOUSE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="clickhouse") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    NOCODB_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="nocodb") | .id // empty' 2>/dev/null)
                     RUSTFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="rustfs") | .id // empty' 2>/dev/null)
                     SEAWEEDFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="seaweedfs") | .id // empty' 2>/dev/null)
                     GARAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="garage") | .id // empty' 2>/dev/null)
@@ -1665,6 +1669,9 @@ EOF
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MINIO_ROOT_USER", "secretValue": "nexus-minio", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "NOCODB_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "NOCODB_PASSWORD", "secretValue": "$NOCODB_ADMIN_PASS", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "NOCODB_DB_PASSWORD", "secretValue": "$NOCODB_DB_PASS", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "RUSTFS_ACCESS_KEY", "secretValue": "nexus-rustfs", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "RUSTFS_SECRET_KEY", "secretValue": "$RUSTFS_ROOT_PASS", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "SEAWEEDFS_ACCESS_KEY", "secretValue": "nexus-seaweedfs", "tagIds": ["$SEAWEEDFS_TAG"]},
