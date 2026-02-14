@@ -322,6 +322,54 @@ resource "random_password" "nocodb_jwt_secret" {
   special = false
 }
 
+# Dify admin password
+resource "random_password" "dify_admin" {
+  length  = 24
+  special = false
+}
+
+# Dify database password
+resource "random_password" "dify_db" {
+  length  = 24
+  special = false
+}
+
+# Dify Redis password
+resource "random_password" "dify_redis" {
+  length  = 24
+  special = false
+}
+
+# Dify secret key (session/encryption)
+resource "random_password" "dify_secret_key" {
+  length  = 42
+  special = false
+}
+
+# Dify Weaviate API key
+resource "random_password" "dify_weaviate_api_key" {
+  length  = 32
+  special = false
+}
+
+# Dify sandbox API key
+resource "random_password" "dify_sandbox_api_key" {
+  length  = 32
+  special = false
+}
+
+# Dify plugin daemon key
+resource "random_password" "dify_plugin_daemon_key" {
+  length  = 48
+  special = false
+}
+
+# Dify plugin inner API key
+resource "random_password" "dify_plugin_inner_api_key" {
+  length  = 48
+  special = false
+}
+
 # Note: Hetzner Object Storage bucket is created in control-plane/main.tf
 # to persist through teardown. The bucket name is passed via hetzner_s3_bucket variable.
 

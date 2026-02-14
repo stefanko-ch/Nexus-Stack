@@ -55,6 +55,14 @@ Images are pinned to **major versions** where supported for automatic security p
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Major |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
+| Dify API | `langgenius/dify-api` | `1.13.0` | Exact ¹ |
+| Dify Web | `langgenius/dify-web` | `1.13.0` | Exact ¹ |
+| Dify Sandbox | `langgenius/dify-sandbox` | `0.2.12` | Exact ¹ |
+| Dify Plugin Daemon | `langgenius/dify-plugin-daemon` | `0.5.3-local` | Exact ¹ |
+| Weaviate (Dify) | `semitechnologies/weaviate` | `1.27.0` | Exact ¹ |
+| PostgreSQL (Dify DB) | `postgres` | `15-alpine` | Major |
+| Redis (Dify) | `redis` | `6-alpine` | Major |
+| SSRF Proxy (Dify) | `ubuntu/squid` | `latest` | Latest ² |
 | Quickwit | `quickwit/quickwit` | `0.8.1` | Exact ¹ |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
@@ -97,6 +105,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |
 | **code-server** | VS Code in the browser | [code-server.md](code-server.md) |
+| **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
