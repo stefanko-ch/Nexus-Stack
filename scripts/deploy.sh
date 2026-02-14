@@ -1449,7 +1449,7 @@ done
 DEFERRED_SERVICES=\"woodpecker\"
 
 # Fix Dify storage permissions (API/worker run as uid 1001)
-if echo \"\$ENABLED_LIST\" | grep -qw \"dify\"; then
+if echo \"$ENABLED_LIST\" | grep -qw \"dify\"; then
     mkdir -p /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
     chown -R 1001:1001 /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
 fi
