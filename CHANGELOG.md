@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.24.0...v0.25.0) (2026-02-14)
+
+
+### 🚀 Features
+
+* **stacks:** Add NocoDB open-source Airtable alternative ([135f5b5](https://github.com/stefanko-ch/Nexus-Stack/commit/135f5b5bd6624129f36704f7aad7bca7e262cee4))
+* **stacks:** Add Quickwit cloud-native log search engine ([23d3c82](https://github.com/stefanko-ch/Nexus-Stack/commit/23d3c8295d3eacbb7be4facd6cfec2e0384dea2b))
+* **stacks:** Add Quickwit log search and NocoDB Airtable alternative ([302a515](https://github.com/stefanko-ch/Nexus-Stack/commit/302a5154cfc7761c21508ba7c7969c2e180f8a75))
+
+
+### 🐛 Bug Fixes
+
+* **docs:** Add missing Draw.io documentation and README entry ([91c8867](https://github.com/stefanko-ch/Nexus-Stack/commit/91c8867ae20c533465b96fb8cc4b69fb6a64720c))
+* **docs:** Address PR [#223](https://github.com/stefanko-ch/Nexus-Stack/issues/223) review comments ([0965be7](https://github.com/stefanko-ch/Nexus-Stack/commit/0965be73b1f956ad5cb119d893a33cc4696e2527))
+* **scripts:** Add NocoDB JWT secret to Infisical and validate .env generation ([3543c91](https://github.com/stefanko-ch/Nexus-Stack/commit/3543c91aa51bbe4e0efcaa15401ac1db1149c6e7))
+* **scripts:** Fix Infisical secrets push JSON parse error ([9b89c4a](https://github.com/stefanko-ch/Nexus-Stack/commit/9b89c4accc91541deb3faa605137e40473c28f1e))
+* **scripts:** Fix invalid JSON in Infisical secrets payload ([04bf37b](https://github.com/stefanko-ch/Nexus-Stack/commit/04bf37b7c283b6d60b7aaec109935f77f85ad984))
+* **scripts:** Use correct Infisical v3 batch API endpoint ([a7e28a6](https://github.com/stefanko-ch/Nexus-Stack/commit/a7e28a65cb673a5e94bc351748e1eb5f27527c73))
+* **stacks:** Address PR review comments for Quickwit and NocoDB ([1f431a4](https://github.com/stefanko-ch/Nexus-Stack/commit/1f431a4f106dac4212172327761e674151b66a23))
+* **stacks:** Complete Quickwit and NocoDB integration ([9915326](https://github.com/stefanko-ch/Nexus-Stack/commit/991532698b64984f805a30e96d4c923e7535649a))
+* **stacks:** Use correct NC_DB connection string format for NocoDB ([53618fe](https://github.com/stefanko-ch/Nexus-Stack/commit/53618fe390afad1d24729ef50f0cc1c36084b7a3))
+
+
+### ♻️ Refactoring
+
+* **docs:** Split stacks.md into individual per-stack files ([f639bb3](https://github.com/stefanko-ch/Nexus-Stack/commit/f639bb39bd0922e5294655ed04cd4663dc82d6e1))
+* **docs:** Split stacks.md into individual per-stack files ([e14ffe6](https://github.com/stefanko-ch/Nexus-Stack/commit/e14ffe6976f519c048d3c9cf09c98eadac53f737))
+
+
+### 📚 Documentation
+
+* Add one-branch-at-a-time rule to CLAUDE.md ([344f9b6](https://github.com/stefanko-ch/Nexus-Stack/commit/344f9b6322d75fe03f279598ddc93edabb911f65))
+
+
+### 🔧 Maintenance
+
+* Remove outdated make command references ([6f07a46](https://github.com/stefanko-ch/Nexus-Stack/commit/6f07a4681b3224ffc00d9252d27ca9163b5fd5f5))
+
 ## [0.24.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.23.0...v0.24.0) (2026-02-13)
 
 
