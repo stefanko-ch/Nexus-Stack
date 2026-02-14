@@ -1448,6 +1448,12 @@ done
 # Woodpecker requires Gitea OAuth credentials, so it starts after Gitea setup
 DEFERRED_SERVICES=\"woodpecker\"
 
+# Fix Dify storage permissions (API/worker run as uid 1001)
+if echo \"\$ENABLED_LIST\" | grep -qw \"dify\"; then
+    mkdir -p /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
+    chown -R 1001:1001 /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
+fi
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
 
@@ -2682,11 +2688,11 @@ if echo "$ENABLED_SERVICES" | grep -qw "dify" && [ -n "$DIFY_ADMIN_PASS" ]; then
     (
         echo "  Configuring Dify..."
 
-        # Wait for Dify nginx to be ready
+        # Wait for Dify API to be ready (returns 307 when working)
         DIFY_READY=false
         for i in $(seq 1 40); do
             DIFY_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:8501/ 2>/dev/null" || echo "000")
-            if [ "$DIFY_HEALTH" = "200" ] || [ "$DIFY_HEALTH" = "302" ]; then
+            if [ "$DIFY_HEALTH" = "200" ] || [ "$DIFY_HEALTH" = "302" ] || [ "$DIFY_HEALTH" = "307" ]; then
                 DIFY_READY=true
                 break
             fi
@@ -2706,14 +2712,27 @@ if echo "$ENABLED_SERVICES" | grep -qw "dify" && [ -n "$DIFY_ADMIN_PASS" ]; then
         if echo "$SETUP_CHECK" | grep -q '"step":"finished"'; then
             echo -e "${YELLOW}  ⚠ Dify already configured - skipping admin setup${NC}"
         else
-            # Create admin account via setup API
+            # Step 1: Validate init password (required before setup)
+            INIT_RESULT=$(ssh nexus "curl -s -c /tmp/dify-cookies -X POST 'http://localhost:8501/console/api/init' \
+                -H 'Content-Type: application/json' \
+                -d '{\"password\":\"$DIFY_ADMIN_PASS\"}'" 2>&1 || echo "")
+
+            if ! echo "$INIT_RESULT" | grep -q '"result":"success"'; then
+                echo -e "${YELLOW}  ⚠ Dify init validation failed - configure manually${NC}"
+                exit 0
+            fi
+
+            # Step 2: Create admin account via setup API (uses session cookie from init)
             DIFY_SETUP_PAYLOAD=$(jq -n \
                 --arg email "$ADMIN_EMAIL" \
                 --arg password "$DIFY_ADMIN_PASS" \
                 '{email: $email, name: "Admin", password: $password}')
-            DIFY_RESULT=$(printf '%s' "$DIFY_SETUP_PAYLOAD" | ssh nexus "curl -s -X POST 'http://localhost:8501/console/api/setup' \
+            DIFY_RESULT=$(printf '%s' "$DIFY_SETUP_PAYLOAD" | ssh nexus "curl -s -b /tmp/dify-cookies -X POST 'http://localhost:8501/console/api/setup' \
                 -H 'Content-Type: application/json' \
                 -d @-" 2>&1 || echo "")
+
+            # Clean up cookies
+            ssh nexus "rm -f /tmp/dify-cookies" 2>/dev/null || true
 
             if echo "$DIFY_RESULT" | grep -q '"result":"success"'; then
                 echo -e "${GREEN}  ✓ Dify admin created (email: $ADMIN_EMAIL)${NC}"
