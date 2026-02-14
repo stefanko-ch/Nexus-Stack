@@ -239,6 +239,15 @@ services:
     support_images:
       postgres: "postgres:16-alpine"
 
+  nocodb:
+    subdomain: "nocodb"
+    port: 8091
+    public: false
+    description: "Open-source Airtable alternative that turns any database into a smart spreadsheet."
+    image: "nocodb/nocodb:0.301.2"
+    support_images:
+      postgres: "postgres:16-alpine"
+
   openmetadata:
     subdomain: "openmetadata"
     port: 8585
@@ -297,6 +306,13 @@ services:
     image: "prefecthq/prefect:3-latest"
     support_images:
       postgres: "postgres:16-alpine"
+
+  quickwit:
+    subdomain: "quickwit"
+    port: 8092
+    public: false
+    description: "Cloud-native search engine for log management and analytics on object storage."
+    image: "quickwit/quickwit:0.8.1"
 
   redpanda:
     subdomain: "redpanda"

@@ -599,6 +599,8 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 
 **Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
 
+**Only one feature branch at a time.** Always finish the current feature branch (PR merged or closed) before starting a new one. Working on multiple branches in parallel leads to cross-contamination of changes, merge conflicts, and confusion about which changes belong where. If a second task comes up, either add it to the current branch (if related) or wait until the current PR is merged.
+
 ### Commit and Push Workflow
 
 **When making code changes, follow this workflow:**

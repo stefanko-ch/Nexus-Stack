@@ -133,6 +133,9 @@ CLICKHOUSE_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.clickhouse_admin_password
 WIKIJS_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_admin_password // empty')
 WIKIJS_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.wikijs_db_password // empty')
 WOODPECKER_AGENT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.woodpecker_agent_secret // empty')
+NOCODB_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_admin_password // empty')
+NOCODB_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_db_password // empty')
+NOCODB_JWT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.nocodb_jwt_secret // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -937,6 +940,21 @@ EOF
     echo -e "${GREEN}  ✓ S3 Manager .env generated${NC}"
 fi
 
+# NocoDB
+if echo "$ENABLED_SERVICES" | grep -qw "nocodb" && [ -n "$NOCODB_DB_PASS" ] && [ -n "$NOCODB_ADMIN_PASS" ] && [ -n "$NOCODB_JWT_SECRET" ]; then
+    echo "  Generating NocoDB config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/nocodb/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+NC_DB=pg://nocodb-db:5432?u=nexus-nocodb&p=${NOCODB_DB_PASS}&d=nocodb
+NC_AUTH_JWT_SECRET=${NOCODB_JWT_SECRET}
+NC_ADMIN_EMAIL=${ADMIN_EMAIL}
+NC_ADMIN_PASSWORD=${NOCODB_ADMIN_PASS}
+NC_PUBLIC_URL=https://nocodb.${DOMAIN}
+NOCODB_DB_PASSWORD=${NOCODB_DB_PASS}
+EOF
+    echo -e "${GREEN}  ✓ NocoDB .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1566,7 +1584,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "nocodb" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1589,6 +1607,7 @@ EOF
                     CLICKHOUSE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="clickhouse") | .id // empty' 2>/dev/null)
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
+                    NOCODB_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="nocodb") | .id // empty' 2>/dev/null)
                     RUSTFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="rustfs") | .id // empty' 2>/dev/null)
                     SEAWEEDFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="seaweedfs") | .id // empty' 2>/dev/null)
                     GARAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="garage") | .id // empty' 2>/dev/null)
@@ -1611,14 +1630,22 @@ EOF
                     echo "  Pushing secrets to Infisical..."
                     
                     # Build secrets payload with usernames and tags
-                    # Prepare SSH private key for JSON (base64 encode to handle newlines)
+                    # Prepare optional secrets as pre-built JSON fragments
+                    # (avoids ${:+} brace conflicts inside heredoc that produce invalid JSON)
+                    WOODPECKER_GITEA_SECRETS=""
+                    if [ -n "${WOODPECKER_GITEA_CLIENT:-}" ]; then
+                        WOODPECKER_GITEA_SECRETS=",{\"secretKey\": \"WOODPECKER_GITEA_CLIENT\", \"secretValue\": \"$WOODPECKER_GITEA_CLIENT\", \"tagIds\": [\"$WOODPECKER_TAG\"]}"
+                    fi
+                    if [ -n "${WOODPECKER_GITEA_SECRET:-}" ]; then
+                        WOODPECKER_GITEA_SECRETS="$WOODPECKER_GITEA_SECRETS,{\"secretKey\": \"WOODPECKER_GITEA_SECRET\", \"secretValue\": \"$WOODPECKER_GITEA_SECRET\", \"tagIds\": [\"$WOODPECKER_TAG\"]}"
+                    fi
                     SSH_KEY_SECRET=""
                     if [ -n "${SSH_PRIVATE_KEY_CONTENT:-}" ]; then
                         SSH_KEY_BASE64=$(echo "$SSH_PRIVATE_KEY_CONTENT" | base64 | tr -d '\n')
                         SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
                     fi
                     
-                    # Using v4 API which supports tagIds
+                    # Using v4 batch API which supports tagIds
                     # Environment can be overridden via INFISICAL_ENV (default: dev)
                     # Note: "prod" may not exist in new Infisical projects
                     SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
@@ -1650,6 +1677,10 @@ EOF
     {"secretKey": "MAGE_PASSWORD", "secretValue": "$MAGE_PASS", "tagIds": ["$MAGE_TAG"]},
     {"secretKey": "MINIO_ROOT_USER", "secretValue": "nexus-minio", "tagIds": ["$MINIO_TAG"]},
     {"secretKey": "MINIO_ROOT_PASSWORD", "secretValue": "$MINIO_ROOT_PASS", "tagIds": ["$MINIO_TAG"]},
+    {"secretKey": "NOCODB_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "NOCODB_PASSWORD", "secretValue": "$NOCODB_ADMIN_PASS", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "NOCODB_DB_PASSWORD", "secretValue": "$NOCODB_DB_PASS", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "NOCODB_JWT_SECRET", "secretValue": "$NOCODB_JWT_SECRET", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "RUSTFS_ACCESS_KEY", "secretValue": "nexus-rustfs", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "RUSTFS_SECRET_KEY", "secretValue": "$RUSTFS_ROOT_PASS", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "SEAWEEDFS_ACCESS_KEY", "secretValue": "nexus-seaweedfs", "tagIds": ["$SEAWEEDFS_TAG"]},
@@ -1686,18 +1717,18 @@ EOF
     {"secretKey": "WIKIJS_USERNAME", "secretValue": "${USER_EMAIL:-$ADMIN_EMAIL}", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_PASSWORD", "secretValue": "$WIKIJS_ADMIN_PASS", "tagIds": ["$WIKIJS_TAG"]},
     {"secretKey": "WIKIJS_DB_PASSWORD", "secretValue": "$WIKIJS_DB_PASS", "tagIds": ["$WIKIJS_TAG"]},
-    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}${WOODPECKER_GITEA_CLIENT:+,
-    {"secretKey": "WOODPECKER_GITEA_CLIENT", "secretValue": "$WOODPECKER_GITEA_CLIENT", "tagIds": ["$WOODPECKER_TAG"]}}${WOODPECKER_GITEA_SECRET:+,
-    {"secretKey": "WOODPECKER_GITEA_SECRET", "secretValue": "$WOODPECKER_GITEA_SECRET", "tagIds": ["$WOODPECKER_TAG"]}}$SSH_KEY_SECRET
+    {"secretKey": "WOODPECKER_AGENT_SECRET", "secretValue": "$WOODPECKER_AGENT_SECRET", "tagIds": ["$WOODPECKER_TAG"]}$WOODPECKER_GITEA_SECRETS$SSH_KEY_SECRET
   ]
 }
 SECRETS_EOF
 )
                     
+                    # Write payload to temp file on server to avoid SSH/shell quoting issues
+                    echo "$SECRETS_PAYLOAD" | ssh nexus "cat > /tmp/infisical-secrets.json"
                     SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
                         -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                         -H 'Content-Type: application/json' \
-                        -d '$(echo "$SECRETS_PAYLOAD" | tr -d '\n' | tr -s ' ')'" 2>&1 || echo "")
+                        -d @/tmp/infisical-secrets.json; rm -f /tmp/infisical-secrets.json" 2>&1 || echo "")
                     
                     # Check for actual success (secrets array present) and no error
                     if echo "$SECRETS_RESULT" | grep -q '"error"'; then
