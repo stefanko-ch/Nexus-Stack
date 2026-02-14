@@ -1637,12 +1637,12 @@ EOF
                         SSH_KEY_SECRET=",{\"secretKey\": \"SSH_PRIVATE_KEY_BASE64\", \"secretValue\": \"$SSH_KEY_BASE64\", \"tagIds\": [\"$SSH_TAG\"]}"
                     fi
                     
-                    # Using v4 API which supports tagIds
+                    # Using v3 batch API which supports tagIds
                     # Environment can be overridden via INFISICAL_ENV (default: dev)
                     # Note: "prod" may not exist in new Infisical projects
                     SECRETS_PAYLOAD=$(cat <<SECRETS_EOF
 {
-  "projectId": "$PROJECT_ID",
+  "workspaceId": "$PROJECT_ID",
   "environment": "${INFISICAL_ENV:-dev}",
   "secretPath": "/",
   "secrets": [
@@ -1718,7 +1718,7 @@ SECRETS_EOF
                     
                     # Write payload to temp file on server to avoid SSH/shell quoting issues
                     echo "$SECRETS_PAYLOAD" | ssh nexus "cat > /tmp/infisical-secrets.json"
-                    SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v4/secrets/batch' \
+                    SECRETS_RESULT=$(ssh nexus "curl -s -X POST 'http://localhost:8070/api/v3/secrets/batch/raw' \
                         -H 'Authorization: Bearer $INFISICAL_TOKEN' \
                         -H 'Content-Type: application/json' \
                         -d @/tmp/infisical-secrets.json; rm -f /tmp/infisical-secrets.json" 2>&1 || echo "")
