@@ -941,7 +941,7 @@ EOF
 fi
 
 # NocoDB
-if echo "$ENABLED_SERVICES" | grep -qw "nocodb"; then
+if echo "$ENABLED_SERVICES" | grep -qw "nocodb" && [ -n "$NOCODB_DB_PASS" ] && [ -n "$NOCODB_ADMIN_PASS" ] && [ -n "$NOCODB_JWT_SECRET" ]; then
     echo "  Generating NocoDB config from OpenTofu secrets..."
     cat > "$STACKS_DIR/nocodb/.env" << EOF
 # Auto-generated from OpenTofu secrets - DO NOT COMMIT
@@ -1680,6 +1680,7 @@ EOF
     {"secretKey": "NOCODB_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "NOCODB_PASSWORD", "secretValue": "$NOCODB_ADMIN_PASS", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "NOCODB_DB_PASSWORD", "secretValue": "$NOCODB_DB_PASS", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "NOCODB_JWT_SECRET", "secretValue": "$NOCODB_JWT_SECRET", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "RUSTFS_ACCESS_KEY", "secretValue": "nexus-rustfs", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "RUSTFS_SECRET_KEY", "secretValue": "$RUSTFS_ROOT_PASS", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "SEAWEEDFS_ACCESS_KEY", "secretValue": "nexus-seaweedfs", "tagIds": ["$SEAWEEDFS_TAG"]},
