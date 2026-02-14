@@ -262,16 +262,23 @@ services:
     container_name: dify-plugin-daemon
     restart: unless-stopped
     environment:
+      # Database
       DB_TYPE: postgresql
       DB_HOST: dify-db
       DB_PORT: "5432"
       DB_USERNAME: nexus-dify
       DB_PASSWORD: ${DIFY_DB_PASSWORD}
       DB_DATABASE: dify
+      # Redis (required for plugin manager)
+      REDIS_HOST: dify-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${DIFY_REDIS_PASSWORD}
+      # Server
       SERVER_PORT: "5002"
       SERVER_KEY: ${DIFY_PLUGIN_DAEMON_KEY}
       DIFY_INNER_API_KEY: ${DIFY_PLUGIN_INNER_API_KEY}
       DIFY_INNER_API_URL: http://dify-api:5001
+      # Plugin config
       PLUGIN_REMOTE_INSTALLING_HOST: "0.0.0.0"
       PLUGIN_REMOTE_INSTALLING_PORT: "5003"
       PLUGIN_WORKING_PATH: /app/storage/cwd
@@ -284,6 +291,8 @@ services:
       - /mnt/nexus-data/dify/plugins:/app/storage
     depends_on:
       dify-db:
+        condition: service_healthy
+      dify-redis:
         condition: service_healthy
     networks:
       - dify-internal
