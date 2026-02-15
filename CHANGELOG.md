@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.25.0...v0.26.0) (2026-02-15)
+
+
+### 🚀 Features
+
+* **stacks:** Add Dify AI workflow builder platform ([a0b5546](https://github.com/stefanko-ch/Nexus-Stack/commit/a0b5546a6a44f57de963517a50af35224ff94f34))
+* **stacks:** Add Dify AI workflow builder platform ([4fe76ab](https://github.com/stefanko-ch/Nexus-Stack/commit/4fe76ab2a443ac671ccb447382957e1b6d86bbc1)), closes [#220](https://github.com/stefanko-ch/Nexus-Stack/issues/220)
+* **stacks:** Make Grafana a core service for always-on monitoring ([e63beda](https://github.com/stefanko-ch/Nexus-Stack/commit/e63bedab39ce6962ba26f79ab8c4d332f7e180b5))
+
+
+### 🐛 Bug Fixes
+
+* **scripts:** Fix Dify auto-setup and storage permissions ([3e57ab4](https://github.com/stefanko-ch/Nexus-Stack/commit/3e57ab40d91e62e9f951b04e76932e34d7d566a3))
+* **scripts:** Fix variable expansion for Dify storage chown ([c6cf877](https://github.com/stefanko-ch/Nexus-Stack/commit/c6cf8770cc82c1ad3632b398fa3be67dc8a6cc91))
+* **stacks:** Add missing plugin daemon env vars and nginx depends_on ([48d7f86](https://github.com/stefanko-ch/Nexus-Stack/commit/48d7f86b7683c6d196d16139134acffd07ab1d59))
+* **stacks:** Add Redis config to Dify plugin daemon ([08de791](https://github.com/stefanko-ch/Nexus-Stack/commit/08de7910eba8d9c0d5a8ef7c4e755b85d1735ea5))
+* **stacks:** Address PR review comments for Dify stack ([4d4857e](https://github.com/stefanko-ch/Nexus-Stack/commit/4d4857e148f2922853bfa0f3170a341feb9ed7db))
+* **stacks:** Enable Dify database migrations on startup ([68c32b4](https://github.com/stefanko-ch/Nexus-Stack/commit/68c32b4ee7b9ac668d555746368bd498cd674fd5))
+* **stacks:** Fix Dify nginx healthcheck for 307 redirect ([68f8a99](https://github.com/stefanko-ch/Nexus-Stack/commit/68f8a9994b0177fa1ebc063c6792e048cf8e8daa))
+* **stacks:** Rename dify-nginx container to dify for deploy.sh health check ([e90abee](https://github.com/stefanko-ch/Nexus-Stack/commit/e90abee0827fdf898902de887d909f4a2dccf947))
+
 ## [0.25.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.24.0...v0.25.0) (2026-02-14)
 
 
