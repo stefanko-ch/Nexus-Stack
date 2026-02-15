@@ -49,6 +49,22 @@ services:
     description: "VS Code in the browser for remote development."
     image: "codercom/code-server:latest"
 
+  dify:
+    subdomain: "dify"
+    port: 8501
+    public: false
+    description: "AI workflow builder for LLM applications, RAG pipelines, and agentic workflows."
+    image: "langgenius/dify-api:1.13.0"
+    support_images:
+      dify-web: "langgenius/dify-web:1.13.0"
+      dify-nginx: "nginx:alpine"
+      dify-postgres: "postgres:15-alpine"
+      dify-redis: "redis:6-alpine"
+      dify-weaviate: "semitechnologies/weaviate:1.27.0"
+      dify-sandbox: "langgenius/dify-sandbox:0.2.12"
+      dify-ssrf-proxy: "ubuntu/squid:latest"
+      dify-plugin-daemon: "langgenius/dify-plugin-daemon:0.5.3-local"
+
   drawio:
     subdomain: "drawio"
     port: 8083
@@ -102,6 +118,7 @@ services:
     subdomain: "grafana"
     port: 3100
     public: false
+    core: true
     description: "Observability platform for metrics, logs, and traces visualization."
     image: "grafana/grafana:11.6"
     support_images:

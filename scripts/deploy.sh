@@ -136,6 +136,14 @@ WOODPECKER_AGENT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.woodpecker_agent_secret
 NOCODB_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_admin_password // empty')
 NOCODB_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.nocodb_db_password // empty')
 NOCODB_JWT_SECRET=$(echo "$SECRETS_JSON" | jq -r '.nocodb_jwt_secret // empty')
+DIFY_ADMIN_PASS=$(echo "$SECRETS_JSON" | jq -r '.dify_admin_password // empty')
+DIFY_DB_PASS=$(echo "$SECRETS_JSON" | jq -r '.dify_db_password // empty')
+DIFY_REDIS_PASS=$(echo "$SECRETS_JSON" | jq -r '.dify_redis_password // empty')
+DIFY_SECRET_KEY=$(echo "$SECRETS_JSON" | jq -r '.dify_secret_key // empty')
+DIFY_WEAVIATE_API_KEY=$(echo "$SECRETS_JSON" | jq -r '.dify_weaviate_api_key // empty')
+DIFY_SANDBOX_API_KEY=$(echo "$SECRETS_JSON" | jq -r '.dify_sandbox_api_key // empty')
+DIFY_PLUGIN_DAEMON_KEY=$(echo "$SECRETS_JSON" | jq -r '.dify_plugin_daemon_key // empty')
+DIFY_PLUGIN_INNER_API_KEY=$(echo "$SECRETS_JSON" | jq -r '.dify_plugin_inner_api_key // empty')
 DOCKERHUB_USER=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_username // empty')
 DOCKERHUB_TOKEN=$(echo "$SECRETS_JSON" | jq -r '.dockerhub_token // empty')
 
@@ -955,6 +963,23 @@ EOF
     echo -e "${GREEN}  ✓ NocoDB .env generated${NC}"
 fi
 
+# Dify
+if echo "$ENABLED_SERVICES" | grep -qw "dify" && [ -n "$DIFY_DB_PASS" ] && [ -n "$DIFY_ADMIN_PASS" ]; then
+    echo "  Generating Dify config from OpenTofu secrets..."
+    cat > "$STACKS_DIR/dify/.env" << EOF
+# Auto-generated from OpenTofu secrets - DO NOT COMMIT
+DIFY_DB_PASSWORD=${DIFY_DB_PASS}
+DIFY_REDIS_PASSWORD=${DIFY_REDIS_PASS}
+DIFY_SECRET_KEY=${DIFY_SECRET_KEY}
+DIFY_ADMIN_PASSWORD=${DIFY_ADMIN_PASS}
+DIFY_WEAVIATE_API_KEY=${DIFY_WEAVIATE_API_KEY}
+DIFY_SANDBOX_API_KEY=${DIFY_SANDBOX_API_KEY}
+DIFY_PLUGIN_DAEMON_KEY=${DIFY_PLUGIN_DAEMON_KEY}
+DIFY_PLUGIN_INNER_API_KEY=${DIFY_PLUGIN_INNER_API_KEY}
+EOF
+    echo -e "${GREEN}  ✓ Dify .env generated${NC}"
+fi
+
 # Generate Git workspace .env vars for services that integrate with Gitea
 # These vars enable auto-clone of the shared workspace repo at container startup.
 # The clone may fail on first deployment (Gitea starts in parallel), but succeeds
@@ -1423,6 +1448,12 @@ done
 # Woodpecker requires Gitea OAuth credentials, so it starts after Gitea setup
 DEFERRED_SERVICES=\"woodpecker\"
 
+# Fix Dify storage permissions (API/worker run as uid 1001)
+if echo \"$ENABLED_LIST\" | grep -qw \"dify\"; then
+    mkdir -p /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
+    chown -R 1001:1001 /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
+fi
+
 for service in $ENABLED_LIST; do
     echo \"[DEBUG] Checking service: \$service\" >&2
 
@@ -1584,7 +1615,7 @@ EOF
                     
                     # Create tags for organizing secrets
                     echo "  Creating tags..."
-                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "nocodb" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
+                    for TAG_NAME in "infisical" "portainer" "uptime-kuma" "grafana" "n8n" "kestra" "metabase" "cloudbeaver" "clickhouse" "mage" "minio" "nocodb" "dify" "rustfs" "seaweedfs" "garage" "lakefs" "filestash" "redpanda" "meltano" "postgres" "pgadmin" "prefect" "windmill" "openmetadata" "gitea" "wikijs" "woodpecker" "config" "ssh"; do
                         TAG_JSON="{\"slug\": \"$TAG_NAME\", \"color\": \"#3b82f6\"}"
                         ssh nexus "curl -s -X POST 'http://localhost:8070/api/v1/projects/$PROJECT_ID/tags' \
                             -H 'Authorization: Bearer $INFISICAL_TOKEN' \
@@ -1608,6 +1639,7 @@ EOF
                     MAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="mage") | .id // empty' 2>/dev/null)
                     MINIO_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="minio") | .id // empty' 2>/dev/null)
                     NOCODB_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="nocodb") | .id // empty' 2>/dev/null)
+                    DIFY_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="dify") | .id // empty' 2>/dev/null)
                     RUSTFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="rustfs") | .id // empty' 2>/dev/null)
                     SEAWEEDFS_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="seaweedfs") | .id // empty' 2>/dev/null)
                     GARAGE_TAG=$(echo "$TAGS_RESULT" | jq -r '.tags[] | select(.slug=="garage") | .id // empty' 2>/dev/null)
@@ -1681,6 +1713,15 @@ EOF
     {"secretKey": "NOCODB_PASSWORD", "secretValue": "$NOCODB_ADMIN_PASS", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "NOCODB_DB_PASSWORD", "secretValue": "$NOCODB_DB_PASS", "tagIds": ["$NOCODB_TAG"]},
     {"secretKey": "NOCODB_JWT_SECRET", "secretValue": "$NOCODB_JWT_SECRET", "tagIds": ["$NOCODB_TAG"]},
+    {"secretKey": "DIFY_USERNAME", "secretValue": "$ADMIN_EMAIL", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_PASSWORD", "secretValue": "$DIFY_ADMIN_PASS", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_DB_PASSWORD", "secretValue": "$DIFY_DB_PASS", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_SECRET_KEY", "secretValue": "$DIFY_SECRET_KEY", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_REDIS_PASSWORD", "secretValue": "$DIFY_REDIS_PASS", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_WEAVIATE_API_KEY", "secretValue": "$DIFY_WEAVIATE_API_KEY", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_SANDBOX_API_KEY", "secretValue": "$DIFY_SANDBOX_API_KEY", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_PLUGIN_DAEMON_KEY", "secretValue": "$DIFY_PLUGIN_DAEMON_KEY", "tagIds": ["$DIFY_TAG"]},
+    {"secretKey": "DIFY_PLUGIN_INNER_API_KEY", "secretValue": "$DIFY_PLUGIN_INNER_API_KEY", "tagIds": ["$DIFY_TAG"]},
     {"secretKey": "RUSTFS_ACCESS_KEY", "secretValue": "nexus-rustfs", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "RUSTFS_SECRET_KEY", "secretValue": "$RUSTFS_ROOT_PASS", "tagIds": ["$RUSTFS_TAG"]},
     {"secretKey": "SEAWEEDFS_ACCESS_KEY", "secretValue": "nexus-seaweedfs", "tagIds": ["$SEAWEEDFS_TAG"]},
@@ -2642,6 +2683,70 @@ if echo "$ENABLED_SERVICES" | grep -qw "wikijs" && [ -n "$WIKIJS_ADMIN_PASS" ]; 
         else
             echo -e "${YELLOW}  ⚠ Wiki.js auto-setup failed - configure manually at first login${NC}"
             echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+        fi
+    ) &
+    CONFIG_JOBS+=($!)
+fi
+
+# Configure Dify admin account
+if echo "$ENABLED_SERVICES" | grep -qw "dify" && [ -n "$DIFY_ADMIN_PASS" ]; then
+    (
+        echo "  Configuring Dify..."
+
+        # Wait for Dify API to be ready (returns 307 when working)
+        DIFY_READY=false
+        for i in $(seq 1 40); do
+            DIFY_HEALTH=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' http://localhost:8501/ 2>/dev/null" || echo "000")
+            if [ "$DIFY_HEALTH" = "200" ] || [ "$DIFY_HEALTH" = "302" ] || [ "$DIFY_HEALTH" = "307" ]; then
+                DIFY_READY=true
+                break
+            fi
+            sleep 3
+        done
+
+        if [ "$DIFY_READY" = "false" ]; then
+            echo -e "${YELLOW}  ⚠ Dify not ready after 120s - skipping auto-configuration${NC}"
+            exit 0
+        fi
+
+        # Wait for API to be fully initialized
+        sleep 5
+
+        # Check if setup is already completed
+        SETUP_CHECK=$(ssh nexus "curl -s http://localhost:8501/console/api/setup" 2>/dev/null || echo "")
+        if echo "$SETUP_CHECK" | grep -q '"step":"finished"'; then
+            echo -e "${YELLOW}  ⚠ Dify already configured - skipping admin setup${NC}"
+        else
+            # Step 1: Validate init password (required before setup)
+            INIT_RESULT=$(ssh nexus "curl -s -c /tmp/dify-cookies -X POST 'http://localhost:8501/console/api/init' \
+                -H 'Content-Type: application/json' \
+                -d '{\"password\":\"$DIFY_ADMIN_PASS\"}'" 2>&1 || echo "")
+
+            if ! echo "$INIT_RESULT" | grep -q '"result":"success"'; then
+                echo -e "${YELLOW}  ⚠ Dify init validation failed - configure manually${NC}"
+                exit 0
+            fi
+
+            # Step 2: Create admin account via setup API (uses session cookie from init)
+            DIFY_SETUP_PAYLOAD=$(jq -n \
+                --arg email "$ADMIN_EMAIL" \
+                --arg password "$DIFY_ADMIN_PASS" \
+                '{email: $email, name: "Admin", password: $password}')
+            DIFY_RESULT=$(printf '%s' "$DIFY_SETUP_PAYLOAD" | ssh nexus "curl -s -b /tmp/dify-cookies -X POST 'http://localhost:8501/console/api/setup' \
+                -H 'Content-Type: application/json' \
+                -d @-" 2>&1 || echo "")
+
+            # Clean up cookies
+            ssh nexus "rm -f /tmp/dify-cookies" 2>/dev/null || true
+
+            if echo "$DIFY_RESULT" | grep -q '"result":"success"'; then
+                echo -e "${GREEN}  ✓ Dify admin created (email: $ADMIN_EMAIL)${NC}"
+            elif echo "$DIFY_RESULT" | grep -qi 'already'; then
+                echo -e "${YELLOW}  ⚠ Dify already configured${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Dify auto-setup failed - configure manually at /install${NC}"
+                echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+            fi
         fi
     ) &
     CONFIG_JOBS+=($!)

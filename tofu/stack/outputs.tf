@@ -215,6 +215,16 @@ output "secrets" {
     nocodb_db_password    = random_password.nocodb_db.result
     nocodb_jwt_secret     = random_password.nocodb_jwt_secret.result
 
+    # Dify
+    dify_admin_password       = random_password.dify_admin.result
+    dify_db_password          = random_password.dify_db.result
+    dify_redis_password       = random_password.dify_redis.result
+    dify_secret_key           = random_password.dify_secret_key.result
+    dify_weaviate_api_key     = random_password.dify_weaviate_api_key.result
+    dify_sandbox_api_key      = random_password.dify_sandbox_api_key.result
+    dify_plugin_daemon_key    = random_password.dify_plugin_daemon_key.result
+    dify_plugin_inner_api_key = random_password.dify_plugin_inner_api_key.result
+
     # Hetzner Object Storage (pass-through for LakeFS and Filestash)
     # Server/region/bucket come from control-plane, credentials from GitHub Secrets
     hetzner_s3_server         = var.hetzner_object_storage_server
