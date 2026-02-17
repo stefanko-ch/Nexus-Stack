@@ -2752,11 +2752,11 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                     uid: $uid
                 }')
 
-            MIRROR_RESULT=$(PAYLOAD="$MIGRATE_PAYLOAD" ssh nexus "curl -s -X POST \
+            MIRROR_RESULT=$(printf '%s' "$MIGRATE_PAYLOAD" | ssh nexus "curl -s -X POST \
                 'http://localhost:3200/api/v1/repos/migrate' \
                 -H 'Authorization: token $GITEA_TOKEN' \
                 -H 'Content-Type: application/json' \
-                -d \"\$PAYLOAD\"" 2>/dev/null || echo "")
+                -d @-" 2>/dev/null || echo "")
 
             if echo "$MIRROR_RESULT" | jq -e '.id' >/dev/null 2>&1; then
                 echo -e "${GREEN}  ✓ Mirror '$REPO_NAME' created (syncs every 10 min)${NC}"
@@ -2764,11 +2764,11 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                 # Grant student user (gitea_user) read-only access
                 if [ -n "$GITEA_USER_USERNAME" ]; then
                     COLLAB_PAYLOAD=$(jq -n '{permission: "read"}')
-                    PAYLOAD="$COLLAB_PAYLOAD" ssh nexus "curl -s -X PUT \
+                    printf '%s' "$COLLAB_PAYLOAD" | ssh nexus "curl -s -X PUT \
                         'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
                         -H 'Authorization: token $GITEA_TOKEN' \
                         -H 'Content-Type: application/json' \
-                        -d \"\$PAYLOAD\"" >/dev/null 2>&1 || true
+                        -d @-" >/dev/null 2>&1 || true
                     echo -e "${GREEN}  ✓ Read access granted to '$GITEA_USER_USERNAME'${NC}"
                 fi
             else
