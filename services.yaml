@@ -101,7 +101,7 @@ services:
     subdomain: "git"
     port: 3201
     public: true
-    description: "Public Git HTTPS proxy for external tools (Databricks). Forwards to Gitea with built-in authentication."
+    description: "Public Git HTTPS proxy for external tools (Databricks, Git Desktop). Forwards to Gitea with built-in authentication."
     image: "nginx:alpine"
 
   gitea:
