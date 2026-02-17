@@ -2663,7 +2663,7 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
     && [ -n "$GH_MIRROR_TOKEN" ] \
     && [ -n "$GH_MIRROR_REPOS" ] \
-    && [ -n "$GITEA_TOKEN" ]; then
+    && [ -n "${GITEA_TOKEN:-}" ]; then
 
     echo ""
     echo "=========================================="
