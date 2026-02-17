@@ -446,6 +446,8 @@ jobs:
       - name: Deploy stacks
         env:
           SSH_PRIVATE_KEY_CONTENT: ${{ secrets.SSH_PRIVATE_KEY || inputs.ssh_private_key }}
+          GH_MIRROR_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}
+          GH_MIRROR_REPOS: ${{ secrets.GH_MIRROR_REPOS }}
         run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh

@@ -2413,6 +2413,32 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
     echo "  Configuring Gitea..."
 
+    # Sync DB password with the current OpenTofu-generated value.
+    # This handles persistent volume scenarios where the DB was initialized with
+    # a different password (e.g., after OpenTofu state recreation).
+    # Uses socket auth (peer) inside the container - no password required for the ALTER.
+    if [ -n "$GITEA_DB_PASS" ]; then
+        echo "  Syncing Gitea DB password..."
+        # Escape password for safe use in SQL string literal
+        GITEA_DB_PASS_ESC=$GITEA_DB_PASS
+        GITEA_DB_PASS_ESC=${GITEA_DB_PASS_ESC//\\/\\\\}
+        GITEA_DB_PASS_ESC=${GITEA_DB_PASS_ESC//\'/\'\'}
+        GITEA_DB_SYNCED=false
+        for i in $(seq 1 15); do
+            if ssh nexus "docker exec gitea-db psql -U nexus-gitea -d gitea \
+                -c \"ALTER USER \\\"nexus-gitea\\\" WITH PASSWORD '$GITEA_DB_PASS_ESC'\" \
+                >/dev/null 2>&1"; then
+                echo -e "${GREEN}  ✓ Gitea DB password synced${NC}"
+                GITEA_DB_SYNCED=true
+                break
+            fi
+            sleep 2
+        done
+        if [ "$GITEA_DB_SYNCED" != "true" ]; then
+            echo -e "${YELLOW}  ⚠ Failed to sync Gitea DB password after 15 attempts${NC}"
+        fi
+    fi
+
     # Wait for Gitea to be ready
     GITEA_READY=false
     for i in $(seq 1 30); do
@@ -2428,7 +2454,14 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
         ADMIN_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list --admin 2>/dev/null | grep -c '$ADMIN_USERNAME'" || echo "0")
 
         if [ "$ADMIN_EXISTS" -gt 0 ]; then
-            echo -e "${YELLOW}  ⚠ Gitea admin already exists (user: $ADMIN_USERNAME)${NC}"
+            # Sync password to match current OpenTofu state (persistent volume may have old password)
+            echo "  Syncing Gitea admin password..."
+            ssh nexus "docker exec -u git gitea gitea admin user change-password \
+                --username '$ADMIN_USERNAME' \
+                --password '$GITEA_ADMIN_PASS' \
+                --must-change-password=false" >/dev/null 2>&1 \
+                && echo -e "${GREEN}  ✓ Gitea admin password synced${NC}" \
+                || echo -e "${YELLOW}  ⚠ Could not sync Gitea admin password${NC}"
         else
             # Create admin user via CLI
             GITEA_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
@@ -2453,7 +2486,14 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
             USER_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list 2>/dev/null | grep -c '$GITEA_USER_USERNAME'" || echo "0")
 
             if [ "$USER_EXISTS" -gt 0 ]; then
-                echo -e "${YELLOW}  ⚠ Gitea user already exists (user: $GITEA_USER_USERNAME)${NC}"
+                # Sync password to match current OpenTofu state (persistent volume may have old password)
+                echo "  Syncing Gitea user password..."
+                ssh nexus "docker exec -u git gitea gitea admin user change-password \
+                    --username '$GITEA_USER_USERNAME' \
+                    --password '$GITEA_USER_PASS' \
+                    --must-change-password=false" >/dev/null 2>&1 \
+                    && echo -e "${GREEN}  ✓ Gitea user password synced${NC}" \
+                    || echo -e "${YELLOW}  ⚠ Could not sync Gitea user password${NC}"
             else
                 GITEA_USER_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
                     --username '$GITEA_USER_USERNAME' \
@@ -2650,6 +2690,93 @@ WPEOF
     else
         echo -e "${YELLOW}  ⚠ Gitea not ready after 60s - skipping admin setup${NC}"
         echo -e "${YELLOW}    Credentials available in Infisical${NC}"
+    fi
+fi
+
+# =============================================================================
+# GitHub Mirror Setup (optional)
+# Mirrors one or more private GitHub repos into Gitea as pull mirrors.
+# Requires GH_MIRROR_TOKEN (GitHub PAT with Contents:read permission) and
+# GH_MIRROR_REPOS (comma-separated list of GitHub repo URLs).
+# If either variable is unset, this block is skipped entirely.
+# =============================================================================
+if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
+    && [ -n "${GH_MIRROR_TOKEN:-}" ] \
+    && [ -n "${GH_MIRROR_REPOS:-}" ] \
+    && [ -n "${GITEA_TOKEN:-}" ]; then
+
+    echo ""
+    echo "=========================================="
+    echo "  Setting up GitHub Mirrors"
+    echo "=========================================="
+
+    # Get admin user ID (required by Gitea migration API)
+    GITEA_ADMIN_UID=$(ssh nexus "curl -s \
+        'http://localhost:3200/api/v1/users/$ADMIN_USERNAME' \
+        -H 'Authorization: token $GITEA_TOKEN'" 2>/dev/null \
+        | jq -r '.id // empty')
+
+    if [ -z "$GITEA_ADMIN_UID" ]; then
+        echo -e "${YELLOW}  ⚠ Could not get Gitea admin UID - skipping mirrors${NC}"
+    else
+        IFS=',' read -ra MIRROR_REPOS <<< "$GH_MIRROR_REPOS"
+        for REPO_URL in "${MIRROR_REPOS[@]}"; do
+            REPO_URL=$(echo "$REPO_URL" | tr -d ' ')
+            [ -z "$REPO_URL" ] && continue
+            REPO_NAME="mirror-$(basename "$REPO_URL" .git)"
+
+            echo "  Mirroring: $REPO_NAME..."
+
+            # Skip if mirror already exists (idempotent re-deploy)
+            HTTP_CODE=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' \
+                'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME' \
+                -H 'Authorization: token $GITEA_TOKEN'")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+                echo -e "${YELLOW}  ⚠ Mirror '$REPO_NAME' already exists, skipping${NC}"
+                continue
+            fi
+
+            MIGRATE_PAYLOAD=$(jq -n \
+                --arg clone_addr "$REPO_URL" \
+                --arg repo_name "$REPO_NAME" \
+                --arg auth_token "$GH_MIRROR_TOKEN" \
+                --argjson uid "$GITEA_ADMIN_UID" \
+                '{
+                    clone_addr: $clone_addr,
+                    repo_name: $repo_name,
+                    private: true,
+                    mirror: true,
+                    mirror_interval: "10m0s",
+                    auth_token: $auth_token,
+                    uid: $uid
+                }')
+
+            MIRROR_RESULT=$(PAYLOAD="$MIGRATE_PAYLOAD" ssh nexus "curl -s -X POST \
+                'http://localhost:3200/api/v1/repos/migrate' \
+                -H 'Authorization: token $GITEA_TOKEN' \
+                -H 'Content-Type: application/json' \
+                -d \"\$PAYLOAD\"" 2>/dev/null || echo "")
+
+            if echo "$MIRROR_RESULT" | jq -e '.id' >/dev/null 2>&1; then
+                echo -e "${GREEN}  ✓ Mirror '$REPO_NAME' created (syncs every 10 min)${NC}"
+
+                # Grant student user (gitea_user) read-only access
+                if [ -n "$GITEA_USER_USERNAME" ]; then
+                    COLLAB_PAYLOAD=$(jq -n '{permission: "read"}')
+                    PAYLOAD="$COLLAB_PAYLOAD" ssh nexus "curl -s -X PUT \
+                        'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
+                        -H 'Authorization: token $GITEA_TOKEN' \
+                        -H 'Content-Type: application/json' \
+                        -d \"\$PAYLOAD\"" >/dev/null 2>&1 || true
+                    echo -e "${GREEN}  ✓ Read access granted to '$GITEA_USER_USERNAME'${NC}"
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Mirror '$REPO_NAME' setup failed${NC}"
+                echo -e "${YELLOW}    Verify GH_MIRROR_TOKEN has Contents:read permission${NC}"
+                echo -e "${YELLOW}    and GH_MIRROR_REPOS contains valid GitHub HTTPS URLs${NC}"
+            fi
+        done
     fi
 fi
 
