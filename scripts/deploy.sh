@@ -2413,6 +2413,23 @@ fi
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; then
     echo "  Configuring Gitea..."
 
+    # Sync DB password with the current OpenTofu-generated value.
+    # This handles persistent volume scenarios where the DB was initialized with
+    # a different password (e.g., after OpenTofu state recreation).
+    # Uses socket auth (peer) inside the container - no password required for the ALTER.
+    if [ -n "$GITEA_DB_PASS" ]; then
+        echo "  Syncing Gitea DB password..."
+        for i in $(seq 1 15); do
+            if ssh nexus "docker exec gitea-db psql -U nexus-gitea -d gitea \
+                -c \"ALTER USER \\\"nexus-gitea\\\" WITH PASSWORD '$GITEA_DB_PASS'\" \
+                >/dev/null 2>&1"; then
+                echo -e "${GREEN}  ✓ Gitea DB password synced${NC}"
+                break
+            fi
+            sleep 2
+        done
+    fi
+
     # Wait for Gitea to be ready
     GITEA_READY=false
     for i in $(seq 1 30); do
