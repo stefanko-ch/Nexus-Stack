@@ -78,13 +78,17 @@ https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens**
 2. Click "Generate new token"
 3. Set **Resource owner** to the org or user that owns the repo to mirror
-4. Under **Repository access** → select only the specific repo(s) to mirror
-5. Under **Permissions** → Repository permissions → **Contents: Read-only**
+4. Under **Repository access** → "Only select repositories" → select the repo(s) to mirror
+5. Under **Permissions** → Repository permissions → set **Contents: Read-only**
+   (all other permissions can remain "No access")
 6. If the org enforces SAML SSO: after creating the token, go to
    Settings → Personal access tokens → "Configure SSO" → authorize the org
 
 > The token must belong to a GitHub account that has read access to the target repo.
 > It does not need to be in the same organization as your Nexus-Stack repository.
+>
+> `Contents: Read-only` is the only permission required — Gitea uses it solely for
+> HTTPS git fetch operations, which only need read access to repository contents.
 
 ### Persistent Storage
 
