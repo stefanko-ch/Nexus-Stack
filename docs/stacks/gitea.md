@@ -51,7 +51,7 @@ This is useful for distributing course material or read-only code to students.
 
 | Secret | Description |
 |--------|-------------|
-| `GITHUB_MIRROR_TOKEN` | GitHub Personal Access Token with `repo` (read) scope |
+| `GITHUB_MIRROR_TOKEN` | GitHub Fine-grained Personal Access Token with `Contents: Read-only` permission |
 | `GITHUB_MIRROR_REPOS` | Comma-separated list of GitHub HTTPS repo URLs to mirror |
 
 **Example value for `GITHUB_MIRROR_REPOS`:**
@@ -72,6 +72,19 @@ https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 **GitHub rate limits:** 10-minute intervals = 6 git fetches/hour per repo — well within the 5,000/hour PAT limit.
 
 **Triggering an immediate sync:** Log into Gitea as admin → open the mirrored repo → Settings → Mirror sync. This is a built-in Gitea feature, no additional setup required.
+
+#### Creating a Fine-grained PAT
+
+1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens**
+2. Click "Generate new token"
+3. Set **Resource owner** to the org or user that owns the repo to mirror
+4. Under **Repository access** → select only the specific repo(s) to mirror
+5. Under **Permissions** → Repository permissions → **Contents: Read-only**
+6. If the org enforces SAML SSO: after creating the token, go to
+   Settings → Personal access tokens → "Configure SSO" → authorize the org
+
+> The token must belong to a GitHub account that has read access to the target repo.
+> It does not need to be in the same organization as your Nexus-Stack repository.
 
 ### Persistent Storage
 
