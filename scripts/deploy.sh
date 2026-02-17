@@ -2419,15 +2419,24 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
     # Uses socket auth (peer) inside the container - no password required for the ALTER.
     if [ -n "$GITEA_DB_PASS" ]; then
         echo "  Syncing Gitea DB password..."
+        # Escape password for safe use in SQL string literal
+        GITEA_DB_PASS_ESC=$GITEA_DB_PASS
+        GITEA_DB_PASS_ESC=${GITEA_DB_PASS_ESC//\\/\\\\}
+        GITEA_DB_PASS_ESC=${GITEA_DB_PASS_ESC//\'/\'\'}
+        GITEA_DB_SYNCED=false
         for i in $(seq 1 15); do
             if ssh nexus "docker exec gitea-db psql -U nexus-gitea -d gitea \
-                -c \"ALTER USER \\\"nexus-gitea\\\" WITH PASSWORD '$GITEA_DB_PASS'\" \
+                -c \"ALTER USER \\\"nexus-gitea\\\" WITH PASSWORD '$GITEA_DB_PASS_ESC'\" \
                 >/dev/null 2>&1"; then
                 echo -e "${GREEN}  ✓ Gitea DB password synced${NC}"
+                GITEA_DB_SYNCED=true
                 break
             fi
             sleep 2
         done
+        if [ "$GITEA_DB_SYNCED" != "true" ]; then
+            echo -e "${YELLOW}  ⚠ Failed to sync Gitea DB password after 15 attempts${NC}"
+        fi
     fi
 
     # Wait for Gitea to be ready
@@ -2690,8 +2699,8 @@ fi
 # If either variable is unset, this block is skipped entirely.
 # =============================================================================
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
-    && [ -n "$GH_MIRROR_TOKEN" ] \
-    && [ -n "$GH_MIRROR_REPOS" ] \
+    && [ -n "${GH_MIRROR_TOKEN:-}" ] \
+    && [ -n "${GH_MIRROR_REPOS:-}" ] \
     && [ -n "${GITEA_TOKEN:-}" ]; then
 
     echo ""
@@ -2708,8 +2717,6 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
     if [ -z "$GITEA_ADMIN_UID" ]; then
         echo -e "${YELLOW}  ⚠ Could not get Gitea admin UID - skipping mirrors${NC}"
     else
-        GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
-
         IFS=',' read -ra MIRROR_REPOS <<< "$GH_MIRROR_REPOS"
         for REPO_URL in "${MIRROR_REPOS[@]}"; do
             REPO_URL=$(echo "$REPO_URL" | tr -d ' ')
@@ -2728,30 +2735,38 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                 continue
             fi
 
-            MIRROR_RESULT=$(ssh nexus "curl -s -X POST \
+            MIGRATE_PAYLOAD=$(jq -n \
+                --arg clone_addr "$REPO_URL" \
+                --arg repo_name "$REPO_NAME" \
+                --arg auth_token "$GH_MIRROR_TOKEN" \
+                --argjson uid "$GITEA_ADMIN_UID" \
+                '{
+                    clone_addr: $clone_addr,
+                    repo_name: $repo_name,
+                    private: true,
+                    mirror: true,
+                    mirror_interval: "10m0s",
+                    auth_token: $auth_token,
+                    uid: $uid
+                }')
+
+            MIRROR_RESULT=$(PAYLOAD="$MIGRATE_PAYLOAD" ssh nexus "curl -s -X POST \
                 'http://localhost:3200/api/v1/repos/migrate' \
                 -H 'Authorization: token $GITEA_TOKEN' \
                 -H 'Content-Type: application/json' \
-                -d '{
-                    \"clone_addr\": \"$REPO_URL\",
-                    \"repo_name\": \"$REPO_NAME\",
-                    \"private\": true,
-                    \"mirror\": true,
-                    \"mirror_interval\": \"10m0s\",
-                    \"auth_token\": \"$GH_MIRROR_TOKEN\",
-                    \"uid\": $GITEA_ADMIN_UID
-                }'" 2>/dev/null || echo "")
+                -d \"\$PAYLOAD\"" 2>/dev/null || echo "")
 
             if echo "$MIRROR_RESULT" | jq -e '.id' >/dev/null 2>&1; then
                 echo -e "${GREEN}  ✓ Mirror '$REPO_NAME' created (syncs every 10 min)${NC}"
 
                 # Grant student user (gitea_user) read-only access
                 if [ -n "$GITEA_USER_USERNAME" ]; then
-                    ssh nexus "curl -s -X PUT \
+                    COLLAB_PAYLOAD=$(jq -n '{permission: "read"}')
+                    PAYLOAD="$COLLAB_PAYLOAD" ssh nexus "curl -s -X PUT \
                         'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
                         -H 'Authorization: token $GITEA_TOKEN' \
                         -H 'Content-Type: application/json' \
-                        -d '{\"permission\": \"read\"}'" >/dev/null 2>&1 || true
+                        -d \"\$PAYLOAD\"" >/dev/null 2>&1 || true
                     echo -e "${GREEN}  ✓ Read access granted to '$GITEA_USER_USERNAME'${NC}"
                 fi
             else
