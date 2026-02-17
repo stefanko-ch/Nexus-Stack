@@ -2653,6 +2653,87 @@ WPEOF
     fi
 fi
 
+# =============================================================================
+# GitHub Mirror Setup (optional)
+# Mirrors one or more private GitHub repos into Gitea as pull mirrors.
+# Requires GITHUB_MIRROR_TOKEN (GitHub PAT with repo read scope) and
+# GITHUB_MIRROR_REPOS (comma-separated list of GitHub repo URLs).
+# If either variable is unset, this block is skipped entirely.
+# =============================================================================
+if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
+    && [ -n "$GITHUB_MIRROR_TOKEN" ] \
+    && [ -n "$GITHUB_MIRROR_REPOS" ] \
+    && [ -n "$GITEA_TOKEN" ]; then
+
+    echo ""
+    echo "=========================================="
+    echo "  Setting up GitHub Mirrors"
+    echo "=========================================="
+
+    # Get admin user ID (required by Gitea migration API)
+    GITEA_ADMIN_UID=$(ssh nexus "curl -s \
+        'http://localhost:3200/api/v1/users/$ADMIN_USERNAME' \
+        -H 'Authorization: token $GITEA_TOKEN'" 2>/dev/null \
+        | jq -r '.id // empty')
+
+    if [ -z "$GITEA_ADMIN_UID" ]; then
+        echo -e "${YELLOW}  ⚠ Could not get Gitea admin UID - skipping mirrors${NC}"
+    else
+        GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
+
+        IFS=',' read -ra MIRROR_REPOS <<< "$GITHUB_MIRROR_REPOS"
+        for REPO_URL in "${MIRROR_REPOS[@]}"; do
+            REPO_URL=$(echo "$REPO_URL" | tr -d ' ')
+            [ -z "$REPO_URL" ] && continue
+            REPO_NAME="mirror-$(basename "$REPO_URL" .git)"
+
+            echo "  Mirroring: $REPO_NAME..."
+
+            # Skip if mirror already exists (idempotent re-deploy)
+            HTTP_CODE=$(ssh nexus "curl -s -o /dev/null -w '%{http_code}' \
+                'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME' \
+                -H 'Authorization: token $GITEA_TOKEN'")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+                echo -e "${YELLOW}  ⚠ Mirror '$REPO_NAME' already exists, skipping${NC}"
+                continue
+            fi
+
+            MIRROR_RESULT=$(ssh nexus "curl -s -X POST \
+                'http://localhost:3200/api/v1/repos/migrate' \
+                -H 'Authorization: token $GITEA_TOKEN' \
+                -H 'Content-Type: application/json' \
+                -d '{
+                    \"clone_addr\": \"$REPO_URL\",
+                    \"repo_name\": \"$REPO_NAME\",
+                    \"private\": true,
+                    \"mirror\": true,
+                    \"mirror_interval\": \"10m0s\",
+                    \"auth_token\": \"$GITHUB_MIRROR_TOKEN\",
+                    \"uid\": $GITEA_ADMIN_UID
+                }'" 2>/dev/null || echo "")
+
+            if echo "$MIRROR_RESULT" | jq -e '.id' >/dev/null 2>&1; then
+                echo -e "${GREEN}  ✓ Mirror '$REPO_NAME' created (syncs every 10 min)${NC}"
+
+                # Grant student user (gitea_user) read-only access
+                if [ -n "$GITEA_USER_USERNAME" ]; then
+                    ssh nexus "curl -s -X PUT \
+                        'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
+                        -H 'Authorization: token $GITEA_TOKEN' \
+                        -H 'Content-Type: application/json' \
+                        -d '{\"permission\": \"read\"}'" >/dev/null 2>&1 || true
+                    echo -e "${GREEN}  ✓ Read access granted to '$GITEA_USER_USERNAME'${NC}"
+                fi
+            else
+                echo -e "${YELLOW}  ⚠ Mirror '$REPO_NAME' setup failed${NC}"
+                echo -e "${YELLOW}    Verify GITHUB_MIRROR_TOKEN has 'repo' read scope${NC}"
+                echo -e "${YELLOW}    and GITHUB_MIRROR_REPOS contains valid GitHub HTTPS URLs${NC}"
+            fi
+        done
+    fi
+fi
+
 # Configure Wiki.js admin (uses user_email, not admin)
 if echo "$ENABLED_SERVICES" | grep -qw "wikijs" && [ -n "$WIKIJS_ADMIN_PASS" ]; then
     (

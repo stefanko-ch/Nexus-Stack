@@ -41,6 +41,38 @@ During deployment, a shared workspace repo named `nexus-<domain>-gitea` is autom
 | Prefect | `/flows/<repo>` (worker) | Entrypoint clone |
 | Kestra | Git sync flow | `plugin-git` SyncNamespaceFiles (every 15 min) |
 
+### GitHub Repository Mirroring (Optional)
+
+You can automatically mirror one or more private GitHub repositories into Gitea.
+This is useful for distributing course material or read-only code to students.
+
+**Setup:** Add the following two secrets to your GitHub repository
+(Settings → Secrets and variables → Actions → Secrets):
+
+| Secret | Description |
+|--------|-------------|
+| `GITHUB_MIRROR_TOKEN` | GitHub Personal Access Token with `repo` (read) scope |
+| `GITHUB_MIRROR_REPOS` | Comma-separated list of GitHub HTTPS repo URLs to mirror |
+
+**Example value for `GITHUB_MIRROR_REPOS`:**
+```
+https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
+```
+
+> ⚠️ If neither secret is set, the mirroring step is skipped entirely.
+
+**How it works:**
+- During each spin-up, deploy.sh creates a pull mirror in Gitea for each configured URL
+- The mirrored repo is named `mirror-<repo>` (e.g. GitHub `course-2025` → Gitea `mirror-course-2025`)
+- Gitea syncs from GitHub **every 10 minutes** (delta fetch — only new commits are transferred)
+- Mirrored repos are **private** in Gitea (accessible only via Cloudflare Access)
+- The student user (derived from `TF_VAR_user_email`) is automatically added as a **read-only** collaborator
+- The operation is **idempotent**: re-running spin-up skips mirrors that already exist
+
+**GitHub rate limits:** 10-minute intervals = 6 git fetches/hour per repo — well within the 5,000/hour PAT limit.
+
+**Triggering an immediate sync:** Log into Gitea as admin → open the mirrored repo → Settings → Mirror sync. This is a built-in Gitea feature, no additional setup required.
+
 ### Persistent Storage
 
 Gitea stores repository data and its database on a **persistent Hetzner Cloud Volume** that survives teardown:
