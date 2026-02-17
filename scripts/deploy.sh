@@ -2445,7 +2445,13 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
         ADMIN_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list --admin 2>/dev/null | grep -c '$ADMIN_USERNAME'" || echo "0")
 
         if [ "$ADMIN_EXISTS" -gt 0 ]; then
-            echo -e "${YELLOW}  ⚠ Gitea admin already exists (user: $ADMIN_USERNAME)${NC}"
+            # Sync password to match current OpenTofu state (persistent volume may have old password)
+            echo "  Syncing Gitea admin password..."
+            ssh nexus "docker exec -u git gitea gitea admin user change-password \
+                --username '$ADMIN_USERNAME' \
+                --password '$GITEA_ADMIN_PASS'" >/dev/null 2>&1 \
+                && echo -e "${GREEN}  ✓ Gitea admin password synced${NC}" \
+                || echo -e "${YELLOW}  ⚠ Could not sync Gitea admin password${NC}"
         else
             # Create admin user via CLI
             GITEA_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
@@ -2470,7 +2476,13 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
             USER_EXISTS=$(ssh nexus "docker exec -u git gitea gitea admin user list 2>/dev/null | grep -c '$GITEA_USER_USERNAME'" || echo "0")
 
             if [ "$USER_EXISTS" -gt 0 ]; then
-                echo -e "${YELLOW}  ⚠ Gitea user already exists (user: $GITEA_USER_USERNAME)${NC}"
+                # Sync password to match current OpenTofu state (persistent volume may have old password)
+                echo "  Syncing Gitea user password..."
+                ssh nexus "docker exec -u git gitea gitea admin user change-password \
+                    --username '$GITEA_USER_USERNAME' \
+                    --password '$GITEA_USER_PASS'" >/dev/null 2>&1 \
+                    && echo -e "${GREEN}  ✓ Gitea user password synced${NC}" \
+                    || echo -e "${YELLOW}  ⚠ Could not sync Gitea user password${NC}"
             else
                 GITEA_USER_RESULT=$(ssh nexus "docker exec -u git gitea gitea admin user create \
                     --username '$GITEA_USER_USERNAME' \
