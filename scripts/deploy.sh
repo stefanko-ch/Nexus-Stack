@@ -2458,7 +2458,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
             echo "  Syncing Gitea admin password..."
             ssh nexus "docker exec -u git gitea gitea admin user change-password \
                 --username '$ADMIN_USERNAME' \
-                --password '$GITEA_ADMIN_PASS'" >/dev/null 2>&1 \
+                --password '$GITEA_ADMIN_PASS' \
+                --must-change-password=false" >/dev/null 2>&1 \
                 && echo -e "${GREEN}  ✓ Gitea admin password synced${NC}" \
                 || echo -e "${YELLOW}  ⚠ Could not sync Gitea admin password${NC}"
         else
@@ -2489,7 +2490,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" && [ -n "$GITEA_ADMIN_PASS" ]; th
                 echo "  Syncing Gitea user password..."
                 ssh nexus "docker exec -u git gitea gitea admin user change-password \
                     --username '$GITEA_USER_USERNAME' \
-                    --password '$GITEA_USER_PASS'" >/dev/null 2>&1 \
+                    --password '$GITEA_USER_PASS' \
+                    --must-change-password=false" >/dev/null 2>&1 \
                     && echo -e "${GREEN}  ✓ Gitea user password synced${NC}" \
                     || echo -e "${YELLOW}  ⚠ Could not sync Gitea user password${NC}"
             else
