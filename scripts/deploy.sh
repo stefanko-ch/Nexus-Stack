@@ -2752,7 +2752,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                     uid: $uid
                 }')
 
-            MIRROR_RESULT=$(echo "$MIGRATE_PAYLOAD" | ssh nexus "curl -s -X POST \
+            MIRROR_RESULT=$(printf '%s' "$MIGRATE_PAYLOAD" | ssh nexus "curl -s -X POST \
                 'http://localhost:3200/api/v1/repos/migrate' \
                 -H 'Authorization: token $GITEA_TOKEN' \
                 -H 'Content-Type: application/json' \
@@ -2764,7 +2764,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                 # Grant student user (gitea_user) read-only access
                 if [ -n "$GITEA_USER_USERNAME" ]; then
                     COLLAB_PAYLOAD=$(jq -n '{permission: "read"}')
-                    echo "$COLLAB_PAYLOAD" | ssh nexus "curl -s -X PUT \
+                    printf '%s' "$COLLAB_PAYLOAD" | ssh nexus "curl -s -X PUT \
                         'http://localhost:3200/api/v1/repos/$ADMIN_USERNAME/$REPO_NAME/collaborators/$GITEA_USER_USERNAME' \
                         -H 'Authorization: token $GITEA_TOKEN' \
                         -H 'Content-Type: application/json' \
