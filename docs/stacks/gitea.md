@@ -51,10 +51,10 @@ This is useful for distributing course material or read-only code to students.
 
 | Secret | Description |
 |--------|-------------|
-| `GITHUB_MIRROR_TOKEN` | GitHub Fine-grained Personal Access Token with `Contents: Read-only` permission |
-| `GITHUB_MIRROR_REPOS` | Comma-separated list of GitHub HTTPS repo URLs to mirror |
+| `GH_MIRROR_TOKEN` | GitHub Fine-grained Personal Access Token with `Contents: Read-only` permission |
+| `GH_MIRROR_REPOS` | Comma-separated list of GitHub HTTPS repo URLs to mirror |
 
-**Example value for `GITHUB_MIRROR_REPOS`:**
+**Example value for `GH_MIRROR_REPOS`:**
 ```
 https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 ```

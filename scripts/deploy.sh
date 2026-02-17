@@ -2656,13 +2656,13 @@ fi
 # =============================================================================
 # GitHub Mirror Setup (optional)
 # Mirrors one or more private GitHub repos into Gitea as pull mirrors.
-# Requires GITHUB_MIRROR_TOKEN (GitHub PAT with repo read scope) and
-# GITHUB_MIRROR_REPOS (comma-separated list of GitHub repo URLs).
+# Requires GH_MIRROR_TOKEN (GitHub PAT with Contents:read permission) and
+# GH_MIRROR_REPOS (comma-separated list of GitHub repo URLs).
 # If either variable is unset, this block is skipped entirely.
 # =============================================================================
 if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
-    && [ -n "$GITHUB_MIRROR_TOKEN" ] \
-    && [ -n "$GITHUB_MIRROR_REPOS" ] \
+    && [ -n "$GH_MIRROR_TOKEN" ] \
+    && [ -n "$GH_MIRROR_REPOS" ] \
     && [ -n "$GITEA_TOKEN" ]; then
 
     echo ""
@@ -2681,7 +2681,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
     else
         GITEA_USER_USERNAME="${USER_EMAIL%%@*}"
 
-        IFS=',' read -ra MIRROR_REPOS <<< "$GITHUB_MIRROR_REPOS"
+        IFS=',' read -ra MIRROR_REPOS <<< "$GH_MIRROR_REPOS"
         for REPO_URL in "${MIRROR_REPOS[@]}"; do
             REPO_URL=$(echo "$REPO_URL" | tr -d ' ')
             [ -z "$REPO_URL" ] && continue
@@ -2709,7 +2709,7 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                     \"private\": true,
                     \"mirror\": true,
                     \"mirror_interval\": \"10m0s\",
-                    \"auth_token\": \"$GITHUB_MIRROR_TOKEN\",
+                    \"auth_token\": \"$GH_MIRROR_TOKEN\",
                     \"uid\": $GITEA_ADMIN_UID
                 }'" 2>/dev/null || echo "")
 
@@ -2727,8 +2727,8 @@ if echo "$ENABLED_SERVICES" | grep -qw "gitea" \
                 fi
             else
                 echo -e "${YELLOW}  ⚠ Mirror '$REPO_NAME' setup failed${NC}"
-                echo -e "${YELLOW}    Verify GITHUB_MIRROR_TOKEN has 'repo' read scope${NC}"
-                echo -e "${YELLOW}    and GITHUB_MIRROR_REPOS contains valid GitHub HTTPS URLs${NC}"
+                echo -e "${YELLOW}    Verify GH_MIRROR_TOKEN has Contents:read permission${NC}"
+                echo -e "${YELLOW}    and GH_MIRROR_REPOS contains valid GitHub HTTPS URLs${NC}"
             fi
         done
     fi
