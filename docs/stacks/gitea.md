@@ -59,7 +59,7 @@ This is useful for distributing course material or read-only code to students.
 https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 ```
 
-> ⚠️ If neither secret is set, the mirroring step is skipped entirely.
+> ⚠️ If either secret is not set, the mirroring step is skipped entirely.
 
 **How it works:**
 - During each spin-up, deploy.sh creates a pull mirror in Gitea for each configured URL
