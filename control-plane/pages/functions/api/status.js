@@ -146,7 +146,7 @@ export async function onRequestGet(context) {
         } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
           infraState = 'torn-down';
         } else if (lastPath.includes(WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
-          infraState = 'offline';
+          infraState = 'destroyed';
         }
       }
     }
