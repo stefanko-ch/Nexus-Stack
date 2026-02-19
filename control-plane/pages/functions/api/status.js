@@ -146,7 +146,7 @@ export async function onRequestGet(context) {
         } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
           infraState = 'torn-down';
         } else if (lastPath.includes(WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
-          infraState = 'offline';
+          infraState = 'destroyed';
         }
       }
     }
@@ -156,6 +156,12 @@ export async function onRequestGet(context) {
       infraState,
       inProgress,
       workflows: {
+        initialSetup: workflows.initialSetup ? {
+          status: workflows.initialSetup.status,
+          conclusion: workflows.initialSetup.conclusion,
+          updatedAt: workflows.initialSetup.updated_at,
+          url: workflows.initialSetup.html_url,
+        } : null,
         setup: workflows.setup ? {
           status: workflows.setup.status,
           conclusion: workflows.setup.conclusion,

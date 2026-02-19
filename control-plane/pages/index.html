@@ -449,18 +449,81 @@
             font-weight: bold;
         }
         
-        .pending-badge {
-            display: inline-flex;
+        /* Pending Changes Banner */
+        .pending-banner {
+            background: rgba(255, 215, 0, 0.08);
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            border-left: 4px solid #ffd700;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            animation: bannerFadeIn 0.3s ease;
+        }
+        .pending-banner-content {
+            display: flex;
             align-items: center;
-            justify-content: center;
-            background: #ffd700;
-            color: #000;
-            font-size: 0.7rem;
-            font-weight: bold;
-            width: 1.2rem;
-            height: 1.2rem;
-            border-radius: 50%;
-            margin-left: 0.5rem;
+            gap: 1rem;
+        }
+        .pending-banner-icon {
+            font-size: 1.5rem;
+            color: #ffd700;
+            flex-shrink: 0;
+        }
+        .pending-banner-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .pending-banner-text strong {
+            color: #ffd700;
+            font-size: 0.9rem;
+        }
+        .pending-hint {
+            color: #607080;
+            font-size: 0.75rem;
+        }
+
+        /* Workflow Progress Banner */
+        .progress-banner {
+            background: rgba(0, 170, 255, 0.08);
+            border: 1px solid rgba(0, 170, 255, 0.4);
+            border-left: 4px solid #00aaff;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .progress-banner-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .progress-banner-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            flex: 1;
+        }
+        .progress-banner-text strong {
+            color: #00aaff;
+            font-size: 0.9rem;
+        }
+        .progress-hint {
+            color: #607080;
+            font-size: 0.75rem;
+        }
+        .progress-link {
+            color: #00aaff;
+            text-decoration: none;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            border: 1px solid rgba(0, 170, 255, 0.4);
+            padding: 0.3rem 0.8rem;
+        }
+        .progress-link:hover {
+            background: rgba(0, 170, 255, 0.15);
+        }
+
+        @keyframes bannerFadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* Info Panel */
@@ -794,6 +857,29 @@
             </button>
         </div>
 
+        <!-- Pending Changes Banner (shown when services are staged but not deployed) -->
+        <div id="pending-changes-banner" style="display: none;" class="pending-banner">
+            <div class="pending-banner-content">
+                <span class="pending-banner-icon">&#9888;</span>
+                <div class="pending-banner-text">
+                    <strong><span class="pending-count">0</span> service change<span class="pending-plural">s</span> staged</strong>
+                    <span class="pending-hint">Click "Deploy Changes" to apply</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Progress Banner (shown when a GitHub Actions workflow is running) -->
+        <div id="workflow-progress-banner" style="display: none;" class="progress-banner">
+            <div class="progress-banner-content">
+                <span class="spinner"></span>
+                <div class="progress-banner-text">
+                    <strong><span id="progress-workflow-name">Workflow</span> is running...</strong>
+                    <span class="progress-hint">This usually takes 5-10 minutes</span>
+                </div>
+                <a id="progress-workflow-link" href="#" target="_blank" rel="noopener noreferrer" class="progress-link">View in GitHub</a>
+            </div>
+        </div>
+
         <!-- Info Panel -->
         <div class="info-panel">
             <h2><span class="icon">ℹ️</span> Infrastructure Information</h2>
@@ -881,6 +967,8 @@
         const API_URL = '';
         
         let currentAction = null;
+        let pendingChangesCount = 0;
+        let wasInProgress = false;
 
         // Status descriptions
         const statusDescriptions = {
@@ -991,7 +1079,13 @@
                 if (data.success) {
                     updateStatusDisplay(data);
                     updateButtons(data);
+                    updateWorkflowProgress(data);
                     updateHistory(data.workflows);
+                    // Refresh services when a workflow just completed
+                    if (wasInProgress && !data.inProgress) {
+                        loadServices();
+                    }
+                    wasInProgress = data.inProgress;
                 } else {
                     console.error('API error:', data.error);
                     showToast(data.error || 'Failed to fetch status', 'error');
@@ -1001,6 +1095,41 @@
                 console.error('Failed to fetch status:', error);
                 showToast('Failed to fetch status - check console for details', 'error');
                 enableFallbackState();
+            }
+        }
+
+        function updateWorkflowProgress(data) {
+            const banner = document.getElementById('workflow-progress-banner');
+            if (!banner) return;
+
+            if (data.inProgress) {
+                // Find which workflow is running
+                const workflowNames = {
+                    initialSetup: 'Initial Setup',
+                    spinUp: 'Spin Up',
+                    teardown: 'Teardown',
+                    destroy: 'Destroy',
+                    setup: 'Setup'
+                };
+                let runningName = 'Workflow';
+                let runningUrl = '#';
+
+                for (const [key, label] of Object.entries(workflowNames)) {
+                    const wf = data.workflows[key];
+                    if (wf && (wf.status === 'in_progress' || wf.status === 'queued')) {
+                        runningName = label;
+                        runningUrl = wf.url || '#';
+                        break;
+                    }
+                }
+
+                banner.querySelector('#progress-workflow-name').textContent = runningName;
+                const link = banner.querySelector('#progress-workflow-link');
+                link.href = runningUrl;
+                link.style.display = runningUrl !== '#' ? 'inline-block' : 'none';
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
             }
         }
 
@@ -1040,18 +1169,21 @@
                 return;
             }
             
-            // Reset buttons
+            // Reset buttons - respect pending changes for Spin Up text
             btnEmailCredentials.innerHTML = '<span class="icon">📧</span>Email Credentials';
-            btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
+            if (pendingChangesCount > 0) {
+                btnSpinUp.innerHTML = `<span class="icon">⚡</span>Deploy Changes (${pendingChangesCount})`;
+            } else {
+                btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
+            }
             btnTeardown.innerHTML = '<span class="icon">💤</span>Teardown';
-            
+
             // Enable based on state
-            // Note: Spin Up can be enabled even when deployed if there are pending service changes
             switch (data.infraState) {
                 case 'deployed':
                     btnEmailCredentials.disabled = false;
-                    // Spin Up stays enabled if there are pending changes (handled by loadServices)
-                    btnSpinUp.disabled = true;
+                    // Keep Spin Up enabled if there are pending service changes
+                    btnSpinUp.disabled = pendingChangesCount === 0;
                     btnTeardown.disabled = false;
                     break;
                 case 'torn-down':
@@ -1252,21 +1384,29 @@
         }
         
         function updatePendingBadge(count) {
-            const spinUpBtn = document.getElementById('btn-spin-up');
-            if (!spinUpBtn) return;
-            
-            // Remove existing badge if any
-            const existingBadge = spinUpBtn.querySelector('.pending-badge');
-            if (existingBadge) existingBadge.remove();
-            
-            // Enable Spin Up button if there are pending changes (even when deployed)
+            pendingChangesCount = count;
+            const banner = document.getElementById('pending-changes-banner');
+            const btnSpinUp = document.getElementById('btn-spin-up');
+            if (!banner || !btnSpinUp) return;
+
             if (count > 0) {
-                spinUpBtn.disabled = false;
-                const badge = document.createElement('span');
-                badge.className = 'pending-badge';
-                badge.textContent = count;
-                badge.title = `${count} pending service change${count > 1 ? 's' : ''} - click Spin Up to deploy`;
-                spinUpBtn.appendChild(badge);
+                banner.style.display = 'block';
+                banner.querySelector('.pending-count').textContent = count;
+                banner.querySelector('.pending-plural').textContent = count > 1 ? 's' : '';
+                // Rename button to "Deploy Changes (N)" - only if not showing spinner
+                if (!btnSpinUp.querySelector('.spinner')) {
+                    btnSpinUp.innerHTML = `<span class="icon">⚡</span>Deploy Changes (${count})`;
+                }
+                // Only enable if no workflow is currently running
+                if (!wasInProgress) {
+                    btnSpinUp.disabled = false;
+                }
+            } else {
+                banner.style.display = 'none';
+                // Restore original button text (only if not in "Working..." state)
+                if (!btnSpinUp.querySelector('.spinner')) {
+                    btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
+                }
             }
         }
 
