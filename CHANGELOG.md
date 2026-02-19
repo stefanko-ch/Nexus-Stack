@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.27.0...v0.27.1) (2026-02-19)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Separate R2 and Hetzner credentials in bucket cleanup step ([67b7506](https://github.com/stefanko-ch/Nexus-Stack/commit/67b750686f543926675841db0e14966fcbe7c1a9))
+* **tofu:** Fix Hetzner Object Storage bucket ACL error on re-deploy ([9ca1b23](https://github.com/stefanko-ch/Nexus-Stack/commit/9ca1b236bbc322ba9981c0eb59ee37d2820c993b))
+* **tofu:** Fix Hetzner Object Storage bucket ACL error on re-deploy ([97df4db](https://github.com/stefanko-ch/Nexus-Stack/commit/97df4dba3a6d3e34b8c9f05bf4dce169c553e44c))
+
 ## [0.27.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.26.0...v0.27.0) (2026-02-19)
 
 
