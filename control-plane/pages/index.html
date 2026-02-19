@@ -876,7 +876,7 @@
                     <strong><span id="progress-workflow-name">Workflow</span> is running...</strong>
                     <span class="progress-hint">This usually takes 5-10 minutes</span>
                 </div>
-                <a id="progress-workflow-link" href="#" target="_blank" class="progress-link">View in GitHub</a>
+                <a id="progress-workflow-link" href="#" target="_blank" rel="noopener noreferrer" class="progress-link">View in GitHub</a>
             </div>
         </div>
 
@@ -1105,6 +1105,7 @@
             if (data.inProgress) {
                 // Find which workflow is running
                 const workflowNames = {
+                    initialSetup: 'Initial Setup',
                     spinUp: 'Spin Up',
                     teardown: 'Teardown',
                     destroy: 'Destroy',
@@ -1393,14 +1394,17 @@
                 banner.querySelector('.pending-count').textContent = count;
                 banner.querySelector('.pending-plural').textContent = count > 1 ? 's' : '';
                 // Rename button to "Deploy Changes (N)" - only if not showing spinner
-                if (!btnSpinUp.innerHTML.includes('spinner')) {
+                if (!btnSpinUp.querySelector('.spinner')) {
                     btnSpinUp.innerHTML = `<span class="icon">⚡</span>Deploy Changes (${count})`;
                 }
-                btnSpinUp.disabled = false;
+                // Only enable if no workflow is currently running
+                if (!wasInProgress) {
+                    btnSpinUp.disabled = false;
+                }
             } else {
                 banner.style.display = 'none';
                 // Restore original button text (only if not in "Working..." state)
-                if (!btnSpinUp.innerHTML.includes('spinner')) {
+                if (!btnSpinUp.querySelector('.spinner')) {
                     btnSpinUp.innerHTML = '<span class="icon">⚡</span>Spin Up';
                 }
             }
