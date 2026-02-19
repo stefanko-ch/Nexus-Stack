@@ -41,24 +41,61 @@ After initial registration, additional users can be managed from the admin panel
 
 ### CPU-Only Mode
 
-Hetzner ARM servers (cax31 = Ampere Altra) do not have GPUs. All models run on CPU.
-Recommended models for acceptable performance:
+> ⚠️ **No GPU available:** Hetzner ARM servers (cax31 = Ampere Altra) have no GPU.
+> All models run on CPU only, which is significantly slower than GPU inference.
 
-| Model | Parameters | Use Case |
-|-------|-----------|----------|
-| `llama3.2:1b` | 1B | Fast responses, simple tasks |
-| `llama3.2:3b` | 3B | Good balance of speed and quality |
-| `phi4-mini` | 3.8B | Reasoning and code |
-| `gemma3:4b` | 4B | General purpose |
-| `qwen2.5:7b` | 7B | Higher quality, slower |
+This means:
+- Response generation takes longer (seconds to minutes depending on model size)
+- Large models (13B+) are impractical — stick to 1B–7B parameter models
+- First response after loading a model has an extra warm-up delay (~5–10s)
+
+### Models
+
+**No models are pre-installed.** After deployment, you must pull at least one model before you can start chatting.
+
+#### Recommended models for CPU
+
+| Model | Size on disk | Speed (CPU) | Best for |
+|-------|-------------|-------------|----------|
+| `llama3.2:1b` | ~1.3 GB | Very fast | Quick answers, simple tasks |
+| `llama3.2:3b` | ~2.0 GB | Fast | General chat, good quality |
+| `phi4-mini` | ~2.5 GB | Fast | Reasoning, coding |
+| `gemma3:4b` | ~3.3 GB | Medium | General purpose |
+| `qwen2.5:7b` | ~4.7 GB | Slow | Higher quality responses |
+| `qwen2.5-coder:7b` | ~4.7 GB | Slow | Code generation |
+
+> **Recommendation for getting started:** `llama3.2:3b` — good quality with acceptable speed on CPU.
+
+#### How to pull a model
+
+**Via SSH:**
+```bash
+ssh nexus "docker exec ollama ollama pull llama3.2:3b"
+```
+
+**Via Open WebUI:**
+1. Admin Panel (top-left profile icon) → **Models**
+2. Enter model name in the search field (e.g. `llama3.2:3b`) → Pull
+
+All available models: [ollama.com/library](https://ollama.com/library)
+
+#### Manage installed models
+
+```bash
+# List installed models
+ssh nexus "docker exec ollama ollama list"
+
+# Remove a model
+ssh nexus "docker exec ollama ollama rm llama3.2:1b"
+```
 
 ### Getting Started
 
 1. Enable "ollama" in the Control Plane and run Spin Up
 2. Navigate to `https://ollama.YOUR_DOMAIN`
 3. Register your admin account (first user = admin)
-4. Pull a model via the UI or SSH:
+4. Pull a model:
    ```bash
-   ssh nexus "docker exec ollama ollama pull llama3.2:1b"
+   ssh nexus "docker exec ollama ollama pull llama3.2:3b"
    ```
 5. Start chatting
