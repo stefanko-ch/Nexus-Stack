@@ -690,6 +690,14 @@ The `release-please--branches--main` branch is automatically managed by the Rele
 
 ### Responding to PR Review Comments
 
+**Critically evaluate every Copilot review comment before acting on it.** Copilot suggestions are automated and may be wrong, unnecessary, or counterproductive. Do NOT blindly apply every suggestion. For each comment:
+- Does the suggestion actually improve the code, or is it cosmetic/pedantic?
+- Could the suggestion introduce a new bug or break existing logic?
+- Does it conflict with the project's patterns or architecture?
+- Is the concern valid in this specific context, or is it generic advice?
+
+Only fix comments that identify genuine issues. Dismiss or explain comments that are incorrect or not applicable.
+
 **When addressing PR review comments, respond directly to each individual comment, not with a summary comment.**
 
 - Use `gh api` to reply to each review comment thread
