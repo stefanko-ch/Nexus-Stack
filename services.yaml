@@ -70,7 +70,7 @@ services:
     port: 8083
     public: false
     description: "Flowchart and diagramming tool for creating technical diagrams, flowcharts, and UML diagrams."
-    image: "jgraph/drawio:29"
+    image: "jgraph/drawio:latest"
 
   excalidraw:
     subdomain: "excalidraw"
