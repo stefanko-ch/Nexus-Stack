@@ -12,7 +12,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
 | code-server | `codercom/code-server` | `latest` | Latest ² |
-| Draw.io | `jgraph/drawio` | `29` | Major |
+| Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
 | Prometheus | `prom/prometheus` | `v3` | Major |
@@ -46,6 +46,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
+| Ollama | `ollama/ollama` | `0.15.1` | Exact ¹ |
+| Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.8.3` | Exact ¹ |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
@@ -129,6 +131,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
+| **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
 | **Portainer** | Docker container management UI | [portainer.md](portainer.md) |
