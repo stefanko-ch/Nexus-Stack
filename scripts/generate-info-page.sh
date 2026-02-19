@@ -244,6 +244,12 @@ fi
 # Get current date
 GENERATED_DATE=$(date '+%Y-%m-%d %H:%M UTC')
 
+# Get current release version
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+if [ -n "$VERSION" ]; then
+    echo -e "  Version: ${GREEN}$VERSION${NC}"
+fi
+
 # Generate output file using Python for reliable replacement
 python3 << PYEOF
 import re
@@ -252,6 +258,7 @@ template_path = "$TEMPLATE_FILE"
 output_path = "$OUTPUT_FILE"
 domain = "$DOMAIN"
 generated_date = "$GENERATED_DATE"
+version = "$VERSION"
 services_json = '''$SERVICES_JSON'''
 image_versions_json = '''$IMAGE_VERSIONS_JSON'''
 
@@ -261,6 +268,7 @@ with open(template_path, 'r') as f:
 # Replace placeholders
 content = content.replace('__DOMAIN__', domain)
 content = content.replace('__GENERATED_DATE__', generated_date)
+content = content.replace('__VERSION__', version)
 content = content.replace('__SERVICES_JSON__', services_json)
 content = content.replace('__IMAGE_VERSIONS_JSON__', image_versions_json)
 
