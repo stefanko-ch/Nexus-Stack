@@ -215,7 +215,6 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
 resource "minio_s3_bucket" "lakefs" {
   count         = var.hetzner_object_storage_access_key != "" ? 1 : 0
   bucket        = "${local.resource_prefix}-lakefs"
-  acl           = "private"
   force_destroy = true
 }
 
@@ -228,7 +227,6 @@ resource "minio_s3_bucket" "lakefs" {
 resource "minio_s3_bucket" "general" {
   count         = var.hetzner_object_storage_access_key != "" ? 1 : 0
   bucket        = local.resource_prefix
-  acl           = "private"
   force_destroy = true
 }
 
