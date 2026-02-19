@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.26.0...v0.27.0) (2026-02-19)
+
+
+### 🚀 Features
+
+* **stacks:** Add Ollama + Open WebUI stack ([01bc881](https://github.com/stefanko-ch/Nexus-Stack/commit/01bc881319cb8a63caa1342e6f6b2f4516a6585f))
+* **stacks:** Add Ollama + Open WebUI stack ([5e798ea](https://github.com/stefanko-ch/Nexus-Stack/commit/5e798ea68ddc50ce768c8a2064a36393cb144e1a)), closes [#217](https://github.com/stefanko-ch/Nexus-Stack/issues/217)
+* **stacks:** Add optional GitHub-to-Gitea repository mirroring ([9f3bc26](https://github.com/stefanko-ch/Nexus-Stack/commit/9f3bc26e61dff7884b62dc2c0c120769f0b55b7b))
+* **stacks:** Add optional GitHub→Gitea repository mirroring ([73e2510](https://github.com/stefanko-ch/Nexus-Stack/commit/73e25108aef3cf5e97bfa90457e5b55142e460d7))
+* **ui:** Show release version in Control Panel and Info page header ([f4fe1e5](https://github.com/stefanko-ch/Nexus-Stack/commit/f4fe1e583050d5bf8797af5de938d5ee5df3dccd))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Handle R2 credential validation failure gracefully ([e6935c8](https://github.com/stefanko-ch/Nexus-Stack/commit/e6935c81d1d22dbaa1c85f8b810f273f13e4309a))
+* **ci:** Stop swallowing tofu init errors in destroy workflow ([6f1bf2c](https://github.com/stefanko-ch/Nexus-Stack/commit/6f1bf2c185e01e22851d7e9c09a954ff61055bde))
+* **control-plane:** Address PR review comments ([3da99ee](https://github.com/stefanko-ch/Nexus-Stack/commit/3da99eeb20625661a18ad00c12dfd140e295b798))
+* **control-plane:** Fix pending changes race condition and improve UX ([63fdbb0](https://github.com/stefanko-ch/Nexus-Stack/commit/63fdbb08f8cbdbed091dd5d6383393052b71b32a))
+* **control-plane:** Fix pending changes UX and CI error handling ([280b243](https://github.com/stefanko-ch/Nexus-Stack/commit/280b2432ddbe7e6d99dd46f49be5c00c86fb4595))
+* **control-plane:** Return 'destroyed' instead of 'offline' from status API ([37d78ee](https://github.com/stefanko-ch/Nexus-Stack/commit/37d78eef98113d3df62da771edbf39ab92276266))
+* **stacks:** Address PR review comments for mirror feature ([e08c1b6](https://github.com/stefanko-ch/Nexus-Stack/commit/e08c1b638b3639faf78974e2317cd035f10395c6))
+* **stacks:** Disable must-change-password on Gitea password sync ([1c7c661](https://github.com/stefanko-ch/Nexus-Stack/commit/1c7c661cfdd64f9e1c90d069b9ce713723f18cac))
+* **stacks:** Fix mirror creation by piping jq payload via stdin ([d959f08](https://github.com/stefanko-ch/Nexus-Stack/commit/d959f089f1043572794ddf7e68050d65a826bf4b))
+* **stacks:** Pipe jq payload via stdin to fix SSH variable passing ([165a95f](https://github.com/stefanko-ch/Nexus-Stack/commit/165a95f151708b8b58a51be57e9d98b23f66efb8))
+* **stacks:** Rename mirror secrets to avoid reserved GITHUB_ prefix ([b54ed9b](https://github.com/stefanko-ch/Nexus-Stack/commit/b54ed9bb37d928f81d281f266c86d58ec67494eb))
+* **stacks:** Sync Gitea admin and user passwords on spin-up ([23e6bfb](https://github.com/stefanko-ch/Nexus-Stack/commit/23e6bfbc99969b7992ca69cb8541e527df07bf56))
+* **stacks:** Sync Gitea DB password on spin-up to handle persistent volume state mismatch ([00152e9](https://github.com/stefanko-ch/Nexus-Stack/commit/00152e9d13264811257d1d54e933844f1764625e))
+* **stacks:** Use default expansion for GITEA_TOKEN to avoid unbound variable error ([a819bcf](https://github.com/stefanko-ch/Nexus-Stack/commit/a819bcf4455320903b239c43f172c025e56d6c9c))
+* **stacks:** Use latest tag for drawio Docker image ([e7c2f2e](https://github.com/stefanko-ch/Nexus-Stack/commit/e7c2f2eb8ed213e8d51940b2b6b17f73c924e34a))
+* **stacks:** Use ollama CLI for healthcheck instead of curl ([dfa4d24](https://github.com/stefanko-ch/Nexus-Stack/commit/dfa4d24ae63cc6d6ae5e2975c0305de4662e3ea8))
+* **stacks:** Use printf instead of echo for JSON payload piping ([986d502](https://github.com/stefanko-ch/Nexus-Stack/commit/986d5025fe38595c4828782a5445a26673af9473))
+
+
+### 📚 Documentation
+
+* Add critical review guideline for Copilot PR comments ([91186a0](https://github.com/stefanko-ch/Nexus-Stack/commit/91186a0b2a9b7209602457873089f95fc29ddec6))
+* Add Git Desktop to git-proxy description ([ff00f66](https://github.com/stefanko-ch/Nexus-Stack/commit/ff00f660621b368743a50ba56a3107e9933dd28b))
+* **stacks:** Clarify exact PAT permissions for GitHub mirror ([9b430cf](https://github.com/stefanko-ch/Nexus-Stack/commit/9b430cf3c7b869d94f82225a4877a7e13f459ff1))
+* **stacks:** Clarify mirror skip condition wording ([2ae7d66](https://github.com/stefanko-ch/Nexus-Stack/commit/2ae7d66f90132f80baad3a8100e4690183dba7c8))
+* **stacks:** Expand Ollama docs with CPU-only note and model guide ([af64bf3](https://github.com/stefanko-ch/Nexus-Stack/commit/af64bf33fdff85ec73525a8af8107bc63e98f866))
+* **stacks:** Recommend fine-grained PAT for GitHub mirror setup ([53158ef](https://github.com/stefanko-ch/Nexus-Stack/commit/53158ef7f159213ca9b02353bda7624b33c1c4fa))
+
 ## [0.26.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.25.0...v0.26.0) (2026-02-15)
 
 
