@@ -136,11 +136,21 @@ jobs:
 
           # Initialize Nexus Stack state
           cd tofu/stack
-          tofu init -backend-config=../backend.hcl 2>/dev/null || echo "No existing Nexus Stack state"
+          if ! tofu init -backend-config=../backend.hcl; then
+            echo "❌ ERROR: Failed to initialize Nexus Stack backend"
+            echo "   Check R2 credentials and bucket access"
+            exit 1
+          fi
+          echo "✅ Nexus Stack backend initialized"
 
           # Initialize Control Plane state
           cd ../control-plane
-          tofu init -backend-config=../backend.hcl 2>/dev/null || echo "No existing Control Plane state"
+          if ! tofu init -backend-config=../backend.hcl; then
+            echo "❌ ERROR: Failed to initialize Control Plane backend"
+            echo "   Check R2 credentials and bucket access"
+            exit 1
+          fi
+          echo "✅ Control Plane backend initialized"
 
           # Get persistent volume ID from control-plane and add to stack config
           PERSISTENT_VOLUME_ID=$(tofu output -raw persistent_volume_id 2>/dev/null || echo "0")
