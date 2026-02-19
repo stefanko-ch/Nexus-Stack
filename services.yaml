@@ -265,6 +265,15 @@ services:
     support_images:
       postgres: "postgres:16-alpine"
 
+  ollama:
+    subdomain: "ollama"
+    port: 8093
+    public: false
+    description: "Local LLM inference with Open WebUI chat interface (Ollama backend)."
+    image: "ghcr.io/open-webui/open-webui:v0.8.3"
+    support_images:
+      ollama: "ollama/ollama:0.15.1"
+
   openmetadata:
     subdomain: "openmetadata"
     port: 8585

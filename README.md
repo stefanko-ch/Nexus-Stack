@@ -92,7 +92,7 @@ flowchart LR
     end
 ```
 
-## Available Stacks (48)
+## Available Stacks (49)
 
 ![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)
 ![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)
@@ -122,6 +122,7 @@ flowchart LR
 ![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)
 ![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)
 ![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)
 ![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)
 ![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)
 ![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)
@@ -173,6 +174,7 @@ flowchart LR
 | **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **NocoDB** | Open-source Airtable alternative - turn any database into a spreadsheet | [nocodb.com](https://nocodb.com) |
+| **Ollama** | Local LLM inference with Open WebUI chat interface | [openwebui.com](https://openwebui.com) |
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
 | **Portainer** | Docker container management UI | [portainer.io](https://www.portainer.io) |

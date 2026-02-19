@@ -1,0 +1,74 @@
+# =============================================================================
+# Ollama + Open WebUI - Local LLM Inference with Chat Interface
+# =============================================================================
+# Self-hosted LLM platform with Ollama as the inference backend and
+# Open WebUI as the chat interface.
+#
+# Features:
+#   - Run LLMs locally (Llama, Mistral, Gemma, Phi, etc.)
+#   - ChatGPT-like web interface
+#   - Model management (pull, delete, create custom models)
+#   - Conversation history and user management
+#   - RAG (Retrieval-Augmented Generation) support
+#
+# Access: https://ollama.YOUR_DOMAIN
+# First user to register becomes admin.
+#
+# Note: No GPU on Hetzner ARM servers - models run on CPU.
+# Smaller models (1B-7B parameters) recommended for acceptable performance.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Ollama - LLM Inference Engine (internal only)
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ${IMAGE_OLLAMA:-ollama/ollama:0.15.1}
+    container_name: ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ollama-internal
+
+  # ---------------------------------------------------------------------------
+  # Open WebUI - Chat Interface
+  # ---------------------------------------------------------------------------
+  open-webui:
+    image: ${IMAGE_OPEN_WEBUI:-ghcr.io/open-webui/open-webui:v0.8.3}
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "8093:8080"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_AUTH: "true"
+      ENABLE_SIGNUP: "true"
+      WEBUI_NAME: "Nexus AI"
+      SCARF_NO_ANALYTICS: "true"
+      DO_NOT_TRACK: "true"
+      ANONYMIZED_TELEMETRY: "false"
+    volumes:
+      - open-webui-data:/app/backend/data
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - app-network
+      - ollama-internal
+
+volumes:
+  ollama-data:
+  open-webui-data:
+
+networks:
+  app-network:
+    external: true
+  ollama-internal:
+    driver: bridge

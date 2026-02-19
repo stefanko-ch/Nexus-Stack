@@ -102,6 +102,13 @@
             opacity: 0.7;
         }
 
+        .version-tag {
+            font-size: 0.75rem;
+            color: #00ff88;
+            opacity: 0.5;
+            letter-spacing: 0.1em;
+        }
+
         .header-nav {
             margin-top: 1.5rem;
             display: flex;
@@ -824,7 +831,7 @@
             <!-- Nexus Stack Logo -->
             <img src="nexus-logo-green.png" alt="Nexus Stack" class="logo">
             <h1>NEXUS STACK</h1>
-            <p class="tagline">Control Panel</p>
+            <p class="tagline">Control Panel &nbsp;·&nbsp; <span id="version-tag" class="version-tag"></span></p>
             <nav class="header-nav">
                 <a href="/database.html" class="nav-link">🗄️ Show Database</a>
                 <a href="/firewall.html" class="nav-link">🔥 Firewall</a>
@@ -1722,9 +1729,26 @@
             }
         }
 
+        // Fetch and display latest release version
+        async function fetchVersion() {
+            try {
+                const response = await fetch('https://api.github.com/repos/stefanko-ch/Nexus-Stack/releases/latest');
+                if (response.ok) {
+                    const data = await response.json();
+                    const tag = document.getElementById('version-tag');
+                    if (tag && data.tag_name) {
+                        tag.textContent = data.tag_name;
+                    }
+                }
+            } catch (error) {
+                // Version fetch is non-critical
+            }
+        }
+
         // Initial health check and status fetch
         checkHealth();
         fetchInfo();
+        fetchVersion();
         fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
     </script>
 </body>
