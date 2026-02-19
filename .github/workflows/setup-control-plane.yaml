@@ -291,10 +291,12 @@ jobs:
           R2_ENDPOINT="https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
           echo "🔍 Validating R2 credentials via list-buckets against $R2_ENDPOINT..."
-          VALIDATION=$(aws s3api list-buckets --endpoint-url="$R2_ENDPOINT" --region auto 2>&1)
-          VALIDATION_STATUS=$?
-
-          if [ "$VALIDATION_STATUS" -ne 0 ]; then
+          # Use if-else to prevent set -e from killing the script on aws failure
+          if VALIDATION=$(aws s3api list-buckets --endpoint-url="$R2_ENDPOINT" --region auto 2>&1); then
+            echo "✅ R2 credentials are valid"
+            echo "r2_valid=true" >> $GITHUB_OUTPUT
+          else
+            VALIDATION_STATUS=$?
             echo "❌ R2 credentials are invalid (exit code $VALIDATION_STATUS)"
             echo "$VALIDATION"
             echo "r2_valid=false" >> $GITHUB_OUTPUT
@@ -305,9 +307,6 @@ jobs:
               gh secret delete R2_SECRET_ACCESS_KEY 2>/dev/null || true
               echo "🗑️  Stale R2 secrets deleted from GitHub"
             fi
-          else
-            echo "✅ R2 credentials are valid"
-            echo "r2_valid=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Recreate R2 credentials (invalid token detected)
