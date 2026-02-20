@@ -283,6 +283,13 @@ async function getConfig(db) {
 }
 
 async function sendNotification(env, config) {
+  // Check if shutdown notifications are enabled
+  const notifyOnShutdown = await getConfigValue(env.NEXUS_DB, 'notify_on_shutdown', 'true');
+  if (notifyOnShutdown !== 'true') {
+    await logToD1(env.NEXUS_DB, 'info', 'Shutdown notification email disabled by user');
+    return;
+  }
+
   if (!env.RESEND_API_KEY || !env.ADMIN_EMAIL || !env.DOMAIN) {
     const missingVars = [];
     if (!env.RESEND_API_KEY) missingVars.push('RESEND_API_KEY');
