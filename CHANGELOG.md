@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.45.0...v0.46.0) (2026-04-11)
+
+
+### 🚀 Features
+
+* **stacks:** Add Appsmith low-code platform ([2e08d47](https://github.com/stefanko-ch/Nexus-Stack/commit/2e08d47b48cb8203efb0a5bb7b7628bb55b2f397))
+* **stacks:** Add Appsmith low-code platform ([c805799](https://github.com/stefanko-ch/Nexus-Stack/commit/c805799c1c2290bb4328d4bf3288f740887aca73))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Reword fork safety comment to reflect actual gate ([eb32494](https://github.com/stefanko-ch/Nexus-Stack/commit/eb3249445d24f36eb70c81f3ea9b717b3dd7e2a0))
+* **ci:** Switch docs sync from repository_dispatch to Cloudflare Deploy Hook ([fe35c0e](https://github.com/stefanko-ch/Nexus-Stack/commit/fe35c0e3e7ff6afd004a697382874a47d471e578))
+* **ci:** Switch docs sync to Cloudflare Deploy Hook ([a88c2ff](https://github.com/stefanko-ch/Nexus-Stack/commit/a88c2ff6eac8c87fbd1bdac5af1e4c978dd8546d))
+* **docs:** Add pg-ducklake to overview, fix Swiss capitalization ([3c4178a](https://github.com/stefanko-ch/Nexus-Stack/commit/3c4178ab9d59ca341f55eb511d6491eac3fa16d3))
+* **docs:** Address PR [#406](https://github.com/stefanko-ch/Nexus-Stack/issues/406) review feedback ([56801a1](https://github.com/stefanko-ch/Nexus-Stack/commit/56801a12cdd9b3c3fb81c8546cb19eb97541f540))
+* **docs:** Address PR [#406](https://github.com/stefanko-ch/Nexus-Stack/issues/406) review feedback - fail on missing hook, fix docs ([fe188e9](https://github.com/stefanko-ch/Nexus-Stack/commit/fe188e9673211593896be187cbb93b8ac2432be9))
+* **stacks:** Address Appsmith PR review feedback ([6775d2e](https://github.com/stefanko-ch/Nexus-Stack/commit/6775d2e474673163e0ae52851e934aee0b844c46))
+
+
+### 📚 Documentation
+
+* **stacks:** Move stacks overview from website repo to single source of truth ([3e04738](https://github.com/stefanko-ch/Nexus-Stack/commit/3e04738c1a7902b6c9404fde236892a6f0651ea4))
+* **stacks:** Move stacks overview to single source of truth ([8895c88](https://github.com/stefanko-ch/Nexus-Stack/commit/8895c88b278b68f4e9882c5e3c6b18f6fc68e974))
+* Test website sync trigger ([2244e99](https://github.com/stefanko-ch/Nexus-Stack/commit/2244e9914709462d6bb74c8b57505439c6f11317))
+* Test website sync trigger ([bece5d2](https://github.com/stefanko-ch/Nexus-Stack/commit/bece5d2145b999cfb55a1302b9e93db0f3361143))
+
 ## [0.45.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.44.0...v0.45.0) (2026-04-11)
 
 
