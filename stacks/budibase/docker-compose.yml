@@ -18,7 +18,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 4g
     volumes:
       - budibase_data:/data
     networks:
