@@ -73,6 +73,16 @@ services:
     long_description: "Appsmith is an open-source framework for building internal tools and custom UIs. Connect to 18+ data sources including PostgreSQL, MySQL, MongoDB, REST APIs, and GraphQL. Features drag-and-drop widgets, JavaScript business logic, Git-based version control, and granular access controls. All-in-one container with bundled MongoDB, PostgreSQL, and Redis."
     image: "appsmith/appsmith-ce:v1.98"
 
+  big-agi:
+    subdomain: "big-agi"
+    port: 3006
+    public: false
+    category: "ai-ml"
+    website: "https://github.com/enricoros/big-agi"
+    description: "Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints."
+    long_description: "Big-AGI is a stateless browser-based UI for interacting with multiple large language model providers. Connect to OpenAI, Anthropic, local Ollama, or custom OpenAI-compatible endpoints. Conversation history lives in the browser's LocalStorage — no server-side database. Features include conversation export/import, prompt templates, model switching, persona management, and markdown rendering."
+    image: "ghcr.io/enricoros/big-agi:v2.0.4"
+
   cloudbeaver:
     subdomain: "cloudbeaver"
     port: 8978

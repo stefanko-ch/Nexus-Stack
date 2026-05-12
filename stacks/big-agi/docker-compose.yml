@@ -1,0 +1,40 @@
+# =============================================================================
+# Big-AGI - Multi-LLM Web UI
+# =============================================================================
+# Browser-based UI for interacting with multiple LLM providers (OpenAI,
+# Anthropic, local Ollama, custom endpoints). Stateless — conversation
+# history lives in the browser's LocalStorage, no server-side database.
+# Access via: https://big-agi.your-domain.com
+# Default port: 3006
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - No authentication required at application level
+# - API keys for LLM providers are entered in the browser and stored
+#   client-side only — they never touch the server.
+# =============================================================================
+
+services:
+  big-agi:
+    image: ${IMAGE_BIG_AGI:-ghcr.io/enricoros/big-agi:v2.0.4}
+    container_name: big-agi
+    restart: unless-stopped
+    ports:
+      - "3006:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
