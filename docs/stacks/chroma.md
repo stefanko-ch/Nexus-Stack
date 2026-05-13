@@ -24,6 +24,16 @@ Chroma is an open-source vector database designed for LLM applications. You stor
 | Website | [trychroma.com](https://www.trychroma.com) |
 | Source | [GitHub](https://github.com/chroma-core/chroma) |
 
+### Browser entry point
+
+Chroma is an API-only service — visiting `https://chroma.<domain>/` returns 404 because there's no landing page. For browser exploration, hit:
+
+```
+https://chroma.<domain>/docs/
+```
+
+That's Chroma's bundled Swagger UI with every endpoint listed and an interactive "Try it out" button per route. Authentication still goes through Cloudflare Access first; once you're in, the Swagger UI loads.
+
 ### Usage
 
 From a Python client (most common):
