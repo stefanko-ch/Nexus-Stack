@@ -21,7 +21,14 @@
 #   that requires explicit registration in src/nexus_deploy/s3_restore.py
 #   (the rsync_targets tuple), which is a deliberate opt-in change.
 # - IS_PERSISTENT=true flips Chroma from in-memory to file-backed mode,
-#   writing to /chroma/chroma (the canonical upstream path).
+#   writing to /data (the canonical upstream path as of the 1.x Rust
+#   rewrite; older 0.x docs sometimes show /chroma/chroma, which is
+#   stale).
+# - Healthcheck uses bash's built-in /dev/tcp probe instead of curl
+#   or wget — the chromadb/chroma image ships bash + Debian userland
+#   but no HTTP client. The probe checks that port 8000 accepts
+#   TCP, which is sufficient because chroma writes a complete
+#   startup banner before opening the listener.
 # =============================================================================
 
 services:
@@ -35,13 +42,13 @@ services:
       IS_PERSISTENT: "true"
       ANONYMIZED_TELEMETRY: "false"
     volumes:
-      - chroma_data:/chroma/chroma
+      - chroma_data:/data
     deploy:
       resources:
         limits:
           memory: 1g
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/api/v2/heartbeat >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8000 && exit 0 || exit 1'"]
       interval: 30s
       timeout: 10s
       retries: 3

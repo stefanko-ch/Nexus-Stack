@@ -62,7 +62,7 @@ A bare `curl https://chroma.<domain>/...` returns `302` to the Access login flow
 
 ### Persistence
 
-Data is stored in a Docker named volume mounted at `/chroma/chroma`. The compose-file volume key is `chroma_data`, but Docker Compose prefixes it with the project name when it actually creates the volume on disk — so `docker volume ls` will show it as something like **`chroma_chroma_data`** (compose-file dir = project name by default), not as the bare `chroma_data`. When looking for the data directory or backing it up directly, use:
+Data is stored in a Docker named volume mounted at `/data` inside the container (Chroma 1.x's canonical persistence path — older 0.x docs sometimes show `/chroma/chroma`, which is stale and writes go to the container FS instead). The compose-file volume key is `chroma_data`, but Docker Compose prefixes it with the project name when it actually creates the volume on disk — so `docker volume ls` will show it as something like **`chroma_chroma_data`** (compose-file dir = project name by default), not as the bare `chroma_data`. When looking for the data directory or backing it up directly, use:
 
 ```bash
 docker volume ls | grep chroma          # find the exact project-prefixed name
