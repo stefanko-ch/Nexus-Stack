@@ -372,34 +372,6 @@ LakeFS can use **Hetzner Object Storage** as a backend instead of local storage.
 
 ---
 
-## 💾 Migrating from the Legacy Hetzner Volume (one-time)
-
-RFC 0001 replaced the Hetzner block-storage volume with R2-backed snapshots. If your stack was provisioned BEFORE the cutover landed, your existing Gitea data still lives on the volume. To preserve it across the cutover, run the **migrate-volume-to-r2** workflow once before the next spin-up:
-
-```bash
-# Run from the cutover feature branch BEFORE merging — this way
-# the volume is still in Tofu state during the evacuation. The
-# workflow_dispatch input "MIGRATE" is a typo-guard, identical to
-# the destroy-all confirmation pattern.
-gh workflow run migrate-volume-to-r2.yml \
-  --ref feat/s3-persistence-cutover \
-  -f confirm=MIGRATE
-```
-
-What it does:
-
-1. SSHes into the still-running server (volume still mounted at `/mnt/nexus-data`).
-2. Stops gitea + dify briefly so pg_dump sees a quiesced view.
-3. pg_dumps the two databases + rclone-syncs the file trees into `s3://<persistence-bucket>/snapshots/<timestamp>/`.
-4. Verifies every per-source rclone-check passes.
-5. Points `snapshots/latest.txt` at the new snapshot.
-
-After the workflow turns green: merge the cutover PR. The next spin-up will `restore_from_s3` the snapshot you just created, and the legacy Hetzner volume gets destroyed by the matching `tofu apply` (replaced by local SSD + R2). If you skip the migration, the cutover spin-up does a fresh-start: empty data dirs, you re-create Gitea repos / Kestra flows by hand.
-
-If anything goes sideways, the volume is still there until the next `tofu apply` — you can re-run the migration workflow until the snapshot succeeds.
-
----
-
 ## 🔧 Troubleshooting
 
 ### "Tunnel not connecting"
