@@ -408,8 +408,10 @@ import Layout from '../layouts/Layout.astro';
   let currentAction = null;
   let pendingChangesCount = 0;
   let wasInProgress = false;
-  let stackDomain = window.location.hostname.replace(/^control[.-]/, '');
-  let subdomainSeparator = '.';
+  // Domain + subdomain_separator are owned by window.NS.fetchDomain()
+  // (defined in StacksShared.astro, loaded globally via Layout.astro).
+  // window.NS.stackUrl(service) is the single URL builder both pages share —
+  // see #579 / "Honor landing_path in Active Stacks panel".
 
   const statusDescriptions = {
     'deployed': 'Infrastructure is running. All services are accessible.',
@@ -421,22 +423,6 @@ import Layout from '../layouts/Layout.astro';
 
   function enableFallbackState() {
     updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
-  }
-
-  // Fetch domain for service links
-  async function fetchDomain() {
-    try {
-      const res = await fetch(`${API_URL}/api/info`, { credentials: 'same-origin' });
-      const ct = res.headers.get('content-type');
-      if (!ct || !ct.includes('application/json')) return;
-      const data = await res.json();
-      if (data.success && data.info?.server?.domain) {
-        stackDomain = data.info.server.domain;
-      }
-      if (data.success && data.info?.server?.subdomainSeparator) {
-        subdomainSeparator = data.info.server.subdomainSeparator;
-      }
-    } catch {}
   }
 
   // Fetch and display status
@@ -550,7 +536,10 @@ import Layout from '../layouts/Layout.astro';
   // Active stacks list
   async function loadActiveStacks() {
     try {
-      await fetchDomain();
+      // Wait for window.NS.fetchDomain() so window.NS.stackUrl() returns
+      // a populated URL (cachedDomain is loaded). The Promise is memoised
+      // so multiple callers across pages share one /api/info fetch.
+      await window.NS.fetchDomain();
       const response = await fetch(`${API_URL}/api/services`, { credentials: 'same-origin' });
       if (!response.ok) return;
       const data = await response.json();
@@ -597,13 +586,12 @@ import Layout from '../layouts/Layout.astro';
     let html = '<p class="stack-count">' + services.length + ' stack' + (services.length !== 1 ? 's' : '') + ' active</p>';
 
     services.forEach(s => {
-      if (s.subdomain && s.deployed) {
-        let url = 'https://' + s.subdomain + subdomainSeparator + stackDomain;
-        // Optional per-service landing path (e.g. /docs/ for Chroma's Swagger UI).
-        // Matches the behaviour of window.NS.stackUrl() in StacksShared.astro.
-        if (s.landing_path && typeof s.landing_path === 'string' && s.landing_path.length > 0) {
-          url = url + s.landing_path;
-        }
+      // window.NS.stackUrl() handles base URL + optional landing_path append.
+      // Returns '' when subdomain or cached domain is missing — fall through
+      // to the no-link chip in that case (same render path as services
+      // without a subdomain).
+      const url = s.deployed ? window.NS.stackUrl(s) : '';
+      if (url) {
         html += '<a href="' + url + '" target="_blank" rel="noopener" class="stack-chip">' +
           escapeHtml(s.name) + '<span class="arrow">&#8599;</span></a>';
       } else {
