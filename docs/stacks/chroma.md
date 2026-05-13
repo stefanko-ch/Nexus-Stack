@@ -89,4 +89,4 @@ If you need finer-grained access control (per-collection token auth, etc.), flip
 
 ### Telemetry
 
-`ANONYMIZED_TELEMETRY=FALSE` is set by default. Upstream Chroma sends anonymized usage stats by default; we turn it off for the self-hosted scenario where the operator typically doesn't want any outbound calls. Flip it back to `TRUE` if you want to contribute usage data to the project.
+`ANONYMIZED_TELEMETRY=false` is set by default. Upstream Chroma sends anonymized usage stats by default; we turn it off for the self-hosted scenario where the operator typically doesn't want any outbound calls. Flip it back to `true` if you want to contribute usage data to the project.

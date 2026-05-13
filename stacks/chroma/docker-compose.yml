@@ -20,7 +20,7 @@
 #   embeddings per session. If you need cross-teardown persistence,
 #   that requires explicit registration in src/nexus_deploy/s3_restore.py
 #   (the rsync_targets tuple), which is a deliberate opt-in change.
-# - IS_PERSISTENT=TRUE flips Chroma from in-memory to file-backed mode,
+# - IS_PERSISTENT=true flips Chroma from in-memory to file-backed mode,
 #   writing to /chroma/chroma (the canonical upstream path).
 # =============================================================================
 
@@ -32,8 +32,8 @@ services:
     ports:
       - "8099:8000"
     environment:
-      IS_PERSISTENT: "TRUE"
-      ANONYMIZED_TELEMETRY: "FALSE"
+      IS_PERSISTENT: "true"
+      ANONYMIZED_TELEMETRY: "false"
     volumes:
       - chroma_data:/chroma/chroma
     deploy:
