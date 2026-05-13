@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.59.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.58.4...v0.59.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **stacks:** Add Big-AGI multi-LLM web UI ([#574](https://github.com/stefanko-ch/Nexus-Stack/issues/574)) ([723d675](https://github.com/stefanko-ch/Nexus-Stack/commit/723d67535b450654698f74a648f4b3fd0ae9932f)), closes [#394](https://github.com/stefanko-ch/Nexus-Stack/issues/394)
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Bump Budibase memory limit to 4 GB ([#572](https://github.com/stefanko-ch/Nexus-Stack/issues/572)) ([fe35801](https://github.com/stefanko-ch/Nexus-Stack/commit/fe358018ff883084db9a032e7c57f3b0738c8606)), closes [#546](https://github.com/stefanko-ch/Nexus-Stack/issues/546)
+
 ## [0.58.4](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.58.3...v0.58.4) (2026-05-12)
 
 
