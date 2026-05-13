@@ -13,6 +13,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Appsmith | `appsmith/appsmith-ce` | `v1.98` | Minor |
 | Big-AGI | `ghcr.io/enricoros/big-agi` | `v2.0.4` | Exact ¹ |
 | Budibase | `budibase/budibase` | `latest` | Latest ² |
+| Chroma | `chromadb/chroma` | `1.5.9` | Exact ¹ |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
 | code-server | `codercom/code-server` | `latest` | Latest ² |
@@ -125,6 +126,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
+| **Chroma** | Embedding (vector) database for LLM / RAG | [chroma.md](chroma.md) |
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |
 | **code-server** | VS Code in the browser | [code-server.md](code-server.md) |

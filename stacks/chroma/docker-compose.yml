@@ -1,0 +1,57 @@
+# =============================================================================
+# Chroma - Embedding (Vector) Database
+# =============================================================================
+# Developer-friendly vector database for LLM / RAG pipelines.
+# Stores text + embeddings, returns top-k similarity matches for retrieval.
+# Access via: https://chroma.your-domain.com
+# Default port: 8099 (internal 8000)
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - No authentication required at application level (Chroma's built-in
+#   auth providers are disabled — CF Access fronts the API).
+#
+# OPERATIONAL NOTES:
+# - PERSISTENCE: data is stored in the `chroma_data` Docker volume on
+#   the Hetzner disk. It SURVIVES container restarts and spin-up cycles,
+#   but NOT a full teardown (Hetzner server gets destroyed → volume gone).
+#   For workshop / classroom use this is fine — students rebuild
+#   embeddings per session. If you need cross-teardown persistence,
+#   that requires explicit registration in src/nexus_deploy/s3_restore.py
+#   (the rsync_targets tuple), which is a deliberate opt-in change.
+# - IS_PERSISTENT=TRUE flips Chroma from in-memory to file-backed mode,
+#   writing to /chroma/chroma (the canonical upstream path).
+# =============================================================================
+
+services:
+  chroma:
+    image: ${IMAGE_CHROMA:-chromadb/chroma:1.5.9}
+    container_name: chroma
+    restart: unless-stopped
+    ports:
+      - "8099:8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chroma_data:/chroma/chroma
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/api/v2/heartbeat >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  chroma_data:
+
+networks:
+  app-network:
+    external: true

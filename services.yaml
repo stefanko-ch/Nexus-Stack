@@ -103,6 +103,16 @@ services:
     long_description: "Budibase lets you build internal tools and business apps in minutes. Connect to databases (PostgreSQL, MySQL, MongoDB), REST APIs, or use built-in tables. Drag-and-drop UI builder, role-based access control, workflow automation, and self-hosted deployment."
     image: "budibase/budibase:latest"
 
+  chroma:
+    subdomain: "chroma"
+    port: 8099
+    public: false
+    category: "ai-ml"
+    website: "https://www.trychroma.com"
+    description: "Developer-friendly embedding database for LLM and RAG pipelines."
+    long_description: "Chroma is an open-source embedding (vector) database designed for LLM applications. Store text + embeddings, run similarity queries to retrieve the top-k most relevant chunks for a prompt — the workhorse store behind most LangChain / LlamaIndex tutorials. Single-process Python server with HTTP REST API, file-based persistence (DuckDB + Parquet under the hood). Pairs naturally with Crawl4AI (scrape → embed → index) and Big-AGI / Dify (retrieve → augment prompt)."
+    image: "chromadb/chroma:1.5.9"
+
   clickhouse:
     subdomain: "clickhouse"
     port: 8123
