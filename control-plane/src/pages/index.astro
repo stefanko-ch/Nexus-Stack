@@ -598,7 +598,12 @@ import Layout from '../layouts/Layout.astro';
 
     services.forEach(s => {
       if (s.subdomain && s.deployed) {
-        const url = 'https://' + s.subdomain + subdomainSeparator + stackDomain;
+        let url = 'https://' + s.subdomain + subdomainSeparator + stackDomain;
+        // Optional per-service landing path (e.g. /docs/ for Chroma's Swagger UI).
+        // Matches the behaviour of window.NS.stackUrl() in StacksShared.astro.
+        if (s.landing_path && typeof s.landing_path === 'string' && s.landing_path.length > 0) {
+          url = url + s.landing_path;
+        }
         html += '<a href="' + url + '" target="_blank" rel="noopener" class="stack-chip">' +
           escapeHtml(s.name) + '<span class="arrow">&#8599;</span></a>';
       } else {
