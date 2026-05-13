@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.60.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.59.0...v0.60.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **stacks:** Add Crawl4AI LLM-friendly web crawler ([#575](https://github.com/stefanko-ch/Nexus-Stack/issues/575)) ([38bac22](https://github.com/stefanko-ch/Nexus-Stack/commit/38bac2237fa15a64ee5f5390a9d0974be98876bd)), closes [#391](https://github.com/stefanko-ch/Nexus-Stack/issues/391)
+
 ## [0.59.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.58.4...v0.59.0) (2026-05-13)
 
 
