@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS services (
     category TEXT DEFAULT '',
     website TEXT DEFAULT '',
     long_description TEXT DEFAULT '',
+    landing_path TEXT DEFAULT '',
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -77,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
 
 -- Insert default configuration values
-INSERT OR IGNORE INTO config (key, value) VALUES 
+INSERT OR IGNORE INTO config (key, value) VALUES
     ('teardown_enabled', 'true'),
     ('teardown_timezone', 'Europe/Zurich'),
     ('teardown_time', '22:00'),

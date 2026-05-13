@@ -112,6 +112,7 @@ services:
     description: "Developer-friendly embedding database for LLM and RAG pipelines."
     long_description: "Chroma is an open-source embedding (vector) database designed for LLM applications. Store text + embeddings, run similarity queries to retrieve the top-k most relevant chunks for a prompt — the workhorse store behind most LangChain / LlamaIndex tutorials. Single container, HTTP REST API, file-based persistence on a local volume. Pairs naturally with Crawl4AI (scrape → embed → index) and Big-AGI / Dify (retrieve → augment prompt)."
     image: "chromadb/chroma:1.5.9"
+    landing_path: "/docs/"   # API-only — Chroma has no UI at /, but /docs/ serves Swagger
 
   clickhouse:
     subdomain: "clickhouse"

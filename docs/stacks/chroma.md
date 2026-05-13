@@ -26,16 +26,19 @@ Chroma is an open-source vector database designed for LLM applications. You stor
 
 ### Browser entry point
 
-Chroma is an API-only service — Chroma itself has no landing page at `/` and returns 404 there. To make the URL Just Work in a browser, the stack ships a Cloudflare edge redirect (defined in [tofu/stack/main.tf](../../tofu/stack/main.tf) as `cloudflare_ruleset.service_root_redirects`) that 302's `https://chroma.<domain>/` to `/docs/` before the request reaches the tunnel. So:
+Chroma is API-only — it has no landing page at `/` and Chroma returns 404 there. To make the URL Just Work for browser users, the **Control Plane "Open Chroma" button** links to `https://chroma.<domain>/docs/` directly (Chroma's bundled Swagger UI) instead of the bare root.
 
+This is driven by an optional **`landing_path`** field on the service's `services.yaml` entry:
+
+```yaml
+chroma:
+  ...
+  landing_path: "/docs/"   # API-only — Chroma has no UI at /, but /docs/ serves Swagger
 ```
-https://chroma.<domain>          →  302  →  https://chroma.<domain>/docs/
-                                            (Chroma's bundled Swagger UI)
-```
 
-Cloudflare Access still gates the request first; once you're authenticated, the Swagger UI loads with every endpoint listed and an interactive "Try it out" button per route. Direct API calls (`/api/v2/...`) bypass the redirect and work as normal.
+The Control Plane's `stackUrl()` helper reads this from the `/api/services` response and appends it to the base URL when building the click target. Operators who type the bare URL into the browser address bar still see Chroma's 404 — that's expected — but anyone using the Control Plane's UI lands on Swagger directly.
 
-**Token-scope note:** the redirect ruleset writes via Cloudflare's Rules Engine API which needs the **"Zone → Zone WAF: Edit"** permission on the Nexus-Stack CF API token. Existing forks that were set up before this permission was documented will see `Authentication error (10000)` on the first `tofu apply` and need to update the token (see [setup-guide.md "Create API Token"](../admin-guides/setup-guide.md#create-api-token) for the full permission list). The token value itself doesn't change when you edit permissions, so no secret-rotation churn — just one edit-save in the Cloudflare dashboard.
+Direct API calls (`/api/v2/...`, the Python client `chromadb.HttpClient(...)`) bypass `landing_path` and behave normally.
 
 ### Usage
 

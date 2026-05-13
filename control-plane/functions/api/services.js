@@ -2,7 +2,7 @@
  * Manage services configuration
  * GET /api/services - Get all services from D1 (single source of truth)
  * POST /api/services - Enable/disable a service (staged in D1, not deployed)
- * 
+ *
  * Service metadata is synced to D1 via /api/services/init (called by spin-up workflow).
  * D1 is the single source of truth for service state:
  *   - enabled: what the user wants (staged state)
@@ -56,14 +56,14 @@ export async function onRequestGet(context) {
     let stmt;
     if (categoryFilter) {
       stmt = env.NEXUS_DB.prepare(`
-        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description
+        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path
         FROM services
         WHERE category = ?
         ORDER BY name
       `).bind(categoryFilter);
     } else {
       stmt = env.NEXUS_DB.prepare(`
-        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description
+        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path
         FROM services
         ORDER BY name
       `);
@@ -104,6 +104,7 @@ export async function onRequestGet(context) {
         category,
         website: row.website || '',
         long_description: row.long_description || '',
+        landing_path: row.landing_path || '',
         enabled,
         deployed,
         pending: hasPendingChange,

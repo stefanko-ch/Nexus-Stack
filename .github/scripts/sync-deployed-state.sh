@@ -63,7 +63,8 @@ ALTER TABLE services ADD COLUMN long_description TEXT DEFAULT '';"
 for COL_SQL in \
   "ALTER TABLE services ADD COLUMN category TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN website TEXT DEFAULT ''" \
-  "ALTER TABLE services ADD COLUMN long_description TEXT DEFAULT ''"; do
+  "ALTER TABLE services ADD COLUMN long_description TEXT DEFAULT ''" \
+  "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''"; do
   set +e
   npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>/dev/null
   set -e
@@ -73,7 +74,7 @@ echo "  ✅ Schema migrations complete (new columns added or already exist)"
 # Step 1: Initialize/Update services from services.yaml
 if [ -f "services.yaml" ]; then
   echo "  Syncing services from services.yaml..."
-  
+
   # Parse services.yaml using Python yaml library and generate INSERT/UPDATE statements
   python3 << 'PYEOF'
 import yaml
@@ -96,24 +97,24 @@ def validate_service_name(name):
 def validate_services_yaml(data):
     """Validate services.yaml structure and required fields."""
     errors = []
-    
+
     if not data:
         errors.append("services.yaml is empty")
         return errors
-    
+
     if 'services' not in data:
         errors.append("Missing 'services' key in services.yaml")
         return errors
-    
+
     services = data['services']
     if not isinstance(services, dict):
         errors.append("'services' must be a dictionary/map")
         return errors
-    
+
     if len(services) == 0:
         errors.append("No services defined in services.yaml")
         return errors
-    
+
     # Required fields for each service
     # Note: subdomain is not required for internal_only services
     required_fields = ['port', 'image']
@@ -137,13 +138,13 @@ def validate_services_yaml(data):
         is_internal_only = config.get('internal_only', False)
         if not is_internal_only and 'subdomain' not in config:
             errors.append(f"Service '{name}': missing required field 'subdomain' (required for non-internal services)")
-        
+
         # Validate field types and values
         if 'port' in config:
             port = config['port']
             if not isinstance(port, int) or port < 1 or port > 65535:
                 errors.append(f"Service '{name}': port must be an integer between 1 and 65535, got {port}")
-    
+
     return errors
 
 try:
@@ -177,9 +178,9 @@ for name, config in services.items():
         invalid_services.append(name)
         print(f"  ⚠️ Invalid service name '{name}' - skipping (only lowercase letters, numbers, hyphens, underscores allowed)", file=sys.stderr)
         continue
-    
+
     service_names.append(name)
-    
+
     subdomain = config.get('subdomain', '')
     port = config.get('port', 0)
     public = 1 if config.get('public', False) else 0
@@ -189,12 +190,19 @@ for name, config in services.items():
     category = config.get('category', '')
     website = config.get('website', '')
     long_description = config.get('long_description', '')
+    landing_path = config.get('landing_path', '')
 
     # Escape single quotes in text fields for SQL
     description = description.replace("'", "''")
     category = category.replace("'", "''")
     website = website.replace("'", "''")
     long_description = long_description.replace("'", "''")
+    landing_path = landing_path.replace("'", "''")
+
+    # Validate landing_path: must start with '/' if non-empty, prevent injection-via-host
+    if landing_path and not landing_path.startswith('/'):
+        print(f"  ⚠️ Service '{name}': landing_path must start with '/' (got {landing_path!r}), skipping field", file=sys.stderr)
+        landing_path = ''
 
     # Validate and escape subdomain (same rules as service name)
     if subdomain and not re.match(r'^[a-z0-9_-]+$', subdomain):
@@ -207,12 +215,13 @@ for name, config in services.items():
 
     # INSERT OR IGNORE - only creates if not exists (preserves enabled state if already exists)
     # New services: core services enabled, others disabled
-    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', '{category}', '{website}', '{long_description}', datetime('now'));"
+    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', '{category}', '{website}', '{long_description}', '{landing_path}', datetime('now'));"
     insert_statements.append(insert_sql)
 
     # UPDATE - sync metadata for existing services (preserve enabled state from D1)
-    # This ensures subdomain, port, description, core, public, category, website, long_description are always in sync with yaml
-    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', category = '{category}', website = '{website}', long_description = '{long_description}', updated_at = datetime('now') WHERE name = '{name}';"
+    # This ensures subdomain, port, description, core, public, category, website,
+    # long_description, landing_path are always in sync with yaml
+    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', category = '{category}', website = '{website}', long_description = '{long_description}', landing_path = '{landing_path}', updated_at = datetime('now') WHERE name = '{name}';"
     update_statements.append(update_sql)
 
 # Write to temp files
@@ -238,21 +247,21 @@ PYEOF
   if [ -f /tmp/init_services.sql ] && [ -s /tmp/init_services.sql ]; then
     INSERT_COUNT=$(wc -l < /tmp/init_services.sql | tr -d ' ')
     echo "  Executing $INSERT_COUNT INSERT statements in batch..."
-    
+
     # Show which services will be inserted
     echo "  Services to insert:"
     while IFS= read -r sql; do
       SERVICE_NAME=$(echo "$sql" | sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p" | head -1)
       echo "    - $SERVICE_NAME"
     done < /tmp/init_services.sql
-    
+
     # Execute ALL INSERTs in a single batch call (avoids rate limits)
     set +e
     WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
       --remote --file /tmp/init_services.sql 2>&1)
     WRANGLER_EXIT=$?
     set -e
-    
+
     if [ $WRANGLER_EXIT -eq 0 ]; then
       echo "  ✅ Batch INSERT completed ($INSERT_COUNT services)"
     else
@@ -267,14 +276,14 @@ PYEOF
   if [ -f /tmp/update_services.sql ] && [ -s /tmp/update_services.sql ]; then
     UPDATE_COUNT=$(wc -l < /tmp/update_services.sql | tr -d ' ')
     echo "  Executing $UPDATE_COUNT UPDATE statements in batch..."
-    
+
     # Execute ALL UPDATEs in a single batch call (avoids rate limits)
     set +e
     WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
       --remote --file /tmp/update_services.sql 2>&1)
     WRANGLER_EXIT=$?
     set -e
-    
+
     if [ $WRANGLER_EXIT -eq 0 ]; then
       echo "  ✅ Batch UPDATE completed ($UPDATE_COUNT services)"
     else
