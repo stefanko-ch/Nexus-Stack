@@ -52,7 +52,7 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     // Optional per-service landing path (e.g. /docs/ for Chroma's Swagger UI).
     // Set via `landing_path:` in services.yaml; synced into D1 + returned by
     // /api/services. Appended to the base URL when present so 'Open' lands
-    // on the browseable entry point instead of an API-only root.
+    // on the browsable entry point instead of an API-only root.
     if (service && typeof service.landing_path === 'string' && service.landing_path.length > 0) {
       return base + service.landing_path;
     }
