@@ -8,7 +8,7 @@ title: "Chroma"
 
 **Developer-friendly embedding (vector) database for LLM / RAG pipelines**
 
-Chroma is an open-source vector database designed for LLM applications. You store text + embeddings, then run similarity queries to retrieve the top-k most relevant chunks for a prompt — the workhorse store behind most LangChain / LlamaIndex tutorials. Single-process Python server with HTTP REST API, file-based persistence (DuckDB + Parquet under the hood). Features include:
+Chroma is an open-source vector database designed for LLM applications. You store text + embeddings, then run similarity queries to retrieve the top-k most relevant chunks for a prompt — the workhorse store behind most LangChain / LlamaIndex tutorials. Single container, HTTP REST API, file-based persistence on a local volume. Features include:
 
 - Embedded or HTTP-server modes (we run HTTP-server in this stack)
 - File-backed persistence — collections survive container restarts
@@ -26,14 +26,15 @@ Chroma is an open-source vector database designed for LLM applications. You stor
 
 ### Browser entry point
 
-Chroma is an API-only service — Chroma itself has no landing page at `/` and returns 404 there. To make the URL Just Work in a browser, the stack ships a Cloudflare edge redirect (defined in [tofu/stack/main.tf](../../tofu/stack/main.tf) as `cloudflare_ruleset.service_root_redirects`) that 302's `https://chroma.<domain>/` to `/docs/` before the request reaches the tunnel. So:
+Chroma is an API-only service — visiting `https://chroma.<domain>/` returns 404 because there's no landing page. For browser exploration, hit:
 
 ```
-https://chroma.<domain>          →  302  →  https://chroma.<domain>/docs/
-                                            (Chroma's bundled Swagger UI)
+https://chroma.<domain>/docs/
 ```
 
-Cloudflare Access still gates the request first; once you're authenticated, the Swagger UI loads with every endpoint listed and an interactive "Try it out" button per route. Direct API calls (`/api/v2/...`) bypass the redirect and work as normal.
+That's Chroma's bundled Swagger UI with every endpoint listed and an interactive "Try it out" button per route. Authentication still goes through Cloudflare Access first; once you're in, the Swagger UI loads.
+
+(A previous PR experimented with auto-redirecting `/` → `/docs/` via a Cloudflare `cloudflare_ruleset` resource, but the standard Nexus-Stack CF API token doesn't include the "Edit zone WAF / Page Rules" scope rulesets require, so the apply would fail with `Authentication error (10000)`. Asking every fork operator to upgrade their token for one UX nicety was too much friction; the redirect was dropped and this manual `/docs/` instruction stands. If you operate a single fork and want the auto-redirect, add a Bulk Redirect or Single Redirect rule manually in the Cloudflare dashboard under your zone's **Rules → Redirect Rules**.)
 
 ### Usage
 

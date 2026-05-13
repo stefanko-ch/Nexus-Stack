@@ -781,39 +781,3 @@ resource "cloudflare_zero_trust_access_policy" "services_email" {
     email = local.allowed_emails
   }
 }
-
-# ---------------------------------------------------------------------------
-# Per-service root-path redirects (Cloudflare Dynamic Redirect Ruleset)
-# ---------------------------------------------------------------------------
-# Some stacks have no landing page at `/` (API-only services). Without a
-# redirect, opening the stack URL in a browser returns 404 from the upstream,
-# which looks like a deployment problem. The Cloudflare edge handles the
-# redirect before the request ever reaches the tunnel/container.
-#
-# Currently only Chroma needs this — its Swagger UI is at `/docs/`, root is
-# 404. If a second stack later needs the same treatment, consider generalising
-# this into a services.yaml-driven `landing_path` mechanism (see follow-up
-# enhancement note in #577).
-resource "cloudflare_ruleset" "service_root_redirects" {
-  zone_id     = var.cloudflare_zone_id
-  name        = "${local.resource_prefix}-service-root-redirects"
-  description = "Redirect API-only stack roots to their browseable doc/playground path"
-  kind        = "zone"
-  phase       = "http_request_dynamic_redirect"
-
-  rules {
-    action      = "redirect"
-    description = "Redirect chroma${var.subdomain_separator}${var.domain}/ → /docs/ (Chroma is API-only, Swagger UI lives at /docs/)"
-    enabled     = true
-    expression  = "(http.host eq \"chroma${var.subdomain_separator}${var.domain}\" and http.request.uri.path eq \"/\")"
-    action_parameters {
-      from_value {
-        status_code           = 302
-        preserve_query_string = true
-        target_url {
-          value = "https://chroma${var.subdomain_separator}${var.domain}/docs/"
-        }
-      }
-    }
-  }
-}
