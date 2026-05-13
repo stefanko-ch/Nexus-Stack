@@ -11,8 +11,16 @@
 # - Protected by Cloudflare Access (email OTP authentication)
 # - HTTPS only via Cloudflare Tunnel
 # - No authentication required at application level
-# - API keys for LLM providers are entered in the browser and stored
-#   client-side only — they never touch the server.
+# - LLM provider API keys (OpenAI / Anthropic / etc.) are entered in
+#   the browser and persisted only in the browser's LocalStorage. The
+#   Big-AGI container does NOT have a database, env file, or any other
+#   on-disk store for these keys. However: Big-AGI is a Next.js app
+#   and uses server-side API routes to proxy LLM calls (browsers can't
+#   call OpenAI / Anthropic directly because of CORS), so the key is
+#   POSTed from the browser to the container in each request body and
+#   then forwarded from the container to the upstream provider. The
+#   container does not log or persist the key — it's in memory only
+#   for the duration of the request — but it is in the request path.
 # =============================================================================
 
 services:

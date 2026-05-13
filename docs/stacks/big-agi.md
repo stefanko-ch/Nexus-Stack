@@ -32,4 +32,14 @@ Big-AGI is a browser-based UI for interacting with multiple large language model
 
 ### Note on API keys
 
-API keys for upstream LLM providers are stored **in the browser**, not on the server. Big-AGI never sees or persists them — each request from the browser to OpenAI / Anthropic / etc. is direct (proxied only by Cloudflare Tunnel for transport). This means the keys are gone if the browser's storage is cleared, but it also means there's no server-side secret to manage or leak.
+API keys for upstream LLM providers are entered in the browser UI and **persisted in the browser's LocalStorage only** — the Big-AGI container has no database, no env-var injection, and no on-disk store for these keys. So if you clear browser data, the keys are gone; there's no server-side secret to rotate or leak.
+
+**But — and this is the important nuance** — Big-AGI is a Next.js app, and browsers can't call OpenAI / Anthropic / etc. directly because of CORS. So when you send a message, the actual request flow is:
+
+1. Your browser POSTs the prompt **and** the API key to a server-side route on the Big-AGI container (e.g. `/api/llms/...`).
+2. The container's Next.js handler reads the key from the request body and uses it to call the upstream provider.
+3. The provider's response streams back through the container to your browser.
+
+Net consequence: the key **is** in the container's request path on every message. The container doesn't log it or persist it (it's in memory for the lifetime of one request), but anyone with shell access to the container during a request — or who could MITM container ↔ upstream-provider traffic — could observe it. Cloudflare Tunnel only protects the **browser ↔ container** segment, not the container ↔ OpenAI segment.
+
+For a classroom or self-hosted setup, this is usually acceptable — you're the only operator with shell access. If your threat model includes the operator being adversarial (e.g. multi-tenant Big-AGI for untrusted users), this stack is not the right choice.
