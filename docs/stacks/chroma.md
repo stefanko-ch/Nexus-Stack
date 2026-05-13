@@ -20,7 +20,7 @@ Chroma is an open-source vector database designed for LLM applications. You stor
 | Default Port | `8099` (mapped to internal 8000) |
 | Suggested Subdomain | `chroma` |
 | Public Access | No (protected by Cloudflare Access) |
-| Persistence | Local Docker volume `chroma_data` (see Persistence section below) |
+| Persistence | Local Docker volume (compose key `chroma_data`; see Persistence section for the project-prefixed on-disk name) |
 | Website | [trychroma.com](https://www.trychroma.com) |
 | Source | [GitHub](https://github.com/chroma-core/chroma) |
 
@@ -41,16 +41,36 @@ collection.add(
 print(collection.query(query_texts=["Where does Nexus-Stack run?"], n_results=1))
 ```
 
-Or REST directly (curl, Postman, Hoppscotch):
+Or REST directly. Two paths, depending on where the client runs:
+
+**From inside the Docker network** (e.g. a code-server terminal, a Kestra task, or another container) — no auth, just hit the internal host:
 
 ```bash
-curl https://chroma.<domain>/api/v2/heartbeat
+curl http://chroma:8000/api/v2/heartbeat
 # → {"nanosecond heartbeat": 1715583600123456789}
 ```
 
+**From outside the stack** (your laptop, an external CI job) — the request goes through Cloudflare Tunnel + Cloudflare Access. Browser users get the email-OTP login; programmatic clients need a service token. Generate one in your Zero Trust dashboard (**Access → Service Auth → Service Tokens**), bind it to the Chroma Access app, then:
+
+```bash
+curl https://chroma.<domain>/api/v2/heartbeat \
+  --header "CF-Access-Client-Id: <token-id>.access" \
+  --header "CF-Access-Client-Secret: <token-secret>"
+```
+
+A bare `curl https://chroma.<domain>/...` returns `302` to the Access login flow — that's expected, not a Chroma error.
+
 ### Persistence
 
-Data is stored in the Docker volume `chroma_data` mounted at `/chroma/chroma`. It **survives**:
+Data is stored in a Docker named volume mounted at `/chroma/chroma`. The compose-file volume key is `chroma_data`, but Docker Compose prefixes it with the project name when it actually creates the volume on disk — so `docker volume ls` will show it as something like **`chroma_chroma_data`** (compose-file dir = project name by default), not as the bare `chroma_data`. When looking for the data directory or backing it up directly, use:
+
+```bash
+docker volume ls | grep chroma          # find the exact project-prefixed name
+docker volume inspect <name>            # see the host path under .[].Mountpoint
+                                        # typically /var/lib/docker/volumes/<name>/_data
+```
+
+It **survives**:
 - Container restarts (`docker compose restart`)
 - Spin-up cycles where the Hetzner server isn't recreated
 - `docker compose down` / `up` (volumes are not removed by default)
@@ -59,7 +79,7 @@ It does **NOT survive**:
 - `gh workflow run teardown.yml` — the Hetzner server is destroyed and the volume goes with it
 - `gh workflow run destroy-all.yml` — same, plus the Cloudflare side is wiped too
 
-Cross-teardown persistence to R2 is **opt-in per stack** in [src/nexus_deploy/s3_restore.py](../../src/nexus_deploy/s3_restore.py) (the hard-coded `rsync_targets` tuple, currently only `gitea-*` and `dify-*`). Chroma is intentionally not in that list — for workshop / classroom use, rebuilding embeddings per session is part of the demo. If you operate Chroma as a long-running RAG store and want cross-teardown durability, add it explicitly there in a deliberate code-change PR.
+Cross-teardown persistence to R2 is **opt-in per stack** in [src/nexus_deploy/s3_restore.py](../../src/nexus_deploy/s3_restore.py) (the hard-coded `rsync_targets` tuple, currently only `gitea-*` and `dify-*`). Chroma is intentionally not in that list — for workshop / classroom use, rebuilding embeddings per session is part of the demo. If you operate Chroma as a long-running RAG store and want cross-teardown durability, register the on-disk volume path (e.g. `/var/lib/docker/volumes/chroma_chroma_data/_data` — adjust the project prefix to match your local setup) explicitly there in a deliberate code-change PR. A cleaner alternative is to first switch this stack to a bind-mount under `/mnt/nexus-data/chroma/` and register that path — bind-mount paths are stable across hostnames whereas named-volume paths embed the Compose project name.
 
 ### Authentication
 
