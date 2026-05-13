@@ -26,13 +26,14 @@ Chroma is an open-source vector database designed for LLM applications. You stor
 
 ### Browser entry point
 
-Chroma is an API-only service — visiting `https://chroma.<domain>/` returns 404 because there's no landing page. For browser exploration, hit:
+Chroma is an API-only service — Chroma itself has no landing page at `/` and returns 404 there. To make the URL Just Work in a browser, the stack ships a Cloudflare edge redirect (defined in [tofu/stack/main.tf](../../tofu/stack/main.tf) as `cloudflare_ruleset.service_root_redirects`) that 302's `https://chroma.<domain>/` to `/docs/` before the request reaches the tunnel. So:
 
 ```
-https://chroma.<domain>/docs/
+https://chroma.<domain>          →  302  →  https://chroma.<domain>/docs/
+                                            (Chroma's bundled Swagger UI)
 ```
 
-That's Chroma's bundled Swagger UI with every endpoint listed and an interactive "Try it out" button per route. Authentication still goes through Cloudflare Access first; once you're in, the Swagger UI loads.
+Cloudflare Access still gates the request first; once you're authenticated, the Swagger UI loads with every endpoint listed and an interactive "Try it out" button per route. Direct API calls (`/api/v2/...`) bypass the redirect and work as normal.
 
 ### Usage
 

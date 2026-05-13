@@ -512,27 +512,27 @@ resource "hcloud_server" "main" {
   user_data = <<-EOT
     #!/bin/bash
     set -e
-    
+
     # Update system
     apt-get update && apt-get upgrade -y
-    
+
     # Install Docker
     curl -fsSL https://get.docker.com | sh
     command -v docker >/dev/null 2>&1 || { echo "FATAL: Docker installation failed" >&2; exit 1; }
 
     # Install security tools
     apt-get install -y fail2ban unattended-upgrades jq
-    
+
     # Configure automatic security updates
     cat > /etc/apt/apt.conf.d/20auto-upgrades << 'EOF'
     APT::Periodic::Update-Package-Lists "1";
     APT::Periodic::Unattended-Upgrade "1";
     APT::Periodic::AutocleanInterval "7";
     EOF
-    
+
     systemctl enable fail2ban unattended-upgrades
     systemctl start fail2ban unattended-upgrades
-    
+
     # Detect architecture and install cloudflared
     ARCH=$(dpkg --print-architecture)
     if [ "$ARCH" = "arm64" ]; then
@@ -547,10 +547,10 @@ resource "hcloud_server" "main" {
 
     # Create app directories
     mkdir -p /opt/docker-server/stacks
-    
+
     # Create Docker network
     docker network create app-network || true
-    
+
     # Signal completion
     touch /opt/docker-server/.setup-complete
   EOT
@@ -779,5 +779,41 @@ resource "cloudflare_zero_trust_access_policy" "services_email" {
 
   include {
     email = local.allowed_emails
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Per-service root-path redirects (Cloudflare Dynamic Redirect Ruleset)
+# ---------------------------------------------------------------------------
+# Some stacks have no landing page at `/` (API-only services). Without a
+# redirect, opening the stack URL in a browser returns 404 from the upstream,
+# which looks like a deployment problem. The Cloudflare edge handles the
+# redirect before the request ever reaches the tunnel/container.
+#
+# Currently only Chroma needs this — its Swagger UI is at `/docs/`, root is
+# 404. If a second stack later needs the same treatment, consider generalising
+# this into a services.yaml-driven `landing_path` mechanism (see follow-up
+# enhancement note in #577).
+resource "cloudflare_ruleset" "service_root_redirects" {
+  zone_id     = var.cloudflare_zone_id
+  name        = "${local.resource_prefix}-service-root-redirects"
+  description = "Redirect API-only stack roots to their browseable doc/playground path"
+  kind        = "zone"
+  phase       = "http_request_dynamic_redirect"
+
+  rules {
+    action      = "redirect"
+    description = "Redirect chroma${var.subdomain_separator}${var.domain}/ → /docs/ (Chroma is API-only, Swagger UI lives at /docs/)"
+    enabled     = true
+    expression  = "(http.host eq \"chroma${var.subdomain_separator}${var.domain}\" and http.request.uri.path eq \"/\")"
+    action_parameters {
+      from_value {
+        status_code           = 302
+        preserve_query_string = true
+        target_url {
+          value = "https://chroma${var.subdomain_separator}${var.domain}/docs/"
+        }
+      }
+    }
   }
 }
