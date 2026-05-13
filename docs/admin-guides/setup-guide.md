@@ -93,6 +93,7 @@ This guide walks you through the complete setup of Nexus Stack.
    | User | API Tokens | Edit |
    | Zone | DNS | Edit |
    | Zone | Zone | Read |
+   | Zone | Zone WAF | Edit |
 
    > **Note:**
    > - "Workers R2 Storage" is required for the remote state backend
@@ -103,6 +104,9 @@ This guide walks you through the complete setup of Nexus Stack.
    > - "Access: Organizations" is required for revoking Zero Trust sessions during teardown
    > - "Access: Service Tokens" enables headless SSH authentication for CI/CD
    > - "User API Tokens" is required for the init script to create scoped R2 credentials
+   > - "Zone WAF" is required for the Cloudflare Rules Engine — used by per-stack redirect rules (e.g. Chroma's `/` → `/docs/` Swagger redirect). Without this scope, `tofu apply` fails with `Authentication error (10000)` on `cloudflare_ruleset` resources.
+
+   > **Existing forks (already deployed before this permission was added):** open your `nexus-stack` token in the Cloudflare dashboard (My Profile → API Tokens → Edit), add the "Zone → Zone WAF: Edit" row, and save. The token VALUE doesn't change — all your existing secrets and GitHub Actions configurations keep working without rotation.
 
 6. **Account Resources:** Include → All accounts (or specific)
 7. **Zone Resources:** Include → Specific Zone → Your domain

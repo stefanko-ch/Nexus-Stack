@@ -26,15 +26,16 @@ Chroma is an open-source vector database designed for LLM applications. You stor
 
 ### Browser entry point
 
-Chroma is an API-only service — visiting `https://chroma.<domain>/` returns 404 because there's no landing page. For browser exploration, hit:
+Chroma is an API-only service — Chroma itself has no landing page at `/` and returns 404 there. To make the URL Just Work in a browser, the stack ships a Cloudflare edge redirect (defined in [tofu/stack/main.tf](../../tofu/stack/main.tf) as `cloudflare_ruleset.service_root_redirects`) that 302's `https://chroma.<domain>/` to `/docs/` before the request reaches the tunnel. So:
 
 ```
-https://chroma.<domain>/docs/
+https://chroma.<domain>          →  302  →  https://chroma.<domain>/docs/
+                                            (Chroma's bundled Swagger UI)
 ```
 
-That's Chroma's bundled Swagger UI with every endpoint listed and an interactive "Try it out" button per route. Authentication still goes through Cloudflare Access first; once you're in, the Swagger UI loads.
+Cloudflare Access still gates the request first; once you're authenticated, the Swagger UI loads with every endpoint listed and an interactive "Try it out" button per route. Direct API calls (`/api/v2/...`) bypass the redirect and work as normal.
 
-(A previous PR experimented with auto-redirecting `/` → `/docs/` via a Cloudflare `cloudflare_ruleset` resource, but the standard Nexus-Stack CF API token doesn't include the "Edit zone WAF / Page Rules" scope rulesets require, so the apply would fail with `Authentication error (10000)`. Asking every fork operator to upgrade their token for one UX nicety was too much friction; the redirect was dropped and this manual `/docs/` instruction stands. If you operate a single fork and want the auto-redirect, add a Bulk Redirect or Single Redirect rule manually in the Cloudflare dashboard under your zone's **Rules → Redirect Rules**.)
+**Token-scope note:** the redirect ruleset writes via Cloudflare's Rules Engine API which needs the **"Zone → Zone WAF: Edit"** permission on the Nexus-Stack CF API token. Existing forks that were set up before this permission was documented will see `Authentication error (10000)` on the first `tofu apply` and need to update the token (see [setup-guide.md "Create API Token"](../admin-guides/setup-guide.md#create-api-token) for the full permission list). The token value itself doesn't change when you edit permissions, so no secret-rotation churn — just one edit-save in the Cloudflare dashboard.
 
 ### Usage
 
