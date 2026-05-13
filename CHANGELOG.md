@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.61.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.60.0...v0.61.0) (2026-05-13)
+
+
+### 🚀 Features
+
+* **stacks:** Add Chroma embedding (vector) database ([#577](https://github.com/stefanko-ch/Nexus-Stack/issues/577)) ([9b678a9](https://github.com/stefanko-ch/Nexus-Stack/commit/9b678a9c103180c9d32db2070a38263ea8be415d)), closes [#378](https://github.com/stefanko-ch/Nexus-Stack/issues/378)
+
+
+### ♻️ Refactoring
+
+* **control-plane:** Consolidate stack URL builders via window.NS ([#579](https://github.com/stefanko-ch/Nexus-Stack/issues/579)) ([76e6c6f](https://github.com/stefanko-ch/Nexus-Stack/commit/76e6c6fb5ba4133882b0418cc715ffedb494e950))
+
 ## [0.60.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.59.0...v0.60.0) (2026-05-13)
 
 
