@@ -3,7 +3,12 @@
 # =============================================================================
 # Developer-friendly vector database for LLM / RAG pipelines.
 # Stores text + embeddings, returns top-k similarity matches for retrieval.
-# Access via: https://chroma.your-domain.com
+# Browser entry: https://chroma.your-domain.com/docs/   (Swagger UI)
+#   Chroma is API-only — root '/' returns 404. The Control Plane's
+#   'Open' button uses the services.yaml `landing_path: /docs/` field
+#   to link directly at the Swagger UI. Direct API calls
+#   (`/api/v2/...`, the Python client `chromadb.HttpClient(...)`)
+#   bypass landing_path and work as normal.
 # Default port: 8099 (internal 8000)
 #
 # SECURITY:

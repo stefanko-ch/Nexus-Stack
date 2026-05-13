@@ -190,7 +190,18 @@ for name, config in services.items():
     category = config.get('category', '')
     website = config.get('website', '')
     long_description = config.get('long_description', '')
-    landing_path = config.get('landing_path', '')
+    landing_path_raw = config.get('landing_path', '')
+
+    # Coerce landing_path to string before calling string methods — operator
+    # may have written `landing_path: null` (YAML's None) or a non-string in
+    # services.yaml. Without this guard the .replace() call below crashes
+    # the whole D1 sync.
+    if not isinstance(landing_path_raw, str):
+        if landing_path_raw is not None:
+            print(f"  ⚠️ Service '{name}': landing_path must be a string (got {type(landing_path_raw).__name__} {landing_path_raw!r}), skipping field", file=sys.stderr)
+        landing_path = ''
+    else:
+        landing_path = landing_path_raw
 
     # Escape single quotes in text fields for SQL
     description = description.replace("'", "''")
