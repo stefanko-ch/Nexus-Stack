@@ -16,6 +16,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
 | code-server | `codercom/code-server` | `latest` | Latest ² |
+| Crawl4AI | `unclecode/crawl4ai` | `0.8.6` | Exact ¹ |
 | Dagster | dagster (custom build) | `1.12.21` | Exact ³ |
 | Debezium | `quay.io/debezium/connect` | `3.5.0` | Exact ¹ |
 | Dinky | `dinkydocker/dinky-standalone-server` | `1.2.5-flink1.20` | Exact ¹ |
@@ -127,6 +128,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |
 | **code-server** | VS Code in the browser | [code-server.md](code-server.md) |
+| **Crawl4AI** | LLM-friendly web crawler for RAG | [crawl4ai.md](crawl4ai.md) |
 | **Dagster** | Python data orchestration | [dagster.md](dagster.md) |
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |

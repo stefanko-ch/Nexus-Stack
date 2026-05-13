@@ -125,6 +125,16 @@ services:
     long_description: "Code Server runs VS Code on a remote server, accessible through your browser. Full VS Code experience including extensions, terminal, Git integration, and IntelliSense. Access your development environment from any device with a consistent setup."
     image: "codercom/code-server:latest"
 
+  crawl4ai:
+    subdomain: "crawl4ai"
+    port: 11235
+    public: false
+    category: "ai-ml"
+    website: "https://github.com/unclecode/crawl4ai"
+    description: "LLM-friendly web crawler that returns clean Markdown for RAG pipelines."
+    long_description: "Crawl4AI is an open-source web crawler optimised for LLM workflows. It scrapes pages and returns clean Markdown, JSON, or structured extracts ready for RAG ingestion or LLM prompts. Exposes a REST API and an interactive Playground UI. Pairs naturally with Dify, Big-AGI, or Kestra flows that need to ingest external content. Stateless — no database, in-memory cache only."
+    image: "unclecode/crawl4ai:0.8.6"
+
   dagster:
     subdomain: "dagster"
     port: 3004

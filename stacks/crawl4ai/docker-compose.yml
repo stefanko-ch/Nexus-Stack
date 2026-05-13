@@ -1,0 +1,53 @@
+# =============================================================================
+# Crawl4AI - LLM-friendly Web Crawler
+# =============================================================================
+# Stateless REST API + Playground UI for scraping pages into clean Markdown,
+# JSON, or structured extracts for LLM / RAG pipelines.
+# Access via: https://crawl4ai.your-domain.com
+# Default port: 11235
+#
+# SECURITY:
+# - Protected by Cloudflare Access (email OTP authentication)
+# - HTTPS only via Cloudflare Tunnel
+# - No authentication required at application level
+# - CRAWL4AI_HOOKS_ENABLED=false: the upstream "hooks" feature lets API
+#   callers execute arbitrary Python from request bodies. Cloudflare
+#   Access ensures only authenticated users reach the API, but it does
+#   NOT constrain what those authenticated users can do — so the safer
+#   default for a class environment is to disable hooks. Operators who
+#   explicitly want hooks can flip this to "true".
+#
+# OPERATIONAL NOTES:
+# - shm_size: 1g — the embedded Playwright browser pool needs more
+#   than Docker's default 64 MB shared memory or it crashes on the
+#   first page render. Upstream's docker run recommendation.
+# - Memory limit 2g — idle ~600 MB, ~1.2 GB while rendering a complex
+#   JS-heavy SPA. 2 GB gives comfortable headroom.
+# =============================================================================
+
+services:
+  crawl4ai:
+    image: ${IMAGE_CRAWL4AI:-unclecode/crawl4ai:0.8.6}
+    container_name: crawl4ai
+    restart: unless-stopped
+    ports:
+      - "11235:11235"
+    shm_size: 1g
+    environment:
+      CRAWL4AI_HOOKS_ENABLED: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:11235/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
