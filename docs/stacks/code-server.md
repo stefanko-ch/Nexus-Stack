@@ -43,7 +43,7 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 | `dbt-postgres` | latest from PyPI | Adapter for the Nexus-Stack postgres stack |
 | `dbt-duckdb` | latest from PyPI | Adapter for local DuckDB targets |
 | `dbt-clickhouse` | latest from PyPI | Adapter for the Nexus-Stack clickhouse stack |
-| `dbt-spark` | latest from PyPI | Adapter for the Nexus-Stack spark stack (Thrift / Session / Connect modes) |
+| `dbt-spark` | latest from PyPI | Adapter for **external** Spark clusters (Thrift / ODBC / session modes). See "Spark caveat" below — not pre-wired to the Nexus-Stack spark stack. |
 | `dbt-trino` | latest from PyPI | Adapter for the Nexus-Stack trino stack |
 | `dbt-databricks` | latest from PyPI | Adapter for Databricks (uses the Nexus-Stack KV/secret-sync token plumbing) |
 | `jupyterlab` + `jupysql` | latest | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
@@ -57,6 +57,8 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 |---|---|---|
 | `duckdb` CLI | `/usr/local/bin/duckdb` (latest from GitHub releases) | Interactive SQL shell — `duckdb my.db` works from any directory regardless of venv |
 | `psql` | `postgresql-client` apt package from the base image's Debian suite | PostgreSQL CLI for testing dbt-postgres connections + ad-hoc queries |
+
+**Spark caveat:** `dbt-spark` is installed but the Nexus-Stack `spark` stack is **not** an out-of-the-box dbt-spark target. The Nexus-Stack Spark deployment exposes a Spark master + Spark Connect endpoint (`sc://spark-connect:15002`, consumed by PySpark in Marimo/Jupyter) — but dbt-spark does not support the Spark Connect protocol. There is also no Hive Thrift Server in the spark stack, and this code-server image deliberately omits local PySpark + JDK, so `method: session` needs extra setup. The adapter is there for operators who connect dbt to an **external** Spark cluster with a Thrift / ODBC endpoint they manage themselves. For SQL workloads against in-stack data, prefer `dbt-trino` (federated) or `dbt-databricks` (managed).
 
 **Why `/opt/` instead of `~`?** code-server's `docker-compose.yml` mounts `code-server-data:/home/coder` as a persistent volume. Anything the image puts at `/home/coder/<X>` is **masked** by that volume on every container start, so a rebuilt image's freshly-installed venv would never reach an existing volume — students would be stuck on whatever version was installed when their volume was first created. Putting the venv at `/opt/nexus-venv` keeps it outside the volume mount: every image rebuild guarantees the latest venv reaches every container, fresh or not. The auto-activation is appended to `/etc/bash.bashrc` (system-wide, also image-baked) for the same reason — `/home/coder/.bashrc` would be masked.
 
@@ -82,4 +84,4 @@ Not pre-installed (intentionally):
 - `dbt-bigquery` / `dbt-snowflake` / `dbt-redshift` — cloud-only, no Nexus-Stack equivalent.
 - `dbt-fabric` / `dbt-sqlserver` — Azure / Microsoft Stack, out of scope for a self-hosted classroom.
 - `dbt-athena` — AWS-specific.
-- `pyspark` — large (~300 MB); not needed for dbt-spark (which uses Thrift/Session). If students write Spark code *outside* dbt, add `pyspark` to a per-project venv. (Marimo + Jupyter stacks already provide Spark Connect plumbing for their own notebooks.)
+- `pyspark` + JDK — large (~300 MB combined); deliberately not in this image. dbt-spark's `session` mode needs them; if you want dbt-spark against a local-process Spark, add to a per-project venv (and apt-install a JDK). For PySpark notebook workflows, the Marimo + Jupyter stacks already provide Spark Connect plumbing (sc://spark-connect:15002) and are the recommended path.

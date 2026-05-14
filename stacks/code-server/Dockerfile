@@ -67,8 +67,14 @@ RUN ARCH="$(uname -m)" && \
 # - dbt-postgres: adapter for the Nexus-Stack postgres stack
 # - dbt-duckdb: adapter for local-file DuckDB targets
 # - dbt-clickhouse: adapter for the Nexus-Stack clickhouse stack (Altinity)
-# - dbt-spark: adapter for the Nexus-Stack spark stack (Thrift/Session
-#   modes; works against Spark Connect at sc://spark-connect:15002)
+# - dbt-spark: installed for users who connect to an EXTERNAL Spark
+#   cluster (Thrift / ODBC / session modes). NOT pre-wired to the
+#   Nexus-Stack spark stack: that stack exposes Spark Connect
+#   (sc://spark-connect:15002, used by PySpark/Marimo), but dbt-spark
+#   does not support Spark Connect. The stack also doesn't run a Hive
+#   Thrift Server, and this image deliberately omits local PySpark/JDK,
+#   so 'session' mode needs extra setup too. For SQL workloads against
+#   in-stack Spark data, prefer dbt-trino or dbt-databricks.
 # - dbt-trino: adapter for the Nexus-Stack trino stack (Starburst)
 # - dbt-databricks: adapter for the Databricks integration (KV/secret-
 #   sync wires the access tokens into the workspace)
