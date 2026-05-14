@@ -2589,11 +2589,22 @@ def _select_capacity(args: list[str]) -> int:
     Preference source priority (first non-empty wins):
 
     1. ``SERVER_PREFERENCES`` env var (passed via spin-up.yml from
-       the ``vars.SERVER_PREFERENCES`` repo variable)
-    2. ``server_preferences = "..."`` line in ``config.tfvars``
+       the ``vars.SERVER_PREFERENCES`` repo variable). Used as-is —
+       the operator-provided list IS the full list, no fallback
+       appended (this is the "expert override" path).
+    2. ``server_preferences = "..."`` line in ``config.tfvars``.
+       Same as #1: used verbatim, no fallback.
     3. Legacy single-pair shorthand: ``server_type = "..."`` +
-       ``server_location = "..."`` lines in ``config.tfvars``
-    4. :data:`hetzner_capacity.DEFAULT_PREFERENCES`
+       ``server_location = "..."`` lines in ``config.tfvars``.
+       The class-config write-path lands here. The operator's pair
+       is used as the FIRST preference, then
+       :data:`hetzner_capacity.DEFAULT_PREFERENCES` is appended as
+       fallback (deduplicated). This way a single sold-out region
+       for the configured type doesn't fail the spin-up; the
+       deploy transparently falls through to the next region or
+       tier.
+    4. :data:`hetzner_capacity.DEFAULT_PREFERENCES` (nothing
+       configured anywhere).
 
     Required env: ``HCLOUD_TOKEN``. Without it the step exits 0 with
     a stderr warning — capacity-selection is opportunistic; a local-
@@ -2673,10 +2684,35 @@ def _select_capacity(args: list[str]) -> int:
     else:
         legacy_pair = _read_single_pair_from_tfvars(text)
         if legacy_pair is not None:
-            preferences = (legacy_pair,)
+            # Class-config shorthand: put the operator's choice FIRST,
+            # then fall through to DEFAULT_PREFERENCES for stock fallback.
+            # Previously this was `preferences = (legacy_pair,)` — a one-
+            # entry tuple with no fallback, so a single sold-out region
+            # for the class-configured type aborted the whole spin-up.
+            # Empirically caught mid-2026-05 when a class of 16 with
+            # cx43:hel1 hit Hetzner's EU peak and every stack failed
+            # with "out of stock" despite cx53/cpx42/cpx52/cpx62 having
+            # ample capacity. The downstream tooling (the Education
+            # admin panel) was working around this by pushing its own
+            # 24-entry SERVER_PREFERENCES list — that workaround is now
+            # redundant and can be retired.
+            default_specs = _hetzner.parse_preferences(
+                ",".join(_hetzner.DEFAULT_PREFERENCES),
+            )
+            seen: set[tuple[str, str]] = {(legacy_pair.server_type, legacy_pair.location)}
+            extended: list[_hetzner.ServerSpec] = [legacy_pair]
+            for spec in default_specs:
+                key = (spec.server_type, spec.location)
+                if key in seen:
+                    continue
+                seen.add(key)
+                extended.append(spec)
+            preferences = tuple(extended)
             sys.stderr.write(
                 f"select-capacity: no server_preferences set; using legacy "
-                f"single-pair shorthand from config.tfvars: {legacy_pair}\n",
+                f"single-pair shorthand from config.tfvars ({legacy_pair}) "
+                f"as primary, then DEFAULT_PREFERENCES as fallback "
+                f"({len(preferences)} entries total)\n",
             )
         else:
             preferences = _hetzner.parse_preferences(",".join(_hetzner.DEFAULT_PREFERENCES))
