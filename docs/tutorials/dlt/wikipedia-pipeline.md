@@ -13,15 +13,9 @@ This tutorial builds a complete dlt pipeline from scratch. You'll fetch monthly 
 - [Setup complete](./setup.md) — virtual environment active, dlt installed, Postgres credentials in `.dlt/secrets.toml`
 - `code-server` terminal open, working directory `~/nexus-<your-domain>-gitea/dlt`
 
-## Install psql for verification
+## psql availability
 
-psql is not pre-installed on the code-server container. Install it once per session:
-
-```bash
-sudo apt-get update && sudo apt-get install -y postgresql-client
-```
-
-This is session-only — it won't survive a container restart, but you only need it to inspect results.
+`psql` is **pre-installed** in the code-server image (via the `postgresql-client` apt package — see [docs/stacks/code-server.md](../../stacks/code-server.md#pre-installed-data-tooling)), so you can use it directly without any setup step. Skip if you're on an older image — run `psql --version` first to confirm; if it fails, install with `sudo apt-get update && sudo apt-get install -y postgresql-client` (session-only fallback).
 
 ## The script
 

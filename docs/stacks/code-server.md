@@ -14,7 +14,7 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 - Integrated terminal
 - Git integration
 - Multi-language support
-- **`dbt` (core + postgres + duckdb adapters), DuckDB CLI, JupyterLab, plus `psql` client pre-installed** in the auto-activated venv at `/opt/nexus-venv` (no Postgres SERVER — that's a separate Nexus-Stack stack; see "Pre-installed data tooling" below)
+- **dbt (multi-adapter) + JupyterLab pre-installed** in the auto-activated venv at `/opt/nexus-venv`, with the **`duckdb` CLI and `psql` client available system-wide** (apt/binary, not in the venv). No Postgres SERVER — that's a separate Nexus-Stack stack. See "Pre-installed data tooling" below for the full matrix.
 
 | Setting | Value |
 |---------|-------|
@@ -35,6 +35,8 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 
 The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virtual environment at **`/opt/nexus-venv`** that's auto-activated in every terminal you open. Inspired by [stefanko-ch/dbt_codespace_demo](https://github.com/stefanko-ch/dbt_codespace_demo)'s devcontainer, adapted for Nexus-Stack:
 
+**In the `/opt/nexus-venv` Python venv** (auto-activated in every terminal):
+
 | Tool | Version | Purpose |
 |---|---|---|
 | `dbt-core` | latest from PyPI | Data build tool engine |
@@ -47,9 +49,14 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 | `jupyterlab` + `jupysql` | latest | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
 | `polars` | latest | Fast Rust-backed dataframes |
 | `plotly` | latest | Charting |
-| `duckdb` (Python) | latest | Python bindings (separate from the CLI binary) |
-| `duckdb` CLI | latest from GitHub releases | Interactive SQL shell (`duckdb my.db`) |
-| `psql` | Debian-bookworm pkg | PostgreSQL CLI for testing dbt-postgres connections |
+| `duckdb` (Python) | latest | Python bindings (separate from the CLI binary below) |
+
+**System binaries** (installed via apt / direct download into `/usr/local/bin`, not in the venv):
+
+| Tool | Where | Purpose |
+|---|---|---|
+| `duckdb` CLI | `/usr/local/bin/duckdb` (latest from GitHub releases) | Interactive SQL shell — `duckdb my.db` works from any directory regardless of venv |
+| `psql` | `postgresql-client` apt package from the base image's Debian suite | PostgreSQL CLI for testing dbt-postgres connections + ad-hoc queries |
 
 **Why `/opt/` instead of `~`?** code-server's `docker-compose.yml` mounts `code-server-data:/home/coder` as a persistent volume. Anything the image puts at `/home/coder/<X>` is **masked** by that volume on every container start, so a rebuilt image's freshly-installed venv would never reach an existing volume — students would be stuck on whatever version was installed when their volume was first created. Putting the venv at `/opt/nexus-venv` keeps it outside the volume mount: every image rebuild guarantees the latest venv reaches every container, fresh or not. The auto-activation is appended to `/etc/bash.bashrc` (system-wide, also image-baked) for the same reason — `/home/coder/.bashrc` would be masked.
 
