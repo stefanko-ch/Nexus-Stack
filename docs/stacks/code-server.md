@@ -14,7 +14,7 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 - Integrated terminal
 - Git integration
 - Multi-language support
-- **`dbt` + DuckDB + Postgres + Jupyter pre-installed in `~/.nexus-venv`** (auto-activated in every terminal — see "Pre-installed data tooling" below)
+- **`dbt` (core + postgres + duckdb adapters), DuckDB CLI, Jupyter, plus `psql` client pre-installed** in the auto-activated venv at `~/.nexus-venv` (no Postgres SERVER — that's a separate Nexus-Stack stack; see "Pre-installed data tooling" below)
 
 | Setting | Value |
 |---------|-------|
