@@ -3,7 +3,7 @@ FROM codercom/code-server:latest
 USER root
 
 # System packages:
-# - python3 / python3-venv / python3-pip: required for the nexus-venv (dbt) below
+# - python3 / python3-venv / python3-pip: required for the .nexus-venv (dbt) below
 # - postgresql-client: psql CLI for testing dbt-postgres adapter connections
 #   against the Nexus-Stack postgres stack (no postgres SERVER here — that's
 #   a separate stack)
@@ -48,7 +48,7 @@ RUN uv tool install jupyterlab==4.3.6
 # Add uv tool bin to PATH (covers JupyterLab + future uv-tool installs)
 ENV PATH="/home/coder/.local/bin:${PATH}"
 
-# Create nexus-venv with dbt + notebook tooling pre-installed.
+# Create .nexus-venv with dbt + notebook tooling pre-installed.
 #
 # dbt stack (pinned 1.9.x — matches stefanko-ch/dbt_codespace_demo template):
 # - dbt-core: the dbt engine
@@ -61,11 +61,11 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 # - polars / plotly: fast dataframes + visualisation
 # - duckdb: Python bindings (separate from the CLI binary above)
 #
-# Naming the venv "nexus-venv" (not the demo's ".venv") so students recognise
+# Naming the venv ".nexus-venv" (not the demo's ".venv") so students recognise
 # it as the Nexus-Stack-provided environment, distinct from any per-project
 # .venv they may create in their dbt workspace.
-RUN uv venv /home/coder/nexus-venv && \
-    uv pip install --python /home/coder/nexus-venv/bin/python --no-cache-dir \
+RUN uv venv /home/coder/.nexus-venv && \
+    uv pip install --python /home/coder/.nexus-venv/bin/python --no-cache-dir \
       'dbt-core>=1.9,<1.10' \
       'dbt-postgres>=1.9,<1.10' \
       'dbt-duckdb>=1.9,<1.10' \
@@ -75,13 +75,13 @@ RUN uv venv /home/coder/nexus-venv && \
       plotly \
       duckdb
 
-# Auto-activate nexus-venv in every interactive shell opened inside the
+# Auto-activate .nexus-venv in every interactive shell opened inside the
 # code-server terminal. Students get a ready-to-use `dbt` + `duckdb` prompt
 # without any setup step.
 RUN { \
       echo ''; \
       echo '# Auto-activate Nexus-Stack pre-installed dbt + DuckDB venv'; \
-      echo 'if [ -f /home/coder/nexus-venv/bin/activate ]; then'; \
-      echo '  . /home/coder/nexus-venv/bin/activate'; \
+      echo 'if [ -f /home/coder/.nexus-venv/bin/activate ]; then'; \
+      echo '  . /home/coder/.nexus-venv/bin/activate'; \
       echo 'fi'; \
     } >> /home/coder/.bashrc

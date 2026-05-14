@@ -20,6 +20,11 @@ services:
     restart: unless-stopped
     entrypoint: >
       bash -c "
+        if [ -d /home/coder/nexus-venv ] && [ ! -d /home/coder/.nexus-venv ]; then
+          mv /home/coder/nexus-venv /home/coder/.nexus-venv;
+          sed -i 's|/home/coder/nexus-venv|/home/coder/.nexus-venv|g' /home/coder/.bashrc 2>/dev/null || true;
+          echo '[code-server] Migrated nexus-venv -> .nexus-venv in existing volume';
+        fi;
         if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
           echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > /home/coder/.netrc;
           chmod 600 /home/coder/.netrc;

@@ -630,6 +630,53 @@ def test_render_all_marimo_then_append_gitea_block_succeeds(
     assert "WORKSPACE_BRANCH=main" in content
 
 
+def test_render_all_code_server_creates_env_file_for_gitea_append(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """R-code-server-gitea (#580 follow-up): code-server MUST get a
+    (possibly empty) ``.env`` file from its EnvSpec render — same bug
+    class as the Marimo fix in commit fb586ab. Without it,
+    ``append_gitea_workspace_block`` sees ``not env_path.exists()``
+    and silently skips, leaving code-server with no GITEA_REPO_URL /
+    GITEA_USERNAME / GITEA_PASSWORD / REPO_NAME plumbed through; the
+    compose entrypoint's clone step then never fires and students see
+    only the bare /home/coder/ instead of the workspace fork.
+    """
+    result = render_all_env_files(full_config, full_env, ["code-server"], stacks_dir=tmp_path)
+    code_server_env = tmp_path / "code-server" / ".env"
+    assert code_server_env.exists(), "code-server spec must produce stacks/code-server/.env"
+    code_server_result = next(s for s in result.services if s.service == "code-server")
+    assert code_server_result.status == "rendered"
+
+
+def test_render_all_code_server_then_append_gitea_block_succeeds(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """End-to-end for code-server: render_all_env_files creates the
+    .env, then append_gitea_workspace_block writes the Gitea coords
+    into it. Mirrors the equivalent Marimo test (commit fb586ab) —
+    these two tests together pin the invariant for every entry in
+    _GITEA_APPEND_TARGETS: spec render must create the .env so the
+    Gitea-append helper can populate it."""
+    render_all_env_files(full_config, full_env, ["code-server"], stacks_dir=tmp_path)
+    cfg = GiteaWorkspaceConfig(
+        gitea_repo_url="http://gitea:3000/owner/workspace.git",
+        gitea_username="ops",
+        gitea_password="pw",
+        git_author_name="Operator",
+        git_author_email="ops@example.com",
+        repo_name="workspace",
+    )
+    appended = append_gitea_workspace_block(cfg, ["code-server"], stacks_dir=tmp_path)
+    assert appended == ("code-server",)
+    content = (tmp_path / "code-server" / ".env").read_text()
+    assert "GITEA_REPO_URL=http://gitea:3000/owner/workspace.git" in content
+    assert "GITEA_USERNAME=ops" in content
+    assert "GITEA_PASSWORD=pw" in content
+    assert "REPO_NAME=workspace" in content
+    assert "WORKSPACE_BRANCH=main" in content
+
+
 def test_render_all_prefect_then_append_gitea_block_writes_custom_branch(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:

@@ -834,6 +834,30 @@ def _render_marimo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={})
 
 
+def _render_code_server(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """code-server: same Gitea-append pattern as Marimo (see _render_marimo).
+
+    The render itself emits no env vars — but its presence in _SPECS is
+    required so ``stacks/code-server/.env`` gets created (even if empty).
+    Without that file, :func:`append_gitea_workspace_block` sees
+    ``not env_path.exists()`` and silently skips, leaving code-server
+    with no ``GITEA_REPO_URL`` / ``GITEA_USERNAME`` / ``GITEA_PASSWORD`` /
+    ``REPO_NAME`` — the container's entrypoint then can't write the
+    .netrc + clone the workspace repo into /home/coder/<REPO_NAME>,
+    and students see only the bare home dir in the file tree.
+
+    Same bug class as the Marimo fix in commit fb586ab; the lesson there
+    transfers verbatim — every _GITEA_APPEND_TARGETS entry needs an
+    _SPECS entry, even if the render function returns no vars.
+
+    All other code-server config lives in the docker-compose.yml's
+    entrypoint (clone logic, --auth flags) or in the image (dbt venv,
+    DuckDB CLI). Nothing else to render here.
+    """
+    del c, e  # no derived vars
+    return RenderedEnv(env_vars={})
+
+
 def _render_s3manager(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """s3manager consumes generic ACCESS_KEY_ID / SECRET_ACCESS_KEY /
     REGION / ENDPOINT (not Hetzner-prefixed)."""
@@ -959,6 +983,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("dinky", _is_enabled("dinky"), _render_dinky),
     EnvSpec("jupyter", _is_enabled("jupyter"), _placeholder_jupyter),  # closure-replaced
     EnvSpec("marimo", _is_enabled("marimo"), _render_marimo),
+    EnvSpec("code-server", _is_enabled("code-server"), _render_code_server),
     EnvSpec("s3manager", _is_enabled("s3manager"), _render_s3manager),
     EnvSpec("wikijs", _is_enabled("wikijs"), _render_wikijs),
     EnvSpec("appsmith", _is_enabled("appsmith"), _render_appsmith),
