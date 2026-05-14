@@ -40,6 +40,10 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 | `dbt-core` | latest from PyPI | Data build tool engine |
 | `dbt-postgres` | latest from PyPI | Adapter for the Nexus-Stack postgres stack |
 | `dbt-duckdb` | latest from PyPI | Adapter for local DuckDB targets |
+| `dbt-clickhouse` | latest from PyPI | Adapter for the Nexus-Stack clickhouse stack |
+| `dbt-spark` | latest from PyPI | Adapter for the Nexus-Stack spark stack (Thrift / Session / Connect modes) |
+| `dbt-trino` | latest from PyPI | Adapter for the Nexus-Stack trino stack |
+| `dbt-databricks` | latest from PyPI | Adapter for Databricks (uses the Nexus-Stack KV/secret-sync token plumbing) |
 | `jupyterlab` + `jupysql` | latest | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
 | `polars` | latest | Fast Rust-backed dataframes |
 | `plotly` | latest | Charting |
@@ -67,5 +71,8 @@ D
 If you want a per-project venv (e.g. for additional deps), create your own next to your dbt project — students typically just use the pre-installed `/opt/nexus-venv` for class material.
 
 Not pre-installed (intentionally):
-- `dbt-metabase` — Metabase runs as a separate Nexus-Stack stack; add it to a per-project venv if you need it
-- `dbt-bigquery` / `dbt-snowflake` / other cloud adapters — out of scope for a self-hosted classroom setup
+- `dbt-metabase` — Metabase runs as a separate Nexus-Stack stack and serves dashboards; the `dbt-metabase` package is a *separate* tool that pushes dbt model docs/exposures into Metabase. Add it to a per-project venv if you want that sync.
+- `dbt-bigquery` / `dbt-snowflake` / `dbt-redshift` — cloud-only, no Nexus-Stack equivalent.
+- `dbt-fabric` / `dbt-sqlserver` — Azure / Microsoft Stack, out of scope for a self-hosted classroom.
+- `dbt-athena` — AWS-specific.
+- `pyspark` — large (~300 MB); not needed for dbt-spark (which uses Thrift/Session). If students write Spark code *outside* dbt, add `pyspark` to a per-project venv. (Marimo + Jupyter stacks already provide Spark Connect plumbing for their own notebooks.)

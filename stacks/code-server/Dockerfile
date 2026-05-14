@@ -60,10 +60,26 @@ RUN ARCH="$(uname -m)" && \
 # pick — add explicit version constraints if you need stability for a
 # specific semester.
 #
-# dbt stack:
+# dbt stack — adapters chosen to match the data-services Nexus-Stack
+# ships as stacks (so students can model against any of them without
+# leaving the platform):
 # - dbt-core: the dbt engine
-# - dbt-postgres: adapter to connect to the Nexus-Stack postgres stack
+# - dbt-postgres: adapter for the Nexus-Stack postgres stack
 # - dbt-duckdb: adapter for local-file DuckDB targets
+# - dbt-clickhouse: adapter for the Nexus-Stack clickhouse stack (Altinity)
+# - dbt-spark: adapter for the Nexus-Stack spark stack (Thrift/Session
+#   modes; works against Spark Connect at sc://spark-connect:15002)
+# - dbt-trino: adapter for the Nexus-Stack trino stack (Starburst)
+# - dbt-databricks: adapter for the Databricks integration (KV/secret-
+#   sync wires the access tokens into the workspace)
+#
+# Intentionally NOT installed (operators who need them can layer into
+# a per-project venv):
+# - dbt-bigquery / dbt-snowflake / dbt-redshift: cloud-only, no
+#   Nexus-Stack equivalent
+# - dbt-fabric / dbt-sqlserver: Azure / Microsoft, out of scope for a
+#   self-hosted classroom
+# - dbt-athena: AWS-specific, out of scope
 #
 # Notebook tooling (layered into the same venv so dbt models can be
 # inspected from in-notebook SQL cells without env-switching):
@@ -76,6 +92,10 @@ RUN uv venv /opt/nexus-venv && \
       dbt-core \
       dbt-postgres \
       dbt-duckdb \
+      dbt-clickhouse \
+      dbt-spark \
+      dbt-trino \
+      dbt-databricks \
       jupyterlab \
       jupysql \
       polars \
