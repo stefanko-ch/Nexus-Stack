@@ -3,7 +3,7 @@ FROM codercom/code-server:latest
 USER root
 
 # System packages:
-# - python3 / python3-venv / python3-pip: required for the .nexus-venv (dbt) below
+# - python3 / python3-venv / python3-pip: required for the nexus-venv (dbt) below
 # - postgresql-client: psql CLI for testing dbt-postgres adapter connections
 #   against the Nexus-Stack postgres stack (no postgres SERVER here — that's
 #   a separate stack)
@@ -40,15 +40,17 @@ RUN ARCH="$(uname -m)" && \
     chmod +x /usr/local/bin/duckdb && \
     duckdb --version
 
-USER coder
-
-# Install JupyterLab via uv (provides the jupyter CLI as a system-wide tool)
-RUN uv tool install jupyterlab==4.3.6
-
-# Add uv tool bin to PATH (covers JupyterLab + future uv-tool installs)
-ENV PATH="/home/coder/.local/bin:${PATH}"
-
-# Create .nexus-venv with dbt + notebook tooling pre-installed.
+# Create nexus-venv with dbt + notebook tooling pre-installed.
+#
+# LOCATION: /opt/nexus-venv (NOT /home/coder/.nexus-venv).
+# Rationale: docker-compose.yml mounts code-server-data:/home/coder, which
+# means anything baked into the image at /home/coder/<X> is MASKED by the
+# volume on every container start. Existing volumes never see new venv
+# content from a rebuilt image; users only ever get whatever the volume
+# was first-initialised with. Putting the venv at /opt/nexus-venv —
+# outside the volume mount — guarantees every rebuild's venv is the one
+# students see, regardless of when the code-server-data volume was first
+# created.
 #
 # All packages UNPINNED — every image rebuild pulls the latest from PyPI.
 # Trade-off vs. pinning (e.g. 'dbt-core>=1.9,<1.10' as in
@@ -56,9 +58,7 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 # new features, but new minor/major versions may introduce breaking changes
 # mid-semester if you trigger a rebuild during a course run. Operator's
 # pick — add explicit version constraints if you need stability for a
-# specific semester. The .nexus-venv lives inside the volume-masked
-# /home/coder, so existing volumes won't auto-upgrade on image rebuild
-# anyway; that's a separate concern from PyPI-side version drift.
+# specific semester.
 #
 # dbt stack:
 # - dbt-core: the dbt engine
@@ -67,30 +67,41 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 #
 # Notebook tooling (layered into the same venv so dbt models can be
 # inspected from in-notebook SQL cells without env-switching):
-# - jupyter / jupysql: SQL magic cells (%sql, %%sql) against any adapter
+# - jupyterlab: full JupyterLab UI (the `jupyter lab` CLI)
+# - jupysql: SQL magic cells (%sql, %%sql) against any adapter
 # - polars / plotly: fast dataframes + visualisation
 # - duckdb: Python bindings (separate from the CLI binary above)
-#
-# Naming the venv ".nexus-venv" (hidden in the file tree, distinct from
-# any per-project .venv a student creates in their dbt workspace).
-RUN uv venv /home/coder/.nexus-venv && \
-    uv pip install --python /home/coder/.nexus-venv/bin/python --no-cache-dir \
+RUN uv venv /opt/nexus-venv && \
+    uv pip install --python /opt/nexus-venv/bin/python --no-cache-dir \
       dbt-core \
       dbt-postgres \
       dbt-duckdb \
-      jupyter \
+      jupyterlab \
       jupysql \
       polars \
       plotly \
-      duckdb
+      duckdb && \
+    chown -R coder:coder /opt/nexus-venv
 
-# Auto-activate .nexus-venv in every interactive shell opened inside the
-# code-server terminal. Students get a ready-to-use `dbt` + `duckdb` prompt
-# without any setup step.
+# Auto-activate nexus-venv via /etc/bash.bashrc (system-wide, IMAGE-BAKED).
+# Bash sources /etc/bash.bashrc for every interactive non-login shell —
+# including the terminal inside code-server. Unlike /home/coder/.bashrc
+# (which lives in the volume-masked /home/coder), /etc/bash.bashrc is
+# always the one shipped with the image, so updates here actually take
+# effect on the next container restart even for existing
+# code-server-data volumes.
 RUN { \
       echo ''; \
-      echo '# Auto-activate Nexus-Stack pre-installed dbt + DuckDB venv'; \
-      echo 'if [ -f /home/coder/.nexus-venv/bin/activate ]; then'; \
-      echo '  . /home/coder/.nexus-venv/bin/activate'; \
+      echo '# Auto-activate Nexus-Stack pre-installed dbt + notebook venv'; \
+      echo '# (image-baked at /opt/nexus-venv; survives volume-mount masking)'; \
+      echo 'if [ -f /opt/nexus-venv/bin/activate ]; then'; \
+      echo '  . /opt/nexus-venv/bin/activate'; \
       echo 'fi'; \
-    } >> /home/coder/.bashrc
+    } >> /etc/bash.bashrc
+
+USER coder
+
+# Keep uv-tool's local bin on PATH for any user-level uv-tool installs
+# they may do later (the venv at /opt/nexus-venv prepends its own bin
+# at activation time, so it wins over this PATH entry).
+ENV PATH="/home/coder/.local/bin:${PATH}"

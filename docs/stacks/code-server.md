@@ -14,7 +14,7 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 - Integrated terminal
 - Git integration
 - Multi-language support
-- **`dbt` (core + postgres + duckdb adapters), DuckDB CLI, Jupyter, plus `psql` client pre-installed** in the auto-activated venv at `~/.nexus-venv` (no Postgres SERVER — that's a separate Nexus-Stack stack; see "Pre-installed data tooling" below)
+- **`dbt` (core + postgres + duckdb adapters), DuckDB CLI, JupyterLab, plus `psql` client pre-installed** in the auto-activated venv at `/opt/nexus-venv` (no Postgres SERVER — that's a separate Nexus-Stack stack; see "Pre-installed data tooling" below)
 
 | Setting | Value |
 |---------|-------|
@@ -33,36 +33,38 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 
 ### Pre-installed data tooling
 
-The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virtual environment at **`/home/coder/.nexus-venv`** that's auto-activated in every terminal you open. Inspired by [stefanko-ch/dbt_codespace_demo](https://github.com/stefanko-ch/dbt_codespace_demo)'s devcontainer, adapted for Nexus-Stack:
+The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virtual environment at **`/opt/nexus-venv`** that's auto-activated in every terminal you open. Inspired by [stefanko-ch/dbt_codespace_demo](https://github.com/stefanko-ch/dbt_codespace_demo)'s devcontainer, adapted for Nexus-Stack:
 
 | Tool | Version | Purpose |
 |---|---|---|
 | `dbt-core` | latest from PyPI | Data build tool engine |
 | `dbt-postgres` | latest from PyPI | Adapter for the Nexus-Stack postgres stack |
 | `dbt-duckdb` | latest from PyPI | Adapter for local DuckDB targets |
-| `jupyter` + `jupysql` | latest | SQL magic cells in notebooks (`%sql`, `%%sql`) |
+| `jupyterlab` + `jupysql` | latest | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
 | `polars` | latest | Fast Rust-backed dataframes |
 | `plotly` | latest | Charting |
 | `duckdb` (Python) | latest | Python bindings (separate from the CLI binary) |
 | `duckdb` CLI | latest from GitHub releases | Interactive SQL shell (`duckdb my.db`) |
 | `psql` | Debian-bookworm pkg | PostgreSQL CLI for testing dbt-postgres connections |
 
+**Why `/opt/` instead of `~`?** code-server's `docker-compose.yml` mounts `code-server-data:/home/coder` as a persistent volume. Anything the image puts at `/home/coder/<X>` is **masked** by that volume on every container start, so a rebuilt image's freshly-installed venv would never reach an existing volume — students would be stuck on whatever version was installed when their volume was first created. Putting the venv at `/opt/nexus-venv` keeps it outside the volume mount: every image rebuild guarantees the latest venv reaches every container, fresh or not. The auto-activation is appended to `/etc/bash.bashrc` (system-wide, also image-baked) for the same reason — `/home/coder/.bashrc` would be masked.
+
 **Version stability note:** all Python packages above + the DuckDB CLI are pulled at **latest** on every image rebuild. Trade-off: stays current with security fixes and new features, but new minor/major versions may introduce breaking changes mid-semester if you trigger a rebuild during a course run. If you want reproducibility for a specific semester, add explicit constraints in `stacks/code-server/Dockerfile` (e.g. `dbt-core>=1.9,<1.10`) and rebuild — the image then locks the venv contents at those versions until you change them again.
 
-The venv is **image-baked** at `/home/coder/.nexus-venv` — not in your workspace. So `dbt` works immediately when you open a terminal:
+The venv is **image-baked** at `/opt/nexus-venv` — not in your workspace. So `dbt` works immediately when you open a terminal:
 
 ```bash
 # In code-server's terminal — venv is already active
-(.nexus-venv) coder@code-server:~$ dbt --version
+(nexus-venv) coder@code-server:~$ dbt --version
 Core: 1.x  (latest from PyPI at image build time)
 Plugins: postgres 1.x, duckdb 1.x
 
-(.nexus-venv) coder@code-server:~$ duckdb
+(nexus-venv) coder@code-server:~$ duckdb
 v1.x.x ...
 D
 ```
 
-If you want a per-project venv (e.g. for additional deps), create your own next to your dbt project — students typically just use the pre-installed `.nexus-venv` for class material.
+If you want a per-project venv (e.g. for additional deps), create your own next to your dbt project — students typically just use the pre-installed `/opt/nexus-venv` for class material.
 
 Not pre-installed (intentionally):
 - `dbt-metabase` — Metabase runs as a separate Nexus-Stack stack; add it to a per-project venv if you need it
