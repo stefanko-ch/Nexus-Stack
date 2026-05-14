@@ -37,9 +37,9 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 
 | Tool | Version | Purpose |
 |---|---|---|
-| `dbt-core` | `>=1.9,<1.10` | Data build tool engine |
-| `dbt-postgres` | `>=1.9,<1.10` | Adapter for the Nexus-Stack postgres stack |
-| `dbt-duckdb` | `>=1.9,<1.10` | Adapter for local DuckDB targets |
+| `dbt-core` | latest from PyPI | Data build tool engine |
+| `dbt-postgres` | latest from PyPI | Adapter for the Nexus-Stack postgres stack |
+| `dbt-duckdb` | latest from PyPI | Adapter for local DuckDB targets |
 | `jupyter` + `jupysql` | latest | SQL magic cells in notebooks (`%sql`, `%%sql`) |
 | `polars` | latest | Fast Rust-backed dataframes |
 | `plotly` | latest | Charting |
@@ -47,15 +47,15 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 | `duckdb` CLI | latest from GitHub releases | Interactive SQL shell (`duckdb my.db`) |
 | `psql` | Debian-bookworm pkg | PostgreSQL CLI for testing dbt-postgres connections |
 
-DuckDB has a fast release cadence (monthly minor releases). The CLI is pulled from `releases/latest` on every image rebuild — pin in `stacks/code-server/Dockerfile` if you need reproducibility across rebuilds.
+**Version stability note:** all Python packages above + the DuckDB CLI are pulled at **latest** on every image rebuild. Trade-off: stays current with security fixes and new features, but new minor/major versions may introduce breaking changes mid-semester if you trigger a rebuild during a course run. If you want reproducibility for a specific semester, add explicit constraints in `stacks/code-server/Dockerfile` (e.g. `dbt-core>=1.9,<1.10`) and rebuild — the image then locks the venv contents at those versions until you change them again.
 
 The venv is **image-baked** at `/home/coder/.nexus-venv` — not in your workspace. So `dbt` works immediately when you open a terminal:
 
 ```bash
 # In code-server's terminal — venv is already active
 (.nexus-venv) coder@code-server:~$ dbt --version
-Core: 1.9.x
-Plugins: postgres 1.9.x, duckdb 1.9.x
+Core: 1.x  (latest from PyPI at image build time)
+Plugins: postgres 1.x, duckdb 1.x
 
 (.nexus-venv) coder@code-server:~$ duckdb
 v1.x.x ...

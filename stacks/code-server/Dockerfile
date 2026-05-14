@@ -50,7 +50,17 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 
 # Create .nexus-venv with dbt + notebook tooling pre-installed.
 #
-# dbt stack (pinned 1.9.x — matches stefanko-ch/dbt_codespace_demo template):
+# All packages UNPINNED — every image rebuild pulls the latest from PyPI.
+# Trade-off vs. pinning (e.g. 'dbt-core>=1.9,<1.10' as in
+# stefanko-ch/dbt_codespace_demo): stays current with security fixes and
+# new features, but new minor/major versions may introduce breaking changes
+# mid-semester if you trigger a rebuild during a course run. Operator's
+# pick — add explicit version constraints if you need stability for a
+# specific semester. The .nexus-venv lives inside the volume-masked
+# /home/coder, so existing volumes won't auto-upgrade on image rebuild
+# anyway; that's a separate concern from PyPI-side version drift.
+#
+# dbt stack:
 # - dbt-core: the dbt engine
 # - dbt-postgres: adapter to connect to the Nexus-Stack postgres stack
 # - dbt-duckdb: adapter for local-file DuckDB targets
@@ -61,14 +71,13 @@ ENV PATH="/home/coder/.local/bin:${PATH}"
 # - polars / plotly: fast dataframes + visualisation
 # - duckdb: Python bindings (separate from the CLI binary above)
 #
-# Naming the venv ".nexus-venv" (not the demo's ".venv") so students recognise
-# it as the Nexus-Stack-provided environment, distinct from any per-project
-# .venv they may create in their dbt workspace.
+# Naming the venv ".nexus-venv" (hidden in the file tree, distinct from
+# any per-project .venv a student creates in their dbt workspace).
 RUN uv venv /home/coder/.nexus-venv && \
     uv pip install --python /home/coder/.nexus-venv/bin/python --no-cache-dir \
-      'dbt-core>=1.9,<1.10' \
-      'dbt-postgres>=1.9,<1.10' \
-      'dbt-duckdb>=1.9,<1.10' \
+      dbt-core \
+      dbt-postgres \
+      dbt-duckdb \
       jupyter \
       jupysql \
       polars \
