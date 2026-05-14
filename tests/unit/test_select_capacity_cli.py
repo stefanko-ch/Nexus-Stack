@@ -200,14 +200,20 @@ def test_select_capacity_strips_whitespace_in_legacy_pair(
     assert rc == 0
 
 
-def test_select_capacity_falls_back_to_legacy_single_pair(
+def test_select_capacity_legacy_pair_appends_defaults(
     tfvars_with_legacy_pair: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Operator with only ``server_type`` + ``server_location`` set
-    (the pre-#536 shorthand) keeps working: 1-element preference
-    list, no fallback to the in-code default."""
+    (the pre-#536 shorthand): the pair is used as the FIRST preference,
+    then ``DEFAULT_PREFERENCES`` is appended as fallback (dedup'd).
+
+    Previously this branch produced a 1-element preference list with
+    no fallback — a single sold-out region for the class-configured
+    type aborted the whole spin-up. The current behaviour transparently
+    falls through to the next tier/region, which is what every
+    realistic class-config caller actually wants."""
     monkeypatch.setenv("HCLOUD_TOKEN", "t")
     monkeypatch.setattr(
         _hetzner,
@@ -219,6 +225,44 @@ def test_select_capacity_falls_back_to_legacy_single_pair(
     err = capsys.readouterr().err
     assert "legacy single-pair shorthand" in err
     assert "cx43:hel1" in err
+    # The new "primary + DEFAULT fallback" branch announces the total
+    # entry count so the operator knows the legacy pair isn't on its
+    # own — that wording is part of the contract.
+    assert "DEFAULT_PREFERENCES as fallback" in err
+
+
+def test_select_capacity_legacy_pair_falls_through_when_primary_oos(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When the legacy class-config pair is sold out, the appended
+    DEFAULT_PREFERENCES list keeps the spin-up working.
+
+    Regression test for the mid-2026-05 incident where a 16-user class
+    with ``cx43:hel1`` configured all failed simultaneously during
+    Hetzner EU peak — every stack aborted at "out of stock" despite
+    cx53 / cpx42 / cpx52 having ample capacity. The fixture marks
+    cx43:hel1 unavailable but cx53:hel1 available; the walk must pick
+    cx53:hel1 rather than abort."""
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setattr(
+        _hetzner,
+        "fetch_availability",
+        # cx43:hel1 (the class-configured legacy pair) is OOS;
+        # cx53:hel1 (Tier 2 of DEFAULT_PREFERENCES) is available.
+        lambda _t, http_get=None: {"hel1": {"cx53"}, "fsn1": set(), "nbg1": set()},
+    )
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair)])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "chose cx53:hel1" in err
+    # The rewrite must update both lines in config.tfvars, not just
+    # one. The operator's view post-deploy should match what tofu
+    # actually provisioned.
+    rewritten = tfvars_with_legacy_pair.read_text()
+    assert 'server_type     = "cx53"' in rewritten
+    assert 'server_location = "hel1"' in rewritten
 
 
 def test_select_capacity_uses_default_when_nothing_configured(
