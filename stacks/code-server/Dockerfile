@@ -76,8 +76,13 @@ RUN ARCH="$(uname -m)" && \
 #   so 'session' mode needs extra setup too. For SQL workloads against
 #   in-stack Spark data, prefer dbt-trino or dbt-databricks.
 # - dbt-trino: adapter for the Nexus-Stack trino stack (Starburst)
-# - dbt-databricks: adapter for the Databricks integration (KV/secret-
-#   sync wires the access tokens into the workspace)
+# - dbt-databricks: adapter only. The Nexus-Stack Databricks
+#   integration (Control-Plane KV + /api/databricks-sync) pushes
+#   Infisical secrets INTO a Databricks scope — it does NOT inject
+#   databricks_host/token into code-server (or any local stack). To
+#   use dbt-databricks here, save host + token in the Control Plane's
+#   Databricks page, then add them to ~/.dbt/profiles.yml manually
+#   (copy from the Control Plane's KV view).
 #
 # Intentionally NOT installed (operators who need them can layer into
 # a per-project venv):

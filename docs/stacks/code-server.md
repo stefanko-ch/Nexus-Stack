@@ -45,7 +45,7 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 | `dbt-clickhouse` | latest from PyPI | Adapter for the Nexus-Stack clickhouse stack |
 | `dbt-spark` | latest from PyPI | Adapter for **external** Spark clusters (Thrift / ODBC / session modes). See "Spark caveat" below — not pre-wired to the Nexus-Stack spark stack. |
 | `dbt-trino` | latest from PyPI | Adapter for the Nexus-Stack trino stack |
-| `dbt-databricks` | latest from PyPI | Adapter for Databricks (uses the Nexus-Stack KV/secret-sync token plumbing) |
+| `dbt-databricks` | latest from PyPI | Adapter only — see "Databricks caveat" below. The adapter is installed, but credentials are NOT auto-injected into code-server. |
 | `jupyterlab` + `jupysql` | latest | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
 | `polars` | latest | Fast Rust-backed dataframes |
 | `plotly` | latest | Charting |
@@ -60,6 +60,8 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 
 **Spark caveat:** `dbt-spark` is installed but the Nexus-Stack `spark` stack is **not** an out-of-the-box dbt-spark target. The Nexus-Stack Spark deployment exposes a Spark master + Spark Connect endpoint (`sc://spark-connect:15002`, consumed by PySpark in Marimo/Jupyter) — but dbt-spark does not support the Spark Connect protocol. There is also no Hive Thrift Server in the spark stack, and this code-server image deliberately omits local PySpark + JDK, so `method: session` needs extra setup. The adapter is there for operators who connect dbt to an **external** Spark cluster with a Thrift / ODBC endpoint they manage themselves. For SQL workloads against in-stack data, prefer `dbt-trino` (federated) or `dbt-databricks` (managed).
 
+**Databricks caveat:** `dbt-databricks` is installed, but the adapter alone does not give you authenticated access. The Nexus-Stack Databricks integration (Control Plane → Databricks page → KV-stored `databricks_host` + `databricks_token`; `/api/databricks-sync` worker) pushes Infisical secrets *into* a Databricks scope so notebooks running **on** Databricks can read them — it does **not** inject `databricks_host` / `databricks_token` into code-server (or any local stack). To use `dbt-databricks` here, save host + token in the Control Plane's Databricks page, then add them to `~/.dbt/profiles.yml` manually (copy from the Control Plane's KV view).
+
 **Why `/opt/` instead of `~`?** code-server's `docker-compose.yml` mounts `code-server-data:/home/coder` as a persistent volume. Anything the image puts at `/home/coder/<X>` is **masked** by that volume on every container start, so a rebuilt image's freshly-installed venv would never reach an existing volume — students would be stuck on whatever version was installed when their volume was first created. Putting the venv at `/opt/nexus-venv` keeps it outside the volume mount: every image rebuild guarantees the latest venv reaches every container, fresh or not. The auto-activation is appended to `/etc/bash.bashrc` (system-wide, also image-baked) for the same reason — `/home/coder/.bashrc` would be masked.
 
 **Version stability note:** all Python packages above + the DuckDB CLI are pulled at **latest** on every image rebuild. Trade-off: stays current with security fixes and new features, but new minor/major versions may introduce breaking changes mid-semester if you trigger a rebuild during a course run. If you want reproducibility for a specific semester, add explicit constraints in `stacks/code-server/Dockerfile` (e.g. `dbt-core>=1.9,<1.10`) and rebuild — the image then locks the venv contents at those versions until you change them again.
@@ -70,7 +72,7 @@ The venv is **image-baked** at `/opt/nexus-venv` — not in your workspace. So `
 # In code-server's terminal — venv is already active
 (nexus-venv) coder@code-server:~$ dbt --version
 Core: 1.x  (latest from PyPI at image build time)
-Plugins: postgres 1.x, duckdb 1.x
+Plugins: postgres 1.x, duckdb 1.x, clickhouse 1.x, spark 1.x, trino 1.x, databricks 1.x
 
 (nexus-venv) coder@code-server:~$ duckdb
 v1.x.x ...
