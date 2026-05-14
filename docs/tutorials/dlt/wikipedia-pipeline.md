@@ -15,7 +15,7 @@ This tutorial builds a complete dlt pipeline from scratch. You'll fetch monthly 
 
 ## psql availability
 
-`psql` is **pre-installed** in the code-server image (via the `postgresql-client` apt package — see [docs/stacks/code-server.md](../../stacks/code-server.md#pre-installed-data-tooling)), so you can use it directly without any setup step. Skip if you're on an older image — run `psql --version` first to confirm; if it fails, install with `sudo apt-get update && sudo apt-get install -y postgresql-client` (session-only fallback).
+`psql` is **pre-installed** in the code-server image (via the `postgresql-client` apt package — see [the code-server stack docs](/docs/stacks/code-server/#pre-installed-data-tooling)), so you can use it directly without any setup step. Skip if you're on an older image — run `psql --version` first to confirm; if it fails, install with `sudo apt-get update && sudo apt-get install -y postgresql-client` (session-only fallback).
 
 ## The script
 

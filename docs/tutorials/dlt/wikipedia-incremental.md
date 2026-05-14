@@ -164,13 +164,9 @@ FROM wikipedia.pageviews
 ORDER BY article, timestamp;
 ```
 
-**Option B — psql in the terminal:** If you installed `postgresql-client` in the [Wikipedia pipeline tutorial](./wikipedia-pipeline.md), it's gone after a container restart. Reinstall with:
+**Option B — psql in the terminal:** `psql` is pre-installed in the code-server image (see [the code-server stack docs](/docs/stacks/code-server/#pre-installed-data-tooling)). Run `psql --version` first to confirm; on older images that haven't been rebuilt yet, install it once per session with `sudo apt-get update && sudo apt-get install -y postgresql-client`.
 
-```bash
-sudo apt-get update && sudo apt-get install -y postgresql-client
-```
-
-Then query:
+Query:
 
 ```bash
 psql -h postgres -U nexus-postgres -d postgres \
