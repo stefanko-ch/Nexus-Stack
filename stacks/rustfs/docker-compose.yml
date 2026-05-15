@@ -4,7 +4,13 @@
 # High-performance MinIO alternative written in Rust
 # Accessible via: https://rustfs.<domain>
 #
-# Port: 9002 (Console), 9003 (S3 API) - mapped to avoid MinIO conflicts
+# Ports:
+#   - 9002 (Console, host → container 9001) — Cloudflare-Tunnel HTTP path
+#   - 9003 (S3 API)                         — NOT published by the base
+#     compose. Enable the `rustfs → s3-api` Firewall rule in the Control
+#     Plane and Spin Up to expose host 9003 → container 9000.
+#     Cross-stack traffic on app-network can still reach the API as
+#     `rustfs:9000` internally without the toggle.
 #
 # Default credentials:
 #   Access Key: ${RUSTFS_ACCESS_KEY}

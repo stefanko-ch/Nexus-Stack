@@ -211,17 +211,20 @@ OpenTofu creates inbound Hetzner firewall rules and DNS A records pointing direc
 
 | Service | Port | DNS Record | Protocol |
 |---------|------|------------|----------|
-| **Garage** (S3 API) | 3900 | `garage-s3.<domain>` | S3/HTTP |
-| **LakeFS** (S3 Gateway) | 8000 | `s3.lakefs.<domain>` | S3/HTTP |
+| **ClickHouse** (native TCP) | 9004 | — ¹ | ClickHouse-native |
+| **Garage** (S3 API) | 3900 | — ¹ | S3/HTTP |
+| **LakeFS** (S3 Gateway) | 8000 | — ¹ | S3/HTTP |
 | **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
 | **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
 | **RedPanda** (Kafka) | 9092 | `redpanda-kafka.<domain>` | Kafka |
 | **RedPanda** (Schema Registry) | 18081 | `redpanda-schema-registry.<domain>` | HTTP |
 | **RedPanda** (Admin API) | 9644 | `redpanda-admin.<domain>` | HTTP |
 | **Redpanda Connect** (HTTP API) | 4195 | `redpanda-connect-api.<domain>` | HTTP |
-| **RustFS** (S3 API) | 9003 | `rustfs-s3.<domain>` | S3/HTTP |
-| **RisingWave** (PostgreSQL) | 4566 | `risingwave.<domain>` | PostgreSQL |
-| **SeaweedFS** (S3 API) | 8333 | `seaweedfs-s3.<domain>` | S3/HTTP |
+| **RustFS** (S3 API) | 9003 | — ¹ | S3/HTTP |
+| **RisingWave** (PostgreSQL) | 4566 | — ¹ | PostgreSQL |
+| **SeaweedFS** (S3 API) | 8333 | — ¹ | S3/HTTP |
+
+¹ No auto-provisioned DNS record. Auto-DNS is currently only wired for **MinIO**, **PostgreSQL**, **RedPanda** (all listeners), and **Redpanda Connect** in `.github/scripts/sync-firewall-rules.sh`. For the other rows, enable the Firewall rule + Spin Up, then connect to the server IP directly (`<server-ip>:<port>`). Adding a stack to the auto-DNS map is a separate change.
 
 ### Connection Examples
 

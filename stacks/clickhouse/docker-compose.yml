@@ -4,7 +4,12 @@
 # Fast, open-source columnar database for real-time analytics and OLAP queries.
 #
 # Access: https://clickhouse.YOUR_DOMAIN (Play UI for interactive queries)
-# Native TCP: Port 9004 (for external clients like DBeaver, DataGrip)
+# Native TCP: Port 9004 (external clients like DBeaver, DataGrip) — not
+#             published by the base compose. Enable the
+#             `clickhouse → native` Firewall rule in the Control Plane
+#             and Spin Up to expose host port 9004 → container 9000.
+#             Cross-stack traffic on app-network can still reach the
+#             daemon as `clickhouse:9000` internally without the toggle.
 #
 # Default credentials:
 #   User: nexus-clickhouse
