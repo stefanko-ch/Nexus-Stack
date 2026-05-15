@@ -36,9 +36,17 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 Secrets stored in Infisical are auto-synced into the code-server container's env on every spin-up (issue #496). Reference them in scripts / dbt profiles / notebook cells exactly as named in Infisical — no manual export step needed:
 
 ```bash
-# In code-server's terminal:
-echo $POSTGRES_PASSWORD          # available
-psql -h postgres -U nexus-postgres -d postgres   # no PGPASSWORD export needed
+# In code-server's terminal — presence check (never echo a secret value,
+# scrollback/copy-paste leakage):
+[ -n "$POSTGRES_PASSWORD" ] && echo "POSTGRES_PASSWORD is set"
+
+# psql: libpq reads PGPASSWORD (not POSTGRES_PASSWORD), so either
+# pass the value inline for one command…
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres -U nexus-postgres -d postgres
+
+# …or export it once per session for repeated invocations.
+export PGPASSWORD="$POSTGRES_PASSWORD"
+psql -h postgres -U nexus-postgres -d postgres
 ```
 
 ```python
