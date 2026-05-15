@@ -36,7 +36,7 @@ nexus-deploy = "nexus_deploy.cli:main"
 dev = [
     "ruff>=0.7,<1.0",                  # Linter + formatter
     "mypy>=1.13,<2.0",                 # Static type-check, --strict mode
-    "pytest>=8.3,<10.0",               # Test runner (allow 9.x for GHSA-6w46-j5rx-g56g fix)
+    "pytest>=9.0.3,<10.0",             # Test runner (>=9.0.3 enforces GHSA-6w46-j5rx-g56g security floor)
     "pytest-cov>=5.0,<7.0",            # Coverage reports
     "pytest-mock>=3.14,<4.0",          # Mock helpers (subprocess, etc.)
     "pytest-asyncio>=0.24,<2.0",       # Phase 2 async parallel deploys (allow 1.x for pytest 9 compat)

@@ -553,7 +553,7 @@ dev = [
     { name = "hypothesis", specifier = ">=6.115,<7.0" },
     { name = "mypy", specifier = ">=1.13,<2.0" },
     { name = "pre-commit", specifier = ">=4.0,<5.0" },
-    { name = "pytest", specifier = ">=8.3,<10.0" },
+    { name = "pytest", specifier = ">=9.0.3,<10.0" },
     { name = "pytest-asyncio", specifier = ">=0.24,<2.0" },
     { name = "pytest-cov", specifier = ">=5.0,<7.0" },
     { name = "pytest-mock", specifier = ">=3.14,<4.0" },
