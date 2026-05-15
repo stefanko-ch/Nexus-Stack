@@ -812,6 +812,19 @@ def test_phase_secret_sync_marimo_skipped_when_disabled(minimal_env: BootstrapEn
     assert result.status == "skipped"
 
 
+def test_phase_secret_sync_code_server_skipped_when_disabled(minimal_env: BootstrapEnv) -> None:
+    config = NexusConfig()
+    orch = Orchestrator(
+        config=config,
+        bootstrap_env=minimal_env,
+        enabled_services=[],
+        repo_name="r",
+        gitea_repo_owner="o",
+    )
+    result = orch._phase_secret_sync_code_server(MagicMock())
+    assert result.status == "skipped"
+
+
 def test_phase_secret_sync_partial_without_creds(minimal_env: BootstrapEnv) -> None:
     config = NexusConfig()
     orch = Orchestrator(
