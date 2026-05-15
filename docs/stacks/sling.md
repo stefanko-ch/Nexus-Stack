@@ -41,7 +41,7 @@ docker exec -it sling sling conns
 docker exec -it sling sling run \
   --src-conn "postgresql://nexus-postgres:password@postgres:5432/postgres" \
   --src-stream "public.my_table" \
-  --tgt-conn "clickhouse://default:password@clickhouse:9000/default" \
+  --tgt-conn "clickhouse://nexus-clickhouse:password@clickhouse:9000/default" \
   --tgt-object "my_table"
 
 # Load a CSV file into PostgreSQL
@@ -62,7 +62,7 @@ connections:
     url: postgresql://nexus-postgres:password@postgres:5432/postgres
   CLICKHOUSE:
     type: clickhouse
-    url: clickhouse://default:password@clickhouse:9000/default
+    url: clickhouse://nexus-clickhouse:password@clickhouse:9000/default
   MINIO:
     type: s3
     url: s3://bucket-name

@@ -205,7 +205,7 @@ By default, Nexus-Stack uses a "Zero Entry" security model where all ports are c
 3. Optionally restrict source IPs (e.g., Databricks IP ranges)
 4. Click **Spin Up** to apply changes
 
-OpenTofu creates inbound Hetzner firewall rules and DNS A records pointing directly to the server IP (`proxied = false`, bypassing Cloudflare proxy).
+OpenTofu creates inbound Hetzner firewall rules for every enabled toggle. **DNS A records are only created for rules with an auto-DNS mapping** in `.github/scripts/sync-firewall-rules.sh` — see the footnote on the table below for which stacks ship with one. The remaining rules open the host port without a friendly DNS name; connect via the server IP directly. All auto-provisioned DNS A records point straight to the server IP (`proxied = false`, bypassing the Cloudflare proxy).
 
 ### Available TCP Ports
 
