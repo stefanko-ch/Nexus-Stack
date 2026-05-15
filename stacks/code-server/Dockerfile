@@ -134,7 +134,43 @@ RUN { \
       echo 'fi'; \
     } >> /etc/bash.bashrc
 
+# Pre-install VS Code extensions to a system-wide directory.
+#
+# LOCATION: /opt/code-server-extensions (NOT /home/coder/.local/share/code-server/extensions).
+# Same rationale as /opt/nexus-venv above: docker-compose mounts
+# code-server-data:/home/coder, so anything baked into /home/coder/<X>
+# is MASKED by the volume on every container start. Putting extensions
+# under /opt/ keeps them image-baked and reachable for every rebuild,
+# regardless of when the volume was first created.
+#
+# The compose entrypoint launches code-server with
+# `--extensions-dir /opt/code-server-extensions` so this directory
+# is the authoritative extension source. Students can still install
+# additional extensions per-session via the UI — those land in the
+# default ~/.local/share/code-server/extensions/ (volume-persisted,
+# survives container restarts but not volume teardown).
+#
+# Extensions installed here:
+# - mtxr.sqltools: connection manager + SQL query editor with schema
+#   browser + IntelliSense. The go-to "I want to look at a Postgres
+#   table from VS Code" extension.
+# - mtxr.sqltools-driver-pg: Postgres driver plugin for SQLTools.
+#   Required for SQLTools to actually talk to Postgres.
+#
+# Auto-wiring of the connection lives in the compose entrypoint —
+# it writes the SQLTools connection block to
+# ~/.local/share/code-server/User/settings.json on container start
+# when NEXUS_POSTGRES_ENABLED=1 in .env (rendered by the orchestrator
+# from D1 enabled-services state).
+RUN mkdir -p /opt/code-server-extensions && \
+    chown -R coder:coder /opt/code-server-extensions
+
 USER coder
+
+RUN code-server --extensions-dir /opt/code-server-extensions \
+      --install-extension mtxr.sqltools && \
+    code-server --extensions-dir /opt/code-server-extensions \
+      --install-extension mtxr.sqltools-driver-pg
 
 # Keep uv-tool's local bin on PATH for any user-level uv-tool installs
 # they may do later (the venv at /opt/nexus-venv prepends its own bin

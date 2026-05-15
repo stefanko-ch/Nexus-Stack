@@ -677,6 +677,34 @@ def test_render_all_code_server_then_append_gitea_block_succeeds(
     assert "WORKSPACE_BRANCH=main" in content
 
 
+def test_render_all_code_server_postgres_enabled_emits_flag(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """When postgres is in the enabled list, code-server's render emits
+    NEXUS_POSTGRES_ENABLED=1 — the compose entrypoint reads this plus
+    the Infisical-synced POSTGRES_PASSWORD to write an SQLTools
+    auto-connect into settings.json."""
+    render_all_env_files(
+        full_config,
+        full_env,
+        ["code-server", "postgres"],
+        stacks_dir=tmp_path,
+    )
+    content = (tmp_path / "code-server" / ".env").read_text()
+    assert "NEXUS_POSTGRES_ENABLED=1" in content
+
+
+def test_render_all_code_server_postgres_not_enabled_omits_flag(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Without postgres in the enabled list, NEXUS_POSTGRES_ENABLED is
+    absent — the entrypoint then skips the SQLTools settings.json
+    write and the auto-connect feature is dormant."""
+    render_all_env_files(full_config, full_env, ["code-server"], stacks_dir=tmp_path)
+    content = (tmp_path / "code-server" / ".env").read_text()
+    assert "NEXUS_POSTGRES_ENABLED" not in content
+
+
 def test_render_all_prefect_then_append_gitea_block_writes_custom_branch(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:

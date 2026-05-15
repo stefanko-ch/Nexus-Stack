@@ -76,6 +76,28 @@ The sync writes to a dedicated `.infisical.env` file (not `.env`) so secret keys
 
 **Not covered by this sync:** Databricks credentials (`databricks_host` / `databricks_token`) live in Cloudflare KV via the Control Plane's Databricks page, not in Infisical — see the Databricks caveat under "Pre-installed data tooling" below for the manual steps to wire them into `~/.dbt/profiles.yml`.
 
+### Pre-installed VS Code extensions
+
+The image bakes the following extensions to `/opt/code-server-extensions/` (image-baked, survives volume-mask masking — same rationale as `/opt/nexus-venv`). The compose entrypoint launches code-server with `--extensions-dir /opt/code-server-extensions` so they're always present:
+
+| Extension | Why |
+|---|---|
+| `mtxr.sqltools` | Connection manager + SQL query editor with schema browser + IntelliSense. The standard "I want to look at a Postgres table from VS Code" extension. |
+| `mtxr.sqltools-driver-pg` | Postgres / CockroachDB / Redshift driver for SQLTools. Required for SQLTools to actually talk to Postgres. |
+
+Students can still install additional extensions per-session via the UI; those land in `~/.local/share/code-server/extensions/` (volume-persisted, survives container restarts but not volume teardown).
+
+### SQLTools auto-connect to Nexus Postgres
+
+When the `postgres` stack is enabled in the Control Plane alongside code-server, the compose entrypoint writes a pre-configured SQLTools connection to `~/.local/share/code-server/User/settings.json` on container start. Students see "Nexus Postgres" in the SQLTools sidebar immediately — one-click connect, no manual driver pick, no password copy-paste from Infisical.
+
+Wiring:
+1. `service_env.py` renders `NEXUS_POSTGRES_ENABLED=1` into `stacks/code-server/.env` when `postgres` is in the D1 enabled-services list.
+2. The Infisical secret-sync phase (added in #586) populates `POSTGRES_PASSWORD` in `.infisical.env`.
+3. The entrypoint reads both, and only writes `settings.json` when **both** are present — otherwise it skips silently. (Note: `${env:POSTGRES_PASSWORD}` does NOT work in SQLTools connection configs — the password is substituted as a plain string at container-start time.)
+
+If `postgres` is not enabled, the auto-connect is dormant — students can still add connections manually via SQLTools "Add New Connection".
+
 ### Pre-installed data tooling
 
 The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virtual environment at **`/opt/nexus-venv`** that's auto-activated in every terminal you open. Inspired by [stefanko-ch/dbt_codespace_demo](https://github.com/stefanko-ch/dbt_codespace_demo)'s devcontainer, adapted for Nexus-Stack:

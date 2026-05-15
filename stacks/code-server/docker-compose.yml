@@ -35,9 +35,33 @@ services:
             echo '[code-server] Warning: Failed to clone '$$GITEA_REPO_URL >&2;
           fi;
         fi;
+        if [ \"$$NEXUS_POSTGRES_ENABLED\" = \"1\" ] && [ -n \"$$POSTGRES_PASSWORD\" ]; then
+          mkdir -p /home/coder/.local/share/code-server/User;
+          cat > /home/coder/.local/share/code-server/User/settings.json <<EOF
+        {
+          \"sqltools.connections\": [
+            {
+              \"name\": \"Nexus Postgres\",
+              \"driver\": \"PostgreSQL\",
+              \"server\": \"postgres\",
+              \"port\": 5432,
+              \"database\": \"postgres\",
+              \"username\": \"nexus-postgres\",
+              \"askForPassword\": false,
+              \"password\": \"$$POSTGRES_PASSWORD\",
+              \"connectionTimeout\": 30
+            }
+          ]
+        }
+        EOF
+          chmod 600 /home/coder/.local/share/code-server/User/settings.json;
+          echo '[code-server] Wrote SQLTools Nexus Postgres connection (NEXUS_POSTGRES_ENABLED=1)';
+        else
+          echo '[code-server] Skipping SQLTools auto-connect (NEXUS_POSTGRES_ENABLED unset or POSTGRES_PASSWORD empty)';
+        fi;
         OPEN_DIR=/home/coder;
         if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;
-        exec code-server --auth none --bind-addr 0.0.0.0:8080 $$OPEN_DIR
+        exec code-server --auth none --bind-addr 0.0.0.0:8080 --extensions-dir /opt/code-server-extensions $$OPEN_DIR
       "
     env_file:
       - path: .env
@@ -55,7 +79,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          # Bumped from 512m: with SQLTools + Postgres-driver + DBCode
+          # + extension-host + workspace-indexer all running as Node
+          # subprocesses, 512m hit OOM in practice — symptoms were
+          # silent extension-host crashes (white webview panels for
+          # SQLTools-Settings) and the file-tree disappearing
+          # mid-session. Verified on a live container that the new
+          # baseline sits around 350-500 MiB with extensions active.
+          memory: 2g
     volumes:
       - code-server-data:/home/coder
     networks:
