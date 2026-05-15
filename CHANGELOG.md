@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.62.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.61.0...v0.62.0) (2026-05-15)
+
+
+### 🚀 Features
+
+* **stacks:** Pre-install dbt + DuckDB CLI in code-server (nexus-venv) ([#580](https://github.com/stefanko-ch/Nexus-Stack/issues/580)) ([38c6d7e](https://github.com/stefanko-ch/Nexus-Stack/commit/38c6d7e793209ce37f9b336e5dabee783f46821e))
+
+
+### 🐛 Bug Fixes
+
+* **capacity:** Legacy single-pair shorthand falls through to DEFAULT_PREFERENCES ([#581](https://github.com/stefanko-ch/Nexus-Stack/issues/581)) ([f8d95ae](https://github.com/stefanko-ch/Nexus-Stack/commit/f8d95ae0f6d6737935a2886a8d10db971a717261))
+* **deps:** Bump urllib3 + pytest + astro to clear 7 Dependabot alerts ([#583](https://github.com/stefanko-ch/Nexus-Stack/issues/583)) ([fa90fae](https://github.com/stefanko-ch/Nexus-Stack/commit/fa90fae1f542cf05a4e8f70d201c7958c75bd572))
+
 ## [0.61.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.60.0...v0.61.0) (2026-05-13)
 
 
