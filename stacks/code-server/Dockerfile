@@ -177,6 +177,14 @@ RUN { \
 RUN mkdir -p /opt/code-server-extensions && \
     chown -R coder:coder /opt/code-server-extensions
 
+# Entrypoint helper scripts. Kept in /opt/ (image-baked, outside the
+# code-server-data volume mount that masks /home/coder/) and called
+# from the compose entrypoint. Lives in a separate file because YAML's
+# folded scalar `>` collapses newlines, which prevents embedding any
+# multi-line Python (e.g. try/except) inside the inline entrypoint.
+COPY scripts/ /opt/code-server-scripts/
+RUN chmod -R a+r /opt/code-server-scripts
+
 USER coder
 
 RUN code-server --extensions-dir /opt/code-server-extensions \

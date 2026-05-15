@@ -43,8 +43,7 @@ services:
         fi;
         if [ \"$$NEXUS_POSTGRES_ENABLED\" = \"1\" ] && [ -n \"$$POSTGRES_PASSWORD\" ]; then
           mkdir -p /home/coder/.local/share/code-server/User;
-          python3 -c \"import json, os; path = '/home/coder/.local/share/code-server/User/settings.json'; cfg = json.loads(open(path).read()) if os.path.exists(path) else {}; cfg = cfg if isinstance(cfg, dict) else {}; cfg['sqltools.connections'] = [{'name': 'Nexus Postgres', 'driver': 'PostgreSQL', 'server': 'postgres', 'port': 5432, 'database': 'postgres', 'username': 'nexus-postgres', 'askForPassword': False, 'password': os.environ['POSTGRES_PASSWORD'], 'connectionTimeout': 30}]; open(path, 'w').write(json.dumps(cfg, indent=2)); os.chmod(path, 0o600)\";
-          echo '[code-server] Wrote SQLTools Nexus Postgres connection (NEXUS_POSTGRES_ENABLED=1)';
+          python3 /opt/code-server-scripts/write-sqltools-settings.py && echo '[code-server] Wrote SQLTools Nexus Postgres connection (NEXUS_POSTGRES_ENABLED=1)';
         else
           echo '[code-server] Skipping SQLTools auto-connect (NEXUS_POSTGRES_ENABLED unset or POSTGRES_PASSWORD empty)';
         fi;

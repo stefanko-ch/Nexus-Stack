@@ -856,8 +856,8 @@ def _render_code_server(c: NexusConfig, e: BootstrapEnv, *, postgres_enabled: bo
     skips the settings.json write.
 
     All other code-server config lives in the docker-compose.yml's
-    entrypoint (clone logic, --auth flags, --extensions-dir) or in
-    the image (dbt venv, DuckDB CLI, SQLTools extension).
+    entrypoint (clone logic, --auth flag, extension-seed-on-first-start
+    copy) or in the image (dbt venv, DuckDB CLI, SQLTools extension).
     """
     del c, e  # no derived vars besides the postgres_enabled flag
     env_vars: dict[str, str] = {}
