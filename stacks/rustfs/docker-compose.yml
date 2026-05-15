@@ -19,9 +19,15 @@ services:
     container_name: rustfs
     restart: unless-stopped
     user: "10001:10001"
+    # Host port 9003 (S3 API) is gated on the firewall toggle —
+    # docker-compose.firewall.yml adds it as 9003:9000 when an operator
+    # enables the rule in the Control Plane. Listing it here would
+    # create a duplicate-host-port collision after merge (same bug as
+    # ClickHouse, issue #488). The container always listens on 9000
+    # internally, so cross-stack traffic on app-network can still reach
+    # it as rustfs:9000 without the host port.
     ports:
       - "9002:9001"  # Web Console (host 9002 -> container 9001)
-      - "9003:9000"  # S3 API (host 9003 -> container 9000)
     env_file: .env
     environment:
       # RustFS uses RUSTFS_ACCESS_KEY/SECRET_KEY (not ROOT_USER/PASSWORD)

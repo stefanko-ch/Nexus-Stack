@@ -73,15 +73,18 @@ OVERRIDE_FILENAME = "docker-compose.firewall.yml"
 REDPANDA_TEMPLATE_PATH = "config/redpanda-firewall.yaml.template"
 REDPANDA_RENDERED_PATH = "config/redpanda-firewall.yaml"
 
-# Per-(service, host-port) overrides for cases where the base
-# docker-compose maps host:container asymmetrically. Default is
-# identity (host == container). Add an entry here when a stack listens
-# on a different container port than the host port advertised in
-# services.yaml's ``tcp_ports`` — without it, the merged compose
-# either fails (duplicate host port) or forwards to a closed
-# container port. See GH issue #488 for the ClickHouse case.
+# Per-(service, host-port) overrides for stacks where the host port
+# advertised in ``services.yaml``'s ``tcp_ports`` differs from the
+# container port the daemon actually listens on. Default is identity
+# (host == container) and matches the legacy bash behaviour. Adding
+# an entry here makes the firewall override emit the correct
+# ``host:container`` line for that stack; the base ``docker-compose.yml``
+# should drop the corresponding ``ports:`` entry at the same time so
+# the firewall override is the single source of the host binding (no
+# duplicate-host-port merge collision). See GH issue #488.
 ASYMMETRIC_PORT_MAPPINGS: dict[tuple[str, int], int] = {
     ("clickhouse", 9004): 9000,
+    ("rustfs", 9003): 9000,
 }
 
 # Suffix-strip regex: ``-<digits>`` at end of key, e.g. ``redpanda-1`` → ``redpanda``.

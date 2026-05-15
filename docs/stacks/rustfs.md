@@ -16,7 +16,7 @@ RustFS is a high-performance object storage system written in Rust, designed as 
 
 | Setting | Value |
 |---------|-------|
-| Default Port | `9003` (Console), `9002` (S3 API) |
+| Default Port | `9002` (Console), `9003` (S3 API — firewall-gated) |
 | Suggested Subdomain | `rustfs` |
 | Public Access | No (storage infrastructure) |
 | Website | [rustfs.com](https://rustfs.com) |
@@ -34,5 +34,5 @@ Access RustFS Console at `https://rustfs.<domain>` to:
 - Manage access policies
 
 **S3 API Access:**
-- **Console UI**: `https://rustfs.<domain>` (accessible via Cloudflare Tunnel)
-- **S3 API**: Port `9002` (configurable via firewall rules for external access)
+- **Console UI**: `https://rustfs.<domain>` (host port 9002 → container 9001, accessible via Cloudflare Tunnel)
+- **S3 API** (host port 9003): closed by default. To use it from an external client, enable the `rustfs → s3-api` rule in Control Plane → Firewall (restrict to your source IP) — then connect to `YOUR_SERVER:9003`. Cross-stack traffic on `app-network` can still reach the API as `rustfs:9000` internally without the firewall toggle.
