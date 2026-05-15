@@ -2684,18 +2684,9 @@ def _select_capacity(args: list[str]) -> int:
     else:
         legacy_pair = _read_single_pair_from_tfvars(text)
         if legacy_pair is not None:
-            # Class-config shorthand: put the operator's choice FIRST,
-            # then fall through to DEFAULT_PREFERENCES for stock fallback.
-            # Previously this was `preferences = (legacy_pair,)` — a one-
-            # entry tuple with no fallback, so a single sold-out region
-            # for the class-configured type aborted the whole spin-up.
-            # Empirically caught mid-2026-05 when a class of 16 with
-            # cx43:hel1 hit Hetzner's EU peak and every stack failed
-            # with "out of stock" despite cx53/cpx42/cpx52/cpx62 having
-            # ample capacity. The downstream tooling (the Education
-            # admin panel) was working around this by pushing its own
-            # 24-entry SERVER_PREFERENCES list — that workaround is now
-            # redundant and can be retired.
+            # Class-config shorthand: operator's choice FIRST, then
+            # DEFAULT_PREFERENCES (dedup'd) so a single sold-out region
+            # for the configured type doesn't abort the spin-up.
             default_specs = _hetzner.parse_preferences(
                 ",".join(_hetzner.DEFAULT_PREFERENCES),
             )
