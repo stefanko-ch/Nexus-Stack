@@ -134,23 +134,34 @@ RUN { \
       echo 'fi'; \
     } >> /etc/bash.bashrc
 
-# Pre-install VS Code extensions to a system-wide directory.
+# Pre-stage VS Code extensions for seeding into a fresh
+# code-server-data volume.
 #
 # LOCATION: /opt/code-server-extensions (NOT /home/coder/.local/share/code-server/extensions).
 # Same rationale as /opt/nexus-venv above: docker-compose mounts
-# code-server-data:/home/coder, so anything baked into /home/coder/<X>
-# is MASKED by the volume on every container start. Putting extensions
-# under /opt/ keeps them image-baked and reachable for every rebuild,
-# regardless of when the volume was first created.
+# code-server-data:/home/coder, so anything baked directly into
+# /home/coder/<X> is MASKED by the volume on every container start.
 #
-# The compose entrypoint launches code-server with
-# `--extensions-dir /opt/code-server-extensions` so this directory
-# is the authoritative extension source. Students can still install
-# additional extensions per-session via the UI — those land in the
-# default ~/.local/share/code-server/extensions/ (volume-persisted,
-# survives container restarts but not volume teardown).
+# Strategy: bake the extensions into /opt/ at image-build time,
+# then have the compose entrypoint copy them into the default user
+# extension dir (~/.local/share/code-server/extensions/) on first
+# container start — but only when the user dir is empty (fresh
+# volume). After that initial seed, the user dir is the authoritative
+# location for both baked AND user-installed extensions:
 #
-# Extensions installed here:
+# - Both kinds live in the volume → user installs are persisted
+#   across container recreate and image rebuilds.
+# - code-server runs WITHOUT --extensions-dir, so the default
+#   directory is used (no read/write split).
+# - If a future image rebuild adds a NEW baked extension, existing
+#   volumes won't auto-pick it up (the empty-check skips the seed).
+#   That's a deliberate trade-off: predictable user state > silent
+#   re-seeding that could overwrite user-modified extension state.
+#   Operators who add a new baked extension and want it on all
+#   existing volumes can either (a) instruct students to install
+#   via the UI or (b) wipe the volumes for a fresh seed.
+#
+# Extensions baked here:
 # - mtxr.sqltools: connection manager + SQL query editor with schema
 #   browser + IntelliSense. The go-to "I want to look at a Postgres
 #   table from VS Code" extension.
@@ -158,10 +169,11 @@ RUN { \
 #   Required for SQLTools to actually talk to Postgres.
 #
 # Auto-wiring of the connection lives in the compose entrypoint —
-# it writes the SQLTools connection block to
+# it merges a SQLTools connection block into
 # ~/.local/share/code-server/User/settings.json on container start
 # when NEXUS_POSTGRES_ENABLED=1 in .env (rendered by the orchestrator
-# from D1 enabled-services state).
+# from D1 enabled-services state). The merge preserves any other
+# settings the user (or other extensions) may have added.
 RUN mkdir -p /opt/code-server-extensions && \
     chown -R coder:coder /opt/code-server-extensions
 

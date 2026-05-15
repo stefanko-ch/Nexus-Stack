@@ -78,23 +78,26 @@ The sync writes to a dedicated `.infisical.env` file (not `.env`) so secret keys
 
 ### Pre-installed VS Code extensions
 
-The image bakes the following extensions to `/opt/code-server-extensions/` (image-baked, survives volume-mask masking — same rationale as `/opt/nexus-venv`). The compose entrypoint launches code-server with `--extensions-dir /opt/code-server-extensions` so they're always present:
+The image stages the following extensions to `/opt/code-server-extensions/` (image-baked, survives volume-mask masking — same rationale as `/opt/nexus-venv`):
 
 | Extension | Why |
 |---|---|
 | `mtxr.sqltools` | Connection manager + SQL query editor with schema browser + IntelliSense. The standard "I want to look at a Postgres table from VS Code" extension. |
 | `mtxr.sqltools-driver-pg` | Postgres / CockroachDB / Redshift driver for SQLTools. Required for SQLTools to actually talk to Postgres. |
 
-Students can still install additional extensions per-session via the UI; those land in `~/.local/share/code-server/extensions/` (volume-persisted, survives container restarts but not volume teardown).
+**How they reach the running container:** on first container start (or whenever `~/.local/share/code-server/extensions/` is empty), the entrypoint copies the baked extensions from `/opt/` into that user dir. After the initial seed, the user dir is the authoritative location for both baked AND user-installed extensions, so anything a student installs via the UI persists across container recreate and image rebuilds (the user dir is in the `code-server-data` volume).
+
+> **Trade-off** of this seed-once strategy: if a future image rebuild adds a NEW baked extension, existing volumes don't auto-pick it up — the empty-check skips the re-seed to avoid overwriting user-modified extension state. Operators who add a new baked extension and want it on all existing volumes can either instruct students to install via the UI or wipe the volume for a fresh seed.
 
 ### SQLTools auto-connect to Nexus Postgres
 
-When the `postgres` stack is enabled in the Control Plane alongside code-server, the compose entrypoint writes a pre-configured SQLTools connection to `~/.local/share/code-server/User/settings.json` on container start. Students see "Nexus Postgres" in the SQLTools sidebar immediately — one-click connect, no manual driver pick, no password copy-paste from Infisical.
+When the `postgres` stack is enabled in the Control Plane alongside code-server, the compose entrypoint merges a pre-configured SQLTools connection into `~/.local/share/code-server/User/settings.json` on container start. Students see "Nexus Postgres" in the SQLTools sidebar immediately — one-click connect, no manual driver pick, no password copy-paste from Infisical.
 
 Wiring:
 1. `service_env.py` renders `NEXUS_POSTGRES_ENABLED=1` into `stacks/code-server/.env` when `postgres` is in the D1 enabled-services list.
 2. The Infisical secret-sync phase (added in #586) populates `POSTGRES_PASSWORD` in `.infisical.env`.
 3. The entrypoint reads both, and only writes `settings.json` when **both** are present — otherwise it logs `[code-server] Skipping SQLTools auto-connect (...)` and continues without the connection. (Note: `${env:POSTGRES_PASSWORD}` does NOT work in SQLTools connection configs — the password is substituted as a plain string at container-start time.)
+4. The write is a **merge**, not a full overwrite: if `settings.json` already has other keys (custom editor settings, other extensions' config), they're preserved — only the `sqltools.connections` key is replaced.
 
 If `postgres` is not enabled, the auto-connect is dormant — students can still add connections manually via SQLTools "Add New Connection".
 
