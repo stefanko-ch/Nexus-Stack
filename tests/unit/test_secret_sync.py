@@ -115,6 +115,26 @@ def test_stack_target_jupyter_marimo_defaults_unchanged() -> None:
         assert target.force_recreate is False
 
 
+def test_stack_target_code_server_paths() -> None:
+    """code-server reuses the Jupyter/Marimo plaintext-dotenv default
+    (issue #496). Paths share the same convention; no force_recreate
+    needed since code-server reads env vars at container start and
+    compose detects env_file content changes on plain `up -d`."""
+    target = StackTarget(name="code-server")
+    assert target.env_file == "/opt/docker-server/stacks/code-server/.infisical.env"
+    assert target.legacy_env_file == "/opt/docker-server/stacks/code-server/.env"
+    assert target.compose_dir == "/opt/docker-server/stacks/code-server"
+    assert target.key_prefix == ""
+    assert target.use_base64_values is False
+    assert target.force_recreate is False
+
+
+def test_stack_target_code_server_begin_marker() -> None:
+    """Marker uses the capitalised stack name; ``"code-server".capitalize()``
+    produces ``"Code-server"``."""
+    assert "Infisical → Code-server env" in StackTarget(name="code-server").begin_marker
+
+
 # ---------------------------------------------------------------------------
 # Pure-logic helpers — direct tests
 # ---------------------------------------------------------------------------

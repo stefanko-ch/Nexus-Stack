@@ -266,6 +266,7 @@ class Orchestrator:
                 self._phase_mirror_finalize,
                 self._phase_secret_sync_jupyter,
                 self._phase_secret_sync_marimo,
+                self._phase_secret_sync_code_server,
             ]
             for phase in phases:
                 result = phase(ssh)
@@ -732,6 +733,9 @@ class Orchestrator:
 
     def _phase_secret_sync_marimo(self, ssh: SSHClient) -> PhaseResult:
         return self._phase_secret_sync(ssh, "marimo")
+
+    def _phase_secret_sync_code_server(self, ssh: SSHClient) -> PhaseResult:
+        return self._phase_secret_sync(ssh, "code-server")
 
     # ---------------------------------------------------------------------
     # Pre-bootstrap pipeline phases.

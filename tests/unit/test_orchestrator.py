@@ -178,6 +178,7 @@ def test_state_handoff_gitea_token_reaches_seed(
         "_phase_mirror_finalize",
         "_phase_secret_sync_jupyter",
         "_phase_secret_sync_marimo",
+        "_phase_secret_sync_code_server",
     ):
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
     # Make examples/workspace-seeds/ "exist" so seed phase doesn't skip
@@ -213,6 +214,7 @@ def test_state_handoff_restart_services_populated_from_gitea(
         "_phase_mirror_finalize",
         "_phase_secret_sync_jupyter",
         "_phase_secret_sync_marimo",
+        "_phase_secret_sync_code_server",
     ):
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
 
@@ -251,6 +253,7 @@ def test_state_handoff_woodpecker_creds_populated(
         "_phase_mirror_finalize",
         "_phase_secret_sync_jupyter",
         "_phase_secret_sync_marimo",
+        "_phase_secret_sync_code_server",
     ):
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
 
@@ -295,6 +298,7 @@ def test_state_handoff_fork_populated_from_mirror(
         "_phase_mirror_finalize",
         "_phase_secret_sync_jupyter",
         "_phase_secret_sync_marimo",
+        "_phase_secret_sync_code_server",
     ):
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
 
@@ -424,6 +428,7 @@ def test_failed_phase_aborts_downstream_phases(
     monkeypatch.setattr(orchestrator, "_phase_mirror_setup", make_phase("mirror"))
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_jupyter", make_phase("ss-j"))
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_marimo", make_phase("ss-m"))
+    monkeypatch.setattr(orchestrator, "_phase_secret_sync_code_server", make_phase("ss-cs"))
 
     result = orchestrator.run_all()
     assert invoked == ["infisical", "services"]
@@ -463,10 +468,11 @@ def test_partial_phase_continues_to_downstream(
     monkeypatch.setattr(orchestrator, "_phase_mirror_finalize", make_phase("mirror-fin"))
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_jupyter", make_phase("ss-j"))
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_marimo", make_phase("ss-m"))
+    monkeypatch.setattr(orchestrator, "_phase_secret_sync_code_server", make_phase("ss-cs"))
 
     result = orchestrator.run_all()
-    # All 14 phases ran despite the partial in services-configure.
-    assert len(invoked) == 14
+    # All 15 phases ran despite the partial in services-configure.
+    assert len(invoked) == 15
     assert result.has_partial
     assert not result.has_hard_failure
 
@@ -509,6 +515,11 @@ def test_phases_run_in_deterministic_order(
     monkeypatch.setattr(orchestrator, "_phase_mirror_finalize", make_phase("12-mirror-fin"))
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_jupyter", make_phase("13-ss-jupyter"))
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_marimo", make_phase("14-ss-marimo"))
+    monkeypatch.setattr(
+        orchestrator,
+        "_phase_secret_sync_code_server",
+        make_phase("15-ss-code-server"),
+    )
 
     orchestrator.run_all()
     assert invoked == [
@@ -526,6 +537,7 @@ def test_phases_run_in_deterministic_order(
         "12-mirror-fin",
         "13-ss-jupyter",
         "14-ss-marimo",
+        "15-ss-code-server",
     ]
 
 
@@ -1359,13 +1371,14 @@ def test_run_all_resets_results_between_runs(
         "_phase_mirror_finalize",
         "_phase_secret_sync_jupyter",
         "_phase_secret_sync_marimo",
+        "_phase_secret_sync_code_server",
     ):
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
     r1 = orchestrator.run_all()
     r2 = orchestrator.run_all()
-    # 14 phases per ``run_all`` invocation.
-    assert len(r1.phases) == 14
-    assert len(r2.phases) == 14
+    # 15 phases per ``run_all`` invocation.
+    assert len(r1.phases) == 15
+    assert len(r2.phases) == 15
 
 
 # ---------------------------------------------------------------------------

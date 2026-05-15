@@ -42,6 +42,14 @@ services:
     env_file:
       - path: .env
         required: false
+      # Infisical secrets land in a dedicated file (written by the
+      # orchestrator's secret-sync-code-server phase), not in `.env`.
+      # Same rationale as the Jupyter stack: keep `${VAR}` interpolation
+      # in this compose file isolated from secret values, and keep
+      # the config-hash that compose uses for restart-on-change
+      # detection scoped to actually-secret-relevant content.
+      - path: .infisical.env
+        required: false
     ports:
       - "8100:8080"
     deploy:

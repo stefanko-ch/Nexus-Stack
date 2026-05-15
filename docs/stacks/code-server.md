@@ -31,6 +31,43 @@ Run VS Code on a remote server and access it through the browser. Provides a con
 3. Authentication is handled by Cloudflare Access (no additional password)
 4. Files are persisted in a Docker volume (`code-server-data`)
 
+### Infisical secrets
+
+Secrets stored in Infisical are auto-synced into the code-server container's env on every spin-up (issue #496). Reference them in scripts / dbt profiles / notebook cells exactly as named in Infisical — no manual export step needed:
+
+```bash
+# In code-server's terminal:
+echo $POSTGRES_PASSWORD          # available
+psql -h postgres -U nexus-postgres -d postgres   # no PGPASSWORD export needed
+```
+
+```python
+# In a Python file or Jupyter cell:
+import os
+pg_password = os.environ["POSTGRES_PASSWORD"]
+r2_key = os.environ["R2_ACCESS_KEY"]
+```
+
+```yaml
+# In ~/.dbt/profiles.yml:
+my_postgres:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: postgres
+      port: 5432
+      user: nexus-postgres
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      dbname: postgres
+      schema: dbt_dev
+      threads: 4
+```
+
+The sync writes to a dedicated `.infisical.env` file (not `.env`) so secret keys can't accidentally collide with Compose's `${VAR}` interpolation. Multi-line values (e.g. PEM keys) are skipped with a warning — they need a different transport mechanism (mount-as-file). Re-running spin-up after editing a secret in Infisical refreshes the value automatically; code-server restarts to pick up the new env.
+
+**Not covered by this sync:** Databricks credentials (`databricks_host` / `databricks_token`) live in Cloudflare KV via the Control Plane's Databricks page, not in Infisical — see the Databricks caveat under "Pre-installed data tooling" below for the manual steps to wire them into `~/.dbt/profiles.yml`.
+
 ### Pre-installed data tooling
 
 The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virtual environment at **`/opt/nexus-venv`** that's auto-activated in every terminal you open. Inspired by [stefanko-ch/dbt_codespace_demo](https://github.com/stefanko-ch/dbt_codespace_demo)'s devcontainer, adapted for Nexus-Stack:
