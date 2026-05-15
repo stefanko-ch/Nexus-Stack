@@ -844,10 +844,11 @@ def _render_code_server(c: NexusConfig, e: BootstrapEnv, *, postgres_enabled: bo
     fb586ab). Without the .env file, the Gitea-append step silently
     skips and the entrypoint can't clone the workspace repo.
 
-    Added in #496: when the postgres stack is enabled, the spec emits
+    When the postgres stack is enabled, the spec emits
     ``NEXUS_POSTGRES_ENABLED=1``. The compose entrypoint reads this
-    plus the Infisical-synced ``$POSTGRES_PASSWORD`` to write a
-    SQLTools connection into
+    plus the Infisical-synced ``$POSTGRES_PASSWORD`` (the latter
+    plumbed in by the Infisical secret-sync introduced in #586) to
+    write a SQLTools connection into
     ``/home/coder/.local/share/code-server/User/settings.json`` on
     container start — gives students a pre-configured Postgres
     connection in the SQLTools sidebar with no manual setup. When
@@ -1087,7 +1088,7 @@ def render_all_env_files(
 
         # Cross-spec dependencies: jupyter needs spark_enabled,
         # code-server needs postgres_enabled (for the SQLTools auto-
-        # connect flag added in #496-followup).
+        # connect flag — see _render_code_server's docstring).
         if spec.service_name == "jupyter":
             rendered = _render_jupyter(config, env, spark_enabled=spark_enabled)
         elif spec.service_name == "code-server":

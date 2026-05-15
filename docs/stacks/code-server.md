@@ -94,7 +94,7 @@ When the `postgres` stack is enabled in the Control Plane alongside code-server,
 Wiring:
 1. `service_env.py` renders `NEXUS_POSTGRES_ENABLED=1` into `stacks/code-server/.env` when `postgres` is in the D1 enabled-services list.
 2. The Infisical secret-sync phase (added in #586) populates `POSTGRES_PASSWORD` in `.infisical.env`.
-3. The entrypoint reads both, and only writes `settings.json` when **both** are present — otherwise it skips silently. (Note: `${env:POSTGRES_PASSWORD}` does NOT work in SQLTools connection configs — the password is substituted as a plain string at container-start time.)
+3. The entrypoint reads both, and only writes `settings.json` when **both** are present — otherwise it logs `[code-server] Skipping SQLTools auto-connect (...)` and continues without the connection. (Note: `${env:POSTGRES_PASSWORD}` does NOT work in SQLTools connection configs — the password is substituted as a plain string at container-start time.)
 
 If `postgres` is not enabled, the auto-connect is dormant — students can still add connections manually via SQLTools "Add New Connection".
 
