@@ -66,16 +66,20 @@ RUN ARCH="$(uname -m)" && \
 # - dbt-core: the dbt engine
 # - dbt-postgres: adapter for the Nexus-Stack postgres stack
 # - dbt-duckdb: adapter for local-file DuckDB targets
-# - dbt-clickhouse: adapter for the Nexus-Stack clickhouse stack (Altinity)
+# - dbt-clickhouse: adapter for the Nexus-Stack clickhouse stack
+#   (official clickhouse/clickhouse-server image)
 # - dbt-spark: installed for users who connect to an EXTERNAL Spark
 #   cluster (Thrift / ODBC / session modes). NOT pre-wired to the
 #   Nexus-Stack spark stack: that stack exposes Spark Connect
 #   (sc://spark-connect:15002, used by PySpark/Marimo), but dbt-spark
 #   does not support Spark Connect. The stack also doesn't run a Hive
 #   Thrift Server, and this image deliberately omits local PySpark/JDK,
-#   so 'session' mode needs extra setup too. For SQL workloads against
-#   in-stack Spark data, prefer dbt-trino or dbt-databricks.
-# - dbt-trino: adapter for the Nexus-Stack trino stack (Starburst)
+#   so 'session' mode needs extra setup too. There is no out-of-the-
+#   box dbt path to data that lives only on the Nexus-Stack Spark
+#   stack — for SQL workloads against other in-stack data (postgres,
+#   clickhouse, DuckDB files), use the matching adapter directly.
+# - dbt-trino: adapter for the Nexus-Stack trino stack (official
+#   trinodb/trino image; catalogs: clickhouse + postgresql)
 # - dbt-databricks: adapter only. The Nexus-Stack Databricks
 #   integration (Control-Plane KV + /api/databricks-sync) pushes
 #   Infisical secrets INTO a Databricks scope — it does NOT inject
