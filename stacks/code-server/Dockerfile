@@ -118,21 +118,19 @@ RUN uv venv /opt/nexus-venv && \
       duckdb && \
     chown -R coder:coder /opt/nexus-venv
 
-# Auto-activate nexus-venv via /etc/bash.bashrc (system-wide, IMAGE-BAKED).
-# Bash sources /etc/bash.bashrc for every interactive non-login shell —
-# including the terminal inside code-server. Unlike /home/coder/.bashrc
-# (which lives in the volume-masked /home/coder), /etc/bash.bashrc is
-# always the one shipped with the image, so updates here actually take
-# effect on the next container restart even for existing
-# code-server-data volumes.
-RUN { \
-      echo ''; \
-      echo '# Auto-activate Nexus-Stack pre-installed dbt + notebook venv'; \
-      echo '# (image-baked at /opt/nexus-venv; survives volume-mount masking)'; \
-      echo 'if [ -f /opt/nexus-venv/bin/activate ]; then'; \
-      echo '  . /opt/nexus-venv/bin/activate'; \
-      echo 'fi'; \
-    } >> /etc/bash.bashrc
+# Nexus-venv auto-activation: handled at container-start time by the
+# compose entrypoint (appends the activate-block to ~/.bashrc if not
+# already present). Cannot use /etc/bash.bashrc here because
+# code-server launches its xterm with 'bash --init-file ...' — bash
+# skips /etc/bash.bashrc when given --init-file, and the init-file
+# (VS Code's shellIntegration-bash.sh) sources ~/.bashrc, not
+# /etc/bash.bashrc. The PR #580 strategy of writing to
+# /etc/bash.bashrc never actually triggered in code-server terminals.
+#
+# ~/.bashrc lives in the volume mount (code-server-data:/home/coder),
+# so the activate-block has to be APPENDED at container-start time
+# rather than baked into the image. The entrypoint guard
+# ('grep -q ... || append') makes it idempotent across restarts.
 
 # Pre-stage VS Code extensions for seeding into a fresh
 # code-server-data volume.
