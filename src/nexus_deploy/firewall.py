@@ -11,8 +11,12 @@ expose TCP ports through the Cloudflare Tunnel. Three responsibilities:
    service name.
 
 2. **Render** per-service ``docker-compose.firewall.yml`` overrides.
-   Each non-RedPanda service gets a single-listener override that
-   maps ``host:container`` 1:1. RedPanda gets a dual-listener
+   Each non-RedPanda service defaults to a ``host:container`` 1:1
+   single-listener override. Stacks listed in
+   :data:`ASYMMETRIC_PORT_MAPPINGS` get their declared container
+   port instead — needed when a stack's daemon listens on a port
+   that differs from the host port advertised in
+   ``services.yaml``'s ``tcp_ports``. RedPanda gets a dual-listener
    override:
      * 9092 (host) → 19092 (container, SASL listener)
      * 8081 / 18081 (host) → 8081 (container, Schema Registry)

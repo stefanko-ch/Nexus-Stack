@@ -35,4 +35,4 @@ Access RustFS Console at `https://rustfs.<domain>` to:
 
 **S3 API Access:**
 - **Console UI**: `https://rustfs.<domain>` (host port 9002 → container 9001, accessible via Cloudflare Tunnel)
-- **S3 API** (host port 9003): closed by default. To use it from an external client, enable the `rustfs → s3-api` rule in Control Plane → Firewall (restrict to your source IP) — then connect to `YOUR_SERVER:9003`. Cross-stack traffic on `app-network` can still reach the API as `rustfs:9000` internally without the firewall toggle.
+- **S3 API** (host port 9003): closed by default. To use it from an external client, enable the `rustfs → s3-api` rule in Control Plane → Firewall (restrict to your source IP), then hit **Spin Up** to apply the change. Once the redeploy finishes, connect to `YOUR_SERVER:9003`. Cross-stack traffic on `app-network` can still reach the API as `rustfs:9000` internally without the firewall toggle.

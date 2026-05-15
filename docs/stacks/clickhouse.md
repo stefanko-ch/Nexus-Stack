@@ -31,4 +31,4 @@ ClickHouse is a column-oriented database management system for online analytical
 1. Enable the service in Control Plane
 2. Access `https://clickhouse.YOUR_DOMAIN` for the Play UI
 3. Login with credentials from Infisical
-4. To connect external clients via the native protocol, enable the **`clickhouse → native`** rule in Control Plane → Firewall (restrict to your source IP). Then connect to `YOUR_SERVER:9004`. Without the firewall toggle the host port is closed; cross-stack traffic on `app-network` can still reach the daemon as `clickhouse:9000` internally.
+4. To connect external clients via the native protocol, enable the **`clickhouse → native`** rule in Control Plane → Firewall (restrict to your source IP), then hit **Spin Up** to apply the change. Once the redeploy finishes, connect to `YOUR_SERVER:9004`. Without the firewall toggle (or before the Spin Up applies it) the host port is closed; cross-stack traffic on `app-network` can still reach the daemon as `clickhouse:9000` internally without any toggle.
