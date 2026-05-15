@@ -18,9 +18,15 @@ services:
     image: ${IMAGE_CLICKHOUSE:-clickhouse/clickhouse-server:25.8.16.34}
     container_name: clickhouse
     restart: unless-stopped
+    # Host port 9004 (native TCP) is gated on the firewall toggle —
+    # docker-compose.firewall.yml adds it as 9004:9000 when an
+    # operator enables the rule in the Control Plane. Listing it here
+    # too would create a duplicate-host-port collision after merge
+    # (issue #488). The container always listens on 9000 internally,
+    # so cross-stack traffic on app-network can still reach it as
+    # clickhouse:9000 without the host port.
     ports:
       - "8123:8123"
-      - "9004:9000"
     env_file: .env
     environment:
       CLICKHOUSE_USER: nexus-clickhouse
