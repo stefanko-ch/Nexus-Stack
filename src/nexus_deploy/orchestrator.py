@@ -666,9 +666,13 @@ class Orchestrator:
                 status="partial",
                 detail=f"mirrors={len(result.mirrors)} (some failed)",
             )
-        return PhaseResult(
-            name="mirror-setup", status="ok", detail=f"mirrors={len(result.mirrors)}"
-        )
+        # Surface the sync-detail when present so operators can see whether
+        # the upstream fetch actually landed during this spin-up (vs. silently
+        # leaving the fork at a stale commit).
+        detail_parts = [f"mirrors={len(result.mirrors)}"]
+        if result.sync_detail:
+            detail_parts.append(result.sync_detail)
+        return PhaseResult(name="mirror-setup", status="ok", detail=" | ".join(detail_parts))
 
     def _phase_secret_sync(self, ssh: SSHClient, stack: str) -> PhaseResult:
         """Common impl for jupyter + marimo secret-sync."""

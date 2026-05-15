@@ -2726,7 +2726,7 @@ def test_run_mirror_setup_happy_path_with_user() -> None:
         gh_mirror_repos=["https://github.com/o/myrepo.git"],
         gh_mirror_token="ghp_xxx",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,  # don't sleep in tests
+        mirror_sync_poll_seconds=0.0,  # don't poll in tests
     )
     assert result.is_success is True
     assert result.admin_uid == 1
@@ -2738,6 +2738,168 @@ def test_run_mirror_setup_happy_path_with_user() -> None:
     assert result.fork.status == "created"
     assert result.collaborator_added_count == 1
     assert result.fork_synced is True
+
+
+@responses.activate
+def test_run_mirror_setup_sync_detail_landed() -> None:
+    """When the mirror HEAD changes during the polling window, the
+    sync_detail surfaces the SHA transition and that merge_upstream
+    was called — this is the new diagnostic that makes 'why didn't
+    the fork pick up upstream commits' observable in PhaseResult."""
+    # Admin UID + mirror migrate
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+    responses.add(
+        responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=404
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/migrate",
+        status=201,
+        json={"id": 42, "name": "mirror-readonly-myrepo"},
+    )
+    # User-token + fork
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/users/stefan/tokens",
+        status=201,
+        json={"sha1": "user-tok"},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
+        status=202,
+        json={"id": 99},
+    )
+    responses.add(
+        responses.DELETE,
+        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
+        status=204,
+    )
+    responses.add(
+        responses.PUT,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
+        status=204,
+    )
+    # First branch-HEAD lookup (before sync): old SHA.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
+        status=200,
+        json={"commit": {"id": "old1234567890abcdef"}},
+    )
+    # trigger_mirror_sync → 200
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
+        status=200,
+    )
+    # Second branch-HEAD lookup (poll iteration 1): NEW SHA — sync landed.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
+        status=200,
+        json={"commit": {"id": "new9876543210fedcba"}},
+    )
+    # merge_upstream → 200
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
+        status=200,
+    )
+
+    result = run_mirror_setup(
+        base_url=BASE_URL,
+        admin_username="admin",
+        admin_password="admin-pw",
+        gitea_token="admin-tok",
+        gitea_user_username="stefan",
+        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        gh_mirror_token="ghp_xxx",
+        workspace_branch="main",
+        # 30s poll budget is fine — the loop returns on first successful
+        # SHA-change observation, not the full 30s.
+        mirror_sync_poll_seconds=30.0,
+        mirror_sync_poll_interval_seconds=0.0,
+    )
+    assert result.fork_synced is True
+    assert "mirror synced" in result.sync_detail
+    assert "old12345" in result.sync_detail
+    assert "new98765" in result.sync_detail
+    assert "merge_upstream=200" in result.sync_detail
+
+
+@responses.activate
+def test_run_mirror_setup_sync_detail_unchanged() -> None:
+    """When the mirror HEAD doesn't move within the poll window
+    (upstream genuinely unchanged, OR Gitea's fetch wedged), the
+    detail says so + still calls merge_upstream so the operator
+    sees the 409 'already up to date' case explicitly."""
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+    responses.add(
+        responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=404
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/migrate",
+        status=201,
+        json={"id": 42},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/users/stefan/tokens",
+        status=201,
+        json={"sha1": "user-tok"},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
+        status=202,
+        json={"id": 99},
+    )
+    responses.add(
+        responses.DELETE,
+        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
+        status=204,
+    )
+    responses.add(
+        responses.PUT,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
+        status=204,
+    )
+    # branch HEAD never changes across all poll iterations.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
+        status=200,
+        json={"commit": {"id": "stable000000000abc"}},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
+        status=409,
+    )
+
+    result = run_mirror_setup(
+        base_url=BASE_URL,
+        admin_username="admin",
+        admin_password="admin-pw",
+        gitea_token="admin-tok",
+        gitea_user_username="stefan",
+        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        gh_mirror_token="ghp_xxx",
+        workspace_branch="main",
+        # Tiny budget so the test doesn't actually wait — guaranteed
+        # to expire after one no-change observation.
+        mirror_sync_poll_seconds=0.1,
+        mirror_sync_poll_interval_seconds=0.0,
+    )
+    assert "mirror HEAD unchanged" in result.sync_detail
+    assert "merge_upstream=409" in result.sync_detail
 
 
 @responses.activate
@@ -2796,7 +2958,7 @@ def test_run_mirror_setup_idempotent_skips_existing_mirror() -> None:
         gh_mirror_repos=["https://github.com/o/myrepo.git"],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     assert result.is_success is True
     assert result.mirrors[0].status == "already_exists"
@@ -2839,7 +3001,7 @@ def test_run_mirror_setup_no_user_skips_fork() -> None:
         gh_mirror_repos=["https://github.com/o/x.git"],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     assert result.is_success is True
     assert result.fork is None
@@ -2862,7 +3024,7 @@ def test_run_mirror_setup_returns_no_admin_uid_early() -> None:
         gh_mirror_repos=["https://github.com/o/x.git"],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     assert result.admin_uid is None
     assert result.mirrors == ()
@@ -2949,7 +3111,7 @@ def test_run_mirror_setup_fork_only_first_iteration() -> None:
         ],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     assert result.is_success is True
     assert len(result.mirrors) == 2
@@ -3042,7 +3204,7 @@ def test_run_mirror_setup_fork_retries_on_next_iteration_after_transient_failure
         ],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     # Final fork is the SECOND mirror's successful fork, NOT the
     # first iteration's transient failure.
@@ -3101,7 +3263,7 @@ def test_run_mirror_setup_surfaces_last_fork_failure_when_every_attempt_fails() 
         ],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     # fork=last_fork_failure (the second iteration's attempt) so the
     # operator sees a diagnostic — not None.
@@ -3148,7 +3310,7 @@ def test_run_mirror_setup_unsafe_basename_marks_failed_and_continues() -> None:
         ],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     # Loop did NOT abort — both URLs got processed.
     assert len(result.mirrors) == 2
@@ -3196,7 +3358,7 @@ def test_run_mirror_setup_partial_failure_continues_loop() -> None:
         ],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     assert len(result.mirrors) == 2
     assert result.mirrors[0].status == "failed"
@@ -3245,7 +3407,7 @@ def test_run_mirror_setup_user_token_failure_marks_fork_failed() -> None:
         gh_mirror_repos=["https://github.com/o/r.git"],
         gh_mirror_token="ghp",
         workspace_branch="main",
-        mirror_sync_settle_seconds=0.0,
+        mirror_sync_poll_seconds=0.0,
     )
     assert result.fork is not None
     assert result.fork.status == "failed"

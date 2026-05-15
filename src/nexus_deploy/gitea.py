@@ -965,6 +965,38 @@ class GiteaClient:
             return False
         return resp.status_code == 200
 
+    def get_branch_head_sha(self, owner: str, name: str, branch: str) -> str | None:
+        """``GET /api/v1/repos/<o>/<n>/branches/<branch>`` — return the
+        commit SHA of the branch tip, or ``None`` on any failure
+        (transport, 4xx, malformed response).
+
+        Used by :func:`run_mirror_setup` to poll for mirror-sync
+        completion: trigger the sync, then watch the mirror's HEAD
+        SHA until it changes from the pre-sync baseline.
+        """
+        _validate_path_segment(owner, kind="owner")
+        _validate_path_segment(name, kind="repo_name")
+        _validate_path_segment(branch, kind="branch")
+        try:
+            resp = requests.get(
+                f"{self.base_url}/api/v1/repos/{owner}/{name}/branches/{branch}",
+                timeout=_HTTP_TIMEOUT,
+                **self._request_kwargs(),  # type: ignore[arg-type]
+            )
+        except (requests.ConnectionError, requests.Timeout):
+            return None
+        if resp.status_code != 200:
+            return None
+        try:
+            payload = resp.json()
+        except ValueError:
+            return None
+        commit = payload.get("commit") if isinstance(payload, dict) else None
+        if not isinstance(commit, dict):
+            return None
+        sha = commit.get("id")
+        return sha if isinstance(sha, str) else None
+
     def merge_upstream(self, owner: str, name: str, branch: str) -> str:
         """``POST /api/v1/repos/<o>/<n>/merge-upstream`` — fast-forward fork
         from its parent's branch. Returns HTTP status code as a string
@@ -1633,6 +1665,13 @@ class MirrorSetupResult:
     fork: ForkResult | None
     collaborator_added_count: int
     fork_synced: bool
+    # Diagnostic for the mirror-sync + merge-upstream chain on the
+    # first iteration where the fork existed. Surfaced in the
+    # orchestrator's PhaseResult.detail so operators can see WHY a
+    # fork didn't pick up new upstream commits (most common cause:
+    # GitHub upstream took longer than the settle timeout). Empty
+    # string when no sync was attempted (no fork yet).
+    sync_detail: str = ""
 
     @property
     def is_success(self) -> bool:
@@ -1654,7 +1693,8 @@ def run_mirror_setup(
     gh_mirror_token: str,
     workspace_branch: str,
     fork_token_name: str = "nexus-workspace-fork",  # noqa: S107
-    mirror_sync_settle_seconds: float = 3.0,
+    mirror_sync_poll_seconds: float = 30.0,
+    mirror_sync_poll_interval_seconds: float = 1.5,
 ) -> MirrorSetupResult:
     """End-to-end GH_MIRROR_REPOS provisioning.
 
@@ -1727,6 +1767,7 @@ def run_mirror_setup(
     last_fork_failure: ForkResult | None = None
     fork_synced = False
     collaborator_added_count = 0
+    sync_detail = ""
 
     for repo_url in gh_mirror_repos:
         repo_url = repo_url.strip()
@@ -1867,12 +1908,59 @@ def run_mirror_setup(
         # Sync the fork from upstream — only on the first iteration
         # where the fork was actually created/already-existed.
         if fork is not None and fork.status in ("created", "already_exists") and not fork_synced:
-            fork_synced = True  # set even if the merge below soft-fails
-            client.trigger_mirror_sync(admin_username, mirror_name)
-            # Brief settle for Gitea's async mirror clone before the
-            # fast-forward attempt. legacy bash sleeps the same.
-            time.sleep(mirror_sync_settle_seconds)
-            client.merge_upstream(fork.owner, fork.name, workspace_branch)
+            fork_synced = True  # set even if the chain below soft-fails
+            # Step 1: snapshot the mirror's HEAD SHA so we can detect
+            # when the upstream-fetch lands.
+            before_sha = client.get_branch_head_sha(admin_username, mirror_name, workspace_branch)
+            triggered = client.trigger_mirror_sync(admin_username, mirror_name)
+            if not triggered:
+                sync_detail = "trigger_mirror_sync returned non-200 (token / repo state)"
+            else:
+                # Step 2: poll the mirror's branch HEAD until it changes
+                # from the pre-sync snapshot. The previous fixed 3-second
+                # sleep was too short for medium repos — GitHub's clone
+                # finished but Gitea's mirror-fetch hadn't propagated by
+                # the time merge_upstream ran, so the fork merged the OLD
+                # mirror state and silently returned 409 "already up to
+                # date". Polling catches a freshly-arrived commit even on
+                # slow upstream fetches; the cap (mirror_sync_poll_seconds)
+                # protects against a wedged mirror.
+                deadline = time.monotonic() + mirror_sync_poll_seconds
+                landed = False
+                while time.monotonic() < deadline:
+                    after_sha = client.get_branch_head_sha(
+                        admin_username, mirror_name, workspace_branch
+                    )
+                    if after_sha is not None and after_sha != before_sha:
+                        landed = True
+                        break
+                    time.sleep(mirror_sync_poll_interval_seconds)
+                if before_sha is None:
+                    # Mirror branch couldn't be read pre-sync (404 or
+                    # auth glitch) → we can't tell if the sync landed.
+                    # Skip merge to avoid a misleading 200 against a
+                    # stale mirror.
+                    sync_detail = "could not snapshot mirror HEAD before sync"
+                elif not landed:
+                    # Sync was triggered but the mirror's HEAD didn't
+                    # move within the timeout. Could be: (a) upstream
+                    # unchanged (legitimate no-op), or (b) Gitea's
+                    # fetcher is wedged / token rejected. We still
+                    # call merge_upstream — it'll return 409 in case
+                    # (a), giving us a clean diagnostic.
+                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
+                    sync_detail = (
+                        f"mirror HEAD unchanged after {mirror_sync_poll_seconds:.0f}s "
+                        f"(before={(before_sha or '')[:8]}, "
+                        f"merge_upstream={merge_status})"
+                    )
+                else:
+                    # Sync landed — merge fork from updated mirror.
+                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
+                    sync_detail = (
+                        f"mirror synced ({(before_sha or '')[:8]} -> "
+                        f"{(after_sha or '')[:8]}), merge_upstream={merge_status}"
+                    )
 
     # If every fork attempt across the loop failed, surface the last
     # one's diagnostic in the final result so the operator can see WHY
@@ -1889,4 +1977,5 @@ def run_mirror_setup(
         fork=fork,
         collaborator_added_count=collaborator_added_count,
         fork_synced=fork_synced,
+        sync_detail=sync_detail,
     )
