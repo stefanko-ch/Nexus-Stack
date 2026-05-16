@@ -1,0 +1,50 @@
+# =============================================================================
+# CyberChef - The Cyber Swiss Army Knife
+# =============================================================================
+# Web-based data manipulation tool from GCHQ (UK Government Communications HQ).
+# Drag-and-drop "Operations" stack for encoding/decoding/hashing/format-
+# conversion/regex/crypto — ~400 operations across 30+ categories.
+#
+# Stateless: ALL processing happens client-side in the browser. The container
+# only serves the static HTML/JS/CSS bundle (nginx + alpine, ~30 MB image,
+# ~10 MB RAM idle). No volumes, no DB, no env vars, no auth at the app
+# level — Cloudflare Access at the edge is the only auth layer.
+#
+# Access: https://cyberchef.YOUR_DOMAIN
+#
+# Classroom use cases:
+#   - Decode JWT payloads without `jq` + base64 fumbling
+#   - "From Base64 → Gunzip → Pretty-print JSON" on log payloads
+#   - Inspect/transform Kafka/Kestra message bodies during tutorials
+#   - Regex/hash/encoding experiments live in front of students
+#
+# Image maintainer: Marco Pepping (mpepping/cyberchef on Docker Hub);
+# image tracks upstream GCHQ/CyberChef releases. Pinned to a specific
+# version so re-deploys are reproducible across the semester — bump
+# IMAGE_CYBERCHEF in the deploy when GCHQ ships a new release that
+# matters for the class.
+# =============================================================================
+
+services:
+  cyberchef:
+    image: ${IMAGE_CYBERCHEF:-mpepping/cyberchef:v10.24.0}
+    container_name: cyberchef
+    restart: unless-stopped
+    ports:
+      - "8400:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  app-network:
+    external: true
