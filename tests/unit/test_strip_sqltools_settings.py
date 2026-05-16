@@ -1,0 +1,144 @@
+"""Tests for the one-time #593 migration script that strips
+sqltools.* keys from a code-server settings.json.
+
+Covers the atomicity properties (no half-write on interruption,
+no truncation on malformed JSON) and the idempotency (no-op on
+already-clean files or missing files).
+"""
+
+from __future__ import annotations
+
+import json
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+SCRIPT = (
+    Path(__file__).parent.parent.parent
+    / "stacks"
+    / "code-server"
+    / "scripts"
+    / "strip-sqltools-settings.py"
+)
+
+
+def _run(path: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), str(path)],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_strips_sqltools_keys_preserves_others(tmp_path: Path) -> None:
+    """Happy path: sqltools.* keys are removed, every other key
+    survives byte-for-byte (well, modulo JSON re-indenting)."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        json.dumps(
+            {
+                "editor.fontSize": 14,
+                "sqltools.connections": [{"password": "leaked-pg-pw"}],
+                "sqltools.useNodeRuntime": True,
+                "workbench.colorTheme": "Default Dark+",
+            }
+        )
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0
+    assert "Stripped sqltools.* keys" in result.stdout
+    after = json.loads(settings.read_text())
+    assert "sqltools.connections" not in after
+    assert "sqltools.useNodeRuntime" not in after
+    assert after["editor.fontSize"] == 14
+    assert after["workbench.colorTheme"] == "Default Dark+"
+
+
+def test_no_sqltools_keys_is_noop(tmp_path: Path) -> None:
+    """Idempotent: a clean settings.json triggers an exit-0 "nothing
+    to do" log line, file mtime should not change."""
+    settings = tmp_path / "settings.json"
+    original = json.dumps({"editor.fontSize": 14})
+    settings.write_text(original)
+    mtime_before = settings.stat().st_mtime_ns
+
+    result = _run(settings)
+
+    assert result.returncode == 0
+    assert "No sqltools" in result.stdout
+    assert settings.read_text() == original
+    assert settings.stat().st_mtime_ns == mtime_before, (
+        "file was touched even though no work was needed"
+    )
+
+
+def test_missing_file_is_noop(tmp_path: Path) -> None:
+    """Idempotent: a missing settings.json (fresh install) is a no-op
+    exit 0, not a crash. The compose entrypoint already guards with
+    `if [ -f settings.json ]` but the script being lenient too means
+    operators can run it ad-hoc without surprise."""
+    result = _run(tmp_path / "does-not-exist.json")
+    assert result.returncode == 0
+    assert "not found" in result.stdout
+
+
+def test_malformed_json_does_not_truncate_file(tmp_path: Path) -> None:
+    """Critical guarantee: if settings.json is malformed JSON, the
+    script must NOT truncate or modify it — the operator needs the
+    intact corrupt file for debugging. Script exits 1 (visible failure)
+    with a SECURITY WARNING on stderr."""
+    settings = tmp_path / "settings.json"
+    original = '{"editor.fontSize": 14, "sqltools.connections": [BROKEN'
+    settings.write_text(original)
+
+    result = _run(settings)
+
+    assert result.returncode == 1
+    assert "SECURITY WARNING" in result.stderr
+    assert settings.read_text() == original, (
+        "script truncated a malformed file when it should have left it alone"
+    )
+
+
+def test_atomic_rename_leaves_no_tmp_files_on_success(tmp_path: Path) -> None:
+    """After a successful run, the target should be replaced and the
+    temp file removed — no .settings.json.* artifacts left behind."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps({"sqltools.connections": []}))
+
+    _run(settings)
+
+    leftover_tmps = [p for p in tmp_path.iterdir() if p.name != "settings.json"]
+    assert leftover_tmps == [], f"leftover temp file(s): {leftover_tmps}"
+
+
+def test_usage_error_when_path_missing(tmp_path: Path) -> None:
+    """No argv[1] → exit 2 with a usage line on stderr (don't crash
+    with a Python traceback that obscures the actual problem)."""
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "usage:" in result.stderr
+
+
+def test_preserves_file_after_replace(tmp_path: Path) -> None:
+    """After atomic replace the file exists, is non-empty, and is
+    valid JSON. (Sanity: catches a regression where the temp file
+    was accidentally renamed onto itself or os.replace was misused.)"""
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps({"sqltools.foo": 1, "other": 2}))
+
+    _run(settings)
+
+    assert settings.exists()
+    after = json.loads(settings.read_text())
+    assert after == {"other": 2}
+    # Should still be a regular readable file
+    mode = stat.S_IMODE(settings.stat().st_mode)
+    assert mode & 0o400, f"file is unreadable: mode {oct(mode)}"

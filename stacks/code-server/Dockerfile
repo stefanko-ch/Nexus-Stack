@@ -179,6 +179,15 @@ RUN uv venv /opt/nexus-venv && \
 RUN mkdir -p /opt/code-server-extensions && \
     chown -R coder:coder /opt/code-server-extensions
 
+# Migration scripts called from the compose entrypoint. Currently
+# only the one-time #593 sqltools-settings cleanup (atomic temp-file +
+# rename rewrite of settings.json to strip leftover credential keys).
+# Kept in /opt/ — outside the code-server-data volume mount that
+# masks /home/coder/ — so the script is reachable on every container
+# start regardless of volume state.
+COPY scripts/ /opt/code-server-scripts/
+RUN chmod -R a+r /opt/code-server-scripts
+
 USER coder
 
 # Keep uv-tool's local bin on PATH for any user-level uv-tool installs

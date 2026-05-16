@@ -66,12 +66,18 @@ services:
             fi;
           fi;
         done;
+        # Strip leftover sqltools.* keys (including the leaked Postgres
+        # password) from settings.json. Delegated to a real Python
+        # script for atomicity: it writes to a same-directory temp file
+        # and os.replace()s onto the target, so the file is never
+        # half-written even if the container is killed mid-rewrite.
+        # An inline python3 -c oneliner would `open(p, 'w')` (truncates
+        # immediately) before reserialising and could leave settings.json
+        # empty on interruption.
         SETTINGS=/home/coder/.local/share/code-server/User/settings.json;
         if [ -f \"$$SETTINGS\" ] && grep -q '\"sqltools' \"$$SETTINGS\"; then
-          if python3 -c \"import json,sys; p='$$SETTINGS'; d=json.load(open(p)); ks=[k for k in d if k.startswith('sqltools')]; [d.pop(k) for k in ks]; json.dump(d, open(p,'w'), indent=2); print('[code-server] Stripped sqltools.* keys from settings.json:', ks)\"; then
-            :;
-          else
-            echo '[code-server] SECURITY WARNING: failed to strip sqltools keys from settings.json — Postgres password may still be present at' \"$$SETTINGS\" >&2;
+          if ! python3 /opt/code-server-scripts/strip-sqltools-settings.py \"$$SETTINGS\"; then
+            echo \"[code-server] SECURITY WARNING: strip-sqltools-settings.py failed at $$SETTINGS — Postgres password may still be present, operator action required\" >&2;
           fi;
         fi;
         OPEN_DIR=/home/coder;
