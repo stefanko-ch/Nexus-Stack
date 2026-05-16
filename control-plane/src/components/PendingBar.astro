@@ -83,8 +83,18 @@
   (function() {
     const bar = document.getElementById('pending-bar');
     const text = document.getElementById('pending-bar-text');
+    const view = document.getElementById('pending-bar-view');
     const btnSpinUp = document.getElementById('pending-bar-spinup');
-    if (!bar || !text || !btnSpinUp) return;
+    if (!bar || !text || !view || !btnSpinUp) return;
+
+    // Pick the View-link destination based on which source has pending
+    // changes. Firewall-only → /firewall (stacks page would show nothing
+    // pending and confuse the operator). Anything involving stacks →
+    // /stacks?filter=pending (the more common multi-item view).
+    function pickViewHref(stackCount, fwCount) {
+      if (stackCount === 0 && fwCount > 0) return '/firewall';
+      return '/stacks?filter=pending';
+    }
 
     // Issue #460: split the count by source so the operator sees WHAT
     // is pending. e.g. "3 stack changes + 2 firewall changes pending"
@@ -124,8 +134,10 @@
       // shouldn't hide a real firewall-only pending count, and vice
       // versa. Each source defaults to 0 on its own failure path so
       // the banner stays honest about the OTHER source that did
-      // respond — only when BOTH fail (both return 0) does the banner
-      // stay hidden, same as the no-changes case.
+      // respond. The banner hides whenever the sum is 0 — that covers
+      // both the legitimate no-changes case AND the (rare) case where
+      // both sources failed and defaulted to 0; we don't distinguish
+      // them because there's nothing useful to render either way.
       const [services, fwCount] = await Promise.all([
         window.NS.getServices(),
         fetchFirewallPending(),
@@ -137,6 +149,7 @@
 
       if (totalCount > 0) {
         text.textContent = formatBreakdown(stackCount, fwCount);
+        view.setAttribute('href', pickViewHref(stackCount, fwCount));
         bar.hidden = false;
       } else {
         bar.hidden = true;
