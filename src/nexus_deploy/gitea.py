@@ -1716,10 +1716,19 @@ def run_mirror_setup(
        d. On the FIRST mirror with a configured user, fork it
           into the user's namespace via a temp user-token
           (created + deleted on this call).
-       e. If the fork was created on this iteration: trigger
-          ``mirror-sync`` on the mirror, sleep
-          ``mirror_sync_settle_seconds``, then ``merge-upstream``
-          on the fork at ``workspace_branch``.
+       e. If the fork was created on this iteration: snapshot the
+          mirror's HEAD SHA, trigger ``mirror-sync`` on the mirror,
+          then poll the mirror's HEAD up to
+          ``mirror_sync_poll_seconds`` (with
+          ``mirror_sync_poll_interval_seconds`` between polls) waiting
+          for the upstream-fetch to land. Whether or not the SHA
+          actually changed, call ``merge-upstream`` on the fork at
+          ``workspace_branch`` (best-effort — the mirror may already
+          be ahead from Gitea's periodic cron-tick or the initial
+          migrate-fetch). The pre/post SHA + merge result land in
+          ``MirrorSetupResult.sync_detail`` so operators can tell
+          'sync landed', 'sync skipped (no change)', and 'sync
+          failed but merged anyway' apart.
 
     The fork creation (step c) and fork-sync (step e) happen ONLY
     on the first iteration that has both a successful migrate AND a
@@ -1967,10 +1976,19 @@ def run_mirror_setup(
                 elif before_sha is None:
                     # Mirror branch couldn't be read pre-sync (404 /
                     # transport) AND polling never observed a SHA
-                    # either — can't tell if sync landed. Skip merge to
-                    # avoid a misleading 200 against an unverifiable
-                    # mirror state.
-                    sync_detail = "could not snapshot mirror HEAD before sync (no SHA observed during poll either)"
+                    # either — we have no way to *verify* the sync,
+                    # but the mirror may still be ahead of the fork
+                    # from Gitea's periodic cron or the initial
+                    # migrate-fetch. Best-effort merge so fork_synced
+                    # (which is set unconditionally above) actually
+                    # corresponds to an attempted merge call —
+                    # otherwise the CLI would report "merge attempted"
+                    # when nothing happened.
+                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
+                    sync_detail = (
+                        "could not snapshot mirror HEAD before sync (no SHA observed during poll either); "
+                        f"merge_upstream against current mirror HEAD: {merge_status}"
+                    )
                 else:
                     # Sync was triggered but the mirror's HEAD didn't
                     # move within the timeout. Could be: (a) upstream

@@ -1250,6 +1250,65 @@ def test_phase_mirror_setup_partial_when_some_mirrors_failed(
     assert result.status == "partial"
 
 
+def test_phase_mirror_setup_surfaces_sync_detail_in_phase_result(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression (PR #589 review): the sync_detail from run_mirror_setup
+    must reach PhaseResult.detail so operators can see whether the
+    upstream-fetch landed during this spin-up. Without this plumbing,
+    a regression that drops sync_detail from the phase output would
+    pass the lower-level test_run_mirror_setup_* tests but silently
+    leave the operator without their diagnostic."""
+    orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
+    orchestrator.gh_mirror_token = "gh-tok"
+    orchestrator.state.gitea_token = "tok"
+
+    def fake_mirror(*_a: Any, **_kw: Any) -> MirrorSetupResult:
+        return MirrorSetupResult(
+            admin_uid=1,
+            admin_uid_error="",
+            mirrors=(MirrorResult(name="y", status="created"),),
+            fork=ForkResult(owner="user", name="user-fork", status="created"),
+            collaborator_added_count=1,
+            fork_synced=True,
+            sync_detail="mirror synced (oldsha12 -> newsha34), merge_upstream=200",
+        )
+
+    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", fake_mirror)
+    result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
+    assert result.status == "ok"
+    assert "mirrors=1" in result.detail
+    assert "mirror synced (oldsha12 -> newsha34)" in result.detail
+    assert "merge_upstream=200" in result.detail
+
+
+def test_phase_mirror_setup_omits_sync_detail_when_empty(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """sync_detail is empty when no fork-sync was attempted (e.g. no
+    user configured); PhaseResult.detail should NOT contain a trailing
+    ' | ' separator for an absent diagnostic."""
+    orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
+    orchestrator.gh_mirror_token = "gh-tok"
+    orchestrator.state.gitea_token = "tok"
+
+    def fake_mirror(*_a: Any, **_kw: Any) -> MirrorSetupResult:
+        return MirrorSetupResult(
+            admin_uid=1,
+            admin_uid_error="",
+            mirrors=(MirrorResult(name="y", status="created"),),
+            fork=None,
+            collaborator_added_count=0,
+            fork_synced=False,
+            sync_detail="",
+        )
+
+    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", fake_mirror)
+    result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
+    assert result.status == "ok"
+    assert result.detail == "mirrors=1"
+
+
 def test_phase_secret_sync_jupyter_skipped_when_not_enabled(
     minimal_config: NexusConfig, minimal_env: BootstrapEnv
 ) -> None:
