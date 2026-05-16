@@ -45,18 +45,27 @@ Metabase's internal H2/DB and all user-created artefacts (dashboards, questions,
 **Migration recipe (run BEFORE the first post-merge spin-up, on an SSH session against the live host):**
 
 ```bash
-# 1. Verify the old named volume still exists on the host.
+# 1. Find the actual volume name. Docker Compose prefixes named
+#    volumes with the compose-project name, so the volume declared as
+#    `metabase_data` in the old stacks/metabase/docker-compose.yml
+#    typically lives on disk as `metabase_metabase_data` (or
+#    `<projectname>_metabase_data` when --project-name overrides are
+#    in use). Grep returns the exact host name:
 ssh nexus "docker volume ls | grep metabase_data"
+# Example output:  local   metabase_metabase_data
 
 # 2. Stop the metabase container so nothing's writing while we copy.
 ssh nexus "docker stop metabase"
 
-# 3. Run a throwaway helper container that mounts the OLD named volume +
-#    the NEW bind-mount side-by-side, then copy the content across.
-#    Alpine is pinned to a specific version so this recipe stays
-#    reproducible if alpine:latest moves to a newer distro release.
+# 3. Run a throwaway helper container that mounts BOTH the OLD named
+#    volume (use the exact name from step 1, INCLUDING any compose-
+#    project prefix — replace 'metabase_metabase_data' below with
+#    whatever step 1 printed) AND the new bind-mount, then copy the
+#    content across. Alpine is pinned to a specific version so this
+#    recipe stays reproducible if alpine:latest moves to a newer
+#    distro release.
 ssh nexus "docker run --rm \\
-  -v metabase_data:/old-data:ro \\
+  -v metabase_metabase_data:/old-data:ro \\
   -v /mnt/nexus-data/metabase:/new-data \\
   alpine:3.20 \\
   sh -c 'cp -a /old-data/. /new-data/ && chown -R 2000:2000 /new-data'"
@@ -67,4 +76,4 @@ ssh nexus "docker run --rm \\
 #    then on the snapshot/restore cycle takes over automatically.
 ```
 
-If you skip the migration, dashboards are simply gone on first post-merge spin-up. The old `metabase_data` named volume stays on the host (unreferenced) until you manually `docker volume rm metabase_data`.
+If you skip the migration, dashboards are simply gone on first post-merge spin-up. The old named volume (whatever step 1 printed — `metabase_metabase_data` in the typical case) stays on the host unreferenced until you manually `docker volume rm <name>`.

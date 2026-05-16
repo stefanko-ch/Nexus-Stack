@@ -309,10 +309,14 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     snapshot in a directory NO container ever sees — restore
     would appear to succeed but Gitea/Dify/Metabase would come up empty.
 
-    S3-side layout matches RFC 0001 §"Storage layout":
-    ``snapshots/<timestamp>/gitea/{repos,lfs}/``,
-    ``snapshots/<timestamp>/dify/{storage,weaviate,plugins}/``, and
-    ``snapshots/<timestamp>/metabase/data/``.
+    S3-side layout: ``snapshots/<timestamp>/gitea/{repos,lfs}/`` and
+    ``snapshots/<timestamp>/dify/{storage,weaviate,plugins}/`` follow
+    RFC 0001 §"Storage layout"; ``snapshots/<timestamp>/metabase/data/``
+    extends the same convention for the metabase-data target added in
+    issue #528. The RFC document itself still describes only the two
+    original stacks — when the next storage-layout RFC revision lands,
+    add Metabase to the diagram so the canonical reference stays in
+    sync.
     ``db/`` and ``redis/`` deliberately NOT in the rsync list —
     Postgres state goes through ``pg_dump`` separately, Redis is
     regeneratable on container start.
@@ -571,11 +575,20 @@ def restore_from_s3(
 
 
 # Compose-file list for the stop-before-snapshot step. v1.0 stops the
-# two stateful stacks (Gitea, Dify) before pg_dump so we get a
-# quiesced view. Other stacks aren't stopped — they don't carry
-# state, and the longer we keep them up the shorter the spinup-side
-# downtime window. If a future stack gains state, extend this list AND
-# add to standard_targets().
+# three stateful stacks (Gitea, Dify, Metabase) before pg_dump + rsync
+# so we get a quiesced filesystem view. Other stacks aren't stopped —
+# they don't carry state, and the longer we keep them up the shorter
+# the spinup-side downtime window. If a future stack gains state,
+# extend this list AND add to standard_targets().
+#
+# Why Metabase needs to be in the stop-list even though it has no
+# Postgres sidecar: the OSS image keeps a H2 database under
+# /metabase-data + Lucene search indexes. rsync against those files
+# while metabase is actively writing is the canonical "corrupted
+# index" footgun — H2 page-file torn writes and Lucene segment
+# half-writes both produce a snapshot that restores to "DB cannot
+# open" on next spin-up. Stopping the container ensures all in-flight
+# writes flushed + file handles closed before rclone touches the dir.
 #
 # Paths match the on-server layout the orchestrator already uses
 # elsewhere (compose_runner.py writes each stack to
@@ -583,6 +596,7 @@ def restore_from_s3(
 _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/gitea/docker-compose.yml",
     "/opt/docker-server/stacks/dify/docker-compose.yml",
+    "/opt/docker-server/stacks/metabase/docker-compose.yml",
 )
 
 
