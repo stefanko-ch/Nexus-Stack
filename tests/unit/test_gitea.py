@@ -2903,6 +2903,166 @@ def test_run_mirror_setup_sync_detail_unchanged() -> None:
 
 
 @responses.activate
+def test_run_mirror_setup_sync_lands_even_when_pre_snapshot_failed() -> None:
+    """Edge case (PR #589 review): if the pre-sync HEAD lookup returns
+    None (transient 404 / transport), but the polling loop later
+    observes a real after_sha, we should still call merge_upstream —
+    a transient pre-snapshot failure shouldn't leave the fork stale
+    when the mirror actually did update."""
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
+        status=404,
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/migrate",
+        status=201,
+        json={"id": 42},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/users/stefan/tokens",
+        status=201,
+        json={"sha1": "user-tok"},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
+        status=202,
+        json={"id": 99},
+    )
+    responses.add(
+        responses.DELETE,
+        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
+        status=204,
+    )
+    responses.add(
+        responses.PUT,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
+        status=204,
+    )
+    # Pre-sync HEAD lookup: 404 -> before_sha=None.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
+        status=404,
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
+        status=200,
+    )
+    # Poll iteration: HEAD resolvable now -> after_sha != None != before_sha
+    # -> landed=True. Must still call merge_upstream.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
+        status=200,
+        json={"commit": {"id": "actuallyhere1234567"}},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
+        status=200,
+    )
+
+    result = run_mirror_setup(
+        base_url=BASE_URL,
+        admin_username="admin",
+        admin_password="admin-pw",
+        gitea_token="admin-tok",
+        gitea_user_username="stefan",
+        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        gh_mirror_token="ghp_xxx",
+        workspace_branch="main",
+        mirror_sync_poll_seconds=30.0,
+        mirror_sync_poll_interval_seconds=0.0,
+    )
+    assert "mirror synced" in result.sync_detail
+    assert "unknown" in result.sync_detail
+    assert "actually" in result.sync_detail
+    assert "merge_upstream=200" in result.sync_detail
+
+
+@responses.activate
+def test_run_mirror_setup_sync_branch_with_slash_does_not_raise() -> None:
+    """Regression (PR #589 review): get_branch_head_sha must accept
+    branch names containing '/' (e.g. 'feat/foo'). Previously
+    _validate_path_segment rejected them before the GET was sent,
+    raising GiteaError. Fix: URL-encode the branch segment."""
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
+        status=404,
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/migrate",
+        status=201,
+        json={"id": 42},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/users/stefan/tokens",
+        status=201,
+        json={"sha1": "user-tok"},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
+        status=202,
+        json={"id": 99},
+    )
+    responses.add(
+        responses.DELETE,
+        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
+        status=204,
+    )
+    responses.add(
+        responses.PUT,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
+        status=204,
+    )
+    # URL-encoded branch in the GET path: 'feat/foo' -> 'feat%2Ffoo'.
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/feat%2Ffoo",
+        status=200,
+        json={"commit": {"id": "samesha000000abcdef"}},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
+        status=409,
+    )
+
+    result = run_mirror_setup(
+        base_url=BASE_URL,
+        admin_username="admin",
+        admin_password="admin-pw",
+        gitea_token="admin-tok",
+        gitea_user_username="stefan",
+        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        gh_mirror_token="ghp_xxx",
+        workspace_branch="feat/foo",
+        mirror_sync_poll_seconds=0.1,
+        mirror_sync_poll_interval_seconds=0.0,
+    )
+    # No GiteaError raised => success. Sync didn't land (same SHA),
+    # but the slash-branch didn't blow up.
+    assert result.is_success is True
+    assert "mirror HEAD unchanged" in result.sync_detail
+
+
+@responses.activate
 def test_run_mirror_setup_idempotent_skips_existing_mirror() -> None:
     """Mirror already exists → skip migrate, still do fork+collab+sync."""
     responses.add(

@@ -56,6 +56,7 @@ from __future__ import annotations
 import re
 import shlex
 import time
+import urllib.parse
 from dataclasses import dataclass
 from typing import Literal
 
@@ -973,13 +974,19 @@ class GiteaClient:
         Used by :func:`run_mirror_setup` to poll for mirror-sync
         completion: trigger the sync, then watch the mirror's HEAD
         SHA until it changes from the pre-sync baseline.
+
+        Branch names may legitimately contain slashes (``feat/foo``,
+        ``release/1.2``); URL-encode the branch segment rather than
+        validating it as a single path segment so those don't raise
+        before the GET is even sent. Owner + repo name are still
+        single-segment-validated (no slashes allowed there).
         """
         _validate_path_segment(owner, kind="owner")
         _validate_path_segment(name, kind="repo_name")
-        _validate_path_segment(branch, kind="branch")
+        encoded_branch = urllib.parse.quote(branch, safe="")
         try:
             resp = requests.get(
-                f"{self.base_url}/api/v1/repos/{owner}/{name}/branches/{branch}",
+                f"{self.base_url}/api/v1/repos/{owner}/{name}/branches/{encoded_branch}",
                 timeout=_HTTP_TIMEOUT,
                 **self._request_kwargs(),  # type: ignore[arg-type]
             )
@@ -1935,13 +1942,23 @@ def run_mirror_setup(
                         landed = True
                         break
                     time.sleep(mirror_sync_poll_interval_seconds)
-                if before_sha is None:
-                    # Mirror branch couldn't be read pre-sync (404 or
-                    # auth glitch) → we can't tell if the sync landed.
-                    # Skip merge to avoid a misleading 200 against a
-                    # stale mirror.
-                    sync_detail = "could not snapshot mirror HEAD before sync"
-                elif not landed:
+                if landed:
+                    # Sync landed (after_sha differed from before_sha,
+                    # or before_sha was None but the poll observed any
+                    # SHA) — merge fork from the now-updated mirror.
+                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
+                    sync_detail = (
+                        f"mirror synced ({(before_sha or 'unknown')[:8]} -> "
+                        f"{(after_sha or '')[:8]}), merge_upstream={merge_status}"
+                    )
+                elif before_sha is None:
+                    # Mirror branch couldn't be read pre-sync (404 /
+                    # transport) AND polling never observed a SHA
+                    # either — can't tell if sync landed. Skip merge to
+                    # avoid a misleading 200 against an unverifiable
+                    # mirror state.
+                    sync_detail = "could not snapshot mirror HEAD before sync (no SHA observed during poll either)"
+                else:
                     # Sync was triggered but the mirror's HEAD didn't
                     # move within the timeout. Could be: (a) upstream
                     # unchanged (legitimate no-op), or (b) Gitea's
@@ -1953,13 +1970,6 @@ def run_mirror_setup(
                         f"mirror HEAD unchanged after {mirror_sync_poll_seconds:.0f}s "
                         f"(before={(before_sha or '')[:8]}, "
                         f"merge_upstream={merge_status})"
-                    )
-                else:
-                    # Sync landed — merge fork from updated mirror.
-                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
-                    sync_detail = (
-                        f"mirror synced ({(before_sha or '')[:8]} -> "
-                        f"{(after_sha or '')[:8]}), merge_upstream={merge_status}"
                     )
 
     # If every fork attempt across the loop failed, surface the last
