@@ -666,7 +666,16 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 
 **Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
 
-**Only one feature branch at a time.** Always finish the current feature branch (PR merged or closed) before starting a new one. Working on multiple branches in parallel leads to cross-contamination of changes, merge conflicts, and confusion about which changes belong where. If a second task comes up, either add it to the current branch (if related) or wait until the current PR is merged.
+**Parallel feature branches are allowed if they touch disjoint files.** Concurrent PRs are fine when each branch operates on a different code area (e.g. one PR on `stacks/metabase/`, another on `control-plane/src/components/`, a third on `src/nexus_deploy/orchestrator.py`). Before starting a new branch, verify the file scope doesn't overlap with any in-flight branch — if it does, finish the existing one (or close it) first, otherwise the second branch will hit a rebase + manual merge-conflict resolution on a file you've already touched.
+
+**Practical guardrails when running parallel branches:**
+
+- Before creating each new branch, `git fetch --prune origin` + check open PRs (`gh pr list --state open`). Confirm none of them touch the same files you're about to.
+- Keep each branch single-purpose. Don't start adding new unrelated changes to a branch that's already in review — open a fresh branch instead.
+- When one of the parallel PRs merges, the others may need a quick `git fetch && git rebase origin/main` if `main` moved over a file they share (rare with disjoint scopes; common with broad refactors).
+- Don't run more than 3-4 PRs in flight at once — Copilot review threads accumulate cognitively, and you (the human) loses track of what's where. Sequential is still the right default for related work.
+
+**Same-file changes still need sequencing.** If two issues both need an edit to the same file (e.g. both modify `compose_runner.py`), do them in one branch as separate commits, or do one branch first and rebase the second after the first merges. Parallel branches racing on the same file are the failure mode the old "one at a time" rule was guarding against — that part is still real.
 
 ### Commit and Push Workflow
 
