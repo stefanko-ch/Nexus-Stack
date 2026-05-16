@@ -37,15 +37,20 @@ services:
         fi;
         USER_EXT_DIR=/home/coder/.local/share/code-server/extensions;
         mkdir -p \"$$USER_EXT_DIR\";
-        # Seed baked extensions from /opt/ into the user dir only on
-        # first start (volume empty). Skip silently when /opt/ itself
-        # is empty — no baked extensions today (#593), so the copy
-        # would be a no-op and the log line below would lie. When a
-        # future baked extension is added, this branch starts logging
-        # the seed again.
+        # Seed baked extensions from /opt/ into the user dir when
+        # BOTH gates pass: user dir empty AND /opt/ has content.
+        # Note: NOT strictly first-start — fires whenever the user
+        # dir happens to be empty, which means a volume that never
+        # had extensions installed will pick up a future baked
+        # extension the first time /opt/ gains content. That's
+        # intentional (vanilla volumes pick up new defaults); volumes
+        # with user-installed extensions are skipped because the
+        # user dir isn't empty. The /opt/-non-empty gate exists so
+        # the log line doesn't lie when there's nothing to seed
+        # (today's state since #593 removed the SQLTools bakes).
         if [ -z \"$$(ls -A \"$$USER_EXT_DIR\" 2>/dev/null)\" ] && [ -n \"$$(ls -A /opt/code-server-extensions 2>/dev/null)\" ]; then
           cp -a /opt/code-server-extensions/. \"$$USER_EXT_DIR/\";
-          echo '[code-server] Seeded baked extensions into user dir (first-start or empty volume)';
+          echo '[code-server] Seeded baked extensions into user dir (empty volume + non-empty /opt/)';
         fi;
         # Migration cleanup for upgrades from the pre-#593 image: the
         # old image baked SQLTools + sqltools-driver-pg and the

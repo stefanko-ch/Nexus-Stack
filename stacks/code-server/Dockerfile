@@ -142,22 +142,26 @@ RUN uv venv /opt/nexus-venv && \
 #
 # Strategy: bake the extensions into /opt/ at image-build time,
 # then have the compose entrypoint copy them into the default user
-# extension dir (~/.local/share/code-server/extensions/) on first
-# container start — but only when the user dir is empty (fresh
-# volume). After that initial seed, the user dir is the authoritative
-# location for both baked AND user-installed extensions:
+# extension dir (~/.local/share/code-server/extensions/) when BOTH
+# (a) the user dir is empty AND (b) /opt/ has content. After a
+# successful seed, the user dir is the authoritative location for
+# both baked AND user-installed extensions:
 #
 # - Both kinds live in the volume → user installs are persisted
 #   across container recreate and image rebuilds.
 # - code-server runs WITHOUT --extensions-dir, so the default
 #   directory is used (no read/write split).
-# - If a future image rebuild adds a NEW baked extension, existing
-#   volumes won't auto-pick it up (the empty-check skips the seed).
-#   That's a deliberate trade-off: predictable user state > silent
-#   re-seeding that could overwrite user-modified extension state.
-#   Operators who add a new baked extension and want it on all
-#   existing volumes can either (a) instruct students to install
-#   via the UI or (b) wipe the volumes for a fresh seed.
+# - Volumes with user-installed extensions are never re-seeded
+#   (the empty-check skips the copy) — preserves user state across
+#   image rebuilds.
+# - Volumes with an empty user dir (no installs yet) DO get the
+#   seed when /opt/ has content. So if /opt/ is empty today (#593
+#   state) and a future image adds a baked extension, deployments
+#   that haven't installed anything yet pick it up automatically;
+#   deployments that already have extensions in the volume don't.
+#   That's a deliberate trade-off: protect user state, but stay
+#   permissive for genuinely-empty volumes so a future baked
+#   extension reaches vanilla deployments.
 #
 # No extensions are currently baked. The infrastructure is kept so
 # adding one later is a single line after the USER coder switch below:

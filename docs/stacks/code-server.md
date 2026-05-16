@@ -90,7 +90,13 @@ The `--extensions-dir` flag is mandatory — without it, `code-server --install-
 
 **How baked extensions reach the running container:** on first container start (when the user extension dir is empty AND `/opt/code-server-extensions/` has content), the entrypoint copies the baked extensions from `/opt/` into the user dir. With `/opt/` currently empty there's nothing to seed and the copy is skipped silently (no log line). After the initial seed (or once a future baked extension is added), the user dir is the authoritative location for both baked AND user-installed extensions, so anything a student installs via the UI persists across container recreate and image rebuilds (the user dir is in the `code-server-data` volume).
 
-> **Trade-off** of this seed-once strategy: if a future image rebuild adds a NEW baked extension, existing volumes don't auto-pick it up — the empty-check skips the re-seed to avoid overwriting user-modified extension state. Operators who add a new baked extension and want it on all existing volumes can either instruct students to install via the UI or wipe the volume for a fresh seed.
+> **Behavior on a fresh baked extension being added later:** the seed gate fires whenever the user extension dir is empty AND `/opt/` has content. So:
+>
+> - Volumes that ALREADY had baked extensions (from the pre-#593 image) — user dir is non-empty → seed gate skipped → new baked extensions do NOT show up. Operator action needed: instruct the student to install via the UI, or wipe the volume.
+> - Volumes that have been running since #593 with no extensions installed — user dir is still empty → seed gate fires next start → new baked extensions DO get installed automatically. This is the desired outcome (nothing to overwrite, so the seed is safe).
+> - Volumes with user-installed extensions (post-#593) — user dir is non-empty → seed gate skipped → preserves user state.
+>
+> Net effect: the seed gate protects user-installed extensions but stays permissive for genuinely-empty volumes, so a future baked extension reaches "vanilla" deployments automatically.
 
 ### Pre-installed data tooling
 

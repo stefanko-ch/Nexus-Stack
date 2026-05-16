@@ -52,7 +52,14 @@ def main() -> int:
         )
         return 1
 
-    sqltools_keys = [k for k in data if k.startswith("sqltools")]
+    # Match only keys in the SQLTools namespace (e.g. "sqltools.connections",
+    # "sqltools.useNodeRuntime") — NOT bare "sqltools" or unrelated keys
+    # that happen to share the prefix (e.g. a hypothetical user setting
+    # "sqltoolsBackup" or another extension's "sqltoolsPreview").
+    # The trailing dot is the SQLTools convention; the only key that
+    # ever existed without it was "sqltools" itself as an array root,
+    # which we also clean up for safety.
+    sqltools_keys = [k for k in data if k == "sqltools" or k.startswith("sqltools.")]
     if not sqltools_keys:
         print("[code-server] No sqltools.* keys in settings.json — nothing to strip")
         return 0
@@ -61,8 +68,9 @@ def main() -> int:
         data.pop(k)
 
     # Atomic write: temp file in the same directory (so os.replace is
-    # truly atomic — cross-device renames degrade to copy+delete and
-    # break atomicity). Cleanup on failure.
+    # truly atomic — cross-device renames raise EXDEV instead of being
+    # silently translated to a non-atomic copy+delete, which is why
+    # the temp file MUST live next to the target). Cleanup on failure.
     dir_ = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(
         dir=dir_,

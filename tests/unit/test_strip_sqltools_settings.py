@@ -105,14 +105,50 @@ def test_malformed_json_does_not_truncate_file(tmp_path: Path) -> None:
 
 def test_atomic_rename_leaves_no_tmp_files_on_success(tmp_path: Path) -> None:
     """After a successful run, the target should be replaced and the
-    temp file removed — no .settings.json.* artifacts left behind."""
+    temp file removed — no .settings.json.* artifacts left behind.
+
+    The subprocess-success assertion is important: without it the
+    test would pass even if the script crashed before creating any
+    temp file (a vacuous green tick that hides regressions in the
+    atomic-rename path itself)."""
     settings = tmp_path / "settings.json"
     settings.write_text(json.dumps({"sqltools.connections": []}))
 
-    _run(settings)
+    result = _run(settings)
 
+    assert result.returncode == 0, (
+        f"script crashed before reaching the atomic-rename path: "
+        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
     leftover_tmps = [p for p in tmp_path.iterdir() if p.name != "settings.json"]
     assert leftover_tmps == [], f"leftover temp file(s): {leftover_tmps}"
+
+
+def test_preserves_unrelated_keys_that_share_sqltools_prefix(tmp_path: Path) -> None:
+    """Regression: 'startswith(sqltools)' would have matched unrelated
+    keys like 'sqltoolsBackup' or another extension's 'sqltoolsPreview',
+    deleting user data. The matcher requires either an exact 'sqltools'
+    or a 'sqltools.' prefix (the VS Code namespace convention)."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        json.dumps(
+            {
+                "sqltools.connections": [{"password": "leaked"}],
+                "sqltoolsBackup": "user-data-must-survive",
+                "sqltoolsPreview": {"keep": "me"},
+                "editor.fontSize": 14,
+            }
+        )
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0
+    after = json.loads(settings.read_text())
+    assert "sqltools.connections" not in after
+    assert after["sqltoolsBackup"] == "user-data-must-survive"
+    assert after["sqltoolsPreview"] == {"keep": "me"}
+    assert after["editor.fontSize"] == 14
 
 
 def test_usage_error_when_path_missing(tmp_path: Path) -> None:
