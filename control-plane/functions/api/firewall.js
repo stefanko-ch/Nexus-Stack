@@ -83,6 +83,10 @@ export async function onRequestGet(context) {
     // toggling enabled need to remember to Spin Up. Tracked for a
     // proper fix in a follow-up (schema migration to snapshot
     // source_ips on the most recent successful apply).
+    if (countOnly) {
+      const countResult = await env.NEXUS_DB.prepare(`
+        SELECT COUNT(*) AS c FROM firewall_rules WHERE enabled != deployed
+      `).first();
       // Number() coercion: D1's COUNT(*) result has been observed to
       // come back as a string in some runtimes. PendingBar.astro
       // requires `typeof pendingChangesCount === 'number'` or it
