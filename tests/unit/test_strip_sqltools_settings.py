@@ -124,6 +124,61 @@ def test_atomic_rename_leaves_no_tmp_files_on_success(tmp_path: Path) -> None:
     assert leftover_tmps == [], f"leftover temp file(s): {leftover_tmps}"
 
 
+def test_jsonc_strip_preserves_urls_with_double_slash(tmp_path: Path) -> None:
+    """Critical: the JSONC fallback must NOT mangle string values that
+    contain '//' (e.g. URLs like 'https://example.com'). A naive regex
+    that strips '//' anywhere in the document would corrupt those values.
+    Regression guard for the string-aware state machine in
+    _strip_jsonc_comments — it must skip in-string '//'."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        """{
+            // user note: link goes to upstream docs
+            "docs.url": "https://example.com/path",
+            "regex.pattern": "https?://[^/]+/.*",
+            "sqltools.connections": [{"password": "leaked"}],
+            "editor.fontSize": 14
+        }
+        """
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0, (
+        f"JSONC fallback failed: stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    after = json.loads(settings.read_text())
+    assert "sqltools.connections" not in after
+    # Both URL-like string values must survive intact.
+    assert after["docs.url"] == "https://example.com/path"
+    assert after["regex.pattern"] == "https?://[^/]+/.*"
+    assert after["editor.fontSize"] == 14
+
+
+def test_jsonc_strip_handles_escaped_quotes_in_strings(tmp_path: Path) -> None:
+    """The string-aware comment stripper must handle backslash-escaped
+    quotes inside string values, so e.g. "say \\"hi\\"" doesn't end the
+    string prematurely and let a following `//` look like a comment."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        r"""{
+            // comment outside
+            "greeting": "say \"hi\" // to the world",
+            "sqltools.connections": [],
+            "editor.fontSize": 14
+        }
+        """
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0
+    after = json.loads(settings.read_text())
+    assert after["greeting"] == 'say "hi" // to the world'
+    assert "sqltools.connections" not in after
+    assert after["editor.fontSize"] == 14
+
+
 def test_strips_jsonc_with_line_and_block_comments(tmp_path: Path) -> None:
     """VS Code settings.json is JSONC — line + block comments + trailing
     commas are valid. Strict json.load() would fail, leaving the leaked

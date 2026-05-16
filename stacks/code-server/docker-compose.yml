@@ -99,12 +99,20 @@ services:
           # An inline python3 -c oneliner would 'open(p, w)' (truncates
           # immediately) before reserialising and could leave settings.json
           # empty on interruption.
+          #
+          # No grep prefilter here. An earlier version had
+          # 'if grep -q sqltools $SETTINGS; then ...' as a perf
+          # optimization to skip python3 startup, but grep conflates
+          # 'no match' (exit 1) with 'read error' (exit 2): a transient
+          # read failure would skip the cleanup AND leave CLEANUP_OK=1,
+          # so the marker would be touched even though the file was
+          # never inspected. Running the script unconditionally costs
+          # ~50ms of python3 startup per first-start, which is fine
+          # since the marker gates the entire block to one run.
           SETTINGS=/home/coder/.local/share/code-server/User/settings.json;
-          if [ -f \"$$SETTINGS\" ] && grep -q 'sqltools' \"$$SETTINGS\"; then
-            if ! python3 /opt/code-server-scripts/strip-sqltools-settings.py \"$$SETTINGS\"; then
-              echo \"[code-server] SECURITY WARNING: strip-sqltools-settings.py failed at $$SETTINGS — Postgres password may still be present, operator action required\" >&2;
-              CLEANUP_OK=0;
-            fi;
+          if ! python3 /opt/code-server-scripts/strip-sqltools-settings.py \"$$SETTINGS\"; then
+            echo \"[code-server] SECURITY WARNING: strip-sqltools-settings.py failed at $$SETTINGS — Postgres password may still be present, operator action required\" >&2;
+            CLEANUP_OK=0;
           fi;
           if [ \"$$CLEANUP_OK\" = \"1\" ]; then
             touch \"$$MIGRATION_MARKER\";

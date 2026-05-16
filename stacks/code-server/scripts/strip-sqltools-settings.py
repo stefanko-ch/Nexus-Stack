@@ -35,15 +35,67 @@ import re
 import sys
 import tempfile
 
-# JSONC tolerance: strip `//` line comments, `/* ... */` block comments,
-# and trailing commas before `]` or `}`. Naive regex (doesn't avoid
-# matches inside string literals) — acceptable here because the worst
-# case is JSONDecodeError on the retry, which falls through to the
-# SECURITY WARNING path (no data loss). VS Code's own settings parser
-# is similarly naive about strings-vs-comments at file scope.
-_LINE_COMMENT = re.compile(r"//[^\n]*")
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+# JSONC tolerance: strip `//` line comments and `/* ... */` block
+# comments, then drop trailing commas before `]` or `}`. The comment
+# stripper is STRING-AWARE — a naive regex would also strip the `//`
+# inside a value like "https://example.com" and silently corrupt
+# user data. The state machine below walks the text character by
+# character, tracks whether we're inside a "string" literal, and
+# only treats `//`/`/*` as comments outside strings. Backslash
+# escapes inside strings are handled so embedded `\"` doesn't end
+# the string prematurely.
+#
+# Trailing commas can be stripped with a plain regex because commas
+# don't have an in-string meaning that we'd need to preserve — the
+# only false-positive risk would be a string ending with `,]` or
+# `,}`, but that's a malformed-by-design corner case the user would
+# have to construct deliberately.
 _TRAILING_COMMA = re.compile(r",(\s*[}\]])")
+
+
+def _strip_jsonc_comments(text: str) -> str:
+    """Remove `// line` and `/* block */` comments — but only outside
+    string literals. State-machine implementation; ~30 lines, no deps.
+    Preserves all string content byte-for-byte (including escaped
+    quotes), so URLs / paths / regex strings survive intact."""
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_string = False
+    while i < n:
+        ch = text[i]
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n:
+            nxt = text[i + 1]
+            if nxt == "/":
+                # Line comment — skip to newline
+                while i < n and text[i] != "\n":
+                    i += 1
+                continue
+            if nxt == "*":
+                # Block comment — skip to closing */
+                i += 2
+                while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                    i += 1
+                i += 2  # consume the */
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def _parse_jsonc(text: str) -> dict:
@@ -51,8 +103,7 @@ def _parse_jsonc(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        stripped = _BLOCK_COMMENT.sub("", text)
-        stripped = _LINE_COMMENT.sub("", stripped)
+        stripped = _strip_jsonc_comments(text)
         stripped = _TRAILING_COMMA.sub(r"\1", stripped)
         return json.loads(stripped)  # may raise — caller handles
 
