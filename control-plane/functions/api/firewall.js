@@ -77,9 +77,13 @@ export async function onRequestGet(context) {
       const countResult = await env.NEXUS_DB.prepare(`
         SELECT COUNT(*) AS c FROM firewall_rules WHERE enabled != deployed
       `).first();
+      // Number() coercion: D1's COUNT(*) result has been observed to
+      // come back as a string in some runtimes. PendingBar.astro
+      // requires `typeof pendingChangesCount === 'number'` or it
+      // falls back to 0, which would silently break the banner.
       return new Response(JSON.stringify({
         success: true,
-        pendingChangesCount: countResult?.c || 0,
+        pendingChangesCount: Number(countResult?.c) || 0,
       }), {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -236,7 +240,10 @@ export async function onRequestPost(context) {
     const pendingResult = await env.NEXUS_DB.prepare(`
       SELECT COUNT(*) as count FROM firewall_rules WHERE enabled != deployed
     `).first();
-    const pendingChangesCount = pendingResult?.count || 0;
+    // Number() coercion — same rationale as the count_only GET path:
+    // D1 has been observed to return COUNT(*) as a string in some
+    // runtimes, and downstream clients check `typeof === 'number'`.
+    const pendingChangesCount = Number(pendingResult?.count) || 0;
 
     return new Response(JSON.stringify({
       success: true,
