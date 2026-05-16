@@ -677,6 +677,28 @@ def test_render_all_code_server_then_append_gitea_block_succeeds(
     assert "WORKSPACE_BRANCH=main" in content
 
 
+def test_render_all_code_server_never_emits_nexus_postgres_enabled(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Regression guard for #593 (SQLTools revert): NEXUS_POSTGRES_ENABLED
+    must NEVER appear in code-server's .env, regardless of whether
+    postgres is in the enabled list. The old wiring (added in #588,
+    reverted in #593) used this flag to trigger a settings.json write
+    that leaked the Postgres admin password in plaintext into the
+    persistent volume. If a future PR re-introduces a postgres-aware
+    branch in _render_code_server, this test fails — forcing a
+    deliberate review of whether the new mechanism re-creates the
+    password-leak class of bug."""
+    # With postgres enabled
+    render_all_env_files(full_config, full_env, ["code-server", "postgres"], stacks_dir=tmp_path)
+    content = (tmp_path / "code-server" / ".env").read_text()
+    assert "NEXUS_POSTGRES_ENABLED" not in content
+    # With postgres NOT enabled (paranoid: ensure no accidental emit)
+    render_all_env_files(full_config, full_env, ["code-server"], stacks_dir=tmp_path)
+    content = (tmp_path / "code-server" / ".env").read_text()
+    assert "NEXUS_POSTGRES_ENABLED" not in content
+
+
 def test_render_all_prefect_then_append_gitea_block_writes_custom_branch(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:

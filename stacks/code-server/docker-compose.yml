@@ -41,6 +41,24 @@ services:
           cp -a /opt/code-server-extensions/. \"$$USER_EXT_DIR/\";
           echo '[code-server] Seeded baked extensions into user dir (first-start or empty volume)';
         fi;
+        # Migration cleanup for upgrades from the pre-#593 image: the
+        # old image baked SQLTools + sqltools-driver-pg and the
+        # entrypoint wrote a sqltools.connections block with the
+        # Postgres admin password into settings.json. Both live in
+        # the persistent code-server-data volume, so just removing
+        # them from the image doesn't clean existing deployments.
+        # Strip them here so an upgrading container ends up in the
+        # same state as a fresh one. Idempotent (no-op on fresh).
+        for D in \"$$USER_EXT_DIR\"/mtxr.sqltools-*; do
+          if [ -d \"$$D\" ]; then
+            rm -rf \"$$D\";
+            echo '[code-server] Removed leftover SQLTools extension from volume (#593 migration):' \"$$(basename $$D)\";
+          fi;
+        done;
+        SETTINGS=/home/coder/.local/share/code-server/User/settings.json;
+        if [ -f \"$$SETTINGS\" ] && grep -q '\"sqltools' \"$$SETTINGS\"; then
+          python3 -c \"import json,sys; p='$$SETTINGS'; d=json.load(open(p)); ks=[k for k in d if k.startswith('sqltools')]; [d.pop(k) for k in ks]; json.dump(d, open(p,'w'), indent=2); print('[code-server] Stripped sqltools.* keys from settings.json:', ks)\" || echo '[code-server] Warning: failed to strip sqltools keys from settings.json' >&2;
+        fi;
         OPEN_DIR=/home/coder;
         if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;
         exec code-server --auth none --bind-addr 0.0.0.0:8080 $$OPEN_DIR

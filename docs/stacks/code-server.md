@@ -78,7 +78,13 @@ The sync writes to a dedicated `.infisical.env` file (not `.env`) so secret keys
 
 ### Pre-installed VS Code extensions
 
-None at the moment. The image stages an empty `/opt/code-server-extensions/` directory and the entrypoint copies its contents into `~/.local/share/code-server/extensions/` on first start — so adding a baked extension is a single `code-server --install-extension <id>` line in the Dockerfile (no compose changes needed).
+None at the moment. The image stages an empty `/opt/code-server-extensions/` directory and the entrypoint copies its contents into `~/.local/share/code-server/extensions/` on first start. Adding a baked extension is a single line in the Dockerfile after the `USER coder` switch:
+
+```dockerfile
+RUN code-server --extensions-dir /opt/code-server-extensions --install-extension <id>
+```
+
+The `--extensions-dir` flag is mandatory — without it, `code-server --install-extension` lands the extension in the default `~/.local/share/code-server/extensions/`, which gets masked by the volume mount at runtime and disappears on first container start. With the flag, the extension is baked into `/opt/` and the entrypoint copies it into the volume on first start.
 
 > **Why no SQL-Tools-style extension is baked:** SQLTools (`mtxr.sqltools`) and cweijan's Database Client (`cweijan.vscode-database-client2`) both break in the code-server-through-CF-Tunnel setup. SQLTools' "Add New Connection" panel renders blank ([coder/code-server#7302](https://github.com/coder/code-server/issues/7302), upstream "wontfix"); cweijan's query/result page is blank because the extension spins up a localhost helper server on port 12315 that the browser-side webview can't reach without remote-port-forwarding ([cweijan/vscode-database-client#373](https://github.com/cweijan/vscode-database-client/issues/373), also unfixed). Both are structural — any webview that needs to fetch from a container-local helper port fails the same way in a browser-served IDE. For SQL exploration use the dedicated stacks instead — **pgAdmin** for Postgres-only, **CloudBeaver** for multi-DB (Postgres, ClickHouse, MySQL, …). Both are real web UIs and don't need a code-server detour.
 
