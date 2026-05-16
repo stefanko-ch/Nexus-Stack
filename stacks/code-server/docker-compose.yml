@@ -37,7 +37,13 @@ services:
         fi;
         USER_EXT_DIR=/home/coder/.local/share/code-server/extensions;
         mkdir -p \"$$USER_EXT_DIR\";
-        if [ -z \"$$(ls -A \"$$USER_EXT_DIR\" 2>/dev/null)\" ]; then
+        # Seed baked extensions from /opt/ into the user dir only on
+        # first start (volume empty). Skip silently when /opt/ itself
+        # is empty — no baked extensions today (#593), so the copy
+        # would be a no-op and the log line below would lie. When a
+        # future baked extension is added, this branch starts logging
+        # the seed again.
+        if [ -z \"$$(ls -A \"$$USER_EXT_DIR\" 2>/dev/null)\" ] && [ -n \"$$(ls -A /opt/code-server-extensions 2>/dev/null)\" ]; then
           cp -a /opt/code-server-extensions/. \"$$USER_EXT_DIR/\";
           echo '[code-server] Seeded baked extensions into user dir (first-start or empty volume)';
         fi;
