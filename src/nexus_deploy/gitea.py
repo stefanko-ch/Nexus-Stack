@@ -1921,7 +1921,20 @@ def run_mirror_setup(
             before_sha = client.get_branch_head_sha(admin_username, mirror_name, workspace_branch)
             triggered = client.trigger_mirror_sync(admin_username, mirror_name)
             if not triggered:
-                sync_detail = "trigger_mirror_sync returned non-200 (token / repo state)"
+                # Don't return early — the mirror may ALREADY be ahead
+                # of the fork from (a) Gitea's periodic mirror cron-tick
+                # that ran between spin-ups, or (b) the migrate that
+                # ran a few seconds ago (which performs an initial
+                # fetch as part of repo creation). Skipping merge here
+                # would regress the legacy bash's best-effort behavior
+                # for those cases. Record the trigger failure but
+                # still try merge_upstream against whatever's currently
+                # in the mirror.
+                merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
+                sync_detail = (
+                    "trigger_mirror_sync returned non-200 (token / repo state); "
+                    f"merge_upstream against current mirror HEAD: {merge_status}"
+                )
             else:
                 # Step 2: poll the mirror's branch HEAD until it changes
                 # from the pre-sync snapshot. The previous fixed 3-second

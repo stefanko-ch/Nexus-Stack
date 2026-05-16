@@ -3129,6 +3129,92 @@ def test_run_mirror_setup_idempotent_skips_existing_mirror() -> None:
 
 
 @responses.activate
+def test_run_mirror_setup_trigger_fail_still_attempts_merge_upstream() -> None:
+    """Regression (PR #589 review round 2): when trigger_mirror_sync
+    returns non-200 (e.g. token rejected, repo state), the orchestrator
+    must STILL attempt merge_upstream — the mirror may already be ahead
+    of the fork from Gitea's periodic cron-tick or from the initial
+    migrate that ran a few seconds ago. Skipping merge would regress
+    the legacy bash's best-effort behavior."""
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
+        status=404,
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/migrate",
+        status=201,
+        json={"id": 42},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/users/stefan/tokens",
+        status=201,
+        json={"sha1": "user-tok"},
+    )
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
+        status=202,
+        json={"id": 99},
+    )
+    responses.add(
+        responses.DELETE,
+        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
+        status=204,
+    )
+    responses.add(
+        responses.PUT,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
+        status=204,
+    )
+    # Pre-sync HEAD lookup (doesn't matter for this test, returns 200).
+    responses.add(
+        responses.GET,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
+        status=200,
+        json={"commit": {"id": "anysha000000000000"}},
+    )
+    # trigger_mirror_sync FAILS (e.g. 403 because GH_MIRROR_TOKEN lost
+    # access to the upstream repo).
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
+        status=403,
+    )
+    # merge_upstream MUST still be called against the current mirror HEAD.
+    # The mirror could already be ahead from the periodic cron-tick or the
+    # initial migrate's fetch; merge_upstream surfaces that with 200.
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
+        status=200,
+    )
+
+    result = run_mirror_setup(
+        base_url=BASE_URL,
+        admin_username="admin",
+        admin_password="admin-pw",
+        gitea_token="admin-tok",
+        gitea_user_username="stefan",
+        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        gh_mirror_token="ghp_xxx",
+        workspace_branch="main",
+        mirror_sync_poll_seconds=0.0,
+    )
+    # sync_detail must record both the trigger-failure AND the merge attempt.
+    assert "trigger_mirror_sync returned non-200" in result.sync_detail
+    assert "merge_upstream against current mirror HEAD: 200" in result.sync_detail
+    # merge_upstream actually got hit.
+    assert any(
+        c.request.url == f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream"
+        for c in responses.calls
+    )
+
+
+@responses.activate
 def test_run_mirror_setup_no_user_skips_fork() -> None:
     """gitea_user_username=None → mirror+collab branches skipped where
     user-dependent. fork=None.
