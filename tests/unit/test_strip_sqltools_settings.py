@@ -77,9 +77,12 @@ def test_no_sqltools_keys_is_noop(tmp_path: Path) -> None:
 
 def test_missing_file_is_noop(tmp_path: Path) -> None:
     """Idempotent: a missing settings.json (fresh install) is a no-op
-    exit 0, not a crash. The compose entrypoint already guards with
-    `if [ -f settings.json ]` but the script being lenient too means
-    operators can run it ad-hoc without surprise."""
+    exit 0, not a crash. The compose entrypoint runs this script
+    unconditionally now (the `if [ -f settings.json ]` prefilter was
+    dropped in PR #593 review round 11 — see commit 0e0efcb — because
+    its bash equivalent conflated read-errors with no-match), so this
+    branch is the script's primary guarantee that fresh containers
+    don't see a Python traceback in their startup log."""
     result = _run(tmp_path / "does-not-exist.json")
     assert result.returncode == 0
     assert "not found" in result.stdout
@@ -129,7 +132,7 @@ def test_jsonc_strip_preserves_urls_with_double_slash(tmp_path: Path) -> None:
     contain '//' (e.g. URLs like 'https://example.com'). A naive regex
     that strips '//' anywhere in the document would corrupt those values.
     Regression guard for the string-aware state machine in
-    _strip_jsonc_comments — it must skip in-string '//'."""
+    _strip_jsonc — it must skip in-string '//'."""
     settings = tmp_path / "settings.json"
     settings.write_text(
         """{
@@ -152,6 +155,41 @@ def test_jsonc_strip_preserves_urls_with_double_slash(tmp_path: Path) -> None:
     # Both URL-like string values must survive intact.
     assert after["docs.url"] == "https://example.com/path"
     assert after["regex.pattern"] == "https?://[^/]+/.*"
+    assert after["editor.fontSize"] == 14
+
+
+def test_jsonc_strip_preserves_commas_inside_string_values(tmp_path: Path) -> None:
+    """Critical: the trailing-comma stripper must NOT remove a comma
+    that appears INSIDE a string literal, even when that comma is
+    immediately followed by `]` or `}`. A naive regex like
+    `,(\\s*[}\\]])` would rewrite the string value silently, which
+    would either corrupt user data on disk or fall through to the
+    SECURITY WARNING path leaving the leaked password in place.
+    The state machine treats in-string commas as plain content."""
+    settings = tmp_path / "settings.json"
+    # The trigger for JSONC mode is a comment. Inside that file there
+    # are two string values that end with `,]` and `,}` — both must
+    # survive byte-for-byte.
+    settings.write_text(
+        """{
+            // user comment so strict JSON parse fails
+            "errMsg": "expected closing bracket — got ',]' instead",
+            "tplFragment": "config block ends with ',}'",
+            "sqltools.connections": [{"password": "leaked"}],
+            "editor.fontSize": 14
+        }
+        """
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0, (
+        f"JSONC fallback failed: stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    after = json.loads(settings.read_text())
+    assert "sqltools.connections" not in after
+    assert after["errMsg"] == "expected closing bracket — got ',]' instead"
+    assert after["tplFragment"] == "config block ends with ',}'"
     assert after["editor.fontSize"] == 14
 
 

@@ -31,33 +31,26 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import tempfile
 
 # JSONC tolerance: strip `//` line comments and `/* ... */` block
-# comments, then drop trailing commas before `]` or `}`. The comment
-# stripper is STRING-AWARE — a naive regex would also strip the `//`
-# inside a value like "https://example.com" and silently corrupt
-# user data. The state machine below walks the text character by
-# character, tracks whether we're inside a "string" literal, and
-# only treats `//`/`/*` as comments outside strings. Backslash
-# escapes inside strings are handled so embedded `\"` doesn't end
-# the string prematurely.
-#
-# Trailing commas can be stripped with a plain regex because commas
-# don't have an in-string meaning that we'd need to preserve — the
-# only false-positive risk would be a string ending with `,]` or
-# `,}`, but that's a malformed-by-design corner case the user would
-# have to construct deliberately.
-_TRAILING_COMMA = re.compile(r",(\s*[}\]])")
+# comments, then drop trailing commas before `]` or `}` — all of it
+# STRING-AWARE so user-content like "https://example.com" (the //
+# inside a string) or "ends with ,]" (a , inside a string) survives
+# byte-for-byte. The state machine below walks the text character
+# by character, tracks whether we're inside a "string" literal
+# (with backslash-escape handling so embedded `\"` doesn't end the
+# string prematurely), and applies the JSONC transformations only
+# outside strings.
 
 
-def _strip_jsonc_comments(text: str) -> str:
-    """Remove `// line` and `/* block */` comments — but only outside
-    string literals. State-machine implementation; ~30 lines, no deps.
-    Preserves all string content byte-for-byte (including escaped
-    quotes), so URLs / paths / regex strings survive intact."""
+def _strip_jsonc(text: str) -> str:
+    """Strip JSONC features (// + /* comments, trailing commas) from
+    text, BUT only outside string literals. State-machine, ~50 lines,
+    no deps. Preserves all string content byte-for-byte — URLs,
+    paths, regex patterns, and strings containing `//` / `,]` / `,}`
+    all survive intact."""
     out: list[str] = []
     i = 0
     n = len(text)
@@ -93,6 +86,15 @@ def _strip_jsonc_comments(text: str) -> str:
                     i += 1
                 i += 2  # consume the */
                 continue
+        if ch == ",":
+            # Trailing-comma check: peek past whitespace; if next
+            # non-whitespace char is `}` or `]`, drop the comma.
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if j < n and text[j] in "}]":
+                i += 1  # skip the comma
+                continue
         out.append(ch)
         i += 1
     return "".join(out)
@@ -103,9 +105,7 @@ def _parse_jsonc(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        stripped = _strip_jsonc_comments(text)
-        stripped = _TRAILING_COMMA.sub(r"\1", stripped)
-        return json.loads(stripped)  # may raise — caller handles
+        return json.loads(_strip_jsonc(text))  # may raise — caller handles
 
 
 def main() -> int:
