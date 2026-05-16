@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.65.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.64.0...v0.65.0) (2026-05-16)
+
+
+### 🚀 Features
+
+* **control-plane:** Spin Up button + category breakdown in pending banner ([#592](https://github.com/stefanko-ch/Nexus-Stack/issues/592)) ([ba4a0bf](https://github.com/stefanko-ch/Nexus-Stack/commit/ba4a0bf43c3dcbc05bb6501c900fb7204bc0a4cb))
+* **stacks:** Add CyberChef — GCHQ data manipulation Swiss Army Knife ([#595](https://github.com/stefanko-ch/Nexus-Stack/issues/595)) ([a6cb327](https://github.com/stefanko-ch/Nexus-Stack/commit/a6cb327d5ab998c577dbdcb655173834e9a78497))
+* **stacks:** Persist Metabase data + disable Kestra basic-auth popup ([#591](https://github.com/stefanko-ch/Nexus-Stack/issues/591)) ([daccb0e](https://github.com/stefanko-ch/Nexus-Stack/commit/daccb0e6b2d28db9889d3bc918139c2e3bcf1d89))
+
+
+### 🐛 Bug Fixes
+
+* **code-server:** Remove SQLTools pre-install + auto-connect ([#588](https://github.com/stefanko-ch/Nexus-Stack/issues/588) revert) ([#593](https://github.com/stefanko-ch/Nexus-Stack/issues/593)) ([5756e00](https://github.com/stefanko-ch/Nexus-Stack/commit/5756e007f3822b932beb0bb6de4df23ae965ae53))
+* **pgadmin:** One-click connect — nexus-postgres user + PassFile auto-load ([#596](https://github.com/stefanko-ch/Nexus-Stack/issues/596)) ([8797ca9](https://github.com/stefanko-ch/Nexus-Stack/commit/8797ca9831f0db9461c489c75aea8a861a2c1a40))
+
 ## [0.64.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.63.0...v0.64.0) (2026-05-16)
 
 
