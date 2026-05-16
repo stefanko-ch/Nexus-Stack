@@ -119,12 +119,19 @@
       // Shared cache in window.NS for services — if a stacks page also
       // requested /api/services on the same tick, we reuse its response
       // instead of firing a duplicate request.
+      //
+      // Both fetches are independent: a transient /api/services failure
+      // shouldn't hide a real firewall-only pending count, and vice
+      // versa. Each source defaults to 0 on its own failure path so
+      // the banner stays honest about the OTHER source that did
+      // respond — only when BOTH fail (both return 0) does the banner
+      // stay hidden, same as the no-changes case.
       const [services, fwCount] = await Promise.all([
         window.NS.getServices(),
         fetchFirewallPending(),
       ]);
-      if (!services) return; // silent on services failure — bg poll, no toast spam
-      const stackCount = (services.success && typeof services.pendingChangesCount === 'number')
+      const stackCount = (services && services.success
+        && typeof services.pendingChangesCount === 'number')
         ? services.pendingChangesCount : 0;
       const totalCount = stackCount + fwCount;
 
@@ -139,7 +146,9 @@
     // Issue #476: Spin Up button POSTs /api/spin-up directly, same
     // contract as the Dashboard button. Disable while the request is
     // in flight so a panicky double-click can't trigger two workflow
-    // runs. Re-enables on toast feedback OR after a 5s safety timeout.
+    // runs. After a successful trigger, re-enables after a 30s safety
+    // timeout (the workflow itself takes minutes, but the operator
+    // might want to retry if our API call silently failed).
     async function triggerSpinUp() {
       const originalHTML = btnSpinUp.innerHTML;
       btnSpinUp.disabled = true;

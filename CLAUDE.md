@@ -673,7 +673,7 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 - Before creating each new branch, `git fetch --prune origin` + check open PRs (`gh pr list --state open`). Confirm none of them touch the same files you're about to.
 - Keep each branch single-purpose. Don't start adding new unrelated changes to a branch that's already in review — open a fresh branch instead.
 - When one of the parallel PRs merges, the others may need a quick `git fetch && git rebase origin/main` if `main` moved over a file they share (rare with disjoint scopes; common with broad refactors).
-- Don't run more than 3-4 PRs in flight at once — Copilot review threads accumulate cognitively, and you (the human) loses track of what's where. Sequential is still the right default for related work.
+- Don't run more than 3-4 PRs in flight at once — Copilot review threads accumulate cognitively, and you (the human) lose track of what's where. Sequential is still the right default for related work.
 
 **Same-file changes still need sequencing.** If two issues both need an edit to the same file (e.g. both modify `compose_runner.py`), do them in one branch as separate commits, or do one branch first and rebase the second after the first merges. Parallel branches racing on the same file are the failure mode the old "one at a time" rule was guarding against — that part is still real.
 
