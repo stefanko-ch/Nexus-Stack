@@ -954,13 +954,19 @@ def _render_dify(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 # ordering; the real renders are invoked via the cross-spec branch
 # inside render_all_env_files below.
 def _placeholder_jupyter(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Replaced at runtime — see render_all_env_files."""
-    raise NotImplementedError("jupyter render is closure-built per-deploy")
+    """Never invoked at runtime — see render_all_env_files."""
+    raise NotImplementedError(
+        "jupyter render needs spark_enabled context; should be dispatched via "
+        "the cross-spec branch in render_all_env_files, not via this placeholder",
+    )
 
 
 def _placeholder_code_server(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Replaced at runtime — see render_all_env_files."""
-    raise NotImplementedError("code-server render is closure-built per-deploy")
+    """Never invoked at runtime — see render_all_env_files."""
+    raise NotImplementedError(
+        "code-server render needs postgres_enabled context; should be dispatched "
+        "via the cross-spec branch in render_all_env_files, not via this placeholder",
+    )
 
 
 _SPECS: tuple[EnvSpec, ...] = (

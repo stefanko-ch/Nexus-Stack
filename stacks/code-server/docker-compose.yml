@@ -67,8 +67,8 @@ services:
     deploy:
       resources:
         limits:
-          # Bumped from 512m: with SQLTools + Postgres-driver + DBCode
-          # + extension-host + workspace-indexer all running as Node
+          # Bumped from 512m: with SQLTools + Postgres-driver +
+          # extension-host + workspace-indexer all running as Node
           # subprocesses, 512m hit OOM in practice — symptoms were
           # silent extension-host crashes (white webview panels for
           # SQLTools-Settings) and the file-tree disappearing
