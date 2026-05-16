@@ -91,6 +91,7 @@
       'MAGE_USERNAME': 'user@snapshot.test',
     }),
     'meilisearch': dict({
+      'MEILISEARCH_MASTER_KEY': 'meilisearch_master_key-VALUE',
     }),
     'meltano': dict({
       'MELTANO_DB_PASSWORD': 'meltano_db_password-VALUE',

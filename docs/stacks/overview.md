@@ -175,7 +175,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | Stack | Image | Description |
 |-------|-------|-------------|
 | **[Dify](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/dify.md)** | `langgenius/dify-api:1.13.0` | Visual builder for LLM apps, RAG pipelines, and agent workflows. Ships a sandbox runner, a plugin daemon, a web UI, and a Weaviate vector store as sibling containers — a full AI platform in a single stack. |
-| **[Meilisearch](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/meilisearch.md)** | `getmeili/meilisearch:v1.43.1` | Lightning-fast Rust-based full-text search engine — sub-100ms typo-tolerant queries. Self-hosted Algolia. In RAG: pairs with Chroma for hybrid (keyword + vector) search; Crawl4AI scrapes → Meilisearch indexes → Big-AGI/Dify queries both. Auto-generated MEILI_MASTER_KEY in Infisical. |
+| **[Meilisearch](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/meilisearch.md)** | `getmeili/meilisearch:v1.43.1` | Lightning-fast Rust-based full-text search engine — sub-100ms typo-tolerant queries. Self-hosted Algolia. In RAG: pairs with Chroma for hybrid (keyword + vector) search; Crawl4AI scrapes → Meilisearch indexes → Big-AGI/Dify queries both. Auto-generated master key in Infisical (folder `meilisearch`, key `MEILISEARCH_MASTER_KEY`). |
 | **[Ollama](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/ollama.md)** | `ollama/ollama:0.15.1` | Local LLM inference runtime bundled with **Open WebUI** (`ghcr.io/open-webui/open-webui:v0.8.3`) as the chat frontend. Pull `llama3`, `qwen2`, `mistral`, etc., and chat privately. Note: model size drives RAM — a 7B model needs ≥8 GB server. |
 
 ## Developer tools

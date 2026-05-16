@@ -41,7 +41,7 @@
 #   - CF Access (email OTP) at the edge — outer perimeter
 #   - MEILI_MASTER_KEY — inner per-request auth Meilisearch's own
 #     /indexes, /documents, /search, /keys endpoints check. Generated
-#     by Terraform (random_password.meilisearch_master_key, 32 chars),
+#     by OpenTofu (random_password.meilisearch_master_key, 32 chars),
 #     pushed to Infisical under folder `meilisearch` / key
 #     `MEILISEARCH_MASTER_KEY`. Students use the master key for setup
 #     and derive scoped API keys (read-only / per-index) for their apps.
@@ -61,7 +61,12 @@ services:
     environment:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
       - MEILI_NO_ANALYTICS=true
-      - MEILI_ENV=production
+      # MEILI_ENV=production is the safe default — disables the /
+      # preview dashboard and enforces stricter API behavior. Override
+      # to "development" via an env override in your deployment if you
+      # want the dashboard for local exploration (not recommended for
+      # shared/public deployments).
+      - MEILI_ENV=${MEILI_ENV:-production}
     env_file:
       - path: .env
         required: false
