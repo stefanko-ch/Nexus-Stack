@@ -124,6 +124,56 @@ def test_atomic_rename_leaves_no_tmp_files_on_success(tmp_path: Path) -> None:
     assert leftover_tmps == [], f"leftover temp file(s): {leftover_tmps}"
 
 
+def test_strips_jsonc_with_line_and_block_comments(tmp_path: Path) -> None:
+    """VS Code settings.json is JSONC — line + block comments + trailing
+    commas are valid. Strict json.load() would fail, leaving the leaked
+    password in the file. The script's JSONC fallback handles all three."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        """{
+            // user's editor preference
+            "editor.fontSize": 14,
+            /* old SQLTools setup
+               from before #593: */
+            "sqltools.connections": [{"password": "leaked-pg-pw"}],
+            "workbench.colorTheme": "Default Dark+",
+        }
+        """
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0, (
+        f"JSONC fallback failed: stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    after = json.loads(settings.read_text())
+    assert "sqltools.connections" not in after
+    assert after["editor.fontSize"] == 14
+    assert after["workbench.colorTheme"] == "Default Dark+"
+
+
+def test_strips_bare_sqltools_key(tmp_path: Path) -> None:
+    """The bare 'sqltools' key is matched in addition to the dotted
+    namespace. Regression guard for a future maintainer who reads the
+    'sqltools.*' docstring and removes the `k == 'sqltools'` branch."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        json.dumps(
+            {
+                "sqltools": [{"password": "leaked-via-bare-key"}],
+                "editor.fontSize": 14,
+            }
+        )
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0
+    after = json.loads(settings.read_text())
+    assert "sqltools" not in after
+    assert after["editor.fontSize"] == 14
+
+
 def test_preserves_unrelated_keys_that_share_sqltools_prefix(tmp_path: Path) -> None:
     """Regression: 'startswith(sqltools)' would have matched unrelated
     keys like 'sqltoolsBackup' or another extension's 'sqltoolsPreview',

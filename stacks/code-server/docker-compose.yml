@@ -58,8 +58,16 @@ services:
         # Postgres admin password into settings.json. Both live in
         # the persistent code-server-data volume, so just removing
         # them from the image doesn't clean existing deployments.
-        # Strip them here so an upgrading container ends up in the
-        # same state as a fresh one. Idempotent (no-op on fresh).
+        #
+        # ONE-TIME via marker file at /home/coder/.nexus-stack-sqltools-cleanup-done
+        # — once both cleanup steps succeed, the marker is touched and
+        # subsequent starts skip the cleanup entirely. Without the
+        # marker, a user who later decides to install mtxr.sqltools
+        # manually (knowing it's blank-panel-broken in code-server but
+        # willing to live with it) would have their install nuked on
+        # every restart, and their re-added 'sqltools.*' settings keys
+        # would be stripped again. With the marker, post-cleanup user
+        # state is honored.
         #
         # Both cleanup steps log a SECURITY WARNING (visible in
         # 'docker logs code-server') on failure so an operator notices
@@ -67,28 +75,42 @@ services:
         # still serves the IDE; the leaked password just stays in the
         # volume until the operator intervenes. Hard-failing the start
         # would prevent the operator from logging in to investigate.
-        for D in \"$$USER_EXT_DIR\"/mtxr.sqltools-*; do
-          if [ -d \"$$D\" ]; then
-            BN=\"$$(basename $$D)\";
-            if rm -rf \"$$D\"; then
-              echo '[code-server] Removed leftover SQLTools extension from volume (#593 migration):' \"$$BN\";
-            else
-              echo \"[code-server] SECURITY WARNING: failed to rm leftover SQLTools extension $$D — check permissions; old extension still in volume\" >&2;
+        # The marker is only touched when both steps succeeded; a
+        # failure causes the cleanup to retry on the next start.
+        MIGRATION_MARKER=/home/coder/.nexus-stack-sqltools-cleanup-done;
+        if [ ! -f \"$$MIGRATION_MARKER\" ]; then
+          CLEANUP_OK=1;
+          for D in \"$$USER_EXT_DIR\"/mtxr.sqltools-*; do
+            if [ -d \"$$D\" ]; then
+              BN=\"$$(basename $$D)\";
+              if rm -rf \"$$D\"; then
+                echo '[code-server] Removed leftover SQLTools extension from volume (#593 migration):' \"$$BN\";
+              else
+                echo \"[code-server] SECURITY WARNING: failed to rm leftover SQLTools extension $$D — check permissions; old extension still in volume\" >&2;
+                CLEANUP_OK=0;
+              fi;
+            fi;
+          done;
+          # Strip leftover sqltools.* keys (including the leaked Postgres
+          # password) from settings.json. Delegated to a real Python
+          # script for atomicity: it writes to a same-directory temp file
+          # and os.replace()s onto the target, so the file is never
+          # half-written even if the container is killed mid-rewrite.
+          # An inline python3 -c oneliner would 'open(p, w)' (truncates
+          # immediately) before reserialising and could leave settings.json
+          # empty on interruption.
+          SETTINGS=/home/coder/.local/share/code-server/User/settings.json;
+          if [ -f \"$$SETTINGS\" ] && grep -q 'sqltools' \"$$SETTINGS\"; then
+            if ! python3 /opt/code-server-scripts/strip-sqltools-settings.py \"$$SETTINGS\"; then
+              echo \"[code-server] SECURITY WARNING: strip-sqltools-settings.py failed at $$SETTINGS — Postgres password may still be present, operator action required\" >&2;
+              CLEANUP_OK=0;
             fi;
           fi;
-        done;
-        # Strip leftover sqltools.* keys (including the leaked Postgres
-        # password) from settings.json. Delegated to a real Python
-        # script for atomicity: it writes to a same-directory temp file
-        # and os.replace()s onto the target, so the file is never
-        # half-written even if the container is killed mid-rewrite.
-        # An inline python3 -c oneliner would `open(p, 'w')` (truncates
-        # immediately) before reserialising and could leave settings.json
-        # empty on interruption.
-        SETTINGS=/home/coder/.local/share/code-server/User/settings.json;
-        if [ -f \"$$SETTINGS\" ] && grep -q '\"sqltools' \"$$SETTINGS\"; then
-          if ! python3 /opt/code-server-scripts/strip-sqltools-settings.py \"$$SETTINGS\"; then
-            echo \"[code-server] SECURITY WARNING: strip-sqltools-settings.py failed at $$SETTINGS — Postgres password may still be present, operator action required\" >&2;
+          if [ \"$$CLEANUP_OK\" = \"1\" ]; then
+            touch \"$$MIGRATION_MARKER\";
+            echo '[code-server] #593 sqltools cleanup complete — marker touched, will skip on subsequent starts';
+          else
+            echo '[code-server] #593 sqltools cleanup had failures — will retry on next start (marker NOT touched)' >&2;
           fi;
         fi;
         OPEN_DIR=/home/coder;
