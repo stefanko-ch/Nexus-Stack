@@ -156,6 +156,9 @@ output "secrets" {
     # CloudBeaver
     cloudbeaver_admin_password = random_password.cloudbeaver_admin.result
 
+    # Meilisearch
+    meilisearch_master_key = random_password.meilisearch_master_key.result
+
     # ClickHouse
     clickhouse_admin_password = random_password.clickhouse_admin.result
 

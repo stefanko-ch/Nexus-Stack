@@ -243,6 +243,18 @@ def _render_cloudbeaver(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_meilisearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Meilisearch: MEILI_MASTER_KEY gates ALL API endpoints (read +
+    write + admin). Without it Meilisearch runs in "no-auth dev mode"
+    and serves the index open; with it set, requesters need either
+    the master key or a derived API key. CF Access at the edge is the
+    outer perimeter; the master key is the inner per-request auth
+    Meilisearch's own admin/data endpoints check."""
+    return RenderedEnv(
+        env_vars={"MEILI_MASTER_KEY": c.meilisearch_master_key or ""},
+    )
+
+
 def _render_mage(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={"MAGE_ADMIN_PASSWORD": c.mage_admin_password or ""})
 
@@ -965,6 +977,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("dagster", _is_enabled("dagster"), _render_dagster),
     EnvSpec("kestra", _is_enabled("kestra"), _render_kestra),
     EnvSpec("cloudbeaver", _is_enabled("cloudbeaver"), _render_cloudbeaver),
+    EnvSpec("meilisearch", _is_enabled("meilisearch"), _render_meilisearch),
     EnvSpec("mage", _is_enabled("mage"), _render_mage),
     EnvSpec("minio", _is_enabled("minio"), _render_minio),
     EnvSpec("sftpgo", _is_enabled("sftpgo"), _render_sftpgo),

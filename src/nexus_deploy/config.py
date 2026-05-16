@@ -65,6 +65,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("SUPERSET_DB_PASS", "superset_db_password", ""),
     ("SUPERSET_SECRET", "superset_secret_key", ""),
     ("CLOUDBEAVER_PASS", "cloudbeaver_admin_password", ""),
+    ("MEILISEARCH_MASTER_KEY", "meilisearch_master_key", ""),
     ("MAGE_PASS", "mage_admin_password", ""),
     ("MINIO_ROOT_PASS", "minio_root_password", ""),
     ("SFTPGO_ADMIN_PASS", "sftpgo_admin_password", ""),
@@ -173,6 +174,7 @@ class NexusConfig(BaseModel):
     superset_db_password: str | None = None
     superset_secret_key: str | None = None
     cloudbeaver_admin_password: str | None = None
+    meilisearch_master_key: str | None = None
     mage_admin_password: str | None = None
     minio_root_password: str | None = None
     sftpgo_admin_password: str | None = None

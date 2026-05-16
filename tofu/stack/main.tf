@@ -137,6 +137,15 @@ resource "random_password" "cloudbeaver_admin" {
   special = false
 }
 
+# Meilisearch master key — gates ALL API endpoints (read + write +
+# admin). Generated with longer length (32) because the master key
+# is the only auth layer between requesters and the index data;
+# Meilisearch derives per-tenant API keys from this root.
+resource "random_password" "meilisearch_master_key" {
+  length  = 32
+  special = false
+}
+
 # Mage AI admin password
 resource "random_password" "mage_admin" {
   length  = 24

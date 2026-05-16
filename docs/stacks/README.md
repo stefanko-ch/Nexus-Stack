@@ -65,6 +65,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
+| Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
@@ -158,6 +159,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |
 | **Marimo** | Reactive Python notebook | [marimo.md](marimo.md) |
+| **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |

@@ -439,6 +439,16 @@ services:
     long_description: "Marimo is a reactive Python notebook that automatically re-executes dependent cells when you modify code. Notebooks are stored as pure Python files (git-friendly), support SQL natively, and can be deployed as interactive web apps. Pre-wired to talk to the Spark cluster via Spark Connect (sc://spark-connect:15002) — pyspark[connect] + ibis-framework[pyspark] are pre-installed."
     image: "nexus-marimo:latest-sql-spark"
 
+  meilisearch:
+    subdomain: "meilisearch"
+    port: 7700
+    public: false
+    category: "ai-ml"
+    website: "https://www.meilisearch.com"
+    description: "Lightning-fast Rust-based full-text search engine — sub-100ms typo-tolerant queries, schema-less."
+    long_description: "Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-100ms typo-tolerant search with faceting, geo, and highlighting. The 'Algolia you self-host'. In Nexus-Stack: pairs with Crawl4AI (scrape → index) and Big-AGI/Dify (hybrid keyword + vector search alongside Chroma) for RAG workflows; classroom doc-search for student-uploaded course materials. Auth via auto-generated MEILI_MASTER_KEY (stored in Infisical)."
+    image: "getmeili/meilisearch:v1.43.1"
+
   meltano:
     port: 5000
     public: false

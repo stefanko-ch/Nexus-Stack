@@ -1,0 +1,77 @@
+# =============================================================================
+# Meilisearch - Lightning-fast full-text search engine
+# =============================================================================
+# Single-binary search engine in Rust. Schema-less, sub-100ms typo-tolerant
+# search, faceting, geo, highlighting. The "Algolia you self-host" — drop
+# documents in via REST, query with prefix matching, get ranked results.
+#
+# Access: https://meilisearch.YOUR_DOMAIN
+#
+# Persistence: index data lives in a bind-mount on /mnt/nexus-data/meilisearch.
+# That path is ephemeral host storage (RFC 0001 cutover replaced the Hetzner
+# block volume with R2 snapshot/restore), so add this subdir to
+# src/nexus_deploy/s3_restore.py::standard_targets if you need indexes to
+# survive teardown — not done in this PR because typical use is "rebuild
+# the index from source on every spin-up" (Crawl4AI → scrape → POST to
+# Meilisearch). Mark the path here so a future PR can wire snapshot/restore
+# without a compose change.
+#
+# Use cases in Nexus-Stack:
+#   - RAG companion: Crawl4AI scrapes a docs site → POST documents to
+#     Meilisearch → Big-AGI / Dify queries Meilisearch for keyword
+#     hits alongside Chroma's semantic hits (hybrid search)
+#   - Class-wide doc search: students drop course PDFs/notes via the
+#     REST API, search across the cohort's combined corpus
+#   - Quick "grep but ranked" for any JSON / Markdown / log datasets
+#     students are working with in code-server
+#
+# Multi-arch verified for v1.43.1 via `docker manifest inspect
+# getmeili/meilisearch:v1.43.1`: publishes linux/amd64 + linux/arm64.
+# Satisfies CLAUDE.md's "amd64 required; arm64 preferred" rule.
+#
+# Auth:
+#   - CF Access (email OTP) at the edge — outer perimeter
+#   - MEILI_MASTER_KEY — inner per-request auth Meilisearch's own
+#     /indexes, /documents, /search, /keys endpoints check. Generated
+#     by Terraform (random_password.meilisearch_master_key, 32 chars),
+#     pushed to Infisical under folder `meilisearch` / key
+#     `MEILISEARCH_MASTER_KEY`. Students use the master key for setup
+#     and derive scoped API keys (read-only / per-index) for their apps.
+#
+# Telemetry: MEILI_NO_ANALYTICS=true — disable Meilisearch's anonymous
+# usage telemetry; same default as our other stacks (Grafana, Dozzle,
+# Metabase). Reference: https://www.meilisearch.com/docs/learn/resources/telemetry
+# =============================================================================
+
+services:
+  meilisearch:
+    image: ${IMAGE_MEILISEARCH:-getmeili/meilisearch:v1.43.1}
+    container_name: meilisearch
+    restart: unless-stopped
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_ENV=production
+    env_file:
+      - path: .env
+        required: false
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    volumes:
+      - /mnt/nexus-data/meilisearch:/meili_data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

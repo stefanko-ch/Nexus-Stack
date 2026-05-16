@@ -639,6 +639,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "meilisearch",
+            _filter_empty(
+                {
+                    "MEILISEARCH_MASTER_KEY": config.meilisearch_master_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "mage",
             _filter_empty(
                 {
