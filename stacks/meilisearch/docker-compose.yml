@@ -9,12 +9,20 @@
 #
 # Persistence: index data lives in a bind-mount on /mnt/nexus-data/meilisearch.
 # That path is ephemeral host storage (RFC 0001 cutover replaced the Hetzner
-# block volume with R2 snapshot/restore), so add this subdir to
-# src/nexus_deploy/s3_restore.py::standard_targets if you need indexes to
-# survive teardown — not done in this PR because typical use is "rebuild
-# the index from source on every spin-up" (Crawl4AI → scrape → POST to
-# Meilisearch). Mark the path here so a future PR can wire snapshot/restore
-# without a compose change.
+# block volume with R2 snapshot/restore). To make indexes survive teardown,
+# a follow-up PR would need to do BOTH steps in
+# src/nexus_deploy/s3_restore.py:
+#   1. Add an RsyncTarget for this path to `standard_targets()` so the
+#      data is included in the R2 snapshot/restore cycle.
+#   2. Add this stack's compose file to `_STANDARD_STOP_COMPOSE_FILES`
+#      so the container is stopped BEFORE rsync runs. Meilisearch's
+#      index format is LMDB-style (memory-mapped); snapshotting a
+#      running LMDB is unsafe (page-table corruption / partial-write
+#      visibility) — same atomicity rule that gitea, dify, and metabase
+#      follow. Skipping the stop step would produce snapshots that
+#      occasionally fail to restore.
+# Not done in this PR because typical use is "rebuild the index from
+# source on every spin-up" (Crawl4AI → scrape → POST to Meilisearch).
 #
 # Use cases in Nexus-Stack:
 #   - RAG companion: Crawl4AI scrapes a docs site → POST documents to

@@ -18,6 +18,7 @@
   SUPERSET_DB_PASS=''
   SUPERSET_SECRET=''
   CLOUDBEAVER_PASS=''
+  MEILISEARCH_MASTER_KEY=''
   MAGE_PASS=''
   MINIO_ROOT_PASS=''
   SFTPGO_ADMIN_PASS=''
@@ -89,7 +90,7 @@
   DIFY_PLUGIN_INNER_API_KEY=''
   DOCKERHUB_USER=''
   DOCKERHUB_TOKEN=''
-  
+
   '''
 # ---
 # name: test_dump_shell_full_snapshot
@@ -111,6 +112,7 @@
   SUPERSET_DB_PASS=superset_db_password-VALUE
   SUPERSET_SECRET=superset_secret_key-VALUE
   CLOUDBEAVER_PASS=cloudbeaver_admin_password-VALUE
+  MEILISEARCH_MASTER_KEY=''
   MAGE_PASS=mage_admin_password-VALUE
   MINIO_ROOT_PASS=minio_root_password-VALUE
   SFTPGO_ADMIN_PASS=sftpgo_admin_password-VALUE
@@ -182,7 +184,7 @@
   DIFY_PLUGIN_INNER_API_KEY=dify_plugin_inner_api_key-VALUE
   DOCKERHUB_USER=dockerhub_username-VALUE
   DOCKERHUB_TOKEN=dockerhub_token-VALUE
-  
+
   '''
 # ---
 # name: test_dump_shell_minimal_snapshot
@@ -204,6 +206,7 @@
   SUPERSET_DB_PASS=''
   SUPERSET_SECRET=''
   CLOUDBEAVER_PASS=''
+  MEILISEARCH_MASTER_KEY=''
   MAGE_PASS=''
   MINIO_ROOT_PASS=''
   SFTPGO_ADMIN_PASS=''
@@ -275,6 +278,6 @@
   DIFY_PLUGIN_INNER_API_KEY=''
   DOCKERHUB_USER=''
   DOCKERHUB_TOKEN=''
-  
+
   '''
 # ---

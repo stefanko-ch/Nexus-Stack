@@ -90,6 +90,8 @@
       'MAGE_PASSWORD': 'mage_admin_password-VALUE',
       'MAGE_USERNAME': 'user@snapshot.test',
     }),
+    'meilisearch': dict({
+    }),
     'meltano': dict({
       'MELTANO_DB_PASSWORD': 'meltano_db_password-VALUE',
     }),

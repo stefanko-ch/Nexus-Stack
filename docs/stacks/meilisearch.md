@@ -22,9 +22,21 @@ Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-1
 ### Usage
 
 1. Enable **Meilisearch** in the Control Plane → Spin Up
-2. Visit `https://meilisearch.YOUR_DOMAIN`, authenticate via Cloudflare Access OTP — you'll see the built-in mini-dashboard
-3. Get the master key from **Infisical** → folder `meilisearch` → key `MEILISEARCH_MASTER_KEY`
-4. Use that key for setup; derive scoped per-index API keys for your apps via `POST /keys`
+2. Get the master key from **Infisical** → folder `meilisearch` → key `MEILISEARCH_MASTER_KEY`
+3. Hit the REST API directly with that key — the compose file sets `MEILI_ENV=production`, which intentionally disables the built-in `/` preview dashboard for security. Examples:
+   ```bash
+   # Create an index
+   curl -X POST 'https://meilisearch.YOUR_DOMAIN/indexes' \
+     -H "Authorization: Bearer $MEILISEARCH_MASTER_KEY" \
+     -H 'Content-Type: application/json' \
+     -d '{"uid":"docs","primaryKey":"id"}'
+
+   # Search
+   curl 'https://meilisearch.YOUR_DOMAIN/indexes/docs/search?q=hello' \
+     -H "Authorization: Bearer $MEILISEARCH_MASTER_KEY"
+   ```
+4. Derive scoped per-index API keys for your apps via `POST /keys` (read-only for a search frontend, write-only for an indexer, etc.)
+5. If you want the preview dashboard for local exploration, override `MEILI_ENV=development` via an env var in your deployment (NOT recommended for shared/public deployments — `production` enforces stricter API behavior)
 
 ### Nexus-Stack use cases
 

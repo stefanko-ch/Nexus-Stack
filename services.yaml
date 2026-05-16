@@ -446,7 +446,7 @@ services:
     category: "ai-ml"
     website: "https://www.meilisearch.com"
     description: "Lightning-fast Rust-based full-text search engine — sub-100ms typo-tolerant queries, schema-less."
-    long_description: "Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-100ms typo-tolerant search with faceting, geo, and highlighting. The 'Algolia you self-host'. In Nexus-Stack: pairs with Crawl4AI (scrape → index) and Big-AGI/Dify (hybrid keyword + vector search alongside Chroma) for RAG workflows; classroom doc-search for student-uploaded course materials. Auth via auto-generated MEILI_MASTER_KEY (stored in Infisical)."
+    long_description: "Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-100ms typo-tolerant search with faceting, geo, and highlighting. The 'Algolia you self-host'. In Nexus-Stack: pairs with Crawl4AI (scrape → index) and Big-AGI/Dify (hybrid keyword + vector search alongside Chroma) for RAG workflows; classroom doc-search for student-uploaded course materials. Auth via auto-generated master key (Infisical → folder `meilisearch` → key `MEILISEARCH_MASTER_KEY`)."
     image: "getmeili/meilisearch:v1.43.1"
 
   meltano:

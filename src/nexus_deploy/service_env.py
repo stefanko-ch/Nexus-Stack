@@ -245,14 +245,29 @@ def _render_cloudbeaver(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 def _render_meilisearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Meilisearch: MEILI_MASTER_KEY gates ALL API endpoints (read +
-    write + admin). Without it Meilisearch runs in "no-auth dev mode"
-    and serves the index open; with it set, requesters need either
-    the master key or a derived API key. CF Access at the edge is the
-    outer perimeter; the master key is the inner per-request auth
-    Meilisearch's own admin/data endpoints check."""
-    return RenderedEnv(
-        env_vars={"MEILI_MASTER_KEY": c.meilisearch_master_key or ""},
-    )
+    write + admin). CF Access at the edge is the outer perimeter; the
+    master key is the inner per-request auth Meilisearch's own
+    admin/data endpoints check.
+
+    Fail-fast guard (same pattern as SFTPGo): if the master key is
+    empty/missing we raise instead of silently writing an empty
+    MEILI_MASTER_KEY into the .env. Without it Meilisearch with
+    MEILI_ENV=production refuses to start, so silent-empty would
+    produce a container that restart-loops with a cryptic error
+    instead of a clear deploy-time failure pointing at the missing
+    Tofu/Infisical sync. Most common cause for an empty key on an
+    existing deploy: spin-up was run before initial-setup applied
+    the new random_password.meilisearch_master_key resource —
+    operator needs to `tofu apply` the stack module first."""
+    if _empty(c.meilisearch_master_key):
+        raise ServiceEnvError(
+            "Meilisearch enabled but MEILI_MASTER_KEY is empty — run "
+            "`tofu apply` (initial-setup workflow) to generate "
+            "random_password.meilisearch_master_key + push to Infisical, "
+            "then re-run spin-up. Aborting to avoid a restart-looping "
+            "container with no auth.",
+        )
+    return RenderedEnv(env_vars={"MEILI_MASTER_KEY": c.meilisearch_master_key or ""})
 
 
 def _render_mage(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:

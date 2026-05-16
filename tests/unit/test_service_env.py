@@ -187,6 +187,22 @@ def test_render_env_file_content_in_dict_order() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_meilisearch_raises_on_empty_master_key(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """R-guard: empty master key aborts the deploy with a fail-fast
+    ServiceEnvError rather than silently writing MEILI_MASTER_KEY=''
+    into the .env. Compose has MEILI_ENV=production, so Meilisearch
+    would refuse to start and the container would restart-loop with
+    a cryptic error — much harder to diagnose than a clear deploy-
+    time abort pointing at the missing Tofu apply / Infisical sync."""
+    from nexus_deploy.service_env import _render_meilisearch
+
+    config = full_config.model_copy(update={"meilisearch_master_key": ""})
+    with pytest.raises(ServiceEnvError, match="MEILI_MASTER_KEY"):
+        _render_meilisearch(config, full_env)
+
+
 def test_sftpgo_raises_on_empty_admin_password(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
