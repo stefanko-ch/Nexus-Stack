@@ -201,11 +201,22 @@ chown -R 1001:1001 /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
     if metabase_storage_prep:
         # Metabase runs as uid 2000 (since v0.46 official image) and
         # needs its data dir owned for the H2/DB + dashboards/questions
-        # persistence (issue #528). Idempotent — chown is a no-op on
-        # a dir that's already owned correctly.
+        # persistence (issue #528).
+        #
+        # The chown is guarded on the top-level dir's current owner
+        # rather than running unconditionally: as Metabase state grows
+        # (long-running classes can accumulate GB of H2/Lucene/cache
+        # files), an unconditional `chown -R` would walk the entire
+        # tree on every compose-up — measurable seconds added to deploy
+        # time, plus needless I/O. The owner-check is O(1) and only
+        # runs the recursive chown when we actually need to (first
+        # spin-up after the bind-mount lands, or after a manual
+        # ownership mishap).
         metabase_block = """
 mkdir -p /mnt/nexus-data/metabase
-chown -R 2000:2000 /mnt/nexus-data/metabase
+if [ "$(stat -c '%u:%g' /mnt/nexus-data/metabase)" != "2000:2000" ]; then
+  chown -R 2000:2000 /mnt/nexus-data/metabase
+fi
 """
 
     return f"""set -euo pipefail

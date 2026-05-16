@@ -214,6 +214,25 @@ def test_render_metabase_storage_prep_only_when_flagged() -> None:
     assert "chown -R 2000:2000 /mnt/nexus-data/metabase" in with_metabase
 
 
+def test_render_metabase_chown_is_guarded_by_owner_check() -> None:
+    """The metabase chown must be guarded by an owner-stat check so
+    `compose up` doesn't walk the entire data tree on every deploy
+    once the dashboards/H2 state has grown. Round-1 PR #591 review
+    finding."""
+    script = _render_default(metabase_storage_prep=True)
+    # Guard structure: stat the top-level dir, only chown if owner
+    # isn't already 2000:2000.
+    assert "stat -c '%u:%g' /mnt/nexus-data/metabase" in script
+    assert '!= "2000:2000"' in script
+    # The chown must be INSIDE the if-block (not before/after it).
+    # Approximate check: chown appears between the if-line and the
+    # closing 'fi' on adjacent lines.
+    lines = script.splitlines()
+    if_idx = next(i for i, le in enumerate(lines) if "stat -c '%u:%g'" in le)
+    fi_idx = next(i for i, le in enumerate(lines) if i > if_idx and le.strip() == "fi")
+    assert any("chown -R 2000:2000" in le for le in lines[if_idx:fi_idx])
+
+
 def test_render_dify_and_metabase_blocks_independent() -> None:
     """Both flags can fire together — Dify + Metabase enabled in the
     same stack produces both prep blocks back-to-back."""
@@ -359,6 +378,52 @@ def test_run_compose_up_dify_omitted_when_dify_not_in_enabled() -> None:
 
     run_compose_up(["jupyter"], script_runner=capture)
     assert "/mnt/nexus-data/dify/storage" not in captured_script["script"]
+
+
+def test_run_compose_up_metabase_default_when_metabase_in_enabled() -> None:
+    """metabase_storage_prep defaults to True iff 'metabase' is in enabled
+    (issue #528). Mirrors the equivalent dify default-on test."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter", "metabase"], script_runner=capture)
+    assert "/mnt/nexus-data/metabase" in captured_script["script"]
+    # Owner-check guard present (avoids O(n) chown on every deploy).
+    assert "stat -c '%u:%g'" in captured_script["script"]
+
+
+def test_run_compose_up_metabase_omitted_when_metabase_not_in_enabled() -> None:
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter"], script_runner=capture)
+    assert "/mnt/nexus-data/metabase" not in captured_script["script"]
+
+
+def test_run_compose_up_metabase_explicit_override_beats_enabled_inference() -> None:
+    """Caller can force metabase_storage_prep=False even when 'metabase'
+    is in enabled — needed for tests + operator escape hatch if the
+    chown is causing trouble. Mirrors the dify override semantics."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["metabase"], script_runner=capture, metabase_storage_prep=False)
+    assert "/mnt/nexus-data/metabase" not in captured_script["script"]
 
 
 # ---------------------------------------------------------------------------

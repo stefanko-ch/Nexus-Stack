@@ -12,10 +12,12 @@
 # Survives teardown — students who build dashboards across multiple
 # sessions keep their work (issue #528).
 #
-# Trade-off (same as Gitea/Dify): the data dir survives `tofu destroy`
-# (the Hetzner volume is preserved by destroy-all). It does NOT survive
-# `gh workflow run destroy-all.yml -f confirm=DESTROY` which explicitly
-# wipes /mnt/nexus-data/.
+# Trade-off (same as Gitea/Dify): the data dir survives normal
+# `teardown` + `spin-up` cycles AND `tofu destroy`/`apply` — the
+# Hetzner block volume backing /mnt/nexus-data/ is preserved across
+# those (only the VM is destroyed + re-created). It does NOT survive
+# `gh workflow run destroy-all.yml -f confirm=DESTROY`, which is the
+# only path that explicitly wipes /mnt/nexus-data/.
 # =============================================================================
 
 services:
