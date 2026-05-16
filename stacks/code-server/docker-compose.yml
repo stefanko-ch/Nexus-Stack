@@ -49,15 +49,30 @@ services:
         # them from the image doesn't clean existing deployments.
         # Strip them here so an upgrading container ends up in the
         # same state as a fresh one. Idempotent (no-op on fresh).
+        #
+        # Both cleanup steps log a SECURITY WARNING (visible in
+        # 'docker logs code-server') on failure so an operator notices
+        # — but don't abort startup. If the cleanup fails, code-server
+        # still serves the IDE; the leaked password just stays in the
+        # volume until the operator intervenes. Hard-failing the start
+        # would prevent the operator from logging in to investigate.
         for D in \"$$USER_EXT_DIR\"/mtxr.sqltools-*; do
           if [ -d \"$$D\" ]; then
-            rm -rf \"$$D\";
-            echo '[code-server] Removed leftover SQLTools extension from volume (#593 migration):' \"$$(basename $$D)\";
+            BN=\"$$(basename $$D)\";
+            if rm -rf \"$$D\"; then
+              echo '[code-server] Removed leftover SQLTools extension from volume (#593 migration):' \"$$BN\";
+            else
+              echo \"[code-server] SECURITY WARNING: failed to rm leftover SQLTools extension $$D — check permissions; old extension still in volume\" >&2;
+            fi;
           fi;
         done;
         SETTINGS=/home/coder/.local/share/code-server/User/settings.json;
         if [ -f \"$$SETTINGS\" ] && grep -q '\"sqltools' \"$$SETTINGS\"; then
-          python3 -c \"import json,sys; p='$$SETTINGS'; d=json.load(open(p)); ks=[k for k in d if k.startswith('sqltools')]; [d.pop(k) for k in ks]; json.dump(d, open(p,'w'), indent=2); print('[code-server] Stripped sqltools.* keys from settings.json:', ks)\" || echo '[code-server] Warning: failed to strip sqltools keys from settings.json' >&2;
+          if python3 -c \"import json,sys; p='$$SETTINGS'; d=json.load(open(p)); ks=[k for k in d if k.startswith('sqltools')]; [d.pop(k) for k in ks]; json.dump(d, open(p,'w'), indent=2); print('[code-server] Stripped sqltools.* keys from settings.json:', ks)\"; then
+            :;
+          else
+            echo '[code-server] SECURITY WARNING: failed to strip sqltools keys from settings.json — Postgres password may still be present at' \"$$SETTINGS\" >&2;
+          fi;
         fi;
         OPEN_DIR=/home/coder;
         if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;

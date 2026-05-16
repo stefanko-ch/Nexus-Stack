@@ -160,8 +160,13 @@ RUN uv venv /opt/nexus-venv && \
 #   via the UI or (b) wipe the volumes for a fresh seed.
 #
 # No extensions are currently baked. The infrastructure is kept so
-# adding one later is a single `code-server --install-extension` line
-# after the USER coder switch below. SQLTools + sqltools-driver-pg
+# adding one later is a single line after the USER coder switch below:
+#   RUN code-server --extensions-dir /opt/code-server-extensions \
+#         --install-extension <id>
+# The --extensions-dir flag is mandatory — without it, install-extension
+# lands the extension in the default ~/.local/share/code-server/extensions/
+# which gets masked by the code-server-data volume mount on container
+# start, so the extension disappears on first run. SQLTools + sqltools-driver-pg
 # were pre-installed in #588 but removed again: every SQL-Tools-style
 # extension (SQLTools, cweijan database-client, …) breaks in the
 # code-server-through-CF-Tunnel setup. SQLTools' "Add New Connection"
