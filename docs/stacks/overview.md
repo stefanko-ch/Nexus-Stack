@@ -156,6 +156,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 
 | Stack | Image | Description |
 |-------|-------|-------------|
+| **[Dozzle](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/dozzle.md)** | `amir20/dozzle:v10.5.3` | Realtime Docker logs in the browser. The "no-SSH `docker logs -f`" — pick a container in the sidebar, stream its logs live, search/filter, open multiple in tabs. Subscribes to the Docker socket read-only. Stateless, ~30 MB image. |
 | **[Grafana](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/grafana.md)** | `grafana/grafana:latest` | The observability stack, bundled: Grafana + Prometheus + Loki + Promtail + cAdvisor + Node Exporter. Ships with pre-provisioned dashboards for Docker containers, Loki logs, and host metrics — working observability out of the box. Always protected. |
 | **[Quickwit](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/quickwit.md)** | `quickwit/quickwit:0.8.1` | Rust-based log search engine, designed to store indexes on cheap object storage (S3/MinIO) instead of expensive SSD. Elasticsearch alternative when you have terabytes of logs you rarely query. |
 | **[Telegraf](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/telegraf.md)** | `telegraf:1.38.2` | InfluxData's metrics agent with 300+ input plugins. CLI-only — runs in the background, no web UI. Complements the Grafana stack when you need something Node Exporter doesn't cover. |

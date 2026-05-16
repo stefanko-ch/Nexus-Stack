@@ -22,6 +22,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Dagster | dagster (custom build) | `1.12.21` | Exact ³ |
 | Debezium | `quay.io/debezium/connect` | `3.5.0` | Exact ¹ |
 | Dinky | `dinkydocker/dinky-standalone-server` | `1.2.5-flink1.20` | Exact ¹ |
+| Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `12` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
@@ -137,6 +138,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
+| **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |

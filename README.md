@@ -68,7 +68,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (67)
+## Available Stacks (68)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -85,6 +85,7 @@ After deployment you'll have:
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
 [![Dinky](https://img.shields.io/badge/Dinky-1677FF?logo=apacheflink&logoColor=white)](https://www.dinky.org.cn/)
+[![Dozzle](https://img.shields.io/badge/Dozzle-7B16FF?logo=docker&logoColor=white)](https://dozzle.dev)
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
 [![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
 [![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)](https://www.filestash.app)
@@ -155,6 +156,7 @@ After deployment you'll have:
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |
 | **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
+| **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |

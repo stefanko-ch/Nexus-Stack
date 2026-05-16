@@ -207,6 +207,16 @@ services:
     long_description: "Dinky is a web-based IDE for Apache Flink SQL development. Write and execute Flink SQL with auto-completion, manage Flink jobs, debug SQL in real time, and monitor job execution. Supports both streaming and batch SQL with a visual data lineage graph."
     image: "nexus-dinky:1.2.5-flink1.20"
 
+  dozzle:
+    subdomain: "dozzle"
+    port: 8480
+    public: false
+    category: "observability"
+    website: "https://dozzle.dev"
+    description: "Realtime Docker logs in the browser — tail every container without SSH."
+    long_description: "Dozzle is a lightweight web UI that streams `docker logs` for every running container live. Search, filter, follow, jump between containers in tabs. No persistent state, no database, just a read-only bind on /var/run/docker.sock. Operator's go-to tool when something restart-loops and you'd otherwise reach for `ssh nexus && docker logs <name>`."
+    image: "amir20/dozzle:v10.5.3"
+
   drawio:
     subdomain: "drawio"
     port: 8083

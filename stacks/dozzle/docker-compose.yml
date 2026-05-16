@@ -1,0 +1,67 @@
+# =============================================================================
+# Dozzle - Realtime Docker logs in the browser
+# =============================================================================
+# Lightweight web UI that streams `docker logs` for every running container
+# in real time. Search, filter, follow, jump between containers, no SSH
+# detour. The browser equivalent of `docker logs -f <name>` for the whole
+# host.
+#
+# Stateless container: ~30 MB image, ~15 MB RAM idle. No volumes for app
+# state, no database, no env vars beyond the auth-off flag. Single
+# bind-mount on /var/run/docker.sock (read-only) so Dozzle can subscribe
+# to the Docker events stream and tail container log files.
+#
+# Access: https://dozzle.YOUR_DOMAIN
+#
+# Operator use cases:
+#   - "Why is metabase restarting?" → open Dozzle, click `metabase` in
+#     the sidebar, see the OOM stack trace live without `ssh nexus`
+#   - "Did the spin-up workflow finish all stacks?" → open Dozzle,
+#     scan the container list, look for any in restart-loop
+#   - Multi-container debugging: open the same Dozzle URL in two tabs,
+#     one tailing `gitea`, one tailing `kestra-postgres` during a
+#     spin-up
+#
+# Multi-arch verified for v10.5.3 via `docker manifest inspect
+# amir20/dozzle:v10.5.3`: publishes linux/amd64, linux/arm64, linux/arm/v7.
+# Satisfies CLAUDE.md's "must support amd64; arm64 preferred" rule.
+#
+# Auth: --no-analytics + DOZZLE_NO_AUTH=true relies on Cloudflare Access
+# at the edge as the only auth layer (same model as Grafana, Gitea,
+# Infisical etc.). Dozzle has its own basic-auth / OIDC modes but they'd
+# be redundant double-auth behind CF Access.
+#
+# Security note: read-only docker.sock mount. Dozzle does NOT need write
+# access to the socket — only the `events` and `logs` API endpoints.
+# Mounting :ro is a defence-in-depth measure in case a future Dozzle
+# release adds a feature that would exec/kill containers.
+# =============================================================================
+
+services:
+  dozzle:
+    image: ${IMAGE_DOZZLE:-amir20/dozzle:v10.5.3}
+    container_name: dozzle
+    restart: unless-stopped
+    ports:
+      - "8480:8080"
+    environment:
+      - DOZZLE_NO_ANALYTICS=true
+      - DOZZLE_NO_AUTH=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  app-network:
+    external: true
