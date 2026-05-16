@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.63.0...v0.64.0) (2026-05-16)
+
+
+### 🚀 Features
+
+* **code-server:** Pre-install SQLTools + auto-connect to Nexus Postgres ([#588](https://github.com/stefanko-ch/Nexus-Stack/issues/588)) ([2ed3fc1](https://github.com/stefanko-ch/Nexus-Stack/commit/2ed3fc1215dcdeac811ad775dc4edf57be1b6760))
+
+
+### 🐛 Bug Fixes
+
+* **gitea:** Poll mirror HEAD until upstream-fetch lands; surface result ([#589](https://github.com/stefanko-ch/Nexus-Stack/issues/589)) ([ac91549](https://github.com/stefanko-ch/Nexus-Stack/commit/ac91549cd4940651eeab40cd71735820e793ea35))
+
 ## [0.63.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.62.1...v0.63.0) (2026-05-15)
 
 
