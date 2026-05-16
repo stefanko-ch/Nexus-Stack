@@ -46,10 +46,18 @@ function validateSourceIps(sourceIps) {
 
 /**
  * GET /api/firewall
- * Returns all firewall rules from D1
+ * Returns all firewall rules from D1.
+ *
+ * Query params:
+ *   ?count_only=true — short-circuit response: just `{success, pendingChangesCount}`,
+ *   no `rules` payload. Used by PendingBar.astro which mounts on every page
+ *   and only needs the count for the banner — full payload was ~5KB per page
+ *   load. Avoid an extra round-trip but skip the per-rule fields.
  */
 export async function onRequestGet(context) {
-  const { env } = context;
+  const { env, request } = context;
+  const url = new URL(request.url);
+  const countOnly = url.searchParams.get('count_only') === 'true';
 
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
@@ -63,6 +71,20 @@ export async function onRequestGet(context) {
   }
 
   try {
+    // count_only path: SELECT COUNT(*) WHERE enabled != deployed.
+    // Doesn't load row data, doesn't iterate-and-build a JSON array.
+    if (countOnly) {
+      const countResult = await env.NEXUS_DB.prepare(`
+        SELECT COUNT(*) AS c FROM firewall_rules WHERE enabled != deployed
+      `).first();
+      return new Response(JSON.stringify({
+        success: true,
+        pendingChangesCount: countResult?.c || 0,
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const results = await env.NEXUS_DB.prepare(`
       SELECT service_name, port, protocol, label, enabled, deployed, source_ips, dns_record
       FROM firewall_rules

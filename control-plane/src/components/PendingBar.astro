@@ -88,9 +88,17 @@
     if (!bar || !text || !view || !btnSpinUp) return;
 
     // Pick the View-link destination based on which source has pending
-    // changes. Firewall-only → /firewall (stacks page would show nothing
-    // pending and confuse the operator). Anything involving stacks →
-    // /stacks?filter=pending (the more common multi-item view).
+    // changes:
+    //   - firewall-only (stackCount=0, fwCount>0)  → /firewall
+    //   - stack-only OR both pending                → /stacks?filter=pending
+    // For the both-pending case we deliberately route to /stacks because
+    // that's where the higher-cardinality changes usually live and where
+    // operators spend most of their time. The banner TEXT already names
+    // BOTH sources ("3 stack changes + 2 firewall changes pending"), so
+    // the operator knows firewall changes exist; the global nav has a
+    // direct /firewall link one click away. We don't try to surface both
+    // destinations in the banner itself — that would crowd the UI and
+    // make the "primary action" (Spin Up Now) less prominent.
     function pickViewHref(stackCount, fwCount) {
       if (stackCount === 0 && fwCount > 0) return '/firewall';
       return '/stacks?filter=pending';
@@ -115,7 +123,11 @@
 
     async function fetchFirewallPending() {
       try {
-        const r = await fetch('/api/firewall', { credentials: 'same-origin' });
+        // ?count_only=true short-circuits /api/firewall on the server:
+        // a single COUNT(*) query, no per-rule payload. PendingBar mounts
+        // on every page so we don't want to transfer the full ~5KB rules
+        // array each time — the banner only needs the integer count.
+        const r = await fetch('/api/firewall?count_only=true', { credentials: 'same-origin' });
         if (!r.ok) return 0;
         const d = await r.json();
         return (d && d.success && typeof d.pendingChangesCount === 'number')
