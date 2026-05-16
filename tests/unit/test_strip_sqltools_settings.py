@@ -193,6 +193,36 @@ def test_jsonc_strip_preserves_commas_inside_string_values(tmp_path: Path) -> No
     assert after["editor.fontSize"] == 14
 
 
+def test_jsonc_strip_handles_trailing_comma_followed_by_inline_comment(
+    tmp_path: Path,
+) -> None:
+    """Common VS Code JSONC pattern: a trailing comma followed by an
+    inline `// comment` before the closing `}` or `]`. The state
+    machine must strip the comment first (so the comma becomes
+    truly trailing whitespace + `}`), THEN apply the trailing-comma
+    rule. Order matters — if we did commas first, the `,` would not
+    yet look trailing (a `// comment` is between it and the `}`)."""
+    settings = tmp_path / "settings.json"
+    settings.write_text(
+        """{
+            "editor.fontSize": 14,
+            "sqltools.connections": [
+                {"name": "old-leaked", "password": "x"}, // legacy entry from #588
+            ]
+        }
+        """
+    )
+
+    result = _run(settings)
+
+    assert result.returncode == 0, (
+        f"trailing-comma + inline-comment failed: stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    after = json.loads(settings.read_text())
+    assert "sqltools.connections" not in after
+    assert after["editor.fontSize"] == 14
+
+
 def test_jsonc_strip_handles_escaped_quotes_in_strings(tmp_path: Path) -> None:
     """The string-aware comment stripper must handle backslash-escaped
     quotes inside string values, so e.g. "say \\"hi\\"" doesn't end the

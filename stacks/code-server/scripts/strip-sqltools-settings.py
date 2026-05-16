@@ -13,12 +13,15 @@ Idempotent: if no sqltools.* keys are present, exits 0 with a
 
 JSONC-tolerant: VS Code's settings.json is officially JSONC (JSON
 with comments and trailing commas allowed). Python's json.load() is
-strict — so before giving up we try a regex pre-pass that strips //
-line comments, /* block */ comments, and trailing commas, then
-retry. The output is always written as strict JSON (json.dump),
-which is a slight behavioral change vs the original file but matches
-how code-server itself rewrites the file when the user edits via
-the Settings UI.
+strict — so before giving up we run the text through a string-aware
+state machine (`_strip_jsonc` below) that removes // line comments,
+/* block */ comments, and trailing commas, then retry. The state
+machine respects string boundaries, so user content containing
+those characters (URLs, regex patterns, comma-suffixed strings)
+survives intact. The output is always written as strict JSON
+(json.dump), which is a slight behavioral change vs the original
+file but matches how code-server itself rewrites the file when
+the user edits via the Settings UI.
 
 Why a separate script (instead of inline python3 -c in the
 entrypoint): the atomic-write recipe is ~15 lines with try/except
@@ -47,10 +50,16 @@ import tempfile
 
 def _strip_jsonc(text: str) -> str:
     """Strip JSONC features (// + /* comments, trailing commas) from
-    text, BUT only outside string literals. State-machine, ~50 lines,
-    no deps. Preserves all string content byte-for-byte — URLs,
-    paths, regex patterns, and strings containing `//` / `,]` / `,}`
-    all survive intact."""
+    text, BUT only outside string literals. Two passes so comment
+    removal happens first — a trailing-comma followed by an inline
+    `// comment` before `}` looks non-trailing until the comment is
+    gone. Both passes are string-aware (~50 lines total, no deps),
+    preserving URL strings / regex patterns / comma-suffixed
+    string values byte-for-byte."""
+    return _strip_trailing_commas(_strip_comments(text))
+
+
+def _strip_comments(text: str) -> str:
     out: list[str] = []
     i = 0
     n = len(text)
@@ -75,25 +84,48 @@ def _strip_jsonc(text: str) -> str:
         if ch == "/" and i + 1 < n:
             nxt = text[i + 1]
             if nxt == "/":
-                # Line comment — skip to newline
                 while i < n and text[i] != "\n":
                     i += 1
                 continue
             if nxt == "*":
-                # Block comment — skip to closing */
                 i += 2
                 while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
                     i += 1
-                i += 2  # consume the */
+                i += 2
                 continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _strip_trailing_commas(text: str) -> str:
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_string = False
+    while i < n:
+        ch = text[i]
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
         if ch == ",":
-            # Trailing-comma check: peek past whitespace; if next
-            # non-whitespace char is `}` or `]`, drop the comma.
             j = i + 1
             while j < n and text[j] in " \t\r\n":
                 j += 1
             if j < n and text[j] in "}]":
-                i += 1  # skip the comma
+                i += 1
                 continue
         out.append(ch)
         i += 1

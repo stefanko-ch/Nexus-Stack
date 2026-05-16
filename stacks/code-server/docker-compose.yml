@@ -115,8 +115,11 @@ services:
             CLEANUP_OK=0;
           fi;
           if [ \"$$CLEANUP_OK\" = \"1\" ]; then
-            touch \"$$MIGRATION_MARKER\";
-            echo '[code-server] #593 sqltools cleanup complete — marker touched, will skip on subsequent starts';
+            if touch \"$$MIGRATION_MARKER\"; then
+              echo '[code-server] #593 sqltools cleanup complete — marker touched, will skip on subsequent starts';
+            else
+              echo \"[code-server] SECURITY WARNING: cleanup succeeded but failed to touch $$MIGRATION_MARKER — migration will rerun on every restart (deletes user-added sqltools.* state). Check volume permissions.\" >&2;
+            fi;
           else
             echo '[code-server] #593 sqltools cleanup had failures — will retry on next start (marker NOT touched)' >&2;
           fi;
