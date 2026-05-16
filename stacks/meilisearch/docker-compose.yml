@@ -28,8 +28,9 @@
 #   - RAG companion: Crawl4AI scrapes a docs site → POST documents to
 #     Meilisearch → Big-AGI / Dify queries Meilisearch for keyword
 #     hits alongside Chroma's semantic hits (hybrid search)
-#   - Class-wide doc search: students drop course PDFs/notes via the
-#     REST API, search across the cohort's combined corpus
+#   - Class-wide doc search: students text-extract course PDFs/notes
+#     first (Meilisearch only indexes JSON, not raw PDFs), then POST
+#     the JSON documents to search across the cohort's combined corpus
 #   - Quick "grep but ranked" for any JSON / Markdown / log datasets
 #     students are working with in code-server
 #
@@ -47,8 +48,9 @@
 #     and derive scoped API keys (read-only / per-index) for their apps.
 #
 # Telemetry: MEILI_NO_ANALYTICS=true — disable Meilisearch's anonymous
-# usage telemetry; same default as our other stacks (Grafana, Dozzle,
-# Metabase). Reference: https://www.meilisearch.com/docs/learn/resources/telemetry
+# usage telemetry. Same convention as other Nexus-Stack services with
+# upstream-telemetry opt-outs (Dozzle, Metabase). Reference:
+# https://www.meilisearch.com/docs/learn/resources/telemetry
 # =============================================================================
 
 services:

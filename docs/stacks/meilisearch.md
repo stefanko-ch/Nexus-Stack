@@ -25,9 +25,11 @@ Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-1
 2. Get the master key from **Infisical** → folder `meilisearch` → key `MEILISEARCH_MASTER_KEY`
 3. Hit the REST API with that key. The compose file sets `MEILI_ENV=production`, which intentionally disables the built-in `/` preview dashboard for security.
    - **From inside Nexus-Stack** (other containers like code-server, Kestra, Dify): hit `http://meilisearch:7700/...` directly — internal Docker network, no CF Access in the path, just the master key as the auth layer.
-   - **From outside** (your laptop, external CI): the `https://meilisearch.YOUR_DOMAIN/...` URL is behind Cloudflare Access (email OTP). You can't use plain curl from a script — either use the [Cloudflare Access service token](https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/) (`CF-Access-Client-Id` + `CF-Access-Client-Secret` headers), or [`cloudflared access curl`](https://developers.cloudflare.com/cloudflare-one/identity/users/short-lived-certificates/) to bake the OTP session into a curl wrapper. Browser sessions (login once, then poke around) work without any extra setup.
+   - **From outside** (your laptop, external CI): the `https://meilisearch.YOUR_DOMAIN/...` URL is behind Cloudflare Access (email OTP). Only `ssh` and `infisical` have CF Access service-token policies wired up in `tofu/stack/main.tf` (private stacks like Meilisearch use the email-OTP policy only), so plain script-style curl from external CI **won't work** without first adding a service-token policy for this stack. Two workable options:
+     - **Browser:** log in once via OTP, then use the dashboard / browser-based clients while the cookie is valid.
+     - **Headless CLI:** [`cloudflared access curl`](https://developers.cloudflare.com/cloudflare-one/identity/users/short-lived-certificates/) — interactively opens the OTP login in your browser the first time, caches a short-lived cert, then wraps subsequent curls.
 
-   Example from a code-server terminal (inside the network, no CF Access needed):
+   Example from a code-server terminal (inside the network, no CF Access in the path). Secret-handling note: even with shell-variable expansion the master key shows up in `ps` while curl runs. For a quick interactive command that's acceptable; for any persistent script, derive a scoped (read-only / per-index) API key via `POST /keys` and use that instead — the docs section below covers it.
    ```bash
    # Create an index
    curl -X POST 'http://meilisearch:7700/indexes' \
@@ -44,9 +46,9 @@ Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-1
 
 ### Nexus-Stack use cases
 
-- **RAG companion to Chroma:** Crawl4AI scrapes a docs site → POST documents to Meilisearch → Big-AGI / Dify queries Meilisearch for keyword hits alongside Chroma's semantic hits (hybrid search). Each engine compensates for the other's weakness (Chroma misses exact-token matches, Meilisearch misses semantic paraphrases).
-- **Class-wide doc search:** students POST course PDFs / notes / transcripts via the REST API, search across the cohort's combined corpus.
-- **Quick "grep but ranked":** point Meilisearch at any JSON/Markdown/log dataset students are working with in code-server. Faster + nicer ranking than `grep`/`ripgrep` for prose.
+- **RAG companion to Chroma:** Crawl4AI scrapes a docs site (which already returns clean Markdown / JSON) → POST documents to Meilisearch → Big-AGI / Dify queries Meilisearch for keyword hits alongside Chroma's semantic hits (hybrid search). Each engine compensates for the other's weakness (Chroma misses exact-token matches, Meilisearch misses semantic paraphrases).
+- **Class-wide doc search:** students extract text from course PDFs / notes / transcripts first (e.g. `pypdf` / `pdfminer.six` / `markitdown` from the code-server terminal), then POST the resulting JSON documents to the REST API. Meilisearch indexes structured JSON — it does NOT accept raw PDFs / Office files / binaries directly.
+- **Quick "grep but ranked":** point Meilisearch at any JSON / Markdown / log dataset students are working with in code-server. Faster + nicer ranking than `grep`/`ripgrep` for prose.
 
 ### Auth model
 
@@ -70,4 +72,4 @@ Not done in this PR because typical usage is "rebuild the index from source on e
 
 ### Telemetry
 
-`MEILI_NO_ANALYTICS=true` disables Meilisearch's anonymous usage telemetry — same default as our other stacks (Grafana, Dozzle, Metabase). Reference: [Meilisearch telemetry docs](https://www.meilisearch.com/docs/learn/resources/telemetry).
+`MEILI_NO_ANALYTICS=true` disables Meilisearch's anonymous usage telemetry. Same convention as other Nexus-Stack services with upstream-telemetry opt-outs (Dozzle, Metabase). Reference: [Meilisearch telemetry docs](https://www.meilisearch.com/docs/learn/resources/telemetry).
