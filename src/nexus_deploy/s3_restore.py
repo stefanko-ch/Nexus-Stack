@@ -265,13 +265,17 @@ def is_enabled(env: dict[str, str] | None = None) -> bool:
 
 
 def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.RsyncTarget, ...]]:
-    """Return the (postgres, rsync) target tuples for the two stacks
+    """Return the (postgres, rsync) target tuples for the three stacks
     that v1.0 persists.
 
     Hard-coded because:
-    1. The same two stacks have been the only stateful ones on the
-       volume for the lifetime of the project — Gitea (repos + LFS
-       + Postgres) and Dify (storage + Postgres + Weaviate + plugins).
+    1. Stateful stacks are explicitly opted in here. Adding a stack
+       to the list is the SINGLE source-of-truth change that wires
+       both snapshot (teardown) and restore (spin-up) for that stack.
+       Skipping this step means the stack's bind-mount under
+       ``/mnt/nexus-data/<stack>/`` is purely ephemeral — present
+       across container restarts on the same VM, gone the moment
+       ``tofu destroy`` re-creates the host.
     2. The mappings are user-name / database-name pairs from the
        respective ``docker-compose.yml`` files. Hardcoding here is
        defended by the unit tests, which assert those mappings stay
@@ -282,29 +286,35 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
        without touching any caller — :func:`restore_from_s3` only
        sees the returned tuples.
 
-    Mappings (verified against ``stacks/gitea/docker-compose.yml``
-    line 67 and ``stacks/dify/docker-compose.yml`` line 180 at
-    PR-2 time):
+    Mappings (verified against the respective ``docker-compose.yml``
+    files at PR-2 time):
 
     * Gitea container ``gitea-db`` — database ``gitea``, role
-      ``nexus-gitea``.
+      ``nexus-gitea`` (``stacks/gitea/docker-compose.yml`` line 67).
     * Dify container ``dify-db`` — database ``dify``, role
-      ``nexus-dify``.
+      ``nexus-dify`` (``stacks/dify/docker-compose.yml`` line 180).
+    * Metabase — NO PostgresDumpTarget (the OSS image uses an
+      internal H2 database stored in ``/metabase-data``, captured
+      via the filesystem rsync below; switching to external Postgres
+      would mean adding a ``MB_DB_TYPE=postgres`` env + a sidecar
+      DB + a PostgresDumpTarget here).
 
     Local paths land at **``/mnt/nexus-data/...``** — that's
     where the actual docker-compose bind-mounts live (see
-    ``stacks/gitea/docker-compose.yml:45`` and
-    ``stacks/dify/docker-compose.yml:84`` for the canonical
+    ``stacks/gitea/docker-compose.yml:45``,
+    ``stacks/dify/docker-compose.yml:84``, and
+    ``stacks/metabase/docker-compose.yml`` for the canonical
     references). An earlier draft of this function restored to
     ``/var/lib/nexus-data/...``, which would have landed the
     snapshot in a directory NO container ever sees — restore
-    would appear to succeed but Gitea/Dify would come up empty.
+    would appear to succeed but Gitea/Dify/Metabase would come up empty.
 
     S3-side layout matches RFC 0001 §"Storage layout":
-    ``snapshots/<timestamp>/gitea/{repos,lfs}/`` and
-    ``snapshots/<timestamp>/dify/{storage,weaviate,plugins}/``.
-    ``db/`` and ``redis/`` deliberately NOT in the list — Postgres
-    state goes through ``pg_dump`` separately, Redis is
+    ``snapshots/<timestamp>/gitea/{repos,lfs}/``,
+    ``snapshots/<timestamp>/dify/{storage,weaviate,plugins}/``, and
+    ``snapshots/<timestamp>/metabase/data/``.
+    ``db/`` and ``redis/`` deliberately NOT in the rsync list —
+    Postgres state goes through ``pg_dump`` separately, Redis is
     regeneratable on container start.
     """
     postgres = (
@@ -336,6 +346,14 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="dify-plugins",
             local_path="/mnt/nexus-data/dify/plugins",
             s3_subpath="dify/plugins",
+        ),
+        # Metabase: H2/Lucene/dashboards + everything user-created
+        # under /metabase-data. Single rsync target — no separate
+        # PostgresDumpTarget needed for the OSS image. Issue #528.
+        _s3.RsyncTarget(
+            name="metabase-data",
+            local_path="/mnt/nexus-data/metabase",
+            s3_subpath="metabase/data",
         ),
     )
     return postgres, rsync

@@ -28,13 +28,21 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 
 ### Data persistence
 
-Metabase's internal H2/DB and all user-created artefacts (dashboards, questions, collections, pulses, alerts, user settings) are bind-mounted onto the persistent Hetzner Volume at `/mnt/nexus-data/metabase/`. They survive normal `teardown` + `spin-up` cycles — students who build dashboards across multiple class sessions keep their work.
+Metabase's internal H2/DB and all user-created artefacts (dashboards, questions, collections, pulses, alerts, user settings) live under `/metabase-data` inside the container, bind-mounted onto `/mnt/nexus-data/metabase/` on the host.
 
-**What does NOT survive:** `gh workflow run destroy-all.yml -f confirm=DESTROY` explicitly wipes `/mnt/nexus-data/`. That's the only path that drops Metabase state.
+`/mnt/nexus-data/` itself is **ephemeral host storage** — it's NOT a persistent Hetzner Volume anymore (RFC 0001 cutover replaced the block volume with **R2 snapshot/restore**). For Metabase artefacts to actually survive a teardown + spin-up cycle, the path is registered in `src/nexus_deploy/s3_restore.py::standard_targets` as an rsync target alongside Gitea and Dify:
 
-**One-time caveat after this PR lands on an existing deployment:** the first spin-up after the bind-mount change starts Metabase against an EMPTY data dir (`/mnt/nexus-data/metabase/` didn't exist before). The previous `metabase_data` named-volume content is orphaned (not migrated automatically). Dashboards from before this change have to be migrated explicitly — `docker cp metabase:/metabase-data/...` does NOT work because once the running container has the new bind-mount attached, that path inside the container is the empty bind-mount, not the old data.
+1. **Teardown** rsyncs `/mnt/nexus-data/metabase/` → `snapshots/<timestamp>/metabase/data/` on R2 before `tofu destroy` runs.
+2. **Spin-up** rsyncs the latest snapshot back into `/mnt/nexus-data/metabase/` BEFORE the metabase container starts.
+3. **Container start** — Metabase opens the H2 DB pre-populated with all the previous session's dashboards.
 
-**Migration recipe (run BEFORE the first post-merge spin-up, or temporarily on an SSH session before deploying the new compose):**
+**What survives:** normal `teardown` + `spin-up` cycles, `tofu destroy` + `tofu apply`, scheduled teardown/spin-up workflows. All use the same R2 snapshot/restore cycle.
+
+**What does NOT survive:** `gh workflow run destroy-all.yml -f confirm=DESTROY` if the operator also explicitly wipes the R2 bucket. By default the workflow preserves R2 (so snapshots stay), but an explicit R2-deletion drops Metabase state along with everything else.
+
+**One-time caveat after this PR lands on an existing deployment:** the first spin-up after the bind-mount change starts Metabase against an EMPTY data dir (`/mnt/nexus-data/metabase/` didn't exist before, and the R2 bucket has no `metabase/data/` snapshot yet). The previous `metabase_data` named-volume content is orphaned (not migrated automatically). Dashboards from before this change have to be migrated explicitly — `docker cp metabase:/metabase-data/...` does NOT work because once the running container has the new bind-mount attached, that path inside the container is the empty bind-mount, not the old data.
+
+**Migration recipe (run BEFORE the first post-merge spin-up, on an SSH session against the live host):**
 
 ```bash
 # 1. Verify the old named volume still exists on the host.
@@ -44,15 +52,19 @@ ssh nexus "docker volume ls | grep metabase_data"
 ssh nexus "docker stop metabase"
 
 # 3. Run a throwaway helper container that mounts the OLD named volume +
-#    the NEW bind-mount side-by-side, then rsync the content across.
+#    the NEW bind-mount side-by-side, then copy the content across.
+#    Alpine is pinned to a specific version so this recipe stays
+#    reproducible if alpine:latest moves to a newer distro release.
 ssh nexus "docker run --rm \\
   -v metabase_data:/old-data:ro \\
   -v /mnt/nexus-data/metabase:/new-data \\
-  alpine:latest \\
+  alpine:3.20 \\
   sh -c 'cp -a /old-data/. /new-data/ && chown -R 2000:2000 /new-data'"
 
-# 4. Now run the next spin-up — Metabase starts against the populated
-#    bind-mount with all your historical dashboards intact.
+# 4. Run the next spin-up — Metabase starts against the populated
+#    bind-mount with all your historical dashboards intact. The first
+#    teardown that follows pushes the populated state to R2, and from
+#    then on the snapshot/restore cycle takes over automatically.
 ```
 
 If you skip the migration, dashboards are simply gone on first post-merge spin-up. The old `metabase_data` named volume stays on the host (unreferenced) until you manually `docker volume rm metabase_data`.

@@ -6,18 +6,22 @@
 # Create dashboards, ask questions about your data, and share insights.
 # Default login: admin@metabase.local / (generated password in Infisical)
 #
-# Data persistence: Metabase's internal H2/DB + user-created dashboards,
-# questions, collections, pulses live in /metabase-data, bind-mounted
-# onto the persistent Hetzner Volume at /mnt/nexus-data/metabase/.
-# Survives teardown — students who build dashboards across multiple
-# sessions keep their work (issue #528).
+# Data persistence (issue #528, RFC 0001 architecture):
+# /metabase-data is bind-mounted onto /mnt/nexus-data/metabase/. The
+# bind-mount itself is ephemeral host storage — /mnt/nexus-data/ is
+# NOT a persistent Hetzner Volume anymore (RFC 0001 cutover replaced
+# the block volume with R2 snapshot/restore). For Metabase artefacts
+# to survive teardown + spin-up, the path is registered as an rsync
+# target in src/nexus_deploy/s3_restore.py::standard_targets alongside
+# gitea + dify: teardown rsyncs /mnt/nexus-data/metabase to R2 under
+# snapshots/<ts>/metabase/data/; next spin-up rsyncs it back, then
+# Metabase opens the H2 DB pre-populated.
 #
-# Trade-off (same as Gitea/Dify): the data dir survives normal
-# `teardown` + `spin-up` cycles AND `tofu destroy`/`apply` — the
-# Hetzner block volume backing /mnt/nexus-data/ is preserved across
-# those (only the VM is destroyed + re-created). It does NOT survive
-# `gh workflow run destroy-all.yml -f confirm=DESTROY`, which is the
-# only path that explicitly wipes /mnt/nexus-data/.
+# What survives: normal `teardown` + `spin-up`, `tofu destroy` +
+# `tofu apply`, scheduled teardown/spin-up workflows (all use the
+# R2 snapshot/restore cycle).
+# What does NOT survive: `gh workflow run destroy-all.yml` when the
+# operator also wipes the R2 bucket (the default preserves it).
 # =============================================================================
 
 services:

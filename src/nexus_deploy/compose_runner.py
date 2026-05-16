@@ -340,9 +340,14 @@ def run_compose_up(
     iff the corresponding service is in ``enabled`` — caller can
     override (tests pass False to skip the mkdir/chown block,
     production lets the default fire). Both stacks bind-mount onto
-    ``/mnt/nexus-data/`` for teardown-surviving persistence, and the
-    container UIDs (1001 for Dify, 2000 for Metabase) need the host
-    dir owned correctly before the daemon writes to it.
+    ``/mnt/nexus-data/``; the bind-mount itself is ephemeral host
+    storage (post-RFC-0001 there's no Hetzner block volume), but
+    the paths are registered in ``s3_restore.standard_targets`` so
+    the R2 snapshot/restore cycle preserves the content across
+    teardowns. The mkdir/chown prep here only handles the on-host
+    ownership the container UIDs (1001 for Dify, 2000 for Metabase)
+    need before the daemon writes — actual persistence is the R2
+    snapshot/restore mechanism, not the bind-mount itself.
 
     ``host`` selects which ssh-config alias the remote script runs
     against. Defaults to ``"nexus"`` for back-compat with existing
