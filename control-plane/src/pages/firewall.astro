@@ -401,6 +401,10 @@ import Layout from '../layouts/Layout.astro';
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       showToast(data.message);
+      // Notify PendingBar that firewall state changed (it listens for
+      // this event to re-fetch /api/firewall and refresh the pending
+      // breakdown). Mirrors what toggleService() does for stacks.
+      window.dispatchEvent(new Event('firewall:updated'));
       await loadRules();
     } catch (err) {
       showToast('Error: ' + err.message, 'error');
@@ -419,6 +423,10 @@ import Layout from '../layouts/Layout.astro';
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       showToast('Source IPs saved');
+      // Same notification as toggleRule — saving IPs can flip the
+      // pending count if the rule was previously deployed without
+      // restricted IPs.
+      window.dispatchEvent(new Event('firewall:updated'));
       await loadRules();
     } catch (err) {
       showToast('Error: ' + err.message, 'error');
