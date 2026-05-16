@@ -41,12 +41,6 @@ services:
           cp -a /opt/code-server-extensions/. \"$$USER_EXT_DIR/\";
           echo '[code-server] Seeded baked extensions into user dir (first-start or empty volume)';
         fi;
-        if [ \"$$NEXUS_POSTGRES_ENABLED\" = \"1\" ] && [ -n \"$$POSTGRES_PASSWORD\" ]; then
-          mkdir -p /home/coder/.local/share/code-server/User;
-          python3 /opt/code-server-scripts/write-sqltools-settings.py && echo '[code-server] Wrote SQLTools Nexus Postgres connection (NEXUS_POSTGRES_ENABLED=1)';
-        else
-          echo '[code-server] Skipping SQLTools auto-connect (NEXUS_POSTGRES_ENABLED unset or POSTGRES_PASSWORD empty)';
-        fi;
         OPEN_DIR=/home/coder;
         if [ -d /home/coder/$$REPO_NAME ]; then OPEN_DIR=/home/coder/$$REPO_NAME; fi;
         exec code-server --auth none --bind-addr 0.0.0.0:8080 $$OPEN_DIR
@@ -67,13 +61,12 @@ services:
     deploy:
       resources:
         limits:
-          # Bumped from 512m: with SQLTools + Postgres-driver +
-          # extension-host + workspace-indexer all running as Node
-          # subprocesses, 512m hit OOM in practice — symptoms were
-          # silent extension-host crashes (white webview panels for
-          # SQLTools-Settings) and the file-tree disappearing
-          # mid-session. Verified on a live container that the new
-          # baseline sits around 350-500 MiB with extensions active.
+          # Bumped from 512m: with the dbt venv + JupyterLab + DuckDB
+          # CLI + extension-host + workspace-indexer all loaded, 512m
+          # hit OOM in practice — symptoms were silent extension-host
+          # crashes (white webview panels) and the file-tree
+          # disappearing mid-session. Verified on a live container
+          # that the new baseline sits around 350-500 MiB at idle.
           memory: 2g
     volumes:
       - code-server-data:/home/coder

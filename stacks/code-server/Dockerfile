@@ -159,36 +159,22 @@ RUN uv venv /opt/nexus-venv && \
 #   existing volumes can either (a) instruct students to install
 #   via the UI or (b) wipe the volumes for a fresh seed.
 #
-# Extensions baked here:
-# - mtxr.sqltools: connection manager + SQL query editor with schema
-#   browser + IntelliSense. The go-to "I want to look at a Postgres
-#   table from VS Code" extension.
-# - mtxr.sqltools-driver-pg: Postgres driver plugin for SQLTools.
-#   Required for SQLTools to actually talk to Postgres.
-#
-# Auto-wiring of the connection lives in the compose entrypoint —
-# it merges a SQLTools connection block into
-# ~/.local/share/code-server/User/settings.json on container start
-# when NEXUS_POSTGRES_ENABLED=1 in .env (rendered by the orchestrator
-# from D1 enabled-services state). The merge preserves any other
-# settings the user (or other extensions) may have added.
+# No extensions are currently baked. The infrastructure is kept so
+# adding one later is a single `code-server --install-extension` line
+# after the USER coder switch below. SQLTools + sqltools-driver-pg
+# were pre-installed in #588 but removed again: every SQL-Tools-style
+# extension (SQLTools, cweijan database-client, …) breaks in the
+# code-server-through-CF-Tunnel setup. SQLTools' "Add New Connection"
+# panel renders blank (coder/code-server#7302, "wontfix" upstream);
+# cweijan's query/result page is blank because the extension spins up
+# a localhost helper server on :12315 that the browser-side webview
+# can't reach without remote-port-forwarding (cweijan #373, also
+# unfixed). Students who need a SQL GUI use pgAdmin or CloudBeaver
+# (separate stacks with proper web UIs) instead.
 RUN mkdir -p /opt/code-server-extensions && \
     chown -R coder:coder /opt/code-server-extensions
 
-# Entrypoint helper scripts. Kept in /opt/ (image-baked, outside the
-# code-server-data volume mount that masks /home/coder/) and called
-# from the compose entrypoint. Lives in a separate file because YAML's
-# folded scalar `>` collapses newlines, which prevents embedding any
-# multi-line Python (e.g. try/except) inside the inline entrypoint.
-COPY scripts/ /opt/code-server-scripts/
-RUN chmod -R a+r /opt/code-server-scripts
-
 USER coder
-
-RUN code-server --extensions-dir /opt/code-server-extensions \
-      --install-extension mtxr.sqltools && \
-    code-server --extensions-dir /opt/code-server-extensions \
-      --install-extension mtxr.sqltools-driver-pg
 
 # Keep uv-tool's local bin on PATH for any user-level uv-tool installs
 # they may do later (the venv at /opt/nexus-venv prepends its own bin
