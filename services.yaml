@@ -338,7 +338,7 @@ services:
     category: "dev-tools"
     website: "https://gchq.github.io/CyberChef/"
     description: "The Cyber Swiss Army Knife — drag-and-drop data manipulation tool for encoding, decoding, hashing, regex, and crypto."
-    long_description: "CyberChef is a web-based tool from GCHQ that lets you chain ~400 operations (encoding, encryption, compression, regex, hashing, format conversion, etc.) into a 'recipe' via drag-and-drop. All processing happens client-side in the browser — the container only serves the static HTML/JS bundle, no data ever leaves the page. Useful for quickly decoding JWTs, base64+gzip payloads, inspecting Kafka message bodies, and live demos."
+    long_description: "CyberChef is a web-based tool from GCHQ that lets you chain ~400 operations (encoding, encryption, compression, regex, hashing, format conversion, etc.) into a 'recipe' via drag-and-drop. The container serves static assets only; CyberChef operations execute client-side in the browser. A small number of operations deliberately call external services (DNS-over-HTTPS, HTTP request, URL fetch) — avoid those if you want recipe inputs to stay in the browser process. Useful for quickly decoding JWTs, base64+gzip payloads, inspecting Kafka message bodies, and live demos."
     image: "mpepping/cyberchef:v10.24.0"
 
   jupyter:

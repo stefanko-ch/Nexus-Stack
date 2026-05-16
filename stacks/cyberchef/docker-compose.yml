@@ -5,10 +5,12 @@
 # Drag-and-drop "Operations" stack for encoding/decoding/hashing/format-
 # conversion/regex/crypto — ~400 operations across 30+ categories.
 #
-# Stateless: ALL processing happens client-side in the browser. The container
-# only serves the static HTML/JS/CSS bundle (nginx + alpine, ~30 MB image,
-# ~10 MB RAM idle). No volumes, no DB, no env vars, no auth at the app
-# level — Cloudflare Access at the edge is the only auth layer.
+# Stateless container: serves only the static HTML/JS/CSS bundle
+# (nginx + alpine, ~30 MB image, ~10 MB RAM idle). All CyberChef
+# operations execute client-side in the browser; the container has
+# no application-level logic that processes or stores user input.
+# No volumes, no DB, no env vars, no auth at the app level —
+# Cloudflare Access at the edge is the only auth layer.
 #
 # Access: https://cyberchef.YOUR_DOMAIN
 #
@@ -23,6 +25,12 @@
 # version so re-deploys are reproducible across the semester — bump
 # IMAGE_CYBERCHEF in the deploy when GCHQ ships a new release that
 # matters for the class.
+#
+# Multi-arch verified for v10.24.0 via `docker manifest inspect
+# mpepping/cyberchef:v10.24.0`: publishes both linux/amd64 (the
+# Nexus-Stack default since the cx43 cutover) and linux/arm64 (for
+# cax* fallbacks + local Apple Silicon testing). Satisfies CLAUDE.md's
+# "image must support linux/amd64; arm64 strongly preferred" rule.
 # =============================================================================
 
 services:

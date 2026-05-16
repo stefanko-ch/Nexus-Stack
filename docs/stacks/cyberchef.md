@@ -17,7 +17,7 @@ CyberChef is a web-based tool from [GCHQ](https://www.gchq.gov.uk/) (UK Governme
 - Regex extract/replace, language detect, magic auto-decode
 - Live demos in class: "From Base64 → Gunzip → Pretty-print JSON" on a log payload in three drag-drops
 
-> **All processing happens client-side in the browser.** The container only serves the static HTML/JS/CSS bundle (~30 MB image, ~10 MB RAM idle). Nothing you paste into a CyberChef recipe ever reaches the server — useful when working with sensitive payloads.
+> **The container only serves the static HTML/JS/CSS bundle** (~30 MB image, ~10 MB RAM idle) — it has no application-level logic that processes or stores user input. CyberChef operations execute client-side in the browser. Note: a small number of operations (e.g. "DNS over HTTPS", "HTTP request", "URL fetch") deliberately call external services; if you avoid those, recipe inputs stay within the browser process. Standard browser-level caveats still apply (extensions, dev tools, page sources).
 
 | Setting | Value |
 |---------|-------|
