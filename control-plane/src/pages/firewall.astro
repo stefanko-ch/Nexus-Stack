@@ -423,9 +423,13 @@ import Layout from '../layouts/Layout.astro';
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       showToast('Source IPs saved');
-      // Same notification as toggleRule — saving IPs can flip the
-      // pending count if the rule was previously deployed without
-      // restricted IPs.
+      // Same notification as toggleRule. Note: today the pending
+      // count compares only enabled vs deployed (see firewall.js
+      // — schema has no deployed_source_ips column), so a pure IP
+      // edit doesn't actually flip the count. The dispatch is still
+      // useful for combined operations (toggle + IP saved in
+      // sequence) and keeps the banner in sync if the schema later
+      // gains source_ips tracking.
       window.dispatchEvent(new Event('firewall:updated'));
       await loadRules();
     } catch (err) {

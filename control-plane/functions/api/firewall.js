@@ -73,10 +73,16 @@ export async function onRequestGet(context) {
   try {
     // count_only path: SELECT COUNT(*) WHERE enabled != deployed.
     // Doesn't load row data, doesn't iterate-and-build a JSON array.
-    if (countOnly) {
-      const countResult = await env.NEXUS_DB.prepare(`
-        SELECT COUNT(*) AS c FROM firewall_rules WHERE enabled != deployed
-      `).first();
+    //
+    // Known gap: pending detection only compares enabled vs deployed.
+    // A source_ips-only edit (saved via POST without flipping enabled)
+    // still requires a Spin Up to take effect — Terraform reads
+    // source_ips fresh from D1 on every apply — but the banner won't
+    // surface that because the schema has no `deployed_source_ips`
+    // column to diff against. Operators who change IPs without
+    // toggling enabled need to remember to Spin Up. Tracked for a
+    // proper fix in a follow-up (schema migration to snapshot
+    // source_ips on the most recent successful apply).
       // Number() coercion: D1's COUNT(*) result has been observed to
       // come back as a string in some runtimes. PendingBar.astro
       // requires `typeof pendingChangesCount === 'number'` or it
