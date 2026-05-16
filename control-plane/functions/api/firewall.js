@@ -52,7 +52,9 @@ function validateSourceIps(sourceIps) {
  *   ?count_only=true — short-circuit response: just `{success, pendingChangesCount}`,
  *   no `rules` payload. Used by PendingBar.astro which mounts on every page
  *   and only needs the count for the banner — full payload was ~5KB per page
- *   load. Avoid an extra round-trip but skip the per-rule fields.
+ *   load. Reduces response size and skips the per-rule iteration + payload
+ *   build (the HTTP request itself still happens, just cheaper on both
+ *   sides).
  */
 export async function onRequestGet(context) {
   const { env, request } = context;
