@@ -8,7 +8,7 @@ title: "CyberChef"
 
 **The Cyber Swiss Army Knife — drag-and-drop data manipulation**
 
-CyberChef is a web-based tool from [GCHQ](https://www.gchq.gov.uk/) (UK Government Communications HQ) that chains ~400 "operations" into a "recipe" you build by drag-and-drop. Useful for:
+CyberChef is a web-based tool from [GCHQ](https://www.gchq.gov.uk/) (UK Government Communications Headquarters) that chains ~400 "operations" into a "recipe" you build by drag-and-drop. Useful for:
 - Decode/encode (Base64, URL, hex, JWT, ASCII85, …)
 - Hashing (MD5, SHA-x, BLAKE, HMAC, bcrypt, …)
 - Crypto (AES/DES/RSA, JWT verify, X.509 parse, …)
