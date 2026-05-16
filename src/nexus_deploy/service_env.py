@@ -394,11 +394,25 @@ SELECT pg_reload_conf();
 
 
 def _render_pgadmin(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """pgAdmin .env + a sidecar ``pgpass`` file consumed by the
+    pre-configured Nexus PostgreSQL server (servers.json references
+    ``PassFile: /pgpass``).
+
+    Format is the standard libpq pgpass: ``host:port:db:user:password``.
+    Written 0o644 (not 0o600) because the file is owned by the
+    deploy-runner user but read inside the container by the
+    ``pgadmin`` user (uid 5050) — libpq's 0o600 check doesn't
+    apply because pgAdmin uses the PassFile via its own loader,
+    not libpq. The file lives at /opt/docker-server/stacks/pgadmin/
+    on the host, only reachable via SSH (CF Tunnel + key auth).
+    """
+    pgpass_content = f"postgres:5432:postgres:nexus-postgres:{c.postgres_password or ''}\n"
     return RenderedEnv(
         env_vars={
             "ADMIN_EMAIL": e.admin_email or "",
             "PGADMIN_PASSWORD": c.pgadmin_password or "",
         },
+        sidecars=(SidecarFile(relative_path="pgpass", content=pgpass_content, mode=0o644),),
     )
 
 

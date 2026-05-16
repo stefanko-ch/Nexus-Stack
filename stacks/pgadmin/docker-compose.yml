@@ -27,6 +27,12 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
       - ./servers.json:/pgadmin4/servers.json:ro
+      # pgpass file rendered by nexus_deploy.service_env._render_pgadmin
+      # at spin-up time: contains the nexus-postgres password so the
+      # Nexus PostgreSQL server in servers.json connects without
+      # prompting (PassFile references /pgpass). Mounted ro — never
+      # written from inside the container.
+      - ./pgpass:/pgpass:ro
     networks:
       - app-network
     healthcheck:

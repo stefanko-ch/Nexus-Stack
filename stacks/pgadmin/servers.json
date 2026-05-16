@@ -6,9 +6,10 @@
       "Host": "postgres",
       "Port": 5432,
       "MaintenanceDB": "postgres",
-      "Username": "postgres",
+      "Username": "nexus-postgres",
       "SSLMode": "prefer",
-      "Comment": "Standalone PostgreSQL database server. Password available in Infisical."
+      "PassFile": "/pgpass",
+      "Comment": "Standalone PostgreSQL database server. Password auto-loaded from /pgpass (rendered at spin-up from Infisical-synced postgres_password). Full credentials also in Infisical."
     }
   }
 }

@@ -1039,6 +1039,28 @@ def test_simple_render_functions_smoke(full_config: NexusConfig, full_env: Boots
             assert isinstance(v, str)
 
 
+def test_render_pgadmin_emits_pgpass_sidecar(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """pgAdmin's pre-configured 'Nexus PostgreSQL' server references
+    PassFile=/pgpass in servers.json; this test pins that the sidecar
+    is rendered with libpq's pgpass format (host:port:db:user:pass)
+    and the nexus-postgres user (not 'postgres' — see CLAUDE.md
+    naming convention). Regression guard: without this sidecar the
+    pre-configured connection would prompt for a password on every
+    click."""
+    from nexus_deploy.service_env import _render_pgadmin
+
+    result = _render_pgadmin(full_config, full_env)
+    assert len(result.sidecars) == 1
+    pgpass = result.sidecars[0]
+    assert pgpass.relative_path == "pgpass"
+    assert pgpass.content == "postgres:5432:postgres:nexus-postgres:pg-pw\n"
+    # 0o644 so pgAdmin's uid 5050 can read it — libpq's 0o600 check
+    # doesn't apply here, see render docstring.
+    assert pgpass.mode == 0o644
+
+
 def test_appsmith_skipped_when_salt_missing(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
