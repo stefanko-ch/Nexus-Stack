@@ -148,6 +148,7 @@ def render_remote_script(
     parents: list[str],
     leaves: list[str],
     dify_storage_prep: bool = False,
+    metabase_storage_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
 ) -> str:
@@ -196,6 +197,17 @@ mkdir -p /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
 chown -R 1001:1001 /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
 """
 
+    metabase_block = ""
+    if metabase_storage_prep:
+        # Metabase runs as uid 2000 (since v0.46 official image) and
+        # needs its data dir owned for the H2/DB + dashboards/questions
+        # persistence (issue #528). Idempotent — chown is a no-op on
+        # a dir that's already owned correctly.
+        metabase_block = """
+mkdir -p /mnt/nexus-data/metabase
+chown -R 2000:2000 /mnt/nexus-data/metabase
+"""
+
     return f"""set -euo pipefail
 
 STACKS_DIR={stacks_q}
@@ -211,7 +223,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{dify_block}
+{dify_block}{metabase_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -308,13 +320,18 @@ def run_compose_up(
     *,
     host: str = "nexus",
     dify_storage_prep: bool | None = None,
+    metabase_storage_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
     """Render → exec → parse.
 
-    ``dify_storage_prep`` defaults to True iff ``"dify"`` is in
-    ``enabled`` — caller can override (tests pass False to skip the
-    chown block, production lets the default fire).
+    ``dify_storage_prep`` / ``metabase_storage_prep`` default to True
+    iff the corresponding service is in ``enabled`` — caller can
+    override (tests pass False to skip the mkdir/chown block,
+    production lets the default fire). Both stacks bind-mount onto
+    ``/mnt/nexus-data/`` for teardown-surviving persistence, and the
+    container UIDs (1001 for Dify, 2000 for Metabase) need the host
+    dir owned correctly before the daemon writes to it.
 
     ``host`` selects which ssh-config alias the remote script runs
     against. Defaults to ``"nexus"`` for back-compat with existing
@@ -330,8 +347,16 @@ def run_compose_up(
     """
     parents, leaves = expand_targets(enabled)
     actual_dify = dify_storage_prep if dify_storage_prep is not None else "dify" in enabled
+    actual_metabase = (
+        metabase_storage_prep if metabase_storage_prep is not None else "metabase" in enabled
+    )
 
-    script = render_remote_script(parents=parents, leaves=leaves, dify_storage_prep=actual_dify)
+    script = render_remote_script(
+        parents=parents,
+        leaves=leaves,
+        dify_storage_prep=actual_dify,
+        metabase_storage_prep=actual_metabase,
+    )
 
     run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))
     completed = run_script(script)

@@ -201,6 +201,27 @@ def test_render_dify_storage_prep_only_when_flagged() -> None:
     assert "chown -R 1001:1001 /mnt/nexus-data/dify/storage" in with_dify
 
 
+def test_render_metabase_storage_prep_only_when_flagged() -> None:
+    """Metabase mkdir+chown block only present when
+    metabase_storage_prep=True (issue #528). UID 2000 is the
+    Metabase container's runtime user since v0.46."""
+    without = _render_default(metabase_storage_prep=False)
+    assert "/mnt/nexus-data/metabase" not in without
+    assert "chown -R 2000:2000" not in without
+
+    with_metabase = _render_default(metabase_storage_prep=True)
+    assert "/mnt/nexus-data/metabase" in with_metabase
+    assert "chown -R 2000:2000 /mnt/nexus-data/metabase" in with_metabase
+
+
+def test_render_dify_and_metabase_blocks_independent() -> None:
+    """Both flags can fire together — Dify + Metabase enabled in the
+    same stack produces both prep blocks back-to-back."""
+    script = _render_default(dify_storage_prep=True, metabase_storage_prep=True)
+    assert "/mnt/nexus-data/dify/storage" in script
+    assert "/mnt/nexus-data/metabase" in script
+
+
 def test_render_handles_empty_lists() -> None:
     """Empty parents + leaves still produces a parseable RESULT (started=0 failed=0)."""
     script = render_remote_script(parents=[], leaves=[])

@@ -48,8 +48,20 @@ services:
             password: ${KESTRA_DB_PASSWORD}
         kestra:
           server:
+            # Cloudflare Access (email OTP) already gates kestra.<domain>
+            # at the edge — students authenticate ONCE via the OTP and
+            # land in the UI. Re-prompting with Kestra's own basic-auth
+            # popup adds zero security (the request never reaches the
+            # container without a valid CF JWT) and forces students to
+            # look up the rotated KESTRA_ADMIN_PASSWORD in Infisical
+            # every session. Same model as Grafana / Gitea / Infisical:
+            # CF Access at the perimeter, app handles RBAC internally.
+            # Trade-off: kestra-OSS-only loses per-user audit attribution
+            # inside Kestra (runs as anon/system); CF Access's edge log
+            # still records who authenticated the session. Re-enable
+            # this if you move to Kestra EE with SSO wired up (issue #484).
             basic-auth:
-              enabled: true
+              enabled: false
               username: ${KESTRA_ADMIN_USER}
               password: ${KESTRA_ADMIN_PASSWORD}
           repository:

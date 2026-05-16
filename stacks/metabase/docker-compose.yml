@@ -5,6 +5,17 @@
 # Metabase is an easy-to-use, open-source business intelligence tool.
 # Create dashboards, ask questions about your data, and share insights.
 # Default login: admin@metabase.local / (generated password in Infisical)
+#
+# Data persistence: Metabase's internal H2/DB + user-created dashboards,
+# questions, collections, pulses live in /metabase-data, bind-mounted
+# onto the persistent Hetzner Volume at /mnt/nexus-data/metabase/.
+# Survives teardown — students who build dashboards across multiple
+# sessions keep their work (issue #528).
+#
+# Trade-off (same as Gitea/Dify): the data dir survives `tofu destroy`
+# (the Hetzner volume is preserved by destroy-all). It does NOT survive
+# `gh workflow run destroy-all.yml -f confirm=DESTROY` which explicitly
+# wipes /mnt/nexus-data/.
 # =============================================================================
 
 services:
@@ -25,7 +36,7 @@ services:
         limits:
           memory: 1g
     volumes:
-      - metabase_data:/metabase-data
+      - /mnt/nexus-data/metabase:/metabase-data
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
       interval: 30s
@@ -34,9 +45,6 @@ services:
       start_period: 60s
     networks:
       - app-network
-
-volumes:
-  metabase_data:
 
 networks:
   app-network:

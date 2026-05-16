@@ -24,7 +24,7 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 | Website | [kestra.io](https://kestra.io) |
 | Source | [GitHub](https://github.com/kestra-io/kestra) |
 
-> ✅ **Auto-configured:** Admin account (Basic Auth) is automatically configured during deployment. Credentials are available in Infisical.
+> ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. The `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` env vars are still rendered for forward-compat (Kestra EE / OIDC), but unused while basic-auth is off.
 
 ### Architecture
 
@@ -32,4 +32,10 @@ The stack includes:
 - **Kestra** - Main workflow engine with web UI
 - **PostgreSQL** - Database for workflow state and metadata
 
-> ℹ️ **Note:** Admin credentials are auto-generated. Credentials are available in Infisical.
+### Authentication & RBAC
+
+| Layer | What it does |
+|---|---|
+| **Cloudflare Access** (edge) | Email OTP. No unauthenticated request ever reaches the container. Audit log of who authenticated lives in the CF dashboard. |
+| **Kestra Basic-Auth** | **Disabled** by default — see `stacks/kestra/docker-compose.yml` for the rationale comment. Re-enable if you migrate to Kestra Enterprise with SSO/OIDC wired up, or if you need per-user execution attribution INSIDE Kestra (OSS Basic-Auth doesn't multi-user; only EE does proper RBAC). |
+| **Kestra namespaces** | Flow-level access boundaries (`my-flows.*`, `nexus-tutorials.*`). Independent of who's logged in — used for organizing flows, not gating them. |
