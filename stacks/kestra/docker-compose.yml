@@ -56,10 +56,17 @@ services:
             # look up the rotated KESTRA_ADMIN_PASSWORD in Infisical
             # every session. Same model as Grafana / Gitea / Infisical:
             # CF Access at the perimeter, app handles RBAC internally.
-            # Trade-off: kestra-OSS-only loses per-user audit attribution
-            # inside Kestra (runs as anon/system); CF Access's edge log
-            # still records who authenticated the session. Re-enable
-            # this if you move to Kestra EE with SSO wired up (issue #484).
+            # Trade-off: with basic-auth OFF, Kestra logs actions as
+            # anon/system instead of as the single shared $KESTRA_ADMIN_USER.
+            # Either way it's NOT per-user attribution — every student
+            # logs in as the same admin, so basic-auth ON would just
+            # attribute everything to "admin", not to the individual
+            # student. Real per-user attribution only exists with Kestra
+            # EE + SSO/OIDC where each session carries the real user.
+            # Re-enable basic-auth only if you want the shared-admin
+            # name in Kestra's audit log, or if you've moved to EE
+            # (issue #484); CF Access's edge log already records who
+            # actually authenticated the session at the perimeter.
             basic-auth:
               enabled: false
               username: ${KESTRA_ADMIN_USER}

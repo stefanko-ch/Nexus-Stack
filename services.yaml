@@ -439,7 +439,7 @@ services:
     website: "https://www.metabase.com"
     description: "Open-source business intelligence and analytics tool for data visualization."
     long_description: "Metabase is a business intelligence tool that lets anyone in your organization ask questions about data. Create dashboards with drag-and-drop, write SQL queries with an interactive editor, and share insights. Connects to PostgreSQL, ClickHouse, and 20+ databases with automatic schema discovery."
-    image: "metabase/metabase:v0.58.x"
+    image: "metabase/metabase:v0.60.6.2"
     support_images:
       postgres: "postgres:16-alpine"
 

@@ -37,5 +37,5 @@ The stack includes:
 | Layer | What it does |
 |---|---|
 | **Cloudflare Access** (edge) | Email OTP. No unauthenticated request ever reaches the container. Audit log of who authenticated lives in the CF dashboard. |
-| **Kestra Basic-Auth** | **Disabled** by default — see `stacks/kestra/docker-compose.yml` for the rationale comment. Re-enable if you migrate to Kestra Enterprise with SSO/OIDC wired up, or if you need per-user execution attribution INSIDE Kestra (OSS Basic-Auth doesn't multi-user; only EE does proper RBAC). |
+| **Kestra Basic-Auth** | **Disabled** by default — see `stacks/kestra/docker-compose.yml` for the rationale comment. Re-enable only if you want the single shared `KESTRA_ADMIN_USER` name to appear in Kestra's audit log (instead of `anon/system`), or once you've moved to Kestra Enterprise with SSO/OIDC. Basic-Auth in OSS Kestra is a single shared admin — **it does NOT give per-user attribution**; every student would log in as the same admin. Real per-user attribution requires EE + SSO. |
 | **Kestra namespaces** | Flow-level access boundaries (`my-flows.*`, `nexus-tutorials.*`). Independent of who's logged in — used for organizing flows, not gating them. |

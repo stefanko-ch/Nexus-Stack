@@ -26,7 +26,12 @@
 
 services:
   metabase:
-    image: ${IMAGE_METABASE:-metabase/metabase:latest}
+    # Pinned per CLAUDE.md ("pin Docker image versions for stateful
+    # services") — Metabase persists H2/DB + user-created artefacts
+    # under /metabase-data via the R2 snapshot/restore cycle above.
+    # A silent :latest jump on the next pull could ship an
+    # incompatible H2 schema migration on top of a restored snapshot.
+    image: ${IMAGE_METABASE:-metabase/metabase:v0.60.6.2}
     container_name: metabase
     restart: unless-stopped
     ports:

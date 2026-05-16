@@ -40,7 +40,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
 | Kestra | `kestra/kestra` | `v1.0` | Minor |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
-| Metabase | `metabase/metabase` | `v0.58.x` | Minor |
+| Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
 | Mailpit | `axllent/mailpit` | `v1` | Major |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `python-3.13` | Minor |
