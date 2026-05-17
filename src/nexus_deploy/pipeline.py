@@ -618,13 +618,33 @@ def run_snapshot(
         )
 
     # 4. ssh_service_token + server_ip from tofu outputs.
-    try:
-        ssh_service_token = runner.output_json("ssh_service_token")
-    except _tofu.TofuError as exc:
-        raise PipelineError(
-            f"required tofu output missing or invalid: {exc} — "
-            "state may be partially applied; nothing to snapshot",
-        ) from exc
+    #
+    # `state_list_ok` already passed (step 2), so SOME state exists in
+    # tofu/stack — but that doesn't mean `ssh_service_token` is in it.
+    # Observed mid-2026-05: a scheduled teardown on a deads7 fork where
+    # setup ran ✅ but Spin Up was never triggered (so the Hetzner
+    # server + the `cloudflare_zero_trust_access_service_token`
+    # resource that feeds this output never got applied) fired exit-2
+    # daily on this very step. Without an SSH service token there's
+    # also no Hetzner server reachable via SSH — there is nothing TO
+    # snapshot, the same legitimate no-op as issue #564 just one branch
+    # deeper. Skip with `no_snapshot_source`; the subsequent
+    # `tofu destroy` will still reap whatever partial resources ARE in
+    # state (an empty R2 bucket, half-created KV namespace, etc.) so
+    # the teardown remains useful, just not an SSH-driven one.
+    #
+    # Real TofuError causes (tofu binary missing, R2 backend auth) at
+    # THIS point would be surprising — step 2 already exercised the
+    # binary + state backend successfully — but still possible if
+    # transient. Surface those as PipelineError so the operator sees
+    # the actual cause rather than a silent skip.
+    ssh_service_token = runner.output_json("ssh_service_token", default=None)
+    if ssh_service_token is None:
+        return SnapshotResult(
+            outcome=_s3_restore.S3SnapshotSkipped(
+                reason="no_snapshot_source",
+            ),
+        )
     server_ip = runner.output_raw("server_ip", default="")
 
     # 5. SSH known_hosts cleanup — same pattern as run_pipeline.

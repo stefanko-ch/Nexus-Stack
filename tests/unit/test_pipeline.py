@@ -1037,6 +1037,53 @@ def test_run_snapshot_skips_when_state_file_missing(
     setup_mocks["SSHClient"].assert_not_called()
 
 
+def test_run_snapshot_skips_when_ssh_service_token_missing(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #564 follow-up (mid-2026-05 partial-state case): SOME
+    state is present in tofu/stack — so ``state_list_ok()`` returns
+    True — but the ``ssh_service_token`` output isn't in it because
+    the Hetzner server + Cloudflare Access Service Token resource
+    never got applied (setup ran, Spin Up never did). Observed on a
+    deads7 fork whose scheduled daily 21:00-UTC teardown went red
+    for five days straight, generating noise without snapshotting
+    anything.
+
+    Right behaviour: graceful Skipped with reason
+    ``no_snapshot_source``, the same way the "no state file at all"
+    case in :func:`test_run_snapshot_skips_when_state_file_missing`
+    is treated — there is nothing on the server to back up either
+    way. The subsequent ``tofu destroy`` still runs to reap any
+    partial state.
+
+    Tests that the short-circuit fires BEFORE any SSH side-effect
+    (configure_ssh / wait_for_ssh / SSHClient) — same invariant as
+    the file-missing test, but at one branch deeper into the
+    pipeline."""
+    monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
+    # State list works (the partial state is real) but the specific
+    # output we need is absent. Mirror the fixture's default signature
+    # so other outputs (server_ip, etc.) still resolve via raw_map.
+    fake_tofu_runner.output_json.side_effect = lambda name, default=None: (
+        None if name == "ssh_service_token" else {"any": "other"}
+    )
+    result = run_snapshot(
+        project_root=project_root,
+        stack_slug="nexus-test",
+        template_version="v1.0.0",
+        tofu_runner=fake_tofu_runner,
+    )
+    assert isinstance(result.outcome, S3SnapshotSkipped)
+    assert result.outcome.reason == "no_snapshot_source"
+    # SSH path must not have been entered — short-circuit invariant.
+    setup_mocks["configure_ssh"].assert_not_called()
+    setup_mocks["wait_for_ssh"].assert_not_called()
+    setup_mocks["SSHClient"].assert_not_called()
+
+
 def test_run_snapshot_aborts_on_other_state_failures(
     project_root: Path,
     fake_tofu_runner: MagicMock,

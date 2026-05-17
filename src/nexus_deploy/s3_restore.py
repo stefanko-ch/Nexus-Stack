@@ -146,12 +146,28 @@ class S3SnapshotSkipped:
       matched on the ``"No state file was found"`` substring from
       ``diagnose_state()`` — any other state-list failure (binary
       missing, R2 backend timeout, auth error) still raises
-      ``PipelineError`` and aborts the teardown."""
+      ``PipelineError`` and aborts the teardown.
+    * ``"no_snapshot_source"`` — opted in, credentials present,
+      ``tofu state list`` works, but the ``ssh_service_token``
+      output is missing from the state. This is the
+      partial-state-without-server case observed mid-2026-05: a
+      scheduled teardown runs against a fork where setup ran (so
+      ``tofu/stack`` has SOME state — maybe an R2 bucket was
+      provisioned by an earlier aborted spin-up) but the actual
+      Hetzner server + Cloudflare Access Service Token (which
+      feeds ``ssh_service_token``) never got applied. Without the
+      service token there is no way to SSH into a Hetzner server
+      that doesn't exist anyway, so there is nothing to snapshot.
+      The subsequent ``tofu destroy`` still runs and reaps whatever
+      partial resources ARE in state. CLI rc=0 so the scheduled
+      teardown doesn't leave a daily red workflow run for stacks
+      that never went live."""
 
     reason: Literal[
         "feature_flag_off",
         "no_endpoint_env",
         "no_state_to_snapshot",
+        "no_snapshot_source",
     ]
 
 
