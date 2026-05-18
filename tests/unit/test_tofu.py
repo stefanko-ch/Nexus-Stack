@@ -355,6 +355,77 @@ def test_state_list_ok_false_on_timeout(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert TofuRunner(tmp_path).state_list_ok() is False
 
 
+# ---- TofuRunner.state_contains (PR #600 partial-state safety check) ----
+
+
+def test_state_contains_true_when_address_present(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Address matches a line in `tofu state list` output → True."""
+    monkeypatch.setattr(
+        "nexus_deploy.tofu.subprocess.run",
+        lambda *_a, **_kw: _completed(
+            stdout="hcloud_server.main\ncloudflare_tunnel.main\ncloudflare_record.foo\n",
+        ),
+    )
+    assert TofuRunner(tmp_path).state_contains("hcloud_server.main") is True
+
+
+def test_state_contains_false_when_address_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Address NOT in state list → False. Substring matches must not
+    count (e.g. 'hcloud' shouldn't match 'hcloud_server.main')."""
+    monkeypatch.setattr(
+        "nexus_deploy.tofu.subprocess.run",
+        lambda *_a, **_kw: _completed(stdout="cloudflare_tunnel.main\n"),
+    )
+    runner = TofuRunner(tmp_path)
+    assert runner.state_contains("hcloud_server.main") is False
+    # Substring "hcloud" alone must NOT match "hcloud_server.main"
+    assert runner.state_contains("hcloud") is False
+
+
+def test_state_contains_raises_tofuerror_on_command_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The safe default for an unreachable backend is NOT silently
+    returning False (would hide a resource about to be destroyed) —
+    raise TofuError so the caller can decide."""
+    monkeypatch.setattr(
+        "nexus_deploy.tofu.subprocess.run",
+        MagicMock(
+            side_effect=subprocess.CalledProcessError(
+                1, ["tofu", "state", "list"], output="", stderr="backend timeout"
+            )
+        ),
+    )
+    with pytest.raises(TofuError, match="cannot determine"):
+        TofuRunner(tmp_path).state_contains("hcloud_server.main")
+
+
+def test_state_contains_raises_tofuerror_on_missing_binary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "nexus_deploy.tofu.subprocess.run",
+        MagicMock(side_effect=FileNotFoundError("tofu")),
+    )
+    with pytest.raises(TofuError, match="cannot determine"):
+        TofuRunner(tmp_path).state_contains("hcloud_server.main")
+
+
+def test_state_contains_raises_tofuerror_on_timeout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "nexus_deploy.tofu.subprocess.run",
+        MagicMock(side_effect=subprocess.TimeoutExpired(["tofu"], 60.0)),
+    )
+    with pytest.raises(TofuError, match="timed out"):
+        TofuRunner(tmp_path).state_contains("hcloud_server.main")
+
+
 # ---- TofuRunner.diagnose_state (PR #535 R2 #2) ----
 
 

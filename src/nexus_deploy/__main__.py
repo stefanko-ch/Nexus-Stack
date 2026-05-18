@@ -3059,6 +3059,19 @@ def _s3_snapshot(args: list[str]) -> int:
             "(partial deploy?). Teardown will proceed.\n",
         )
         return 0
+    if outcome.reason == "no_snapshot_source":
+        # Mid-2026-05 deads7-fork case: state exists but neither
+        # hcloud_server.main nor ssh_service_token are in it.
+        # `run_snapshot` already verified there's no server with
+        # data to lose (state_contains check), so this is a safe
+        # no-op — let teardown proceed to reap whatever partial
+        # Cloudflare-side resources ARE in state.
+        sys.stderr.write(
+            "s3-snapshot: no server in state - nothing to snapshot "
+            "(partial deploy, server resources never applied). "
+            "Teardown will proceed.\n",
+        )
+        return 0
     # no_endpoint_env — snapshot_to_s3 already wrote its own
     # diagnostic listing the missing env vars. Map to rc=2.
     return 2

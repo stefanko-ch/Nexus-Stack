@@ -123,6 +123,37 @@ class TofuRunner:
         """
         return self.diagnose_state() is None
 
+    def state_contains(self, address: str) -> bool:
+        """Return True iff ``address`` is a resource currently tracked
+        in state. ``address`` is matched as an exact line in
+        ``tofu state list`` output (e.g. ``hcloud_server.main``).
+
+        Raises :class:`TofuError` if ``tofu state list`` itself fails —
+        callers must not silently treat a failure as "absent", because
+        the dangerous interpretation is the inverse: an unreachable
+        backend hiding a resource that's about to be destroyed.
+        """
+        try:
+            completed = subprocess.run(
+                ["tofu", "state", "list"],
+                cwd=self.tofu_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60.0,
+            )
+        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+            raise TofuError(
+                f"tofu state list failed in {self.tofu_dir} — cannot "
+                f"determine whether {address} is in state",
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise TofuError(
+                f"tofu state list timed out in {self.tofu_dir} — cannot "
+                f"determine whether {address} is in state",
+            ) from exc
+        return address in completed.stdout.splitlines()
+
     def diagnose_state(self) -> str | None:
         """Return ``None`` when state is initialised + accessible.
 

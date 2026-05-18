@@ -538,6 +538,15 @@ def run_snapshot(
       Hetzner capacity step). Nothing on the server to snapshot;
       teardown proceeds and ``tofu destroy`` is also a no-op
       against the empty state. See issue #564.
+    - Snapshot returns ``S3SnapshotSkipped(reason='no_snapshot_source')``
+      → rc=0, partial state exists in ``tofu/stack`` (e.g. a few
+      Cloudflare-side resources that the orchestrator created
+      before failing) but neither ``hcloud_server.main`` nor the
+      ``cloudflare_zero_trust_access_service_token.ssh`` output
+      is in state. No server, no way (and no need) to snapshot;
+      teardown proceeds to reap the partial Cloudflare-side
+      resources via ``tofu destroy``. See mid-2026-05 deads7-fork
+      observation.
     - Snapshot returns ``S3SnapshotApplied`` → rc=0, safe to
       proceed with ``tofu destroy``.
 
@@ -652,18 +661,33 @@ def run_snapshot(
         if isinstance(cause, subprocess.CalledProcessError):
             stderr = (cause.stderr or "") if isinstance(cause.stderr, str) else ""
         if "could not be found in the state" in stderr or "no outputs found" in stderr:
-            return SnapshotResult(
-                outcome=_s3_restore.S3SnapshotSkipped(
-                    reason="no_snapshot_source",
-                ),
-            )
-        raise PipelineError(
-            f"tofu output -json ssh_service_token failed unexpectedly in {tofu_dir} "
-            f"(state_list_ok already passed at step 2): {stderr[:500] or exc}",
-        ) from exc
+            ssh_service_token = None
+        else:
+            raise PipelineError(
+                f"tofu output -json ssh_service_token failed unexpectedly in {tofu_dir} "
+                f"(state_list_ok already passed at step 2): {stderr[:500] or exc}",
+            ) from exc
     if ssh_service_token is None:
-        # `null` value in state — same legitimate no-op as "output
-        # not declared". Treat as graceful skip.
+        # Output absent / null. Before treating this as "no server to
+        # snapshot", VERIFY hcloud_server.main isn't sitting in state
+        # too. hcloud_server.main and the CF Access service-token are
+        # independent resources: a partial state could have created
+        # the server (so it has data on it) but failed before / after
+        # the token. Silently skipping the snapshot in that case would
+        # let `tofu destroy` nuke the server with data on it. Surface
+        # this as a hard PipelineError instead — operator must either
+        # re-apply the missing token resource so we can SSH-snapshot,
+        # or manually back up the server before destroy-all.
+        if runner.state_contains("hcloud_server.main"):
+            raise PipelineError(
+                f"Dangerous partial state in {tofu_dir}: hcloud_server.main "
+                "is in state but ssh_service_token output is absent — the "
+                "server may have data but the pipeline can't SSH to snapshot "
+                "it. `tofu destroy` would lose that data. Operator action: "
+                "either re-apply the missing CF Access service-token "
+                "resources so a snapshot becomes possible, or manually back "
+                "up the server before running destroy-all.",
+            )
         return SnapshotResult(
             outcome=_s3_restore.S3SnapshotSkipped(
                 reason="no_snapshot_source",

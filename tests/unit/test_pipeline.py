@@ -95,6 +95,11 @@ def fake_tofu_runner(fake_secrets_payload: dict[str, str]) -> MagicMock:
     runner = MagicMock(spec=TofuRunner)
     runner.tofu_dir = Path("/fake")
     runner.state_list_ok.return_value = True
+    # Default: hcloud_server.main NOT in state. The snapshot pipeline
+    # uses state_contains() as a safety check before treating a
+    # missing ssh_service_token as graceful no-op — tests that want
+    # to simulate "server in state but token missing" override this.
+    runner.state_contains.return_value = False
     json_map: dict[str, Any] = {
         "secrets": fake_secrets_payload,
         "image_versions": {"kestra": "v0.51"},
@@ -1148,6 +1153,35 @@ def test_run_snapshot_skips_when_output_not_declared_in_state(
     )
     assert isinstance(result.outcome, S3SnapshotSkipped)
     assert result.outcome.reason == "no_snapshot_source"
+    setup_mocks["configure_ssh"].assert_not_called()
+
+
+def test_run_snapshot_aborts_when_server_in_state_but_token_missing(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SAFETY-CRITICAL: if ssh_service_token is missing BUT
+    hcloud_server.main is in state, the server may have data on it
+    that the pipeline can't reach via SSH. A silent graceful-skip
+    here would let `tofu destroy` nuke the server with data — must
+    raise PipelineError instead so the operator investigates."""
+    monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
+    # Token output missing (null in state)
+    fake_tofu_runner.output_json.side_effect = lambda name, default=None: (
+        None if name == "ssh_service_token" else {"any": "other"}
+    )
+    # But hcloud_server.main IS in state
+    fake_tofu_runner.state_contains.return_value = True
+
+    with pytest.raises(PipelineError, match="Dangerous partial state"):
+        run_snapshot(
+            project_root=project_root,
+            stack_slug="nexus-test",
+            template_version="v1.0.0",
+            tofu_runner=fake_tofu_runner,
+        )
     setup_mocks["configure_ssh"].assert_not_called()
 
 
