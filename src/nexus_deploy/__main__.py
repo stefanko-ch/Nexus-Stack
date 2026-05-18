@@ -2953,10 +2953,16 @@ def _s3_snapshot(args: list[str]) -> int:
            any ``tofu apply`` ran, so there's nothing on the server
            to back up; subsequent ``tofu destroy`` is also a no-op)
          * partial state without snapshot source — state exists
-           (some resource WAS applied) but the ``ssh_service_token``
-           output isn't in it, so there is no Hetzner server to
-           snapshot from. The subsequent ``tofu destroy`` will reap
-           whatever partial resources ARE in state.
+           (some Cloudflare-side resource WAS applied) AND the
+           ``ssh_service_token`` output is absent from state AND
+           ``hcloud_server.main`` is NOT in state. All three
+           conditions verified explicitly: the missing-output check
+           is what surfaces the case, the missing-server check is
+           the safety gate that rules out the dangerous "server has
+           data but we can't SSH" scenario (which would raise
+           PipelineError → rc=2 to abort teardown instead). The
+           subsequent ``tofu destroy`` will reap whatever stack-side
+           Cloudflare resources ARE in state.
     - 2: hard failure — pipeline pre-flight, SSH wait timeout,
          CalledProcessError from the rendered bash, or feature flag
          on with credentials missing. Teardown MUST abort.

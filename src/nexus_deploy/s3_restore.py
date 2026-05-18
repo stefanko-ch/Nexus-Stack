@@ -149,21 +149,25 @@ class S3SnapshotSkipped:
       ``PipelineError`` and aborts the teardown.
     * ``"no_snapshot_source"`` — opted in, credentials present,
       ``tofu state list`` works, but the ``ssh_service_token``
-      output is missing from the state AND ``hcloud_server.main``
-      is NOT in state either (verified explicitly to rule out the
-      dangerous "server has data but we can't SSH" case). This is
-      the partial-state-without-server case observed mid-2026-05:
-      a scheduled teardown runs against a fork where setup ran (so
+      output (sourced from
+      ``cloudflare_zero_trust_access_service_token.ssh``) is missing
+      from the state AND ``hcloud_server.main`` is NOT in state
+      either (verified explicitly to rule out the dangerous "server
+      has data but we can't SSH" case). This is the
+      partial-state-without-server case observed mid-2026-05: a
+      scheduled teardown runs against a fork where setup ran (so
       ``tofu/stack`` has SOME state — typically only the
       Cloudflare-side resources the orchestrator created before
-      failing, such as ``cloudflare_tunnel`` placeholders or DNS
-      records) but the actual Hetzner server + the Cloudflare
-      Access Service Token (which feeds ``ssh_service_token``)
-      never got applied. Without a server there is nothing to
-      snapshot. The subsequent ``tofu destroy`` still runs and
-      reaps whatever partial Cloudflare resources ARE in state.
-      CLI rc=0 so the scheduled teardown doesn't leave a daily
-      red workflow run for stacks that never went live."""
+      failing, e.g. ``cloudflare_zero_trust_tunnel_cloudflared.main``
+      or ``cloudflare_record.*``) but the actual Hetzner server +
+      the CF Access service-token resource never got applied. The
+      R2 state bucket and Cloudflare KV namespace are NOT in this
+      state (they live in ``tofu/control-plane``). Without a server
+      there is nothing to snapshot. The subsequent ``tofu destroy``
+      still runs and reaps whatever stack-side partial Cloudflare
+      resources ARE in state. CLI rc=0 so the scheduled teardown
+      doesn't leave a daily red workflow run for stacks that never
+      went live."""
 
     reason: Literal[
         "feature_flag_off",

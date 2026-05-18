@@ -374,16 +374,41 @@ def test_state_contains_true_when_address_present(
 def test_state_contains_false_when_address_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Address NOT in state list → False. Substring matches must not
-    count (e.g. 'hcloud' shouldn't match 'hcloud_server.main')."""
+    """Address NOT in state list → False."""
     monkeypatch.setattr(
         "nexus_deploy.tofu.subprocess.run",
-        lambda *_a, **_kw: _completed(stdout="cloudflare_tunnel.main\n"),
+        lambda *_a, **_kw: _completed(stdout="cloudflare_zero_trust_tunnel_cloudflared.main\n"),
     )
     runner = TofuRunner(tmp_path)
     assert runner.state_contains("hcloud_server.main") is False
-    # Substring "hcloud" alone must NOT match "hcloud_server.main"
+
+
+def test_state_contains_does_not_substring_match(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Substring matches must not count: querying for ``hcloud`` must
+    NOT match the line ``hcloud_server.main``, even when that line is
+    present in state. This is the regression guard against a future
+    impl that uses ``in stdout`` instead of exact-line matching —
+    that bug would silently swallow real "server in state" cases under
+    a query like 'hcloud' and re-introduce the data-loss vulnerability
+    state_contains was added to prevent."""
+    monkeypatch.setattr(
+        "nexus_deploy.tofu.subprocess.run",
+        lambda *_a, **_kw: _completed(
+            stdout="hcloud_server.main\ncloudflare_record.ssh\n",
+        ),
+    )
+    runner = TofuRunner(tmp_path)
+    # Bare 'hcloud' is a substring of 'hcloud_server.main' but NOT a
+    # full-line match — must return False.
     assert runner.state_contains("hcloud") is False
+    # Sanity: the actual exact line still matches.
+    assert runner.state_contains("hcloud_server.main") is True
+    # Partial-line prefix that's a real Tofu address fragment also
+    # must NOT match (the line in state is "cloudflare_record.ssh",
+    # not "cloudflare_record").
+    assert runner.state_contains("cloudflare_record") is False
 
 
 def test_state_contains_raises_tofuerror_on_command_failure(

@@ -1196,12 +1196,27 @@ def test_run_snapshot_aborts_on_other_tofu_output_failures(
     no_snapshot_source skip. Every other TofuError cause (binary
     missing, transient R2 backend timeout / 5xx, JSON parse failure,
     auth failure) must re-raise as PipelineError so the operator sees
-    the real cause instead of a silently-skipped snapshot followed by
-    a destroy that loses data."""
+    a hard abort instead of a silently-skipped snapshot followed by
+    a destroy that loses data.
+
+    SECURITY: tofu stderr can contain provider/backend credential
+    material (Cloudflare API tokens shown in plan diffs, Hetzner
+    auth tokens, R2 SignatureDoesNotMatch leaking partial keys).
+    The PipelineError surfaced here must NOT contain that stderr —
+    same convention as TofuRunner's own error wrapping (see
+    ``test_output_raw_error_message_does_not_leak_subprocess_stderr``).
+    This test asserts the abort happens but pins the
+    no-stderr-in-message invariant rather than locking in the
+    sensitive content."""
     import subprocess
 
     monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
     from nexus_deploy import tofu as _tofu
+
+    leaky_stderr = (
+        "Error: Failed to query available provider packages — "
+        "AccessKeyId=AKIA-do-not-leak-this-token-eyJhb..."
+    )
 
     def raise_transient(name: str, default: Any = ...) -> Any:
         if name == "ssh_service_token":
@@ -1209,13 +1224,14 @@ def test_run_snapshot_aborts_on_other_tofu_output_failures(
                 returncode=1,
                 cmd=["tofu", "output", "-json", "ssh_service_token"],
                 output="",
-                stderr="Error: Failed to query available provider packages — 503 Service Unavailable from r2.cloudflarestorage.com",
+                stderr=leaky_stderr,
             )
             raise _tofu.TofuError("tofu output failed") from err
         return {"any": "other"}
 
     fake_tofu_runner.output_json.side_effect = raise_transient
-    with pytest.raises(PipelineError, match="503 Service Unavailable"):
+    # Abort behaviour: PipelineError raised, SSH side-effects skipped.
+    with pytest.raises(PipelineError) as exc_info:
         run_snapshot(
             project_root=project_root,
             stack_slug="nexus-test",
@@ -1223,6 +1239,12 @@ def test_run_snapshot_aborts_on_other_tofu_output_failures(
             tofu_runner=fake_tofu_runner,
         )
     setup_mocks["configure_ssh"].assert_not_called()
+    # SECURITY: the user-facing exception message must NOT contain
+    # the credential-looking content from tofu stderr.
+    assert "AKIA-do-not-leak-this-token" not in str(exc_info.value)
+    assert "eyJhb" not in str(exc_info.value)
+    # But the message should still be operator-actionable.
+    assert "ssh_service_token" in str(exc_info.value)
 
 
 def test_run_snapshot_aborts_on_empty_domain(

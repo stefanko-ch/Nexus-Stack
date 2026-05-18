@@ -542,7 +542,8 @@ def run_snapshot(
       → rc=0, partial state exists in ``tofu/stack`` (e.g. a few
       Cloudflare-side resources that the orchestrator created
       before failing) but neither ``hcloud_server.main`` nor the
-      ``cloudflare_zero_trust_access_service_token.ssh`` output
+      ``ssh_service_token`` output (sourced from the
+      ``cloudflare_zero_trust_access_service_token.ssh`` resource)
       is in state. No server, no way (and no need) to snapshot;
       teardown proceeds to reap the partial Cloudflare-side
       resources via ``tofu destroy``. See mid-2026-05 deads7-fork
@@ -629,18 +630,23 @@ def run_snapshot(
     # 4. ssh_service_token + server_ip from tofu outputs.
     #
     # `state_list_ok` already passed (step 2), so SOME state exists in
-    # tofu/stack — but that doesn't mean `ssh_service_token` is in it.
-    # Observed mid-2026-05: a scheduled teardown on a deads7 fork where
-    # setup ran ✅ but Spin Up was never triggered (so the Hetzner
-    # server + the `cloudflare_zero_trust_access_service_token`
-    # resource that feeds this output never got applied) fired exit-2
-    # daily on this very step. Without an SSH service token there's
-    # also no Hetzner server reachable via SSH — there is nothing TO
-    # snapshot, the same legitimate no-op as issue #564 just one branch
-    # deeper. Skip with `no_snapshot_source`; the subsequent
-    # `tofu destroy` will still reap whatever partial resources ARE in
-    # state (an empty R2 bucket, half-created KV namespace, etc.) so
-    # the teardown remains useful, just not an SSH-driven one.
+    # tofu/stack — but that doesn't mean the `ssh_service_token`
+    # output (declared in `tofu/stack/outputs.tf`, sourced from the
+    # `cloudflare_zero_trust_access_service_token.ssh` resource) is
+    # in it. Observed mid-2026-05: a scheduled teardown on a deads7
+    # fork where setup ran ✅ but Spin Up was never triggered (so
+    # neither the Hetzner server nor the CF Access service-token
+    # resource got applied) fired exit-2 daily on this very step.
+    # Without an SSH service token there's also no Hetzner server
+    # reachable via SSH — there is nothing TO snapshot, the same
+    # legitimate no-op as issue #564 just one branch deeper. Skip
+    # with `no_snapshot_source`; the subsequent `tofu destroy` will
+    # still reap whatever stack-side partial resources ARE in state
+    # (typically Cloudflare DNS records, tunnel resources, Access
+    # applications that the orchestrator created before failing — NOT
+    # the R2 state bucket or Cloudflare KV namespace; those live in
+    # `tofu/control-plane`, not here) so the teardown remains useful,
+    # just not an SSH-driven one.
     #
     # Real TofuError causes (tofu binary missing, R2 backend auth) at
     # THIS point would be surprising — step 2 already exercised the
@@ -653,19 +659,31 @@ def run_snapshot(
     # no_snapshot_source branch. We only want that for the specific
     # "output not declared in state" case — tofu reports this via a
     # well-known stderr marker. Anything else re-raises as PipelineError.
+    #
+    # SECURITY: tofu stderr can contain provider/backend credential
+    # material (Cloudflare API tokens shown in plan diffs, Hetzner
+    # auth-error tokens, R2 SignatureDoesNotMatch leaking partial
+    # keys). Read the stderr ONLY to match the well-known "output
+    # not declared" marker; never include it in the PipelineError
+    # message. Same convention as TofuRunner's own error wrapping
+    # (see test_output_raw_error_message_does_not_leak_subprocess_stderr).
     try:
         ssh_service_token = runner.output_json("ssh_service_token")
     except _tofu.TofuError as exc:
-        stderr = ""
         cause = exc.__cause__
-        if isinstance(cause, subprocess.CalledProcessError):
-            stderr = (cause.stderr or "") if isinstance(cause.stderr, str) else ""
+        stderr = ""
+        if isinstance(cause, subprocess.CalledProcessError) and isinstance(cause.stderr, str):
+            stderr = cause.stderr
         if "could not be found in the state" in stderr or "no outputs found" in stderr:
             ssh_service_token = None
         else:
             raise PipelineError(
-                f"tofu output -json ssh_service_token failed unexpectedly in {tofu_dir} "
-                f"(state_list_ok already passed at step 2): {stderr[:500] or exc}",
+                f"tofu output -json ssh_service_token failed in {tofu_dir} "
+                "(state_list_ok already passed at step 2 — likely transient "
+                "R2 backend auth/timeout or tofu binary issue). Check "
+                "workflow logs above this PipelineError for the tofu stderr; "
+                "stderr is omitted from this message to avoid leaking "
+                "provider credentials.",
             ) from exc
     if ssh_service_token is None:
         # Output absent / null. Before treating this as "no server to
@@ -678,7 +696,22 @@ def run_snapshot(
         # this as a hard PipelineError instead — operator must either
         # re-apply the missing token resource so we can SSH-snapshot,
         # or manually back up the server before destroy-all.
-        if runner.state_contains("hcloud_server.main"):
+        #
+        # state_contains() raises TofuError on backend failure — wrap
+        # to honor run_snapshot's PipelineError contract instead of
+        # surfacing as "unexpected error" in the CLI dispatcher.
+        try:
+            server_in_state = runner.state_contains("hcloud_server.main")
+        except _tofu.TofuError as exc:
+            raise PipelineError(
+                f"tofu state list failed in {tofu_dir} when checking whether "
+                "hcloud_server.main is in state — can't safely decide "
+                "snapshot vs skip. Likely transient R2 backend / auth issue; "
+                "rerun, or investigate state accessibility before retrying "
+                "teardown. (Tofu stderr omitted to avoid leaking provider "
+                "credentials.)",
+            ) from exc
+        if server_in_state:
             raise PipelineError(
                 f"Dangerous partial state in {tofu_dir}: hcloud_server.main "
                 "is in state but ssh_service_token output is absent — the "
