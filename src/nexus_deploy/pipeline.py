@@ -638,8 +638,32 @@ def run_snapshot(
     # binary + state backend successfully — but still possible if
     # transient. Surface those as PipelineError so the operator sees
     # the actual cause rather than a silent skip.
-    ssh_service_token = runner.output_json("ssh_service_token", default=None)
+    #
+    # output_json(default=None) would collapse ALL three failure modes
+    # (binary missing, non-zero exit, invalid JSON) into the graceful
+    # no_snapshot_source branch. We only want that for the specific
+    # "output not declared in state" case — tofu reports this via a
+    # well-known stderr marker. Anything else re-raises as PipelineError.
+    try:
+        ssh_service_token = runner.output_json("ssh_service_token")
+    except _tofu.TofuError as exc:
+        stderr = ""
+        cause = exc.__cause__
+        if isinstance(cause, subprocess.CalledProcessError):
+            stderr = (cause.stderr or "") if isinstance(cause.stderr, str) else ""
+        if "could not be found in the state" in stderr or "no outputs found" in stderr:
+            return SnapshotResult(
+                outcome=_s3_restore.S3SnapshotSkipped(
+                    reason="no_snapshot_source",
+                ),
+            )
+        raise PipelineError(
+            f"tofu output -json ssh_service_token failed unexpectedly in {tofu_dir} "
+            f"(state_list_ok already passed at step 2): {stderr[:500] or exc}",
+        ) from exc
     if ssh_service_token is None:
+        # `null` value in state — same legitimate no-op as "output
+        # not declared". Treat as graceful skip.
         return SnapshotResult(
             outcome=_s3_restore.S3SnapshotSkipped(
                 reason="no_snapshot_source",

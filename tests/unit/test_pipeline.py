@@ -1110,6 +1110,87 @@ def test_run_snapshot_aborts_on_other_state_failures(
         )
 
 
+def test_run_snapshot_skips_when_output_not_declared_in_state(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same logical no-op as the null-value case above, but exercised
+    via tofu's real error path: when an output isn't declared in state,
+    `tofu output -json X` exits 1 with stderr "The output variable
+    requested could not be found in the state file." TofuRunner wraps
+    that as TofuError; pipeline.py must distinguish this specific
+    case (graceful skip) from other TofuError causes (re-raise as
+    PipelineError) instead of collapsing both into None via default."""
+    import subprocess
+
+    monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
+    from nexus_deploy import tofu as _tofu
+
+    def raise_tofu_error(name: str, default: Any = ...) -> Any:
+        if name == "ssh_service_token":
+            err = subprocess.CalledProcessError(
+                returncode=1,
+                cmd=["tofu", "output", "-json", "ssh_service_token"],
+                output="",
+                stderr="The output variable requested could not be found in the state file.",
+            )
+            raise _tofu.TofuError("tofu output failed") from err
+        return {"any": "other"}
+
+    fake_tofu_runner.output_json.side_effect = raise_tofu_error
+    result = run_snapshot(
+        project_root=project_root,
+        stack_slug="nexus-test",
+        template_version="v1.0.0",
+        tofu_runner=fake_tofu_runner,
+    )
+    assert isinstance(result.outcome, S3SnapshotSkipped)
+    assert result.outcome.reason == "no_snapshot_source"
+    setup_mocks["configure_ssh"].assert_not_called()
+
+
+def test_run_snapshot_aborts_on_other_tofu_output_failures(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The carve-out for `output_json("ssh_service_token")` failures
+    is narrow: only "output not declared" stderr triggers the graceful
+    no_snapshot_source skip. Every other TofuError cause (binary
+    missing, transient R2 backend timeout / 5xx, JSON parse failure,
+    auth failure) must re-raise as PipelineError so the operator sees
+    the real cause instead of a silently-skipped snapshot followed by
+    a destroy that loses data."""
+    import subprocess
+
+    monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
+    from nexus_deploy import tofu as _tofu
+
+    def raise_transient(name: str, default: Any = ...) -> Any:
+        if name == "ssh_service_token":
+            err = subprocess.CalledProcessError(
+                returncode=1,
+                cmd=["tofu", "output", "-json", "ssh_service_token"],
+                output="",
+                stderr="Error: Failed to query available provider packages — 503 Service Unavailable from r2.cloudflarestorage.com",
+            )
+            raise _tofu.TofuError("tofu output failed") from err
+        return {"any": "other"}
+
+    fake_tofu_runner.output_json.side_effect = raise_transient
+    with pytest.raises(PipelineError, match="503 Service Unavailable"):
+        run_snapshot(
+            project_root=project_root,
+            stack_slug="nexus-test",
+            template_version="v1.0.0",
+            tofu_runner=fake_tofu_runner,
+        )
+    setup_mocks["configure_ssh"].assert_not_called()
+
+
 def test_run_snapshot_aborts_on_empty_domain(
     project_root: Path,
     fake_tofu_runner: MagicMock,
