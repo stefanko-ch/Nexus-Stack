@@ -22,14 +22,20 @@ from nexus_deploy.pipeline import SnapshotResult
 
 @pytest.fixture(autouse=True)
 def feature_flag_on(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Bypass the top-of-handler feature-flag check so we exercise
-    the post-run_snapshot exit-code dispatcher."""
+    """Bypass the top-of-handler feature-flag + stack-slug checks
+    so each test exercises the post-run_snapshot exit-code dispatcher.
+
+    Env-var names match what the snapshot code ACTUALLY reads (see
+    s3_restore._ENV_*): three ``PERSISTENCE_S3_*`` for the persistence
+    bucket coords, plus the project-wide ``R2_ACCESS_KEY_ID`` /
+    ``R2_SECRET_ACCESS_KEY``. PERSISTENCE_STACK_SLUG + PERSISTENCE_TEMPLATE_VERSION
+    are required by the dispatcher itself before it calls run_snapshot."""
     monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
     monkeypatch.setenv("PERSISTENCE_S3_ENDPOINT", "https://r2.example.com")
     monkeypatch.setenv("PERSISTENCE_S3_BUCKET", "snapshots")
-    monkeypatch.setenv("PERSISTENCE_S3_ACCESS_KEY_ID", "test-key")
-    monkeypatch.setenv("PERSISTENCE_S3_SECRET_ACCESS_KEY", "test-secret")
     monkeypatch.setenv("PERSISTENCE_S3_REGION", "auto")
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "test-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "test-secret")
     monkeypatch.setenv("PERSISTENCE_STACK_SLUG", "nexus-test")
     monkeypatch.setenv("PERSISTENCE_TEMPLATE_VERSION", "v1.0.0")
 
@@ -65,17 +71,41 @@ def test_s3_snapshot_rc0_when_no_state_to_snapshot() -> None:
     assert rc == 0
 
 
-def test_s3_snapshot_rc2_when_endpoint_env_missing(
+def test_s3_snapshot_rc2_when_run_snapshot_reports_no_endpoint_env() -> None:
+    """no_endpoint_env is a run_snapshot-reported skip reason (the
+    feature flag is on but the S3 endpoint/bucket/creds env vars are
+    missing) — the dispatcher must map it to rc=2 because proceeding
+    to tofu destroy without a verified snapshot risks data loss.
+
+    Exercises the dispatcher branch directly via a patched
+    run_snapshot return value. The previous version of this test
+    deleted PERSISTENCE_S3_ENDPOINT and called _s3_snapshot([]) — but
+    the dispatcher doesn't read that env var itself; the check lives
+    inside snapshot_to_s3 (which run_snapshot calls). With
+    run_snapshot unpatched the test was effectively testing whatever
+    happened to fail first in the real preflight (local tofu state,
+    R2 access), not the no_endpoint_env mapping. Patch it explicitly
+    so the assertion lines up with the contract."""
+    with patch(
+        "nexus_deploy.__main__._pipeline.run_snapshot",
+        return_value=SnapshotResult(
+            outcome=_s3_restore.S3SnapshotSkipped(reason="no_endpoint_env"),
+        ),
+    ):
+        rc = _s3_snapshot([])
+    assert rc == 2
+
+
+def test_s3_snapshot_rc2_when_stack_slug_env_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the feature flag is on but credentials/endpoint env vars
-    are missing, the dispatcher returns rc=2 so the teardown aborts.
-    Verifies the only-known-good-reasons-are-rc=0 contract: any new
-    skip reason added in the future must be EXPLICITLY enumerated in
-    the dispatcher (don't accidentally bucket it as rc=0 either)."""
-    # Drop one env var so the handler's own check fires before
-    # run_snapshot would.
-    monkeypatch.delenv("PERSISTENCE_S3_ENDPOINT", raising=False)
+    """The dispatcher's OWN env check (PERSISTENCE_STACK_SLUG +
+    PERSISTENCE_TEMPLATE_VERSION) must fire before run_snapshot is
+    invoked — these are required to construct the snapshot path.
+    Missing → rc=2 + stderr diagnostic listing the missing names."""
+    monkeypatch.delenv("PERSISTENCE_STACK_SLUG", raising=False)
+    # No patch on run_snapshot: this assertion must hold without
+    # the dispatcher ever reaching that call.
     rc = _s3_snapshot([])
     assert rc == 2
 

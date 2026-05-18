@@ -680,10 +680,13 @@ def run_snapshot(
             raise PipelineError(
                 f"tofu output -json ssh_service_token failed in {tofu_dir} "
                 "(state_list_ok already passed at step 2 — likely transient "
-                "R2 backend auth/timeout or tofu binary issue). Check "
-                "workflow logs above this PipelineError for the tofu stderr; "
-                "stderr is omitted from this message to avoid leaking "
-                "provider credentials.",
+                "R2 backend auth/timeout or tofu binary issue). "
+                "Operator: rerun `tofu output -json ssh_service_token` "
+                f"in {tofu_dir} to see the actual provider error. "
+                "(Tofu stderr is held inside the chained CalledProcessError "
+                "but deliberately not included in this message — it can "
+                "carry CF API tokens, Hetzner auth tokens, or R2 signature "
+                "fragments.)",
             ) from exc
     if ssh_service_token is None:
         # Output absent / null. Before treating this as "no server to
@@ -706,10 +709,12 @@ def run_snapshot(
             raise PipelineError(
                 f"tofu state list failed in {tofu_dir} when checking whether "
                 "hcloud_server.main is in state — can't safely decide "
-                "snapshot vs skip. Likely transient R2 backend / auth issue; "
-                "rerun, or investigate state accessibility before retrying "
-                "teardown. (Tofu stderr omitted to avoid leaking provider "
-                "credentials.)",
+                "snapshot vs skip. Likely transient R2 backend / auth issue. "
+                f"Operator: rerun `tofu state list` in {tofu_dir} to see "
+                "the actual provider error before retrying teardown. (Tofu "
+                "stderr is held inside the chained CalledProcessError but "
+                "deliberately not included in this message to avoid leaking "
+                "provider credentials.)",
             ) from exc
         if server_in_state:
             raise PipelineError(
