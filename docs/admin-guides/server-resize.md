@@ -18,12 +18,12 @@ This guide explains how to change the Hetzner server type on an existing Nexus-S
 |---|---|
 | Stack is running, want to change type | **Teardown → resize → spin-up** (Path A) |
 | Stack is already torn down (e.g. scheduled teardown ran overnight) | **Resize → spin-up** (Path B — skip the teardown step) |
-| Total reset wanted (forget all D1 / R2 state too) | **Destroy → resize → initial-setup** (Path C) |
+| Total reset wanted (forget all D1 state + Cloudflare resources) | **Destroy → resize → initial-setup** (Path C) |
 
 The decision tree is about how much state you want to preserve:
 
 - **Path A + B preserve everything** that's in R2 snapshots — Postgres dumps, Gitea repos, dbt state, your enabled-stack config in D1. Spin-up restores from R2 onto the new server.
-- **Path C wipes everything** including the Control Plane (D1 + Pages + Worker), R2 state bucket, Cloudflare resources. Fresh slate.
+- **Path C wipes** the Hetzner server + Cloudflare resources + Control Plane (D1 + Pages + Worker). R2 buckets (Tofu state + snapshots + data) are **preserved by default** — pass `-f delete_data=DESTROY` if you also want those gone (see "About R2 buckets after destroy-all" below).
 
 ---
 
@@ -57,7 +57,7 @@ Common Nexus-Stack choices:
 | `cpx42` | 8 (AMD) | 16 GB | 240 GB | ~€24.49 | AMD equivalent of cx43, more disk |
 | `cx53` | 16 (Intel) | 32 GB | 320 GB | ~€34.49 | For heavy multi-tenant / large JVM loads |
 
-For the full canonical list see [setup-guide.md](setup-guide.md#optional-repository-variables) — Hetzner also has `cax*` ARM variants (cheaper) but EU ARM capacity has been unavailable since 2026-01-22 (see [CLAUDE.md project history](../../CLAUDE.md)). Stick to `cx*` / `cpx*` unless you know ARM is back.
+For the full canonical list see [setup-guide.md](setup-guide.md#optional-repository-variables) — Hetzner also has `cax*` ARM variants but Nexus-Stack switched permanently away from ARM in 2026-05 for two reasons: (a) EU ARM capacity has been unavailable for an extended period, and (b) Hetzner's pricing flipped — ARM is now **~40% more expensive** than equivalent x86 (was ~50% cheaper at project start). See [CLAUDE.md project history](../../CLAUDE.md) for details. Stick to `cx*` / `cpx*` unless you have a specific reason to revisit ARM.
 
 ---
 
@@ -102,7 +102,7 @@ Same data-preservation guarantees as Path A — the R2 snapshot from the last te
 
 ## Path C — Destroy → resize → initial-setup (full reset)
 
-Use when you want to **completely reset** the deployment: not just the server, but also the Control Plane (D1 database with enabled-services state), R2 state bucket, Cloudflare resources (DNS, Tunnel, Access apps), and Pages/Worker.
+Use when you want to **completely reset** the deployment: not just the server, but also the Control Plane (D1 database with enabled-services state), Cloudflare resources (DNS, Tunnel, Access apps), and Pages/Worker. R2 buckets (Tofu state + snapshots + data) are preserved by default so the next `initial-setup` can pick up snapshot history — see "About R2 buckets after destroy-all" below for full-wipe semantics.
 
 ```bash
 # 1. Full destroy
@@ -117,7 +117,7 @@ gh variable set SERVER_TYPE --body "cpx42"
 gh workflow run initial-setup.yaml && sleep 3 && gh run watch
 ```
 
-Duration: ~10-15 minutes (R2 state bucket + D1 database + OpenTofu apply on new server + Cloudflare setup + automatic spin-up).
+Duration: ~10-15 minutes (D1 database re-created + OpenTofu apply on new server + Cloudflare setup + automatic spin-up; R2 buckets reused from before).
 
 ### What comes back automatically
 
@@ -125,14 +125,23 @@ Duration: ~10-15 minutes (R2 state bucket + D1 database + OpenTofu apply on new 
 |---|---|
 | New Hetzner server (with the resized type) | Re-enable optional stacks in the Control Plane — the enabled-state lives in D1, which was wiped |
 | Cloudflare Tunnel + DNS + Access | – |
-| R2 state bucket (fresh, empty) | – |
-| Control Plane (Pages + Worker + D1) | – |
+| Control Plane (Pages + Worker + D1) — re-created fresh | – |
 | Infisical (with **newly generated** secrets) | If you had **external** secrets (Databricks tokens, GitHub mirror tokens etc.), re-add them in Infisical |
 | Core stacks: gitea, grafana, infisical, portainer | Click "Spin Up" once you've toggled additional stacks |
 
-### About R2 snapshot data
+### About R2 buckets after destroy-all
 
-`destroy-all` removes the **R2 state bucket** (the one OpenTofu uses for its state file) but **NOT** the **snapshot bucket** (the per-stack `snapshots/<timestamp>/` tree from S3-persistence). Old snapshots survive unless you also wipe the snapshot bucket manually. They are NOT automatically restored after `initial-setup`, however — the new deployment treats itself as a fresh stack.
+`destroy-all` deliberately **preserves all three R2 buckets** by default — the Tofu state bucket, the persistence (snapshot) bucket, and the data (datalake) bucket. The Tofu state file inside its bucket is stale after destroy but harmless: `init-r2-state.sh` reuses the bucket on the next `initial-setup`, and re-running `destroy-all` against a missing-server stack still works (RFC 0001 decision #6).
+
+If you want to nuke the buckets too — fully reset including snapshot history — invoke `destroy-all` with the opt-in second flag:
+
+```bash
+gh workflow run destroy-all.yml \
+  -f confirm=DESTROY \
+  -f delete_data=DESTROY
+```
+
+That extra step deletes the persistence, data, and state buckets via the R2 S3 API. Once gone, snapshot history is unrecoverable — only do this if you really mean a fresh start. For a server-type resize you almost never want this; the bucket-preservation default is what lets the next `initial-setup` pick up where the old stack left off (DNS records re-applied, Cloudflare resources re-created, but Hetzner S3 + R2 state retained for context).
 
 ---
 
