@@ -8,7 +8,7 @@ order: 2
 
 This guide explains how to change the Hetzner server type on an existing Nexus-Stack deployment — typically an **upgrade** when you outgrow the current size (Kestra + JVM stacks running tight on RAM, slow spin-up due to limited vCPUs), or a **downgrade** to save cost during idle periods.
 
-> **Hetzner does NOT support live resize of `cx` / `cpx` servers.** A resize always means: tear down → re-create with new type. The workflow below makes that round-trip safe.
+> **Nexus-Stack's workflows don't support in-place server-type changes.** Hetzner itself can change a server's type via the Cloud Console, but the OpenTofu IaC path the spin-up / teardown workflows use treats a type change as a destroy-and-recreate. A resize via Nexus-Stack therefore always means: tear down → re-create with new type. The workflow below makes that round-trip safe.
 
 ---
 
@@ -32,7 +32,10 @@ The decision tree is about how much state you want to preserve:
 Before you change anything, see what the deployment thinks it's using:
 
 ```bash
-gh variable list --repo stefanko-ch/Nexus-Stack 2>&1 | grep -i SERVER
+# Runs against your own fork's repo by default — works from inside the
+# repo checkout. If your shell isn't in the checkout, add
+# `--repo <your-org>/<your-fork>` explicitly.
+gh variable list 2>&1 | grep -i SERVER
 ```
 
 Expected output:
@@ -57,7 +60,7 @@ Common Nexus-Stack choices:
 | `cpx42` | 8 (AMD) | 16 GB | 240 GB | ~€24.49 | AMD equivalent of cx43, more disk |
 | `cx53` | 16 (Intel) | 32 GB | 320 GB | ~€34.49 | For heavy multi-tenant / large JVM loads |
 
-For the full canonical list see [setup-guide.md](setup-guide.md#optional-repository-variables) — Hetzner also has `cax*` ARM variants but Nexus-Stack switched permanently away from ARM in 2026-05 for two reasons: (a) EU ARM capacity has been unavailable for an extended period, and (b) Hetzner's pricing flipped — ARM is now **~40% more expensive** than equivalent x86 (was ~50% cheaper at project start). See [CLAUDE.md project history](../../CLAUDE.md) for details. Stick to `cx*` / `cpx*` unless you have a specific reason to revisit ARM.
+For the full canonical list see [setup-guide.md](setup-guide.md#optional-repository-variables) — Hetzner also has `cax*` ARM variants but Nexus-Stack switched permanently away from ARM in 2026-05 for two reasons: (a) EU ARM capacity has been unavailable for an extended period, and (b) Hetzner's pricing flipped — ARM is now **~40% more expensive** than equivalent x86 (was ~50% cheaper at project start). See [the project's CLAUDE.md](https://github.com/stefanko-ch/Nexus-Stack/blob/main/CLAUDE.md) for the rationale. Stick to `cx*` / `cpx*` unless you have a specific reason to revisit ARM.
 
 ---
 
@@ -66,8 +69,11 @@ For the full canonical list see [setup-guide.md](setup-guide.md#optional-reposit
 Use when the stack is currently running and you want to change type without losing any data.
 
 ```bash
-# 1. Snapshot + tear down (NEXUS_S3_PERSISTENCE=true must be set
-#    for the snapshot step to write your data to R2)
+# 1. Snapshot + tear down. The workflows default NEXUS_S3_PERSISTENCE
+#    to "true" when the repo secret is unset, so the snapshot step
+#    runs automatically. Only worry if you've EXPLICITLY set the secret
+#    to "false" — in that case the teardown skips the snapshot and
+#    data does not survive.
 gh workflow run teardown.yml && sleep 3 && gh run watch
 
 # 2. Update the server type repo variable
@@ -141,7 +147,7 @@ gh workflow run destroy-all.yml \
   -f delete_data=DESTROY
 ```
 
-That extra step deletes the persistence, data, and state buckets via the R2 S3 API. Once gone, snapshot history is unrecoverable — only do this if you really mean a fresh start. For a server-type resize you almost never want this; the bucket-preservation default is what lets the next `initial-setup` pick up where the old stack left off (DNS records re-applied, Cloudflare resources re-created, but Hetzner S3 + R2 state retained for context).
+That extra step deletes the persistence, data, and state buckets via the R2 S3 API. Once gone, snapshot history is unrecoverable — only do this if you really mean a fresh start. For a server-type resize you almost never want this; the bucket-preservation default is what lets the next `initial-setup` pick up where the old stack left off (DNS records re-applied, Cloudflare resources re-created, but all R2 buckets — Tofu state + snapshots + datalake — and the separate Hetzner Object Storage buckets retained).
 
 ---
 
@@ -199,7 +205,7 @@ If you frequently switch between types — for example "big during weekday class
 | Symptom | Likely cause | Action |
 |---|---|---|
 | Spin-up fails with "Server type … not available" | Hetzner is out of capacity for the requested type in the requested location | Switch to `SERVER_PREFERENCES` with multiple types/locations, or pick a different region (`SERVER_LOCATION=nbg1` or `hel1`) |
-| Spin-up succeeds but data is missing | `NEXUS_S3_PERSISTENCE` wasn't set to `"true"` before the last teardown, or no snapshot exists in R2 | Check the R2 snapshot bucket: `snapshots/latest.txt` must point to a real timestamp directory. If empty, the data is unrecoverable from snapshots |
+| Spin-up succeeds but data is missing | `NEXUS_S3_PERSISTENCE` was explicitly set to `"false"` (or some other non-`"true"` value) before the last teardown, so the snapshot step was skipped; OR snapshot ran but no snapshot exists in R2 for some other reason | Check the R2 snapshot bucket: `snapshots/latest.txt` must point to a real timestamp directory. Also verify the repo secret — `gh secret list \| grep NEXUS_S3_PERSISTENCE`; if missing entirely, the workflows default to `"true"` (data is preserved). Only an explicit `"false"` skips snapshotting. If `latest.txt` is empty, the data is unrecoverable from snapshots |
 | Spin-up succeeds, server is new size, but it still feels slow right after | Stacks haven't fully restarted — Docker images cached, but containers booting takes a few minutes. Wait + check `ssh nexus "docker ps"` |
 | Control Plane shows old enabled-stacks state | You ran Path A or B (D1 preserved) — that's expected. If you wanted a clean slate, you wanted Path C |
 | Hetzner SSH key conflict after `destroy-all` + `initial-setup` | The old SSH key may still be registered in Cloudflare/Hetzner | See [troubleshooting.md](troubleshooting.md) |
