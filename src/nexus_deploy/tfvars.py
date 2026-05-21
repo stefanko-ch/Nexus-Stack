@@ -170,9 +170,9 @@ def derive_gitea_identity(config: TfvarsConfig) -> GiteaIdentity:
     Reasons (in priority order) for falling back:
     1. ``admin_email`` is empty after trim — self-provisioned tfvars
        commonly omit it.
-    2. ``admin_email`` equals ``gitea_user_email`` after trim — the
-       admin-panel caller (Nexus-Stack-for-Education) passes both
-       values from the same source field today.
+    2. ``admin_email`` equals ``gitea_user_email`` after trim — a
+       multi-tenant admin-panel caller (e.g. a classroom-provisioning
+       fork) passes both values from the same source field today.
 
     Without the fallback, Gitea's ``CREATE`` for the user row would
     fail with "e-mail already in use" because both Admin + User

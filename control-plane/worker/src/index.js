@@ -1,10 +1,10 @@
 /**
  * Scheduled Teardown Worker
- * 
+ *
  * Runs daily to check if scheduled teardown is enabled and triggers:
  * 1. Email notification (15 minutes before teardown)
  * 2. Teardown workflow (at configured time)
- * 
+ *
  * Configuration stored in Cloudflare D1 database (NEXUS_DB)
  * - teardown_enabled: "true" | "false"
  * - teardown_timezone: "Europe/Zurich" (default)
@@ -195,16 +195,16 @@ function constantTimeEqual(a, b) {
 // Clean up logs older than 30 days
 async function cleanupOldLogs(env) {
   if (!env.NEXUS_DB) return;
-  
+
   try {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
     const cutoffStr = cutoff.toISOString().replace('T', ' ').substring(0, 19);
-    
+
     const result = await env.NEXUS_DB.prepare(
       'DELETE FROM logs WHERE created_at < ?'
     ).bind(cutoffStr).run();
-    
+
     const deletedCount = result.meta?.changes || 0;
     if (deletedCount > 0) {
       console.log(`Cleaned up ${deletedCount} old log entries`);
@@ -239,7 +239,7 @@ async function handleScheduledTeardown(event, env) {
 
     // Get configuration from D1
     const config = await getConfig(env.NEXUS_DB);
-    
+
     if (config.enabled !== 'true') {
       await logToD1(env.NEXUS_DB, 'debug', 'Scheduled teardown is disabled');
       console.log('Scheduled teardown is disabled');
@@ -440,7 +440,7 @@ async function getConfig(db) {
   const teardownTime = await getConfigValue(db, 'teardown_time', '22:00');
   const notificationTime = await getConfigValue(db, 'notification_time', '21:45');
   const delayUntil = await getConfigValue(db, 'delay_until', null);
-  
+
   return { enabled, timezone, teardownTime, notificationTime, delayUntil };
 }
 
@@ -514,8 +514,8 @@ async function sendNotification(env, config) {
     `;
 
     // Resend requires the sender domain to be verified. On multi-tenant
-    // deployments (e.g. Nexus-Stack-for-Education) DOMAIN is a per-user
-    // subdomain that isn't registered with Resend, but BASE_DOMAIN is the
+    // deployments (e.g. an education / classroom admin panel) DOMAIN is a
+    // per-user subdomain that isn't registered with Resend, but BASE_DOMAIN is the
     // shared parent that IS verified. Fall back to DOMAIN for single-stack
     // installs where BASE_DOMAIN isn't set.
     const fromDomain = env.BASE_DOMAIN || env.DOMAIN;
@@ -634,13 +634,13 @@ async function triggerTeardown(env, config) {
  */
 function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
   const [hours, minutes] = timeStr.split(':').map(Number);
-  
+
   // Get the date string in the target timezone
   const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  
+
   // Create a date assuming the time is in UTC
   const utcDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`);
-  
+
   // Now format this UTC date in the target timezone to see what time it represents there
   const tzFormatter = new Intl.DateTimeFormat('en', {
     timeZone: timezone,
@@ -648,18 +648,18 @@ function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
     minute: '2-digit',
     hour12: false,
   });
-  
+
   const tzTimeStr = tzFormatter.format(utcDate);
   const [tzHours, tzMinutes] = tzTimeStr.split(':').map(Number);
-  
+
   // Calculate the difference between desired time and actual time in timezone
   const desiredMinutes = hours * 60 + minutes;
   const actualMinutes = tzHours * 60 + tzMinutes;
   const diffMinutes = desiredMinutes - actualMinutes;
-  
+
   // Adjust UTC date by the difference
   const adjustedDate = new Date(utcDate.getTime() + diffMinutes * 60 * 1000);
-  
+
   return adjustedDate;
 }
 

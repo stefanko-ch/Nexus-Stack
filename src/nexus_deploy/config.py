@@ -327,9 +327,10 @@ def service_host(prefix: str, domain: str, separator: str = ".") -> str:
     """Compose a service hostname under the configured subdomain separator.
 
     Standard single-tenant installs use ``separator='.'`` and produce
-    the dot form ``<prefix>.<domain>``. Multi-tenant forks (e.g.
-    Nexus-Stack-for-Education) provision tenants under a shared base
-    domain via flat subdomains: setting ``separator='-'`` on a tenant
+    the dot form ``<prefix>.<domain>``. Multi-tenant forks (e.g. an
+    education / classroom admin panel built on top of Nexus-Stack)
+    provision tenants under a shared base domain via flat subdomains:
+    setting ``separator='-'`` on a tenant
     whose ``DOMAIN`` is ``user1.example.com`` produces
     ``<prefix>-user1.example.com`` — which matches the DNS records
     Tofu provisions for that tenant.

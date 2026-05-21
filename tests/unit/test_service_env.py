@@ -1156,7 +1156,7 @@ def test_cli_service_env_happy_path(
 # ---------------------------------------------------------------------------
 # SUBDOMAIN_SEPARATOR — Issue #540
 #
-# Multi-tenant forks (Nexus-Stack-for-Education etc.) provision
+# Multi-tenant forks (e.g. an education / classroom admin panel) provision
 # tenants under a shared base domain via flat subdomains. With
 # ``subdomain_separator='-'`` and ``DOMAIN='user1.example.com'``,
 # the rendered service URLs must compose to ``kestra-user1.example.com``
