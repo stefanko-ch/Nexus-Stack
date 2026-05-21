@@ -22,7 +22,7 @@ This guide explains how to change the Hetzner server type on an existing Nexus-S
 
 The decision tree is about how much state you want to preserve:
 
-- **Path A + B preserve everything** that's in R2 snapshots — Postgres dumps, Gitea repos, dbt state, your enabled-stack config in D1. Spin-up restores from R2 onto the new server.
+- **Path A + B preserve state via two different mechanisms.** R2 snapshots hold the per-stack data — Postgres dumps, Gitea repos, dbt state, code-server volume; spin-up restores those onto the new server. D1 (the Control Plane database with your enabled-stack toggles and scheduled-teardown config) is preserved separately because teardown only destroys Hetzner-side infrastructure and leaves the Control Plane (Pages + Worker + D1) running untouched.
 - **Path C wipes** the Hetzner server + Cloudflare resources + Control Plane (D1 + Pages + Worker). R2 buckets (Tofu state + snapshots + data) are **preserved by default** — pass `-f delete_data=DESTROY` if you also want those gone (see "About R2 buckets after destroy-all" below).
 
 ---
@@ -205,7 +205,7 @@ If you frequently switch between types — for example "big during weekday class
 | Symptom | Likely cause | Action |
 |---|---|---|
 | Spin-up fails with "Server type … not available" | Hetzner is out of capacity for the requested type in the requested location | Switch to `SERVER_PREFERENCES` with multiple types/locations, or pick a different region (`SERVER_LOCATION=nbg1` or `hel1`) |
-| Spin-up succeeds but data is missing | `NEXUS_S3_PERSISTENCE` was explicitly set to `"false"` (or some other non-`"true"` value) before the last teardown, so the snapshot step was skipped; OR snapshot ran but no snapshot exists in R2 for some other reason | Check the R2 snapshot bucket: `snapshots/latest.txt` must point to a real timestamp directory. Also verify the repo secret — `gh secret list \| grep NEXUS_S3_PERSISTENCE`; if missing entirely, the workflows default to `"true"` (data is preserved). Only an explicit `"false"` skips snapshotting. If `latest.txt` is empty, the data is unrecoverable from snapshots |
+| Spin-up succeeds but data is missing | `NEXUS_S3_PERSISTENCE` was explicitly set to `"false"` (or some other non-`"true"` value) before the last teardown, so the snapshot step was skipped; OR snapshot ran but no snapshot exists in R2 for some other reason | Check the R2 snapshot bucket: `snapshots/latest.txt` must point to a real timestamp directory. Also verify the repo secret with `gh secret list` and look for `NEXUS_S3_PERSISTENCE` in the output; if missing entirely, the workflows default to `"true"` (data is preserved). Only an explicit `"false"` skips snapshotting. If `latest.txt` is empty, the data is unrecoverable from snapshots |
 | Spin-up succeeds, server is new size, but it still feels slow right after | Stacks haven't fully restarted — Docker images cached, but containers booting takes a few minutes. Wait + check `ssh nexus "docker ps"` |
 | Control Plane shows old enabled-stacks state | You ran Path A or B (D1 preserved) — that's expected. If you wanted a clean slate, you wanted Path C |
 | Hetzner SSH key conflict after `destroy-all` + `initial-setup` | The old SSH key may still be registered in Cloudflare/Hetzner | See [troubleshooting.md](troubleshooting.md) |
