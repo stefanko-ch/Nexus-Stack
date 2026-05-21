@@ -53,7 +53,7 @@ export async function onRequestPost(context) {
     const credentials = JSON.parse(credentialsJson);
     const domain = env.DOMAIN;
     // Resend requires the sender domain to be verified. On multi-tenant
-    // deployments (e.g. an education / classroom admin panel) DOMAIN is a
+    // deployments (e.g. an education / classroom admin panel), DOMAIN is a
     // per-user subdomain that isn't registered with Resend, but BASE_DOMAIN is the
     // shared parent that IS verified. Fall back to DOMAIN for single-stack
     // installs where BASE_DOMAIN isn't set.
