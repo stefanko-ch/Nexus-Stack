@@ -129,8 +129,14 @@ Must be non-empty or the deploy aborts with a clear `ServiceEnvError`.
 ### Persistence
 
 - `lakekeeper-db-data` volume: Postgres data (warehouses, namespaces, table metadata, snapshot history)
+- **Parquet data** lives in whichever object-storage bucket you wire up per warehouse — counts against that storage's quota, NOT Lakekeeper's DB
 
-The **actual Parquet data** lives in whichever object-storage bucket you wire up per warehouse — counts against that storage's quota, NOT Lakekeeper's DB. Included in the S3-persistence snapshot loop (`NEXUS_S3_PERSISTENCE=true`).
+**Backup scope — important:** Nexus-Stack's `NEXUS_S3_PERSISTENCE=true` snapshot loop covers an **explicit allow-list** of per-service filesystem trees (gitea, dify, kestra, metabase, etc.) plus per-service Postgres dumps — see [`src/nexus_deploy/s3_restore.py`](../../src/nexus_deploy/s3_restore.py) for the canonical list. Lakekeeper is **not currently in that allow-list**, so neither the `lakekeeper-db-data` volume nor the warehouse Parquet buckets are backed up automatically. Two consequences:
+
+1. **Catalog metadata** (`lakekeeper-db-data`): lost on a `docker compose down -v` or a fresh-start spin-up. Warehouses + tables remain physically present in object storage (the Parquet files survive), but Lakekeeper has no record of them — you'd re-register each warehouse via `POST /management/v1/warehouse` and Lakekeeper would re-discover the existing tables on next access.
+2. **Parquet data**: backup is whatever the underlying object-storage backend gives you. R2 / Hetzner S3 have provider-level durability + optional cross-region replication; MinIO / Garage / SeaweedFS on the same Hetzner box are NOT redundant unless the operator wires their own replication.
+
+If your workload needs catalog-metadata in the snapshot loop, the follow-up is to add `lakekeeper-db-data` + the relevant warehouse buckets to the allow-list in `s3_restore.py`.
 
 ### Warehouses + storage choices
 
