@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.66.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.65.0...v0.66.0) (2026-05-23)
+
+
+### 🚀 Features
+
+* **stacks:** Add Dozzle — realtime Docker logs in the browser ([#597](https://github.com/stefanko-ch/Nexus-Stack/issues/597)) ([e348887](https://github.com/stefanko-ch/Nexus-Stack/commit/e348887d9b22e2651261d841dc236e3aacbe871a))
+* **stacks:** Add Meilisearch — lightning-fast Rust full-text search engine ([#599](https://github.com/stefanko-ch/Nexus-Stack/issues/599)) ([791d416](https://github.com/stefanko-ch/Nexus-Stack/commit/791d416ddbea9b3534ca6d316b88f0c383b0c247))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Wire ALLOW_DISABLE_AUTO_SHUTDOWN through Control Plane deployment ([#609](https://github.com/stefanko-ch/Nexus-Stack/issues/609)) ([2dfcd61](https://github.com/stefanko-ch/Nexus-Stack/commit/2dfcd6192fe6075c1d0142b6da589160c57afc3e))
+* **control-plane:** Fix workflow history styling in settings page ([#605](https://github.com/stefanko-ch/Nexus-Stack/issues/605)) ([73df210](https://github.com/stefanko-ch/Nexus-Stack/commit/73df21091c744b44a4e7de831b651605f1d257da))
+* **snapshot:** Graceful skip when state is partial + ssh_service_token absent ([#600](https://github.com/stefanko-ch/Nexus-Stack/issues/600)) ([4bdda8c](https://github.com/stefanko-ch/Nexus-Stack/commit/4bdda8c4c25cf8245a3c602dfd7af3bb7971739f))
+
+
+### 📚 Documentation
+
+* **admin:** Add server-resize guide (cpx32→cpx42 et al) ([#603](https://github.com/stefanko-ch/Nexus-Stack/issues/603)) ([f7c5a4d](https://github.com/stefanko-ch/Nexus-Stack/commit/f7c5a4d22a8a2da538044b30e1fda989d97cae41))
+
+
+### 🔧 Maintenance
+
+* Genericize multi-tenant fork references in public code ([#604](https://github.com/stefanko-ch/Nexus-Stack/issues/604)) ([77c7860](https://github.com/stefanko-ch/Nexus-Stack/commit/77c7860c45223fcc043b54674307e726569687d7))
+
 ## [0.65.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.64.0...v0.65.0) (2026-05-16)
 
 
