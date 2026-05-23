@@ -1156,6 +1156,49 @@ def test_run_snapshot_skips_when_output_not_declared_in_state(
     setup_mocks["configure_ssh"].assert_not_called()
 
 
+def test_run_snapshot_skips_on_capitalized_no_outputs_found_marker(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OpenTofu emits ``"No outputs found"`` with a capital N
+    (opentofu/internal/command/views/output.go:297). A case-sensitive
+    ``"no outputs found" in stderr`` check would miss this and force
+    the hard-failure branch, defeating the no_snapshot_source skip on
+    a state file with no outputs declared at all. Regression guard
+    for the case-folding fix — pipeline.py now lowercases stderr
+    before marker matching, so the real Capital-N string still
+    triggers the graceful skip."""
+    import subprocess
+
+    monkeypatch.setenv("NEXUS_S3_PERSISTENCE", "true")
+    from nexus_deploy import tofu as _tofu
+
+    def raise_tofu_error(name: str, default: Any = ...) -> Any:
+        if name == "ssh_service_token":
+            err = subprocess.CalledProcessError(
+                returncode=1,
+                cmd=["tofu", "output", "-json", "ssh_service_token"],
+                output="",
+                # Verbatim OpenTofu wording — capital N, Warning prefix.
+                stderr="Warning: No outputs found\n\nThe state file either has no outputs defined...",
+            )
+            raise _tofu.TofuError("tofu output failed") from err
+        return {"any": "other"}
+
+    fake_tofu_runner.output_json.side_effect = raise_tofu_error
+    result = run_snapshot(
+        project_root=project_root,
+        stack_slug="nexus-test",
+        template_version="v1.0.0",
+        tofu_runner=fake_tofu_runner,
+    )
+    assert isinstance(result.outcome, S3SnapshotSkipped)
+    assert result.outcome.reason == "no_snapshot_source"
+    setup_mocks["configure_ssh"].assert_not_called()
+
+
 def test_run_snapshot_aborts_when_server_in_state_but_token_missing(
     project_root: Path,
     fake_tofu_runner: MagicMock,

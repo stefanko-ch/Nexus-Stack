@@ -674,7 +674,13 @@ def run_snapshot(
         stderr = ""
         if isinstance(cause, subprocess.CalledProcessError) and isinstance(cause.stderr, str):
             stderr = cause.stderr
-        if "could not be found in the state" in stderr or "no outputs found" in stderr:
+        # Case-insensitive: OpenTofu emits "No outputs found" with a
+        # capital N (see opentofu/internal/command/views/output.go:297),
+        # while "The output variable requested could not be found in
+        # the state file" is lowercase. Normalize both to lowercase so
+        # neither path silently slips through to the hard-failure branch.
+        stderr_lower = stderr.lower()
+        if "could not be found in the state" in stderr_lower or "no outputs found" in stderr_lower:
             ssh_service_token = None
         else:
             raise PipelineError(
