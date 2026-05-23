@@ -469,7 +469,8 @@ def _render_hedgedoc(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Lakekeeper: Iceberg REST Catalog. Needs dedicated Postgres
-    DSN + LAKEKEEPER_BASE_URI for absolute-URL generation in the
+    DSN + LAKEKEEPER__BASE_URI (double-underscore, that's Lakekeeper's
+    nested-config separator convention) for absolute-URL generation in the
     catalog responses (Iceberg clients follow these to reach the
     metadata endpoints).
 

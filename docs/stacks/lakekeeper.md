@@ -39,29 +39,44 @@ All engines read + write the **same** physical Parquet files in object storage, 
 2. Open `https://lakekeeper.YOUR_DOMAIN/health` → CF Access email OTP → `{"status":"ok"}`
 3. Bootstrap a warehouse (one-time, points at your chosen object-storage bucket):
 
+First pull the storage credentials out of Infisical (or your local secrets store) into shell env vars so the secrets never appear in `curl`'s argv or the shell history:
+
 ```bash
-TOKEN=""  # not needed when LAKEKEEPER__AUTHZ_BACKEND=allow-all (default)
-curl -X POST https://lakekeeper.YOUR_DOMAIN/management/v1/warehouse \
+# Fetch from Infisical (or paste-in interactively via `read -s` —
+# anything except hardcoding the secret into the command below):
+export S3_ACCESS_KEY_ID=$(infisical secrets get GARAGE_ACCESS_KEY_ID --path=/garage --plain)
+export S3_SECRET_ACCESS_KEY=$(infisical secrets get GARAGE_SECRET_ACCESS_KEY --path=/garage --plain)
+
+# Send the warehouse-bootstrap payload via stdin (`--data-binary @-`)
+# so the JSON — including the secret value — never lands in `ps`
+# listings or shell-history. The heredoc expands the env vars inside
+# the JSON before piping to curl; shell-history captures the heredoc
+# WITHOUT expansion, so the actual secret stays out.
+cat <<EOF | curl -X POST https://lakekeeper.YOUR_DOMAIN/management/v1/warehouse \
   -H "Content-Type: application/json" \
-  -d '{
-    "warehouse-name": "default",
-    "project-id": "00000000-0000-0000-0000-000000000000",
-    "storage-profile": {
-      "type": "s3",
-      "bucket": "lakehouse",
-      "endpoint": "http://garage:3900",
-      "region": "garage",
-      "path-style-access": true,
-      "sts-enabled": false
-    },
-    "storage-credential": {
-      "type": "s3",
-      "credential-type": "access-key",
-      "aws-access-key-id":     "YOUR_KEY_ID",
-      "aws-secret-access-key": "YOUR_SECRET"
-    }
-  }'
+  --data-binary @-
+{
+  "warehouse-name": "default",
+  "project-id": "00000000-0000-0000-0000-000000000000",
+  "storage-profile": {
+    "type": "s3",
+    "bucket": "lakehouse",
+    "endpoint": "http://garage:3900",
+    "region": "garage",
+    "path-style-access": true,
+    "sts-enabled": false
+  },
+  "storage-credential": {
+    "type": "s3",
+    "credential-type": "access-key",
+    "aws-access-key-id":     "${S3_ACCESS_KEY_ID}",
+    "aws-secret-access-key": "${S3_SECRET_ACCESS_KEY}"
+  }
+}
+EOF
 ```
+
+If `LAKEKEEPER__AUTHZ_BACKEND` is set to something other than the shipped `allow-all`, add `-H "Authorization: Bearer $TOKEN"` to the curl above; pull the token via the same `infisical secrets get` pattern, never paste it as a literal.
 
 4. From PyIceberg:
 
