@@ -627,6 +627,24 @@ def test_litellm_env_vars_include_all_three_secrets(
     assert rendered.env_vars["LITELLM_DB_PASSWORD"] == full_config.litellm_db_password
 
 
+def test_litellm_accepts_injected_template_overrides_loader(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """When render_all_env_files passes ``litellm_config_template``,
+    the renderer must use it verbatim instead of reading from disk —
+    same dispatch pattern as Grafana's prometheus_template. Without
+    this, multi-tenant forks or test fixtures with a custom
+    stacks_dir would silently render from the repo-checkout template
+    instead of theirs."""
+    from nexus_deploy.service_env import _render_litellm
+
+    injected = "# CUSTOM TEMPLATE INJECTED\nmodel_list: []\n"
+    rendered = _render_litellm(full_config, full_env, litellm_config_template=injected)
+    sidecar = next(s for s in rendered.sidecars if s.relative_path == "config.yaml")
+    assert sidecar.content == injected
+    assert "CUSTOM TEMPLATE INJECTED" in sidecar.content
+
+
 # ---------------------------------------------------------------------------
 # SFTPGo — fail-fast guard
 # ---------------------------------------------------------------------------

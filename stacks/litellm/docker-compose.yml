@@ -48,8 +48,14 @@ services:
       # Postgres DSN for cost-tracking + per-key persistence
       DATABASE_URL: postgres://nexus-litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
       STORE_MODEL_IN_DB: "True"
-      # UI credentials (separate from master key so students can have
-      # read-only UI access without the admin bearer token)
+      # UI credentials. UI_PASSWORD is intentionally set to
+      # LITELLM_MASTER_KEY so the operator has ONE rotation surface
+      # instead of two parallel secrets to keep in sync. For a
+      # teaching stack this is the right default. If you want a
+      # distinct read-only UI login (e.g. show-only operator account
+      # vs. admin bearer for API), add random_password.litellm_ui_password
+      # in tofu/stack/main.tf, plumb it through service_env.py +
+      # Infisical, and reference it here.
       UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
       UI_PASSWORD: ${LITELLM_MASTER_KEY}
       # Telemetry off (project-wide convention)
@@ -103,7 +109,14 @@ networks:
     external: true
   litellm-internal:
     driver: bridge
-  # External network from the ollama stack — joining lets LiteLLM
-  # reach `ollama:11434` directly when ollama is also enabled.
+  # Cross-stack join into the ollama stack's internal bridge so
+  # LiteLLM can reach `ollama:11434` directly without going through
+  # the public CF Tunnel route. Both sides pin the network to the
+  # global name `ollama-internal` (NOT the default project-prefixed
+  # `ollama_ollama-internal`) so the external reference here finds
+  # the actual created network. Requires the ollama stack to be
+  # enabled — if not, LiteLLM will fail to start with "network
+  # ollama-internal not found"; disable LiteLLM or enable Ollama.
   ollama-internal:
     external: true
+    name: ollama-internal

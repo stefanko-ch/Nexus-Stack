@@ -1,0 +1,41 @@
+# =============================================================================
+# LiteLLM Proxy — model routing table
+# =============================================================================
+# TEMPLATE: rendered to ./config.yaml by nexus_deploy.service_env's
+# _render_litellm() on every spin-up. Edits to the generated config.yaml
+# are overwritten — for persistent operator overrides, EITHER:
+#   (a) Edit THIS template file (committed; survives spin-up)
+#   (b) Add models via the /ui at runtime (STORE_MODEL_IN_DB=true persists
+#       UI-added models in Postgres across container restarts)
+#
+# Pattern: every entry maps a client-facing OpenAI-compatible `model_name`
+# to a backend provider via `litellm_params.model`. Provider keys come from
+# env vars (set them as repo secrets, plumb via spin-up.yml).
+# =============================================================================
+
+model_list:
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+      model: ollama/llama3
+      api_base: http://ollama:11434
+
+  # Example: add OpenAI provider (set OPENAI_API_KEY as a repo secret +
+  # plumb via .github/workflows/spin-up.yml's litellm env block):
+  # - model_name: gpt-4o
+  #   litellm_params:
+  #     model: openai/gpt-4o
+  #     api_key: os.environ/OPENAI_API_KEY
+
+  # Example: Anthropic (set ANTHROPIC_API_KEY):
+  # - model_name: claude-3-5-sonnet
+  #   litellm_params:
+  #     model: anthropic/claude-3-5-sonnet-20241022
+  #     api_key: os.environ/ANTHROPIC_API_KEY
+
+litellm_settings:
+  drop_params: true
+  telemetry: false
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL

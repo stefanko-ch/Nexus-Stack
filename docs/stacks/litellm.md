@@ -101,7 +101,7 @@ Included in the S3-persistence snapshot loop (`NEXUS_S3_PERSISTENCE=true`).
 ### Troubleshooting
 
 - **All requests 401**: master key mismatch — check the bearer token your client sends matches `infisical secrets get LITELLM_MASTER_KEY --path=/litellm --plain`
-- **`model not available`**: check `/ui → Models` — only models in the routing table are reachable. Add via UI or edit `config.yaml`
+- **`model not available`**: check `/ui → Models` — only models in the routing table are reachable. Add via UI (runtime) or edit `stacks/litellm/config.yaml.template` (committed) and re-deploy. The generated `stacks/litellm/config.yaml` is gitignored and overwritten on every spin-up.
 - **High latency to OpenAI/Anthropic**: LiteLLM forwards synchronously — slow upstream = slow proxy. Look at `/ui → Logs` to see per-request timing
 - **DB connection errors at startup**: `LITELLM_DB_PASSWORD` mismatch between the litellm container and the Postgres container env — usually means a previous deploy used a different password and the volume has the old one. `docker compose down -v` the stack to reset (loses cost history)
 
