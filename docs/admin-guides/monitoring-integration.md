@@ -146,14 +146,19 @@ mock receiver that returns `200 OK` to POSTs (Prometheus'
 `501 Not Implemented` for POST and won't work here):
 
 ```bash
-# Terminal 1 — mock receiver that accepts POST and logs the request
+# Terminal 1 — mock receiver that accepts POST and logs the request.
+# Authorization header is REDACTED (we only log presence + token length)
+# so a real production token doesn't end up in the terminal scrollback
+# if you re-use this recipe with non-test credentials.
 python3 -c "
 from http.server import HTTPServer, BaseHTTPRequestHandler
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(length)
-        print(f'{self.command} {self.path} auth={self.headers.get(\"Authorization\")} bytes={len(body)}')
+        auth = self.headers.get('Authorization', '')
+        auth_summary = f'present (Bearer prefix, {len(auth) - 7} char token)' if auth.startswith('Bearer ') else ('missing' if not auth else 'present (no Bearer prefix)')
+        print(f'{self.command} {self.path} auth={auth_summary} bytes={len(body)}')
         self.send_response(200); self.end_headers()
 HTTPServer(('0.0.0.0', 9999), Handler).serve_forever()
 "

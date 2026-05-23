@@ -216,8 +216,9 @@ def test_meilisearch_raises_on_empty_master_key(
 # When BOTH are set, the rendered config must contain a valid
 # remote_write block with Bearer auth, the (go_|process_|promhttp_)
 # cardinality-drop relabel (Conductor #23 highest-pri defuse), and a
-# tenant label. Sidecar must be mode 0o600 because the token is
-# in cleartext when enabled.
+# tenant label. Sidecar is mode 0o644 (NOT 0o600) because it's
+# bind-mounted into the non-root prometheus container — see the
+# _is_0o644 test below for the full reasoning.
 
 
 def test_grafana_remote_write_disabled_when_both_unset(
