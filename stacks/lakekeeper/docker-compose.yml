@@ -58,7 +58,13 @@ services:
       - .env
     restart: unless-stopped
     ports:
-      - "8181:8181"
+      # Host port 8195 → container 8181. Kafka-UI already binds host 8181
+      # (mapping to its container's 8080), so Lakekeeper has to publish on
+      # a different host port to avoid a docker-compose port collision
+      # when both stacks are enabled. Container port stays 8181 (the
+      # upstream Lakekeeper default) so internal references + the
+      # healthcheck URL below don't change.
+      - "8195:8181"
     command: ["serve"]
     environment:
       LAKEKEEPER__PG_DATABASE_URL_READ: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper

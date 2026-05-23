@@ -89,6 +89,7 @@
       'LAKEFS_SECRET_ACCESS_KEY': 'lakefs_admin_secret_key-VALUE',
     }),
     'lakekeeper': dict({
+      'LAKEKEEPER_DB_PASSWORD': 'lakekeeper_db_password-VALUE',
     }),
     'litellm': dict({
     }),

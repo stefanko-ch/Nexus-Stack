@@ -409,7 +409,7 @@ services:
 
   lakekeeper:
     subdomain: "lakekeeper"
-    port: 8181
+    port: 8195   # 8181 already taken by kafka-ui's host binding; Lakekeeper's container internal port stays 8181
     public: false
     category: "storage"
     website: "https://lakekeeper.io"

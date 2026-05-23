@@ -12,7 +12,7 @@ Lakekeeper is an open-source implementation of the [Apache Iceberg REST Catalog 
 
 | Setting | Value |
 |---------|-------|
-| Default Port | `8181` |
+| Host Port | `8195` (container internal port is the upstream Lakekeeper default `8181`; host shifted to avoid a docker-compose collision with Kafka-UI which already binds host `8181:8080`) |
 | Suggested Subdomain | `lakekeeper` |
 | Public Access | No (Cloudflare Access via email OTP) |
 | Website | [lakekeeper.io](https://lakekeeper.io) |
