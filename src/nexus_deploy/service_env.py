@@ -251,12 +251,26 @@ def _render_prometheus_remote_write_block(e: BootstrapEnv) -> str:
     # Strip trailing slash on the endpoint so we don't end up with
     # `https://host//api/v1/write` — Prometheus would 404 on that.
     endpoint = endpoint.rstrip("/")
+    # YAML quoting: emit url / credentials / replacement as JSON-quoted
+    # strings. YAML 1.2 is a JSON superset, so any json.dumps(str)
+    # output is a valid YAML scalar and handles every problematic
+    # character (\" embedded quotes, \\ backslashes, leading {[!,
+    # `: ` mapping separators, trailing `#` comment markers, control
+    # chars). Without this, an operator-supplied endpoint or token
+    # with a YAML-significant character would silently produce an
+    # invalid prometheus.yml — Prometheus would refuse to start with
+    # a parse error pointing at our generated file. Tokens from some
+    # providers contain `=` padding and `_` / `-` which are safe, but
+    # we don't want to hand-audit every possible token format.
+    url_yaml = json.dumps(f"{endpoint}/api/v1/write")
+    token_yaml = json.dumps(token)
+    tenant_yaml = json.dumps(tenant)
     return (
         "remote_write:\n"
-        f"  - url: {endpoint}/api/v1/write\n"
+        f"  - url: {url_yaml}\n"
         "    authorization:\n"
         "      type: Bearer\n"
-        f"      credentials: {token}\n"
+        f"      credentials: {token_yaml}\n"
         "    write_relabel_configs:\n"
         "      # Cardinality defuse (Conductor #23): drop Prometheus-runtime\n"
         "      # series that have no value for cross-stack monitoring.\n"
@@ -266,7 +280,7 @@ def _render_prometheus_remote_write_block(e: BootstrapEnv) -> str:
         "      # Informational tenant label — vmauth enforces the real one\n"
         "      # server-side from the token mapping; this is defense-in-depth.\n"
         "      - target_label: tenant\n"
-        f"        replacement: {tenant}\n"
+        f"        replacement: {tenant_yaml}\n"
     )
 
 
@@ -1250,19 +1264,24 @@ def render_all_env_files(
     # alongside the docker-compose at ``stacks_dir/grafana/``. Read it
     # ONCE here so the renderer stays a pure (config, env) → result
     # function and operationally works regardless of where the package
-    # was installed from. Lazily resolved: if grafana isn't enabled OR
-    # the template file is missing in this layout, we don't fail —
-    # the renderer's loader fallback handles direct callers in tests.
+    # was installed from. If grafana is enabled, the template MUST be
+    # in stacks_dir — silent fallback to a repo-relative loader would
+    # either fail with a confusing site-packages path or render from
+    # a totally different file than the operator is editing.
     prometheus_template: str | None = None
     if "grafana" in enabled:
         template_path = stacks_dir / "grafana" / "prometheus.yml.template"
         try:
             prometheus_template = template_path.read_text(encoding="utf-8")
-        except OSError:
-            # Defer to _load_prometheus_template's repo-relative
-            # fallback (raises FileNotFoundError with a clear path if
-            # the template is genuinely missing).
-            prometheus_template = None
+        except OSError as exc:
+            raise ServiceEnvError(
+                f"grafana enabled but prometheus.yml.template is unreadable at "
+                f"{template_path} ({type(exc).__name__}). The template ships with "
+                "stacks/grafana/ and must be present in the stacks_dir passed to "
+                "render_all_env_files. Restore the file (re-clone the repo or "
+                "git checkout stacks/grafana/prometheus.yml.template) or disable "
+                "grafana before retrying.",
+            ) from exc
 
     for spec in _SPECS:
         if not spec.enabled_check(enabled):

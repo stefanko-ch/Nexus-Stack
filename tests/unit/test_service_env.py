@@ -280,15 +280,18 @@ def test_grafana_remote_write_block_when_both_set(
     sidecar = next(s for s in rendered.sidecars if s.relative_path == "prometheus.yml")
     content = sidecar.content
     assert "remote_write:" in content
-    assert "- url: https://metrics.example.com/api/v1/write" in content
+    # url / credentials / replacement are emitted as JSON-quoted YAML
+    # scalars so YAML-significant characters in operator-supplied
+    # values (#, : , leading {/[) can't break the rendered config.
+    assert '- url: "https://metrics.example.com/api/v1/write"' in content
     assert "type: Bearer" in content
-    assert "credentials: fake-token-xxx" in content
+    assert 'credentials: "fake-token-xxx"' in content
     # Cardinality defuse — Conductor #23 highest-priority.
     assert "(go_|process_|promhttp_).*" in content
     assert "action: drop" in content
     # Tenant label defaults to domain when tenant_id is unset.
     assert "target_label: tenant" in content
-    assert "replacement: example.com" in content
+    assert 'replacement: "example.com"' in content
 
 
 def test_grafana_tenant_id_overrides_domain_when_set(
@@ -306,8 +309,8 @@ def test_grafana_tenant_id_overrides_domain_when_set(
     )
     rendered = _render_grafana(full_config, env)
     sidecar = next(s for s in rendered.sidecars if s.relative_path == "prometheus.yml")
-    assert "replacement: class-2026-spring-cohort-a" in sidecar.content
-    assert "replacement: example.com" not in sidecar.content
+    assert 'replacement: "class-2026-spring-cohort-a"' in sidecar.content
+    assert 'replacement: "example.com"' not in sidecar.content
 
 
 def test_grafana_trailing_slash_on_endpoint_is_stripped(
@@ -324,7 +327,7 @@ def test_grafana_trailing_slash_on_endpoint_is_stripped(
     )
     rendered = _render_grafana(full_config, env)
     sidecar = next(s for s in rendered.sidecars if s.relative_path == "prometheus.yml")
-    assert "- url: https://metrics.example.com/api/v1/write" in sidecar.content
+    assert '- url: "https://metrics.example.com/api/v1/write"' in sidecar.content
     assert "//api/v1/write" not in sidecar.content
 
 
@@ -394,7 +397,47 @@ def test_grafana_remote_write_block_unit_no_tenant_falls_back_empty() -> None:
         # domain explicitly None, tenant_id None
     )
     block = _render_prometheus_remote_write_block(e)
-    assert "replacement: \n" in block or "replacement: " in block
+    # JSON-quoted empty string: "" — still valid YAML, no spoof risk.
+    assert 'replacement: ""\n' in block
+
+
+def test_grafana_remote_write_block_yaml_quotes_dangerous_chars() -> None:
+    """Operator-supplied values may contain YAML-significant chars
+    (#, ': ', leading {/[, backslashes, quotes). Each must be emitted
+    as a JSON-quoted YAML scalar so the rendered prometheus.yml stays
+    valid no matter what's in the secrets. Without this, Prometheus
+    would refuse to start with a parse error pointing at our generated
+    file — operator-debugging-nightmare territory.
+
+    Pins the invariant against any future refactor that switches back
+    to bare string interpolation."""
+    import json as _json
+
+    e = BootstrapEnv(
+        monitoring_endpoint="https://metrics.example.com/api: hello # comment",
+        monitoring_token='evil"token\\with{leading-brace',
+        tenant_id="weird: tenant #with comment",
+    )
+    block = _render_prometheus_remote_write_block(e)
+    # JSON quoting is the contract — every problematic value is wrapped
+    # in "..." with proper escaping. Verify by parsing the JSON-quoted
+    # field back and confirming the original value round-trips.
+    for line in block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- url:"):
+            quoted = stripped[len("- url:") :].strip()
+            # Round-trip via json.loads — would raise if the YAML
+            # scalar wasn't a valid JSON string.
+            value = _json.loads(quoted)
+            assert "api: hello # comment" in value
+        elif stripped.startswith("credentials:"):
+            quoted = stripped[len("credentials:") :].strip()
+            value = _json.loads(quoted)
+            assert value == 'evil"token\\with{leading-brace'
+        elif stripped.startswith("replacement:"):
+            quoted = stripped[len("replacement:") :].strip()
+            value = _json.loads(quoted)
+            assert value == "weird: tenant #with comment"
 
 
 # ---------------------------------------------------------------------------
