@@ -638,6 +638,16 @@ jobs:
           # PERSISTENCE_TEMPLATE_VERSION: github.ref_name (the running ref).
           PERSISTENCE_STACK_SLUG: ${{ secrets.PERSISTENCE_STACK_SLUG || github.event.repository.name }}
           PERSISTENCE_TEMPLATE_VERSION: ${{ github.ref_name }}
+          # Issue #607 — optional centralised monitoring (Nexus-Conductor #23).
+          # Both secrets are written by Conductor's `setup` operation when a
+          # stack is enrolled in the central monitoring tier. When unset (every
+          # standalone Nexus-Stack), the grafana renderer emits a no-op
+          # prometheus.yml and Prometheus runs exactly as before. TENANT_ID
+          # defaults to the stack's DOMAIN in the renderer when empty — Conductor
+          # may pin a different value if it wants per-class buckets or similar.
+          MONITORING_ENDPOINT: ${{ secrets.MONITORING_ENDPOINT }}
+          MONITORING_TOKEN: ${{ secrets.MONITORING_TOKEN }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
         run: |
           # Derive PERSISTENCE_S3_BUCKET inline — YAML expressions
           # can't `tr '.' '-'` but bash can. Same convention as the

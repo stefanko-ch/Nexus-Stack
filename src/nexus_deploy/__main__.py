@@ -181,6 +181,9 @@ def _infisical_bootstrap(args: list[str]) -> int:
         woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
         woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
+        monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
+        monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
+        tenant_id=os.environ.get("TENANT_ID") or None,
     )
     push_dir = Path(os.environ.get("PUSH_DIR") or "/tmp/infisical-push")  # noqa: S108
     client = InfisicalClient(
@@ -745,6 +748,9 @@ def _services_configure(args: list[str]) -> int:
         woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
         woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
+        monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
+        monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
+        tenant_id=os.environ.get("TENANT_ID") or None,
     )
 
     try:
@@ -1934,6 +1940,9 @@ def _service_env(args: list[str]) -> int:
         woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
         woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
+        monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
+        monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
+        tenant_id=os.environ.get("TENANT_ID") or None,
     )
 
     try:
@@ -2395,6 +2404,9 @@ def _run_all(args: list[str]) -> int:
         woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
         woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
+        monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
+        monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
+        tenant_id=os.environ.get("TENANT_ID") or None,
     )
 
     orchestrator = Orchestrator(
@@ -3215,6 +3227,9 @@ def _run_pre_bootstrap(args: list[str]) -> int:
         gitea_repo_owner=gitea_repo_owner,
         repo_name=repo_name,
         om_principal_domain=os.environ.get("OM_PRINCIPAL_DOMAIN") or None,
+        monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
+        monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
+        tenant_id=os.environ.get("TENANT_ID") or None,
     )
 
     gh_mirror_repos = [s.strip() for s in gh_mirror_repos_csv.split(",") if s.strip()]

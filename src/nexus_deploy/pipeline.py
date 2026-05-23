@@ -419,6 +419,9 @@ def run_pipeline(
             om_principal_domain=identity.om_principal_domain or None,
             ssh_private_key_base64=_b64_encode_ssh_key(options.ssh_private_key_content),
             subdomain_separator=tfvars_config.subdomain_separator,
+            monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
+            monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
+            tenant_id=os.environ.get("TENANT_ID") or None,
         )
         gh_mirror_repos_list = (
             [s.strip() for s in (options.gh_mirror_repos or "").split(",") if s.strip()]

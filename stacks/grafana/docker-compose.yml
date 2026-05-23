@@ -113,6 +113,20 @@ services:
     container_name: grafana-cadvisor
     restart: unless-stopped
     privileged: true
+    # Cardinality defuse (Conductor #23 highest-priority):
+    # --docker_only=true        ignore non-Docker cgroups (k8s/systemd noise)
+    # --store_container_labels=false
+    #                           by default cAdvisor turns every Docker
+    #                           label into a Prometheus label, so a single
+    #                           stack with a long Compose-generated network
+    #                           name can spawn thousands of new series per
+    #                           container. Disabling this caps per-stack
+    #                           cardinality at ~50-200 instead of unbounded.
+    # Both flags are safe locally too — Grafana dashboards key off
+    # container_name / id, not Docker labels.
+    command:
+      - '--docker_only=true'
+      - '--store_container_labels=false'
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro

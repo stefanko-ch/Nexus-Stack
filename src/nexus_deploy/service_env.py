@@ -208,13 +208,125 @@ def _render_infisical(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+_PROMETHEUS_REMOTE_WRITE_PLACEHOLDER = "# {{ REMOTE_WRITE_BLOCK }}"
+
+
+def _render_prometheus_remote_write_block(e: BootstrapEnv) -> str:
+    """Build the Prometheus ``remote_write`` config block for the
+    grafana stack's prometheus.yml, or a no-op comment when the
+    monitoring env vars are unset.
+
+    Three guards must ALL hold for an active ``remote_write`` block:
+    (1) endpoint set, (2) token set. Either missing → the block becomes
+    a single-line ``# remote_write disabled`` comment so Prometheus
+    happily starts with today's behaviour. This is the
+    backwards-compatibility contract from #607: existing stacks
+    without Conductor-injected secrets see zero behaviour change.
+
+    SECURITY: the Bearer token lives inline in the rendered
+    prometheus.yml. The file is written with mode 0o600 (see
+    :func:`_render_grafana`) — same threat model as the per-stack
+    ``.env`` files (host-level access requires SSH which is locked to
+    the CF Tunnel + email OTP). Tenant-label injection happens at the
+    central vmauth proxy server-side; the relabel rule below is
+    informational defense-in-depth (a malicious tenant can NOT use it
+    to spoof another tenant's bucket).
+
+    CARDINALITY: the ``go_*`` / ``process_*`` / ``promhttp_*`` drop
+    relabel is the highest-priority cardinality defuse from
+    Nexus-Conductor #23 — those series are useless for cross-stack
+    monitoring and inflate the central VM's series count per stack.
+    """
+    endpoint = (e.monitoring_endpoint or "").strip()
+    token = (e.monitoring_token or "").strip()
+    if not endpoint or not token:
+        return "# remote_write disabled — set MONITORING_ENDPOINT and MONITORING_TOKEN to enable"
+    # Tenant defaults to the stack's domain when TENANT_ID is unset —
+    # matches Conductor's expectation that each stack maps 1:1 to a
+    # distinct token + tenant pair (its token IS what authorizes the
+    # tenant label assignment at vmauth).
+    tenant = (e.tenant_id or e.domain or "").strip()
+    # Strip trailing slash on the endpoint so we don't end up with
+    # `https://host//api/v1/write` — Prometheus would 404 on that.
+    endpoint = endpoint.rstrip("/")
+    return (
+        "remote_write:\n"
+        f"  - url: {endpoint}/api/v1/write\n"
+        "    authorization:\n"
+        "      type: Bearer\n"
+        f"      credentials: {token}\n"
+        "    write_relabel_configs:\n"
+        "      # Cardinality defuse (Conductor #23): drop Prometheus-runtime\n"
+        "      # series that have no value for cross-stack monitoring.\n"
+        "      - source_labels: [__name__]\n"
+        "        regex: '(go_|process_|promhttp_).*'\n"
+        "        action: drop\n"
+        "      # Informational tenant label — vmauth enforces the real one\n"
+        "      # server-side from the token mapping; this is defense-in-depth.\n"
+        "      - target_label: tenant\n"
+        f"        replacement: {tenant}\n"
+    )
+
+
 def _render_grafana(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Grafana env vars + generated ``prometheus.yml`` sidecar.
+
+    Prometheus' YAML config doesn't support env-var substitution in
+    ``remote_write.url`` / ``authorization.credentials`` (only
+    ``external_labels`` + a couple of narrow places, per the
+    Prometheus docs), so the URL + Bearer token must be baked into
+    the config file at render time. We read ``prometheus.yml.template``
+    from the grafana stack dir (the human-editable source) and replace
+    the single ``{{ REMOTE_WRITE_BLOCK }}`` placeholder with either a
+    real ``remote_write`` config or a one-line disabled comment.
+
+    The template file itself is NOT consumed at runtime by Prometheus —
+    only the generated ``prometheus.yml`` (gitignored) is bind-mounted
+    into the container. Re-generated on every spin-up with the current
+    env vars.
+
+    Why mode 0o600 on the generated file: when MONITORING_TOKEN is set,
+    the rendered ``prometheus.yml`` contains the token in cleartext —
+    same threat model as the per-service ``.env`` files that already
+    hold passwords (host-level read access requires SSH which is locked
+    behind CF Tunnel + email OTP).
+    """
+    # Template path resolution: render_all_env_files passes
+    # ``stacks_dir`` and we resolve relative to it. We can't reach
+    # stacks_dir from here directly (the renderer signature is fixed
+    # to (config, env) for testability), so we read the template from
+    # the path relative to this Python file — the package ships with
+    # stacks/ alongside src/, and tests can monkey-patch
+    # ``_load_prometheus_template`` if they want a different layout.
+    template = _load_prometheus_template()
+    remote_write_block = _render_prometheus_remote_write_block(e)
+    prometheus_yml = template.replace(
+        _PROMETHEUS_REMOTE_WRITE_PLACEHOLDER, remote_write_block.rstrip("\n")
+    )
     return RenderedEnv(
         env_vars={
             "GRAFANA_ADMIN_USER": c.admin_username or "admin",
             "GRAFANA_ADMIN_PASSWORD": c.grafana_admin_password or "",
         },
+        sidecars=(
+            # mode 0o600 because the rendered file may contain the
+            # monitoring Bearer token in cleartext when enabled.
+            SidecarFile(relative_path="prometheus.yml", content=prometheus_yml, mode=0o600),
+        ),
     )
+
+
+def _load_prometheus_template() -> str:
+    """Load ``stacks/grafana/prometheus.yml.template`` from the repo.
+
+    Resolved relative to this Python file: the package layout has
+    ``src/nexus_deploy/service_env.py`` and ``stacks/grafana/...`` as
+    siblings under the project root. Tests can monkey-patch this
+    function to inject a fixture template.
+    """
+    project_root = Path(__file__).resolve().parents[2]
+    template_path = project_root / "stacks" / "grafana" / "prometheus.yml.template"
+    return template_path.read_text(encoding="utf-8")
 
 
 def _render_dagster(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:

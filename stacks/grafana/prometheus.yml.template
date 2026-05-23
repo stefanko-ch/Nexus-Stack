@@ -1,6 +1,20 @@
 # =============================================================================
 # Prometheus Configuration
 # =============================================================================
+# TEMPLATE: rendered to ./prometheus.yml by nexus_deploy.service_env's
+# _render_grafana(). Do NOT edit ./prometheus.yml directly — it's gitignored
+# and regenerated on every spin-up.
+#
+# The generated file is identical to this template, plus (when
+# MONITORING_ENDPOINT + MONITORING_TOKEN env vars are set by the workflow)
+# a `remote_write` block appended at the bottom. When the env vars are
+# unset (today's default for every existing stack) only a one-line
+# `# remote_write disabled` comment is appended — Prometheus runs
+# exactly as before.
+#
+# See issue #607 + Nexus-Conductor #23 for the centralised-monitoring
+# architecture.
+# =============================================================================
 
 global:
   scrape_interval: 15s
@@ -26,3 +40,5 @@ scrape_configs:
   - job_name: 'risingwave'
     static_configs:
       - targets: ['risingwave:1250']
+
+# {{ REMOTE_WRITE_BLOCK }}

@@ -85,6 +85,18 @@ class BootstrapEnv:
     # f-strings always interpolate it; the tfvars parser normalises
     # an empty value to ``"."``.
     subdomain_separator: str = "."
+    # Issue #607: optional Prometheus ``remote_write`` target for
+    # centralised cross-stack monitoring (see Nexus-Conductor #23).
+    # When both ``monitoring_endpoint`` and ``monitoring_token`` are
+    # set, the grafana stack renders a ``prometheus.yml`` with a
+    # ``remote_write`` block pointing at ``<endpoint>/api/v1/write``
+    # with a Bearer token; otherwise it renders today's no-remote_write
+    # variant. ``tenant_id`` defaults to ``domain`` when empty — vmauth
+    # enforces tenant labels server-side from the token mapping anyway,
+    # so the relabel rule we inject is informational defense-in-depth.
+    monitoring_endpoint: str | None = None
+    monitoring_token: str | None = None
+    tenant_id: str | None = None
 
 
 @dataclass(frozen=True)
