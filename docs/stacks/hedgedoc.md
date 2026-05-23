@@ -57,5 +57,5 @@ Both included in the S3-persistence snapshot loop (`NEXUS_S3_PERSISTENCE=true`).
 ### Troubleshooting
 
 - **"This site can't be reached"**: CF Access cookie expired — refresh, do OTP again
-- **Real-time sync stuck**: the WebSocket needs CF Tunnel to allow it. If you've customized the tunnel config, ensure `noTLSVerify: false` + `connectTimeout: 30s` are kept for the `hedgedoc.*` ingress rule
+- **Real-time sync stuck (cursors don't move for other users)**: HedgeDoc uses a WebSocket connection on `/socket.io/` for the live-cursor sync. Cloudflare Tunnel allows WebSockets by default for the ingress rules nexus-stack provisions in `tofu/stack/main.tf`. If sync breaks, check `docker logs hedgedoc | grep -i socket` on the server — it usually means the client browser failed the WS upgrade (network filter, ad-blocker). Plain document edits still save via HTTPS POST and are visible on page reload
 - **Image uploads fail**: check `docker logs hedgedoc | grep upload` — usually the `hedgedoc-uploads` volume is full (no resize logic; bump the host disk and restart the container)

@@ -3,7 +3,7 @@
 # =============================================================================
 # A drop-in OpenAI proxy that forwards to local Ollama, Anthropic,
 # OpenAI, Mistral, Groq, Together, Cohere, and 100+ others. Students
-# write code against `openai.OpenAI(base_url="https://litellm.YOUR_DOMAIN")`
+# write code against `openai.OpenAI(base_url="https://litellm.YOUR_DOMAIN/v1")`
 # and the proxy routes each request to the right backend based on
 # the `model` parameter — Ollama for `gpt-3.5-turbo` (free, local),
 # OpenAI for `gpt-4o` (real key), Anthropic for `claude-3-5-sonnet`,

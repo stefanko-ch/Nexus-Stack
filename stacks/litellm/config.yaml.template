@@ -9,8 +9,15 @@
 #       UI-added models in Postgres across container restarts)
 #
 # Pattern: every entry maps a client-facing OpenAI-compatible `model_name`
-# to a backend provider via `litellm_params.model`. Provider keys come from
-# env vars (set them as repo secrets, plumb via spin-up.yml).
+# to a backend provider via `litellm_params.model`. Provider API keys
+# (OPENAI_API_KEY, ANTHROPIC_API_KEY, ...) are NOT passed into the
+# container by default — adding a real-provider model requires three
+# manual steps documented in docs/stacks/litellm.md "Option B":
+#   (1) add the entry to THIS template,
+#   (2) add an `OPENAI_API_KEY: ${OPENAI_API_KEY}` line to the litellm
+#       service's environment: block in stacks/litellm/docker-compose.yml,
+#   (3) plumb the value from a repo secret via spin-up.yml + service_env.py
+#       (or set it on the server for a quick test before re-running deploy).
 # =============================================================================
 
 model_list:
