@@ -47,7 +47,7 @@ services:
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
       # Postgres DSN for cost-tracking + per-key persistence
       DATABASE_URL: postgres://nexus-litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
-      STORE_MODEL_IN_DB: "True"
+      STORE_MODEL_IN_DB: "true"
       # UI credentials. UI_PASSWORD is intentionally set to
       # LITELLM_MASTER_KEY so the operator has ONE rotation surface
       # instead of two parallel secrets to keep in sync. For a
