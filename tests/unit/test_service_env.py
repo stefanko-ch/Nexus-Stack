@@ -328,14 +328,17 @@ def test_grafana_trailing_slash_on_endpoint_is_stripped(
     assert "//api/v1/write" not in sidecar.content
 
 
-def test_grafana_prometheus_sidecar_mode_is_0o600(
+def test_grafana_prometheus_sidecar_mode_is_0o644(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """SECURITY: when the token is set, prometheus.yml contains it in
-    cleartext. Must be mode 0o600 — same threat-model treatment as
-    SFTPGo's .env (admin credential in cleartext). The disabled-
-    variant uses the same mode for consistency, since flipping mode
-    based on content would be a silent ops surprise."""
+    """Mode must be 0o644: this file is bind-mounted into the
+    prometheus container which runs as a non-root UID (65534 in
+    prom/prometheus 2.x+). A stricter mode like 0o600 owned by the
+    host deploy user would lock the container's prometheus process
+    out of its own config and the container would fail to start with
+    "permission denied". The token-in-cleartext concern is offset by
+    the host-access barrier (SSH behind CF Tunnel + email OTP) +
+    the token's redundant presence in Infisical + Actions secrets."""
     env = BootstrapEnv(
         **{
             **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
@@ -345,7 +348,7 @@ def test_grafana_prometheus_sidecar_mode_is_0o600(
     )
     rendered = _render_grafana(full_config, env)
     sidecar = next(s for s in rendered.sidecars if s.relative_path == "prometheus.yml")
-    assert sidecar.mode == 0o600
+    assert sidecar.mode == 0o644
 
 
 def test_grafana_raises_when_template_placeholder_missing(

@@ -226,13 +226,13 @@ def _render_prometheus_remote_write_block(e: BootstrapEnv) -> str:
     render time, so an unset tenant_id never disables the block.)
 
     SECURITY: the Bearer token lives inline in the rendered
-    prometheus.yml. The file is written with mode 0o600 (see
-    :func:`_render_grafana`) — same threat model as the per-stack
-    ``.env`` files (host-level access requires SSH which is locked to
-    the CF Tunnel + email OTP). Tenant-label injection happens at the
-    central vmauth proxy server-side; the relabel rule below is
-    informational defense-in-depth (a malicious tenant can NOT use it
-    to spoof another tenant's bucket).
+    prometheus.yml. The file is mode 0o644 (must be readable by the
+    non-root Prometheus container process — see :func:`_render_grafana`);
+    secrecy rests on the host-access barrier (SSH behind CF Tunnel +
+    email OTP). Tenant-label injection happens at the central vmauth
+    proxy server-side; the relabel rule below is informational
+    defense-in-depth (a malicious tenant can NOT use it to spoof
+    another tenant's bucket).
 
     CARDINALITY: the ``go_*`` / ``process_*`` / ``promhttp_*`` drop
     relabel is the highest-priority cardinality defuse from
@@ -287,11 +287,11 @@ def _render_grafana(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     into the container. Re-generated on every spin-up with the current
     env vars.
 
-    Why mode 0o600 on the generated file: when MONITORING_TOKEN is set,
-    the rendered ``prometheus.yml`` contains the token in cleartext —
-    same threat model as the per-service ``.env`` files that already
-    hold passwords (host-level read access requires SSH which is locked
-    behind CF Tunnel + email OTP).
+    Mode 0o644 (not 0o600 despite the token-in-cleartext): this file
+    is bind-mounted into the prometheus container which runs as a
+    non-root UID — a stricter mode would lock Prometheus itself out
+    of its own config. Token secrecy still rests on the host-access
+    barrier (SSH behind CF Tunnel + email OTP).
     """
     # Template path resolution: render_all_env_files passes
     # ``stacks_dir`` and we resolve relative to it. We can't reach
@@ -326,9 +326,21 @@ def _render_grafana(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "GRAFANA_ADMIN_PASSWORD": c.grafana_admin_password or "",
         },
         sidecars=(
-            # mode 0o600 because the rendered file may contain the
-            # monitoring Bearer token in cleartext when enabled.
-            SidecarFile(relative_path="prometheus.yml", content=prometheus_yml, mode=0o600),
+            # mode 0o644: this file is bind-mounted INTO the prometheus
+            # container (see stacks/grafana/docker-compose.yml's
+            # `./prometheus.yml:/etc/prometheus/prometheus.yml:ro`), and
+            # the prom/prometheus image runs as a non-root UID (65534
+            # since 2.x). A 0o600 file owned by the host deploy user
+            # would be unreadable inside the container, causing
+            # Prometheus to fail to start with "permission denied".
+            # The Bearer token in this file is still protected by:
+            # (a) host-level access requires SSH which is locked behind
+            # the Cloudflare Tunnel + email OTP, (b) the same token is
+            # already pushed to Infisical + lives in Actions secrets —
+            # the file is not the only place it exists. Matches the
+            # mode of other bind-mounted configs in this stack
+            # (loki-config.yml, promtail-config.yml).
+            SidecarFile(relative_path="prometheus.yml", content=prometheus_yml, mode=0o644),
         ),
     )
 

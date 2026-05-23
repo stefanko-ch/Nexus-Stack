@@ -155,9 +155,16 @@ class Handler(BaseHTTPRequestHandler):
 HTTPServer(('0.0.0.0', 9999), Handler).serve_forever()
 "
 
-# Terminal 2 — temporary repo secrets
+# Terminal 2 — temporary repo secrets.
+# MONITORING_ENDPOINT is a URL (not sensitive) so --body inline is fine.
+# MONITORING_TOKEN IS sensitive — use stdin so the value never appears in
+# shell history or `ps` listings. The same advice applies for the real
+# token from your production central-monitoring tier — never paste it
+# into `--body "..."`.
 gh secret set MONITORING_ENDPOINT --body "http://<your-runner-tunnel>:9999"
-gh secret set MONITORING_TOKEN --body "test-token-123"
+printf 'test-token-123' | gh secret set MONITORING_TOKEN --body-file -
+# Or use the GitHub UI: Settings → Secrets and variables → Actions → New
+# repository secret (the value is typed into a password field, no shell at all).
 
 # Trigger spin-up, then SSH to the server and tail logs:
 ssh nexus "docker logs grafana-prometheus 2>&1 | grep -i remote"
