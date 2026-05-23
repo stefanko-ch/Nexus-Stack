@@ -216,12 +216,14 @@ def _render_prometheus_remote_write_block(e: BootstrapEnv) -> str:
     grafana stack's prometheus.yml, or a no-op comment when the
     monitoring env vars are unset.
 
-    Three guards must ALL hold for an active ``remote_write`` block:
+    Two guards must BOTH hold for an active ``remote_write`` block:
     (1) endpoint set, (2) token set. Either missing → the block becomes
     a single-line ``# remote_write disabled`` comment so Prometheus
     happily starts with today's behaviour. This is the
     backwards-compatibility contract from #607: existing stacks
     without Conductor-injected secrets see zero behaviour change.
+    (``tenant_id`` is NOT a guard — it has a domain fallback at
+    render time, so an unset tenant_id never disables the block.)
 
     SECURITY: the Bearer token lives inline in the rendered
     prometheus.yml. The file is written with mode 0o600 (see
@@ -299,6 +301,21 @@ def _render_grafana(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     # stacks/ alongside src/, and tests can monkey-patch
     # ``_load_prometheus_template`` if they want a different layout.
     template = _load_prometheus_template()
+    # Fail-fast on template drift: if the placeholder is missing,
+    # str.replace silently no-ops and the renderer would produce a
+    # prometheus.yml without ANY remote_write block — even when the
+    # operator has set MONITORING_ENDPOINT + MONITORING_TOKEN expecting
+    # metrics to flow. Catch this at render time so the deploy aborts
+    # with an actionable message instead of silently failing to push.
+    if _PROMETHEUS_REMOTE_WRITE_PLACEHOLDER not in template:
+        raise ServiceEnvError(
+            "stacks/grafana/prometheus.yml.template is missing the "
+            f"{_PROMETHEUS_REMOTE_WRITE_PLACEHOLDER!r} placeholder — "
+            "remote_write rendering can't proceed. Restore the placeholder "
+            "(usually at the very bottom of the template) or revert local "
+            "edits to that file. Aborting to avoid a silent monitoring-off "
+            "deploy.",
+        )
     remote_write_block = _render_prometheus_remote_write_block(e)
     prometheus_yml = template.replace(
         _PROMETHEUS_REMOTE_WRITE_PLACEHOLDER, remote_write_block.rstrip("\n")

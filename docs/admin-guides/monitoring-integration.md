@@ -137,13 +137,13 @@ exponentially — no manual intervention needed.
 
 ## Manual smoke test
 
-To verify locally before enrolling with a real central tier, point
-at a simple echo server:
+To verify locally before enrolling with a real central tier, run a
+mock receiver that returns `200 OK` to POSTs (Prometheus'
+`remote_write` is POST-only — Python's stock `http.server` returns
+`501 Not Implemented` for POST and won't work here):
 
 ```bash
-# Terminal 1 — mock receiver
-python3 -m http.server 9999 &
-# Or capture full requests:
+# Terminal 1 — mock receiver that accepts POST and logs the request
 python3 -c "
 from http.server import HTTPServer, BaseHTTPRequestHandler
 class Handler(BaseHTTPRequestHandler):

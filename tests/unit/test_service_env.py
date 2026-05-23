@@ -348,6 +348,38 @@ def test_grafana_prometheus_sidecar_mode_is_0o600(
     assert sidecar.mode == 0o600
 
 
+def test_grafana_raises_when_template_placeholder_missing(
+    full_config: NexusConfig, full_env: BootstrapEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SAFETY: if the prometheus.yml.template is edited and the
+    {{ REMOTE_WRITE_BLOCK }} placeholder gets removed/renamed,
+    str.replace silently no-ops — the rendered prometheus.yml would
+    contain no remote_write block even when the operator has set
+    MONITORING_ENDPOINT + MONITORING_TOKEN expecting metrics to flow.
+    Renderer must fail-fast with a clear ServiceEnvError pointing at
+    the template so the deploy aborts instead of silently dropping
+    monitoring data."""
+    import nexus_deploy.service_env as svc_env
+
+    # Monkey-patch the template loader to return a template WITHOUT
+    # the placeholder — simulates an operator who hand-edited the
+    # file and accidentally stripped the marker line.
+    monkeypatch.setattr(
+        svc_env,
+        "_load_prometheus_template",
+        lambda: "global:\n  scrape_interval: 15s\n# (placeholder accidentally removed)\n",
+    )
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "monitoring_endpoint": "https://metrics.example.com",
+            "monitoring_token": "fake-token",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="REMOTE_WRITE_BLOCK"):
+        _render_grafana(full_config, env)
+
+
 def test_grafana_remote_write_block_unit_no_tenant_falls_back_empty() -> None:
     """Edge case unit-test on the helper: when BOTH tenant_id and
     domain are None, the tenant replacement field is an empty string
