@@ -66,6 +66,10 @@ Images are pinned to **major versions** where supported for automatic security p
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
 | Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
+| HedgeDoc | `quay.io/hedgedoc/hedgedoc` | `1.10.3` | Exact ¹ |
+| PostgreSQL (HedgeDoc DB) | `postgres` | `16-alpine` | Major |
+| LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
+| PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
@@ -148,6 +152,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Git Proxy** | Public Git HTTPS proxy | [git-proxy.md](git-proxy.md) |
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
+| **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
 | **IT-Tools** | Developer tools collection | [it-tools.md](it-tools.md) |
@@ -156,6 +161,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Kafka-UI** | Kafka/Redpanda management UI | [kafka-ui.md](kafka-ui.md) |
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |
 | **LakeFS** | Git-like version control for data lakes | [lakefs.md](lakefs.md) |
+| **LiteLLM Proxy** | Unified OpenAI-compatible proxy for 100+ LLM providers | [litellm.md](litellm.md) |
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |
 | **Marimo** | Reactive Python notebook | [marimo.md](marimo.md) |

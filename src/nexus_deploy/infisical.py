@@ -661,6 +661,29 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "hedgedoc",
+            _filter_empty(
+                {
+                    "HEDGEDOC_SESSION_SECRET": config.hedgedoc_session_secret,
+                    "HEDGEDOC_DB_PASSWORD": config.hedgedoc_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "litellm",
+            _filter_empty(
+                {
+                    "LITELLM_MASTER_KEY": config.litellm_master_key,
+                    "LITELLM_SALT_KEY": config.litellm_salt_key,
+                    "LITELLM_DB_PASSWORD": config.litellm_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "mage",
             _filter_empty(
                 {

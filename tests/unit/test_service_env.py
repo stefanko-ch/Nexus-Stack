@@ -67,6 +67,11 @@ def full_config() -> NexusConfig:
         superset_secret_key="superset-key",
         cloudbeaver_admin_password="cb-pw",
         meilisearch_master_key="meili-master-key-32chars-xxxxxxx",
+        hedgedoc_session_secret="hedgedoc-session-32chars-xxxxxxx",
+        hedgedoc_db_password="hedgedoc-db-pw",
+        litellm_master_key="litellm-master-32chars-xxxxxxxxx",
+        litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
+        litellm_db_password="litellm-db-pw",
         mage_admin_password="mage-pw",
         minio_root_password="minio-pw",
         sftpgo_admin_password="sftpgo-admin",
@@ -439,6 +444,187 @@ def test_grafana_remote_write_block_yaml_quotes_dangerous_chars() -> None:
             quoted = stripped[len("replacement:") :].strip()
             value = _json.loads(quoted)
             assert value == "weird: tenant #with comment"
+
+
+# ---------------------------------------------------------------------------
+# HedgeDoc — fail-fast guard + domain composition
+# ---------------------------------------------------------------------------
+
+
+def test_hedgedoc_raises_on_empty_session_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty session secret silently produces insecure sessions
+    (container starts, all session cookies are signed with empty
+    HMAC key — anyone can forge). Abort at deploy time instead."""
+    from nexus_deploy.service_env import _render_hedgedoc
+
+    config = full_config.model_copy(update={"hedgedoc_session_secret": ""})
+    with pytest.raises(ServiceEnvError, match="HEDGEDOC_SESSION_SECRET"):
+        _render_hedgedoc(config, full_env)
+
+
+def test_hedgedoc_raises_on_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty DB password crashes the Postgres container init on
+    first start with a cryptic auth-failed log. Abort at deploy
+    time with a clear error pointing at the missing Tofu apply."""
+    from nexus_deploy.service_env import _render_hedgedoc
+
+    config = full_config.model_copy(update={"hedgedoc_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="HEDGEDOC_DB_PASSWORD"):
+        _render_hedgedoc(config, full_env)
+
+
+def test_hedgedoc_raises_lists_all_missing_at_once(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """If BOTH secrets are missing, the error message names BOTH so
+    the operator does one Tofu apply + spin-up cycle instead of
+    iterating one missing-secret at a time."""
+    from nexus_deploy.service_env import _render_hedgedoc
+
+    config = full_config.model_copy(
+        update={"hedgedoc_session_secret": "", "hedgedoc_db_password": ""}
+    )
+    with pytest.raises(ServiceEnvError, match=r"HEDGEDOC_SESSION_SECRET.*HEDGEDOC_DB_PASSWORD"):
+        _render_hedgedoc(config, full_env)
+
+
+def test_hedgedoc_renders_domain_from_bootstrap_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """HEDGEDOC_DOMAIN must be derived from BootstrapEnv (subdomain
+    'hedgedoc' + DOMAIN via service_host). HedgeDoc bakes the domain
+    into absolute URLs (image attachments, OAuth callback links) at
+    container-start time — wrong value breaks all share links."""
+    from nexus_deploy.service_env import _render_hedgedoc
+
+    rendered = _render_hedgedoc(full_config, full_env)
+    assert rendered.env_vars["HEDGEDOC_DOMAIN"] == "hedgedoc.example.com"
+    assert rendered.env_vars["HEDGEDOC_SESSION_SECRET"]
+    assert rendered.env_vars["HEDGEDOC_DB_PASSWORD"]
+
+
+def test_hedgedoc_domain_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Multi-tenant forks set subdomain_separator='-' to get flat
+    subdomains (hedgedoc-user1.example.com). The renderer must use
+    service_host so it picks up that override."""
+    from nexus_deploy.service_env import _render_hedgedoc
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_hedgedoc(full_config, env)
+    assert rendered.env_vars["HEDGEDOC_DOMAIN"] == "hedgedoc-example.com"
+
+
+# ---------------------------------------------------------------------------
+# LiteLLM Proxy — fail-fast guard + config.yaml sidecar
+# ---------------------------------------------------------------------------
+
+
+def test_litellm_raises_on_empty_master_key(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty master key means LiteLLM either rejects every request
+    (no auth gate at all) or accepts every request unauthenticated
+    depending on version — either way a silent security failure."""
+    from nexus_deploy.service_env import _render_litellm
+
+    config = full_config.model_copy(update={"litellm_master_key": ""})
+    with pytest.raises(ServiceEnvError, match="LITELLM_MASTER_KEY"):
+        _render_litellm(config, full_env)
+
+
+def test_litellm_raises_on_empty_salt_key(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Empty salt key means derived keys in DB can't be verified —
+    UI logins fail with a generic 'invalid key' that points nowhere."""
+    from nexus_deploy.service_env import _render_litellm
+
+    config = full_config.model_copy(update={"litellm_salt_key": ""})
+    with pytest.raises(ServiceEnvError, match="LITELLM_SALT_KEY"):
+        _render_litellm(config, full_env)
+
+
+def test_litellm_raises_lists_all_missing_at_once(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """All three secrets missing → error names all three so the
+    operator does one Tofu apply + spin-up cycle to fix them all."""
+    from nexus_deploy.service_env import _render_litellm
+
+    config = full_config.model_copy(
+        update={
+            "litellm_master_key": "",
+            "litellm_salt_key": "",
+            "litellm_db_password": "",
+        }
+    )
+    with pytest.raises(
+        ServiceEnvError,
+        match=r"LITELLM_MASTER_KEY.*LITELLM_SALT_KEY.*LITELLM_DB_PASSWORD",
+    ):
+        _render_litellm(config, full_env)
+
+
+def test_litellm_emits_config_yaml_sidecar(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """config.yaml sidecar carries the model routing table. Must:
+    - exist
+    - declare at least one model (gpt-3.5-turbo → Ollama starter)
+    - reference the master key via env-var (NOT inline the secret)
+    - point at the in-stack Ollama at the docker-network hostname"""
+    from nexus_deploy.service_env import _render_litellm
+
+    rendered = _render_litellm(full_config, full_env)
+    sidecar = next((s for s in rendered.sidecars if s.relative_path == "config.yaml"), None)
+    assert sidecar is not None
+    content = sidecar.content
+    assert "model_list:" in content
+    assert "model_name: gpt-3.5-turbo" in content
+    assert "model: ollama/llama3" in content
+    assert "api_base: http://ollama:11434" in content
+    # Master key MUST be env-var-referenced, never inline — operator
+    # rotates the secret by Tofu-applying + Infisical-pushing, not
+    # by editing the rendered file.
+    assert "master_key: os.environ/LITELLM_MASTER_KEY" in content
+    master_key = full_config.litellm_master_key or ""
+    assert master_key  # fixture has it set
+    assert master_key not in content
+
+
+def test_litellm_admin_username_falls_back_to_admin(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """LITELLM_UI_USERNAME defaults to 'admin' when admin_username
+    is unset — UI login form needs a username field."""
+    from nexus_deploy.service_env import _render_litellm
+
+    config = full_config.model_copy(update={"admin_username": None})
+    rendered = _render_litellm(config, full_env)
+    assert rendered.env_vars["LITELLM_UI_USERNAME"] == "admin"
+
+
+def test_litellm_env_vars_include_all_three_secrets(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The compose substitutes LITELLM_MASTER_KEY (auth),
+    LITELLM_SALT_KEY (DB-hash), LITELLM_DB_PASSWORD (Postgres) —
+    each must reach the rendered .env."""
+    from nexus_deploy.service_env import _render_litellm
+
+    rendered = _render_litellm(full_config, full_env)
+    assert rendered.env_vars["LITELLM_MASTER_KEY"] == full_config.litellm_master_key
+    assert rendered.env_vars["LITELLM_SALT_KEY"] == full_config.litellm_salt_key
+    assert rendered.env_vars["LITELLM_DB_PASSWORD"] == full_config.litellm_db_password
 
 
 # ---------------------------------------------------------------------------

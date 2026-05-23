@@ -314,6 +314,18 @@ services:
       cadvisor: "ghcr.io/google/cadvisor:0.56"
       node-exporter: "prom/node-exporter:v1.10.2"
 
+  hedgedoc:
+    subdomain: "hedgedoc"
+    port: 3110
+    public: false
+    category: "collaboration"
+    website: "https://hedgedoc.org"
+    description: "Collaborative real-time Markdown editor (HackMD/StackEdit alternative)."
+    long_description: "HedgeDoc is a self-hosted collaborative Markdown editor — real-time multi-user editing, MathJax / Mermaid / KaTeX / PlantUML rendering, slide-mode (revealjs), version history. In Nexus-Stack: classroom workshops where students take joint notes (one URL, many cursors), or collaborate on Markdown documentation for a project. Dedicated PostgreSQL backend, sign-up disabled — access controlled by Cloudflare Access (email OTP) at the edge with anonymous URL-sharing enabled inside."
+    image: "quay.io/hedgedoc/hedgedoc:1.10.3"
+    support_images:
+      postgres: "postgres:16-alpine"
+
   hoppscotch:
     subdomain: "hoppscotch"
     port: 3003
@@ -404,6 +416,18 @@ services:
     description: "Open-source orchestration and scheduling platform for data pipelines and workflows."
     long_description: "Kestra is an orchestration platform for scheduling and managing complex workflows. Define pipelines in YAML, use 500+ plugins for integrations, and orchestrate data pipelines, microservices, and business processes. Features a visual flow editor, real-time monitoring, and built-in secret management."
     image: "kestra/kestra:v1.0"
+    support_images:
+      postgres: "postgres:16-alpine"
+
+  litellm:
+    subdomain: "litellm"
+    port: 4000
+    public: false
+    category: "ai-ml"
+    website: "https://www.litellm.ai"
+    description: "Unified OpenAI-compatible proxy for 100+ LLM providers (Ollama, OpenAI, Anthropic, Mistral, Groq, ...)."
+    long_description: "LiteLLM is a drop-in OpenAI-compatible proxy that forwards requests to any LLM provider — local Ollama (free, in-stack), OpenAI, Anthropic, Mistral, Groq, Cohere, Together, and 100+ others — based on the `model` parameter. Killer features for a teaching stack: per-key budget limits (give a student a $5/mo cap), cost tracking per user/project (UI at /ui), and a single API surface so students learn one SDK and access every model. Dedicated Postgres for cost tracking; joins ollama-internal so it can reach the local Ollama directly at `ollama:11434`."
+    image: "litellm/litellm-database:v1.85.1"
     support_images:
       postgres: "postgres:16-alpine"
 

@@ -146,6 +146,40 @@ resource "random_password" "meilisearch_master_key" {
   special = false
 }
 
+# HedgeDoc session secret — signs the session cookie. 32 chars
+# (HedgeDoc docs recommend >=32 random bytes).
+resource "random_password" "hedgedoc_session_secret" {
+  length  = 32
+  special = false
+}
+
+# HedgeDoc Postgres password — dedicated DB, not shared.
+resource "random_password" "hedgedoc_db_password" {
+  length  = 24
+  special = false
+}
+
+# LiteLLM master key — Bearer token for admin ops + /ui login.
+# Length 32 because it's the single auth gate to every provider
+# proxied behind it (Ollama, OpenAI, Anthropic, ...).
+resource "random_password" "litellm_master_key" {
+  length  = 32
+  special = false
+}
+
+# LiteLLM salt key — hashes derived API keys before storing in DB.
+# Operator can rotate to invalidate all student-issued keys at once.
+resource "random_password" "litellm_salt_key" {
+  length  = 32
+  special = false
+}
+
+# LiteLLM Postgres password — dedicated DB, not shared.
+resource "random_password" "litellm_db_password" {
+  length  = 24
+  special = false
+}
+
 # Mage AI admin password
 resource "random_password" "mage_admin" {
   length  = 24

@@ -1,0 +1,109 @@
+# =============================================================================
+# LiteLLM Proxy - Unified OpenAI-compatible API for ANY provider
+# =============================================================================
+# A drop-in OpenAI proxy that forwards to local Ollama, Anthropic,
+# OpenAI, Mistral, Groq, Together, Cohere, and 100+ others. Students
+# write code against `openai.OpenAI(base_url="https://litellm.YOUR_DOMAIN")`
+# and the proxy routes each request to the right backend based on
+# the `model` parameter — Ollama for `gpt-3.5-turbo` (free, local),
+# OpenAI for `gpt-4o` (real key), Anthropic for `claude-3-5-sonnet`,
+# etc.
+#
+# Killer features for a teaching stack:
+#   - Cost tracking per user / per project (UI at /ui)
+#   - Per-key budget limits (give a student key with $5/mo cap)
+#   - Single API surface — students learn ONE SDK (openai-python)
+#     and access every model
+#   - Pairs with Ollama (already in the stack) for free local inference
+#     and with real APIs (operator-supplied keys) for production-grade
+#
+# Access:
+#   - API: https://litellm.YOUR_DOMAIN (OpenAI-compatible /v1/* routes)
+#   - UI:  https://litellm.YOUR_DOMAIN/ui (admin login with LITELLM_MASTER_KEY)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # LiteLLM Proxy - API gateway + UI
+  # ---------------------------------------------------------------------------
+  litellm:
+    image: ${IMAGE_LITELLM:-litellm/litellm-database:v1.85.1}
+    container_name: litellm
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    command:
+      - "--config=/app/config.yaml"
+      - "--port=4000"
+      - "--num_workers=1"
+    environment:
+      # Master key for admin operations + UI login. Bearer-prefixed
+      # in API calls (`Authorization: Bearer ${LITELLM_MASTER_KEY}`).
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      # Salt for hashing the model-list + user-table entries in
+      # Postgres — operator can rotate to invalidate all derived keys.
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      # Postgres DSN for cost-tracking + per-key persistence
+      DATABASE_URL: postgres://nexus-litellm:${LITELLM_DB_PASSWORD}@litellm-db:5432/litellm
+      STORE_MODEL_IN_DB: "True"
+      # UI credentials (separate from master key so students can have
+      # read-only UI access without the admin bearer token)
+      UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
+      UI_PASSWORD: ${LITELLM_MASTER_KEY}
+      # Telemetry off (project-wide convention)
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      LITELLM_LOG: "INFO"
+    volumes:
+      # config.yaml = model routing table — rendered by nexus_deploy
+      # as a sidecar based on the operator's Ollama deployment + any
+      # provider keys they've set in repo secrets.
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+    networks:
+      - app-network
+      - litellm-internal
+      - ollama-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4000/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # LiteLLM - Dedicated PostgreSQL (cost tracking + key persistence)
+  # ---------------------------------------------------------------------------
+  litellm-db:
+    image: ${IMAGE_LITELLM_DB:-postgres:16-alpine}
+    container_name: litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-litellm
+      POSTGRES_PASSWORD: ${LITELLM_DB_PASSWORD}
+      POSTGRES_DB: litellm
+    volumes:
+      - litellm-db-data:/var/lib/postgresql/data
+    networks:
+      - litellm-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  litellm-db-data:
+
+networks:
+  app-network:
+    external: true
+  litellm-internal:
+    driver: bridge
+  # External network from the ollama stack — joining lets LiteLLM
+  # reach `ollama:11434` directly when ollama is also enabled.
+  ollama-internal:
+    external: true

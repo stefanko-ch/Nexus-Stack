@@ -1,0 +1,92 @@
+# =============================================================================
+# HedgeDoc - Collaborative real-time Markdown editor
+# =============================================================================
+# Self-hosted HackMD/StackEdit-style editor. Real-time multi-user
+# editing, MathJax / Mermaid / KaTeX / PlantUML rendering, slide-mode
+# (revealjs), version history.
+#
+# Classroom use case: students take joint notes during a workshop
+# (one URL, many cursors), or collaborate on Markdown documentation
+# for a project. Each "note" gets a slug URL — invite by sharing the
+# link.
+#
+# Access: https://hedgedoc.YOUR_DOMAIN (behind Cloudflare Access by
+# default; flip `public: true` in services.yaml if you want
+# open-link sharing without an OTP gate)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # HedgeDoc - Web UI
+  # ---------------------------------------------------------------------------
+  hedgedoc:
+    image: ${IMAGE_HEDGEDOC:-quay.io/hedgedoc/hedgedoc:1.10.3}
+    container_name: hedgedoc
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "3110:3000"
+    environment:
+      # Database
+      CMD_DB_URL: postgres://nexus-hedgedoc:${HEDGEDOC_DB_PASSWORD}@hedgedoc-db:5432/hedgedoc
+      # Public URL — composed at render time so the OAuth /
+      # absolute-link generation matches what CF Access serves.
+      CMD_DOMAIN: ${HEDGEDOC_DOMAIN}
+      CMD_URL_ADDPORT: "false"
+      CMD_PROTOCOL_USESSL: "true"
+      # Auth: we deliberately disable HedgeDoc's own email signup —
+      # access control is Cloudflare Access (email OTP) at the edge.
+      # Anonymous notes stay enabled so the URL-sharing workflow works.
+      CMD_ALLOW_EMAIL_REGISTER: "false"
+      CMD_ALLOW_ANONYMOUS: "true"
+      CMD_ALLOW_ANONYMOUS_EDITS: "true"
+      CMD_ALLOW_FREEURL: "true"
+      CMD_DEFAULT_PERMISSION: "editable"
+      # Session secret — random 32+ chars from Tofu (Infisical-backed)
+      CMD_SESSION_SECRET: ${HEDGEDOC_SESSION_SECRET}
+    volumes:
+      - hedgedoc-uploads:/hedgedoc/public/uploads
+    depends_on:
+      hedgedoc-db:
+        condition: service_healthy
+    networks:
+      - app-network
+      - hedgedoc-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # HedgeDoc - Dedicated PostgreSQL
+  # ---------------------------------------------------------------------------
+  hedgedoc-db:
+    image: ${IMAGE_HEDGEDOC_DB:-postgres:16-alpine}
+    container_name: hedgedoc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-hedgedoc
+      POSTGRES_PASSWORD: ${HEDGEDOC_DB_PASSWORD}
+      POSTGRES_DB: hedgedoc
+    volumes:
+      - hedgedoc-db-data:/var/lib/postgresql/data
+    networks:
+      - hedgedoc-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-hedgedoc -d hedgedoc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  hedgedoc-uploads:
+  hedgedoc-db-data:
+
+networks:
+  app-network:
+    external: true
+  hedgedoc-internal:
+    driver: bridge

@@ -159,6 +159,15 @@ output "secrets" {
     # Meilisearch
     meilisearch_master_key = random_password.meilisearch_master_key.result
 
+    # HedgeDoc
+    hedgedoc_session_secret = random_password.hedgedoc_session_secret.result
+    hedgedoc_db_password    = random_password.hedgedoc_db_password.result
+
+    # LiteLLM Proxy
+    litellm_master_key  = random_password.litellm_master_key.result
+    litellm_salt_key    = random_password.litellm_salt_key.result
+    litellm_db_password = random_password.litellm_db_password.result
+
     # ClickHouse
     clickhouse_admin_password = random_password.clickhouse_admin.result
 
