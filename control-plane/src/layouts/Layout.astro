@@ -4,6 +4,7 @@ import Toast from '../components/Toast.astro';
 import StacksShared from '../components/StacksShared.astro';
 import PendingBar from '../components/PendingBar.astro';
 import ShortcutsHelp from '../components/ShortcutsHelp.astro';
+import ApiOnlyModal from '../components/ApiOnlyModal.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -37,5 +38,6 @@ const { title, activeNav = '', narrow = false } = Astro.props;
     </footer>
   </div>
   <ShortcutsHelp />
+  <ApiOnlyModal />
 </body>
 </html>

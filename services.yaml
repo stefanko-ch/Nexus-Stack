@@ -443,6 +443,7 @@ services:
     subdomain: "meilisearch"
     port: 7700
     public: false
+    api_only: true   # No web UI in production mode — clicking opens an API-info modal instead of the JSON root
     category: "ai-ml"
     website: "https://www.meilisearch.com"
     description: "Lightning-fast Rust-based full-text search engine — sub-100ms typo-tolerant queries, schema-less."

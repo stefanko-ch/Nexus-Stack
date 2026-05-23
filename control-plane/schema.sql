@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS services (
     website TEXT DEFAULT '',
     long_description TEXT DEFAULT '',
     landing_path TEXT DEFAULT '',
+    api_only INTEGER DEFAULT 0,
     updated_at TEXT DEFAULT (datetime('now'))
 );
 

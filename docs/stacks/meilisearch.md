@@ -24,6 +24,9 @@ Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-1
 1. Enable **Meilisearch** in the Control Plane → Spin Up
 2. Get the master key from **Infisical** → folder `meilisearch` → key `MEILISEARCH_MASTER_KEY`
 3. Hit the REST API with that key. The compose file sets `MEILI_ENV=production`, which intentionally disables the built-in `/` preview dashboard for security.
+
+> **No web UI by design.** Clicking the Meilisearch tile in the Control Plane opens an **API-info modal** with the curl snippets and the Infisical-fetch command (it does **not** open the raw URL, which would just return `{"status":"Meilisearch is running"}`). The modal is wired up via the `api_only: true` flag in `services.yaml` — the same pattern is available for any future API-only service. If you genuinely want to see the raw JSON, the modal has an "Open raw API ↗" link.
+
    - **From inside Nexus-Stack** (other containers like code-server, Kestra, Dify): hit `http://meilisearch:7700/...` directly — internal Docker network, no CF Access in the path, just the master key as the auth layer.
    - **From outside** (your laptop, external CI): the `https://meilisearch.YOUR_DOMAIN/...` URL is behind Cloudflare Access (email OTP). Only `ssh` and `infisical` have CF Access service-token policies wired up in `tofu/stack/main.tf` (private stacks like Meilisearch use the email-OTP policy only), so plain script-style curl from external CI **won't work** without first adding a service-token policy for this stack. Two workable options:
      - **Browser:** log in once via OTP, then use the dashboard / browser-based clients while the cookie is valid.

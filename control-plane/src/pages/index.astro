@@ -592,14 +592,29 @@ import Layout from '../layouts/Layout.astro';
       // without a subdomain).
       const url = s.deployed ? window.NS.stackUrl(s) : '';
       if (url) {
-        html += '<a href="' + url + '" target="_blank" rel="noopener" class="stack-chip">' +
-          escapeHtml(s.name) + '<span class="arrow">&#8599;</span></a>';
+        const chipClass = s.api_only ? 'stack-chip api-only' : 'stack-chip';
+        const glyph = s.api_only
+          ? '<span class="arrow" title="REST API only">&#9432;</span>'
+          : '<span class="arrow">&#8599;</span>';
+        const dataAttr = s.api_only ? ' data-api-only-name="' + escapeHtml(s.name) + '"' : '';
+        html += '<a href="' + url + '" target="_blank" rel="noopener" class="' + chipClass + '"' + dataAttr + '>' +
+          escapeHtml(s.name) + glyph + '</a>';
       } else {
         html += '<span class="stack-chip no-link">' + escapeHtml(s.name) + '</span>';
       }
     });
 
     list.innerHTML = html;
+
+    // Intercept api_only chips to open the modal instead of the raw JSON.
+    list.querySelectorAll('.stack-chip.api-only').forEach(function(chip) {
+      chip.addEventListener('click', function(e) {
+        e.preventDefault();
+        const name = chip.getAttribute('data-api-only-name');
+        const svc = services.find(function(x) { return x.name === name; });
+        if (svc) window.NS.showApiOnlyModal(svc);
+      });
+    });
   }
 
   // Action handlers

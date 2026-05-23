@@ -132,7 +132,11 @@ import Layout from '../layouts/Layout.astro';
       let openHtml = '';
       const url = window.NS.stackUrl(service);
       if (url && service.deployed) {
-        openHtml = '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener" class="card-open-link">Open &#8599;</a>';
+        if (service.api_only) {
+          openHtml = '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener" class="card-open-link api-only" title="REST API only — no web UI">API &#9432;</a>';
+        } else {
+          openHtml = '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener" class="card-open-link">Open &#8599;</a>';
+        }
       }
 
       let websiteHtml = '';
@@ -152,6 +156,16 @@ import Layout from '../layouts/Layout.astro';
         '<div class="card-footer"><div class="card-meta">' + websiteHtml + '</div>' + openHtml + '</div>';
 
       card.querySelector('.toggle-switch').addEventListener('click', function() { handleToggle(this); });
+
+      if (service.api_only) {
+        const apiLink = card.querySelector('.card-open-link.api-only');
+        if (apiLink) {
+          apiLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.NS.showApiOnlyModal(service);
+          });
+        }
+      }
 
       grid.appendChild(card);
     });

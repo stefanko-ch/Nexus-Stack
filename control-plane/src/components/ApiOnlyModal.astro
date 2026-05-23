@@ -1,0 +1,281 @@
+---
+// Modal shown when a user clicks "Open" on an API-only service
+// (services.yaml: api_only: true). Replaces the default new-tab
+// navigation that would otherwise land on a raw JSON status response
+// (e.g. Meilisearch in production mode returns `{"status":"running"}`
+// at /, with no UI).
+//
+// Mounted globally in Layout.astro. Triggered from the click handlers
+// in category.astro, search.astro, StackTable.astro, and index.astro
+// via `window.NS.showApiOnlyModal(service)`.
+---
+
+<dialog id="api-only-modal" class="api-only-modal">
+  <div class="api-only-body">
+    <div class="api-only-header">
+      <div>
+        <h3 id="api-only-title">API only</h3>
+        <p id="api-only-subtitle" class="api-only-subtitle"></p>
+      </div>
+      <button id="api-only-close" aria-label="Close">×</button>
+    </div>
+
+    <p class="api-only-intro" id="api-only-intro">
+      This service has no web UI — it's a REST API. Clicking through to the URL
+      would only show a JSON status response. Below are the most common ways to
+      interact with it.
+    </p>
+
+    <div class="api-only-section">
+      <div class="api-only-section-label">Endpoint</div>
+      <div class="api-only-codeblock">
+        <code id="api-only-endpoint"></code>
+        <button class="api-only-copy" data-copy-target="api-only-endpoint" aria-label="Copy">⧉</button>
+      </div>
+    </div>
+
+    <div class="api-only-section" id="api-only-auth-section" hidden>
+      <div class="api-only-section-label">Auth token (from Infisical)</div>
+      <div class="api-only-codeblock">
+        <code id="api-only-auth-cmd"></code>
+        <button class="api-only-copy" data-copy-target="api-only-auth-cmd" aria-label="Copy">⧉</button>
+      </div>
+    </div>
+
+    <div class="api-only-section">
+      <div class="api-only-section-label">Quick test (curl)</div>
+      <div class="api-only-codeblock">
+        <code id="api-only-curl"></code>
+        <button class="api-only-copy" data-copy-target="api-only-curl" aria-label="Copy">⧉</button>
+      </div>
+    </div>
+
+    <div class="api-only-footer">
+      <a id="api-only-docs-link" href="#" target="_blank" rel="noopener" class="api-only-link-secondary">📚 Documentation</a>
+      <a id="api-only-raw-link" href="#" target="_blank" rel="noopener" class="api-only-link-secondary">Open raw API ↗</a>
+    </div>
+  </div>
+</dialog>
+
+<style>
+  .api-only-modal {
+    background: var(--bg-card);
+    color: var(--text);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    border-radius: 4px;
+    padding: 0;
+    max-width: 600px;
+    width: calc(100% - 2rem);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  }
+
+  .api-only-modal::backdrop { background: rgba(0, 0, 0, 0.6); }
+
+  .api-only-body { padding: 1.2rem 1.4rem; }
+
+  .api-only-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .api-only-header h3 {
+    color: var(--accent);
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  .api-only-subtitle {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    margin: 0.2rem 0 0 0;
+  }
+
+  #api-only-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 0 0.4rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  #api-only-close:hover { color: var(--accent); }
+
+  .api-only-intro {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    margin: 0 0 1.2rem 0;
+    line-height: 1.5;
+  }
+
+  .api-only-section { margin-bottom: 1rem; }
+
+  .api-only-section-label {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.3rem;
+  }
+
+  .api-only-codeblock {
+    display: flex;
+    align-items: stretch;
+    background: rgba(0, 10, 5, 0.6);
+    border: 1px solid rgba(0, 255, 136, 0.15);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .api-only-codeblock code {
+    flex: 1;
+    padding: 0.5rem 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .api-only-copy {
+    background: rgba(0, 255, 136, 0.08);
+    border: none;
+    border-left: 1px solid rgba(0, 255, 136, 0.15);
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 0.7rem;
+    font-size: 1rem;
+    transition: all 0.15s;
+  }
+
+  .api-only-copy:hover { background: rgba(0, 255, 136, 0.18); color: var(--accent); }
+  .api-only-copy.copied { background: var(--accent); color: var(--bg-card); }
+
+  .api-only-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(42, 42, 62, 0.5);
+    font-size: 0.82rem;
+  }
+
+  .api-only-link-secondary {
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+
+  .api-only-link-secondary:hover { color: var(--accent); text-decoration: underline; }
+</style>
+
+<script is:inline>
+  (function() {
+    const dlg = document.getElementById('api-only-modal');
+    const closeBtn = document.getElementById('api-only-close');
+    if (!dlg || !closeBtn) return;
+
+    closeBtn.addEventListener('click', function() { dlg.close(); });
+    dlg.addEventListener('click', function(e) { if (e.target === dlg) dlg.close(); });
+
+    // Copy-button behaviour — Clipboard API + visual feedback (200ms green flash).
+    dlg.addEventListener('click', function(e) {
+      const btn = e.target.closest('.api-only-copy');
+      if (!btn) return;
+      const targetId = btn.getAttribute('data-copy-target');
+      const codeEl = targetId ? document.getElementById(targetId) : null;
+      if (!codeEl) return;
+      const text = codeEl.textContent || '';
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(text).then(function() {
+        btn.classList.add('copied');
+        setTimeout(function() { btn.classList.remove('copied'); }, 600);
+      });
+    });
+
+    // Public API consumed by the page-level Open click handlers.
+    // `service` is the row from /api/services (must include subdomain,
+    // name, and ideally long_description). The URL is computed via the
+    // existing window.NS.stackUrl helper for consistency with the
+    // non-api_only path.
+    window.NS.showApiOnlyModal = function(service) {
+      if (!service) return;
+      const url = window.NS.stackUrl(service);
+      const titleEl = document.getElementById('api-only-title');
+      const subtitleEl = document.getElementById('api-only-subtitle');
+      const introEl = document.getElementById('api-only-intro');
+      const endpointEl = document.getElementById('api-only-endpoint');
+      const authSection = document.getElementById('api-only-auth-section');
+      const authCmdEl = document.getElementById('api-only-auth-cmd');
+      const curlEl = document.getElementById('api-only-curl');
+      const docsLink = document.getElementById('api-only-docs-link');
+      const rawLink = document.getElementById('api-only-raw-link');
+
+      titleEl.textContent = service.name + ' — API only';
+      subtitleEl.textContent = service.description || '';
+
+      // Per-service hints. Falls back to a generic curl if no overrides
+      // are registered. To customise a service, add a key to
+      // window.NS.apiOnlyHints below (defined inline in this script so
+      // the modal stays a single self-contained component).
+      const hint = (window.NS.apiOnlyHints && window.NS.apiOnlyHints[service.name]) || {};
+
+      introEl.textContent = hint.intro ||
+        'This service has no web UI — it is a REST API. Clicking through to ' +
+        'the URL would only show a JSON status response. Below are the most ' +
+        'common ways to interact with it.';
+
+      endpointEl.textContent = url;
+
+      if (hint.auth_command) {
+        authSection.hidden = false;
+        authCmdEl.textContent = hint.auth_command;
+      } else {
+        authSection.hidden = true;
+      }
+
+      curlEl.textContent = hint.curl || ('curl ' + url + (hint.curl_suffix || ''));
+
+      docsLink.href = hint.docs_url ||
+        'https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/' + service.name + '.md';
+      rawLink.href = url;
+
+      dlg.showModal();
+    };
+
+    // Registry of per-service hints. Each entry can set:
+    //   intro          - replaces the default explanatory paragraph
+    //   auth_command   - shown as the "Auth token" snippet (Infisical fetch)
+    //   curl           - full curl command (overrides the default)
+    //   curl_suffix    - appended to default `curl <url>` when no full curl set
+    //   docs_url       - link target for the Documentation button
+    // Defined inline so adding a new api_only service only requires editing
+    // services.yaml + (optionally) this map.
+    window.NS.apiOnlyHints = {
+      meilisearch: {
+        intro: 'Meilisearch is a pure REST API — no built-in web UI in production mode. ' +
+               'Use the snippets below to authenticate and query, or open the raw endpoint ' +
+               'to see the JSON status response.',
+        auth_command: 'infisical secrets get meilisearch_master_key --plain',
+        curl: 'curl -H "Authorization: Bearer $MASTER_KEY" \\\n  __URL__/health',
+      },
+    };
+
+    // Resolve __URL__ placeholders at modal-open time (curl above can be
+    // declared with __URL__ for readability; replaced with stackUrl on render).
+    const origShow = window.NS.showApiOnlyModal;
+    window.NS.showApiOnlyModal = function(service) {
+      origShow(service);
+      const curlEl = document.getElementById('api-only-curl');
+      if (curlEl && curlEl.textContent.indexOf('__URL__') !== -1) {
+        curlEl.textContent = curlEl.textContent.split('__URL__').join(window.NS.stackUrl(service));
+      }
+    };
+  })();
+</script>

@@ -64,7 +64,8 @@ for COL_SQL in \
   "ALTER TABLE services ADD COLUMN category TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN website TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN long_description TEXT DEFAULT ''" \
-  "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''"; do
+  "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" \
+  "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0"; do
   set +e
   npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>/dev/null
   set -e
@@ -186,6 +187,7 @@ for name, config in services.items():
     public = 1 if config.get('public', False) else 0
     core = 1 if config.get('core', False) else 0
     admin_only = 1 if config.get('admin_only', False) else 0
+    api_only = 1 if config.get('api_only', False) else 0
     description = config.get('description', '')
     category = config.get('category', '')
     website = config.get('website', '')
@@ -226,13 +228,13 @@ for name, config in services.items():
 
     # INSERT OR IGNORE - only creates if not exists (preserves enabled state if already exists)
     # New services: core services enabled, others disabled
-    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', '{category}', '{website}', '{long_description}', '{landing_path}', datetime('now'));"
+    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', '{category}', '{website}', '{long_description}', '{landing_path}', {api_only}, datetime('now'));"
     insert_statements.append(insert_sql)
 
     # UPDATE - sync metadata for existing services (preserve enabled state from D1)
     # This ensures subdomain, port, description, core, public, category, website,
     # long_description, landing_path are always in sync with yaml
-    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', category = '{category}', website = '{website}', long_description = '{long_description}', landing_path = '{landing_path}', updated_at = datetime('now') WHERE name = '{name}';"
+    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', category = '{category}', website = '{website}', long_description = '{long_description}', landing_path = '{landing_path}', api_only = {api_only}, updated_at = datetime('now') WHERE name = '{name}';"
     update_statements.append(update_sql)
 
 # Write to temp files

@@ -200,7 +200,9 @@
                            service.admin_only ? 'Admin-only - managed via GitHub Actions' : '';
 
         const urlHtml = url && service.deployed
-          ? '<a class="stack-row-url" href="' + escapeAttr(url) + '" target="_blank" rel="noopener">' + escapeHtml(url.replace(/^https:\/\//, '')) + '</a>'
+          ? (service.api_only
+              ? '<a class="stack-row-url api-only" href="' + escapeAttr(url) + '" target="_blank" rel="noopener" title="REST API only — no web UI">' + escapeHtml(url.replace(/^https:\/\//, '')) + ' &#9432;</a>'
+              : '<a class="stack-row-url" href="' + escapeAttr(url) + '" target="_blank" rel="noopener">' + escapeHtml(url.replace(/^https:\/\//, '')) + '</a>')
           : '<span class="stack-row-url no-url">—</span>';
 
         const categoryHref = '/category?cat=' + encodeURIComponent(service.category);
@@ -217,6 +219,16 @@
           e.stopPropagation();
           handleToggle(this);
         });
+        if (service.api_only) {
+          const apiLink = tr.querySelector('.stack-row-url.api-only');
+          if (apiLink) {
+            apiLink.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              window.NS.showApiOnlyModal(service);
+            });
+          }
+        }
         tr.addEventListener('click', function() {
           state.focusIndex = idx;
           applyFocusClass();
@@ -255,8 +267,13 @@
       get items() { return state.services; },
       render: applyFocusClass,
       onOpen: function(service) {
+        if (!service.deployed) return;
+        if (service.api_only) {
+          window.NS.showApiOnlyModal(service);
+          return;
+        }
         const url = window.NS.stackUrl(service);
-        if (url && service.deployed) window.open(url, '_blank', 'noopener');
+        if (url) window.open(url, '_blank', 'noopener');
       },
       onToggle: function(service) {
         const tr = tbody.querySelector('tr[data-service-name="' + (window.CSS && CSS.escape ? CSS.escape(service.name) : service.name) + '"]');
