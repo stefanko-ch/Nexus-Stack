@@ -596,8 +596,8 @@ import Layout from '../layouts/Layout.astro';
         const glyph = s.api_only
           ? '<span class="arrow" title="REST API only">&#9432;</span>'
           : '<span class="arrow">&#8599;</span>';
-        const dataAttr = s.api_only ? ' data-api-only-name="' + escapeHtml(s.name) + '"' : '';
-        html += '<a href="' + url + '" target="_blank" rel="noopener" class="' + chipClass + '"' + dataAttr + '>' +
+        const dataAttr = s.api_only ? ' data-api-only-name="' + escapeAttr(s.name) + '"' : '';
+        html += '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener" class="' + chipClass + '"' + dataAttr + '>' +
           escapeHtml(s.name) + glyph + '</a>';
       } else {
         html += '<span class="stack-chip no-link">' + escapeHtml(s.name) + '</span>';

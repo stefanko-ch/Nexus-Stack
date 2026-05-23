@@ -186,6 +186,10 @@
 
     // Copy-button behaviour — Clipboard API + visual feedback (200ms green flash).
     dlg.addEventListener('click', function(e) {
+      // Defensive: e.target is normally the deepest Element clicked, but in
+      // edge cases (selection collapsing, certain assistive-tech events) it
+      // can be a Text node which has no .closest(). Element-guard before use.
+      if (!(e.target instanceof Element)) return;
       const btn = e.target.closest('.api-only-copy');
       if (!btn) return;
       const targetId = btn.getAttribute('data-copy-target');
@@ -246,6 +250,11 @@
         'https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/' + service.name + '.md';
       rawLink.href = url;
 
+      // showModal() throws InvalidStateError if the dialog is already open
+      // (e.g. rapid double-click on the chip). Re-rendering content above is
+      // idempotent so a no-op return is safe — the existing modal stays open
+      // with the freshly-updated values from this call.
+      if (dlg.open) return;
       dlg.showModal();
     };
 
