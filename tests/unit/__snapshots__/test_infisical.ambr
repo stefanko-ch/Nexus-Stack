@@ -63,6 +63,8 @@
       'GRAFANA_PASSWORD': 'grafana_admin_password-VALUE',
       'GRAFANA_USERNAME': 'nexus-test-user',
     }),
+    'hedgedoc': dict({
+    }),
     'hetzner-s3': dict({
       'HETZNER_S3_ACCESS_KEY': 'hetzner_s3_access_key-VALUE',
       'HETZNER_S3_BUCKET': 'hetzner_s3_bucket_general-VALUE',
@@ -85,6 +87,10 @@
       'LAKEFS_ACCESS_KEY_ID': 'lakefs_admin_access_key-VALUE',
       'LAKEFS_DB_PASSWORD': 'lakefs_db_password-VALUE',
       'LAKEFS_SECRET_ACCESS_KEY': 'lakefs_admin_secret_key-VALUE',
+    }),
+    'lakekeeper': dict({
+    }),
+    'litellm': dict({
     }),
     'mage': dict({
       'MAGE_PASSWORD': 'mage_admin_password-VALUE',

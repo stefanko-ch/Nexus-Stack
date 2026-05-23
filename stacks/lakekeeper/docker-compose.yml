@@ -1,0 +1,119 @@
+# =============================================================================
+# Lakekeeper - Iceberg REST Catalog (Rust)
+# =============================================================================
+# Open-source implementation of the Apache Iceberg REST Catalog spec.
+# Single Rust binary + dedicated PostgreSQL for metadata storage.
+# Lets Spark, Trino, DuckDB, PyIceberg, and the Iceberg Java/Python
+# SDK all read + write the SAME Iceberg tables on the existing
+# object storage (Garage / MinIO / SeaweedFS / RustFS / external R2).
+#
+# Architecture:
+#   - lakekeeper-bootstrap: one-shot `migrate` job that initialises
+#     the Postgres schema on first start, then exits
+#   - lakekeeper:           long-running `serve` process on :8181
+#   - lakekeeper-db:        dedicated Postgres 16, NOT shared with
+#                           any other stack (per project convention
+#                           for stateful services)
+#
+# Auth: `LAKEKEEPER__AUTHZ_BACKEND=allow-all` — Cloudflare Access at
+# the edge is the auth gate (email OTP). Lakekeeper has its own
+# OIDC layer for fine-grained per-team table permissions; that's
+# out of scope for the baseline "one team per stack" model.
+#
+# Access: https://lakekeeper.YOUR_DOMAIN
+# Spec: https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Lakekeeper Bootstrap - one-shot DB migration
+  # ---------------------------------------------------------------------------
+  # Runs `migrate` to create / upgrade the Postgres schema, then
+  # exits with rc=0. Lakekeeper itself waits for this via
+  # service_completed_successfully so subsequent restarts don't
+  # re-run the migration. Splitting it out (vs. `bash -c "migrate &&
+  # serve"`) makes the lifecycle explicit + lets Docker's restart
+  # policy do the right thing for each role.
+  lakekeeper-bootstrap:
+    image: ${IMAGE_LAKEKEEPER:-quay.io/lakekeeper/catalog:v0.12.2}
+    container_name: lakekeeper-bootstrap
+    restart: "no"
+    command: ["migrate"]
+    environment:
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper
+    depends_on:
+      lakekeeper-db:
+        condition: service_healthy
+    networks:
+      - lakekeeper-internal
+
+  # ---------------------------------------------------------------------------
+  # Lakekeeper Catalog - REST API server
+  # ---------------------------------------------------------------------------
+  lakekeeper:
+    image: ${IMAGE_LAKEKEEPER:-quay.io/lakekeeper/catalog:v0.12.2}
+    container_name: lakekeeper
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "8181:8181"
+    command: ["serve"]
+    environment:
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper
+      LAKEKEEPER__BASE_URI: https://${LAKEKEEPER_DOMAIN}
+      # Auth disabled internally — CF Access at the edge is the gate.
+      # Flip to "openid" + LAKEKEEPER__OPENID_PROVIDER_URI if you
+      # later want fine-grained per-team table permissions inside
+      # Lakekeeper itself (see docs/stacks/lakekeeper.md).
+      LAKEKEEPER__AUTHZ_BACKEND: allow-all
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    depends_on:
+      lakekeeper-db:
+        condition: service_healthy
+      lakekeeper-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+      - lakekeeper-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8181/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Lakekeeper - Dedicated PostgreSQL (catalog metadata)
+  # ---------------------------------------------------------------------------
+  lakekeeper-db:
+    image: ${IMAGE_LAKEKEEPER_DB:-postgres:16-alpine}
+    container_name: lakekeeper-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-lakekeeper
+      POSTGRES_PASSWORD: ${LAKEKEEPER_DB_PASSWORD}
+      POSTGRES_DB: lakekeeper
+    volumes:
+      - lakekeeper-db-data:/var/lib/postgresql/data
+    networks:
+      - lakekeeper-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-lakekeeper -d lakekeeper"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lakekeeper-db-data:
+
+networks:
+  app-network:
+    external: true
+  lakekeeper-internal:
+    driver: bridge

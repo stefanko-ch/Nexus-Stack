@@ -72,6 +72,7 @@ def full_config() -> NexusConfig:
         litellm_master_key="litellm-master-32chars-xxxxxxxxx",
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
+        lakekeeper_db_password="lakekeeper-db-pw",
         mage_admin_password="mage-pw",
         minio_root_password="minio-pw",
         sftpgo_admin_password="sftpgo-admin",
@@ -643,6 +644,61 @@ def test_litellm_accepts_injected_template_overrides_loader(
     sidecar = next(s for s in rendered.sidecars if s.relative_path == "config.yaml")
     assert sidecar.content == injected
     assert "CUSTOM TEMPLATE INJECTED" in sidecar.content
+
+
+# ---------------------------------------------------------------------------
+# Lakekeeper — fail-fast guard + domain composition
+# ---------------------------------------------------------------------------
+
+
+def test_lakekeeper_raises_on_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty DB password crashes the dedicated Postgres init on
+    first start with a cryptic auth-failed log → Lakekeeper's
+    bootstrap container loops on `migrate`. Abort at deploy time
+    with a clear error pointing at the missing Tofu apply."""
+    from nexus_deploy.service_env import _render_lakekeeper
+
+    config = full_config.model_copy(update={"lakekeeper_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="LAKEKEEPER_DB_PASSWORD"):
+        _render_lakekeeper(config, full_env)
+
+
+def test_lakekeeper_renders_domain_from_bootstrap_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """LAKEKEEPER_DOMAIN must be derived from BootstrapEnv (subdomain
+    'lakekeeper' + DOMAIN via service_host). Lakekeeper bakes the
+    domain into LAKEKEEPER__BASE_URI which it then embeds in REST
+    catalog responses — wrong value breaks every PyIceberg / Spark
+    client that follows the returned URIs."""
+    from nexus_deploy.service_env import _render_lakekeeper
+
+    rendered = _render_lakekeeper(full_config, full_env)
+    assert rendered.env_vars["LAKEKEEPER_DOMAIN"] == "lakekeeper.example.com"
+    assert rendered.env_vars["LAKEKEEPER_DB_PASSWORD"] == "lakekeeper-db-pw"
+
+
+def test_lakekeeper_domain_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Multi-tenant forks set subdomain_separator='-' for flat
+    subdomains (lakekeeper-user1.example.com). Renderer must use
+    service_host so it picks up that override — without it,
+    LAKEKEEPER__BASE_URI would point at the wrong host and every
+    Iceberg-aware client following catalog responses would hit a
+    non-existent endpoint."""
+    from nexus_deploy.service_env import _render_lakekeeper
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_lakekeeper(full_config, env)
+    assert rendered.env_vars["LAKEKEEPER_DOMAIN"] == "lakekeeper-example.com"
 
 
 # ---------------------------------------------------------------------------

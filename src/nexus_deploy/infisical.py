@@ -684,6 +684,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "lakekeeper",
+            _filter_empty(
+                {
+                    "LAKEKEEPER_DB_PASSWORD": config.lakekeeper_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "mage",
             _filter_empty(
                 {

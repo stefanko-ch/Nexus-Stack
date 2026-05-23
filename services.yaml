@@ -407,6 +407,18 @@ services:
     tcp_ports:
       s3-gateway: 8000
 
+  lakekeeper:
+    subdomain: "lakekeeper"
+    port: 8181
+    public: false
+    category: "storage"
+    website: "https://lakekeeper.io"
+    description: "Modern Iceberg REST Catalog (Rust) — lets Spark / Trino / DuckDB / PyIceberg share the same Iceberg tables on the existing object storage."
+    long_description: "Lakekeeper is an open-source implementation of the Apache Iceberg REST Catalog specification, written in Rust. It provides the catalog layer that turns the existing object storage (Garage / MinIO / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from Spark, Trino, DuckDB, PyIceberg, or any other Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication. Dedicated PostgreSQL stores the catalog metadata; the actual Parquet data goes to whichever S3-compatible bucket the operator configures per warehouse."
+    image: "quay.io/lakekeeper/catalog:v0.12.2"
+    support_images:
+      postgres: "postgres:16-alpine"
+
   kestra:
     subdomain: "kestra"
     port: 8085

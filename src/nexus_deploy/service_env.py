@@ -467,6 +467,39 @@ def _render_hedgedoc(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Lakekeeper: Iceberg REST Catalog. Needs dedicated Postgres
+    DSN + LAKEKEEPER_BASE_URI for absolute-URL generation in the
+    catalog responses (Iceberg clients follow these to reach the
+    metadata endpoints).
+
+    Fail-fast guard (same pattern as Meilisearch / HedgeDoc): empty
+    DB password crashes the Postgres init on first start with a
+    cryptic auth-failed log. Abort at deploy time with a clear
+    error pointing at the missing Tofu apply / Infisical sync.
+
+    LAKEKEEPER_DOMAIN is composed from BootstrapEnv.domain via
+    service_host so multi-tenant forks with subdomain_separator='-'
+    get the flat-subdomain hostname (lakekeeper-user1.example.com)
+    instead of lakekeeper.user1.example.com.
+    """
+    if _empty(c.lakekeeper_db_password):
+        raise ServiceEnvError(
+            "Lakekeeper enabled but LAKEKEEPER_DB_PASSWORD is empty — "
+            "run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.lakekeeper_db_password + push to Infisical, "
+            "then re-run spin-up. Aborting to avoid a restart-looping "
+            "Postgres container with no auth.",
+        )
+    domain_host = service_host("lakekeeper", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "LAKEKEEPER_DB_PASSWORD": c.lakekeeper_db_password or "",
+            "LAKEKEEPER_DOMAIN": domain_host,
+        },
+    )
+
+
 def _render_litellm(
     c: NexusConfig, e: BootstrapEnv, *, litellm_config_template: str | None = None
 ) -> RenderedEnv:
@@ -1268,6 +1301,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("meilisearch", _is_enabled("meilisearch"), _render_meilisearch),
     EnvSpec("hedgedoc", _is_enabled("hedgedoc"), _render_hedgedoc),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
+    EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mage", _is_enabled("mage"), _render_mage),
     EnvSpec("minio", _is_enabled("minio"), _render_minio),
     EnvSpec("sftpgo", _is_enabled("sftpgo"), _render_sftpgo),

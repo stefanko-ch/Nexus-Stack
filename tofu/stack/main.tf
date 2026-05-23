@@ -180,6 +180,14 @@ resource "random_password" "litellm_db_password" {
   special = false
 }
 
+# Lakekeeper Postgres password — dedicated DB, not shared. The
+# catalog metadata (warehouses, namespaces, table pointers) lives
+# in this DB; the actual Parquet data goes to object storage.
+resource "random_password" "lakekeeper_db_password" {
+  length  = 24
+  special = false
+}
+
 # Mage AI admin password
 resource "random_password" "mage_admin" {
   length  = 24

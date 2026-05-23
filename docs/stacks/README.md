@@ -68,6 +68,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
 | HedgeDoc | `quay.io/hedgedoc/hedgedoc` | `1.10.3` | Exact ¹ |
 | PostgreSQL (HedgeDoc DB) | `postgres` | `16-alpine` | Major |
+| Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.12.2` | Exact ¹ |
+| PostgreSQL (Lakekeeper DB) | `postgres` | `16-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
@@ -161,6 +163,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Kafka-UI** | Kafka/Redpanda management UI | [kafka-ui.md](kafka-ui.md) |
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |
 | **LakeFS** | Git-like version control for data lakes | [lakefs.md](lakefs.md) |
+| **Lakekeeper** | Iceberg REST Catalog (Rust) for multi-engine lakehouse | [lakekeeper.md](lakekeeper.md) |
 | **LiteLLM Proxy** | Unified OpenAI-compatible proxy for 100+ LLM providers | [litellm.md](litellm.md) |
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |

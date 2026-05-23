@@ -168,6 +168,9 @@ output "secrets" {
     litellm_salt_key    = random_password.litellm_salt_key.result
     litellm_db_password = random_password.litellm_db_password.result
 
+    # Lakekeeper (Iceberg REST Catalog)
+    lakekeeper_db_password = random_password.lakekeeper_db_password.result
+
     # ClickHouse
     clickhouse_admin_password = random_password.clickhouse_admin.result
 
