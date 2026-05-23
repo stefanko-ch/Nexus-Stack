@@ -270,7 +270,9 @@ def _render_prometheus_remote_write_block(e: BootstrapEnv) -> str:
     )
 
 
-def _render_grafana(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+def _render_grafana(
+    c: NexusConfig, e: BootstrapEnv, *, prometheus_template: str | None = None
+) -> RenderedEnv:
     """Grafana env vars + generated ``prometheus.yml`` sidecar.
 
     Prometheus' YAML config doesn't support env-var substitution in
@@ -293,14 +295,18 @@ def _render_grafana(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     of its own config. Token secrecy still rests on the host-access
     barrier (SSH behind CF Tunnel + email OTP).
     """
-    # Template path resolution: render_all_env_files passes
-    # ``stacks_dir`` and we resolve relative to it. We can't reach
-    # stacks_dir from here directly (the renderer signature is fixed
-    # to (config, env) for testability), so we read the template from
-    # the path relative to this Python file — the package ships with
-    # stacks/ alongside src/, and tests can monkey-patch
-    # ``_load_prometheus_template`` if they want a different layout.
-    template = _load_prometheus_template()
+    # Template content is normally injected by ``render_all_env_files``
+    # via a special-case dispatch (parallel to jupyter's spark_enabled
+    # kwarg) so the template lives under the same ``stacks_dir`` the
+    # rest of the renderer writes into — works with the repo checkout,
+    # with installed wheels (where ``stacks/`` is NOT in the
+    # site-packages), and with non-standard stacks_dir paths (custom
+    # test fixtures). The ``_load_prometheus_template()`` fallback is
+    # kept for direct test callers that invoke ``_render_grafana``
+    # without going through the orchestration layer.
+    template = (
+        prometheus_template if prometheus_template is not None else _load_prometheus_template()
+    )
     # Fail-fast on template drift: if the placeholder is missing,
     # str.replace silently no-ops and the renderer would produce a
     # prometheus.yml without ANY remote_write block — even when the
@@ -1240,6 +1246,23 @@ def render_all_env_files(
     """
     results: list[ServiceRenderResult] = []
     spark_enabled = "spark" in enabled
+    # Grafana renders ``prometheus.yml`` from a template that lives
+    # alongside the docker-compose at ``stacks_dir/grafana/``. Read it
+    # ONCE here so the renderer stays a pure (config, env) → result
+    # function and operationally works regardless of where the package
+    # was installed from. Lazily resolved: if grafana isn't enabled OR
+    # the template file is missing in this layout, we don't fail —
+    # the renderer's loader fallback handles direct callers in tests.
+    prometheus_template: str | None = None
+    if "grafana" in enabled:
+        template_path = stacks_dir / "grafana" / "prometheus.yml.template"
+        try:
+            prometheus_template = template_path.read_text(encoding="utf-8")
+        except OSError:
+            # Defer to _load_prometheus_template's repo-relative
+            # fallback (raises FileNotFoundError with a clear path if
+            # the template is genuinely missing).
+            prometheus_template = None
 
     for spec in _SPECS:
         if not spec.enabled_check(enabled):
@@ -1248,9 +1271,12 @@ def render_all_env_files(
             )
             continue
 
-        # Cross-spec dependencies: jupyter needs spark_enabled.
+        # Cross-spec dependencies: jupyter needs spark_enabled, grafana
+        # needs the prometheus.yml.template loaded from stacks_dir.
         if spec.service_name == "jupyter":
             rendered = _render_jupyter(config, env, spark_enabled=spark_enabled)
+        elif spec.service_name == "grafana":
+            rendered = _render_grafana(config, env, prometheus_template=prometheus_template)
         else:
             rendered = spec.render(config, env)
 

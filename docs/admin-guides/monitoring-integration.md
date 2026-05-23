@@ -108,10 +108,13 @@ exponentially — no manual intervention needed.
 
 - **Token storage**: the Bearer token is baked into
   `stacks/grafana/prometheus.yml` at render time. The file is
-  generated with mode `0o600` (root-readable only on the host) — same
-  threat-model treatment as the per-service `.env` files that hold
-  database passwords. Host-level read access requires SSH, which is
-  locked to the Cloudflare Tunnel + email OTP.
+  generated with mode `0o644` — the bind-mounted config has to be
+  readable by the non-root Prometheus container process (UID 65534
+  in `prom/prometheus:2.x+`); a stricter mode would lock Prometheus
+  out of its own config. Token confidentiality rests on the
+  host-access barrier instead: SSH is locked to the Cloudflare
+  Tunnel + email OTP, and the token also lives in Infisical +
+  GitHub Actions secrets — the rendered file isn't its only home.
 - **Token rotation**: rotate the central-side token, update
   `MONITORING_TOKEN` in your repo secrets, run Spin Up. Old token
   stops working once vmauth picks up the revocation (typically
@@ -126,7 +129,7 @@ exponentially — no manual intervention needed.
 - `stacks/grafana/prometheus.yml.template` — human-editable template
   (committed)
 - `stacks/grafana/prometheus.yml` — generated at render time
-  (gitignored, mode 0o600)
+  (gitignored, mode 0o644 — container-readable; see Security above)
 - `stacks/grafana/.gitignore` — excludes the generated file
 - `src/nexus_deploy/service_env.py` — `_render_grafana` +
   `_render_prometheus_remote_write_block` helpers
