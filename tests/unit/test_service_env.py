@@ -183,7 +183,7 @@ def test_render_env_file_content_in_dict_order() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SFTPGo — fail-fast guard
+# Meilisearch — fail-fast guard
 # ---------------------------------------------------------------------------
 
 
@@ -201,6 +201,11 @@ def test_meilisearch_raises_on_empty_master_key(
     config = full_config.model_copy(update={"meilisearch_master_key": ""})
     with pytest.raises(ServiceEnvError, match="MEILI_MASTER_KEY"):
         _render_meilisearch(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# SFTPGo — fail-fast guard
+# ---------------------------------------------------------------------------
 
 
 def test_sftpgo_raises_on_empty_admin_password(
