@@ -262,8 +262,12 @@
         intro: 'Meilisearch is a pure REST API — no built-in web UI in production mode. ' +
                'Use the snippets below to authenticate and query, or open the raw endpoint ' +
                'to see the JSON status response.',
-        auth_command: 'infisical secrets get meilisearch_master_key --plain',
-        curl: 'curl -H "Authorization: Bearer $MASTER_KEY" \\\n  __URL__/health',
+        // Infisical-CLI: keys ARE case-sensitive and folder-scoped. The master
+        // key is pushed by infisical.py to folder /meilisearch under key
+        // MEILISEARCH_MASTER_KEY — both must match exactly or the CLI returns
+        // "secret not found". The export sets a shell var the curl below picks up.
+        auth_command: 'export MEILISEARCH_MASTER_KEY=$(infisical secrets get MEILISEARCH_MASTER_KEY --path=/meilisearch --plain)',
+        curl: 'curl -H "Authorization: Bearer $MEILISEARCH_MASTER_KEY" \\\n  __URL__/health',
       },
     };
 

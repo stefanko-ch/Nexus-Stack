@@ -1189,6 +1189,12 @@ jobs:
           # landing_path doesn't 500 on existing D1 instances between Pages auto-deploy
           # (on merge) and the next spin-up that runs the sync script.
           npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" 2>/dev/null || true
+          # api_only column for headless services (e.g. Meilisearch) — clicking Open
+          # shows an API-info modal instead of opening the raw JSON URL. Same race
+          # window as landing_path above: Pages auto-deploys on merge, and its new
+          # SELECT includes api_only; without this ALTER the frontend would 500 until
+          # the next spin-up runs sync-deployed-state.sh.
+          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0" 2>/dev/null || true
 
           # Store domain in D1 config (escape single quotes)
           ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
