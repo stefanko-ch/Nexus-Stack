@@ -451,15 +451,25 @@ def test_render_litellm_network_prep_is_idempotent() -> None:
     """The inspect-then-create guard short-circuits if the network
     already exists. A bare `docker network create` would fail with
     a non-zero exit on the second deploy under `set -euo pipefail`
-    and abort the entire compose-up loop."""
+    and abort the entire compose-up loop.
+
+    Tests the full inspect→create chain as one contiguous expression
+    rather than just `||` presence: a future refactor that splits
+    the guard into two unrelated statements (e.g. `inspect; if [ $?
+    -ne 0 ]; then create; fi`) would lose the short-circuit semantics
+    under `set -e` and silently break idempotency. Whitespace is
+    normalised so the test isn't brittle to backslash-newline
+    continuation tweaks bash treats as one logical line.
+    """
     script = _render_default(litellm_network_prep=True)
-    # `inspect ... >/dev/null 2>&1 || create` is the canonical
-    # idempotent shape — both halves must be present and on the
-    # short-circuit chain together.
-    assert "docker network inspect ollama-internal >/dev/null 2>&1" in script
-    # The `||` chain must wrap to the create call (line-continuation
-    # backslash is fine — bash treats it as a single logical line).
-    assert "||" in script
+    # Normalise whitespace AND strip the bash line-continuation
+    # backslash (`\` followed by newline) so the substring matcher
+    # doesn't depend on the renderer's exact line-wrap choice.
+    normalised = " ".join(script.replace("\\\n", " ").split())
+    assert (
+        "docker network inspect ollama-internal >/dev/null 2>&1 || "
+        "docker network create --label managed-by=nexus-stack ollama-internal"
+    ) in normalised
 
 
 def test_run_compose_up_litellm_default_when_litellm_in_enabled() -> None:

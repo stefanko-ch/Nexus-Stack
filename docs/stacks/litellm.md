@@ -104,14 +104,15 @@ All three must be non-empty or the deploy aborts (no silent auth-bypass).
 
 ### Ollama integration
 
-The LiteLLM compose joins the external `ollama-internal` network so it can reach `http://ollama:11434` directly without going through the public CF Tunnel route — fast and private. **The Ollama stack MUST be enabled** for LiteLLM to start: the compose declares `external: true` + `name: ollama-internal` on that network, and Docker will refuse to start the LiteLLM container if the network doesn't exist (error: `network ollama-internal not found`).
+The LiteLLM compose joins the external `ollama-internal` network so it can reach `http://ollama:11434` directly without going through the public CF Tunnel route — fast and private.
 
-If you want LiteLLM without Ollama (e.g. real-providers-only setup), you need TWO changes:
+**LiteLLM works whether or not Ollama is enabled.** The deploy pipeline (`compose_runner.run_compose_up`) pre-creates the `ollama-internal` network idempotently before `docker compose up` when `litellm` is in the enabled list. When Ollama is also enabled, its own compose joins the same network by name (`name: ollama-internal` pinned on both sides), and the cross-stack DNS lookup `http://ollama:11434` resolves. When Ollama is NOT enabled, LiteLLM still starts cleanly — only requests routed to a model whose `api_base` points at Ollama will fail.
 
-1. Remove the `ollama-internal` network declaration AND the `ollama-internal:` entry under `litellm.networks:` in `stacks/litellm/docker-compose.yml`
-2. Remove the `gpt-3.5-turbo` → Ollama route from `stacks/litellm/config.yaml.template` (otherwise the proxy serves the model name but routes to an unreachable backend)
+If you want to wire LiteLLM at real-provider keys only (no Ollama), the only edit needed is:
 
-Removing just the config route without the network change still results in container start failure.
+- Remove or comment out the `gpt-3.5-turbo` → Ollama route in `stacks/litellm/config.yaml.template` (otherwise the proxy serves the model name but the routed request to `http://ollama:11434` fails with a connection error). Add real-provider entries in its place — see "Option B" above.
+
+No edits to `stacks/litellm/docker-compose.yml` are required for the no-Ollama case.
 
 ### Persistence
 
