@@ -427,6 +427,88 @@ def test_run_compose_up_metabase_explicit_override_beats_enabled_inference() -> 
 
 
 # ---------------------------------------------------------------------------
+# litellm cross-stack network prep (ollama-internal)
+# ---------------------------------------------------------------------------
+
+
+def test_render_litellm_network_prep_only_when_flagged() -> None:
+    """LiteLLM declares `ollama-internal` as an external network so
+    it can reach the Ollama stack's container directly. Without the
+    network already created, `docker compose up` aborts BEFORE the
+    container is created. The pre-compose block creates the network
+    idempotently when litellm is enabled (or omitted otherwise) so
+    LiteLLM works regardless of whether Ollama is also enabled."""
+    without = _render_default(litellm_network_prep=False)
+    assert "ollama-internal" not in without
+    assert "docker network create" not in without
+
+    with_litellm = _render_default(litellm_network_prep=True)
+    assert "docker network inspect ollama-internal" in with_litellm
+    assert "docker network create --label managed-by=nexus-stack ollama-internal" in with_litellm
+
+
+def test_render_litellm_network_prep_is_idempotent() -> None:
+    """The inspect-then-create guard short-circuits if the network
+    already exists. A bare `docker network create` would fail with
+    a non-zero exit on the second deploy under `set -euo pipefail`
+    and abort the entire compose-up loop."""
+    script = _render_default(litellm_network_prep=True)
+    # `inspect ... >/dev/null 2>&1 || create` is the canonical
+    # idempotent shape — both halves must be present and on the
+    # short-circuit chain together.
+    assert "docker network inspect ollama-internal >/dev/null 2>&1" in script
+    # The `||` chain must wrap to the create call (line-continuation
+    # backslash is fine — bash treats it as a single logical line).
+    assert "||" in script
+
+
+def test_run_compose_up_litellm_default_when_litellm_in_enabled() -> None:
+    """litellm_network_prep defaults to True iff 'litellm' is in enabled.
+    Mirrors the dify/metabase storage-prep default semantics."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter", "litellm"], script_runner=capture)
+    assert "docker network inspect ollama-internal" in captured_script["script"]
+
+
+def test_run_compose_up_litellm_omitted_when_litellm_not_in_enabled() -> None:
+    """No litellm → no network-prep block (also no spurious
+    network created on stacks that don't need it)."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter"], script_runner=capture)
+    assert "ollama-internal" not in captured_script["script"]
+
+
+def test_run_compose_up_litellm_explicit_override_beats_enabled_inference() -> None:
+    """Caller can force litellm_network_prep=False even when 'litellm'
+    is in enabled — operator escape hatch if the network handling
+    needs to be deferred to a different mechanism."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["litellm"], script_runner=capture, litellm_network_prep=False)
+    assert "ollama-internal" not in captured_script["script"]
+
+
+# ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
 

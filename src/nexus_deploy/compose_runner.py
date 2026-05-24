@@ -149,6 +149,7 @@ def render_remote_script(
     leaves: list[str],
     dify_storage_prep: bool = False,
     metabase_storage_prep: bool = False,
+    litellm_network_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
 ) -> str:
@@ -197,6 +198,31 @@ mkdir -p /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
 chown -R 1001:1001 /mnt/nexus-data/dify/storage /mnt/nexus-data/dify/plugins
 """
 
+    # LiteLLM's compose declares `ollama-internal` as an external
+    # network so it can reach the Ollama stack's container by service
+    # name when both stacks are enabled. Without an existing network
+    # of that name, `docker compose up` aborts with "network
+    # ollama-internal declared as external, but could not be found"
+    # BEFORE the container is even created — leaving the operator
+    # with a Bad Gateway at https://litellm.<domain>. Idempotently
+    # creating the network here decouples the two stacks: LiteLLM
+    # can be enabled without Ollama (operator-supplied OpenAI /
+    # Anthropic / etc. keys), and when both are enabled the
+    # network already exists when Ollama's compose-up reaches its
+    # `external: true` declaration.
+    #
+    # `docker network create --label` is idempotent enough for our
+    # purposes via the inspect-guard (exit 0 if exists, exit 1 if
+    # not — wrapped in a short-circuit `||`). The label lets ops
+    # tell apart nexus-managed networks from operator-created ones
+    # when troubleshooting.
+    litellm_block = ""
+    if litellm_network_prep:
+        litellm_block = """
+docker network inspect ollama-internal >/dev/null 2>&1 || \\
+    docker network create --label managed-by=nexus-stack ollama-internal
+"""
+
     metabase_block = ""
     if metabase_storage_prep:
         # Metabase runs as uid 2000 (since v0.46 official image) and
@@ -234,7 +260,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{dify_block}{metabase_block}
+{litellm_block}{dify_block}{metabase_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -332,6 +358,7 @@ def run_compose_up(
     host: str = "nexus",
     dify_storage_prep: bool | None = None,
     metabase_storage_prep: bool | None = None,
+    litellm_network_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
     """Render → exec → parse.
@@ -366,12 +393,16 @@ def run_compose_up(
     actual_metabase = (
         metabase_storage_prep if metabase_storage_prep is not None else "metabase" in enabled
     )
+    actual_litellm = (
+        litellm_network_prep if litellm_network_prep is not None else "litellm" in enabled
+    )
 
     script = render_remote_script(
         parents=parents,
         leaves=leaves,
         dify_storage_prep=actual_dify,
         metabase_storage_prep=actual_metabase,
+        litellm_network_prep=actual_litellm,
     )
 
     run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))

@@ -114,9 +114,13 @@ networks:
   # the public CF Tunnel route. Both sides pin the network to the
   # global name `ollama-internal` (NOT the default project-prefixed
   # `ollama_ollama-internal`) so the external reference here finds
-  # the actual created network. Requires the ollama stack to be
-  # enabled — if not, LiteLLM will fail to start with "network
-  # ollama-internal not found"; disable LiteLLM or enable Ollama.
+  # the actual created network. When LiteLLM is enabled, the deploy
+  # pipeline's compose_runner pre-creates this network idempotently
+  # before `docker compose up`, so LiteLLM starts cleanly even when
+  # Ollama is disabled (operator-supplied OpenAI / Anthropic / etc.
+  # keys via the config.yaml template). When Ollama is also enabled,
+  # its own compose joins the same network by name and the
+  # cross-stack DNS lookup `http://ollama:11434` resolves.
   ollama-internal:
     external: true
     name: ollama-internal
