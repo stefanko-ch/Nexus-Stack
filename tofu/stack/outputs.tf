@@ -162,6 +162,7 @@ output "secrets" {
     # HedgeDoc
     hedgedoc_session_secret = random_password.hedgedoc_session_secret.result
     hedgedoc_db_password    = random_password.hedgedoc_db_password.result
+    hedgedoc_admin_password = random_password.hedgedoc_admin.result
 
     # LiteLLM Proxy
     litellm_master_key  = random_password.litellm_master_key.result

@@ -179,13 +179,18 @@ def test_standard_targets_returns_canonical_pair() -> None:
     # Dify — matches stacks/dify/docker-compose.yml line 180/182
     assert pg_by_container["dify-db"].database == "dify"
     assert pg_by_container["dify-db"].user == "nexus-dify"
+    # HedgeDoc — matches stacks/hedgedoc/docker-compose.yml. Added in
+    # issue #618 alongside the admin-auth fix because a teardown
+    # without persistence would discard every note + upload.
+    assert pg_by_container["hedgedoc-db"].database == "hedgedoc"
+    assert pg_by_container["hedgedoc-db"].user == "nexus-hedgedoc"
 
     rsync_by_name = {r.name: r for r in rsync}
-    # All six rsync targets returned by standard_targets() — gitea x2
+    # All seven rsync targets returned by standard_targets() — gitea x2
     # + dify x3 are the original RFC 0001 set; metabase x1 was added
-    # for issue #528 and extends the same layout convention (the RFC
+    # for issue #528, hedgedoc-uploads x1 for issue #618. The RFC
     # document itself still lists only gitea + dify until a future
-    # storage-layout revision lands).
+    # storage-layout revision lands.
     for required in (
         "gitea-repos",
         "gitea-lfs",
@@ -193,6 +198,7 @@ def test_standard_targets_returns_canonical_pair() -> None:
         "dify-weaviate",
         "dify-plugins",
         "metabase-data",
+        "hedgedoc-uploads",
     ):
         assert required in rsync_by_name, f"missing required rsync target: {required}"
 
@@ -219,6 +225,7 @@ def test_standard_targets_s3_subpaths_match_rfc_layout() -> None:
     assert sub_by_name["dify-weaviate"] == "dify/weaviate"
     assert sub_by_name["dify-plugins"] == "dify/plugins"
     assert sub_by_name["metabase-data"] == "metabase/data"
+    assert sub_by_name["hedgedoc-uploads"] == "hedgedoc/uploads"
 
 
 def test_standard_targets_metabase_has_no_postgres_dump() -> None:

@@ -5,14 +5,25 @@
 # editing, MathJax / Mermaid / KaTeX / PlantUML rendering, slide-mode
 # (revealjs), version history.
 #
-# Classroom use case: students take joint notes during a workshop
-# (one URL, many cursors), or collaborate on Markdown documentation
-# for a project. Each "note" gets a slug URL — invite by sharing the
-# link.
+# Auth model (post-#618):
+#   1. Cloudflare Access (email OTP) gates who reaches the login
+#      page at the edge.
+#   2. HedgeDoc itself runs with email signup DISABLED — the
+#      services-configure hook seeds ONE admin account from
+#      Infisical-stored credentials (HEDGEDOC_USERNAME / HEDGEDOC_PASSWORD).
+#      Self-signup is off so the user-pool stays at exactly one.
+#   3. Anonymous edits are disabled so notes have a clear owner.
 #
-# Access: https://hedgedoc.YOUR_DOMAIN (behind Cloudflare Access by
-# default; flip `public: true` in services.yaml if you want
-# open-link sharing without an OTP gate)
+# Persistence:
+#   - hedgedoc-db Postgres → captured by s3_restore.standard_targets
+#     via pg_dump on teardown, restored on spin-up.
+#   - hedgedoc-uploads bind-mount on /mnt/nexus-data/hedgedoc/uploads
+#     → captured by rsync. The bind-mount itself is ephemeral host
+#     storage (RFC 0001) but the R2 snapshot/restore cycle preserves
+#     the content across teardowns.
+#
+# Access: https://hedgedoc.YOUR_DOMAIN (Cloudflare Access at the
+# edge + HedgeDoc-side admin login).
 # =============================================================================
 
 services:
@@ -35,18 +46,28 @@ services:
       CMD_DOMAIN: ${HEDGEDOC_DOMAIN}
       CMD_URL_ADDPORT: "false"
       CMD_PROTOCOL_USESSL: "true"
-      # Auth: we deliberately disable HedgeDoc's own email signup —
-      # access control is Cloudflare Access (email OTP) at the edge.
-      # Anonymous notes stay enabled so the URL-sharing workflow works.
+      # Auth: email signup is disabled — the seeded admin account is
+      # the only way in. CF Access at the edge gates "who reaches the
+      # login page", HedgeDoc's own login form is the in-app identity.
+      # Anonymous editing is disabled so every note has an owner.
+      # `CMD_DEFAULT_PERMISSION=private` makes newly-created notes
+      # visible only to the owner; the owner can flip individual
+      # notes to `editable` / `freely` via the per-note UI.
       CMD_ALLOW_EMAIL_REGISTER: "false"
-      CMD_ALLOW_ANONYMOUS: "true"
-      CMD_ALLOW_ANONYMOUS_EDITS: "true"
-      CMD_ALLOW_FREEURL: "true"
-      CMD_DEFAULT_PERMISSION: "editable"
+      CMD_ALLOW_ANONYMOUS: "false"
+      CMD_ALLOW_ANONYMOUS_EDITS: "false"
+      CMD_ALLOW_FREEURL: "false"
+      CMD_DEFAULT_PERMISSION: "private"
       # Session secret — random 32+ chars from Tofu (Infisical-backed)
       CMD_SESSION_SECRET: ${HEDGEDOC_SESSION_SECRET}
     volumes:
-      - hedgedoc-uploads:/hedgedoc/public/uploads
+      # Bind-mount onto /mnt/nexus-data/hedgedoc/uploads so the R2
+      # snapshot/restore cycle (s3_restore.standard_targets) can
+      # rsync it. Named volumes can't be rsynced without
+      # `--volumes-from` gymnastics. Path is mkdir+chowned to 10000:10000
+      # (the in-container `hedgedoc` user) by compose_runner's
+      # hedgedoc_uploads_prep block before this compose-up runs.
+      - /mnt/nexus-data/hedgedoc/uploads:/hedgedoc/public/uploads
     depends_on:
       hedgedoc-db:
         condition: service_healthy
@@ -82,7 +103,6 @@ services:
       retries: 5
 
 volumes:
-  hedgedoc-uploads:
   hedgedoc-db-data:
 
 networks:

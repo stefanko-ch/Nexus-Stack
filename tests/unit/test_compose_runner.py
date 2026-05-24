@@ -557,6 +557,70 @@ def test_run_compose_up_network_prep_explicit_override_beats_enabled_inference()
 
 
 # ---------------------------------------------------------------------------
+# HedgeDoc uploads-dir prep (bind-mount for R2 snapshot/restore)
+# ---------------------------------------------------------------------------
+
+
+def test_render_hedgedoc_uploads_prep_only_when_flagged() -> None:
+    """HedgeDoc bind-mounts /mnt/nexus-data/hedgedoc/uploads onto its
+    /hedgedoc/public/uploads so the R2 snapshot/restore cycle can
+    rsync user-uploaded images (#618). Block only present when
+    hedgedoc_uploads_prep=True; absent for other stacks."""
+    without = _render_default(hedgedoc_uploads_prep=False)
+    assert "/mnt/nexus-data/hedgedoc/uploads" not in without
+    assert "10000:10000" not in without
+
+    with_hedgedoc = _render_default(hedgedoc_uploads_prep=True)
+    assert "/mnt/nexus-data/hedgedoc/uploads" in with_hedgedoc
+    assert "chown -R 10000:10000 /mnt/nexus-data/hedgedoc/uploads" in with_hedgedoc
+
+
+def test_render_hedgedoc_chown_is_guarded_by_owner_check() -> None:
+    """The hedgedoc chown must be guarded by an owner-stat check so
+    `compose up` doesn't walk the entire uploads tree on every deploy
+    once users have accumulated attached images. Same pattern as the
+    metabase chown guard."""
+    script = _render_default(hedgedoc_uploads_prep=True)
+    assert "stat -c '%u:%g' /mnt/nexus-data/hedgedoc/uploads" in script
+    assert '!= "10000:10000"' in script
+    lines = script.splitlines()
+    if_idx = next(
+        i for i, le in enumerate(lines) if "stat -c '%u:%g' /mnt/nexus-data/hedgedoc/uploads" in le
+    )
+    fi_idx = next(i for i, le in enumerate(lines) if i > if_idx and le.strip() == "fi")
+    assert any("chown -R 10000:10000" in le for le in lines[if_idx:fi_idx])
+
+
+def test_run_compose_up_hedgedoc_default_when_hedgedoc_in_enabled() -> None:
+    """hedgedoc_uploads_prep defaults to True iff 'hedgedoc' is in
+    enabled. Mirrors the dify/metabase storage-prep defaults."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter", "hedgedoc"], script_runner=capture)
+    assert "/mnt/nexus-data/hedgedoc/uploads" in captured_script["script"]
+
+
+def test_run_compose_up_hedgedoc_omitted_when_hedgedoc_not_in_enabled() -> None:
+    """No hedgedoc → no uploads-prep block."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter"], script_runner=capture)
+    assert "/mnt/nexus-data/hedgedoc/uploads" not in captured_script["script"]
+
+
+# ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
 

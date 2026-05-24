@@ -664,6 +664,8 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "hedgedoc",
             _filter_empty(
                 {
+                    "HEDGEDOC_USERNAME": env.admin_email,
+                    "HEDGEDOC_PASSWORD": config.hedgedoc_admin_password,
                     "HEDGEDOC_SESSION_SECRET": config.hedgedoc_session_secret,
                     "HEDGEDOC_DB_PASSWORD": config.hedgedoc_db_password,
                 }

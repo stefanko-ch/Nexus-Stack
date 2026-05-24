@@ -64,6 +64,8 @@
       'GRAFANA_USERNAME': 'nexus-test-user',
     }),
     'hedgedoc': dict({
+      'HEDGEDOC_PASSWORD': 'hedgedoc_admin_password-VALUE',
+      'HEDGEDOC_USERNAME': 'admin@snapshot.test',
     }),
     'hetzner-s3': dict({
       'HETZNER_S3_ACCESS_KEY': 'hetzner_s3_access_key-VALUE',

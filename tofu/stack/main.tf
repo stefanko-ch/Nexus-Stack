@@ -159,6 +159,17 @@ resource "random_password" "hedgedoc_db_password" {
   special = false
 }
 
+# HedgeDoc admin password — single seeded account that the deploy
+# pipeline creates via `node /hedgedoc/bin/manage_users --add ...
+# --pass ...` post-compose-up. With CMD_ALLOW_EMAIL_REGISTER=false
+# this is the ONLY way to authenticate into HedgeDoc; CF Access at
+# the edge gates "who can reach the login page" but is not the
+# in-app identity.
+resource "random_password" "hedgedoc_admin" {
+  length  = 24
+  special = false
+}
+
 # LiteLLM master key — Bearer token for admin ops + /ui login.
 # Length 32 because it's the single auth gate to every provider
 # proxied behind it (Ollama, OpenAI, Anthropic, ...).

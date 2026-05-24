@@ -766,6 +766,84 @@ superset_hook
 """
 
 
+def render_hedgedoc_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """HedgeDoc admin seed: ``node /hedgedoc/bin/manage_users --add EMAIL``.
+
+    With CMD_ALLOW_EMAIL_REGISTER=false (the post-#618 default), no
+    one can sign up through the web UI — the CLI is the only path
+    to create the single admin account.
+
+    Idempotent pattern mirrors Superset's: try ``--add`` first,
+    if the user already exists fall back to ``--reset`` so a
+    rotated random_password.hedgedoc_admin (or a re-seed after an
+    R2 snapshot restore from a stack with a different password)
+    converges the in-DB hash with the Infisical-stored secret.
+
+    Secrets handling: the password is piped via stdin into ``docker
+    exec -i`` and read by an in-container ``sh -c 'PASS=$(cat); ...'``
+    wrapper, so the cleartext password reaches the ``node`` argv
+    only INSIDE the container (visible to a hypothetical
+    other-uid-attached process in that container, of which there is
+    none) and NEVER appears in host-side ``ps`` output. Same threat
+    model as Superset's hook.
+
+    The /status endpoint returns 200 once the Node process bound
+    its port; that's a sufficient readiness signal for the CLI
+    sub-process to find a valid sequelize connection. We give the
+    container 90s before bailing — first-init runs migrations, and
+    the Postgres-DB-restore path adds another beat.
+    """
+    password = config.hedgedoc_admin_password or ""
+    email = env.admin_email or ""
+    if not password or not email:
+        return 'echo "RESULT hook=hedgedoc status=skipped-not-ready"\n'
+    password_q = shlex.quote(password)
+    email_q = shlex.quote(email)
+    wait = _render_wait_healthy(
+        name="hedgedoc",
+        url="http://localhost:3110/status",
+        timeout_seconds=90,
+    )
+    return f"""
+hedgedoc_hook() {{
+    {wait}
+    HEDGEDOC_ADMIN_EMAIL={email_q}
+    HEDGEDOC_ADMIN_PASSWORD={password_q}
+    # Try add first — stdin-pipe the password so the cleartext is
+    # never in host argv. The inner sh reads stdin into PASS, then
+    # invokes manage_users with --pass "$PASS" so the password is
+    # in the CONTAINER's node argv only (host-side argv shows only
+    # `sh -c '...'`). 2>&1 captures both manage_users's "already
+    # exists" message (stdout) and any sequelize errors (stderr).
+    CREATE_RESULT=$(printf '%s' "$HEDGEDOC_ADMIN_PASSWORD" | \\
+        docker exec -i -e HEDGEDOC_ADMIN_EMAIL="$HEDGEDOC_ADMIN_EMAIL" hedgedoc \\
+        sh -c 'PASS=$(cat); node /hedgedoc/bin/manage_users --add "$HEDGEDOC_ADMIN_EMAIL" --pass "$PASS"' 2>&1 || echo "")
+    if echo "$CREATE_RESULT" | grep -q 'Created user'; then
+        echo "RESULT hook=hedgedoc status=configured"
+        return 0
+    fi
+    if ! echo "$CREATE_RESULT" | grep -q 'already exists'; then
+        echo "  ⚠ hedgedoc admin create unexpected output: $CREATE_RESULT" >&2
+        echo "RESULT hook=hedgedoc status=failed"
+        return 0
+    fi
+    # Fallback: reset password so the in-DB hash matches the
+    # Infisical-stored secret (re-converges after snapshot restore
+    # with a rotated random_password, or operator-side `tofu taint`).
+    RESET_RESULT=$(printf '%s' "$HEDGEDOC_ADMIN_PASSWORD" | \\
+        docker exec -i -e HEDGEDOC_ADMIN_EMAIL="$HEDGEDOC_ADMIN_EMAIL" hedgedoc \\
+        sh -c 'PASS=$(cat); node /hedgedoc/bin/manage_users --reset "$HEDGEDOC_ADMIN_EMAIL" --pass "$PASS"' 2>&1 || echo "")
+    if echo "$RESET_RESULT" | grep -qi 'reset\\|changed\\|success'; then
+        echo "RESULT hook=hedgedoc status=already-configured"
+    else
+        echo "  ⚠ hedgedoc admin reset unexpected output: $RESET_RESULT" >&2
+        echo "RESULT hook=hedgedoc status=failed"
+    fi
+}}
+hedgedoc_hook
+"""
+
+
 # ---------------------------------------------------------------------------
 # Admin-setup hooks for the bash-render family: Uptime Kuma, Garage,
 # Wiki.js, Dify, Windmill, SFTPGo. SFTPGo was originally a candidate
@@ -1907,6 +1985,7 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     "dify": render_dify_hook,
     "windmill": render_windmill_hook,
     "sftpgo": render_sftpgo_hook,
+    "hedgedoc": render_hedgedoc_hook,
     # pg-ducklake bootstrap re-apply (handles cred rotation on
     # persistent-volume deploys where the entrypoint-initdb scripts
     # only ran on first init).

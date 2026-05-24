@@ -150,6 +150,7 @@ def render_remote_script(
     dify_storage_prep: bool = False,
     metabase_storage_prep: bool = False,
     ollama_internal_network_prep: bool = False,
+    hedgedoc_uploads_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
 ) -> str:
@@ -226,6 +227,24 @@ docker network inspect ollama-internal >/dev/null 2>&1 || \\
     docker network create --label managed-by=nexus-stack ollama-internal
 """
 
+    # HedgeDoc bind-mounts /mnt/nexus-data/hedgedoc/uploads onto its
+    # /hedgedoc/public/uploads so the R2 snapshot/restore cycle can
+    # rsync user-uploaded images. The container's `hedgedoc` user is
+    # UID/GID 10000 (verified via `id` against the upstream image);
+    # without an explicit chown the bind-mount inherits root-owned and
+    # the first image upload fails with EACCES. Idempotent mkdir + a
+    # guarded chown — the chown only fires when the existing owner is
+    # NOT 10000:10000, so a re-deploy on an already-populated path
+    # doesn't walk the entire tree.
+    hedgedoc_block = ""
+    if hedgedoc_uploads_prep:
+        hedgedoc_block = """
+mkdir -p /mnt/nexus-data/hedgedoc/uploads
+if [ "$(stat -c '%u:%g' /mnt/nexus-data/hedgedoc/uploads)" != "10000:10000" ]; then
+  chown -R 10000:10000 /mnt/nexus-data/hedgedoc/uploads
+fi
+"""
+
     metabase_block = ""
     if metabase_storage_prep:
         # Metabase runs as uid 2000 (since v0.46 official image) and
@@ -263,7 +282,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{ollama_internal_block}{dify_block}{metabase_block}
+{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -362,6 +381,7 @@ def run_compose_up(
     dify_storage_prep: bool | None = None,
     metabase_storage_prep: bool | None = None,
     ollama_internal_network_prep: bool | None = None,
+    hedgedoc_uploads_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
     """Render → exec → parse.
@@ -401,6 +421,9 @@ def run_compose_up(
         if ollama_internal_network_prep is not None
         else ("litellm" in enabled or "ollama" in enabled)
     )
+    actual_hedgedoc = (
+        hedgedoc_uploads_prep if hedgedoc_uploads_prep is not None else "hedgedoc" in enabled
+    )
 
     script = render_remote_script(
         parents=parents,
@@ -408,6 +431,7 @@ def run_compose_up(
         dify_storage_prep=actual_dify,
         metabase_storage_prep=actual_metabase,
         ollama_internal_network_prep=actual_ollama_internal,
+        hedgedoc_uploads_prep=actual_hedgedoc,
     )
 
     run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))

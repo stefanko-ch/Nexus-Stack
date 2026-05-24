@@ -39,6 +39,7 @@ from nexus_deploy.services import (
     parse_results,
     render_dify_hook,
     render_garage_hook,
+    render_hedgedoc_hook,
     render_lakefs_hook,
     render_metabase_hook,
     render_n8n_hook,
@@ -79,6 +80,7 @@ def _make_config(**overrides: Any) -> NexusConfig:
         # docker-exec hooks
         "redpanda_admin_password": "rp-pass",
         "superset_admin_password": "su-pass",
+        "hedgedoc_admin_password": "hd-admin-pass",
         # additional admin-setup hooks
         "wikijs_admin_password": "wiki-pass",
         "dify_admin_password": "dify-pass",
@@ -105,7 +107,7 @@ def _make_env(admin_email: str = "ops@example.com") -> BootstrapEnv:
 
 
 def test_supported_hooks_contains_all_specs() -> None:
-    """5 REST hooks + 2 docker-exec hooks + Filestash (python) +
+    """5 REST hooks + 3 docker-exec hooks + Filestash (python) +
     6 additional admin-setups."""
     assert set(supported_hooks()) == {
         # REST first-init
@@ -117,6 +119,7 @@ def test_supported_hooks_contains_all_specs() -> None:
         # docker-exec CLI
         "redpanda",
         "superset",
+        "hedgedoc",
         # python-side mutation
         "filestash",
         # additional admin-setups
@@ -441,6 +444,58 @@ def test_render_superset_hook_email_via_dash_e_not_argv() -> None:
     rendered bash for debug-ability."""
     script = render_superset_hook(_make_config(), _make_env(admin_email="ops@example.com"))
     assert '-e ADMIN_EMAIL="$ADMIN_EMAIL"' in script
+
+
+# ---------------------------------------------------------------------------
+# HedgeDoc admin-seed (manage_users CLI via docker exec)
+# ---------------------------------------------------------------------------
+
+
+def test_render_hedgedoc_hook_basic() -> None:
+    script = render_hedgedoc_hook(_make_config(), _make_env())
+    assert "hedgedoc_hook()" in script
+    assert "/status" in script  # readiness wait
+    assert "manage_users --add" in script  # primary path
+    assert "manage_users --reset" in script  # idempotent fallback
+    assert "RESULT hook=hedgedoc" in script
+
+
+def test_render_hedgedoc_hook_skips_when_password_empty() -> None:
+    script = render_hedgedoc_hook(_make_config(hedgedoc_admin_password=""), _make_env())
+    assert script.strip() == 'echo "RESULT hook=hedgedoc status=skipped-not-ready"'
+
+
+def test_render_hedgedoc_hook_skips_when_email_empty() -> None:
+    script = render_hedgedoc_hook(_make_config(), _make_env(admin_email=""))
+    assert script.strip() == 'echo "RESULT hook=hedgedoc status=skipped-not-ready"'
+
+
+def test_render_hedgedoc_hook_password_via_stdin_not_argv() -> None:
+    """HedgeDoc password piped via stdin to ``docker exec -i``. Same
+    secret-handling pattern as the Superset hook: the cleartext
+    password reaches the in-container ``PASS`` shell var via
+    stdin, the host-visible argv is just ``docker exec -i hedgedoc
+    sh -c '...'``. Cleartext NEVER appears after `docker exec` on
+    any line.
+    """
+    canary = "HD-CANARY-X9Y8Z7"
+    script = render_hedgedoc_hook(_make_config(hedgedoc_admin_password=canary), _make_env())
+    assert canary in script  # appears as bash var assignment
+    for line in script.splitlines():
+        idx_docker = line.find("docker exec")
+        if idx_docker >= 0:
+            idx_canary = line.find(canary)
+            if idx_canary > idx_docker:
+                raise AssertionError(f"Password leaked into docker exec argv: {line!r}")
+    # Pipe-to-stdin form must appear twice (--add + --reset fallback)
+    assert script.count("printf '%s' \"$HEDGEDOC_ADMIN_PASSWORD\" |") == 2
+
+
+def test_render_hedgedoc_hook_email_via_dash_e_not_argv() -> None:
+    """admin_email is non-secret → ``-e HEDGEDOC_ADMIN_EMAIL=`` (host
+    argv visible but harmless). Same split as Superset."""
+    script = render_hedgedoc_hook(_make_config(), _make_env(admin_email="ops@example.com"))
+    assert '-e HEDGEDOC_ADMIN_EMAIL="$HEDGEDOC_ADMIN_EMAIL"' in script
 
 
 # ---------------------------------------------------------------------------

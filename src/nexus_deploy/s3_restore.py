@@ -346,6 +346,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     postgres = (
         _s3.PostgresDumpTarget(container="gitea-db", database="gitea", user="nexus-gitea"),
         _s3.PostgresDumpTarget(container="dify-db", database="dify", user="nexus-dify"),
+        _s3.PostgresDumpTarget(container="hedgedoc-db", database="hedgedoc", user="nexus-hedgedoc"),
     )
     rsync = (
         _s3.RsyncTarget(
@@ -380,6 +381,17 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="metabase-data",
             local_path="/mnt/nexus-data/metabase",
             s3_subpath="metabase/data",
+        ),
+        # HedgeDoc: user-uploaded images (Markdown attachments).
+        # The Postgres state goes through the PostgresDumpTarget
+        # above; this rsync target captures the binary uploads that
+        # live outside the DB. Bind-mount path chowned to 10000:10000
+        # (the in-container hedgedoc user) by compose_runner's
+        # hedgedoc_uploads_prep block. Issue #618.
+        _s3.RsyncTarget(
+            name="hedgedoc-uploads",
+            local_path="/mnt/nexus-data/hedgedoc/uploads",
+            s3_subpath="hedgedoc/uploads",
         ),
     )
     return postgres, rsync

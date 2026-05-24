@@ -434,34 +434,54 @@ def _render_meilisearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 def _render_hedgedoc(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """HedgeDoc: needs CMD_DOMAIN (composed from BootstrapEnv.domain
     + subdomain_separator), the random_password-backed session
-    secret, and a dedicated Postgres password.
+    secret, a dedicated Postgres password, plus the admin email +
+    password that the services-configure hook seeds via
+    ``node /hedgedoc/bin/manage_users --add EMAIL --pass PASS``.
 
-    Fail-fast guard (same pattern as Meilisearch / SFTPGo): both the
-    session secret AND the DB password must be non-empty. Without
-    HEDGEDOC_SESSION_SECRET the container starts but sessions are
-    silently insecure; without HEDGEDOC_DB_PASSWORD the Postgres
-    init crashes the container with a cryptic auth error. Surface
-    both as a clear deploy-time abort pointing at the missing
-    Tofu/Infisical sync."""
-    if _empty(c.hedgedoc_session_secret) or _empty(c.hedgedoc_db_password):
-        missing = []
-        if _empty(c.hedgedoc_session_secret):
-            missing.append("HEDGEDOC_SESSION_SECRET")
-        if _empty(c.hedgedoc_db_password):
-            missing.append("HEDGEDOC_DB_PASSWORD")
+    Fail-fast guard: every required secret must be non-empty.
+
+    - Empty HEDGEDOC_SESSION_SECRET → HedgeDoc generates one at
+      runtime and rotates it on every container restart, silently
+      logging users out and breaking session-bound features.
+    - Empty HEDGEDOC_DB_PASSWORD → the dedicated Postgres init
+      crashes the container with a cryptic auth error on first
+      boot.
+    - Empty HEDGEDOC_ADMIN_PASSWORD or admin_email → the
+      services-configure hook would seed an account with empty
+      credentials (or be unable to seed at all). With
+      CMD_ALLOW_EMAIL_REGISTER=false (the post-#618 default),
+      that leaves HedgeDoc with no way to log in at all.
+
+    Surface all four as a single deploy-time abort pointing at the
+    missing Tofu/Infisical sync so the operator does one re-run
+    cycle to fix everything.
+    """
+    missing = []
+    if _empty(c.hedgedoc_session_secret):
+        missing.append("HEDGEDOC_SESSION_SECRET")
+    if _empty(c.hedgedoc_db_password):
+        missing.append("HEDGEDOC_DB_PASSWORD")
+    if _empty(c.hedgedoc_admin_password):
+        missing.append("HEDGEDOC_ADMIN_PASSWORD")
+    if _empty(e.admin_email):
+        missing.append("HEDGEDOC_ADMIN_EMAIL (BootstrapEnv.admin_email)")
+    if missing:
         raise ServiceEnvError(
             f"HedgeDoc enabled but {', '.join(missing)} empty — run "
             "`tofu apply` (initial-setup workflow) to generate "
             "random_password.hedgedoc_session_secret + "
-            "random_password.hedgedoc_db_password "
+            "random_password.hedgedoc_db_password + "
+            "random_password.hedgedoc_admin "
             "+ push to Infisical, then re-run spin-up. Aborting to avoid "
-            "an insecure-sessions / DB-auth-failure container.",
+            "an insecure-sessions / DB-auth-failure / lockout container.",
         )
     domain_host = service_host("hedgedoc", e.domain or "", e.subdomain_separator)
     return RenderedEnv(
         env_vars={
             "HEDGEDOC_SESSION_SECRET": c.hedgedoc_session_secret or "",
             "HEDGEDOC_DB_PASSWORD": c.hedgedoc_db_password or "",
+            "HEDGEDOC_ADMIN_EMAIL": e.admin_email or "",
+            "HEDGEDOC_ADMIN_PASSWORD": c.hedgedoc_admin_password or "",
             "HEDGEDOC_DOMAIN": domain_host,
         },
     )
