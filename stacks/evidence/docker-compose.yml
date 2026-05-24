@@ -32,6 +32,14 @@ services:
     # versioned devenv tags.
     image: ${IMAGE_EVIDENCE:-evidencedev/devenv:latest}
     container_name: evidence
+    # env_file picks up the renderer-populated POSTGRES_PASSWORD /
+    # EVIDENCE_DOMAIN AND any operator-added variables in
+    # stacks/evidence/.env — Evidence sources/<name>/connection.yaml
+    # supports ${VAR} interpolation, so additional data-source
+    # credentials reach the container without having to extend the
+    # explicit `environment:` list below.
+    env_file:
+      - .env
     restart: unless-stopped
     ports:
       # Host 3007 → container 3000 (Evidence's SvelteKit dev port).

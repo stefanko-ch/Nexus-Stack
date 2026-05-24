@@ -38,8 +38,8 @@ Compared to the other BI tools in this stack:
 
 1. Enable **Evidence** in the Control Plane → Spin Up.
 2. Open `https://evidence.YOUR_DOMAIN` → CF Access email OTP → landing page.
-3. Edit the sample page at `stacks/evidence/project/pages/index.md` on the server (the project root is bind-mounted into the container, so changes apply on save).
-4. Add new pages as `.md` files in `project/pages/` — each one renders at `https://evidence.YOUR_DOMAIN/<filename>`.
+3. Edit the sample page at `/opt/docker-server/stacks/evidence/project/pages/index.md` on the server (the project root is bind-mounted into the container at `/evidence-workspace`, so changes apply on save).
+4. Add new pages as `.md` files in `/opt/docker-server/stacks/evidence/project/pages/` — each one renders at `https://evidence.YOUR_DOMAIN/<filename>`.
 
 ### Adding data sources
 
@@ -71,7 +71,7 @@ For a production hand-off, the devenv runtime can build a static HTML export:
 ssh nexus 'docker exec evidence npm run sources && docker exec evidence npm run build'
 ```
 
-Output lands in `stacks/evidence/project/build/` on the server. Copy it into any of the file-store stacks (MinIO, Garage, SeaweedFS, RustFS) and serve as static HTML — or commit it to a GitHub Pages / Cloudflare Pages repo for a fully decoupled deploy.
+Output lands in `/opt/docker-server/stacks/evidence/project/build/` on the server. Copy it into any of the file-store stacks (MinIO, Garage, SeaweedFS, RustFS) and serve as static HTML — or commit it to a GitHub Pages / Cloudflare Pages repo for a fully decoupled deploy.
 
 ### Secrets
 

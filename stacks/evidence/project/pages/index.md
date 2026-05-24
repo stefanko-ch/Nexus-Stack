@@ -35,7 +35,13 @@ package to `package.json`.
 
 ## Building a static export
 
-For a production hand-off, run `docker exec evidence npm run sources &&
-docker exec evidence npm run build` inside the running container. The
-output lands in `project/build/`; copy it into any of the file-store
+For a production hand-off, run the two commands below inside the
+running container:
+
+```bash
+docker exec evidence npm run sources
+docker exec evidence npm run build
+```
+
+The output lands in `project/build/`; copy it into any of the file-store
 stacks (MinIO/Garage/SeaweedFS/RustFS) and serve it as static HTML.
