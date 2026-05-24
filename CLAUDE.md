@@ -241,7 +241,7 @@ When adding a new Docker stack, **all locations must be updated**:
 
 3. **Pin Docker image versions:**
    - **CRITICAL:** Always use specific version tags, NOT `latest`
-   - **Exception:** Only use `latest` for non-critical standalone tools (drawio, it-tools, wetty, code-server, jupyter, marimo, adminer, excalidraw)
+   - **Exception:** Only use `latest` for non-critical standalone tools (drawio, it-tools, wetty, code-server, jupyter, marimo, adminer, excalidraw, evidence). Common property: presentation-layer or dev-tool, no persistent state beyond cache; upstream publishes no semver tags (only `:latest`), so digest pinning would still require manual update on every refresh and offers no real predictability win.
    - **Pin versions for:**
      - All data storage services (databases, object storage, data lakes)
      - Services with persistent state or databases
