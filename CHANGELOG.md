@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.67.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.66.0...v0.67.0) (2026-05-24)
+
+
+### 🚀 Features
+
+* **control-plane:** Add back button to category page ([#608](https://github.com/stefanko-ch/Nexus-Stack/issues/608)) ([062bf6d](https://github.com/stefanko-ch/Nexus-Stack/commit/062bf6d9c49a7a45d3c6a11525fb43a67a83db8a))
+* **grafana:** Optional remote_write to centralised monitoring ([#607](https://github.com/stefanko-ch/Nexus-Stack/issues/607)) ([#610](https://github.com/stefanko-ch/Nexus-Stack/issues/610)) ([edc852c](https://github.com/stefanko-ch/Nexus-Stack/commit/edc852cda0f8351af05e916fdcc225c0946949d0))
+* **stacks:** Add HedgeDoc + LiteLLM Proxy ([#612](https://github.com/stefanko-ch/Nexus-Stack/issues/612)) ([8d0a134](https://github.com/stefanko-ch/Nexus-Stack/commit/8d0a1348b7bb3d3167772e71d3c179d219c8ac4e))
+
 ## [0.66.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.65.0...v0.66.0) (2026-05-23)
 
 
