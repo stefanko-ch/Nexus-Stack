@@ -500,11 +500,15 @@ def test_hedgedoc_raises_lists_all_missing_at_once(
             "admin_email": "",
         }
     )
+    # Error message uses the Infisical key names so operators
+    # grepping for the failure find the secret directly without
+    # having to translate between renderer-internal vs Infisical
+    # naming.
     with pytest.raises(
         ServiceEnvError,
         match=(
             r"HEDGEDOC_SESSION_SECRET.*HEDGEDOC_DB_PASSWORD.*"
-            r"HEDGEDOC_ADMIN_PASSWORD.*HEDGEDOC_ADMIN_EMAIL"
+            r"HEDGEDOC_PASSWORD.*HEDGEDOC_USERNAME"
         ),
     ):
         _render_hedgedoc(config, env)
@@ -513,25 +517,26 @@ def test_hedgedoc_raises_lists_all_missing_at_once(
 def test_hedgedoc_raises_on_empty_admin_password(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Empty HEDGEDOC_ADMIN_PASSWORD with CMD_ALLOW_EMAIL_REGISTER=false
-    would leave HedgeDoc with no way to log in — the only seedable
-    account is the one this renderer feeds. Fail fast at deploy time
-    so the operator runs the Tofu sync before the container comes up
-    locked-out."""
+    """Empty admin password (Infisical /hedgedoc/HEDGEDOC_PASSWORD)
+    with CMD_ALLOW_EMAIL_REGISTER=false would leave HedgeDoc with
+    no way to log in — the only seedable account is the one this
+    renderer feeds. Fail fast at deploy time so the operator runs
+    the Tofu sync before the container comes up locked-out."""
     from nexus_deploy.service_env import _render_hedgedoc
 
     config = full_config.model_copy(update={"hedgedoc_admin_password": ""})
-    with pytest.raises(ServiceEnvError, match="HEDGEDOC_ADMIN_PASSWORD"):
+    with pytest.raises(ServiceEnvError, match="HEDGEDOC_PASSWORD"):
         _render_hedgedoc(config, full_env)
 
 
 def test_hedgedoc_raises_on_empty_admin_email(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Empty admin_email (from BootstrapEnv) means the
-    services-configure hook would try to seed a user with an empty
-    email — manage_users CLI would reject it. Surface upstream
-    instead of letting the deploy go red later."""
+    """Empty admin_email (BootstrapEnv → Infisical
+    /hedgedoc/HEDGEDOC_USERNAME) means the services-configure hook
+    would try to seed a user with an empty email — manage_users CLI
+    would reject it. Surface upstream instead of letting the deploy
+    go red later."""
     from nexus_deploy.service_env import _render_hedgedoc
 
     env = BootstrapEnv(
@@ -540,7 +545,7 @@ def test_hedgedoc_raises_on_empty_admin_email(
             "admin_email": "",
         }
     )
-    with pytest.raises(ServiceEnvError, match="HEDGEDOC_ADMIN_EMAIL"):
+    with pytest.raises(ServiceEnvError, match="HEDGEDOC_USERNAME"):
         _render_hedgedoc(full_config, env)
 
 
@@ -552,17 +557,21 @@ def test_hedgedoc_renders_domain_from_bootstrap_env(
     into absolute URLs (image attachments, OAuth callback links) at
     container-start time — wrong value breaks all share links.
 
-    Admin email + password are surfaced as env vars so a future
-    container-side automation can read them if needed; the
-    services-configure hook is the primary consumer."""
+    Admin email + password are NOT rendered to .env (the
+    docker-compose doesn't reference them and the
+    services-configure hook reads them straight from NexusConfig /
+    BootstrapEnv) — the guard checks them for non-emptyness only.
+    """
     from nexus_deploy.service_env import _render_hedgedoc
 
     rendered = _render_hedgedoc(full_config, full_env)
     assert rendered.env_vars["HEDGEDOC_DOMAIN"] == "hedgedoc.example.com"
     assert rendered.env_vars["HEDGEDOC_SESSION_SECRET"]
     assert rendered.env_vars["HEDGEDOC_DB_PASSWORD"]
-    assert rendered.env_vars["HEDGEDOC_ADMIN_EMAIL"] == full_env.admin_email
-    assert rendered.env_vars["HEDGEDOC_ADMIN_PASSWORD"] == full_config.hedgedoc_admin_password
+    # Admin email + password deliberately NOT in rendered .env
+    # (dead vars — nothing consumes them).
+    assert "HEDGEDOC_ADMIN_EMAIL" not in rendered.env_vars
+    assert "HEDGEDOC_ADMIN_PASSWORD" not in rendered.env_vars
 
 
 def test_hedgedoc_domain_respects_subdomain_separator(

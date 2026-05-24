@@ -434,37 +434,40 @@ def _render_meilisearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 def _render_hedgedoc(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """HedgeDoc: needs CMD_DOMAIN (composed from BootstrapEnv.domain
     + subdomain_separator), the random_password-backed session
-    secret, a dedicated Postgres password, plus the admin email +
-    password that the services-configure hook seeds via
-    ``node /hedgedoc/bin/manage_users --add EMAIL --pass PASS``.
+    secret, and a dedicated Postgres password. The admin email +
+    password used by the services-configure hook to seed the
+    admin account are NOT rendered into ``.env`` — the hook reads
+    them straight from :class:`NexusConfig` /
+    :class:`BootstrapEnv`, and the docker-compose doesn't reference
+    them either. We still guard their non-emptyness here so the
+    failure mode (locked-out HedgeDoc with no admin) surfaces at
+    the same deploy phase as the other missing secrets, with one
+    actionable error message for the operator.
 
-    Fail-fast guard: every required secret must be non-empty.
+    Infisical naming reference (operators grepping the error
+    message should find these keys directly):
 
-    - Empty HEDGEDOC_SESSION_SECRET → HedgeDoc generates one at
-      runtime and rotates it on every container restart, silently
-      logging users out and breaking session-bound features.
-    - Empty HEDGEDOC_DB_PASSWORD → the dedicated Postgres init
-      crashes the container with a cryptic auth error on first
-      boot.
-    - Empty HEDGEDOC_ADMIN_PASSWORD or admin_email → the
-      services-configure hook would seed an account with empty
-      credentials (or be unable to seed at all). With
-      CMD_ALLOW_EMAIL_REGISTER=false (the post-#618 default),
+    - ``/hedgedoc/HEDGEDOC_SESSION_SECRET`` — empty → HedgeDoc
+      generates one at runtime and rotates it on every container
+      restart, silently logging users out.
+    - ``/hedgedoc/HEDGEDOC_DB_PASSWORD`` — empty → dedicated
+      Postgres init crashes with a cryptic auth error.
+    - ``/hedgedoc/HEDGEDOC_PASSWORD`` — empty → services-configure
+      hook seeds an account with empty password, and with
+      CMD_ALLOW_EMAIL_REGISTER=false (the post-#618 default)
       that leaves HedgeDoc with no way to log in at all.
-
-    Surface all four as a single deploy-time abort pointing at the
-    missing Tofu/Infisical sync so the operator does one re-run
-    cycle to fix everything.
+    - ``/hedgedoc/HEDGEDOC_USERNAME`` (=BootstrapEnv.admin_email)
+      — same failure mode as empty password.
     """
     missing = []
     if _empty(c.hedgedoc_session_secret):
-        missing.append("HEDGEDOC_SESSION_SECRET")
+        missing.append("HEDGEDOC_SESSION_SECRET (Infisical /hedgedoc)")
     if _empty(c.hedgedoc_db_password):
-        missing.append("HEDGEDOC_DB_PASSWORD")
+        missing.append("HEDGEDOC_DB_PASSWORD (Infisical /hedgedoc)")
     if _empty(c.hedgedoc_admin_password):
-        missing.append("HEDGEDOC_ADMIN_PASSWORD")
+        missing.append("HEDGEDOC_PASSWORD (Infisical /hedgedoc)")
     if _empty(e.admin_email):
-        missing.append("HEDGEDOC_ADMIN_EMAIL (BootstrapEnv.admin_email)")
+        missing.append("HEDGEDOC_USERNAME (Infisical /hedgedoc, = BootstrapEnv.admin_email)")
     if missing:
         raise ServiceEnvError(
             f"HedgeDoc enabled but {', '.join(missing)} empty — run "
@@ -480,8 +483,6 @@ def _render_hedgedoc(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         env_vars={
             "HEDGEDOC_SESSION_SECRET": c.hedgedoc_session_secret or "",
             "HEDGEDOC_DB_PASSWORD": c.hedgedoc_db_password or "",
-            "HEDGEDOC_ADMIN_EMAIL": e.admin_email or "",
-            "HEDGEDOC_ADMIN_PASSWORD": c.hedgedoc_admin_password or "",
             "HEDGEDOC_DOMAIN": domain_host,
         },
     )
