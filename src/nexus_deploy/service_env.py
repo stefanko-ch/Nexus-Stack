@@ -501,6 +501,29 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_evidence(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Evidence: SQL+markdown BI runtime. The bundled sample project
+    queries the in-stack Postgres via env-var interpolation, so we
+    pipe through the existing ``postgres_password`` field (no
+    dedicated Evidence secret to manage) plus the absolute public
+    URL Evidence uses for OG tags + canonical links.
+
+    No fail-fast guard: Evidence renders pages even without a working
+    data source (it just shows query errors inline), and the operator
+    may legitimately be wiring an external warehouse instead of the
+    in-stack Postgres. Leaving the password empty produces an
+    "auth failed" message on the affected query rather than a crashed
+    container.
+    """
+    domain_host = service_host("evidence", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "POSTGRES_PASSWORD": c.postgres_password or "",
+            "EVIDENCE_DOMAIN": f"https://{domain_host}",
+        },
+    )
+
+
 def _render_litellm(
     c: NexusConfig, e: BootstrapEnv, *, litellm_config_template: str | None = None
 ) -> RenderedEnv:
@@ -1303,6 +1326,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("hedgedoc", _is_enabled("hedgedoc"), _render_hedgedoc),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),
     EnvSpec("mage", _is_enabled("mage"), _render_mage),
     EnvSpec("minio", _is_enabled("minio"), _render_minio),
     EnvSpec("sftpgo", _is_enabled("sftpgo"), _render_sftpgo),

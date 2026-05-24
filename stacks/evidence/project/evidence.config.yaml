@@ -1,0 +1,6 @@
+deployment:
+  basePath: ""
+
+appearance:
+  default: system
+  switcher: true

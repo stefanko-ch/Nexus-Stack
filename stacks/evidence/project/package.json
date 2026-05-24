@@ -1,0 +1,21 @@
+{
+  "name": "nexus-evidence-project",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "evidence build",
+    "build:strict": "evidence build:strict",
+    "dev": "evidence dev --host 0.0.0.0 --port 3000",
+    "sources": "evidence sources"
+  },
+  "dependencies": {
+    "@evidence-dev/core-components": "^5.0.0",
+    "@evidence-dev/evidence": "^40.1.8",
+    "@evidence-dev/postgres": "^2.0.0"
+  },
+  "type": "module",
+  "engines": {
+    "npm": ">=7.0.0",
+    "node": ">=18.0.0"
+  }
+}

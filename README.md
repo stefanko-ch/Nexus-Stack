@@ -68,7 +68,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (72)
+## Available Stacks (73)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -88,6 +88,7 @@ After deployment you'll have:
 [![Dozzle](https://img.shields.io/badge/Dozzle-7B16FF?logo=docker&logoColor=white)](https://dozzle.dev)
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
 [![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
+[![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
 [![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)](https://www.filestash.app)
 [![Flink](https://img.shields.io/badge/Apache_Flink-E6526F?logo=apacheflink&logoColor=white)](https://flink.apache.org)
 [![Garage](https://img.shields.io/badge/Garage-59C6A6?logo=amazons3&logoColor=white)](https://garagehq.deuxfleurs.fr)
@@ -163,6 +164,7 @@ After deployment you'll have:
 | **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
+| **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
 | **Flink** | Distributed stream and batch processing engine (JobManager + TaskManager cluster) | [flink.apache.org](https://flink.apache.org) |
 | **Garage** | Lightweight S3-compatible object storage for self-hosting | [garagehq.deuxfleurs.fr](https://garagehq.deuxfleurs.fr) |

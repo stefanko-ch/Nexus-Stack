@@ -1,0 +1,17 @@
+# Nexus-Stack default Postgres source.
+# Credentials come from environment variables that the
+# docker-compose env_file populates from Infisical.
+# Add more sources by creating sibling directories under
+# stacks/evidence/project/sources/<name>/ with their own
+# connection.yaml + a similar credentials.yaml that pulls
+# from env interpolation.
+name: nexus_postgres
+type: postgres
+options:
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  database: ${POSTGRES_DATABASE}
+  user: ${POSTGRES_USER}
+  password: ${POSTGRES_PASSWORD}
+  schema: public
+  ssl: false

@@ -47,6 +47,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `python-3.13` | Minor |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
+| Evidence | `evidencedev/devenv` | `latest` | Latest ² |
 | Filestash | `machines/filestash` | `latest` | Latest ² |
 | Flink JobManager | `flink` (custom build) | `1.20.1` | Exact ³ |
 | Flink TaskManager | `flink` (custom build) | `1.20.1` | Exact ³ |
@@ -147,6 +148,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
 | **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
+| **Evidence** | SQL + markdown BI for analytics engineers | [evidence.md](evidence.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Apache Flink** | Distributed stream and batch processing | [flink.md](flink.md) |

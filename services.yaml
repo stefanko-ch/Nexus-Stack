@@ -237,6 +237,16 @@ services:
     long_description: "Excalidraw is a virtual whiteboard that produces hand-drawn style diagrams. Perfect for architecture sketches, brainstorming, wireframes, and technical illustrations. Supports real-time collaboration, a library of reusable components, and export to PNG/SVG."
     image: "excalidraw/excalidraw:latest"
 
+  evidence:
+    subdomain: "evidence"
+    port: 3007
+    public: false
+    category: "analytics"
+    website: "https://evidence.dev"
+    description: "SQL + markdown BI framework — write queries inside Markdown, render charts inline."
+    long_description: "Evidence is an open-source 'BI as code' framework: each page is a Markdown file containing SQL blocks that render into charts, tables, and value components. Projects live in plain text — version them in Git, edit with your normal tools, and reload on save. This stack ships the devenv runtime preloaded with a sample project that queries the in-stack Postgres; extend the sources/ directory to connect ClickHouse, Trino, DuckDB, Iceberg/Lakekeeper, and more."
+    image: "evidencedev/devenv:latest"
+
   filestash:
     subdomain: "filestash"
     port: 8334

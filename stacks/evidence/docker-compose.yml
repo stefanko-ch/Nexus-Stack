@@ -1,0 +1,74 @@
+# =============================================================================
+# Evidence - SQL + markdown BI for analytics engineers
+# =============================================================================
+# Evidence is a "BI as code" framework: write SQL queries inside
+# .md files and the framework renders charts, tables, and value
+# components inline. The project directory is plain markdown +
+# YAML — version it in Git, edit with your normal tools.
+#
+# This stack ships the `devenv` runtime — the container watches the
+# mounted project directory and re-renders pages on save. For a
+# static production export run:
+#     docker exec evidence npm run sources && docker exec evidence npm run build
+# and serve the `build/` output from any of the file-store stacks.
+#
+# Data sources are configured per-project in `project/sources/`.
+# Connection strings reference env vars (Evidence supports
+# ${VAR} interpolation in sources/*/connection.yaml), so the
+# operator points them at the Infisical-managed Postgres /
+# ClickHouse / Trino / DuckDB credentials that already exist
+# elsewhere in the stack.
+#
+# Access: https://evidence.YOUR_DOMAIN  (behind Cloudflare Access
+# unless you flip `public: true` in services.yaml).
+# =============================================================================
+
+services:
+  evidence:
+    # devenv:latest per CLAUDE.md exception for non-critical
+    # standalone tools (Evidence is a presentation layer with no
+    # persistent state beyond cache). The devenv image is the
+    # supported dev-runtime entrypoint; Evidence does not publish
+    # versioned devenv tags.
+    image: ${IMAGE_EVIDENCE:-evidencedev/devenv:latest}
+    container_name: evidence
+    restart: unless-stopped
+    ports:
+      # Host 3007 → container 3000 (Evidence's SvelteKit dev port).
+      # 3000-3006 are already taken by metabase/uptime-kuma/wetty/
+      # hoppscotch/dagster/wikijs/big-agi.
+      - "3007:3000"
+    environment:
+      # Bind the dev server to all interfaces so the published port
+      # is reachable from the host's network namespace (and through
+      # the Cloudflare Tunnel).
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Evidence emits absolute links and OG tags using the public URL.
+      EVIDENCE_BASE_URL: ${EVIDENCE_DOMAIN}
+      # Point the user-supplied sources/*/connection.yaml files at
+      # the in-stack Postgres for the bundled sample query. Operators
+      # extend the sources/ folder with additional connections.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: postgres
+      POSTGRES_USER: nexus-postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # The sample project shipped under stacks/evidence/project/ is
+      # synced to /opt/docker-server/stacks/evidence/project/ by the
+      # deploy pipeline and mounted read-write so users can edit it
+      # in-place via code-server / a Git checkout.
+      - ./project:/evidence-workspace
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

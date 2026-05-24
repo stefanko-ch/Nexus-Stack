@@ -702,6 +702,58 @@ def test_lakekeeper_domain_respects_subdomain_separator(
 
 
 # ---------------------------------------------------------------------------
+# Evidence — pipes through postgres_password + domain composition
+# ---------------------------------------------------------------------------
+
+
+def test_evidence_renders_postgres_password_and_domain(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Evidence's bundled sample project queries the in-stack Postgres
+    via env-var interpolation, so the renderer pipes through the
+    existing postgres_password (no dedicated Evidence secret) plus the
+    absolute public URL Evidence bakes into OG tags + canonical links.
+    """
+    from nexus_deploy.service_env import _render_evidence
+
+    rendered = _render_evidence(full_config, full_env)
+    assert rendered.env_vars["POSTGRES_PASSWORD"] == full_config.postgres_password
+    assert rendered.env_vars["EVIDENCE_DOMAIN"] == "https://evidence.example.com"
+
+
+def test_evidence_domain_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Multi-tenant forks set subdomain_separator='-' for flat
+    subdomains (evidence-user1.example.com). Renderer must use
+    service_host so EVIDENCE_DOMAIN tracks that override."""
+    from nexus_deploy.service_env import _render_evidence
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_evidence(full_config, env)
+    assert rendered.env_vars["EVIDENCE_DOMAIN"] == "https://evidence-example.com"
+
+
+def test_evidence_does_not_raise_on_empty_postgres_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Evidence has no fail-fast guard: empty postgres_password
+    surfaces as a per-query auth-failed message inline, not a crashed
+    container. The operator may also be wiring an external warehouse
+    instead of the in-stack Postgres."""
+    from nexus_deploy.service_env import _render_evidence
+
+    config = full_config.model_copy(update={"postgres_password": ""})
+    rendered = _render_evidence(config, full_env)
+    assert rendered.env_vars["POSTGRES_PASSWORD"] == ""
+
+
+# ---------------------------------------------------------------------------
 # SFTPGo — fail-fast guard
 # ---------------------------------------------------------------------------
 
