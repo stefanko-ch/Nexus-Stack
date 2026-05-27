@@ -14,11 +14,15 @@ variable "cloudflare_account_id" {
   description = "Cloudflare Account ID (set via TF_VAR_cloudflare_account_id)"
   type        = string
 
-  # 32-char lowercase hex — Cloudflare's canonical Account-ID shape. Catches
-  # the common operator mistakes of pasting the API token, the Zone-ID, or
-  # an empty string instead. Without this guard, an empty/wrong value
-  # surfaces as opaque 403/404s from random Cloudflare resources mid-apply
-  # rather than a clean validation failure before any state is touched.
+  # 32-char lowercase hex — Cloudflare's canonical Account-ID shape.
+  # Catches empty strings, whitespace, pasted API tokens, and most
+  # truncation/extension typos. NOTE: does NOT catch an account_id ↔
+  # zone_id swap — both values share the same 32-hex shape; reliably
+  # distinguishing them would need a runtime API call against the
+  # Cloudflare API, which is out of scope for an input validation.
+  # Without this guard, a malformed value surfaces as opaque 403/404s
+  # from random Cloudflare resources mid-apply rather than a clean
+  # validation failure before any state is touched.
   validation {
     condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_account_id))
     error_message = "cloudflare_account_id must be a 32-character lowercase hex string (Cloudflare Dashboard → top-right → Account ID)."
@@ -29,9 +33,10 @@ variable "cloudflare_zone_id" {
   description = "Cloudflare Zone ID for your domain"
   type        = string
 
-  # Same 32-hex shape as account_id (Cloudflare uses identical formatting).
-  # The account_id vs zone_id swap is the most common copy-paste error
-  # because both appear on the same Dashboard sidebar.
+  # Same 32-hex shape as account_id — Cloudflare uses identical
+  # formatting for both. A swap between the two passes this check
+  # (see account_id's note above); the validation here still catches
+  # empty strings, whitespace, pasted API tokens, and truncation typos.
   validation {
     condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
     error_message = "cloudflare_zone_id must be a 32-character lowercase hex string (Cloudflare Dashboard → your domain → Overview → Zone ID)."
