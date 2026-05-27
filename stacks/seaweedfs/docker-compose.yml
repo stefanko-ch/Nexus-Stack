@@ -23,7 +23,7 @@ services:
     ports:
       - "9333:9333"  # Master UI (statistics only)
       - "8333:8333"  # S3 API
-      - "8888:8888"  # Filer Web UI (file browser/upload)
+      - "8890:8888"  # Filer Web UI (file browser/upload) — host 8890 to avoid collision with adminer's 8888
     command: >
       server
       -s3

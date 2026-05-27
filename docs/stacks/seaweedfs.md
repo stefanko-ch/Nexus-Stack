@@ -16,7 +16,7 @@ SeaweedFS is a lightweight distributed object storage system with S3 API compati
 
 | Setting | Value |
 |---------|-------|
-| Ports | `8888` (Filer UI), `9333` (Master UI), `8333` (S3 API) |
+| Ports | `8890` (Filer UI), `9333` (Master UI), `8333` (S3 API) |
 | Subdomains | `seaweedfs` (Filer), `seaweedfs-manager` (Master) |
 | Public Access | No (storage infrastructure) |
 | Website | [seaweedfs.com](https://seaweedfs.com) |

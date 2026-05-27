@@ -699,7 +699,10 @@ services:
       admin: 9644
 
   seaweedfs:
-    port: 8888
+    # Filer UI host port — moved 8888 → 8890 to resolve collision with
+    # adminer (also on host 8888). Container-side port stays 8888 (see
+    # stacks/seaweedfs/docker-compose.yml's port mapping).
+    port: 8890
     public: false
     internal_only: true
     category: "storage"
@@ -710,7 +713,7 @@ services:
 
   seaweedfs-filer:
     subdomain: "seaweedfs"
-    port: 8888
+    port: 8890
     stack: "seaweedfs"
     public: false
     category: "storage"
