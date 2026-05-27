@@ -13,16 +13,45 @@ variable "cloudflare_api_token" {
 variable "cloudflare_account_id" {
   description = "Cloudflare Account ID (set via TF_VAR_cloudflare_account_id)"
   type        = string
+
+  # 32-char lowercase hex — Cloudflare's canonical Account-ID shape. Catches
+  # the common operator mistakes of pasting the API token, the Zone-ID, or
+  # an empty string instead. Without this guard, an empty/wrong value
+  # surfaces as opaque 403/404s from random Cloudflare resources mid-apply
+  # rather than a clean validation failure before any state is touched.
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_account_id))
+    error_message = "cloudflare_account_id must be a 32-character lowercase hex string (Cloudflare Dashboard → top-right → Account ID)."
+  }
 }
 
 variable "cloudflare_zone_id" {
   description = "Cloudflare Zone ID for your domain"
   type        = string
+
+  # Same 32-hex shape as account_id (Cloudflare uses identical formatting).
+  # The account_id vs zone_id swap is the most common copy-paste error
+  # because both appear on the same Dashboard sidebar.
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
+    error_message = "cloudflare_zone_id must be a 32-character lowercase hex string (Cloudflare Dashboard → your domain → Overview → Zone ID)."
+  }
 }
 
 variable "domain" {
   description = "Your domain name (e.g., example.com)"
   type        = string
+
+  # FQDN shape: at least one dot, only ASCII alphanumerics + hyphens +
+  # dots, no leading/trailing dot or hyphen. Catches accidental
+  # protocol-prefixed input ("https://example.com"), trailing-slash
+  # paths ("example.com/"), whitespace, and empty strings — all of
+  # which would otherwise propagate into DNS records, Worker bindings,
+  # and Pages domains before failing late.
+  validation {
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$", var.domain))
+    error_message = "domain must be a bare lowercase FQDN like 'example.com' or 'nexus.example.com' — no scheme, no trailing slash, no whitespace."
+  }
 }
 
 variable "base_domain" {
