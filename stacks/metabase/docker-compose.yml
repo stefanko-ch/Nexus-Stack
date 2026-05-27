@@ -42,10 +42,15 @@ services:
       - MB_ADMIN_EMAIL=nexus@metabase.local
       - MB_ANON_TRACKING_ENABLED=false
       - JAVA_TIMEZONE=Europe/Zurich
+      # Without -Xmx the JVM picks ~25% of the container limit as max heap
+      # (~256 MB at 1g), which OOMs as soon as a user opens a dashboard
+      # against non-trivial Gold tables. 1.5 GB heap + 2 GB container leaves
+      # ~500 MB for non-heap JVM memory (Metaspace, direct buffers, stack).
+      - JAVA_OPTS=-Xmx1500m
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 2g
     volumes:
       - /mnt/nexus-data/metabase:/metabase-data
     healthcheck:
