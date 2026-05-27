@@ -427,27 +427,26 @@ def test_run_compose_up_metabase_explicit_override_beats_enabled_inference() -> 
 
 
 # ---------------------------------------------------------------------------
-# litellm cross-stack network prep (ollama-internal)
+# ollama-internal cross-stack network prep (shared by ollama + litellm)
 # ---------------------------------------------------------------------------
 
 
-def test_render_litellm_network_prep_only_when_flagged() -> None:
-    """LiteLLM declares `ollama-internal` as an external network so
-    it can reach the Ollama stack's container directly. Without the
-    network already created, `docker compose up` aborts BEFORE the
-    container is created. The pre-compose block creates the network
-    idempotently when litellm is enabled (or omitted otherwise) so
-    LiteLLM works regardless of whether Ollama is also enabled."""
-    without = _render_default(litellm_network_prep=False)
+def test_render_ollama_internal_network_prep_only_when_flagged() -> None:
+    """Both `stacks/ollama` and `stacks/litellm` declare `ollama-internal`
+    as an `external: true` network. Without the network already created,
+    `docker compose up` aborts BEFORE the container is created. The
+    pre-compose block creates the network idempotently when either stack
+    is enabled (or omitted otherwise)."""
+    without = _render_default(ollama_internal_network_prep=False)
     assert "ollama-internal" not in without
     assert "docker network create" not in without
 
-    with_litellm = _render_default(litellm_network_prep=True)
-    assert "docker network inspect ollama-internal" in with_litellm
-    assert "docker network create --label managed-by=nexus-stack ollama-internal" in with_litellm
+    with_prep = _render_default(ollama_internal_network_prep=True)
+    assert "docker network inspect ollama-internal" in with_prep
+    assert "docker network create --label managed-by=nexus-stack ollama-internal" in with_prep
 
 
-def test_render_litellm_network_prep_is_idempotent() -> None:
+def test_render_ollama_internal_network_prep_is_idempotent() -> None:
     """The inspect-then-create guard short-circuits if the network
     already exists. A bare `docker network create` would fail with
     a non-zero exit on the second deploy under `set -euo pipefail`
@@ -461,7 +460,7 @@ def test_render_litellm_network_prep_is_idempotent() -> None:
     normalised so the test isn't brittle to backslash-newline
     continuation tweaks bash treats as one logical line.
     """
-    script = _render_default(litellm_network_prep=True)
+    script = _render_default(ollama_internal_network_prep=True)
     # Normalise whitespace AND strip the bash line-continuation
     # backslash (`\` followed by newline) so the substring matcher
     # doesn't depend on the renderer's exact line-wrap choice.
@@ -472,9 +471,10 @@ def test_render_litellm_network_prep_is_idempotent() -> None:
     ) in normalised
 
 
-def test_run_compose_up_litellm_default_when_litellm_in_enabled() -> None:
-    """litellm_network_prep defaults to True iff 'litellm' is in enabled.
-    Mirrors the dify/metabase storage-prep default semantics."""
+def test_run_compose_up_network_prep_default_when_litellm_in_enabled() -> None:
+    """ollama_internal_network_prep defaults to True iff 'litellm' OR
+    'ollama' is in enabled. Mirrors the dify/metabase storage-prep
+    default semantics."""
     captured_script: dict[str, str] = {}
 
     def capture(script: str) -> subprocess.CompletedProcess[str]:
@@ -487,9 +487,47 @@ def test_run_compose_up_litellm_default_when_litellm_in_enabled() -> None:
     assert "docker network inspect ollama-internal" in captured_script["script"]
 
 
-def test_run_compose_up_litellm_omitted_when_litellm_not_in_enabled() -> None:
-    """No litellm → no network-prep block (also no spurious
-    network created on stacks that don't need it)."""
+def test_run_compose_up_network_prep_default_when_ollama_in_enabled() -> None:
+    """Ollama-only deployment (LiteLLM disabled) still needs the
+    pre-create because ollama's own compose declares the network as
+    `external: true` — symmetric ownership with litellm."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter", "ollama"], script_runner=capture)
+    assert "docker network inspect ollama-internal" in captured_script["script"]
+
+
+def test_run_compose_up_network_prep_renders_once_in_joint_case() -> None:
+    """Joint LiteLLM + Ollama deployment: only one pre-create block,
+    not duplicated. The `inspect || create` guard is idempotent at
+    runtime regardless, but rendering the block twice would be a
+    silent code smell — confirms the inference doesn't double-add."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=2 failed=0", stderr=""
+        )
+
+    run_compose_up(["litellm", "ollama"], script_runner=capture)
+    assert (
+        captured_script["script"].count(
+            "docker network create --label managed-by=nexus-stack ollama-internal"
+        )
+        == 1
+    )
+
+
+def test_run_compose_up_network_prep_omitted_when_neither_in_enabled() -> None:
+    """Neither litellm nor ollama → no network-prep block (also no
+    spurious network created on stacks that don't need it)."""
     captured_script: dict[str, str] = {}
 
     def capture(script: str) -> subprocess.CompletedProcess[str]:
@@ -502,10 +540,10 @@ def test_run_compose_up_litellm_omitted_when_litellm_not_in_enabled() -> None:
     assert "ollama-internal" not in captured_script["script"]
 
 
-def test_run_compose_up_litellm_explicit_override_beats_enabled_inference() -> None:
-    """Caller can force litellm_network_prep=False even when 'litellm'
-    is in enabled — operator escape hatch if the network handling
-    needs to be deferred to a different mechanism."""
+def test_run_compose_up_network_prep_explicit_override_beats_enabled_inference() -> None:
+    """Caller can force ollama_internal_network_prep=False even when
+    'litellm' or 'ollama' is in enabled — operator escape hatch if the
+    network handling needs to be deferred to a different mechanism."""
     captured_script: dict[str, str] = {}
 
     def capture(script: str) -> subprocess.CompletedProcess[str]:
@@ -514,7 +552,7 @@ def test_run_compose_up_litellm_explicit_override_beats_enabled_inference() -> N
             args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
         )
 
-    run_compose_up(["litellm"], script_runner=capture, litellm_network_prep=False)
+    run_compose_up(["litellm"], script_runner=capture, ollama_internal_network_prep=False)
     assert "ollama-internal" not in captured_script["script"]
 
 

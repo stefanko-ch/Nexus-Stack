@@ -111,16 +111,15 @@ networks:
     driver: bridge
   # Cross-stack join into the ollama stack's internal bridge so
   # LiteLLM can reach `ollama:11434` directly without going through
-  # the public CF Tunnel route. Both sides pin the network to the
-  # global name `ollama-internal` (NOT the default project-prefixed
-  # `ollama_ollama-internal`) so the external reference here finds
-  # the actual created network. When LiteLLM is enabled, the deploy
-  # pipeline's compose_runner pre-creates this network idempotently
-  # before `docker compose up`, so LiteLLM starts cleanly even when
-  # Ollama is disabled (operator-supplied OpenAI / Anthropic / etc.
-  # keys via the config.yaml template). When Ollama is also enabled,
-  # its own compose joins the same network by name and the
-  # cross-stack DNS lookup `http://ollama:11434` resolves.
+  # the public CF Tunnel route. Both stacks (here and stacks/ollama)
+  # declare this network as `external: true` + `name: ollama-internal`;
+  # the deploy pipeline's compose_runner pre-creates the network
+  # whenever either stack is enabled, so neither compose project owns
+  # the network's lifecycle. LiteLLM-alone: pre-create fires →
+  # external reference resolves → operator wires real-provider keys via
+  # config.yaml. Joint LiteLLM + Ollama: pre-create fires once →
+  # both stacks join the existing network → `http://ollama:11434`
+  # resolves cross-stack with no race on creation.
   ollama-internal:
     external: true
     name: ollama-internal
