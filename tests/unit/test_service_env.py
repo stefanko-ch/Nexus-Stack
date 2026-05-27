@@ -718,7 +718,7 @@ def test_evidence_renders_postgres_password_and_domain(
 
     rendered = _render_evidence(full_config, full_env)
     assert rendered.env_vars["POSTGRES_PASSWORD"] == full_config.postgres_password
-    assert rendered.env_vars["EVIDENCE_DOMAIN"] == "https://evidence.example.com"
+    assert rendered.env_vars["EVIDENCE_BASE_URL"] == "https://evidence.example.com"
 
 
 def test_evidence_domain_respects_subdomain_separator(
@@ -726,17 +726,18 @@ def test_evidence_domain_respects_subdomain_separator(
 ) -> None:
     """Multi-tenant forks set subdomain_separator='-' for flat
     subdomains (evidence-user1.example.com). Renderer must use
-    service_host so EVIDENCE_DOMAIN tracks that override."""
+    service_host so EVIDENCE_BASE_URL tracks that override."""
     from nexus_deploy.service_env import _render_evidence
 
     env = BootstrapEnv(
         **{
             **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "domain": "user1.example.com",
             "subdomain_separator": "-",
         }
     )
     rendered = _render_evidence(full_config, env)
-    assert rendered.env_vars["EVIDENCE_DOMAIN"] == "https://evidence-example.com"
+    assert rendered.env_vars["EVIDENCE_BASE_URL"] == "https://evidence-user1.example.com"
 
 
 def test_evidence_does_not_raise_on_empty_postgres_password(

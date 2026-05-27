@@ -33,7 +33,7 @@ services:
     image: ${IMAGE_EVIDENCE:-evidencedev/devenv:latest}
     container_name: evidence
     # env_file picks up the renderer-populated POSTGRES_PASSWORD /
-    # EVIDENCE_DOMAIN AND any operator-added variables in
+    # EVIDENCE_BASE_URL AND any operator-added variables in
     # stacks/evidence/.env — Evidence sources/<name>/connection.yaml
     # supports ${VAR} interpolation, so additional data-source
     # credentials reach the container without having to extend the
@@ -52,8 +52,8 @@ services:
       # the Cloudflare Tunnel).
       HOST: 0.0.0.0
       PORT: "3000"
-      # Evidence emits absolute links and OG tags using the public URL.
-      EVIDENCE_BASE_URL: ${EVIDENCE_DOMAIN}
+      # EVIDENCE_BASE_URL (used by Evidence for absolute links + OG tags)
+      # is provided by env_file above — no explicit entry needed.
       # Point the user-supplied sources/*/connection.yaml files at
       # the in-stack Postgres for the bundled sample query. Operators
       # extend the sources/ folder with additional connections.

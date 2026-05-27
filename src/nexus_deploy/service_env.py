@@ -519,7 +519,7 @@ def _render_evidence(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(
         env_vars={
             "POSTGRES_PASSWORD": c.postgres_password or "",
-            "EVIDENCE_DOMAIN": f"https://{domain_host}",
+            "EVIDENCE_BASE_URL": f"https://{domain_host}",
         },
     )
 
