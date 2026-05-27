@@ -34,6 +34,7 @@ import pytest
 
 from nexus_deploy import s3_persistence as _s3
 from nexus_deploy.s3_restore import (
+    _STANDARD_STOP_COMPOSE_FILES,
     FEATURE_FLAG_ENV,
     S3RestoreApplied,
     S3RestoreSkipped,
@@ -237,6 +238,45 @@ def test_standard_targets_metabase_has_no_postgres_dump() -> None:
     pg_containers = {p.container for p in postgres}
     assert "metabase-db" not in pg_containers
     assert "metabase" not in pg_containers
+
+
+def test_standard_stop_compose_files_matches_rsync_targets() -> None:
+    """Symmetry invariant: every stack with an RsyncTarget in
+    standard_targets() MUST be stopped before the snapshot, otherwise
+    rsync sees torn writes / half-uploaded files. The reverse is also
+    enforced — no stop entry without a matching rsync consumer, so the
+    stop list doesn't quietly accumulate dead entries.
+
+    Postgres-only stacks (no rsync target) are intentionally NOT in
+    the stop list — pg_dump is MVCC-safe against live writers.
+
+    Regression guard for #619: HedgeDoc was added to standard_targets()
+    with an `hedgedoc-uploads` RsyncTarget but the corresponding stop
+    entry was missed in the first commit, leaving the uploads dir
+    racing with rsync on every snapshot."""
+    _, rsync = standard_targets()
+
+    # Each rsync target's name is `<stack>-<subdir>` (gitea-repos,
+    # hedgedoc-uploads, ...). Stack name = first segment.
+    stacks_with_rsync = {r.name.split("-", 1)[0] for r in rsync}
+
+    # Each compose-file path is `/opt/docker-server/stacks/<stack>/docker-compose.yml`.
+    stacks_in_stop_list = {
+        path.removeprefix("/opt/docker-server/stacks/").removesuffix("/docker-compose.yml")
+        for path in _STANDARD_STOP_COMPOSE_FILES
+    }
+
+    missing_from_stop = stacks_with_rsync - stacks_in_stop_list
+    assert not missing_from_stop, (
+        f"Stacks have an RsyncTarget but no stop entry — "
+        f"snapshot will race against live writes: {sorted(missing_from_stop)}"
+    )
+
+    dead_stop_entries = stacks_in_stop_list - stacks_with_rsync
+    assert not dead_stop_entries, (
+        f"Stop list contains stacks with no RsyncTarget — "
+        f"unnecessary downtime during snapshot: {sorted(dead_stop_entries)}"
+    )
 
 
 # ---------------------------------------------------------------------------
