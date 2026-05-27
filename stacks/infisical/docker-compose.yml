@@ -29,7 +29,7 @@ services:
       - AUTH_SECRET=${AUTH_SECRET:-}
       - SITE_URL=https://infisical.${DOMAIN:-localhost}
       # Database
-      - DB_CONNECTION_URI=postgres://nexus-infisical:${POSTGRES_PASSWORD:-infisical}@infisical-db:5432/infisical?sslmode=disable
+      - DB_CONNECTION_URI=postgres://nexus-infisical:${POSTGRES_PASSWORD:?must be set in .env (rendered by service_env._render_infisical)}@infisical-db:5432/infisical?sslmode=disable
       # Redis
       - REDIS_URL=redis://infisical-redis:6379
       # Disable telemetry
@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=nexus-infisical
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-infisical}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?must be set in .env (rendered by service_env._render_infisical)}
       - POSTGRES_DB=infisical
     volumes:
       - infisical-db-data:/var/lib/postgresql/data

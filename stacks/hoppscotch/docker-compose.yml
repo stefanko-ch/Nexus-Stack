@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=nexus-hoppscotch
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hoppscotch}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?must be set in .env (rendered by service_env._render_hoppscotch)}
       - POSTGRES_DB=hoppscotch
     volumes:
       - hoppscotch-db-data:/var/lib/postgresql/data
