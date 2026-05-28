@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.67.0...v0.68.0) (2026-05-28)
+
+
+### 🚀 Features
+
+* **stacks:** Add Evidence — SQL+markdown BI for analytics engineers ([#616](https://github.com/stefanko-ch/Nexus-Stack/issues/616)) ([ac9ef64](https://github.com/stefanko-ch/Nexus-Stack/commit/ac9ef64489b0efe97afc508c02ed387eb3586859))
+
+
+### 🐛 Bug Fixes
+
+* **hedgedoc:** Seeded admin account + R2 snapshot/restore persistence ([#619](https://github.com/stefanko-ch/Nexus-Stack/issues/619)) ([a04d529](https://github.com/stefanko-ch/Nexus-Stack/commit/a04d529fc650f8794e81367144d084e279194989))
+* **pipeline:** Pre-create ollama-internal network when LiteLLM enabled ([#617](https://github.com/stefanko-ch/Nexus-Stack/issues/617)) ([3ea36be](https://github.com/stefanko-ch/Nexus-Stack/commit/3ea36bee49dbd56c9e171c64ad17148690a510ab))
+* **stacks:** Raise Metabase JVM heap to prevent OOM ([#620](https://github.com/stefanko-ch/Nexus-Stack/issues/620)) ([70bb786](https://github.com/stefanko-ch/Nexus-Stack/commit/70bb786f8b5a4acf1af047369f2c7d09d9d3781d))
+* **stacks:** Remove hardcoded credential fallbacks (audit C1-C3) ([#623](https://github.com/stefanko-ch/Nexus-Stack/issues/623)) ([3002629](https://github.com/stefanko-ch/Nexus-Stack/commit/3002629dd1eeedfafd743fb101c834979224e469))
+* **stacks:** Resolve host-port 8888 collision (adminer ⇔ seaweedfs) ([#624](https://github.com/stefanko-ch/Nexus-Stack/issues/624)) ([6831d2c](https://github.com/stefanko-ch/Nexus-Stack/commit/6831d2c87205143b73e59faca166197aaf3edac1))
+* **tofu:** Validate cloudflare_account_id, cloudflare_zone_id, domain shapes ([#622](https://github.com/stefanko-ch/Nexus-Stack/issues/622)) ([47f25c6](https://github.com/stefanko-ch/Nexus-Stack/commit/47f25c6023948a10352511caa63067107007ef69))
+
 ## [0.67.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.66.0...v0.67.0) (2026-05-24)
 
 
