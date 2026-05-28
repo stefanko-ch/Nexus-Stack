@@ -38,6 +38,7 @@
 # - low-code: Low-Code Platforms
 # - observability: Observability
 # - knowledge: Knowledge & Docs
+# - project-management: Project Management
 # - visual-tools: Visual Tools
 # - server-access: Server Access
 # =============================================================================
@@ -661,6 +662,16 @@ services:
     image: "postgres:17-alpine"
     tcp_ports:
       postgres: 5432
+
+  planka:
+    subdomain: "planka"
+    port: 1337
+    public: false
+    category: "project-management"
+    website: "https://planka.app"
+    description: "Open-source kanban board (Trello alternative) with real-time multi-user collaboration."
+    long_description: "Planka is an open-source kanban board for project and task management — a self-hosted Trello alternative. Organize work into boards, lists, and cards with labels, due dates, checklists, attachments, and Markdown descriptions. Real-time multi-user collaboration, comments, and activity tracking. Backed by a dedicated PostgreSQL database; one admin account is seeded on first boot, with further access gated by Cloudflare Access at the edge."
+    image: "ghcr.io/plankanban/planka:2.1.1"
 
   prefect:
     subdomain: "prefect"

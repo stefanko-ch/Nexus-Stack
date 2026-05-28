@@ -170,6 +170,27 @@ resource "random_password" "hedgedoc_admin" {
   special = false
 }
 
+# Planka session/token signing key. Planka derives JWT + session
+# signing material from SECRET_KEY; 64 chars for a comfortable margin.
+resource "random_password" "planka_secret_key" {
+  length  = 64
+  special = false
+}
+
+# Planka Postgres password — dedicated DB, not shared.
+resource "random_password" "planka_db_password" {
+  length  = 24
+  special = false
+}
+
+# Planka admin password — the single account Planka seeds on first
+# boot from DEFAULT_ADMIN_*. CF Access at the edge gates who reaches
+# the login page; this is the in-app identity.
+resource "random_password" "planka_admin" {
+  length  = 24
+  special = false
+}
+
 # LiteLLM master key — Bearer token for admin ops + /ui login.
 # Length 32 because it's the single auth gate to every provider
 # proxied behind it (Ollama, OpenAI, Anthropic, ...).

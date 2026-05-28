@@ -70,6 +70,9 @@ def full_config() -> NexusConfig:
         hedgedoc_session_secret="hedgedoc-session-32chars-xxxxxxx",
         hedgedoc_db_password="hedgedoc-db-pw",
         hedgedoc_admin_password="hedgedoc-admin-pw",
+        planka_secret_key="planka-secret-64chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        planka_db_password="planka-db-pw",
+        planka_admin_password="planka-admin-pw",
         litellm_master_key="litellm-master-32chars-xxxxxxxxx",
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
@@ -590,6 +593,144 @@ def test_hedgedoc_domain_respects_subdomain_separator(
     )
     rendered = _render_hedgedoc(full_config, env)
     assert rendered.env_vars["HEDGEDOC_DOMAIN"] == "hedgedoc-example.com"
+
+
+# ---------------------------------------------------------------------------
+# Planka — fail-fast guard + base-URL composition + admin seeding
+# ---------------------------------------------------------------------------
+
+
+def test_planka_raises_on_empty_secret_key(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty SECRET_KEY means Planka can't sign sessions/tokens —
+    logins silently fail. Abort at deploy time instead."""
+    from nexus_deploy.service_env import _render_planka
+
+    config = full_config.model_copy(update={"planka_secret_key": ""})
+    with pytest.raises(ServiceEnvError, match="PLANKA_SECRET_KEY"):
+        _render_planka(config, full_env)
+
+
+def test_planka_raises_on_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty DB password crashes the dedicated Postgres init on first
+    start. Abort at deploy time with a clear error."""
+    from nexus_deploy.service_env import _render_planka
+
+    config = full_config.model_copy(update={"planka_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="PLANKA_DB_PASSWORD"):
+        _render_planka(config, full_env)
+
+
+def test_planka_raises_on_empty_admin_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty admin password (Infisical /planka/PLANKA_PASSWORD) means
+    the seeded admin account has no usable password — and CF Access at
+    the edge isn't the in-app identity. Fail fast."""
+    from nexus_deploy.service_env import _render_planka
+
+    config = full_config.model_copy(update={"planka_admin_password": ""})
+    with pytest.raises(ServiceEnvError, match="PLANKA_PASSWORD"):
+        _render_planka(config, full_env)
+
+
+def test_planka_raises_on_empty_admin_email(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty admin_email → DEFAULT_ADMIN_EMAIL unset → Planka seeds no
+    admin at all on first boot. Surface upstream."""
+    from nexus_deploy.service_env import _render_planka
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "admin_email": "",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="PLANKA_USERNAME"):
+        _render_planka(full_config, env)
+
+
+def test_planka_raises_lists_all_missing_at_once(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """All four required secrets missing → one error naming all four so
+    the operator does a single Tofu apply + spin-up cycle."""
+    from nexus_deploy.service_env import _render_planka
+
+    config = full_config.model_copy(
+        update={
+            "planka_secret_key": "",
+            "planka_db_password": "",
+            "planka_admin_password": "",
+        }
+    )
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "admin_email": "",
+        }
+    )
+    with pytest.raises(
+        ServiceEnvError,
+        match=(
+            r"PLANKA_SECRET_KEY.*PLANKA_DB_PASSWORD.*"
+            r"PLANKA_PASSWORD.*PLANKA_USERNAME"
+        ),
+    ):
+        _render_planka(config, env)
+
+
+def test_planka_renders_base_url_and_admin_from_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """BASE_URL is the absolute https URL (Planka bakes it into links +
+    secure-cookie flags). Admin email comes from BootstrapEnv,
+    username from config.admin_username, password + secret from config.
+    """
+    from nexus_deploy.service_env import _render_planka
+
+    rendered = _render_planka(full_config, full_env)
+    assert rendered.env_vars["PLANKA_BASE_URL"] == "https://planka.example.com"
+    assert rendered.env_vars["PLANKA_SECRET_KEY"]
+    assert rendered.env_vars["PLANKA_DB_PASSWORD"]
+    assert rendered.env_vars["PLANKA_ADMIN_EMAIL"] == "admin@example.com"
+    assert rendered.env_vars["PLANKA_ADMIN_PASSWORD"] == "planka-admin-pw"
+    assert rendered.env_vars["PLANKA_ADMIN_USERNAME"] == "admin"
+
+
+def test_planka_admin_username_falls_back_to_nexus(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """When admin_username is unset, PLANKA_ADMIN_USERNAME falls back to
+    'nexus' (the Tofu default) rather than the predictable 'admin' —
+    see issue #626."""
+    from nexus_deploy.service_env import _render_planka
+
+    config = full_config.model_copy(update={"admin_username": None})
+    rendered = _render_planka(config, full_env)
+    assert rendered.env_vars["PLANKA_ADMIN_USERNAME"] == "nexus"
+
+
+def test_planka_base_url_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Multi-tenant forks set subdomain_separator='-' for flat
+    subdomains (planka-example.com). The renderer must use service_host
+    so it picks up that override."""
+    from nexus_deploy.service_env import _render_planka
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_planka(full_config, env)
+    assert rendered.env_vars["PLANKA_BASE_URL"] == "https://planka-example.com"
 
 
 # ---------------------------------------------------------------------------

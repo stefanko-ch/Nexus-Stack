@@ -14,6 +14,7 @@ export const CATEGORIES: Record<string, { name: string; description: string }> =
   'low-code': { name: 'Low-Code Platforms', description: 'Build internal tools, CRUD apps, and spreadsheet interfaces without extensive coding.' },
   'observability': { name: 'Observability', description: 'Monitoring agents, log pipelines, and uptime tracking for your infrastructure.' },
   'knowledge': { name: 'Knowledge & Docs', description: 'Wiki platforms and knowledge bases.' },
+  'project-management': { name: 'Project Management', description: 'Kanban boards, issue trackers, and project-planning tools for organizing work.' },
   'visual-tools': { name: 'Visual Tools', description: 'Diagramming, whiteboard, and visual collaboration tools.' },
   'server-access': { name: 'Server Access', description: 'Tools for accessing your server via browser-based terminals and Git proxies.' },
 };
@@ -21,6 +22,6 @@ export const CATEGORIES: Record<string, { name: string; description: string }> =
 export const CATEGORY_ORDER = [
   'core', 'databases', 'storage', 'db-management', 'orchestration', 'streaming',
   'messaging', 'analytics', 'data-quality', 'ai-ml', 'dev-tools',
-  'ci-cd', 'low-code', 'observability', 'knowledge', 'visual-tools',
-  'server-access',
+  'ci-cd', 'low-code', 'observability', 'knowledge', 'project-management',
+  'visual-tools', 'server-access',
 ];

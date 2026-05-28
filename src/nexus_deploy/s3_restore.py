@@ -347,6 +347,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
         _s3.PostgresDumpTarget(container="gitea-db", database="gitea", user="nexus-gitea"),
         _s3.PostgresDumpTarget(container="dify-db", database="dify", user="nexus-dify"),
         _s3.PostgresDumpTarget(container="hedgedoc-db", database="hedgedoc", user="nexus-hedgedoc"),
+        _s3.PostgresDumpTarget(container="planka-db", database="planka", user="nexus-planka"),
     )
     rsync = (
         _s3.RsyncTarget(
@@ -392,6 +393,11 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="hedgedoc-uploads",
             local_path="/mnt/nexus-data/hedgedoc/uploads",
             s3_subpath="hedgedoc/uploads",
+        ),
+        _s3.RsyncTarget(
+            name="planka-data",
+            local_path="/mnt/nexus-data/planka/data",
+            s3_subpath="planka/data",
         ),
     )
     return postgres, rsync
@@ -643,6 +649,7 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/dify/docker-compose.yml",
     "/opt/docker-server/stacks/metabase/docker-compose.yml",
     "/opt/docker-server/stacks/hedgedoc/docker-compose.yml",
+    "/opt/docker-server/stacks/planka/docker-compose.yml",
 )
 
 

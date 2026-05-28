@@ -674,6 +674,19 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "planka",
+            _filter_empty(
+                {
+                    "PLANKA_USERNAME": env.admin_email,
+                    "PLANKA_PASSWORD": config.planka_admin_password,
+                    "PLANKA_SECRET_KEY": config.planka_secret_key,
+                    "PLANKA_DB_PASSWORD": config.planka_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "litellm",
             _filter_empty(
                 {

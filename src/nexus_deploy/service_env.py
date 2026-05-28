@@ -488,6 +488,65 @@ def _render_hedgedoc(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_planka(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Planka: kanban board. Needs the absolute public URL (Planka
+    bakes it into absolute links + secure-cookie flags via TRUST_PROXY),
+    a dedicated Postgres password, a SECRET_KEY for session/token
+    signing, and the DEFAULT_ADMIN_* trio used to seed the single admin
+    account on first boot.
+
+    Fail-fast guard (same pattern as HedgeDoc): empty secrets surface
+    here, at render time, with one actionable message — rather than as a
+    container that comes up with broken sessions, a crashed Postgres
+    init, or a lockout with no admin account.
+
+    Infisical naming reference (operators grepping the error message
+    should find these keys directly):
+
+    - ``/planka/PLANKA_SECRET_KEY`` — empty → Planka can't sign
+      sessions/tokens; logins fail.
+    - ``/planka/PLANKA_DB_PASSWORD`` — empty → dedicated Postgres init
+      crashes with an auth error.
+    - ``/planka/PLANKA_PASSWORD`` — empty → the seeded admin account
+      has no usable password.
+    - ``/planka/PLANKA_USERNAME`` (=BootstrapEnv.admin_email) — empty →
+      DEFAULT_ADMIN_EMAIL unset, so no admin account is seeded at all.
+    """
+    missing = []
+    if _empty(c.planka_secret_key):
+        missing.append("PLANKA_SECRET_KEY (Infisical /planka)")
+    if _empty(c.planka_db_password):
+        missing.append("PLANKA_DB_PASSWORD (Infisical /planka)")
+    if _empty(c.planka_admin_password):
+        missing.append("PLANKA_PASSWORD (Infisical /planka)")
+    if _empty(e.admin_email):
+        missing.append("PLANKA_USERNAME (Infisical /planka, = BootstrapEnv.admin_email)")
+    if missing:
+        raise ServiceEnvError(
+            f"Planka enabled but {', '.join(missing)} empty — run "
+            "`tofu apply` (initial-setup workflow) to generate "
+            "random_password.planka_secret_key + "
+            "random_password.planka_db_password + "
+            "random_password.planka_admin + push to Infisical, then "
+            "re-run spin-up. Aborting to avoid a broken-sessions / "
+            "DB-auth-failure / no-admin container.",
+        )
+    domain_host = service_host("planka", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "PLANKA_BASE_URL": f"https://{domain_host}",
+            "PLANKA_SECRET_KEY": c.planka_secret_key or "",
+            "PLANKA_DB_PASSWORD": c.planka_db_password or "",
+            "PLANKA_ADMIN_EMAIL": e.admin_email or "",
+            "PLANKA_ADMIN_PASSWORD": c.planka_admin_password or "",
+            # Admin login username. Falls back to "nexus" (the Tofu
+            # admin_username default) rather than "admin" to avoid a
+            # predictable default — see issue #626.
+            "PLANKA_ADMIN_USERNAME": c.admin_username or "nexus",
+        },
+    )
+
+
 def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Lakekeeper: Iceberg REST Catalog. Needs dedicated Postgres
     DSN + LAKEKEEPER__BASE_URI (double-underscore, that's Lakekeeper's
@@ -1345,6 +1404,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("cloudbeaver", _is_enabled("cloudbeaver"), _render_cloudbeaver),
     EnvSpec("meilisearch", _is_enabled("meilisearch"), _render_meilisearch),
     EnvSpec("hedgedoc", _is_enabled("hedgedoc"), _render_hedgedoc),
+    EnvSpec("planka", _is_enabled("planka"), _render_planka),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),

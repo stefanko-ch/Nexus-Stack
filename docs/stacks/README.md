@@ -69,6 +69,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
 | HedgeDoc | `quay.io/hedgedoc/hedgedoc` | `1.10.3` | Exact ¹ |
 | PostgreSQL (HedgeDoc DB) | `postgres` | `16-alpine` | Major |
+| Planka | `ghcr.io/plankanban/planka` | `2.1.1` | Exact ¹ |
+| PostgreSQL (Planka DB) | `postgres` | `16-alpine` | Major |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.12.2` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `16-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
@@ -180,6 +182,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
+| **Planka** | Kanban board for project management | [planka.md](planka.md) |
 | **Portainer** | Docker container management UI | [portainer.md](portainer.md) |
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |

@@ -151,6 +151,7 @@ def render_remote_script(
     metabase_storage_prep: bool = False,
     ollama_internal_network_prep: bool = False,
     hedgedoc_uploads_prep: bool = False,
+    planka_data_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
 ) -> str:
@@ -245,6 +246,22 @@ if [ "$(stat -c '%u:%g' /mnt/nexus-data/hedgedoc/uploads)" != "10000:10000" ]; t
 fi
 """
 
+    # Planka 2.x stores all uploads (attachments, avatars, backgrounds,
+    # favicons) under a single /app/data dir, bind-mounted from
+    # /mnt/nexus-data/planka/data so the R2 snapshot/restore cycle can
+    # rsync it. The container runs as uid/gid 1000 (the node user);
+    # without an explicit chown the bind-mount inherits root-owned and
+    # the first upload fails with EACCES. Same guarded-chown pattern as
+    # hedgedoc/metabase — only walks the tree when ownership is wrong.
+    planka_block = ""
+    if planka_data_prep:
+        planka_block = """
+mkdir -p /mnt/nexus-data/planka/data
+if [ "$(stat -c '%u:%g' /mnt/nexus-data/planka/data)" != "1000:1000" ]; then
+  chown -R 1000:1000 /mnt/nexus-data/planka/data
+fi
+"""
+
     metabase_block = ""
     if metabase_storage_prep:
         # Metabase runs as uid 2000 (since v0.46 official image) and
@@ -282,7 +299,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}
+{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -382,6 +399,7 @@ def run_compose_up(
     metabase_storage_prep: bool | None = None,
     ollama_internal_network_prep: bool | None = None,
     hedgedoc_uploads_prep: bool | None = None,
+    planka_data_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
     """Render → exec → parse.
@@ -424,6 +442,7 @@ def run_compose_up(
     actual_hedgedoc = (
         hedgedoc_uploads_prep if hedgedoc_uploads_prep is not None else "hedgedoc" in enabled
     )
+    actual_planka = planka_data_prep if planka_data_prep is not None else "planka" in enabled
 
     script = render_remote_script(
         parents=parents,
@@ -432,6 +451,7 @@ def run_compose_up(
         metabase_storage_prep=actual_metabase,
         ollama_internal_network_prep=actual_ollama_internal,
         hedgedoc_uploads_prep=actual_hedgedoc,
+        planka_data_prep=actual_planka,
     )
 
     run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))

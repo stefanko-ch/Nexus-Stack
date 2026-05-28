@@ -68,7 +68,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (73)
+## Available Stacks (74)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -119,6 +119,7 @@ After deployment you'll have:
 [![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)](https://open-metadata.org)
 [![pg_ducklake](https://img.shields.io/badge/pg__ducklake-336791?logo=postgresql&logoColor=white)](https://pgducklake.select)
 [![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)](https://www.pgadmin.org)
+[![Planka](https://img.shields.io/badge/Planka-4D4D4D?logo=planka&logoColor=white)](https://planka.app)
 [![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)](https://www.portainer.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)](https://www.prefect.io)
@@ -195,6 +196,7 @@ After deployment you'll have:
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **pg_ducklake** | PostgreSQL with DuckLake extension - SQL-native lakehouse with S3 storage | [pgducklake.select](https://pgducklake.select) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
+| **Planka** | Open-source kanban board (Trello alternative) with real-time multi-user collaboration | [planka.app](https://planka.app) |
 | **Portainer** | Always-on Docker dashboard — first stop for inspecting a misbehaving container (logs, state, restart). Auto-deployed alongside Gitea/Grafana/Infisical | [portainer.io](https://www.portainer.io) |
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |

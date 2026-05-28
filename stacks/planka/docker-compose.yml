@@ -1,0 +1,114 @@
+# =============================================================================
+# Planka - Open-source kanban board (Trello alternative)
+# =============================================================================
+# Real-time kanban: boards, lists, cards, labels, due dates, attachments,
+# Markdown descriptions, multi-user collaboration.
+#
+# Auth model:
+#   1. Cloudflare Access (email OTP) gates who reaches Planka at the edge.
+#   2. Planka seeds ONE admin account on first boot from the
+#      DEFAULT_ADMIN_* env vars (rendered from Infisical-backed
+#      credentials). Setting DEFAULT_ADMIN_EMAIL also marks that account
+#      as protected (can't be edited/deleted from the UI).
+#
+# Persistence (RFC 0001 R2 snapshot/restore):
+#   - planka-db Postgres → captured by s3_restore.standard_targets via
+#     pg_dump on teardown, restored on spin-up (boards/cards/users live
+#     here).
+#   - /mnt/nexus-data/planka/data bind-mount → Planka 2.x stores ALL
+#     uploaded files (attachments, avatars, background images, favicons)
+#     under a single /app/data dir; captured by rsync. The bind-mount
+#     itself is ephemeral host storage, the R2 cycle preserves content
+#     across teardowns. Path is mkdir+chowned to 1000:1000 (the
+#     in-container node user) by compose_runner's planka_data_prep block.
+#
+# Access: https://planka.YOUR_DOMAIN (Cloudflare Access at the edge +
+# Planka-side admin login).
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Planka - Web UI
+  # ---------------------------------------------------------------------------
+  planka:
+    image: ${IMAGE_PLANKA:-ghcr.io/plankanban/planka:2.1.1}
+    container_name: planka
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - "1337:1337"
+    environment:
+      # Public URL — composed at render time so Planka's absolute-link
+      # generation matches what Cloudflare Access serves.
+      BASE_URL: ${PLANKA_BASE_URL}
+      DATABASE_URL: postgresql://nexus-planka:${PLANKA_DB_PASSWORD}@planka-db/planka
+      # Session/token signing key — random 64+ chars from Tofu (Infisical).
+      SECRET_KEY: ${PLANKA_SECRET_KEY}
+      # Behind the Cloudflare Tunnel + edge proxy — trust X-Forwarded-* so
+      # Planka builds correct absolute URLs and secure-cookie flags.
+      TRUST_PROXY: "true"
+      # Seed the single admin account. DEFAULT_ADMIN_EMAIL also protects
+      # it from edit/delete in the UI.
+      DEFAULT_ADMIN_EMAIL: ${PLANKA_ADMIN_EMAIL}
+      DEFAULT_ADMIN_PASSWORD: ${PLANKA_ADMIN_PASSWORD}
+      DEFAULT_ADMIN_NAME: "Nexus Admin"
+      DEFAULT_ADMIN_USERNAME: ${PLANKA_ADMIN_USERNAME}
+    volumes:
+      # Single data dir for all Planka uploads (attachments, avatars,
+      # backgrounds, favicons). Bind-mounted so the R2 snapshot/restore
+      # cycle (s3_restore.standard_targets) can rsync it — named volumes
+      # can't be rsynced without --volumes-from gymnastics. Path is
+      # mkdir+chowned to 1000:1000 by compose_runner's planka_data_prep
+      # block before this compose-up runs.
+      - /mnt/nexus-data/planka/data:/app/data
+    depends_on:
+      planka-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    networks:
+      - app-network
+      - planka-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:1337/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Planka - Dedicated PostgreSQL
+  # ---------------------------------------------------------------------------
+  planka-db:
+    image: ${IMAGE_PLANKA_DB:-postgres:16-alpine}
+    container_name: planka-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-planka
+      POSTGRES_PASSWORD: ${PLANKA_DB_PASSWORD}
+      POSTGRES_DB: planka
+    volumes:
+      - planka-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    networks:
+      - planka-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-planka -d planka"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  planka-db-data:
+
+networks:
+  app-network:
+    external: true
+  planka-internal:
+    driver: bridge

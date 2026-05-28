@@ -164,6 +164,11 @@ output "secrets" {
     hedgedoc_db_password    = random_password.hedgedoc_db_password.result
     hedgedoc_admin_password = random_password.hedgedoc_admin.result
 
+    # Planka
+    planka_secret_key     = random_password.planka_secret_key.result
+    planka_db_password    = random_password.planka_db_password.result
+    planka_admin_password = random_password.planka_admin.result
+
     # LiteLLM Proxy
     litellm_master_key  = random_password.litellm_master_key.result
     litellm_salt_key    = random_password.litellm_salt_key.result

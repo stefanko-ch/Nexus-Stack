@@ -621,6 +621,66 @@ def test_run_compose_up_hedgedoc_omitted_when_hedgedoc_not_in_enabled() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Planka data-dir prep (bind-mount for R2 snapshot/restore)
+# ---------------------------------------------------------------------------
+
+
+def test_render_planka_data_prep_only_when_flagged() -> None:
+    """Planka 2.x bind-mounts /mnt/nexus-data/planka/data onto its
+    /app/data so the R2 snapshot/restore cycle can rsync uploads.
+    Block only present when planka_data_prep=True; absent otherwise."""
+    without = _render_default(planka_data_prep=False)
+    assert "/mnt/nexus-data/planka/data" not in without
+
+    with_planka = _render_default(planka_data_prep=True)
+    assert "/mnt/nexus-data/planka/data" in with_planka
+    assert "chown -R 1000:1000 /mnt/nexus-data/planka/data" in with_planka
+
+
+def test_render_planka_chown_is_guarded_by_owner_check() -> None:
+    """The planka chown must be guarded by an owner-stat check so
+    `compose up` doesn't walk the entire data tree on every deploy.
+    Same pattern as the hedgedoc/metabase chown guards."""
+    script = _render_default(planka_data_prep=True)
+    assert "stat -c '%u:%g' /mnt/nexus-data/planka/data" in script
+    assert '!= "1000:1000"' in script
+    lines = script.splitlines()
+    if_idx = next(
+        i for i, le in enumerate(lines) if "stat -c '%u:%g' /mnt/nexus-data/planka/data" in le
+    )
+    fi_idx = next(i for i, le in enumerate(lines) if i > if_idx and le.strip() == "fi")
+    assert any("chown -R 1000:1000" in le for le in lines[if_idx:fi_idx])
+
+
+def test_run_compose_up_planka_default_when_planka_in_enabled() -> None:
+    """planka_data_prep defaults to True iff 'planka' is in enabled."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter", "planka"], script_runner=capture)
+    assert "/mnt/nexus-data/planka/data" in captured_script["script"]
+
+
+def test_run_compose_up_planka_omitted_when_planka_not_in_enabled() -> None:
+    """No planka → no data-prep block."""
+    captured_script: dict[str, str] = {}
+
+    def capture(script: str) -> subprocess.CompletedProcess[str]:
+        captured_script["script"] = script
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["jupyter"], script_runner=capture)
+    assert "/mnt/nexus-data/planka/data" not in captured_script["script"]
+
+
+# ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
 

@@ -138,6 +138,9 @@
       'PGADMIN_PASSWORD': 'pgadmin_password-VALUE',
       'PGADMIN_USERNAME': 'admin@snapshot.test',
     }),
+    'planka': dict({
+      'PLANKA_USERNAME': 'admin@snapshot.test',
+    }),
     'portainer': dict({
       'PORTAINER_PASSWORD': 'portainer_admin_password-VALUE',
       'PORTAINER_USERNAME': 'nexus-test-user',
