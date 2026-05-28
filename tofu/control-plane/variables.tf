@@ -48,13 +48,14 @@ variable "domain" {
   type        = string
 
   # FQDN shape: at least one dot, only ASCII alphanumerics + hyphens +
-  # dots, no leading/trailing dot or hyphen. Catches accidental
+  # dots, no leading/trailing dot or hyphen. Each label (including the
+  # final TLD) is capped at the DNS 63-char limit. Catches accidental
   # protocol-prefixed input ("https://example.com"), trailing-slash
   # paths ("example.com/"), whitespace, and empty strings — all of
   # which would otherwise propagate into DNS records, Worker bindings,
   # and Pages domains before failing late.
   validation {
-    condition     = can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$", var.domain))
+    condition     = can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$", var.domain))
     error_message = "domain must be a bare lowercase FQDN like 'example.com' or 'nexus.example.com' — no scheme, no trailing slash, no whitespace."
   }
 }
