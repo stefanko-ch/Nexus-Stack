@@ -16,13 +16,11 @@
 
 language: en
 
-tone_instructions: |
-  Focus on real bugs, race conditions, security issues, and project-
-  convention violations. Be specific — reference exact files and lines.
-  Skip pure wording / style nits in comments and docstrings unless they
-  cause real confusion. The repo's CLAUDE.md defines all conventions
-  (nexus- prefix for service accounts, pin Docker images for stateful
-  services, fail-loud on critical operations, etc.) — flag deviations.
+tone_instructions: >-
+  Focus on real bugs, race conditions, security issues, and convention
+  violations. Reference exact files and lines. Skip pure wording/style
+  nits unless they cause confusion. Defer to CLAUDE.md and
+  path_instructions for project rules.
 
 early_access: true
 
