@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.70.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.69.0...v0.70.0) (2026-06-03)
+
+
+### 🚀 Features
+
+* Add guest_emails for multi-user Access ([#625](https://github.com/stefanko-ch/Nexus-Stack/issues/625)) ([0ca8303](https://github.com/stefanko-ch/Nexus-Stack/commit/0ca83031062fee773967bd85f207330594ef2df1))
+
+
+### 🔧 Maintenance
+
+* Add maximum-coverage CodeRabbit configuration ([#636](https://github.com/stefanko-ch/Nexus-Stack/issues/636)) ([930233b](https://github.com/stefanko-ch/Nexus-Stack/commit/930233b6e94ab4718727a6a8a3ecc7fef12a032e))
+* Bump release-please-action to v5 (Node 20 → Node 24) ([#634](https://github.com/stefanko-ch/Nexus-Stack/issues/634)) ([fa13a9c](https://github.com/stefanko-ch/Nexus-Stack/commit/fa13a9c2fb0b511c5fb95931e28c9b6c8b7b32e3))
+
 ## [0.69.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.68.0...v0.69.0) (2026-05-28)
 
 
