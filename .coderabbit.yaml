@@ -1,0 +1,147 @@
+# CodeRabbit configuration — Nexus-Stack
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+#
+# This config opts into the most thorough review profile CodeRabbit
+# offers: assertive profile, all relevant static-analysis tools on,
+# every PR (including drafts) auto-reviewed, knowledge-base learning
+# enabled. Trade-off acknowledged: more findings per PR, more triage
+# work — the project's /fix-pr-comments classification workflow is
+# designed for exactly that.
+#
+# If review volume becomes overwhelming, the first knobs to dial back
+# (in roughly this order) are:
+#   1. reviews.profile: assertive → chill
+#   2. reviews.tools.languagetool.enabled: true → false
+#   3. reviews.auto_review.drafts: true → false
+
+language: en
+
+tone_instructions: |
+  Focus on real bugs, race conditions, security issues, and project-
+  convention violations. Be specific — reference exact files and lines.
+  Skip pure wording / style nits in comments and docstrings unless they
+  cause real confusion. The repo's CLAUDE.md defines all conventions
+  (nexus- prefix for service accounts, pin Docker images for stateful
+  services, fail-loud on critical operations, etc.) — flag deviations.
+
+early_access: true
+
+knowledge_base:
+  opt_out: false   # let CodeRabbit learn from accepted/rejected feedback
+
+reviews:
+  profile: assertive             # flag more granular findings, not just high-confidence
+  request_changes_workflow: true # set "Changes requested" status when issues found
+  high_level_summary: true       # PR-level summary at the top
+  poem: false                    # disable the closing rhyme — pure noise
+  review_status: true            # show review state in the PR
+  commit_status: true            # set commit status (visible in branch protection)
+  assess_linked_issues: true     # cross-check PR against the issues it claims to close
+
+  auto_review:
+    enabled: true
+    drafts: true                 # review drafts too — early feedback
+    base_branches:
+      - main
+
+  path_filters:
+    # Snapshot files are syrupy-generated artefacts — reviewing them is
+    # pointless and noisy.
+    - "!tests/unit/__snapshots__/**"
+    # Lockfiles / generated content.
+    - "!control-plane/package-lock.json"
+    - "!**/node_modules/**"
+    # Audit / report artefacts (gitignored anyway).
+    - "!AUDIT_REPORT.md"
+
+  path_instructions:
+    - path: "stacks/**/docker-compose.yml"
+      instructions: |
+        Apply Nexus-Stack's Docker conventions from CLAUDE.md:
+        - Stateful services MUST pin image versions (no :latest except
+          for the documented allow-list: drawio, it-tools, wetty,
+          code-server, jupyter, marimo, adminer, excalidraw,
+          evidence). Flag any new :latest outside that list.
+        - Service accounts MUST use the `nexus-` prefix
+          (nexus-postgres, nexus-<service>). Flag `admin`, `postgres`,
+          `root` or service-name-alone usage.
+        - Every container MUST have `restart: unless-stopped` and
+          `mem_limit`. Stacks join `app-network` (external).
+        - Hardcoded credential fallbacks (`${VAR:-default-password}`)
+          are forbidden — use `${VAR:?must be set}` so missing env
+          fails fast.
+    - path: "tofu/**/*.tf"
+      instructions: |
+        Per CLAUDE.md: every variable that flows into a Cloudflare /
+        Hetzner resource needs a `validation` block where the failure
+        mode is opaque without one (account/zone IDs, domains, ports,
+        emails). Always use `${local.resource_prefix}` for resource
+        naming.
+    - path: ".github/workflows/**"
+      instructions: |
+        Per CLAUDE.md: critical operations (infra destroy, deploy)
+        must fail loudly — never `|| echo "..."` swallowing real
+        errors. Secrets must be masked (`::add-mask::`) before being
+        passed through `echo`. Pin third-party actions to commit SHAs
+        rather than floating @vN tags (audit-finding H45).
+    - path: "src/nexus_deploy/**/*.py"
+      instructions: |
+        Per CLAUDE.md: never log secret values; use
+        `type(exc).__name__` not `str(exc)` in error logs (secrets
+        often leak via __str__). All subprocess.run calls must use
+        shlex-quoted args, never shell=True, never os.system. Match
+        the project's pure-rendering / DI-seam pattern (callable
+        injection for testability) where applicable.
+
+  tools:
+    # Secret-scanning — high value across compose files, scripts, TF.
+    gitleaks:
+      enabled: true
+
+    # Shell scripts under scripts/, plus inline bash in workflows.
+    shellcheck:
+      enabled: true
+
+    # YAML is everywhere in this repo — compose files, workflows,
+    # services.yaml, kestra flows. yamllint catches schema/style.
+    yamllint:
+      enabled: true
+
+    # GitHub Actions workflow validation (catches the floating-@vN
+    # patterns, missing permissions, deprecated runners).
+    actionlint:
+      enabled: true
+
+    # Markdown lint for docs/. Style nits expected — see tone_instructions
+    # for "skip pure wording" guidance.
+    markdownlint:
+      enabled: true
+
+    # Python lint (complements local pre-commit ruff; CodeRabbit runs
+    # against the PR head before pre-commit fires on merge).
+    ruff:
+      enabled: true
+
+    # Structural pattern matching across the codebase.
+    ast-grep:
+      enabled: true
+
+    # JS/TS lint for control-plane/.
+    biome:
+      enabled: true
+
+    # Static security analysis — catches OWASP-class patterns.
+    semgrep:
+      enabled: true
+
+    # Dockerfile lint — applies to the few custom Dockerfiles
+    # (Soda Core, Filestash custom build).
+    hadolint:
+      enabled: true
+
+    # Grammar / docs polish. Noisy but per "maximum coverage" goal.
+    languagetool:
+      enabled: true
+
+chat:
+  auto_reply: true   # let CodeRabbit thread-reply to follow-up questions
