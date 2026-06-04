@@ -129,7 +129,7 @@ jobs:
         # add up to ~50 MB and only change when providers.tf or the
         # lockfile changes. Key on the file hashes so a provider bump
         # invalidates the cache automatically.
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             tofu/stack/.terraform
@@ -143,7 +143,7 @@ jobs:
         # Cuts ~15-20s off `npm ci` in the Control Plane redeploy step.
         # package-lock.json is committed, so the cache key is
         # deterministic per dependency revision.
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: control-plane/node_modules
           key: node-${{ runner.os }}-${{ hashFiles('control-plane/package-lock.json') }}
