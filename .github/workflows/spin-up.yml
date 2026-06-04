@@ -123,6 +123,33 @@ jobs:
         with:
           tofu_version: 1.10.0
 
+      - name: Cache OpenTofu providers
+        # Cuts ~30-45s off `tofu init` in steady-state — the providers
+        # (hetznercloud/hcloud, cloudflare/cloudflare, random, tls)
+        # add up to ~50 MB and only change when providers.tf or the
+        # lockfile changes. Key on the file hashes so a provider bump
+        # invalidates the cache automatically.
+        uses: actions/cache@v4
+        with:
+          path: |
+            tofu/stack/.terraform
+            tofu/control-plane/.terraform
+            ~/.terraform.d/plugin-cache
+          key: tofu-${{ runner.os }}-${{ hashFiles('tofu/**/providers.tf', 'tofu/**/.terraform.lock.hcl') }}
+          restore-keys: |
+            tofu-${{ runner.os }}-
+
+      - name: Cache Control-Plane node_modules
+        # Cuts ~15-20s off `npm ci` in the Control Plane redeploy step.
+        # package-lock.json is committed, so the cache key is
+        # deterministic per dependency revision.
+        uses: actions/cache@v4
+        with:
+          path: control-plane/node_modules
+          key: node-${{ runner.os }}-${{ hashFiles('control-plane/package-lock.json') }}
+          restore-keys: |
+            node-${{ runner.os }}-
+
       - name: Install uv
         # Required by the `nexus_deploy` Python package — since #505
         # Phase 4c, `python -m nexus_deploy run-pipeline` IS the
