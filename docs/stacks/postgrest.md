@@ -2,6 +2,8 @@
 
 # PostgREST — Auto-generated REST API for any Postgres schema
 
+> ⚠️ **Security default — read before enabling.** The shipped configuration sets `PGRST_DB_ANON_ROLE=nexus-postgres`, the shared-Postgres **superuser**. Anyone reaching the API (gated by Cloudflare Access at the edge, but still authenticated *team members*) inherits full DB privileges — including DROP, DELETE-without-WHERE, and access to every table in every schema. This is acceptable for a single-operator lab/education setup. For multi-user or classroom deployments, **tighten this before enabling**: create a dedicated `web_anon` role with `SELECT`-only grants on the tables you want public (see the "Production hardening" section below).
+
 PostgREST turns any Postgres database into a fully-featured REST API by introspecting its schema. Tables, views, and stored functions become endpoints with built-in filtering, ordering, pagination, embedded resources, and content negotiation (JSON, CSV). Zero schema definitions on the PostgREST side — the API surface **is** the database surface.
 
 The auto-generated OpenAPI spec at the root (`/`) makes it trivial to explore in any Swagger-style UI; paste the URL into Hoppscotch for an interactive playground.
@@ -22,7 +24,7 @@ The auto-generated OpenAPI spec at the root (`/`) makes it trivial to explore in
 
 The compose env (`PGRST_DB_URI`, `PGRST_DB_SCHEMAS`, `PGRST_DB_ANON_ROLE`, `PGRST_JWT_SECRET`) is populated by [`service_env._render_postgrest`](../../src/nexus_deploy/service_env.py) from the Tofu-generated `random_password.postgrest_jwt_secret` and the shared-Postgres password — both pushed to Infisical (`/postgrest/POSTGREST_JWT_SECRET` and the shared `POSTGRES_PASSWORD`).
 
-```
+```text
 HTTPS client  →  Cloudflare Access  →  Cloudflare Tunnel  →  postgrest:3000  →  postgres:5432
                   (email OTP)                                    (Go binary)        (shared)
 ```
@@ -65,13 +67,37 @@ HTTPS client  →  Cloudflare Access  →  Cloudflare Tunnel  →  postgrest:300
      -H "Authorization: Bearer ${JWT}"
    ```
 
-## Caveats
+## Production hardening — replace the superuser anon role
 
-- **Anon role is the superuser.** The default `PGRST_DB_ANON_ROLE=nexus-postgres` means anonymous requests have the same DB privileges as the connection user — fine for the lab/education setup, **not** production-grade. Tighten by creating a dedicated `web_anon` role with `SELECT`-only grants on the tables you want public, and updating the env var.
+For multi-user or classroom deployments, the most important hardening is **swapping the anon role away from the shared-Postgres superuser** so anonymous traffic isn't all-privileged. One-time SQL setup in the shared `postgres` stack (run via CloudBeaver / psql):
+
+```sql
+-- Dedicated role for anonymous PostgREST traffic. NOLOGIN — only
+-- reachable via PostgREST's role-switch, never via direct connection.
+CREATE ROLE web_anon NOLOGIN;
+
+-- Allow it to access the public schema, but only the tables/columns
+-- you grant explicitly.
+GRANT USAGE ON SCHEMA public TO web_anon;
+
+-- Per-table grants (repeat for each table you want public). Start
+-- with SELECT-only; widen to INSERT/UPDATE/DELETE only where intended.
+GRANT SELECT ON public.your_table TO web_anon;
+```
+
+Then in the Control Plane env-edit flow (or by editing `stacks/postgrest/.env` directly on the server and `docker compose up -d --force-recreate postgrest`):
+
+```bash
+PGRST_DB_ANON_ROLE=web_anon
+```
+
+After the change, `curl https://postgrest.<domain>/your_table` still works (read-only), but `DELETE`, `INSERT`, and access to non-granted tables now return `401`. For non-anonymous higher-privileged operations, clients send a JWT with a different `role` claim.
+
+## Caveats
 
 - **Schema cache.** New tables / columns require a SIGUSR1 reload or container restart. PostgREST does not poll the schema.
 
-- **No write-row-by-row safety.** PostgREST inherits Postgres' RBAC fully — a misconfigured GRANT means an anonymous DELETE works. Always test grants against `nexus-postgres` privileges before trusting them.
+- **PostgREST inherits Postgres' RBAC fully** — a misconfigured GRANT means an anonymous DELETE works. After tightening to `web_anon`, always verify with `\dp public.your_table` in psql before trusting the grant.
 
 ## Documentation
 
