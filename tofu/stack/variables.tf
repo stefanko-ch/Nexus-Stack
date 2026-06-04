@@ -200,11 +200,35 @@ variable "firewall_rules" {
   # which is the wrong default for a per-rule field that's supposed to
   # restrict access. Operators who genuinely want world-open must say so
   # explicitly (and live with the resulting plan diff being visible).
+  #
+  # Migration: legacy D1 rows with empty source_ips are translated to
+  # explicit allow-all by .github/scripts/generate-services-tfvars.py
+  # before the value reaches Terraform, so this validation only fires
+  # if someone bypasses the script and hand-edits tfvars with an empty
+  # list — a code path no production pipeline takes today.
   validation {
     condition = alltrue([
       for k, v in var.firewall_rules : length(v.source_ips) > 0
     ])
     error_message = "Every firewall_rules entry must specify at least one source_ips CIDR. To allow all traffic, set source_ips = [\"0.0.0.0/0\", \"::/0\"] explicitly."
+  }
+
+  # Reject malformed CIDR strings up front. Without this, a typo like
+  # "10.0.0.0/24x" or "192.168.1.1" (single IP, missing /32) is only
+  # caught when the Hetzner Cloud API returns an opaque 400 mid-apply,
+  # by which time half the firewall may already exist. The regex is
+  # intentionally loose — it matches any IPv4 or IPv6 shape followed
+  # by "/N", which catches the common typo classes (missing prefix
+  # length, trailing junk, missing slash). Strict numeric range
+  # validation (octets <= 255, prefix <= 32 / <= 128) would not catch
+  # any additional realistic operator-typo class and adds noise.
+  validation {
+    condition = alltrue(flatten([
+      for k, v in var.firewall_rules : [
+        for ip in v.source_ips : can(regex("^(([0-9]{1,3}\\.){3}[0-9]{1,3}|[0-9a-fA-F:]+)/[0-9]{1,3}$", ip))
+      ]
+    ]))
+    error_message = "Every source_ips entry must be a CIDR like \"0.0.0.0/0\", \"10.0.0.0/24\", or \"2a01:4f8::/29\". Single IPs need an explicit prefix (use /32 for IPv4, /128 for IPv6)."
   }
 }
 

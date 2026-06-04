@@ -52,7 +52,16 @@ CREATE TABLE IF NOT EXISTS firewall_rules (
     label TEXT DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 0,
     deployed INTEGER NOT NULL DEFAULT 0,
-    source_ips TEXT DEFAULT '',
+    -- New rows default to explicit allow-all (operators MUST narrow this
+    -- in the Control Plane UI). Empty source_ips no longer carries a
+    -- silent allow-all semantics — the OpenTofu module hard-fails on
+    -- empty firewall_rules.source_ips and generate-services-tfvars.py
+    -- translates legacy empty rows to this same explicit allow-all
+    -- with a deprecation warning. CREATE TABLE IF NOT EXISTS means
+    -- the new DEFAULT only applies to fresh installs; existing rows
+    -- with the old '' default are handled by the script's migration
+    -- shim until operators set their own source_ips.
+    source_ips TEXT DEFAULT '0.0.0.0/0,::/0',
     dns_record TEXT DEFAULT '',
     updated_at TEXT DEFAULT (datetime('now')),
     UNIQUE(service_name, port)
