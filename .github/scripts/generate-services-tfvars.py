@@ -180,18 +180,34 @@ def main():
             entry = entry.strip()
             if not entry:
                 continue
-            parts = entry.split(':')
-            if len(parts) < 2:
-                print(f"Warning: Invalid firewall rule entry: {entry}", file=sys.stderr)
-                continue
-            service_name = parts[0]
+            # Wire format: ALWAYS 4 colon-separated fields,
+            # "service:port:source_ips:dns_record". Trailing fields
+            # are emitted as empty strings (never omitted) — spin-up.yml's
+            # jq always renders `\(.dns_record // "")` which yields the
+            # trailing colon even for empty values. We rely on that
+            # invariant here, because source_ips itself can contain
+            # colons when it includes IPv6 CIDRs (e.g. "0.0.0.0/0,::/0").
+            # Strategy: peel service:port off the front (split with
+            # maxsplit=2 to keep the rest intact), then peel dns_record
+            # off the back via rsplit on the final ':'. The middle is
+            # the verbatim source_ips, IPv6 and all.
             try:
-                port = int(parts[1])
+                service_name, port_text, remainder = entry.split(':', 2)
+                source_ips, dns_record = remainder.rsplit(':', 1)
+            except ValueError:
+                print(
+                    f"Warning: Invalid firewall rule entry: {entry!r} — "
+                    "expected 4 colon-separated fields "
+                    "'service:port:source_ips:dns_record' (empty fields "
+                    "must still be present, e.g. 'svc:9092:0.0.0.0/0:').",
+                    file=sys.stderr,
+                )
+                continue
+            try:
+                port = int(port_text)
             except ValueError:
                 print(f"Warning: Invalid port in firewall rule: {entry}", file=sys.stderr)
                 continue
-            source_ips = parts[2] if len(parts) > 2 else ''
-            dns_record = parts[3] if len(parts) > 3 else ''
 
             # Validate that the port belongs to the service's tcp_ports
             if service_name in services:
