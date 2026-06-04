@@ -1889,14 +1889,22 @@ class Orchestrator:
         except subprocess.CalledProcessError as exc:
             # docker compose returned non-zero — service-level failure
             # (image pull failed, container crashed at startup, port
-            # collision, …). Forward the captured stdout to the
-            # detail so operators see the compose error inline.
-            stdout_excerpt = (exc.output or "").strip().splitlines()[-1:] if exc.output else []
-            tail = stdout_excerpt[0] if stdout_excerpt else "no stdout captured"
+            # collision, …). Earlier versions of this handler appended
+            # the tail of exc.output to the detail "so operators see
+            # the compose error inline", but exc.output is the captured
+            # stdout of `docker compose up -d` for the woodpecker stack
+            # — which can include env-var values quoted back inside
+            # compose's own error messages (e.g. when a service env
+            # block references a value that fails interpolation).
+            # Aligned with the other CalledProcessError handlers in this
+            # file (infisical-bootstrap, gitea-configure, kestra-register,
+            # …) which all surface only `type(exc).__name__` + rc and
+            # leave the full output to `docker logs woodpecker` on the
+            # server.
             return PhaseResult(
                 name="woodpecker-apply",
                 status="partial",
-                detail=f"docker compose up -d failed (rc={exc.returncode}): {tail[:120]}",
+                detail=f"docker compose up -d failed (rc={exc.returncode}, {type(exc).__name__})",
             )
         except subprocess.TimeoutExpired as exc:
             # Genuine ssh transport timeout — operator should
