@@ -194,6 +194,18 @@ variable "firewall_rules" {
     dns_record = optional(string, "")
   }))
   default = {}
+
+  # Hard-fail on empty source_ips. Previously main.tf treated an empty
+  # list as "allow all" and silently rewrote it to ["0.0.0.0/0", "::/0"],
+  # which is the wrong default for a per-rule field that's supposed to
+  # restrict access. Operators who genuinely want world-open must say so
+  # explicitly (and live with the resulting plan diff being visible).
+  validation {
+    condition = alltrue([
+      for k, v in var.firewall_rules : length(v.source_ips) > 0
+    ])
+    error_message = "Every firewall_rules entry must specify at least one source_ips CIDR. To allow all traffic, set source_ips = [\"0.0.0.0/0\", \"::/0\"] explicitly."
+  }
 }
 
 # =============================================================================

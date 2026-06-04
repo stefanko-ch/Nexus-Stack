@@ -546,10 +546,14 @@ resource "hcloud_firewall" "main" {
   dynamic "rule" {
     for_each = var.firewall_rules
     content {
-      direction  = "in"
-      protocol   = rule.value.protocol
-      port       = tostring(rule.value.port)
-      source_ips = length(rule.value.source_ips) > 0 ? rule.value.source_ips : ["0.0.0.0/0", "::/0"]
+      direction = "in"
+      protocol  = rule.value.protocol
+      port      = tostring(rule.value.port)
+      # source_ips is guaranteed non-empty by the firewall_rules variable's
+      # validation block (see tofu/stack/variables.tf). An empty list would
+      # have silently meant "allow all" under the previous fallback — now
+      # the operator must say so explicitly.
+      source_ips = rule.value.source_ips
     }
   }
 }
