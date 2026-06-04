@@ -545,12 +545,12 @@ openmetadata_hook
 # Why argv-vs-stdin matters for docker exec: passing a password via
 # ``docker exec -e RPK_PASS='$pass'`` lands the env-var literal in
 # docker's argv on the host. The strictly-more-correct path is
-# ``printf '%s' "$pass" | docker exec -i <container> sh -c 'PASS=$(cat); ...'``,
-# which keeps the password on stdin only. The inner CLI ``rpk acl
-# user create --password "$PASS"`` still has the password in its
-# argv inside the container (visible to other processes in the same
-# container), but the OUTER host-level ``ps -ef`` shows just the
-# benign sh -c invocation.
+# ``printf '%s' "$pass" | docker exec -i <container> <cli>
+# --password-stdin``, which keeps the password on stdin from end to
+# end — never in argv on the host, in docker exec's cmdline, or in
+# the inner CLI's argv. Hooks that target CLIs without a stdin flag
+# (Superset's ``fab create-admin``) still pay the in-container argv
+# cost, but the host-level surface is always clean.
 # ---------------------------------------------------------------------------
 
 
@@ -560,9 +560,9 @@ def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     Wait via ``docker exec redpanda curl -sf /v1/status/ready`` (the
     admin API isn't exposed outside the container; ``-sf`` requires
     a true 2xx status, not just a transport-level success). Password
-    reaches the container via stdin → in-container shell var → rpk's
-    ``--password`` argv (visible only inside the container, not via
-    host ``ps``).
+    reaches the container via stdin → rpk's ``--password-stdin`` flag
+    so it never lands in any process's argv on any of the three
+    surfaces (host, docker exec, container).
 
     Idempotency contract — always converges to ``configured``
     (or ``failed`` / ``skipped-not-ready``); NO ``already-configured``
@@ -624,15 +624,25 @@ redpanda_hook() {{
     #      broker accepts our request, so a transient broker glitch
     #      can't leave us userless mid-flight.
     #   3. Other error → bail with failed.
-    # Pipe password via stdin so it never reaches docker exec's argv
-    # on the host. Inside the container, `cat` consumes the full
-    # stdin into RPK_PASS; rpk then receives it via shell var
-    # expansion (still in argv inside the container — different
-    # threat model).
+    # Pipe password via stdin so it never lands in argv on ANY of the
+    # three process-list surfaces:
+    #   (1) host's `ps aux` — `printf '%s' "$VAR" | docker exec -i ...`
+    #       uses shell-builtin printf (no argv) and the docker exec
+    #       cmdline carries only flags + rpk subcommand, no password.
+    #   (2) docker daemon's `ps aux` — same docker-exec cmdline.
+    #   (3) inside the container — rpk reads the password from stdin
+    #       via --password-stdin and never reflects it into its own
+    #       argv. Previous form did `sh -c 'RPK_PASS=$(cat); rpk
+    #       ... --password "$RPK_PASS"'` which leaked into rpk's argv
+    #       in-container.
+    # --password-stdin support: requires rpk v23+ (Redpanda image
+    # >= v23.x). Confirmed available on the pinned v24.3 image; an
+    # earlier attempt landed and was reverted in 7c3c530 (2026-04)
+    # because the then-bundled rpk was older.
     REDPANDA_PASSWORD={password_q}
     USER_EXISTED=false
     USER_RESULT=$(printf '%s' "$REDPANDA_PASSWORD" | \\
-        docker exec -i redpanda sh -c 'RPK_PASS=$(cat); rpk acl user create nexus-redpanda --password "$RPK_PASS" --mechanism SCRAM-SHA-256' 2>&1 || echo "")
+        docker exec -i redpanda rpk acl user create nexus-redpanda --password-stdin --mechanism SCRAM-SHA-256 2>&1 || echo "")
     if echo "$USER_RESULT" | grep -qi 'already exists\\|user already\\|already in use'; then
         # Rotation path: delete + recreate. Brief no-user window —
         # acceptable because we just proved the broker is responsive.
@@ -641,7 +651,7 @@ redpanda_hook() {{
         USER_EXISTED=true
         docker exec redpanda rpk acl user delete nexus-redpanda >/dev/null 2>&1 || true
         USER_RESULT=$(printf '%s' "$REDPANDA_PASSWORD" | \\
-            docker exec -i redpanda sh -c 'RPK_PASS=$(cat); rpk acl user create nexus-redpanda --password "$RPK_PASS" --mechanism SCRAM-SHA-256' 2>&1 || echo "")
+            docker exec -i redpanda rpk acl user create nexus-redpanda --password-stdin --mechanism SCRAM-SHA-256 2>&1 || echo "")
         if ! echo "$USER_RESULT" | grep -qi 'created\\|added\\|success'; then
             echo "  ⚠ rpk acl user create failed after delete (no SASL user — broker is now in a broken state): $USER_RESULT" >&2
             echo "RESULT hook=redpanda status=failed"
