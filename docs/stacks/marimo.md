@@ -44,13 +44,14 @@ The Marimo container is a thin gRPC client — the driver-JVM lives in the dedic
 
 ### Quickstart
 
-Three seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch — but only when Gitea is enabled (the seeds live in the Gitea workspace repo, and Marimo's entrypoint only runs the `git clone` when `GITEA_REPO_URL` is set in its env, see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On a Marimo-only install without Gitea you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Gitea enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
+Four seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch — but only when Gitea is enabled (the seeds live in the Gitea workspace repo, and Marimo's entrypoint only runs the `git clone` when `GITEA_REPO_URL` is set in its env, see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On a Marimo-only install without Gitea you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Gitea enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
 
 > **Upgrade note:** Marimo's entrypoint only clones the workspace repo when `/app/notebooks/<repo>/.git` is **absent** ([`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On an existing workspace where Marimo was already running before a new seed shipped, `gh workflow run spin-up.yml` won't pull the new file in automatically — the repo dir already exists. Either run `git pull` from inside the Marimo notebook UI's terminal, or wipe the `marimo_data` volume and let the first-launch clone re-fetch (loses any local notebook edits). The new seeds DO appear in fresh stack deployments.
 
 
 - **`Getting_Started_PySpark.py`** — minimal "spin up a SparkSession via Spark Connect, run a job, render results" walkthrough. Start here.
 - **`Getting_Started_DuckDB.py`** — DuckDB walkthrough that doesn't need the Spark stack at all: in-memory queries, `range()` synthetic data, remote parquet over `httpfs`, aggregate + window functions, Polars/Pandas/PyArrow conversion, and Marimo's native `mo.sql()` reactive cell. Useful as a single-node analytics baseline before reaching for Spark.
+- **`Getting_Started_PostgREST.py`** — REST-API walkthrough over the shared `postgres` stack via the PostgREST stack: list / filter / order / paginate / POST / PATCH / DELETE / OpenAPI. Stdlib-only (`urllib.request`), hits the internal `http://postgrest:3000` so no Cloudflare Access detour. Requires the PostgREST stack enabled.
 - **`NYC_Taxi_Pipeline.py`** — end-to-end bootstrap-to-S3 + Spark-analytics pattern using DuckDB for the upload step and Spark for the read+aggregate.
 
 The minimal pattern is:

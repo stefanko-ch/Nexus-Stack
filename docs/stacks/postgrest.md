@@ -29,6 +29,12 @@ HTTPS client  →  Cloudflare Access  →  Cloudflare Tunnel  →  postgrest:300
                   (email OTP)                                    (Go binary)        (shared)
 ```
 
+## Try it out (Marimo notebook)
+
+A seeded Marimo notebook walks through the full PostgREST API surface — list / filter / order / paginate, POST / PATCH / DELETE, and fetching the OpenAPI spec — using only stdlib (`urllib.request` + `json`, no extra `pip install`). If both **Marimo** and **PostgREST** are enabled and **Gitea** is enabled (so the workspace-repo seed lands), open `https://marimo.<domain>` and look for `nexus_seeds/marimo/Getting_Started_PostgREST.py`.
+
+The notebook hits PostgREST at the internal `http://postgrest:3000` — bypassing Cloudflare Access since both containers share `app-network`. Source: [`examples/workspace-seeds/marimo/Getting_Started_PostgREST.py`](../../examples/workspace-seeds/marimo/Getting_Started_PostgREST.py).
+
 ## Typical workflow
 
 1. **Create your schema** in the shared `postgres` stack — via [CloudBeaver](https://nexus-stack.ch/docs/stacks/cloudbeaver), [pgAdmin](https://nexus-stack.ch/docs/stacks/pgadmin), [Adminer](https://nexus-stack.ch/docs/stacks/adminer), or `psql`. Use the `public` schema (default) or add a custom schema and update `PGRST_DB_SCHEMAS`.
