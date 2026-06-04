@@ -73,6 +73,7 @@ def full_config() -> NexusConfig:
         planka_secret_key="planka-secret-64chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         planka_db_password="planka-db-pw",
         planka_admin_password="planka-admin-pw",
+        postgrest_jwt_secret="postgrest-jwt-64chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         litellm_master_key="litellm-master-32chars-xxxxxxxxx",
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
@@ -731,6 +732,69 @@ def test_planka_base_url_respects_subdomain_separator(
     )
     rendered = _render_planka(full_config, env)
     assert rendered.env_vars["PLANKA_BASE_URL"] == "https://planka-example.com"
+
+
+# ---------------------------------------------------------------------------
+# PostgREST — fail-fast guard + JWT-secret + shared-postgres-password
+# ---------------------------------------------------------------------------
+
+
+def test_postgrest_raises_on_empty_jwt_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty POSTGREST_JWT_SECRET means JWT verification falls back to
+    an unstable default — broken-but-silent auth. Surface at deploy
+    time."""
+    from nexus_deploy.service_env import _render_postgrest
+
+    config = full_config.model_copy(update={"postgrest_jwt_secret": ""})
+    with pytest.raises(ServiceEnvError, match="POSTGREST_JWT_SECRET"):
+        _render_postgrest(config, full_env)
+
+
+def test_postgrest_raises_on_empty_postgres_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """PostgREST points at the shared `postgres` stack — without its
+    password the connection string is unusable and the container can't
+    introspect the schema. Hard-fail at render time."""
+    from nexus_deploy.service_env import _render_postgrest
+
+    config = full_config.model_copy(update={"postgres_password": ""})
+    with pytest.raises(ServiceEnvError, match="POSTGRES_PASSWORD"):
+        _render_postgrest(config, full_env)
+
+
+def test_postgrest_raises_lists_all_missing_at_once(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Both secrets missing → one error naming both so a single
+    `tofu apply` + spin-up cycle clears them."""
+    from nexus_deploy.service_env import _render_postgrest
+
+    config = full_config.model_copy(
+        update={
+            "postgrest_jwt_secret": "",
+            "postgres_password": "",
+        }
+    )
+    with pytest.raises(
+        ServiceEnvError,
+        match=r"POSTGREST_JWT_SECRET.*POSTGRES_PASSWORD",
+    ):
+        _render_postgrest(config, full_env)
+
+
+def test_postgrest_renders_jwt_and_postgres_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Happy path: both secrets pipe through verbatim. PostgREST's
+    compose interpolates them into PGRST_DB_URI + PGRST_JWT_SECRET."""
+    from nexus_deploy.service_env import _render_postgrest
+
+    rendered = _render_postgrest(full_config, full_env)
+    assert rendered.env_vars["POSTGRES_PASSWORD"] == full_config.postgres_password
+    assert rendered.env_vars["POSTGREST_JWT_SECRET"] == full_config.postgrest_jwt_secret
 
 
 # ---------------------------------------------------------------------------

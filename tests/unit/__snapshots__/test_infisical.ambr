@@ -149,6 +149,8 @@
       'POSTGRES_PASSWORD': 'postgres_password-VALUE',
       'POSTGRES_USERNAME': 'nexus-postgres',
     }),
+    'postgrest': dict({
+    }),
     'prefect': dict({
       'PREFECT_DB_PASSWORD': 'prefect_db_password-VALUE',
     }),

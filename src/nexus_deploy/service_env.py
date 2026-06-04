@@ -547,6 +547,54 @@ def _render_planka(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_postgrest(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """PostgREST: auto-generated REST API over the shared `postgres` stack.
+
+    PostgREST needs:
+    - ``POSTGRES_PASSWORD`` for the connection string to the shared
+      `postgres` stack (read via ``${POSTGRES_PASSWORD}`` in the compose
+      file's ``PGRST_DB_URI``).
+    - ``POSTGREST_JWT_SECRET`` to verify bearer tokens that elevate past
+      the anonymous role. Without a stable secret PostgREST would either
+      reject all JWTs or accept anything depending on the runtime
+      default — both are deploy-broken-but-silent states.
+    - ``DOMAIN`` for the OpenAPI server URL embedded in the generated
+      spec, so Swagger-UI-style consumers hit the right host.
+
+    Fail-fast guard: if either secret is empty, surface here at render
+    time with one actionable message rather than a container that comes
+    up unable to talk to its DB or with broken auth semantics.
+
+    Infisical naming reference:
+
+    - ``/postgrest/POSTGREST_JWT_SECRET`` — empty → JWT verification
+      unusable.
+    - shared ``POSTGRES_PASSWORD`` from BootstrapEnv (no Infisical
+      folder of its own; it's the same value the `postgres` stack
+      itself uses).
+    """
+    missing = []
+    if _empty(c.postgrest_jwt_secret):
+        missing.append("POSTGREST_JWT_SECRET (Infisical /postgrest)")
+    if _empty(c.postgres_password):
+        missing.append("POSTGRES_PASSWORD (shared postgres stack secret)")
+    if missing:
+        raise ServiceEnvError(
+            f"PostgREST enabled but {', '.join(missing)} empty — run "
+            "`tofu apply` (initial-setup workflow) to generate "
+            "random_password.postgrest_jwt_secret + the shared "
+            "postgres password, then re-run spin-up. Aborting to "
+            "avoid a container that can't reach its DB or has "
+            "broken JWT verification.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "POSTGRES_PASSWORD": c.postgres_password or "",
+            "POSTGREST_JWT_SECRET": c.postgrest_jwt_secret or "",
+        },
+    )
+
+
 def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Lakekeeper: Iceberg REST Catalog. Needs dedicated Postgres
     DSN + LAKEKEEPER__BASE_URI (double-underscore, that's Lakekeeper's
@@ -1405,6 +1453,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("meilisearch", _is_enabled("meilisearch"), _render_meilisearch),
     EnvSpec("hedgedoc", _is_enabled("hedgedoc"), _render_hedgedoc),
     EnvSpec("planka", _is_enabled("planka"), _render_planka),
+    EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),

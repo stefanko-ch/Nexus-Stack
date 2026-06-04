@@ -169,6 +169,9 @@ output "secrets" {
     planka_db_password    = random_password.planka_db_password.result
     planka_admin_password = random_password.planka_admin.result
 
+    # PostgREST
+    postgrest_jwt_secret = random_password.postgrest_jwt_secret.result
+
     # LiteLLM Proxy
     litellm_master_key  = random_password.litellm_master_key.result
     litellm_salt_key    = random_password.litellm_salt_key.result

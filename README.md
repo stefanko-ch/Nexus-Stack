@@ -68,7 +68,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (74)
+## Available Stacks (75)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -122,6 +122,7 @@ After deployment you'll have:
 [![Planka](https://img.shields.io/badge/Planka-4D4D4D?logo=planka&logoColor=white)](https://planka.app)
 [![Portainer](https://img.shields.io/badge/Portainer-13BEF9?logo=portainer&logoColor=white)](https://www.portainer.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![PostgREST](https://img.shields.io/badge/PostgREST-2C3E50?logo=postgresql&logoColor=white)](https://postgrest.org)
 [![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)](https://www.prefect.io)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
@@ -199,6 +200,7 @@ After deployment you'll have:
 | **Planka** | Open-source kanban board (Trello alternative) with real-time multi-user collaboration | [planka.app](https://planka.app) |
 | **Portainer** | Always-on Docker dashboard — first stop for inspecting a misbehaving container (logs, state, restart). Auto-deployed alongside Gitea/Grafana/Infisical | [portainer.io](https://www.portainer.io) |
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
+| **PostgREST** | Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included | [postgrest.org](https://postgrest.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |

@@ -71,6 +71,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | PostgreSQL (HedgeDoc DB) | `postgres` | `16-alpine` | Major |
 | Planka | `ghcr.io/plankanban/planka` | `2.1.1` | Exact ¹ |
 | PostgreSQL (Planka DB) | `postgres` | `16-alpine` | Major |
+| PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.12.2` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `16-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
@@ -185,6 +186,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Planka** | Kanban board for project management | [planka.md](planka.md) |
 | **Portainer** | Docker container management UI | [portainer.md](portainer.md) |
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
+| **PostgREST** | Auto-generated REST API for any Postgres schema | [postgrest.md](postgrest.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |

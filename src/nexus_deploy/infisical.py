@@ -687,6 +687,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "postgrest",
+            _filter_empty(
+                {
+                    "POSTGREST_JWT_SECRET": config.postgrest_jwt_secret,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "litellm",
             _filter_empty(
                 {

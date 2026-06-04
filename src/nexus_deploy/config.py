@@ -76,6 +76,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("PLANKA_SECRET_KEY", "planka_secret_key", ""),
     ("PLANKA_DB_PASS", "planka_db_password", ""),
     ("PLANKA_ADMIN_PASS", "planka_admin_password", ""),
+    ("POSTGREST_JWT_SECRET", "postgrest_jwt_secret", ""),
     ("MAGE_PASS", "mage_admin_password", ""),
     ("MINIO_ROOT_PASS", "minio_root_password", ""),
     ("SFTPGO_ADMIN_PASS", "sftpgo_admin_password", ""),
@@ -195,6 +196,7 @@ class NexusConfig(BaseModel):
     planka_secret_key: str | None = None
     planka_db_password: str | None = None
     planka_admin_password: str | None = None
+    postgrest_jwt_secret: str | None = None
     mage_admin_password: str | None = None
     minio_root_password: str | None = None
     sftpgo_admin_password: str | None = None

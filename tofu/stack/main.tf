@@ -192,6 +192,15 @@ resource "random_password" "planka_admin" {
   special = false
 }
 
+# PostgREST JWT signing secret. HS256 verification, so the secret
+# length matters — 64 chars gives well over the 256-bit recommended
+# entropy. Operators mint short-lived tokens with this secret to
+# elevate from the anon role to a more-privileged Postgres role.
+resource "random_password" "postgrest_jwt_secret" {
+  length  = 64
+  special = false
+}
+
 # LiteLLM master key — Bearer token for admin ops + /ui login.
 # Length 32 because it's the single auth gate to every provider
 # proxied behind it (Ollama, OpenAI, Anthropic, ...).

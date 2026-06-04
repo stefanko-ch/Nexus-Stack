@@ -663,6 +663,16 @@ services:
     tcp_ports:
       postgres: 5432
 
+  postgrest:
+    subdomain: "postgrest"
+    port: 3009
+    public: false
+    category: "dev-tools"
+    website: "https://postgrest.org"
+    description: "Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included."
+    long_description: "PostgREST is a standalone web server that turns any Postgres database into a fully-featured REST API. It introspects the schema (tables, views, functions) and exposes them with rich query semantics — filtering (?col=eq.x), pagination, ordering, embedded resources, and content negotiation (JSON, CSV). The OpenAPI spec is auto-generated at the root, so you can drop it into Hoppscotch or any Swagger UI without writing a line of YAML. Points at the shared `postgres` stack on app-network, so any tables you create via CloudBeaver / pgAdmin / psql become an API instantly. JWT-based auth on the PostgREST side, gated by Cloudflare Access at the edge."
+    image: "postgrest/postgrest:v14.12"
+
   planka:
     subdomain: "planka"
     port: 1337
