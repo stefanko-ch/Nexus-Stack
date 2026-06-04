@@ -165,7 +165,6 @@ jobs:
           admin_email         = "${{ secrets.TF_VAR_admin_email }}"
           user_email          = "${{ secrets.TF_VAR_user_email }}"
           guest_emails        = "${{ secrets.TF_VAR_guest_emails }}"
-          admin_username      = "admin"
           github_owner        = "${{ github.repository_owner }}"
           github_repo         = "${{ github.event.repository.name }}"
           EOF
