@@ -704,10 +704,18 @@ services:
     description: "Kafka-compatible streaming platform that is simpler, faster, and more cost-effective."
     long_description: "Redpanda is a Kafka-compatible streaming data platform built for modern workloads. It is faster, simpler to operate (no ZooKeeper/KRaft), and uses less resources than Apache Kafka. Features include built-in schema registry, HTTP proxy, and a Kafka-compatible API for seamless migration."
     image: "redpandadata/redpanda:v24.3"
+    # The Admin API on port 9644 is deliberately NOT listed in tcp_ports.
+    # The endpoint has no authentication of its own — anyone reaching it
+    # can create/delete SASL users, change cluster config, and delete
+    # topics. Operators can still reach the admin panel via the
+    # Cloudflare-Tunnel-fronted https://redpanda.<domain> (which is
+    # gated by Cloudflare Access at the edge), but the port cannot be
+    # opened to the public internet via Hetzner firewall_rules because
+    # the Control Plane UI / generate-services-tfvars.py only offer
+    # ports that appear in this map.
     tcp_ports:
       kafka: 9092
       schema-registry: 18081
-      admin: 9644
 
   seaweedfs:
     # Filer UI host port — moved 8888 → 8890 to resolve collision with
