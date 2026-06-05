@@ -281,8 +281,11 @@ def _(mo):
 
         - **Tighten the anon role.** The shipped default uses the shared-Postgres
           superuser as `PGRST_DB_ANON_ROLE` — fine for a lab, not for multi-user
-          deployments. See [`docs/stacks/postgrest.md`](../../docs/stacks/postgrest.md#production-hardening-replace-the-superuser-anon-role)
+          deployments. See the [PostgREST stack docs](https://nexus-stack.ch/docs/stacks/postgrest/#production-hardening-replace-the-superuser-anon-role)
           for the SQL recipe to switch to a least-privilege `web_anon` role.
+          (This link points at the published Nexus-Stack docs site, not the
+          workspace repo — the seeded notebook lives in your Gitea workspace
+          but the `docs/` tree only exists in the upstream Nexus-Stack repo.)
         - **Mint JWTs for write paths.** Once you have separate roles, elevate
           past anon by sending `Authorization: Bearer <token>` where the JWT's
           `role` claim names the Postgres role to switch to. The secret is in

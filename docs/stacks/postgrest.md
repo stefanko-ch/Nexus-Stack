@@ -22,7 +22,7 @@ The auto-generated OpenAPI spec at the root (`/`) makes it trivial to explore in
 
 ## How it works
 
-The compose env (`PGRST_DB_URI`, `PGRST_DB_SCHEMAS`, `PGRST_DB_ANON_ROLE`, `PGRST_JWT_SECRET`) is populated by [`service_env._render_postgrest`](../../src/nexus_deploy/service_env.py) from the Tofu-generated `random_password.postgrest_jwt_secret` and the shared-Postgres password — both pushed to Infisical (`/postgrest/POSTGREST_JWT_SECRET` and the shared `POSTGRES_PASSWORD`).
+The compose env (`PGRST_DB_URI`, `PGRST_DB_SCHEMAS`, `PGRST_DB_ANON_ROLE`, `PGRST_JWT_SECRET`) is populated by [`service_env._render_postgrest`](https://github.com/stefanko-ch/Nexus-Stack/blob/main/src/nexus_deploy/service_env.py) from the Tofu-generated `random_password.postgrest_jwt_secret` and the shared-Postgres password — both pushed to Infisical (`/postgrest/POSTGREST_JWT_SECRET` and the shared `POSTGRES_PASSWORD`).
 
 ```text
 HTTPS client  →  Cloudflare Access  →  Cloudflare Tunnel  →  postgrest:3000  →  postgres:5432
@@ -33,7 +33,7 @@ HTTPS client  →  Cloudflare Access  →  Cloudflare Tunnel  →  postgrest:300
 
 A seeded Marimo notebook walks through the full PostgREST API surface — list / filter / order / paginate, POST / PATCH / DELETE, and fetching the OpenAPI spec — using only stdlib (`urllib.request` + `json`, no extra `pip install`). If both **Marimo** and **PostgREST** are enabled and **Gitea** is enabled (so the workspace-repo seed lands), open `https://marimo.<domain>` and look for `nexus_seeds/marimo/Getting_Started_PostgREST.py`.
 
-The notebook hits PostgREST at the internal `http://postgrest:3000` — bypassing Cloudflare Access since both containers share `app-network`. Source: [`examples/workspace-seeds/marimo/Getting_Started_PostgREST.py`](../../examples/workspace-seeds/marimo/Getting_Started_PostgREST.py).
+The notebook hits PostgREST at the internal `http://postgrest:3000` — bypassing Cloudflare Access since both containers share `app-network`. Source: [`examples/workspace-seeds/marimo/Getting_Started_PostgREST.py`](https://github.com/stefanko-ch/Nexus-Stack/blob/main/examples/workspace-seeds/marimo/Getting_Started_PostgREST.py).
 
 ## Typical workflow
 
