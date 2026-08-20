@@ -139,7 +139,7 @@ def _():
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status, dict(resp.headers), resp.read()
 
-    return POSTGREST, delete, get, patch, post
+    return POSTGREST, delete, get, patch, post, urllib
 
 
 @app.cell
@@ -239,9 +239,12 @@ def _(mo):
 
 
 @app.cell
-def _(get, patch):
-    # Bring "Database Internals" back in stock.
-    _, _, updated = patch("/demo_books?title=eq.Database Internals", body={"in_stock": True})
+def _(get, patch, urllib):
+    # Bring "Database Internals" back in stock. The title contains a space, so
+    # the filter has to be URL-encoded — urllib rejects a literal space in the
+    # request path with `InvalidURL: URL can't contain control characters`.
+    _filter = urllib.parse.urlencode({"title": "eq.Database Internals"})
+    _, _, updated = patch(f"/demo_books?{_filter}", body={"in_stock": True})
     _, _, all_books = get("/demo_books", params={"order": "id.asc"})
     {"updated": updated, "all_books": all_books}
 
