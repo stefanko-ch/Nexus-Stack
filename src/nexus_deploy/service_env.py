@@ -569,9 +569,11 @@ def _render_postgrest(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
     - ``/postgrest/POSTGREST_JWT_SECRET`` — empty → JWT verification
       unusable.
-    - shared ``POSTGRES_PASSWORD`` from BootstrapEnv (no Infisical
-      folder of its own; it's the same value the `postgres` stack
-      itself uses).
+    - shared ``POSTGRES_PASSWORD`` from ``NexusConfig`` (not
+      ``BootstrapEnv`` — that dataclass carries only non-secret
+      bootstrap metadata). Read as ``c.postgres_password``; it has no
+      Infisical folder of its own because it's the same value the
+      `postgres` stack itself uses.
     """
     missing = []
     if _empty(c.postgrest_jwt_secret):

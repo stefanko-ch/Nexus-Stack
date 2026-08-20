@@ -37,7 +37,8 @@ services:
     environment:
       # Connection to the shared postgres stack on app-network.
       # POSTGRES_PASSWORD comes from .env (rendered by the
-      # service_env hook from BootstrapEnv.postgres_password).
+      # service_env hook from NexusConfig.postgres_password — the
+      # same shared-postgres secret the `postgres` stack itself uses).
       PGRST_DB_URI: postgres://nexus-postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
       # Which schemas to expose. Defaults to `public` — operator can
       # add comma-separated schemas via the Control Plane env-edit
