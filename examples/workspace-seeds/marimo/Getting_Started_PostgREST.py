@@ -281,7 +281,7 @@ def _(mo):
 
         - **Tighten the anon role.** The shipped default uses the shared-Postgres
           superuser as `PGRST_DB_ANON_ROLE` — fine for a lab, not for multi-user
-          deployments. See the [PostgREST stack docs](https://nexus-stack.ch/docs/stacks/postgrest/#production-hardening-replace-the-superuser-anon-role)
+          deployments. See the [PostgREST stack docs](https://nexus-stack.ch/docs/stacks/postgrest/#production-hardening--replace-the-superuser-anon-role)
           for the SQL recipe to switch to a least-privilege `web_anon` role.
           (This link points at the published Nexus-Stack docs site, not the
           workspace repo — the seeded notebook lives in your Gitea workspace
