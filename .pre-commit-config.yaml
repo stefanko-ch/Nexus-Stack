@@ -21,6 +21,14 @@ repos:
       - id: trailing-whitespace
         # Markdown's two-space-line-break is a real syntax — don't strip those.
         args: [--markdown-linebreak-ext=md]
+        # syrupy's amber (.ambr) format indents each line of a captured
+        # multi-line string by two spaces — including the blank ones. That
+        # trailing whitespace is part of the recorded value, so stripping it
+        # makes the snapshot stop matching what syrupy regenerates. This hook
+        # silently corrupted tests/unit/__snapshots__/test_config.ambr on
+        # commit; the failure stayed invisible because the CI pytest step was
+        # missing `shell: bash` (no pipefail) and swallowed the exit code.
+        exclude: '\.ambr$'
       - id: end-of-file-fixer
       - id: check-yaml
         # docker-compose & GH-Actions YAML allow document-fragments per file

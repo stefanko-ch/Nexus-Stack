@@ -139,8 +139,16 @@ jobs:
         # so local + CI agree even if someone runs `coverage report` directly.
         # `--cov-report=xml` feeds the PR coverage-comment step, `=html`
         # feeds the artifact upload, and `tee` keeps the step's stdout
-        # readable. GitHub-Actions default shell is bash with `pipefail`,
-        # so a pytest failure still fails the step.
+        # readable.
+        #
+        # `shell: bash` is REQUIRED here, not cosmetic. Without it Actions
+        # runs `bash -e {0}` — which has NO pipefail — so `pytest | tee`
+        # exits with tee's status and a failing suite reports success.
+        # Specifying `shell: bash` selects
+        # `bash --noprofile --norc -eo pipefail {0}` instead, so pytest's
+        # exit code propagates. This masked 3 genuinely failing snapshot
+        # tests while the job stayed green.
+        shell: bash
         run: |
           uv run pytest \
             --cov=src/nexus_deploy --cov-fail-under=80 \
