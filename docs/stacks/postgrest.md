@@ -37,7 +37,7 @@ The notebook hits PostgREST at the internal `http://postgrest:3000` — bypassin
 
 ## Typical workflow
 
-1. **Create your schema** in the shared `postgres` stack — via [CloudBeaver](https://nexus-stack.ch/docs/stacks/cloudbeaver), [pgAdmin](https://nexus-stack.ch/docs/stacks/pgadmin), [Adminer](https://nexus-stack.ch/docs/stacks/adminer), or `psql`. Use the `public` schema (default) or add a custom schema and update `PGRST_DB_SCHEMAS`.
+1. **Create your schema** in the shared `postgres` stack — via [CloudBeaver](./cloudbeaver.md), [pgAdmin](./pgadmin.md), [Adminer](./adminer.md), or `psql`. Use the `public` schema (default) or add a custom schema and update `PGRST_DB_SCHEMAS`.
 
 2. **Reload PostgREST's schema cache.** PostgREST caches the introspected schema at startup; new tables won't appear until you signal a reload. From inside the container:
 
