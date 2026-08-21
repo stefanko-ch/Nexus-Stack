@@ -618,7 +618,7 @@ resource "hcloud_server" "main" {
   #   /opt/docker-server/.image-provisioned  (disk, survives into a
   #       snapshot)  — "this disk has been through the heavy path".
   #   /run/nexus-setup-complete  (tmpfs, CANNOT survive into a
-  #       snapshot) — "this boot has finished provisioning".
+  #       snapshot) — "this boot is ready".
   #
   # The tmpfs marker is what makes the readiness gate correct on a
   # restored server. The old disk marker .setup-complete is still
@@ -626,6 +626,16 @@ resource "hcloud_server" "main" {
   # working unchanged on a fresh server, but it is useless for a
   # restore: it is already in the image, so a gate probing it would
   # pass instantly — possibly before sshd and Docker are up.
+  #
+  # The tmpfs marker is written by a systemd unit, NOT from this
+  # script. cloud-init's scripts-user module is PER_INSTANCE, so it
+  # does not run again on a plain reboot — a marker touched from here
+  # would be missing for the rest of the server's life after its first
+  # reboot, and a warm spin-up (server already running, the common
+  # case) would then hang on the gate for six minutes and fail.
+  # A unit ordered After=docker.service runs on every boot and lands
+  # the marker only once Docker is actually up, which makes it a
+  # stronger readiness signal than "cloud-init finished" as well.
   user_data = <<-EOT
     #!/bin/bash
     set -e
@@ -674,6 +684,30 @@ resource "hcloud_server" "main" {
       # Create Docker network
       docker network create app-network || true
 
+      # Boot-readiness unit. Installed once, runs on every boot —
+      # including reboots and snapshot restores, neither of which
+      # re-runs this script. Ordered after Docker so the marker means
+      # "ready", not just "booted".
+      printf '%s\n' \
+        '[Unit]' \
+        'Description=Nexus-Stack boot readiness marker' \
+        'After=docker.service' \
+        'Requires=docker.service' \
+        '' \
+        '[Service]' \
+        'Type=oneshot' \
+        'ExecStart=/bin/touch /run/nexus-setup-complete' \
+        'RemainAfterExit=yes' \
+        '' \
+        '[Install]' \
+        'WantedBy=multi-user.target' \
+        > /etc/systemd/system/nexus-ready.service
+      systemctl daemon-reload
+      # --now because multi-user.target has usually been reached by the
+      # time cloud-init gets here, so `enable` alone would not start it
+      # on this first boot.
+      systemctl enable --now nexus-ready.service
+
       # This disk is now provisioned — future boots take the light path.
       touch /opt/docker-server/.image-provisioned
 
@@ -698,10 +732,15 @@ resource "hcloud_server" "main" {
       # in Docker's state on disk, so it normally survives — recreate
       # only if it somehow did not.
       docker network inspect app-network >/dev/null 2>&1 || docker network create app-network
-    fi
 
-    # Runs on BOTH paths, always last: the boot-scoped readiness signal.
-    touch /run/nexus-setup-complete
+      # nexus-ready.service is enabled on this disk and systemd will
+      # already have run it during boot. Re-assert it anyway: it is
+      # ordered Requires=docker.service, so if Docker happened to be
+      # down earlier in this boot the unit failed and the marker never
+      # appeared — and we have just started Docker above. Starting an
+      # already-active RemainAfterExit oneshot is a no-op.
+      systemctl start nexus-ready.service
+    fi
   EOT
 
   # image / user_data / server_type / location are create-only.
