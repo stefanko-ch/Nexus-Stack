@@ -1,0 +1,157 @@
+name: Nexus bootstrap
+description: >-
+  Install the toolchain every infrastructure workflow needs (OpenTofu, uv +
+  nexus_deploy runtime deps, cloudflared), install the persistent SSH key,
+  and write tofu/.r2-credentials + tofu/backend.hcl.
+
+# =============================================================================
+# Why this exists
+#
+# spin-up.yml, teardown.yml, teardown-snapshot.yml and destroy-all.yml each
+# carried their own copy of the same ~100 lines. That is not merely untidy:
+# the block pins action versions and handles the SSH key and R2 credentials,
+# so a version bump or a fix has to be repeated in every copy, and a copy
+# that gets missed fails at deploy time rather than at review time.
+#
+# Secrets deliberately arrive as explicit inputs. A composite action cannot
+# read the `secrets` context, and that constraint is worth having: the
+# contract is visible at the call site instead of being ambient.
+#
+# Scope is the *stable* part only. Anything that differs between workflows —
+# config.tfvars generation, capacity selection, readiness gating, the deploy
+# itself — stays in the workflow where it can be read in context.
+# =============================================================================
+
+inputs:
+  domain:
+    description: Stack domain, used to derive the R2 state bucket name.
+    required: true
+  cloudflare_account_id:
+    description: Cloudflare account ID, used for the R2 S3 endpoint.
+    required: true
+  r2_access_key_id:
+    description: R2 access key for the OpenTofu state backend.
+    required: true
+  r2_secret_access_key:
+    description: R2 secret key for the OpenTofu state backend.
+    required: true
+  ssh_private_key:
+    description: >-
+      The PERSISTENT private key that is already in the server's
+      authorized_keys. Steps that only call provider APIs do not need it,
+      but anything that SSHes to the live server does.
+    required: false
+    default: ''
+  ssh_public_key:
+    description: Public key; derived from the private key when omitted.
+    required: false
+    default: ''
+  require_ssh_key:
+    description: >-
+      Fail fast when no private key was supplied. Set this on workflows that
+      genuinely SSH (snapshot, deploy) so the failure names the cause instead
+      of surfacing later as a connection timeout.
+    required: false
+    default: 'false'
+  tofu_version:
+    description: OpenTofu version.
+    required: false
+    default: '1.10.0'
+  uv_version:
+    description: uv version. Keep in step with python-tests.yml.
+    required: false
+    default: '0.11.7'
+
+runs:
+  using: composite
+  steps:
+    - name: Install OpenTofu
+      uses: opentofu/setup-opentofu@v2
+      with:
+        tofu_version: ${{ inputs.tofu_version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: ${{ inputs.uv_version }}
+        enable-cache: true
+
+    - name: Sync nexus_deploy runtime deps
+      # --no-dev: ruff/mypy/pytest are not needed at deploy time.
+      shell: bash
+      run: uv sync --frozen --no-dev
+
+    - name: Install cloudflared
+      # Needed wherever SSH goes over Cloudflare Access, i.e. anything
+      # calling nexus_deploy.setup.configure_ssh.
+      shell: bash
+      run: |
+        curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+        chmod +x cloudflared
+        sudo mv cloudflared /usr/local/bin/
+
+    - name: Install SSH key
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
+        SSH_PUBLIC_KEY: ${{ inputs.ssh_public_key }}
+        REQUIRE_SSH_KEY: ${{ inputs.require_ssh_key }}
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        umask 077
+
+        if [ -z "$SSH_PRIVATE_KEY" ]; then
+          if [ "$REQUIRE_SSH_KEY" = "true" ]; then
+            echo "❌ No SSH private key supplied, but this workflow needs SSH access"
+            echo "   to the live server. Run 'Initial Setup' to bootstrap the key"
+            echo "   pair, or set the SSH_PRIVATE_KEY secret."
+            exit 1
+          fi
+          echo "ℹ️  No SSH private key supplied — skipping (provider-API only)"
+          exit 0
+        fi
+
+        # Passed via env rather than interpolated into the heredoc: an
+        # expression starting at column 0 breaks the Actions YAML parser,
+        # and the indent-then-strip workaround mangles keys whose own
+        # content is indented.
+        printf '%s\n' "$SSH_PRIVATE_KEY" | sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+
+        if [ -n "$SSH_PUBLIC_KEY" ]; then
+          printf '%s\n' "$SSH_PUBLIC_KEY" > ~/.ssh/id_ed25519.pub
+        else
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+        fi
+        chmod 644 ~/.ssh/id_ed25519.pub
+        echo "✅ SSH key installed"
+
+    - name: Create R2 credentials and backend config
+      shell: bash
+      env:
+        R2_ACCESS_KEY_ID: ${{ inputs.r2_access_key_id }}
+        R2_SECRET_ACCESS_KEY: ${{ inputs.r2_secret_access_key }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare_account_id }}
+        DOMAIN: ${{ inputs.domain }}
+      run: |
+        mkdir -p tofu
+
+        # Trim whitespace — a trailing newline in a secret produces an
+        # opaque S3 auth failure rather than an obvious one.
+        ACCESS_KEY=$(printf '%s' "$R2_ACCESS_KEY_ID" | tr -d '[:space:]')
+        SECRET_KEY=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | tr -d '[:space:]')
+        BUCKET_NAME="$(printf '%s' "$DOMAIN" | tr '.' '-')-terraform-state"
+        echo "📦 Using bucket: $BUCKET_NAME"
+
+        {
+          echo "R2_ACCESS_KEY_ID=\"$ACCESS_KEY\""
+          echo "R2_SECRET_ACCESS_KEY=\"$SECRET_KEY\""
+        } > tofu/.r2-credentials
+
+        {
+          echo "endpoints = {"
+          echo "  s3 = \"https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com\""
+          echo "}"
+          echo "bucket = \"$BUCKET_NAME\""
+        } > tofu/backend.hcl

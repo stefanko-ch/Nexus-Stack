@@ -289,130 +289,25 @@ jobs:
           echo "✅ R2 credentials file created"
 
       - name: Generate config.tfvars
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-        run: |
-          # Stack config (emails from secrets)
-          cat > tofu/stack/config.tfvars << EOF
-          server_type     = "${{ vars.SERVER_TYPE || 'cx43' }}"
-          server_location = "${{ vars.SERVER_LOCATION || 'hel1' }}"
-          server_image    = "ubuntu-24.04"
-
-          ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
-          ssh_private_key_path = "~/.ssh/id_ed25519"
-
-          domain               = "${{ secrets.DOMAIN }}"
-          admin_email          = "${{ secrets.TF_VAR_admin_email }}"
-          user_email           = "${{ secrets.TF_VAR_user_email }}"
-          guest_emails         = "${{ secrets.TF_VAR_guest_emails }}"
-          subdomain_separator  = "${{ secrets.SUBDOMAIN_SEPARATOR || '.' }}"
-          github_owner         = "${{ github.repository_owner }}"
-          github_repo          = "${{ github.event.repository.name }}"
-          EOF
-          sed -i 's/^          //' tofu/stack/config.tfvars
-
-          # Add Docker Hub credentials if provided (optional)
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            cat >> tofu/stack/config.tfvars << EOF
-          dockerhub_username = "${{ secrets.DOCKERHUB_USERNAME }}"
-          dockerhub_token    = "${{ secrets.DOCKERHUB_TOKEN }}"
-          EOF
-            sed -i 's/^          //' tofu/stack/config.tfvars
-          fi
-
-          # Issue #536: SERVER_PREFERENCES is NOT written into config.tfvars
-          # here. The select-capacity step below already reads it directly
-          # from the env (highest priority in its source-resolution order),
-          # and tfvars-injecting a workflow variable would be unsafe — a
-          # value containing ``"`` or ``\n`` could break the heredoc and
-          # silently inject extra tfvars keys. The legacy server_type /
-          # server_location lines (above) are used as a 1-element preference
-          # list when the env var isn't set — fully backward-compatible.
-
-          # Get Hetzner Object Storage config from control-plane output
-          cd tofu/control-plane
-          source ../.r2-credentials
-          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
-          HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "${{ secrets.HETZNER_OBJECT_STORAGE_SERVER || format('{0}.your-objectstorage.com', vars.HETZNER_S3_LOCATION || 'fsn1') }}")
-          HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "${{ vars.HETZNER_S3_LOCATION || 'fsn1' }}")
-          HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")
-          HETZNER_S3_BUCKET_GENERAL=$(tofu output -raw hetzner_s3_bucket_general 2>/dev/null || echo "")
-          HETZNER_S3_BUCKET_PGDUCKLAKE=$(tofu output -raw hetzner_s3_bucket_pgducklake 2>/dev/null || echo "")
-          # RFC 0001 cutover: persistent_volume_id is gone — Hetzner
-          # volumes are no longer used; persistence lives in R2.
-          cd ../..
-
-          # Add Hetzner Object Storage config to stack
-          cat >> tofu/stack/config.tfvars << EOF
-          hetzner_object_storage_server = "$HETZNER_S3_SERVER"
-          hetzner_object_storage_region = "$HETZNER_S3_REGION"
-          hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
-          hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
-          hetzner_s3_bucket_pgducklake  = "$HETZNER_S3_BUCKET_PGDUCKLAKE"
-          EOF
-          sed -i 's/^          //' tofu/stack/config.tfvars
-
-          if [ -n "$HETZNER_S3_BUCKET" ]; then
-            echo "📦 Hetzner Object Storage configured (bucket: $HETZNER_S3_BUCKET)"
-          else
-            echo "⚠️  Hetzner Object Storage not configured (LakeFS will need manual setup)"
-          fi
-
-          # Generate services config from D1 (single source of truth)
-          # If enabled_services input is provided (from Control Plane), use it
-          # Otherwise, read from D1 database
-          ENABLED_SERVICES="${{ inputs.enabled_services }}"
-
-          if [ -n "$ENABLED_SERVICES" ]; then
-            echo "📋 Using services from Control Plane: $ENABLED_SERVICES"
-          else
-            echo "📋 Reading services from D1 database..."
-            # Get enabled services from D1
-            D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-            ENABLED_SERVICES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
-              --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
-              | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
-
-            if [ -n "$ENABLED_SERVICES" ]; then
-              echo "📋 Enabled services from D1: $ENABLED_SERVICES"
-            else
-              echo "📋 No services in D1 yet - core services will be enabled by default"
-            fi
-          fi
-
-          # Sync firewall rules from services.yaml to D1 BEFORE reading them
-          # This ensures dns_record and label changes are applied before Tofu reads them
-          D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          echo "🔥 Syncing firewall rules from services.yaml to D1..."
-          chmod +x .github/scripts/sync-firewall-rules.sh
-          if ! CLOUDFLARE_API_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            CLOUDFLARE_ACCOUNT_ID="${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" \
-            DOMAIN="${{ secrets.DOMAIN }}" \
-            bash .github/scripts/sync-firewall-rules.sh; then
-            echo "❌ Firewall rule sync failed — aborting to avoid stale firewall metadata"
-            exit 1
-          fi
-
-          # Read enabled firewall rules from D1
-          echo "🔥 Reading firewall rules from D1..."
-          FIREWALL_RULES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
-            --command "SELECT service_name, port, source_ips, dns_record FROM firewall_rules WHERE enabled = 1" 2>/dev/null \
-            | jq -r '.[0].results // [] | map("\(.service_name):\(.port):\(.source_ips // ""):\(.dns_record // "")") | join(";")' 2>/dev/null || echo "")
-
-          if [ -n "$FIREWALL_RULES" ]; then
-            echo "🔥 Enabled firewall rules: $FIREWALL_RULES"
-          else
-            echo "🔥 No firewall rules enabled (Zero Entry mode)"
-          fi
-
-          # Generate services and firewall config from services.yaml
-          # Use shared script to avoid code duplication
-          chmod +x .github/scripts/generate-services-tfvars.py
-          ENABLED_SERVICES="$ENABLED_SERVICES" FIREWALL_RULES="$FIREWALL_RULES" python3 .github/scripts/generate-services-tfvars.py
+        # Shared with spin-up-snapshot.yml — see
+        # .github/actions/nexus-config-tfvars. server_image is left at its
+        # default here, so this workflow carries no snapshot awareness.
+        uses: ./.github/actions/nexus-config-tfvars
+        with:
+          enabled_services: ${{ inputs.enabled_services }}
+          server_type: ${{ vars.SERVER_TYPE }}
+          server_location: ${{ vars.SERVER_LOCATION }}
+          hetzner_s3_location: ${{ vars.HETZNER_S3_LOCATION }}
+          domain: ${{ secrets.DOMAIN }}
+          cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          tf_var_admin_email: ${{ secrets.TF_VAR_admin_email }}
+          tf_var_user_email: ${{ secrets.TF_VAR_user_email }}
+          tf_var_guest_emails: ${{ secrets.TF_VAR_guest_emails }}
+          subdomain_separator: ${{ secrets.SUBDOMAIN_SEPARATOR }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          hetzner_object_storage_server: ${{ secrets.HETZNER_OBJECT_STORAGE_SERVER }}
 
       - name: Select Hetzner capacity
         # Issue #536: Hetzner sells out of specific server-type /

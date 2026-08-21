@@ -109,77 +109,21 @@ jobs:
             .github/scripts/log-to-d1.sh warn "Snapshot teardown workflow started"
           fi
 
-      - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@v2
+      - name: Bootstrap toolchain and credentials
+        # Shared with the other infrastructure workflows — see
+        # .github/actions/nexus-bootstrap. require_ssh_key because the
+        # pre-destroy R2 snapshot really SSHes into the live server
+        # (docker exec pg_dump + rclone sync); a missing key must fail
+        # here by name rather than later as a connection timeout.
+        uses: ./.github/actions/nexus-bootstrap
         with:
-          tofu_version: 1.10.0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "0.11.7"
-          enable-cache: true
-
-      - name: Sync nexus_deploy runtime deps
-        run: uv sync --frozen --no-dev
-
-      - name: Install cloudflared
-        # Needed by nexus_deploy.pipeline.run_snapshot, which SSHes to
-        # the live server over Cloudflare Access for the R2 snapshot.
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-          sudo mv cloudflared /usr/local/bin/
-
-      - name: Install SSH key from GitHub Secrets
-        # The R2 snapshot step needs real SSH into the live server
-        # (docker exec pg_dump + rclone sync), so this must be the
-        # PERSISTENT key that is already in the server's
-        # authorized_keys — not a freshly generated one.
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          umask 077
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-            echo "❌ SSH_PRIVATE_KEY secret not set — the pre-snapshot R2 step needs SSH access to the live server."
-            echo "   Run 'Initial Setup' first to bootstrap the key pair, or set SSH_PRIVATE_KEY manually."
-            exit 1
-          fi
-          # Expression placeholders must NOT start at column 0 or the
-          # Actions YAML parser breaks; strip the indent afterwards.
-          sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
-          ${{ secrets.SSH_PRIVATE_KEY }}
-          EOF_PRIVATE_KEY
-          chmod 600 ~/.ssh/id_ed25519
-          if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
-            echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
-          else
-            ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
-          fi
-          chmod 644 ~/.ssh/id_ed25519.pub
-          echo "✅ SSH key installed from secrets"
-
-      - name: Create R2 credentials from secrets
-        run: |
-          mkdir -p tofu
-          R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
-          R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
-          BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
-          echo "📦 Using bucket: $BUCKET_NAME"
-
-          cat > tofu/.r2-credentials << EOF
-          R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
-          R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
-          EOF
-          sed -i 's/^          //' tofu/.r2-credentials
-
-          cat > tofu/backend.hcl << EOF
-          endpoints = {
-            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          }
-          bucket = "${BUCKET_NAME}"
-          EOF
-          sed -i 's/^          //' tofu/backend.hcl
+          domain: ${{ secrets.DOMAIN }}
+          cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          require_ssh_key: 'true'
 
       - name: Generate config.tfvars
         env:
