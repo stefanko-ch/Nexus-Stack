@@ -1,0 +1,482 @@
+name: Teardown Nexus-Stack (Snapshot)
+
+# =============================================================================
+# Snapshot-based teardown — the counterpart to spin-up-snapshot.yml.
+#
+# Runs ALONGSIDE the classic teardown.yml, which is left untouched.
+# Difference in one line: instead of destroying the whole stack state,
+# this takes a Hetzner disk snapshot of the server and then destroys
+# ONLY the server.
+#
+# Why targeted destroy rather than the untargeted one:
+#
+#   * All 81 random_password/random_id/random_string resources survive,
+#     so service credentials stay stable. A disk snapshot captures
+#     Postgres roles and app admin accounts as they were; restoring it
+#     against regenerated credentials produces a stack that boots and
+#     then fails to authenticate anywhere.
+#   * The tunnel, its config, every DNS record and every Access
+#     app/policy survive too, so the restored server's baked-in
+#     cloudflared config still matches and the next spin-up skips that
+#     work entirely.
+#   * State stays truthful. Deleting the server out of band would leave
+#     hcloud_server.main in state and wedge the next teardown.
+#
+# The only resource that goes with the server is
+# cloudflare_record.firewall_tcp, which depends on its IPv4 address.
+# That is desirable: the address is about to be handed to another
+# Hetzner customer.
+#
+# ⚠️ Do NOT mix this with the classic teardown.yml on the same stack.
+# That one runs an untargeted destroy, rotating all 81 credentials and
+# invalidating every existing snapshot. spin-up-snapshot.yml detects
+# this via the credential epoch and falls back to a fresh build, so it
+# is safe rather than silent — but it throws away the snapshot.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "TEARDOWN" to confirm (keeps control plane)'
+        required: true
+        type: string
+      skip_destroy:
+        description: 'Snapshot only — power the server back on afterwards and destroy nothing. Use this for the first verification run.'
+        required: false
+        default: false
+        type: boolean
+      strict_snapshot:
+        description: 'Abort instead of destroying if the snapshot fails (leaves the server running, and billing).'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  teardown:
+    name: Snapshot + Teardown Hetzner Server
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'TEARDOWN'
+    env:
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      TF_VAR_domain: ${{ secrets.DOMAIN }}
+      TF_VAR_access_emails: ${{ secrets.ACCESS_EMAILS }}
+      TF_VAR_infisical_token: ${{ secrets.INFISICAL_TOKEN }}
+      TF_VAR_github_owner: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "TEARDOWN" ]; then
+            echo "❌ Teardown cancelled. You must type 'TEARDOWN' to confirm."
+            exit 1
+          fi
+          echo "⚠️  SNAPSHOT TEARDOWN CONFIRMED"
+          if [ "${{ github.event.inputs.skip_destroy }}" = "true" ]; then
+            echo "   Mode: SNAPSHOT ONLY (skip_destroy=true)"
+            echo "   - Snapshot the server, then power it back on"
+            echo "   - Nothing is destroyed"
+          else
+            echo "   Mode: SNAPSHOT + DESTROY"
+            echo "   - Snapshot the server disk"
+            echo "   - Destroy ONLY hcloud_server.main"
+            echo "   - Credentials, tunnel, DNS and Access are preserved"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Log teardown start
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            chmod +x .github/scripts/log-to-d1.sh
+            .github/scripts/log-to-d1.sh warn "Snapshot teardown workflow started"
+          fi
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.10.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: Sync nexus_deploy runtime deps
+        run: uv sync --frozen --no-dev
+
+      - name: Install cloudflared
+        # Needed by nexus_deploy.pipeline.run_snapshot, which SSHes to
+        # the live server over Cloudflare Access for the R2 snapshot.
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Install SSH key from GitHub Secrets
+        # The R2 snapshot step needs real SSH into the live server
+        # (docker exec pg_dump + rclone sync), so this must be the
+        # PERSISTENT key that is already in the server's
+        # authorized_keys — not a freshly generated one.
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          umask 077
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ SSH_PRIVATE_KEY secret not set — the pre-snapshot R2 step needs SSH access to the live server."
+            echo "   Run 'Initial Setup' first to bootstrap the key pair, or set SSH_PRIVATE_KEY manually."
+            exit 1
+          fi
+          # Expression placeholders must NOT start at column 0 or the
+          # Actions YAML parser breaks; strip the indent afterwards.
+          sed 's/^[[:space:]]*//' > ~/.ssh/id_ed25519 <<'EOF_PRIVATE_KEY'
+          ${{ secrets.SSH_PRIVATE_KEY }}
+          EOF_PRIVATE_KEY
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
+            echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
+          else
+            ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          fi
+          chmod 644 ~/.ssh/id_ed25519.pub
+          echo "✅ SSH key installed from secrets"
+
+      - name: Create R2 credentials from secrets
+        run: |
+          mkdir -p tofu
+          R2_ACCESS_KEY_ID=$(echo -n "${{ secrets.R2_ACCESS_KEY_ID }}" | tr -d '[:space:]')
+          R2_SECRET_ACCESS_KEY=$(echo -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" | tr -d '[:space:]')
+          BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
+          echo "📦 Using bucket: $BUCKET_NAME"
+
+          cat > tofu/.r2-credentials << EOF
+          R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
+          EOF
+          sed -i 's/^          //' tofu/.r2-credentials
+
+          cat > tofu/backend.hcl << EOF
+          endpoints = {
+            s3 = "https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          }
+          bucket = "${BUCKET_NAME}"
+          EOF
+          sed -i 's/^          //' tofu/backend.hcl
+
+      - name: Generate config.tfvars
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          cat > tofu/stack/config.tfvars << EOF
+          server_type     = "${{ vars.SERVER_TYPE || 'cx43' }}"
+          server_location = "${{ vars.SERVER_LOCATION || 'hel1' }}"
+          server_image    = "ubuntu-24.04"
+          ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
+          ssh_private_key_path = "~/.ssh/id_ed25519"
+          domain              = "${{ secrets.DOMAIN }}"
+          subdomain_separator = "${{ secrets.SUBDOMAIN_SEPARATOR || '.' }}"
+          admin_email         = "${{ secrets.TF_VAR_admin_email }}"
+          user_email          = "${{ secrets.TF_VAR_user_email }}"
+          guest_emails        = "${{ secrets.TF_VAR_guest_emails }}"
+          github_owner        = "${{ github.repository_owner }}"
+          github_repo         = "${{ github.event.repository.name }}"
+          EOF
+          sed -i 's/^          //' tofu/stack/config.tfvars
+
+          echo "📋 Reading services from D1..."
+          D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
+          ENABLED_SERVICES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+            --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
+            | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
+
+          if [ -n "$ENABLED_SERVICES" ]; then
+            echo "📋 Enabled services from D1: $ENABLED_SERVICES"
+          else
+            echo "📋 No services in D1 yet - core services will be enabled by default"
+          fi
+
+          chmod +x .github/scripts/generate-services-tfvars.py
+          ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
+
+      - name: Initialize OpenTofu
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          tofu init -backend-config=../backend.hcl
+
+      - name: Snapshot persistent state to R2 (atomic, pre-destroy)
+        # Runs FIRST, while the containers are still up — it needs
+        # `docker exec ... pg_dump`. Kept even though the disk snapshot
+        # is strictly more complete, because it is the portable escape
+        # hatch: it survives a lost or arch-incompatible snapshot, a
+        # rotated credential epoch, and it is logically consistent
+        # where a disk image is not. Any failure aborts before
+        # anything is destroyed, same contract as teardown.yml.
+        env:
+          NEXUS_S3_PERSISTENCE: ${{ secrets.NEXUS_S3_PERSISTENCE || 'true' }}
+          PERSISTENCE_S3_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          PERSISTENCE_S3_REGION: auto
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          PERSISTENCE_STACK_SLUG: ${{ secrets.PERSISTENCE_STACK_SLUG || github.event.repository.name }}
+          PERSISTENCE_TEMPLATE_VERSION: ${{ github.ref_name }}
+        run: |
+          DOMAIN_SLUG=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')
+          export PERSISTENCE_S3_BUCKET="nexus-${DOMAIN_SLUG}-persistence"
+          PERSISTENCE_STACK_SLUG=$(echo "$PERSISTENCE_STACK_SLUG" | tr '[:upper:]' '[:lower:]')
+          export PERSISTENCE_STACK_SLUG
+
+          uv run --quiet --project "$GITHUB_WORKSPACE" \
+            python -m nexus_deploy s3-snapshot
+
+      - name: Create Hetzner disk snapshot
+        id: snapshot
+        # Power-off and snapshot happen in one step so the credential
+        # fingerprint never has to travel through a step output. It is
+        # a one-way digest rather than a secret, but tofu marks it
+        # sensitive and there is no reason to widen its blast radius.
+        #
+        # Never fails the job directly: the outcome is reported through
+        # the `ok` output so the destroy step can apply the
+        # strict_snapshot policy. A failed snapshot with
+        # strict_snapshot=false still destroys, because the R2 snapshot
+        # above already protects the data and leaving a paid server
+        # running is the worse outcome.
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set +e
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+          SERVER_ID=$(tofu output -raw server_id 2>/dev/null)
+          if [ -z "$SERVER_ID" ]; then
+            echo "❌ Could not read server_id from tofu state — is the stack deployed?"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Optional: a stack created before credential_fingerprint
+          # existed simply gets an unlabelled snapshot, which
+          # spin-up-snapshot treats as epoch-less and usable only when
+          # no epoch is expected.
+          EPOCH=$(tofu output -raw credential_fingerprint 2>/dev/null || echo "")
+          if [ -n "$EPOCH" ]; then
+            echo "::add-mask::$EPOCH"
+          fi
+
+          SERVER_TYPE=$(grep -E '^\s*server_type\s*=' config.tfvars | head -1 | sed 's/.*=\s*"\(.*\)"/\1/')
+          cd ../..
+
+          DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
+          TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+
+          echo "🔌 Powering off server $SERVER_ID for a consistent disk..."
+          if ! uv run --quiet --project "$GITHUB_WORKSPACE" \
+            python -m nexus_deploy server-poweroff --server-id "$SERVER_ID"; then
+            echo "❌ Power-off failed — refusing to snapshot a running disk"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "server_id=$SERVER_ID" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "📸 Creating snapshot..."
+          if ! uv run --quiet --project "$GITHUB_WORKSPACE" \
+            python -m nexus_deploy snapshot-create \
+              --server-id "$SERVER_ID" \
+              --domain-slug "$DOMAIN_SLUG" \
+              --timestamp "$TIMESTAMP" \
+              --epoch "$EPOCH" \
+              --server-type "$SERVER_TYPE" > /tmp/snapshot.out; then
+            echo "❌ Snapshot creation failed"
+            cat /tmp/snapshot.out || true
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "server_id=$SERVER_ID" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          cat /tmp/snapshot.out
+          # shellcheck disable=SC1091
+          . /tmp/snapshot.out
+          {
+            echo "ok=true"
+            echo "server_id=$SERVER_ID"
+            echo "image_id=$SNAPSHOT_IMAGE_ID"
+            echo "disk_gb=$SNAPSHOT_DISK_GB"
+            echo "arch=$SNAPSHOT_ARCH"
+            echo "timestamp=$TIMESTAMP"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Abort — snapshot failed and strict_snapshot is set
+        if: steps.snapshot.outputs.ok != 'true' && github.event.inputs.strict_snapshot == 'true'
+        run: |
+          echo "❌ Snapshot failed and strict_snapshot=true — nothing was destroyed."
+          echo "   The server is still running (and still billing). Investigate,"
+          echo "   then re-run, or use teardown.yml to tear down without a snapshot."
+          exit 1
+
+      - name: Mirror snapshot metadata to D1
+        if: steps.snapshot.outputs.ok == 'true'
+        # D1 is a mirror for the Control Plane UI and for humans — the
+        # Hetzner labels are the source of truth. spin-up-snapshot
+        # re-resolves against the API rather than trusting these rows,
+        # so a stale or missing mirror cannot cause a wrong restore.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          tofu init -backend-config=../backend.hcl -backend-config="key=control-plane.tfstate" -input=false
+          D1_DATABASE_NAME=$(tofu output -raw d1_database_name 2>/dev/null || echo "")
+          cd ../..
+
+          if [ -z "$D1_DATABASE_NAME" ]; then
+            echo "⚠️  Could not resolve D1 database name — skipping the mirror (not fatal)"
+            exit 0
+          fi
+
+          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "
+            INSERT OR REPLACE INTO config (key, value, updated_at) VALUES
+              ('snapshot_image_id',  '${{ steps.snapshot.outputs.image_id }}', datetime('now')),
+              ('snapshot_disk_gb',   '${{ steps.snapshot.outputs.disk_gb }}',  datetime('now')),
+              ('snapshot_arch',      '${{ steps.snapshot.outputs.arch }}',     datetime('now')),
+              ('snapshot_created_at','${{ steps.snapshot.outputs.timestamp }}',datetime('now')),
+              ('snapshot_state',     'fresh',                                  datetime('now'))
+          " || echo "⚠️  D1 mirror write failed (not fatal)"
+
+      - name: Power the server back on (skip_destroy)
+        if: github.event.inputs.skip_destroy == 'true' && steps.snapshot.outputs.server_id != ''
+        # The verification path: prove the snapshot mechanism end to end
+        # against the real stack without destroying anything. The server
+        # was powered off for consistency, so it has to come back.
+        run: |
+          SERVER_ID="${{ steps.snapshot.outputs.server_id }}"
+          echo "🔌 Powering server $SERVER_ID back on..."
+          RESPONSE=$(curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.HCLOUD_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://api.hetzner.cloud/v1/servers/$SERVER_ID/actions/poweron")
+          if echo "$RESPONSE" | jq -e '.action.id' >/dev/null 2>&1; then
+            echo "✅ Power-on requested — the stack will come back by itself"
+            echo "   (every stacks/*/docker-compose.yml uses restart: unless-stopped)"
+          else
+            echo "❌ Power-on failed. The server is OFF and needs manual attention:"
+            echo "$RESPONSE" | jq -r '.error.message // .' 2>/dev/null || echo "$RESPONSE"
+            exit 1
+          fi
+
+      - name: Destroy the server only
+        if: github.event.inputs.skip_destroy != 'true'
+        # -target=hcloud_server.main destroys the server and its
+        # dependents — which is only cloudflare_record.firewall_tcp.
+        # Everything else in the state, above all the 81 generated
+        # secrets, survives untouched. That is what keeps the snapshot
+        # restorable.
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+          if [ "${{ steps.snapshot.outputs.ok }}" != "true" ]; then
+            echo "⚠️  Proceeding without a disk snapshot."
+            echo "   The R2 snapshot ran before this point, so stack data is"
+            echo "   still protected; the next spin-up will build fresh."
+          fi
+
+          if ! tofu destroy -target=hcloud_server.main -var-file=config.tfvars -auto-approve; then
+            echo "❌ ERROR: Failed to destroy the server"
+            echo "   It may still be running — check the log above"
+            exit 1
+          fi
+          echo "✅ Server destroyed; credentials, tunnel, DNS and Access preserved"
+
+      - name: Prune old snapshots
+        if: steps.snapshot.outputs.ok == 'true'
+        # AFTER a successful create, never before — pruning first could
+        # leave nothing to restore from if the new snapshot failed.
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
+          uv run --quiet --project "$GITHUB_WORKSPACE" \
+            python -m nexus_deploy snapshot-prune \
+              --domain-slug "$DOMAIN_SLUG" --keep 2 --apply \
+            || echo "⚠️  Prune failed (not fatal — the new snapshot is already available)"
+
+      - name: Write teardown timestamp to D1
+        if: github.event.inputs.skip_destroy != 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cd tofu/control-plane
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          tofu init -backend-config=../backend.hcl -backend-config="key=control-plane.tfstate" -input=false
+          D1_DATABASE_NAME=$(tofu output -raw d1_database_name 2>/dev/null || echo "")
+          cd ../..
+
+          if [ -z "$D1_DATABASE_NAME" ]; then
+            echo "⚠️  Could not get D1 database name - skipping timestamp write"
+            exit 0
+          fi
+
+          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
+          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
+          echo "✅ Teardown timestamp written, firewall rules reset"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          if [ "${{ steps.snapshot.outputs.ok }}" = "true" ]; then
+            echo "📸 Snapshot #${{ steps.snapshot.outputs.image_id }} (${{ steps.snapshot.outputs.disk_gb }}GB ${{ steps.snapshot.outputs.arch }})"
+          else
+            echo "📸 No snapshot was created"
+          fi
+          if [ "${{ github.event.inputs.skip_destroy }}" = "true" ]; then
+            echo "💤 skip_destroy — nothing destroyed, server powered back on"
+          else
+            echo "💤 Server destroyed. Preserved: credentials, tunnel, DNS, Access, Control Plane"
+            echo "📋 Re-deploy: https://control.${{ secrets.DOMAIN }}"
+          fi
+
+      - name: Log teardown completed
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          if [ -f .github/scripts/log-to-d1.sh ]; then
+            .github/scripts/log-to-d1.sh info "Snapshot teardown workflow completed"
+          fi
