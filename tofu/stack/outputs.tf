@@ -362,8 +362,19 @@ output "infisical_admin_password" {
 #
 # Truncated to 32 characters because Hetzner label values are limited
 # to 63 and a full sha256 hex digest is 64.
+#
+# `sensitive = true` is required by OpenTofu, not by the value itself.
+# Sensitivity propagates syntactically: the inputs are
+# random_password.*.result, and tofu carries that taint through
+# sha256() and join() because it has no notion that a digest is
+# one-way. Without the marking, `tofu apply` fails with "Output refers
+# to sensitive values". The digest is not actually a secret — it is
+# stamped onto a Hetzner label and logged — and `tofu output -raw`
+# reads it fine, exactly as spin-up.yml already reads the equally
+# sensitive tunnel_token.
 output "credential_fingerprint" {
   description = "Stable digest of the generated-secret set; a snapshot is only valid for a matching epoch"
+  sensitive   = true
   value = substr(sha256(join("|", [
     sha256(random_password.postgres.result),
     sha256(random_password.gitea_db.result),
