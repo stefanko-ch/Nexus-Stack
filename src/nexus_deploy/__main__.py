@@ -28,6 +28,7 @@ import requests
 
 from nexus_deploy import __version__, hello
 from nexus_deploy import hetzner_capacity as _hetzner
+from nexus_deploy import hetzner_snapshot as _hsnap
 from nexus_deploy import pipeline as _pipeline
 from nexus_deploy import s3_persistence as _s3_persistence
 from nexus_deploy import s3_restore as _s3_restore
@@ -2790,6 +2791,274 @@ def _select_capacity(args: list[str]) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Hetzner disk snapshots
+#
+# Four small handlers used by the snapshot-based teardown/spin-up
+# workflows. They share one output convention:
+#
+#   stdout  KEY=value lines, meant to be appended to $GITHUB_OUTPUT or
+#           eval'd by the workflow. Nothing else goes to stdout.
+#   stderr  human-facing progress, same as select-capacity.
+#
+# Exit codes are 0 / 2 like the other handlers, except snapshot-resolve
+# which also uses 1 — see its docstring for why that distinction earns
+# its keep.
+# ---------------------------------------------------------------------------
+
+
+class _FlagError(Exception):
+    """A required flag was missing or malformed."""
+
+
+def _flag(args: list[str], name: str) -> str | None:
+    """Read ``--name VALUE`` out of a crude arg list.
+
+    Matches the hand-rolled parsing the other handlers use rather than
+    pulling in argparse for four flags. Raises :class:`_FlagError` when
+    the flag is present but has no value, so the operator sees which
+    flag is wrong instead of a generic "unknown argument".
+    """
+    for i, arg in enumerate(args):
+        if arg == f"--{name}":
+            if i + 1 >= len(args):
+                raise _FlagError(f"--{name} requires a value")
+            return args[i + 1]
+    return None
+
+
+def _required_flag(args: list[str], name: str) -> str:
+    value = _flag(args, name)
+    if value is None:
+        raise _FlagError(f"--{name} is required")
+    return value
+
+
+def _int_flag(args: list[str], name: str, *, default: int | None = None) -> int:
+    raw = _flag(args, name)
+    if raw is None:
+        if default is None:
+            raise _FlagError(f"--{name} is required")
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise _FlagError(f"--{name} must be an integer, got {raw!r}") from exc
+
+
+def _snapshot_token() -> str:
+    token = os.environ.get("HCLOUD_TOKEN", "")
+    if not token:
+        raise _FlagError("HCLOUD_TOKEN not set")
+    return token
+
+
+def _server_poweroff(args: list[str]) -> int:
+    """`nexus-deploy server-poweroff --server-id N`.
+
+    Graceful ACPI shutdown polled until Hetzner reports ``off``, with a
+    hard power-off once half the budget is gone. Run immediately before
+    ``snapshot-create`` so the captured disk is consistent — in
+    particular so Postgres has been stopped cleanly rather than
+    captured mid-write.
+
+    Exit codes: 0 the server is off, 2 anything else (including a
+    server that never stopped, which must not be snapshotted).
+    """
+    try:
+        server_id = _int_flag(args, "server-id")
+        token = _snapshot_token()
+    except _FlagError as exc:
+        print(f"server-poweroff: {exc}", file=sys.stderr)
+        return 2
+
+    sys.stderr.write(f"server-poweroff: shutting down server {server_id}...\n")
+    try:
+        _hsnap.poweroff_server(server_id, token)
+    except _hsnap.HetznerSnapshotError as exc:
+        print(f"server-poweroff: {exc}", file=sys.stderr)
+        return 2
+    sys.stderr.write(f"✓ server-poweroff: server {server_id} is off\n")
+    return 0
+
+
+def _snapshot_create(args: list[str]) -> int:
+    """`nexus-deploy snapshot-create --server-id N --domain-slug S ...`.
+
+    Creates a labelled disk snapshot and waits until it is actually
+    usable, then emits its coordinates on stdout:
+
+        SNAPSHOT_IMAGE_ID=12345678
+        SNAPSHOT_DISK_GB=160
+        SNAPSHOT_ARCH=x86
+
+    ``--epoch`` is the ``credential_fingerprint`` tofu output. It is
+    stamped onto the image so a later restore can detect that the
+    credentials were rotated in between (which the legacy untargeted
+    ``tofu destroy`` does) and refuse the snapshot rather than bring up
+    a stack that cannot authenticate. Optional, because a stack that
+    predates the output should still be snapshottable.
+
+    ``--timestamp`` is supplied by the caller rather than generated
+    here, so the description is deterministic and the workflow controls
+    the clock.
+
+    Exit codes: 0 snapshot available, 2 anything else. A failure here
+    must leave the server intact — the teardown only destroys after
+    this returns 0.
+    """
+    try:
+        server_id = _int_flag(args, "server-id")
+        domain_slug = _required_flag(args, "domain-slug")
+        timestamp = _required_flag(args, "timestamp")
+        server_type = _flag(args, "server-type") or ""
+        epoch = _flag(args, "epoch") or ""
+        token = _snapshot_token()
+    except _FlagError as exc:
+        print(f"snapshot-create: {exc}", file=sys.stderr)
+        return 2
+
+    # Pre-flight the project-wide cap. Hetzner rejects the create call
+    # itself when the real limit is hit, but a specific warning here is
+    # far more actionable than a generic API error mid-teardown.
+    try:
+        total = _hsnap.count_snapshots(token)
+    except _hsnap.HetznerSnapshotError as exc:
+        print(f"snapshot-create: could not count existing snapshots: {exc}", file=sys.stderr)
+        return 2
+    if total >= _hsnap.DEFAULT_SNAPSHOT_LIMIT - 2:
+        sys.stderr.write(
+            f"⚠ snapshot-create: {total} snapshots exist project-wide "
+            f"(default limit {_hsnap.DEFAULT_SNAPSHOT_LIMIT}). Prune old "
+            "generations or ask Hetzner to raise the limit.\n",
+        )
+
+    sys.stderr.write(f"snapshot-create: creating snapshot of server {server_id}...\n")
+    try:
+        snapshot = _hsnap.create_snapshot(
+            server_id,
+            token,
+            domain_slug=domain_slug,
+            epoch=epoch,
+            server_type=server_type,
+            timestamp=timestamp,
+        )
+    except _hsnap.HetznerSnapshotError as exc:
+        print(f"snapshot-create: {exc}", file=sys.stderr)
+        return 2
+
+    sys.stderr.write(f"✓ snapshot-create: {snapshot}\n")
+    print(f"SNAPSHOT_IMAGE_ID={snapshot.image_id}")
+    print(f"SNAPSHOT_DISK_GB={snapshot.disk_gb}")
+    print(f"SNAPSHOT_ARCH={snapshot.architecture}")
+    return 0
+
+
+def _snapshot_resolve(args: list[str]) -> int:
+    """`nexus-deploy snapshot-resolve --domain-slug S [--expect-epoch E]`.
+
+    Finds the newest restorable snapshot for a stack and emits its
+    coordinates on stdout, same keys as ``snapshot-create``.
+
+    Exit codes are three-valued here, and the distinction matters:
+
+    - 0: a usable snapshot was found; restore from it.
+    - 1: no usable snapshot. NOT an error — a first-ever spin-up, a
+      pruned image and a rotated credential epoch all land here, and
+      all three must degrade to a normal ``ubuntu-24.04`` build. The
+      workflow branches on this rather than failing.
+    - 2: the lookup itself failed (auth, network, schema). The
+      workflow should stop, because "cannot tell" is not the same as
+      "there is none" — silently rebuilding fresh would discard a
+      snapshot that may hold the only copy of most stacks' data.
+    """
+    try:
+        domain_slug = _required_flag(args, "domain-slug")
+        expect_epoch = _flag(args, "expect-epoch")
+        token = _snapshot_token()
+    except _FlagError as exc:
+        print(f"snapshot-resolve: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        snapshot = _hsnap.resolve_latest(
+            token,
+            domain_slug=domain_slug,
+            expect_epoch=expect_epoch or None,
+        )
+    except _hsnap.HetznerSnapshotError as exc:
+        print(f"snapshot-resolve: {exc}", file=sys.stderr)
+        return 2
+
+    if snapshot is None:
+        detail = f" matching epoch {expect_epoch}" if expect_epoch else ""
+        sys.stderr.write(
+            f"snapshot-resolve: no usable snapshot for {domain_slug}{detail} "
+            "— spin-up should build fresh\n",
+        )
+        return 1
+
+    sys.stderr.write(f"✓ snapshot-resolve: {snapshot}\n")
+    print(f"SNAPSHOT_IMAGE_ID={snapshot.image_id}")
+    print(f"SNAPSHOT_DISK_GB={snapshot.disk_gb}")
+    print(f"SNAPSHOT_ARCH={snapshot.architecture}")
+    return 0
+
+
+def _snapshot_prune(args: list[str]) -> int:
+    """`nexus-deploy snapshot-prune --domain-slug S [--keep 2] [--apply]`.
+
+    Deletes all but the newest ``--keep`` snapshots of one stack.
+    Label-scoped, so it can never touch another tenant's images.
+
+    Dry-run by default: without ``--apply`` it only reports what it
+    would delete. Deleting a snapshot is irreversible and may be the
+    only copy of most stacks' data, so the destructive form is opt-in.
+
+    Run only AFTER a new snapshot has reached ``available`` — pruning
+    first could leave nothing to restore from if the new one fails.
+
+    Exit codes: 0 done (or nothing to do), 2 on API failure.
+    """
+    try:
+        domain_slug = _required_flag(args, "domain-slug")
+        keep = _int_flag(args, "keep", default=2)
+        token = _snapshot_token()
+    except _FlagError as exc:
+        print(f"snapshot-prune: {exc}", file=sys.stderr)
+        return 2
+    apply_changes = "--apply" in args
+
+    try:
+        snapshots = _hsnap.list_snapshots(token, domain_slug=domain_slug)
+        prunable = _hsnap.select_prunable(snapshots, keep=keep)
+    except _hsnap.HetznerSnapshotError as exc:
+        print(f"snapshot-prune: {exc}", file=sys.stderr)
+        return 2
+
+    if not prunable:
+        sys.stderr.write(
+            f"snapshot-prune: {len(snapshots)} snapshot(s) for {domain_slug}, "
+            f"keep={keep} — nothing to prune\n",
+        )
+        return 0
+
+    for snapshot in prunable:
+        if not apply_changes:
+            sys.stderr.write(f"snapshot-prune: would delete {snapshot}\n")
+            continue
+        try:
+            _hsnap.delete_snapshot(snapshot.image_id, token)
+        except _hsnap.HetznerSnapshotError as exc:
+            print(f"snapshot-prune: failed to delete {snapshot}: {exc}", file=sys.stderr)
+            return 2
+        sys.stderr.write(f"✓ snapshot-prune: deleted {snapshot}\n")
+
+    if not apply_changes:
+        sys.stderr.write("snapshot-prune: dry run — pass --apply to delete\n")
+    return 0
+
+
 def _run_pipeline(args: list[str]) -> int:
     """`nexus-deploy run-pipeline`.
 
@@ -3401,6 +3670,14 @@ def main() -> int:
         return _run_pre_bootstrap(args[1:])
     if args[:1] == ["select-capacity"]:
         return _select_capacity(args[1:])
+    if args[:1] == ["server-poweroff"]:
+        return _server_poweroff(args[1:])
+    if args[:1] == ["snapshot-create"]:
+        return _snapshot_create(args[1:])
+    if args[:1] == ["snapshot-resolve"]:
+        return _snapshot_resolve(args[1:])
+    if args[:1] == ["snapshot-prune"]:
+        return _snapshot_prune(args[1:])
     if args[:1] == ["run-pipeline"]:
         return _run_pipeline(args[1:])
     if args[:1] == ["s3-snapshot"]:
@@ -3441,6 +3718,15 @@ def main() -> int:
         "check; reads HCLOUD_TOKEN + optional SERVER_PREFERENCES env, walks "
         "<type>:<location> preference list, rewrites server_type+server_location "
         "in PATH to first available pair; rc=2 if every preference is out of stock), "
+        "server-poweroff --server-id N (graceful ACPI shutdown polled to status=off, "
+        "hard poweroff as fallback; env: HCLOUD_TOKEN), "
+        "snapshot-create --server-id N --domain-slug SLUG --timestamp TS "
+        "[--epoch FINGERPRINT] [--server-type TYPE] (labelled Hetzner disk snapshot, "
+        "waits until available; emits SNAPSHOT_IMAGE_ID/_DISK_GB/_ARCH on stdout), "
+        "snapshot-resolve --domain-slug SLUG [--expect-epoch FINGERPRINT] "
+        "(newest restorable snapshot; rc=0 found, rc=1 none — build fresh, rc=2 lookup failed), "
+        "snapshot-prune --domain-slug SLUG [--keep 2] [--apply] "
+        "(drop all but the newest N; dry-run unless --apply), "
         "run-pipeline (top-level deploy entry; reads tofu state + "
         "config.tfvars; optional env: SSH_PRIVATE_KEY_CONTENT, "
         "GH_MIRROR_TOKEN, GH_MIRROR_REPOS, DOCKERHUB_USER, DOCKERHUB_TOKEN, "
