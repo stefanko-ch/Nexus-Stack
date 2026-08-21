@@ -606,51 +606,121 @@ resource "hcloud_server" "main" {
     managed_by  = "opentofu"
   }
 
+  # cloud-init runs on EVERY first boot of an instance — including a
+  # server created from a disk snapshot, because Hetzner assigns a new
+  # instance-id and cloud-init re-runs its PER_INSTANCE modules. The
+  # heavy provisioning below must therefore be guarded, or a
+  # snapshot-restored server would redo `apt-get upgrade` and the
+  # Docker install it already carries on disk.
+  #
+  # Two markers, deliberately on different filesystems:
+  #
+  #   /opt/docker-server/.image-provisioned  (disk, survives into a
+  #       snapshot)  — "this disk has been through the heavy path".
+  #   /run/nexus-setup-complete  (tmpfs, CANNOT survive into a
+  #       snapshot) — "this boot has finished provisioning".
+  #
+  # The tmpfs marker is what makes the readiness gate correct on a
+  # restored server. The old disk marker .setup-complete is still
+  # written on the heavy path so the existing spin-up.yml gate keeps
+  # working unchanged on a fresh server, but it is useless for a
+  # restore: it is already in the image, so a gate probing it would
+  # pass instantly — possibly before sshd and Docker are up.
   user_data = <<-EOT
     #!/bin/bash
     set -e
 
-    # Update system
-    apt-get update && apt-get upgrade -y
+    if [ ! -f /opt/docker-server/.image-provisioned ]; then
+      # ----- Heavy path: fresh Ubuntu image, provision from scratch -----
 
-    # Install Docker
-    curl -fsSL https://get.docker.com | sh
-    command -v docker >/dev/null 2>&1 || { echo "FATAL: Docker installation failed" >&2; exit 1; }
+      # Update system
+      apt-get update && apt-get upgrade -y
 
-    # Install security tools
-    apt-get install -y fail2ban unattended-upgrades jq
+      # Install Docker
+      curl -fsSL https://get.docker.com | sh
+      command -v docker >/dev/null 2>&1 || { echo "FATAL: Docker installation failed" >&2; exit 1; }
 
-    # Configure automatic security updates
-    cat > /etc/apt/apt.conf.d/20auto-upgrades << 'EOF'
-    APT::Periodic::Update-Package-Lists "1";
-    APT::Periodic::Unattended-Upgrade "1";
-    APT::Periodic::AutocleanInterval "7";
-    EOF
+      # Install security tools
+      apt-get install -y fail2ban unattended-upgrades jq
 
-    systemctl enable fail2ban unattended-upgrades
-    systemctl start fail2ban unattended-upgrades
+      # Configure automatic security updates.
+      # printf rather than a heredoc: a nested heredoc terminator must
+      # sit at column 0 after Terraform strips the common indentation,
+      # which silently breaks the moment this block is indented.
+      printf '%s\n' \
+        'APT::Periodic::Update-Package-Lists "1";' \
+        'APT::Periodic::Unattended-Upgrade "1";' \
+        'APT::Periodic::AutocleanInterval "7";' \
+        > /etc/apt/apt.conf.d/20auto-upgrades
 
-    # Detect architecture and install cloudflared
-    ARCH=$(dpkg --print-architecture)
-    if [ "$ARCH" = "arm64" ]; then
-      CLOUDFLARED_ARCH="arm64"
+      systemctl enable fail2ban unattended-upgrades
+      systemctl start fail2ban unattended-upgrades
+
+      # Detect architecture and install cloudflared
+      ARCH=$(dpkg --print-architecture)
+      if [ "$ARCH" = "arm64" ]; then
+        CLOUDFLARED_ARCH="arm64"
+      else
+        CLOUDFLARED_ARCH="amd64"
+      fi
+      curl -L --output cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$${CLOUDFLARED_ARCH}.deb"
+      dpkg -i cloudflared.deb
+      rm cloudflared.deb
+      command -v cloudflared >/dev/null 2>&1 || { echo "FATAL: cloudflared installation failed" >&2; exit 1; }
+
+      # Create app directories
+      mkdir -p /opt/docker-server/stacks
+
+      # Create Docker network
+      docker network create app-network || true
+
+      # This disk is now provisioned — future boots take the light path.
+      touch /opt/docker-server/.image-provisioned
+
+      # Legacy marker, kept so the existing spin-up.yml readiness gate
+      # is unchanged for fresh servers.
+      touch /opt/docker-server/.setup-complete
     else
-      CLOUDFLARED_ARCH="amd64"
+      # ----- Light path: restored from a snapshot, everything is here -----
+
+      # The target server type may have a larger disk than the one the
+      # snapshot was taken from. Hetzner only guarantees >= , so grow
+      # into whatever we got. Best-effort: a wrong device name or a
+      # missing growpart must not fail the boot.
+      growpart /dev/sda 1 || true
+      resize2fs /dev/sda1 || true
+
+      # Docker is installed and enabled on this disk, but do not assume
+      # systemd already got there.
+      systemctl is-active --quiet docker || systemctl start docker
+
+      # app-network is an external network every stack joins. It lives
+      # in Docker's state on disk, so it normally survives — recreate
+      # only if it somehow did not.
+      docker network inspect app-network >/dev/null 2>&1 || docker network create app-network
     fi
-    curl -L --output cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$${CLOUDFLARED_ARCH}.deb"
-    dpkg -i cloudflared.deb
-    rm cloudflared.deb
-    command -v cloudflared >/dev/null 2>&1 || { echo "FATAL: cloudflared installation failed" >&2; exit 1; }
 
-    # Create app directories
-    mkdir -p /opt/docker-server/stacks
-
-    # Create Docker network
-    docker network create app-network || true
-
-    # Signal completion
-    touch /opt/docker-server/.setup-complete
+    # Runs on BOTH paths, always last: the boot-scoped readiness signal.
+    touch /run/nexus-setup-complete
   EOT
+
+  # image / user_data / server_type / location are create-only.
+  #
+  # Without this, a snapshot-restored server is one legacy spin-up away
+  # from destruction: spin-up.yml hardcodes `server_image =
+  # "ubuntu-24.04"` and select-capacity rewrites server_type/location,
+  # so tofu would plan a REPLACEMENT of the live server and take every
+  # stack's data with it. image and user_data are ForceNew on
+  # hcloud_server, which makes that a silent data-loss path rather than
+  # a diff someone notices.
+  #
+  # This costs nothing operationally: the documented resize flow
+  # (docs/admin-guides/server-resize.md) is teardown -> set SERVER_TYPE
+  # -> spin-up, so the server is always created fresh with the new
+  # values rather than updated in place.
+  lifecycle {
+    ignore_changes = [image, user_data, server_type, location]
+  }
 }
 
 # =============================================================================
