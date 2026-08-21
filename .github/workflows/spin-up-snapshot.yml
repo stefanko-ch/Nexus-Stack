@@ -1,0 +1,204 @@
+name: Spin Up Nexus-Stack (Snapshot)
+
+# =============================================================================
+# Snapshot-based spin-up — the counterpart to teardown-snapshot.yml.
+#
+# Resolves the newest usable Hetzner disk snapshot for this stack and hands
+# it to spin-up.yml as `server_image`. Everything after that is the ordinary
+# spin-up: same apply, same readiness gate, same pipeline, same post-steps.
+#
+# It is deliberately an orchestrator rather than a copy. spin-up.yml carries
+# ~420 lines of post-deploy work (D1 writes, Cloudflare secrets, Control
+# Plane redeploy, state sync, mail) that is identical on both paths.
+# Duplicating it would drift, and drift here fails silently: the copy rots
+# unnoticed until someone needs a restore — which is exactly when data is on
+# the line. A shared implementation fails loudly on the next run instead.
+#
+# spin-up.yml gains no snapshot logic from this. It takes four optional,
+# defaulted inputs; passing none reproduces its previous behaviour exactly.
+#
+# FALLBACK IS THE NORMAL CASE, NOT AN ERROR PATH.
+# A first-ever spin-up, a pruned snapshot, a rotated credential epoch and an
+# arch/disk mismatch all resolve to "build fresh". Only a failed *lookup*
+# stops the workflow — "cannot tell" is not "there is none", and rebuilding
+# fresh during an API outage would discard a snapshot that may hold the only
+# copy of most stacks' data.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      enabled_services:
+        description: 'Comma-separated list of services to enable (empty = use D1 state)'
+        required: false
+        default: ''
+        type: string
+      silent_mode:
+        description: 'Suppress all automated emails for this run'
+        required: false
+        default: false
+        type: boolean
+      force_fresh:
+        description: 'Ignore any snapshot and build from ubuntu-24.04. Use this to escape a bad snapshot, or to move to a new base image.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve snapshot
+    runs-on: ubuntu-latest
+    outputs:
+      server_image: ${{ steps.resolve.outputs.server_image }}
+      min_disk_gb: ${{ steps.resolve.outputs.min_disk_gb }}
+      arch: ${{ steps.resolve.outputs.arch }}
+      s3_persistence: ${{ steps.resolve.outputs.s3_persistence }}
+      mode: ${{ steps.resolve.outputs.mode }}
+    env:
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      TF_VAR_domain: ${{ secrets.DOMAIN }}
+      TF_VAR_github_owner: ${{ github.repository_owner }}
+      TF_VAR_github_repo: ${{ github.event.repository.name }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Bootstrap toolchain and credentials
+        # No SSH key needed: this job only talks to the Hetzner and R2
+        # APIs. require_ssh_key stays false so a stack without the secret
+        # can still resolve and fall back.
+        uses: ./.github/actions/nexus-bootstrap
+        with:
+          domain: ${{ secrets.DOMAIN }}
+          cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2_access_key_id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2_secret_access_key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+      - name: Resolve the newest usable snapshot
+        id: resolve
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set +e
+
+          fresh() {
+            {
+              echo "mode=fresh"
+              echo "server_image=ubuntu-24.04"
+              echo "min_disk_gb="
+              echo "arch="
+              # R2 restore is the entire recovery story when no snapshot
+              # is used, so it must be on.
+              echo "s3_persistence=true"
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          if [ "${{ github.event.inputs.force_fresh }}" = "true" ]; then
+            echo "🔄 force_fresh requested — building from ubuntu-24.04"
+            fresh
+            exit 0
+          fi
+
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          if ! tofu init -backend-config=../backend.hcl -input=false >/dev/null 2>&1; then
+            echo "⚠️  Could not initialise tofu state — building fresh"
+            cd ../..
+            fresh
+            exit 0
+          fi
+
+          # The epoch guard. If the legacy teardown.yml ran in between, all
+          # 81 generated credentials were rotated and any older snapshot
+          # holds Postgres roles and admin accounts that no longer match
+          # the state this deploy will use — a stack that boots and then
+          # authenticates nowhere. An absent output (a stack predating the
+          # fingerprint) simply means no epoch is expected.
+          EPOCH=$(tofu output -raw credential_fingerprint 2>/dev/null || echo "")
+          if [ -n "$EPOCH" ]; then
+            echo "::add-mask::$EPOCH"
+            EXPECT="--expect-epoch $EPOCH"
+          else
+            echo "ℹ️  No credential_fingerprint in state — resolving without an epoch check"
+            EXPECT=""
+          fi
+          cd ../..
+
+          DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
+
+          # shellcheck disable=SC2086
+          uv run --quiet --project "$GITHUB_WORKSPACE" \
+            python -m nexus_deploy snapshot-resolve \
+              --domain-slug "$DOMAIN_SLUG" $EXPECT > /tmp/resolve.out
+          RC=$?
+
+          cat /tmp/resolve.out
+
+          if [ "$RC" = "2" ]; then
+            echo "❌ Snapshot lookup failed (auth, network or schema)."
+            echo "   Stopping rather than building fresh: 'cannot tell' is not"
+            echo "   'there is none', and a fresh build would discard a snapshot"
+            echo "   that may hold the only copy of most stacks' data."
+            echo "   Re-run once the API is reachable, or use force_fresh=true."
+            exit 1
+          fi
+
+          if [ "$RC" != "0" ]; then
+            echo "🔄 No usable snapshot — building fresh"
+            fresh
+            exit 0
+          fi
+
+          # Parse as data, never `source`: these values originate from
+          # Hetzner API fields and sourcing would execute them as shell.
+          read_kv() {
+            grep -m1 "^$1=" /tmp/resolve.out | cut -d= -f2- | tr -dc 'A-Za-z0-9_.-'
+          }
+          IMAGE_ID=$(read_kv SNAPSHOT_IMAGE_ID)
+          DISK_GB=$(read_kv SNAPSHOT_DISK_GB)
+          ARCH=$(read_kv SNAPSHOT_ARCH)
+
+          if [ -z "$IMAGE_ID" ] || [ -z "$DISK_GB" ]; then
+            echo "⚠️  Resolver returned no usable coordinates — building fresh"
+            fresh
+            exit 0
+          fi
+
+          echo "📸 Restoring from snapshot #$IMAGE_ID (needs a disk >= ${DISK_GB}GB, $ARCH)"
+          {
+            echo "mode=snapshot"
+            echo "server_image=$IMAGE_ID"
+            echo "min_disk_gb=$DISK_GB"
+            echo "arch=$ARCH"
+            # Critical: the snapshot's data is NEWER than the last R2
+            # snapshot, so restoring R2 on top would silently revert the
+            # stack by one teardown cycle.
+            echo "s3_persistence=false"
+          } >> "$GITHUB_OUTPUT"
+
+  spin-up:
+    name: Spin Up
+    needs: resolve
+    uses: ./.github/workflows/spin-up.yml
+    secrets: inherit
+    with:
+      enabled_services: ${{ inputs.enabled_services }}
+      silent_mode: ${{ inputs.silent_mode }}
+      server_image: ${{ needs.resolve.outputs.server_image }}
+      min_disk_gb: ${{ needs.resolve.outputs.min_disk_gb }}
+      arch: ${{ needs.resolve.outputs.arch }}
+      s3_persistence: ${{ needs.resolve.outputs.s3_persistence }}
