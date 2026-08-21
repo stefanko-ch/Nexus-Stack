@@ -86,18 +86,43 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate server_image
+      # server_image reaches an HCL heredoc, and spin-up.yml exposes it as
+      # a free-text workflow_dispatch input. A value containing a quote
+      # would close the HCL string and let arbitrary tfvars keys be
+      # injected — the same reasoning the SERVER_PREFERENCES comment in
+      # spin-up.yml already spells out for that variable.
+      #
+      # Passed via env rather than interpolated into the condition, so a
+      # value containing quotes or newlines cannot break the script that
+      # is checking it.
+      env:
+        SERVER_IMAGE: ${{ inputs.server_image }}
+      shell: bash
+      run: |
+        # Either a Hetzner image name (ubuntu-24.04, debian-12) or a
+        # numeric snapshot image id. Nothing else is legitimate.
+        if ! printf '%s' "$SERVER_IMAGE" | grep -qE '^[a-z0-9][a-z0-9.-]{0,62}$'; then
+          echo "❌ server_image is not a valid Hetzner image reference: '$SERVER_IMAGE'"
+          echo "   Expected an image name (e.g. ubuntu-24.04) or a numeric"
+          echo "   snapshot id. Refusing to write it into config.tfvars."
+          exit 1
+        fi
+        echo "✅ server_image validated: $SERVER_IMAGE"
+
     - name: Generate config.tfvars
       env:
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare_api_token }}
         CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare_account_id }}
         DOMAIN: ${{ inputs.domain }}
+        SERVER_IMAGE: ${{ inputs.server_image }}
       shell: bash
       run: |
         # Stack config (emails from secrets)
         cat > tofu/stack/config.tfvars << EOF
         server_type     = "${{ inputs.server_type || 'cx43' }}"
         server_location = "${{ inputs.server_location || 'hel1' }}"
-        server_image    = "${{ inputs.server_image }}"
+        server_image    = "${SERVER_IMAGE}"
 
         ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
         ssh_private_key_path = "~/.ssh/id_ed25519"

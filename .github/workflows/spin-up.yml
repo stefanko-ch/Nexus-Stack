@@ -370,21 +370,38 @@ jobs:
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           SERVER_PREFERENCES: ${{ vars.SERVER_PREFERENCES }}
+          MIN_DISK_GB: ${{ inputs.min_disk_gb }}
+          ARCH: ${{ inputs.arch }}
         run: |
           # A snapshot is architecture-locked and needs a target disk at
           # least as large as the image's, so the snapshot path narrows
           # the preference walk. Both empty on the normal path, where
           # the flags are omitted and behaviour is unchanged.
+          #
+          # Read from env, never interpolated into the script: these are
+          # workflow inputs, so a value containing quotes or newlines
+          # would otherwise break the script constructing the argv. The
+          # regexes then constrain them to what the CLI can accept —
+          # a bad value fails here by name rather than as an argparse
+          # error three steps later.
           EXTRA=""
-          if [ -n "${{ inputs.min_disk_gb }}" ]; then
-            EXTRA="$EXTRA --min-disk-gb ${{ inputs.min_disk_gb }}"
+          if [ -n "$MIN_DISK_GB" ]; then
+            if ! printf '%s' "$MIN_DISK_GB" | grep -qE '^[0-9]{1,5}$'; then
+              echo "❌ min_disk_gb must be a plain integer, got '$MIN_DISK_GB'"
+              exit 1
+            fi
+            EXTRA="$EXTRA --min-disk-gb $MIN_DISK_GB"
           fi
-          if [ -n "${{ inputs.arch }}" ]; then
-            EXTRA="$EXTRA --arch ${{ inputs.arch }}"
+          if [ -n "$ARCH" ]; then
+            if ! printf '%s' "$ARCH" | grep -qE '^[a-z0-9]{1,16}$'; then
+              echo "❌ arch must be lowercase alphanumeric, got '$ARCH'"
+              exit 1
+            fi
+            EXTRA="$EXTRA --arch $ARCH"
           fi
 
-          # EXTRA is built from the two validated values above and must
-          # word-split into separate flags, so it is deliberately unquoted.
+          # EXTRA now holds only regex-checked tokens and must word-split
+          # into separate flags, so it is deliberately unquoted.
           # shellcheck disable=SC2086
           uv run --quiet --project "$GITHUB_WORKSPACE" \
             python -m nexus_deploy select-capacity \

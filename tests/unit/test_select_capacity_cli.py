@@ -523,3 +523,116 @@ def test_select_capacity_appends_keys_when_absent(
     # Original lines preserved.
     assert 'domain = "example.com"' in rewritten
     assert 'server_preferences = "cx43:fsn1, ccx33:nbg1"' in rewritten
+
+
+# ---------------------------------------------------------------------------
+# Restore constraints: --min-disk-gb / --arch  (PR #651 review)
+#
+# These flags existed as module functions with full coverage while the CLI
+# rejected them outright with "unknown arg". Every snapshot restore would
+# have failed at the capacity step. The module tests could not catch it
+# because they call filter_specs directly; only a CLI-level test does.
+# ---------------------------------------------------------------------------
+
+
+_TYPES = {
+    "cx43": _hetzner.ServerTypeInfo(name="cx43", disk_gb=160, architecture="x86"),
+    "cx53": _hetzner.ServerTypeInfo(name="cx53", disk_gb=320, architecture="x86"),
+    "cax31": _hetzner.ServerTypeInfo(name="cax31", disk_gb=160, architecture="arm"),
+}
+
+
+def test_min_disk_gb_flag_is_accepted(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The regression guard: this used to exit 2 with 'unknown arg'."""
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setenv("SERVER_PREFERENCES", "cx43:hel1, cx53:hel1")
+    monkeypatch.setattr(
+        _hetzner,
+        "fetch_availability",
+        lambda _t, http_get=None: {"hel1": {"cx43", "cx53"}},
+    )
+    monkeypatch.setattr(_hetzner, "fetch_server_types", lambda _t, http_get=None: _TYPES)
+
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--min-disk-gb", "320"])
+    assert rc == 0
+    # cx43 has a 160GB disk and cannot host a 320GB image, so the walk
+    # must skip it even though it is first and in stock.
+    assert 'server_type     = "cx53"' in tfvars_with_legacy_pair.read_text()
+
+
+def test_arch_flag_excludes_mismatched_architecture(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setenv("SERVER_PREFERENCES", "cax31:hel1, cx43:hel1")
+    monkeypatch.setattr(
+        _hetzner,
+        "fetch_availability",
+        lambda _t, http_get=None: {"hel1": {"cax31", "cx43"}},
+    )
+    monkeypatch.setattr(_hetzner, "fetch_server_types", lambda _t, http_get=None: _TYPES)
+
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--arch", "x86"])
+    assert rc == 0
+    assert 'server_type     = "cx43"' in tfvars_with_legacy_pair.read_text()
+
+
+def test_all_preferences_excluded_is_rc2(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No type can host the image: fail with an actionable message rather
+    than letting `tofu apply` surface it as an opaque image error."""
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setenv("SERVER_PREFERENCES", "cx43:hel1")
+    monkeypatch.setattr(
+        _hetzner, "fetch_availability", lambda _t, http_get=None: {"hel1": {"cx43"}}
+    )
+    monkeypatch.setattr(_hetzner, "fetch_server_types", lambda _t, http_get=None: _TYPES)
+
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--min-disk-gb", "999"])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "every preference was excluded" in err
+    assert "force_fresh" in err
+
+
+def test_constraint_flags_are_optional(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without them, fetch_server_types must not even be called — the
+    legacy path stays a single API round-trip."""
+    called = {"n": 0}
+
+    def _boom(*_a: object, **_k: object) -> dict[str, object]:
+        called["n"] += 1
+        return {}
+
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setattr(
+        _hetzner, "fetch_availability", lambda _t, http_get=None: {"hel1": {"cx43"}}
+    )
+    monkeypatch.setattr(_hetzner, "fetch_server_types", _boom)
+
+    assert _select_capacity(["--tfvars", str(tfvars_with_legacy_pair)]) == 0
+    assert called["n"] == 0
+
+
+def test_min_disk_gb_rejects_non_integer(tfvars_with_legacy_pair: Path) -> None:
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--min-disk-gb", "lots"])
+    assert rc == 2
+
+
+@pytest.mark.parametrize("flag", ["--min-disk-gb", "--arch"])
+def test_constraint_flag_without_value_is_rc2(
+    tfvars_with_legacy_pair: Path,
+    flag: str,
+) -> None:
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), flag])
+    assert rc == 2

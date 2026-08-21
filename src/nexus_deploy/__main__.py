@@ -2634,6 +2634,8 @@ def _select_capacity(args: list[str]) -> int:
     """
     # Crude arg-parse — keeps us out of argparse for one-flag handlers.
     tfvars_path: Path | None = None
+    min_disk_gb = 0
+    arch: str | None = None
     i = 0
     while i < len(args):
         if args[i] == "--tfvars":
@@ -2648,6 +2650,31 @@ def _select_capacity(args: list[str]) -> int:
                 )
                 return 2
             tfvars_path = Path(args[i + 1])
+            i += 2
+            continue
+        # Snapshot-restore constraints. A Hetzner snapshot is
+        # architecture-locked and needs a target disk at least as large
+        # as the image's, so the snapshot spin-up narrows the preference
+        # walk. Omitted on the normal path, where behaviour is unchanged.
+        if args[i] == "--min-disk-gb":
+            if i + 1 >= len(args):
+                print("select-capacity: --min-disk-gb requires a value", file=sys.stderr)
+                return 2
+            try:
+                min_disk_gb = int(args[i + 1])
+            except ValueError:
+                print(
+                    f"select-capacity: --min-disk-gb must be an integer, got {args[i + 1]!r}",
+                    file=sys.stderr,
+                )
+                return 2
+            i += 2
+            continue
+        if args[i] == "--arch":
+            if i + 1 >= len(args):
+                print("select-capacity: --arch requires a value", file=sys.stderr)
+                return 2
+            arch = args[i + 1]
             i += 2
             continue
         print(f"select-capacity: unknown arg {args[i]!r}", file=sys.stderr)
@@ -2731,8 +2758,43 @@ def _select_capacity(args: list[str]) -> int:
         print(f"select-capacity: Hetzner API failure: {exc}", file=sys.stderr)
         return 2
 
+    # Snapshot-restore constraints, when given. Applied BEFORE the
+    # availability walk so a type that could never host the image is
+    # never selected — the failure would otherwise only surface as an
+    # opaque `tofu apply` error.
+    excluded: dict[_hetzner.ServerSpec, str] = {}
+    if min_disk_gb > 0 or arch is not None:
+        try:
+            types = _hetzner.fetch_server_types(token)
+        except _hetzner.HetznerCapacityError as exc:
+            print(f"select-capacity: Hetzner API failure: {exc}", file=sys.stderr)
+            return 2
+        preferences, excluded = _hetzner.filter_specs(
+            preferences,
+            types,
+            min_disk_gb=min_disk_gb,
+            arch=arch,
+        )
+        constraint = []
+        if min_disk_gb > 0:
+            constraint.append(f"disk >= {min_disk_gb}GB")
+        if arch is not None:
+            constraint.append(f"arch {arch}")
+        sys.stderr.write(
+            f"select-capacity: restore constraints ({', '.join(constraint)}) "
+            f"excluded {len(excluded)} of {len(preferences) + len(excluded)} preferences\n",
+        )
+        if not preferences:
+            sys.stderr.write(
+                "✗ select-capacity: every preference was excluded by the restore "
+                "constraints — no server type can host this snapshot. Widen "
+                "SERVER_PREFERENCES, or spin up with force_fresh=true to rebuild "
+                "from the base image.\n",
+            )
+            return 2
+
     selected = _hetzner.select(preferences, availability)
-    status_lines = _hetzner.render_status_lines(preferences, availability, selected)
+    status_lines = _hetzner.render_status_lines(preferences, availability, selected, excluded)
 
     if selected is None:
         # PR #537 R7 #1: distinguish "every preference has an unknown
