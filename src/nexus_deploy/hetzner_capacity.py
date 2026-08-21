@@ -138,6 +138,107 @@ class ServerSpec:
         return f"{self.server_type}:{self.location}"
 
 
+@dataclass(frozen=True)
+class ServerTypeInfo:
+    """Restore-relevant shape of one Hetzner server type.
+
+    ``disk_gb`` and ``architecture`` are the two constraints that decide
+    whether a disk snapshot can be restored onto this type: Hetzner
+    requires the target disk to be at least as large as the image's and
+    the architecture to match exactly. Both are silent until ``tofu
+    apply`` fails, which is why the snapshot spin-up filters on them
+    before choosing.
+    """
+
+    name: str
+    disk_gb: int
+    architecture: str
+
+
+def fetch_server_types(
+    token: str,
+    *,
+    http_get: HttpGet | None = None,
+) -> dict[str, ServerTypeInfo]:
+    """Query ``/v1/server_types`` and return ``{name: ServerTypeInfo}``.
+
+    Deliberately a separate call rather than extra return values on
+    :func:`fetch_availability`. That function's signature is monkeypatched
+    in a dozen CLI tests and consumed by the legacy spin-up path; widening
+    it to serve the snapshot path would put churn on the one code path
+    that must not regress. The duplicated request is a few KB against an
+    endpoint we already hit, and only on the snapshot path.
+    """
+    if not token:
+        raise HetznerCapacityError("HCLOUD_TOKEN not set")
+    get = http_get if http_get is not None else _default_http_get
+
+    payload = get(f"{_API_BASE}/server_types?per_page=200", token)
+    server_types = payload.get("server_types") if isinstance(payload, dict) else None
+    if not isinstance(server_types, list):
+        raise HetznerCapacityError(
+            "Hetzner /v1/server_types response missing 'server_types' list",
+        )
+
+    out: dict[str, ServerTypeInfo] = {}
+    for st in server_types:
+        if not isinstance(st, dict):
+            continue
+        name = st.get("name")
+        if not isinstance(name, str):
+            continue
+        disk = st.get("disk")
+        arch = st.get("architecture")
+        out[name.lower()] = ServerTypeInfo(
+            name=name.lower(),
+            disk_gb=int(disk) if isinstance(disk, (int, float)) else 0,
+            architecture=arch if isinstance(arch, str) else "",
+        )
+    return out
+
+
+def filter_specs(
+    preferences: tuple[ServerSpec, ...],
+    types: dict[str, ServerTypeInfo],
+    *,
+    min_disk_gb: int = 0,
+    arch: str | None = None,
+) -> tuple[tuple[ServerSpec, ...], dict[ServerSpec, str]]:
+    """Drop preferences a snapshot could not be restored onto.
+
+    Returns ``(kept, excluded)`` where ``excluded`` maps each dropped
+    spec to a human-readable reason, so the operator can see *why* a
+    tier was skipped rather than just watching it vanish.
+
+    The defaults (``min_disk_gb=0``, ``arch=None``) are a no-op: every
+    preference is kept and ``excluded`` is empty. That is what keeps the
+    legacy spin-up path byte-for-byte unchanged.
+
+    A type absent from ``types`` is kept, not dropped. Hetzner
+    occasionally lists a type in a datacenter's ``available`` set before
+    it appears in ``/v1/server_types``; failing open leaves that case to
+    :func:`select`, which is where "unknown type" is already handled.
+    """
+    if min_disk_gb <= 0 and arch is None:
+        return preferences, {}
+
+    kept: list[ServerSpec] = []
+    excluded: dict[ServerSpec, str] = {}
+    for spec in preferences:
+        info = types.get(spec.server_type)
+        if info is None:
+            kept.append(spec)
+            continue
+        if arch is not None and info.architecture and info.architecture != arch:
+            excluded[spec] = f"architecture {info.architecture} != {arch}"
+            continue
+        if min_disk_gb > 0 and info.disk_gb < min_disk_gb:
+            excluded[spec] = f"disk {info.disk_gb}GB < {min_disk_gb}GB required"
+            continue
+        kept.append(spec)
+    return tuple(kept), excluded
+
+
 def parse_preferences(value: str) -> tuple[ServerSpec, ...]:
     """Parse a comma-list of ``<server_type>:<location>`` tokens.
 
@@ -348,6 +449,7 @@ def render_status_lines(
     preferences: tuple[ServerSpec, ...],
     availability: dict[str, set[str]],
     selected: ServerSpec | None,
+    excluded: dict[ServerSpec, str] | None = None,
 ) -> list[str]:
     """Build a per-preference status block for operator-facing logs.
 
@@ -369,12 +471,24 @@ def render_status_lines(
       Suffix ``(unknown location)`` is appended so the failure
       message is actionable without the operator having to know
       the marker convention.
+    * ``⊘`` — excluded before the availability walk because the type
+      cannot host the snapshot being restored (disk too small, or
+      wrong architecture). Only appears when ``excluded`` is passed,
+      i.e. on the snapshot spin-up path; the reason is appended so a
+      skipped tier does not look like a capacity problem.
+
+    ``excluded`` defaults to ``None`` so the legacy call site renders
+    exactly as before.
     """
+    excluded = excluded or {}
     lines: list[str] = []
     for idx, spec in enumerate(preferences, start=1):
         if spec == selected:
             marker = "→"
             suffix = ""
+        elif spec in excluded:
+            marker = "⊘"
+            suffix = f" ({excluded[spec]})"
         elif spec.location not in availability:
             marker = "?"
             suffix = " (unknown location)"

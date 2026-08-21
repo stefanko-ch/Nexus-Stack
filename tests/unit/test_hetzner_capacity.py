@@ -24,7 +24,10 @@ from nexus_deploy.hetzner_capacity import (
     DEFAULT_PREFERENCES,
     HetznerCapacityError,
     ServerSpec,
+    ServerTypeInfo,
     fetch_availability,
+    fetch_server_types,
+    filter_specs,
     parse_preferences,
     render_status_lines,
     select,
@@ -616,3 +619,126 @@ def test_default_http_get_wraps_malformed_json(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     with pytest.raises(HetznerCapacityError, match=r"non-JSON"):
         _default_http_get("https://api.hetzner.cloud/v1/datacenters", "t")
+
+
+# ---------------------------------------------------------------------------
+# fetch_server_types + filter_specs — snapshot restore constraints
+# ---------------------------------------------------------------------------
+
+# Disk sizes are the real ones for these types; the whole point of the
+# filter is that DEFAULT_PREFERENCES mixes them, so a snapshot taken on
+# one tier cannot necessarily be restored onto another.
+_FAKE_TYPES_WITH_DISK = {
+    "server_types": [
+        {"id": 22, "name": "cx43", "disk": 160, "architecture": "x86"},
+        {"id": 23, "name": "cx53", "disk": 320, "architecture": "x86"},
+        {"id": 24, "name": "cpx42", "disk": 240, "architecture": "x86"},
+        {"id": 9, "name": "cax31", "disk": 160, "architecture": "arm"},
+    ],
+}
+
+
+def test_fetch_server_types_parses_disk_and_architecture() -> None:
+    fake = _make_http_get(_FAKE_TYPES_WITH_DISK, _FAKE_DATACENTERS)
+    types = fetch_server_types("t", http_get=fake)
+    assert types["cx43"] == ServerTypeInfo(name="cx43", disk_gb=160, architecture="x86")
+    assert types["cax31"].architecture == "arm"
+
+
+def test_fetch_server_types_rejects_empty_token() -> None:
+    with pytest.raises(HetznerCapacityError, match="HCLOUD_TOKEN not set"):
+        fetch_server_types("")
+
+
+def test_fetch_server_types_raises_on_schema_drift() -> None:
+    fake = _make_http_get({"nope": []}, _FAKE_DATACENTERS)
+    with pytest.raises(HetznerCapacityError, match="missing 'server_types' list"):
+        fetch_server_types("t", http_get=fake)
+
+
+def test_fetch_server_types_skips_malformed_entries() -> None:
+    fake = _make_http_get(
+        {"server_types": [{"id": 1, "name": "cx43", "disk": 160}, {"id": 2}, "junk"]},
+        _FAKE_DATACENTERS,
+    )
+    types = fetch_server_types("t", http_get=fake)
+    assert list(types) == ["cx43"]
+    # Missing architecture must not become a bogus value.
+    assert types["cx43"].architecture == ""
+
+
+def test_filter_specs_defaults_are_a_no_op() -> None:
+    """The regression guard for the legacy spin-up path.
+
+    select-capacity calls this with no constraints; if the defaults ever
+    started filtering, a normal deploy could silently lose tiers.
+    """
+    prefs = parse_preferences("cx43:fsn1, cax31:hel1, cx53:nbg1")
+    kept, excluded = filter_specs(prefs, {})
+    assert kept == prefs
+    assert excluded == {}
+
+
+def test_filter_specs_drops_types_with_too_small_a_disk() -> None:
+    """A 240GB snapshot cannot be restored onto a 160GB cx43."""
+    fake = _make_http_get(_FAKE_TYPES_WITH_DISK, _FAKE_DATACENTERS)
+    types = fetch_server_types("t", http_get=fake)
+    prefs = parse_preferences("cx43:fsn1, cpx42:fsn1, cx53:fsn1")
+    kept, excluded = filter_specs(prefs, types, min_disk_gb=240)
+    assert [str(s) for s in kept] == ["cpx42:fsn1", "cx53:fsn1"]
+    assert "disk 160GB < 240GB required" in excluded[ServerSpec("cx43", "fsn1")]
+
+
+def test_filter_specs_drops_mismatched_architecture() -> None:
+    fake = _make_http_get(_FAKE_TYPES_WITH_DISK, _FAKE_DATACENTERS)
+    types = fetch_server_types("t", http_get=fake)
+    prefs = parse_preferences("cx43:fsn1, cax31:hel1")
+    kept, excluded = filter_specs(prefs, types, arch="x86")
+    assert [str(s) for s in kept] == ["cx43:fsn1"]
+    assert "architecture arm != x86" in excluded[ServerSpec("cax31", "hel1")]
+
+
+def test_filter_specs_keeps_unknown_types() -> None:
+    """Fail open: Hetzner can list a type as available before it shows
+    up in /v1/server_types. Dropping it here would turn a transient API
+    lag into a failed spin-up; select() already handles unknown types.
+    """
+    prefs = parse_preferences("brandnew:fsn1")
+    kept, excluded = filter_specs(prefs, {}, min_disk_gb=999)
+    assert kept == prefs
+    assert excluded == {}
+
+
+def test_filter_specs_tolerates_unknown_architecture_on_the_type() -> None:
+    """Only enforce what is actually known."""
+    types = {"cx43": ServerTypeInfo(name="cx43", disk_gb=160, architecture="")}
+    prefs = parse_preferences("cx43:fsn1")
+    kept, _excluded = filter_specs(prefs, types, arch="x86")
+    assert kept == prefs
+
+
+def test_render_status_lines_marks_excluded_with_reason() -> None:
+    prefs = parse_preferences("cx43:fsn1, cpx42:fsn1")
+    excluded = {ServerSpec("cx43", "fsn1"): "disk 160GB < 240GB required"}
+    lines = render_status_lines(
+        prefs,
+        {"fsn1": {"cx43", "cpx42"}},
+        ServerSpec("cpx42", "fsn1"),
+        excluded,
+    )
+    assert "⊘" in lines[0]
+    assert "disk 160GB < 240GB required" in lines[0]
+    assert lines[1].strip().startswith("→")
+
+
+def test_render_status_lines_without_excluded_is_unchanged() -> None:
+    """Byte-for-byte identical to the pre-change output."""
+    prefs = parse_preferences("cx43:fsn1, ccx33:nbg1")
+    availability = {"fsn1": {"cx43"}, "nbg1": set()}
+    selected = ServerSpec("cx43", "fsn1")
+    assert render_status_lines(prefs, availability, selected) == render_status_lines(
+        prefs,
+        availability,
+        selected,
+        None,
+    )
