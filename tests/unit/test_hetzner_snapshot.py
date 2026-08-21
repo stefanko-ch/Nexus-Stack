@@ -27,7 +27,9 @@ import pytest
 from nexus_deploy.hetzner_snapshot import (
     LABEL_DOMAIN,
     LABEL_EPOCH,
+    LABEL_ROLE,
     LABEL_SERVER_TYPE,
+    ROLE_VALUE,
     HetznerSnapshotError,
     Snapshot,
     can_restore_onto,
@@ -110,7 +112,12 @@ def _no_sleep(_seconds: float) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _snap(image_id: int, created: str, epoch: str = EPOCH_A) -> Snapshot:
+def _snap(
+    image_id: int,
+    created: str,
+    epoch: str = EPOCH_A,
+    status: str = "available",
+) -> Snapshot:
     return Snapshot(
         image_id=image_id,
         description=f"snap-{image_id}",
@@ -119,6 +126,7 @@ def _snap(image_id: int, created: str, epoch: str = EPOCH_A) -> Snapshot:
         architecture="x86",
         epoch=epoch,
         server_type="cx43",
+        status=status,
     )
 
 
@@ -189,7 +197,8 @@ def test_list_snapshots_scopes_by_label_selector() -> None:
     http = _Recorder({"/images": {"images": []}})
     list_snapshots("tok", domain_slug="example-com", http_request=http)
     _method, url, _payload = http.calls[0]
-    assert f"label_selector={LABEL_DOMAIN}%3Dexample-com" in url
+    assert f"{LABEL_ROLE}%3D{ROLE_VALUE}" in url
+    assert f"{LABEL_DOMAIN}%3Dexample-com" in url
     assert "type=snapshot" in url
 
 
@@ -236,7 +245,10 @@ def test_count_snapshots_counts_project_wide() -> None:
     )
     assert count_snapshots("tok", http_request=http) == 2
     _method, url, _payload = http.calls[0]
-    assert "label_selector" not in url
+    # Role-scoped (only ours count against our retention decisions) but
+    # deliberately NOT domain-scoped: the cap is project-wide.
+    assert f"{LABEL_ROLE}%3D{ROLE_VALUE}" in url
+    assert LABEL_DOMAIN not in url
 
 
 # ---------------------------------------------------------------------------
@@ -924,3 +936,145 @@ def test_default_http_request_wraps_non_json_body(monkeypatch: pytest.MonkeyPatc
     )
     with pytest.raises(HetznerSnapshotError, match=r"non-JSON"):
         _default_http_request("GET", "https://api.hetzner.cloud/v1/images", "tok")
+
+
+# ---------------------------------------------------------------------------
+# Non-available images (PR #649 review)
+#
+# /v1/images lists snapshots that are still `creating` — e.g. from a
+# teardown interrupted between create_image and completion. Such an
+# image sorts newest, so anything that trusts the ordering blindly will
+# pick it.
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_latest_skips_creating_image() -> None:
+    """A half-finished image must not shadow a good older one.
+
+    Without the status check, an interrupted teardown would fail the
+    NEXT spin-up: the `creating` image resolves as newest, tofu tries to
+    build from an unusable image, and the perfectly good snapshot right
+    behind it is never considered.
+    """
+    http = _Recorder(
+        {
+            "/images": {
+                "images": [
+                    _image(9, created="2026-08-09T21:00:00+00:00", status="creating"),
+                    _image(4, created="2026-08-04T21:00:00+00:00"),
+                ],
+            },
+        },
+    )
+    snap = resolve_latest("tok", domain_slug="example-com", http_request=http)
+    assert snap is not None
+    assert snap.image_id == 4
+
+
+def test_resolve_latest_none_when_only_creating() -> None:
+    http = _Recorder(
+        {
+            "/images": {
+                "images": [_image(9, created="2026-08-09T21:00:00+00:00", status="creating")]
+            }
+        },
+    )
+    assert resolve_latest("tok", domain_slug="example-com", http_request=http) is None
+
+
+def test_select_prunable_does_not_count_creating_towards_keep() -> None:
+    """A `creating` image must not occupy a keep slot.
+
+    If it did, keep=2 would retain one good snapshot plus one unusable
+    one — halving the actual retention without saying so.
+    """
+    snaps = (
+        _snap(9, "2026-08-09T21:00:00+00:00", status="creating"),
+        _snap(3, "2026-08-03T21:00:00+00:00"),
+        _snap(2, "2026-08-02T21:00:00+00:00"),
+        _snap(1, "2026-08-01T21:00:00+00:00"),
+    )
+    prunable = select_prunable(snaps, keep=2)
+    # 3 and 2 are kept; only 1 is dropped. 9 is neither kept nor pruned.
+    assert [s.image_id for s in prunable] == [1]
+
+
+def test_select_prunable_never_returns_creating() -> None:
+    """Deleting an in-flight image is not a retention pass's job."""
+    snaps = (
+        _snap(3, "2026-08-03T21:00:00+00:00"),
+        _snap(2, "2026-08-02T21:00:00+00:00"),
+        _snap(9, "2026-07-01T21:00:00+00:00", status="creating"),
+    )
+    prunable = select_prunable(snaps, keep=2)
+    assert prunable == ()
+
+
+def test_parse_carries_status() -> None:
+    http = _Recorder(
+        {
+            "/images": {
+                "images": [_image(1, created="2026-08-01T21:00:00+00:00", status="creating")]
+            }
+        },
+    )
+    snaps = list_snapshots("tok", domain_slug="example-com", http_request=http)
+    assert snaps[0].status == "creating"
+    assert snaps[0].is_available is False
+
+
+# ---------------------------------------------------------------------------
+# Label-selector scoping and server_type validation (PR #649 review)
+# ---------------------------------------------------------------------------
+
+
+def test_list_snapshots_always_scopes_by_role() -> None:
+    """Without the role, prune could enumerate — and delete — a foreign
+    snapshot that merely carried a matching nexus_domain label."""
+    http = _Recorder({"/images": {"images": []}})
+    list_snapshots("tok", http_request=http)
+    _method, url, _payload = http.calls[0]
+    assert f"{LABEL_ROLE}%3D{ROLE_VALUE}" in url
+
+
+def test_create_snapshot_rejects_malformed_server_type() -> None:
+    """server_type is grepped out of config.tfvars, so it is the one
+    label value that has not already been through a regex."""
+    with pytest.raises(HetznerSnapshotError, match="valid Hetzner label value"):
+        create_snapshot(
+            42,
+            "tok",
+            domain_slug="example-com",
+            epoch=EPOCH_A,
+            server_type="cx43 with spaces",
+            timestamp="20260805T210000Z",
+            http_request=_Recorder({}),
+            sleep=_no_sleep,
+        )
+
+
+def test_create_snapshot_allows_empty_server_type() -> None:
+    """Empty is fine — the label is simply dropped."""
+    http = _Recorder(
+        {
+            "actions/create_image": {
+                "action": {"id": 7, "status": "success"},
+                "image": {"id": 99},
+            },
+            "/actions/7": {"action": {"id": 7, "status": "success"}},
+            "/images/99": {"image": _image(99, created="2026-08-05T21:00:00+00:00")},
+        },
+    )
+    create_snapshot(
+        42,
+        "tok",
+        domain_slug="example-com",
+        epoch=EPOCH_A,
+        server_type="",
+        timestamp="20260805T210000Z",
+        http_request=http,
+        sleep=_no_sleep,
+    )
+    _method, _url, payload = http.calls[0]
+    assert payload is not None
+    assert LABEL_SERVER_TYPE not in payload["labels"]

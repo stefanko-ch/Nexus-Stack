@@ -112,6 +112,13 @@ class Snapshot:
     restoring it would produce a stack that boots and then fails to
     authenticate anywhere. Empty string when the label is absent
     (a snapshot from before this mechanism existed).
+
+    ``status`` matters because ``/v1/images`` also lists images that
+    are still ``creating`` — e.g. from a teardown that was interrupted
+    between ``create_image`` and completion. Such an image is the
+    newest one in the listing but cannot be restored from, so
+    selecting it would fail a spin-up that had a perfectly good older
+    snapshot available.
     """
 
     image_id: int
@@ -121,6 +128,12 @@ class Snapshot:
     architecture: str
     epoch: str
     server_type: str
+    status: str = ""
+
+    @property
+    def is_available(self) -> bool:
+        """Whether this image can actually be used to create a server."""
+        return self.status == "available"
 
     def __str__(self) -> str:
         return f"#{self.image_id} {self.description} ({self.disk_gb}GB {self.architecture})"
@@ -244,6 +257,7 @@ def _parse_snapshot(image: dict[str, Any]) -> Snapshot | None:
         architecture=arch if isinstance(arch, str) else "",
         epoch=str(labels.get(LABEL_EPOCH, "")),
         server_type=str(labels.get(LABEL_SERVER_TYPE, "")),
+        status=str(image.get("status", "")),
     )
 
 
@@ -345,6 +359,12 @@ def create_snapshot(
     validate_label_value(domain_slug, field=LABEL_DOMAIN)
     if epoch:
         validate_label_value(epoch, field=LABEL_EPOCH)
+    # server_type is grepped out of config.tfvars by the workflow, so it
+    # is the one label value that has not already been through a regex.
+    # A stray space there would make Hetzner reject the whole create
+    # call and leave the teardown without a snapshot.
+    if server_type:
+        validate_label_value(server_type, field=LABEL_SERVER_TYPE)
 
     labels = {
         LABEL_ROLE: ROLE_VALUE,
@@ -431,19 +451,29 @@ def list_snapshots(
 ) -> tuple[Snapshot, ...]:
     """Return this project's snapshots, newest first.
 
-    With ``domain_slug`` the query is narrowed by label selector to one
-    stack, which is what makes the whole mechanism multi-tenant-safe:
-    two stacks in the same Hetzner project never see each other's
-    images.
+    Both label keys are always required in the selector, never just the
+    domain. ``nexus_role`` is what makes an image ours; without it, any
+    snapshot in the project that happened to carry a matching
+    ``nexus_domain`` would be enumerated for retention — and prune
+    deletes what it enumerates. Together they are also what makes the
+    mechanism multi-tenant-safe: two stacks in one Hetzner project
+    never see each other's images.
+
+    Non-``available`` images are returned too. They are excluded where
+    it matters (:func:`resolve_latest`, :func:`select_prunable`) rather
+    than here, because :func:`count_snapshots` needs the true total —
+    an image still being created counts against the project cap.
     """
     req = _request(http_request)
     url = f"{_API_BASE}/images?type=snapshot&per_page=100&sort=created:desc"
+    selector = f"{LABEL_ROLE}%3D{ROLE_VALUE}"
     if domain_slug is not None:
         if not _IDENT.match(domain_slug):
             raise HetznerSnapshotError(
                 f"domain_slug {domain_slug!r} must be lowercase alphanumeric with dashes",
             )
-        url += f"&label_selector={LABEL_DOMAIN}%3D{domain_slug}"
+        selector += f",{LABEL_DOMAIN}%3D{domain_slug}"
+    url += f"&label_selector={selector}"
 
     payload = req("GET", url, token, None)
     images = payload.get("images") if isinstance(payload, dict) else None
@@ -486,9 +516,17 @@ def resolve_latest(
     destroy``: it regenerates all 81 credentials, so the Postgres roles
     and admin accounts inside an older snapshot no longer match the
     state the pipeline will use.
+
+    Images that are not ``available`` are skipped rather than returned.
+    A teardown interrupted between ``create_image`` and completion
+    leaves a ``creating`` image behind; it sorts newest, so without this
+    it would be picked and fail the spin-up even though a perfectly
+    good older snapshot was sitting right behind it.
     """
     snapshots = list_snapshots(token, domain_slug=domain_slug, http_request=http_request)
     for snapshot in snapshots:
+        if not snapshot.is_available:
+            continue
         if expect_epoch is not None and snapshot.epoch != expect_epoch:
             continue
         return snapshot
@@ -504,10 +542,18 @@ def select_prunable(
 
     Pure function so the retention decision is testable on its own —
     an off-by-one here deletes the snapshot the next spin-up needs.
+
+    Only ``available`` images count towards ``keep``, and only
+    ``available`` images are ever returned as prunable. Both halves
+    matter: an interrupted create leaves a ``creating`` image that
+    would otherwise occupy a keep slot and evict a good snapshot, while
+    deleting an image mid-creation is not something to attempt from a
+    retention pass.
     """
     if keep < 1:
         raise HetznerSnapshotError(f"keep must be >= 1, got {keep}")
-    ordered = sorted(snapshots, key=lambda s: (s.created, s.image_id), reverse=True)
+    available = [s for s in snapshots if s.is_available]
+    ordered = sorted(available, key=lambda s: (s.created, s.image_id), reverse=True)
     return tuple(ordered[keep:])
 
 

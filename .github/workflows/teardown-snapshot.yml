@@ -320,8 +320,27 @@ jobs:
           fi
 
           cat /tmp/snapshot.out
-          # shellcheck disable=SC1091
-          . /tmp/snapshot.out
+
+          # Parse as data, never `source`. The values originate from
+          # Hetzner API fields (architecture in particular), and
+          # sourcing would execute whatever they contain as shell.
+          # The CLI constrains its own output, but an unvalidated
+          # upstream string should not be one bug away from arbitrary
+          # execution in a workflow that holds every deploy secret.
+          read_kv() {
+            grep -m1 "^$1=" /tmp/snapshot.out | cut -d= -f2- | tr -dc 'A-Za-z0-9_.-'
+          }
+          SNAPSHOT_IMAGE_ID=$(read_kv SNAPSHOT_IMAGE_ID)
+          SNAPSHOT_DISK_GB=$(read_kv SNAPSHOT_DISK_GB)
+          SNAPSHOT_ARCH=$(read_kv SNAPSHOT_ARCH)
+
+          if [ -z "$SNAPSHOT_IMAGE_ID" ]; then
+            echo "❌ snapshot-create returned no image id"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "server_id=$SERVER_ID" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           {
             echo "ok=true"
             echo "server_id=$SERVER_ID"
