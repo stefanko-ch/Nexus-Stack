@@ -19,6 +19,7 @@ than time:
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -749,3 +750,177 @@ def test_can_restore_onto_tolerates_unknown_architecture() -> None:
         server_type="cx43",
     )
     assert can_restore_onto(snap, disk_gb=160, architecture="x86") is True
+
+
+# ---------------------------------------------------------------------------
+# _default_http_request — the real urllib path
+#
+# Mirrors the _default_http_get tests in test_hetzner_capacity.py: the
+# production HTTP seam is exercised by monkeypatching urlopen, not left
+# uncovered. This module adds POST/DELETE and an error-body read on top
+# of that, so those get their own cases.
+# ---------------------------------------------------------------------------
+
+
+class _FakeUrlopenContext:
+    """Stand-in for ``urllib.request.urlopen()`` — the ``with ... as
+    resp`` pattern needs both ``__enter__`` and ``__exit__``."""
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> _FakeUrlopenContext:
+        return self
+
+    def __exit__(self, *_a: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_default_http_request_get(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    captured: dict[str, Any] = {}
+
+    def _fake_urlopen(req: Any, timeout: float = 0) -> _FakeUrlopenContext:
+        captured["url"] = req.full_url
+        captured["method"] = req.get_method()
+        captured["auth"] = req.headers.get("Authorization")
+        captured["timeout"] = timeout
+        captured["data"] = req.data
+        return _FakeUrlopenContext(b'{"ok": true}')
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    result = _default_http_request("GET", "https://api.hetzner.cloud/v1/images/1", "tok")
+    assert result == {"ok": True}
+    assert captured["method"] == "GET"
+    assert captured["auth"] == "Bearer tok"
+    assert captured["timeout"] == 30.0
+    assert captured["data"] is None
+
+
+def test_default_http_request_post_sends_json_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    captured: dict[str, Any] = {}
+
+    def _fake_urlopen(req: Any, timeout: float = 0) -> _FakeUrlopenContext:
+        captured["method"] = req.get_method()
+        captured["body"] = json.loads(req.data.decode())
+        captured["content_type"] = req.headers.get("Content-type")
+        return _FakeUrlopenContext(b'{"action": {"id": 1}}')
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    _default_http_request(
+        "POST",
+        "https://api.hetzner.cloud/v1/servers/1/actions/create_image",
+        "tok",
+        {"type": "snapshot"},
+    )
+    assert captured["method"] == "POST"
+    assert captured["body"] == {"type": "snapshot"}
+    assert captured["content_type"] == "application/json"
+
+
+def test_default_http_request_empty_body_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DELETE returns 204 No Content — must not raise a JSON error."""
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda _req, timeout=0: _FakeUrlopenContext(b""),
+    )
+    assert _default_http_request("DELETE", "https://api.hetzner.cloud/v1/images/1", "tok") is None
+
+
+def test_default_http_request_wraps_http_error_with_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hetzner puts a machine-readable reason in the error body.
+
+    Surfacing it is what turns a bare "HTTP 403" into something an
+    operator can act on — a missing token scope reads very differently
+    from resource_limit_exceeded.
+    """
+    import io
+    import urllib.error
+
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    def _fake_urlopen(_req: Any, timeout: float = 0) -> _FakeUrlopenContext:
+        raise urllib.error.HTTPError(
+            url="https://api.hetzner.cloud/v1/images",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=io.BytesIO(b'{"error":{"code":"resource_limit_exceeded"}}'),
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    with pytest.raises(HetznerSnapshotError, match=r"HTTP 403.*resource_limit_exceeded"):
+        _default_http_request("GET", "https://api.hetzner.cloud/v1/images", "tok")
+
+
+def test_default_http_request_survives_unreadable_error_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading the body is best-effort and must never mask the HTTP error."""
+    import urllib.error
+
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    class _Exploding:
+        def read(self) -> bytes:
+            raise OSError("socket gone")
+
+    def _fake_urlopen(_req: Any, timeout: float = 0) -> _FakeUrlopenContext:
+        err = urllib.error.HTTPError(
+            url="https://api.hetzner.cloud/v1/images",
+            code=500,
+            msg="Server Error",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=None,
+        )
+        err.read = _Exploding().read  # type: ignore[assignment]
+        raise err
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    with pytest.raises(HetznerSnapshotError, match=r"HTTP 500"):
+        _default_http_request("GET", "https://api.hetzner.cloud/v1/images", "tok")
+
+
+def test_default_http_request_wraps_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import urllib.error
+
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    def _fake_urlopen(_req: Any, timeout: float = 0) -> _FakeUrlopenContext:
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    with pytest.raises(HetznerSnapshotError, match=r"request failed.*URLError"):
+        _default_http_request("GET", "https://api.hetzner.cloud/v1/images", "tok")
+
+
+def test_default_http_request_wraps_non_utf8_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda _req, timeout=0: _FakeUrlopenContext(b"\xff\xfe\x00binary"),
+    )
+    with pytest.raises(HetznerSnapshotError, match=r"non-UTF-8"):
+        _default_http_request("GET", "https://api.hetzner.cloud/v1/images", "tok")
+
+
+def test_default_http_request_wraps_non_json_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nexus_deploy.hetzner_snapshot import _default_http_request
+
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda _req, timeout=0: _FakeUrlopenContext(b"<html>502 Bad Gateway</html>"),
+    )
+    with pytest.raises(HetznerSnapshotError, match=r"non-JSON"):
+        _default_http_request("GET", "https://api.hetzner.cloud/v1/images", "tok")
