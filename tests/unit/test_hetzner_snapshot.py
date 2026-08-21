@@ -677,11 +677,6 @@ def test_poweroff_default_sleep_is_not_called_when_already_off() -> None:
     poweroff_server(42, "tok", http_request=http)
 
 
-def test_snapshot_str_is_operator_readable() -> None:
-    snap = _snap(7, "2026-08-07T21:00:00+00:00")
-    assert str(snap) == "#7 snap-7 (160GB x86)"
-
-
 def test_create_snapshot_rejects_bad_slug() -> None:
     with pytest.raises(HetznerSnapshotError, match="domain_slug"):
         create_snapshot(
@@ -1078,3 +1073,43 @@ def test_create_snapshot_allows_empty_server_type() -> None:
     _method, _url, payload = http.calls[0]
     assert payload is not None
     assert LABEL_SERVER_TYPE not in payload["labels"]
+
+
+def test_parse_carries_billed_image_size() -> None:
+    """image_size is the billed figure and is fractional.
+
+    Truncating it the way disk_size is truncated would misreport cost;
+    conflating it with disk_size would misreport the restore constraint.
+    """
+    http = _Recorder(
+        {"/images": {"images": [_image(1, created="2026-08-01T21:00:00+00:00")]}},
+    )
+    snaps = list_snapshots("tok", domain_slug="example-com", http_request=http)
+    assert snaps[0].image_gb == 12.5
+    assert snaps[0].disk_gb == 160
+
+
+def test_parse_tolerates_missing_image_size() -> None:
+    """Absent while an image is still `creating`."""
+    payload = _image(1, created="2026-08-01T21:00:00+00:00", status="creating")
+    del payload["image_size"]
+    http = _Recorder({"/images": {"images": [payload]}})
+    snaps = list_snapshots("tok", domain_slug="example-com", http_request=http)
+    assert snaps[0].image_gb == 0.0
+
+
+def test_str_reports_both_sizes() -> None:
+    """The two numbers answer different questions — which server types
+    can host this, and what does keeping it cost."""
+    snap = Snapshot(
+        image_id=7,
+        description="snap-7",
+        created="2026-08-07T21:00:00+00:00",
+        disk_gb=320,
+        architecture="x86",
+        epoch=EPOCH_A,
+        server_type="cpx42",
+        status="available",
+        image_gb=12.5,
+    )
+    assert str(snap) == "#7 snap-7 (disk 320GB, billed 12.5GB, x86)"

@@ -101,10 +101,20 @@ class HetznerSnapshotError(Exception):
 class Snapshot:
     """A Hetzner snapshot image plus what we need to judge it.
 
-    ``disk_gb`` is the image's ``disk_size``: the **minimum** disk a
-    target server type must have to restore this image. It is not the
-    billed figure — that is ``image_size``, which reflects used space
-    only and is typically far smaller.
+    Two sizes, and conflating them is a costly mistake in both
+    directions:
+
+    ``disk_gb`` is the image's ``disk_size`` — the **minimum** disk a
+    target server type must have to restore this image. It equals the
+    source server's disk, not its used space, so it is what decides
+    which server types remain reachable. Verified in practice: the
+    first real snapshot of this stack came off a cpx42 and reported
+    320 GB.
+
+    ``image_gb`` is ``image_size`` — the compressed used space, and the
+    figure Hetzner actually bills (~EUR 0.011-0.014/GB/month). Usually
+    a small fraction of ``disk_gb``. Reported so the cost of a
+    retention policy is visible rather than guessed at.
 
     ``epoch`` is the credential fingerprint that was current when the
     snapshot was taken. A snapshot whose epoch no longer matches the
@@ -129,6 +139,7 @@ class Snapshot:
     epoch: str
     server_type: str
     status: str = ""
+    image_gb: float = 0.0
 
     @property
     def is_available(self) -> bool:
@@ -136,7 +147,12 @@ class Snapshot:
         return self.status == "available"
 
     def __str__(self) -> str:
-        return f"#{self.image_id} {self.description} ({self.disk_gb}GB {self.architecture})"
+        # Both sizes on purpose: disk_gb is the restore constraint,
+        # image_gb is what shows up on the invoice.
+        return (
+            f"#{self.image_id} {self.description} "
+            f"(disk {self.disk_gb}GB, billed {self.image_gb:.1f}GB, {self.architecture})"
+        )
 
 
 def _default_http_request(
@@ -245,6 +261,12 @@ def _parse_snapshot(image: dict[str, Any]) -> Snapshot | None:
     # both int and float across API versions.
     disk_gb = int(disk) if isinstance(disk, (int, float)) else 0
 
+    # image_size is the billed figure and is genuinely fractional
+    # (e.g. 12.5), so it must not be truncated to int the way disk_size
+    # is. It is also absent while an image is still `creating`.
+    billed = image.get("image_size")
+    image_gb = float(billed) if isinstance(billed, (int, float)) else 0.0
+
     arch = image.get("architecture")
     description = image.get("description")
     created = image.get("created")
@@ -258,6 +280,7 @@ def _parse_snapshot(image: dict[str, Any]) -> Snapshot | None:
         epoch=str(labels.get(LABEL_EPOCH, "")),
         server_type=str(labels.get(LABEL_SERVER_TYPE, "")),
         status=str(image.get("status", "")),
+        image_gb=image_gb,
     )
 
 

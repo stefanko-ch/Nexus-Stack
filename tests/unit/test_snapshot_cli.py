@@ -36,6 +36,8 @@ def _snap(image_id: int = 99, created: str = "2026-08-05T21:00:00+00:00") -> Sna
         architecture="x86",
         epoch=EPOCH,
         server_type="cx43",
+        status="available",
+        image_gb=12.5,
     )
 
 
@@ -123,6 +125,9 @@ def test_create_emits_machine_readable_coordinates(
         "SNAPSHOT_IMAGE_ID": "99",
         "SNAPSHOT_DISK_GB": "160",
         "SNAPSHOT_ARCH": "x86",
+        # The billed size, so a retention policy's cost is visible in
+        # the workflow log rather than guessed at.
+        "SNAPSHOT_IMAGE_GB": "12.50",
     }
 
 

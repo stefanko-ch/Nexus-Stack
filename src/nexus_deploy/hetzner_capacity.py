@@ -58,21 +58,28 @@ _DEFAULT_TIMEOUT = 30.0
 # shared-only (no dedicated, no ARM), five type-tiers in cost order,
 # three EU regions per tier.
 #
-#   Tier 1: cx43 (Intel shared, 8 vCPU / 16 GB / 160 GB, project
-#           default since 2026-05). The cheapest box that still fits
-#           the 40+ Docker stacks workload.
-#   Tier 2: cx53 (Intel shared, 16 vCPU / 32 GB / 320 GB). One step
-#           up if cx43 is dry across all three EU regions — keeps
-#           Intel + shared, just gives more headroom.
-#   Tier 3: cpx42 (AMD shared, 8 vCPU / 16 GB / 240 GB). Same
-#           8/16 class as cx43, different silicon → independent
-#           stock pool. linux/amd64 images run on Intel and AMD
-#           without distinction (per CLAUDE.md).
-#   Tier 4: cpx52 (AMD shared, 16 vCPU / 32 GB / 360 GB). AMD
-#           equivalent of cx53.
-#   Tier 5: cpx62 (AMD shared, 32 vCPU / 64 GB / 720 GB). Last
-#           resort when nothing else has stock — generously oversized
-#           but keeps the spin-up unblocked.
+#   Tier 1: cx43 (Intel shared, project default since 2026-05). The
+#           cheapest box that still fits the 40+ Docker stacks workload.
+#   Tier 2: cx53 (Intel shared). One step up if cx43 is dry across all
+#           three EU regions — keeps Intel + shared, just gives more
+#           headroom.
+#   Tier 3: cpx42 (AMD shared). Same class as cx43, different silicon
+#           → independent stock pool. linux/amd64 images run on Intel
+#           and AMD without distinction (per CLAUDE.md).
+#   Tier 4: cpx52 (AMD shared). AMD equivalent of cx53.
+#   Tier 5: cpx62 (AMD shared). Last resort when nothing else has
+#           stock — generously oversized but keeps the spin-up
+#           unblocked.
+#
+# ⚠️ Deliberately no vCPU/RAM/disk figures here any more. This list
+# previously carried them and they were WRONG: cpx42 was documented as
+# 240 GB, and the first real disk snapshot taken off a cpx42 reported
+# 320 GB. Hetzner revises specs, a comment cannot track that, and a
+# stale number here is not cosmetic — the snapshot restore path filters
+# server types by disk size, so believing the comment would exclude
+# valid targets or admit impossible ones. :func:`fetch_server_types`
+# reads the real values from ``/v1/server_types`` at runtime; that is
+# the only source to trust.
 #
 # Region order hel1 → fsn1 → nbg1 within every tier — matches the
 # historical project default ``server_location = "hel1"`` from

@@ -2951,6 +2951,7 @@ def _snapshot_create(args: list[str]) -> int:
     print(f"SNAPSHOT_IMAGE_ID={snapshot.image_id}")
     print(f"SNAPSHOT_DISK_GB={snapshot.disk_gb}")
     print(f"SNAPSHOT_ARCH={snapshot.architecture}")
+    print(f"SNAPSHOT_IMAGE_GB={snapshot.image_gb:.2f}")
     return 0
 
 
@@ -3002,6 +3003,7 @@ def _snapshot_resolve(args: list[str]) -> int:
     print(f"SNAPSHOT_IMAGE_ID={snapshot.image_id}")
     print(f"SNAPSHOT_DISK_GB={snapshot.disk_gb}")
     print(f"SNAPSHOT_ARCH={snapshot.architecture}")
+    print(f"SNAPSHOT_IMAGE_GB={snapshot.image_gb:.2f}")
     return 0
 
 
