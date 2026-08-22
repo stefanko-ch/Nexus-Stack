@@ -61,6 +61,30 @@ async function getConfigValue(db, key, defaultValue = null) {
   }
 }
 
+// Lifecycle workflow selection. The Worker is a standalone bundle
+// deployed by Terraform, so it cannot import the Pages functions'
+// _utils/workflow-selection.js — the allowlist is duplicated here on
+// purpose. Keep the two in step; they are three lines each and the
+// alternative (a build step for the Worker) costs more than it saves.
+//
+// The allowlist matters: this value is interpolated into a GitHub API
+// URL path. Anything unexpected in the config table would otherwise
+// become part of that path.
+const TEARDOWN_WORKFLOWS = ['teardown.yml', 'teardown-snapshot.yml'];
+const DEFAULT_TEARDOWN_WORKFLOW = 'teardown.yml';
+
+async function getTeardownWorkflow(db) {
+  const value = await getConfigValue(db, 'teardown_workflow', null);
+  if (!value) return DEFAULT_TEARDOWN_WORKFLOW;
+  if (!TEARDOWN_WORKFLOWS.includes(value)) {
+    console.error(
+      `config.teardown_workflow is not a known workflow: ${JSON.stringify(value)} — using ${DEFAULT_TEARDOWN_WORKFLOW}`
+    );
+    return DEFAULT_TEARDOWN_WORKFLOW;
+  }
+  return value;
+}
+
 async function deleteConfigValue(db, key) {
   await db.prepare('DELETE FROM config WHERE key = ?').bind(key).run();
 }
@@ -371,12 +395,18 @@ async function checkInfraStatus(env) {
       return 'unknown';
     }
 
+    // Detection lists, not dispatch targets. Both pairs must be
+    // recognised regardless of which one is configured, otherwise the
+    // Control Plane reports 'unknown' infra state the moment a stack
+    // switches — and the Worker fail-closes on unknown state, which
+    // would silently stop scheduled teardowns.
     const WORKFLOW_PATHS = {
-      initialSetup: 'initial-setup.yaml',
-      spinUp: 'spin-up.yml',
-      teardown: 'teardown.yml',
-      destroy: 'destroy-all.yml',
+      initialSetup: ['initial-setup.yaml'],
+      spinUp: ['spin-up.yml', 'spin-up-snapshot.yml'],
+      teardown: ['teardown.yml', 'teardown-snapshot.yml'],
+      destroy: ['destroy-all.yml'],
     };
+    const matchesPath = (path, candidates) => candidates.some((c) => path.includes(c));
 
     // Find the most recent run for each relevant workflow
     const workflows = { initialSetup: null, spinUp: null, teardown: null, destroy: null };
@@ -385,13 +415,13 @@ async function checkInfraStatus(env) {
       const path = run.path || '';
       const name = run.name || '';
 
-      if (!workflows.initialSetup && (path.includes(WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup'))) {
+      if (!workflows.initialSetup && (matchesPath(path, WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup'))) {
         workflows.initialSetup = run;
-      } else if (!workflows.spinUp && (path.includes(WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up'))) {
+      } else if (!workflows.spinUp && (matchesPath(path, WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up'))) {
         workflows.spinUp = run;
-      } else if (!workflows.teardown && (path.includes(WORKFLOW_PATHS.teardown) || name.includes('Teardown'))) {
+      } else if (!workflows.teardown && (matchesPath(path, WORKFLOW_PATHS.teardown) || name.includes('Teardown'))) {
         workflows.teardown = run;
-      } else if (!workflows.destroy && (path.includes(WORKFLOW_PATHS.destroy) || name.includes('Destroy'))) {
+      } else if (!workflows.destroy && (matchesPath(path, WORKFLOW_PATHS.destroy) || name.includes('Destroy'))) {
         workflows.destroy = run;
       }
     }
@@ -415,13 +445,13 @@ async function checkInfraStatus(env) {
       const lastName = lastRun.name || '';
       const lastConclusion = lastRun.conclusion || '';
 
-      if (lastPath.includes(WORKFLOW_PATHS.initialSetup) || lastName.includes('Initial Setup') ||
-          lastPath.includes(WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
+      if (matchesPath(lastPath, WORKFLOW_PATHS.initialSetup) || lastName.includes('Initial Setup') ||
+          matchesPath(lastPath, WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
         return 'deployed';
-      } else if (lastPath.includes(WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
+      } else if (matchesPath(lastPath, WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
         // If teardown failed, infra is likely still deployed
         return lastConclusion === 'success' ? 'torn-down' : 'deployed';
-      } else if (lastPath.includes(WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
+      } else if (matchesPath(lastPath, WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
         // If destroy failed, infra is at least torn down but not fully offline
         return lastConclusion === 'success' ? 'offline' : 'torn-down';
       }
@@ -579,7 +609,13 @@ async function triggerTeardown(env, config) {
   }
 
   try {
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/teardown.yml/dispatches`;
+    // The scheduled teardown is the one that runs unattended every night,
+    // so it is the single most important place for this to be config-driven:
+    // while it still hard-coded teardown.yml, every night's untargeted
+    // `tofu destroy` rotated all 81 generated credentials and left the
+    // previous day's disk snapshot unrestorable.
+    const workflow = await getTeardownWorkflow(env.NEXUS_DB);
+    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`;
 
     const response = await fetchWithTimeout(url, {
       method: 'POST',

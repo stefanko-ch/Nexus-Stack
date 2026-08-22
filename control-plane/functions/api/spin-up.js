@@ -1,13 +1,14 @@
 /**
  * Trigger Spin-Up workflow
  * POST /api/spin-up
- * 
+ *
  * Triggers the GitHub Actions spin-up.yml workflow.
  * Reads enabled services from D1 (single source of truth).
  */
 
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import { getSpinUpWorkflow } from './_utils/workflow-selection.js';
 
 /**
  * Get enabled services from D1
@@ -26,12 +27,12 @@ async function getEnabledServicesFromD1(db) {
 
 export async function onRequestPost(context) {
   const { env } = context;
-  
+
   // Validate environment variables
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Missing required environment variables' 
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Missing required environment variables'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -41,7 +42,7 @@ export async function onRequestPost(context) {
   try {
     // Get enabled services from D1 (single source of truth)
     let enabledServicesList = [];
-    
+
     if (env.NEXUS_DB) {
       enabledServicesList = await getEnabledServicesFromD1(env.NEXUS_DB);
     }
@@ -53,8 +54,10 @@ export async function onRequestPost(context) {
       serviceCount: enabledServicesList.length,
     });
 
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/spin-up.yml/dispatches`;
-    
+    // See teardown.js — same config key family, same allowlist.
+    const workflow = await getSpinUpWorkflow(env.NEXUS_DB);
+    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`;
+
     const response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: {
@@ -63,7 +66,7 @@ export async function onRequestPost(context) {
         'User-Agent': 'Nexus-Stack-Control-Plane',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         ref: 'main',
         inputs: {
           enabled_services: enabledServicesList.join(',')
@@ -72,8 +75,8 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
-      return new Response(JSON.stringify({ 
-        success: true, 
+      return new Response(JSON.stringify({
+        success: true,
         message: 'Spin-up workflow triggered successfully',
         enabledServices: enabledServicesList
       }), {
@@ -84,7 +87,7 @@ export async function onRequestPost(context) {
 
     const errorText = await response.text();
     let errorMessage = `Failed to trigger workflow: ${response.status}`;
-    
+
     try {
       const errorJson = JSON.parse(errorText);
       errorMessage = errorJson.message || errorMessage;
@@ -97,9 +100,9 @@ export async function onRequestPost(context) {
     console.error(`Spin-up trigger failed: ${response.status} - ${errorMessage}`);
     await logError(env.NEXUS_DB, '/api/spin-up', 'POST', new Error(errorMessage));
 
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: errorMessage 
+    return new Response(JSON.stringify({
+      success: false,
+      error: errorMessage
     }), {
       status: response.status,
       headers: { 'Content-Type': 'application/json' },
@@ -107,9 +110,9 @@ export async function onRequestPost(context) {
   } catch (error) {
     console.error('Spin-up endpoint error:', error);
     await logError(env.NEXUS_DB, '/api/spin-up', 'POST', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message || 'Network error while triggering workflow' 
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message || 'Network error while triggering workflow'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

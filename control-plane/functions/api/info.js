@@ -1,7 +1,7 @@
 /**
  * Get infrastructure information
  * GET /api/info
- * 
+ *
  * Returns server info, time information, scheduled teardown details, and workflow details
  * Configuration stored in Cloudflare D1 database
  */
@@ -26,13 +26,13 @@ async function getConfig(db, key, defaultValue = null) {
  */
 function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
   const [hours, minutes] = timeStr.split(':').map(Number);
-  
+
   // Get the date string in the target timezone
   const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  
+
   // Create a date assuming the time is in UTC
   const utcDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`);
-  
+
   // Now format this UTC date in the target timezone to see what time it represents there
   const tzFormatter = new Intl.DateTimeFormat('en', {
     timeZone: timezone,
@@ -40,34 +40,34 @@ function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
     minute: '2-digit',
     hour12: false,
   });
-  
+
   const tzTimeStr = tzFormatter.format(utcDate);
   const [tzHours, tzMinutes] = tzTimeStr.split(':').map(Number);
-  
+
   // Calculate the difference between desired time and actual time in timezone
   const desiredMinutes = hours * 60 + minutes;
   const actualMinutes = tzHours * 60 + tzMinutes;
   const diffMinutes = desiredMinutes - actualMinutes;
-  
+
   // Adjust UTC date by the difference
   const adjustedDate = new Date(utcDate.getTime() + diffMinutes * 60 * 1000);
-  
+
   return adjustedDate;
 }
 
 export async function onRequestGet(context) {
   const { env } = context;
-  
+
   // Validate environment variables
   const missing = [];
   if (!env.GITHUB_TOKEN) missing.push('GITHUB_TOKEN');
   if (!env.GITHUB_OWNER) missing.push('GITHUB_OWNER');
   if (!env.GITHUB_REPO) missing.push('GITHUB_REPO');
-  
+
   if (missing.length > 0) {
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: `Missing required environment variables: ${missing.join(', ')}` 
+    return new Response(JSON.stringify({
+      success: false,
+      error: `Missing required environment variables: ${missing.join(', ')}`
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -130,7 +130,7 @@ export async function onRequestGet(context) {
       const timezone = await getConfig(env.NEXUS_DB, 'teardown_timezone', 'Europe/Zurich');
       const teardownTime = await getConfig(env.NEXUS_DB, 'teardown_time', '22:00');
       const delayUntil = await getConfig(env.NEXUS_DB, 'delay_until', null);
-      
+
       info.scheduledTeardown = {
         enabled: enabled === 'true',
         timezone,
@@ -150,10 +150,10 @@ export async function onRequestGet(context) {
           info.scheduledTeardown.timeRemaining = null;
         } else {
           const now = new Date();
-          
+
           // Convert configured time in timezone to UTC
           let nextTeardown = timeInTimezoneToUTC(teardownTime, timezone);
-          
+
           // If the time has already passed today, move to tomorrow
           if (nextTeardown <= now) {
             const tomorrow = new Date(nextTeardown);
@@ -204,21 +204,21 @@ export async function onRequestGet(context) {
       const runs = workflowData.workflow_runs || [];
 
       // Find last successful spin-up (preferred) or setup
-      const lastSpinUp = runs.find(r => 
-        ((r.path && r.path.includes('spin-up.yml')) || 
+      const lastSpinUp = runs.find(r =>
+        ((r.path && (r.path.includes('spin-up.yml') || r.path.includes('spin-up-snapshot.yml'))) ||
          (r.name && (r.name.includes('Spin Up') || r.name.includes('Spin-Up')))) &&
         r.conclusion === 'success'
       );
 
-      const lastSetup = runs.find(r => 
-        ((r.path && r.path.includes('setup-control-plane.yaml')) || 
+      const lastSetup = runs.find(r =>
+        ((r.path && r.path.includes('setup-control-plane.yaml')) ||
          (r.name && r.name.includes('Setup'))) &&
         r.conclusion === 'success'
       );
 
       // Find last successful teardown
-      const lastTeardown = runs.find(r => 
-        ((r.path && r.path.includes('teardown.yml')) || 
+      const lastTeardown = runs.find(r =>
+        ((r.path && (r.path.includes('teardown.yml') || r.path.includes('teardown-snapshot.yml'))) ||
          (r.name && r.name.includes('Teardown'))) &&
         r.conclusion === 'success'
       );
@@ -277,16 +277,16 @@ export async function onRequestGet(context) {
       success: true,
       info,
     }), {
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
   } catch (error) {
     console.error('Info endpoint error:', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Internal server error' 
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Internal server error'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

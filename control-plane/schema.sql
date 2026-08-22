@@ -97,4 +97,11 @@ INSERT OR IGNORE INTO config (key, value) VALUES
     ('server_location', 'hel1'),
     ('notify_on_shutdown', 'true'),
     ('notify_on_spinup', 'true'),
-    ('silent_mode', 'false');
+    ('silent_mode', 'false'),
+    -- Which lifecycle workflow pair to dispatch. Defaults are the legacy
+    -- destroy-and-rebuild pair, so an existing stack is unaffected until
+    -- these are flipped. Switch BOTH together: a legacy teardown runs an
+    -- untargeted `tofu destroy` that rotates every generated credential,
+    -- which makes any existing disk snapshot unrestorable.
+    ('teardown_workflow', 'teardown.yml'),
+    ('spinup_workflow', 'spin-up.yml');
