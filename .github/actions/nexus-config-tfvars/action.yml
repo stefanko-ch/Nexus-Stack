@@ -172,7 +172,22 @@ runs:
         source ../.r2-credentials
         export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
         export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-        tofu init -backend-config=../backend.hcl >/dev/null 2>&1 || true
+        # A failed init is NOT the same as "Object Storage not configured".
+        # Both used to look identical: init errors were discarded, every
+        # `tofu output` then fell back to an empty string, and the deploy
+        # continued having written empty bucket names into config.tfvars —
+        # reported as the perfectly normal "LakeFS will need manual setup".
+        #
+        # Absent outputs on a working backend stay legitimate (the buckets
+        # are optional). A backend that will not initialise is not, and
+        # CLAUDE.md requires that to fail loudly.
+        if ! tofu init -backend-config=../backend.hcl; then
+          echo "❌ Could not initialise the control-plane OpenTofu backend."
+          echo "   Refusing to continue: the Hetzner Object Storage coordinates"
+          echo "   would silently be written empty, which is indistinguishable"
+          echo "   from a stack that simply has no object storage."
+          exit 1
+        fi
         HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "${{ inputs.hetzner_object_storage_server || format('{0}.your-objectstorage.com', inputs.hetzner_s3_location || 'fsn1') }}")
         HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "${{ inputs.hetzner_s3_location || 'fsn1' }}")
         HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")

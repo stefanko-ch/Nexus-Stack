@@ -725,3 +725,35 @@ def test_api_failure_does_not_log_exception_text(
     combined = out.err + out.out
     assert "HetznerCapacityError" in combined
     assert "SUPERSECRET" not in combined
+
+
+def test_server_types_failure_does_not_log_exception_text(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The second API call needs the same guarantee as the first.
+
+    The `str(exc)` fix covered fetch_availability; fetch_server_types is
+    only reached on the snapshot path and had no test of its own. It is
+    the more exposed of the two, since it is the call the restore
+    constraints depend on.
+    """
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setenv("SERVER_PREFERENCES", "cx43:hel1")
+    monkeypatch.setattr(
+        _hetzner, "fetch_availability", lambda _t, http_get=None: {"hel1": {"cx43"}}
+    )
+
+    def _raise(*_a: object, **_k: object) -> dict[str, object]:
+        raise _hetzner.HetznerCapacityError("HTTP 401 for https://api — token=SUPERSECRET")
+
+    monkeypatch.setattr(_hetzner, "fetch_server_types", _raise)
+
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--min-disk-gb", "320"])
+    assert rc == 2
+    out = capsys.readouterr()
+    combined = out.err + out.out
+    assert "HetznerCapacityError" in combined
+    assert "SUPERSECRET" not in combined
+    assert "HTTP 401" not in combined
