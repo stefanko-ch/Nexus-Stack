@@ -396,7 +396,19 @@ def test_select_capacity_aborts_on_api_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """HetznerCapacityError (HTTP 401, network error, schema drift)
-    propagates to rc=2 with the original message."""
+    propagates to rc=2, reported by TYPE rather than by message.
+
+    This assertion was inverted in PR #651: it previously required the
+    exception text to appear. That contradicted the project rule
+    (CLAUDE.md, and the src/nexus_deploy path instructions) that error
+    logs carry `type(exc).__name__` and never `str(exc)`, because
+    exception messages embed upstream response bodies.
+
+    The trade-off is real and worth naming: HetznerCapacityError covers
+    auth, network, timeout and schema drift alike, so the log no longer
+    distinguishes them. The rule prefers that over the chance of a
+    credential reaching a public build log.
+    """
     monkeypatch.setenv("HCLOUD_TOKEN", "t")
 
     def _raise(_token: str, http_get: object = None) -> dict[str, set[str]]:
@@ -407,7 +419,8 @@ def test_select_capacity_aborts_on_api_error(
     assert rc == 2
     err = capsys.readouterr().err
     assert "Hetzner API failure" in err
-    assert "HTTP 401" in err
+    assert "HetznerCapacityError" in err
+    assert "HTTP 401" not in err
 
 
 def test_select_capacity_aborts_on_invalid_preferences(
@@ -669,3 +682,46 @@ def test_excluded_preferences_appear_in_the_status_block(
     assert "disk 160GB < 320GB required" in err
     # And the count must describe the original list, not the survivors.
     assert "excluded 1 of 2 preferences" in err
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_min_disk_gb_rejects_non_positive(
+    tfvars_with_legacy_pair: Path,
+    value: str,
+) -> None:
+    """Zero and negatives must be refused, not tolerated.
+
+    The filter is gated on `min_disk_gb > 0`, so accepting these would
+    silently disable the disk check instead of applying it. It is
+    reachable: a snapshot whose `disk_size` is missing parses as 0 and
+    reaches the CLI through SNAPSHOT_DISK_GB, and the restore would then
+    pick a target that cannot host the image.
+    """
+    rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--min-disk-gb", value])
+    assert rc == 2
+
+
+def test_api_failure_does_not_log_exception_text(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Only the exception type reaches stderr.
+
+    HetznerCapacityError messages embed the upstream response body, which
+    is text we do not control. Per CLAUDE.md and the src/nexus_deploy
+    path instructions, error logs carry `type(exc).__name__`, never
+    `str(exc)`.
+    """
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+
+    def _raise(*_a: object, **_k: object) -> dict[str, set[str]]:
+        raise _hetzner.HetznerCapacityError("HTTP 401 for https://api — token=SUPERSECRET")
+
+    monkeypatch.setattr(_hetzner, "fetch_availability", _raise)
+
+    assert _select_capacity(["--tfvars", str(tfvars_with_legacy_pair)]) == 2
+    out = capsys.readouterr()
+    combined = out.err + out.out
+    assert "HetznerCapacityError" in combined
+    assert "SUPERSECRET" not in combined

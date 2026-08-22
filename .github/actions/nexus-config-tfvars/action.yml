@@ -156,7 +156,10 @@ runs:
         # list when the env var isn't set — fully backward-compatible.
 
         # Get Hetzner Object Storage config from control-plane output
-        cd tofu/control-plane
+        # || exit: a failed cd would leave `tofu output` running in the
+        # wrong directory, quietly writing empty S3 coordinates into
+        # config.tfvars instead of failing.
+        cd tofu/control-plane || exit 1
         source ../.r2-credentials
         export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
         export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
@@ -197,14 +200,31 @@ runs:
           echo "📋 Reading services from D1 database..."
           # Get enabled services from D1
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
-            --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
-            | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
+          # A failed query must NOT look like an empty result. `|| echo ""`
+          # would turn a D1 outage into "no services enabled", and the
+          # deploy would then regenerate the tunnel ingress and DNS for
+          # core services only — silently making every other service
+          # unreachable. CLAUDE.md names this exact pattern as forbidden
+          # for critical operations. Zero rows is legitimate; a failed
+          # query is not.
+          if ! D1_SERVICES_JSON=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+            --command "SELECT name FROM services WHERE enabled = 1"); then
+            echo "❌ Could not read the enabled services from D1."
+            echo "   Refusing to continue: an unreadable service list is not an"
+            echo "   empty one, and deploying as though it were would take every"
+            echo "   non-core service offline."
+            exit 1
+          fi
+          if ! ENABLED_SERVICES=$(printf '%s' "$D1_SERVICES_JSON" \
+            | jq -er '.[0].results | map(.name) | join(",")'); then
+            echo "❌ Unexpected shape in the D1 services response — aborting"
+            exit 1
+          fi
 
           if [ -n "$ENABLED_SERVICES" ]; then
             echo "📋 Enabled services from D1: $ENABLED_SERVICES"
           else
-            echo "📋 No services in D1 yet - core services will be enabled by default"
+            echo "📋 D1 returned zero enabled services - core services will be enabled by default"
           fi
         fi
 
@@ -223,14 +243,27 @@ runs:
 
         # Read enabled firewall rules from D1
         echo "🔥 Reading firewall rules from D1..."
-        FIREWALL_RULES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
-          --command "SELECT service_name, port, source_ips, dns_record FROM firewall_rules WHERE enabled = 1" 2>/dev/null \
-          | jq -r '.[0].results // [] | map("\(.service_name):\(.port):\(.source_ips // ""):\(.dns_record // "")") | join(";")' 2>/dev/null || echo "")
+        # Same reasoning as the service query, with a sharper edge: a
+        # swallowed failure here yields an empty rule set, which reads as
+        # a deliberate "Zero Entry mode" and closes every port that was
+        # meant to be open.
+        if ! D1_FIREWALL_JSON=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+          --command "SELECT service_name, port, source_ips, dns_record FROM firewall_rules WHERE enabled = 1"); then
+          echo "❌ Could not read the firewall rules from D1."
+          echo "   Refusing to continue: this would be indistinguishable from"
+          echo "   'no rules enabled' and would close every intended port."
+          exit 1
+        fi
+        if ! FIREWALL_RULES=$(printf '%s' "$D1_FIREWALL_JSON" \
+          | jq -er '.[0].results // [] | map("\(.service_name):\(.port):\(.source_ips // ""):\(.dns_record // "")") | join(";")'); then
+          echo "❌ Unexpected shape in the D1 firewall response — aborting"
+          exit 1
+        fi
 
         if [ -n "$FIREWALL_RULES" ]; then
           echo "🔥 Enabled firewall rules: $FIREWALL_RULES"
         else
-          echo "🔥 No firewall rules enabled (Zero Entry mode)"
+          echo "🔥 D1 returned zero enabled firewall rules (Zero Entry mode)"
         fi
 
         # Generate services and firewall config from services.yaml

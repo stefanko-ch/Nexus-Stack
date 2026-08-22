@@ -2668,6 +2668,18 @@ def _select_capacity(args: list[str]) -> int:
                     file=sys.stderr,
                 )
                 return 2
+            # 0 and negatives must be refused, not tolerated: the filter
+            # below is gated on `> 0`, so they would silently disable the
+            # disk check rather than apply it. That is reachable — a
+            # snapshot whose disk_size is missing parses as 0 and reaches
+            # here through SNAPSHOT_DISK_GB, and the restore would then
+            # pick a target that cannot host the image.
+            if min_disk_gb <= 0:
+                print(
+                    f"select-capacity: --min-disk-gb must be greater than zero, got {min_disk_gb}",
+                    file=sys.stderr,
+                )
+                return 2
             i += 2
             continue
         if args[i] == "--arch":
@@ -2755,7 +2767,13 @@ def _select_capacity(args: list[str]) -> int:
     try:
         availability = _hetzner.fetch_availability(token)
     except _hetzner.HetznerCapacityError as exc:
-        print(f"select-capacity: Hetzner API failure: {exc}", file=sys.stderr)
+        # Type only, never str(exc): the message embeds the response body,
+        # which is upstream text we do not control. Per CLAUDE.md and the
+        # src/nexus_deploy path instructions.
+        print(
+            f"select-capacity: Hetzner API failure ({type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
 
     # Snapshot-restore constraints, when given. Applied BEFORE the
@@ -2774,7 +2792,10 @@ def _select_capacity(args: list[str]) -> int:
         try:
             types = _hetzner.fetch_server_types(token)
         except _hetzner.HetznerCapacityError as exc:
-            print(f"select-capacity: Hetzner API failure: {exc}", file=sys.stderr)
+            print(
+                f"select-capacity: Hetzner API failure ({type(exc).__name__})",
+                file=sys.stderr,
+            )
             return 2
         preferences, excluded = _hetzner.filter_specs(
             preferences,

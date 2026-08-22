@@ -115,11 +115,16 @@ jobs:
           source ../.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-          if ! tofu init -backend-config=../backend.hcl -input=false >/dev/null 2>&1; then
-            echo "⚠️  Could not initialise tofu state — building fresh"
-            cd ../..
-            fresh
-            exit 0
+          if ! tofu init -backend-config=../backend.hcl -input=false; then
+            echo "❌ Could not initialise the OpenTofu backend."
+            echo "   Stopping rather than building fresh. Without state there is"
+            echo "   no credential epoch to check, so a fresh build would enable"
+            echo "   R2 restore and put data from the LAST teardown on top of a"
+            echo "   perfectly good newer snapshot — a silent one-cycle"
+            echo "   regression. Same rule as a failed snapshot lookup below:"
+            echo "   'cannot tell' is not 'there is none'."
+            echo "   Fix the backend, or pass force_fresh=true deliberately."
+            exit 1
           fi
 
           # The epoch guard. If the legacy teardown.yml ran in between, all
