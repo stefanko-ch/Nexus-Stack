@@ -2,14 +2,15 @@
  * Trigger Teardown workflow
  * POST /api/teardown
  *
- * Triggers the GitHub Actions teardown.yml workflow.
+ * Triggers the configured teardown workflow — teardown.yml or
+ * teardown-snapshot.yml, selected by config.lifecycle_mode in D1.
  * Includes validation and error handling.
  */
 
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { requireAdmin } from './_utils/require-admin.js';
-import { getTeardownWorkflow } from './_utils/workflow-selection.js';
+import { resolveLifecycle } from './_utils/workflow-selection.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -33,10 +34,22 @@ export async function onRequestPost(context) {
     source: 'control-plane-ui',
   });
 
-  // Which pair this stack uses is a D1 config value, allowlist-checked
-  // before it reaches the URL. Defaults to teardown.yml.
-  const workflow = await getTeardownWorkflow(env.NEXUS_DB);
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`;
+  // Refuse rather than guess. If the lifecycle mode cannot be determined
+  // we do not know whether this stack is on snapshots, and defaulting to
+  // the legacy pair would run an untargeted `tofu destroy` that rotates
+  // every generated credential and orphans any existing snapshot.
+  // An UNCONFIGURED stack is a different case and resolves fine.
+  const lifecycle = await resolveLifecycle(env.NEXUS_DB);
+  if (!lifecycle.ok) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: `Cannot determine the lifecycle mode (${lifecycle.reason}) — refusing to dispatch a teardown`,
+    }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${lifecycle.teardown}/dispatches`;
 
   try {
     const response = await fetchWithTimeout(url, {

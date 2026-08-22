@@ -63,26 +63,59 @@ async function getConfigValue(db, key, defaultValue = null) {
 
 // Lifecycle workflow selection. The Worker is a standalone bundle
 // deployed by Terraform, so it cannot import the Pages functions'
-// _utils/workflow-selection.js — the allowlist is duplicated here on
-// purpose. Keep the two in step; they are three lines each and the
-// alternative (a build step for the Worker) costs more than it saves.
+// _utils/workflow-selection.js — this is duplicated on purpose. Keep the
+// two in step; the alternative is a build step for the Worker.
 //
-// The allowlist matters: this value is interpolated into a GitHub API
-// URL path. Anything unexpected in the config table would otherwise
-// become part of that path.
-const TEARDOWN_WORKFLOWS = ['teardown.yml', 'teardown-snapshot.yml'];
-const DEFAULT_TEARDOWN_WORKFLOW = 'teardown.yml';
+// ONE mode, both names derived from it, so the pair cannot drift.
+// Deriving rather than reading the names also means no database value
+// ever reaches the GitHub API URL path.
+const LIFECYCLE_MODES = ['legacy', 'snapshot'];
+const DEFAULT_LIFECYCLE_MODE = 'legacy';
+const LIFECYCLE_WORKFLOWS = {
+  legacy: { teardown: 'teardown.yml', spinUp: 'spin-up.yml' },
+  snapshot: { teardown: 'teardown-snapshot.yml', spinUp: 'spin-up-snapshot.yml' },
+};
 
-async function getTeardownWorkflow(db) {
-  const value = await getConfigValue(db, 'teardown_workflow', null);
-  if (!value) return DEFAULT_TEARDOWN_WORKFLOW;
-  if (!TEARDOWN_WORKFLOWS.includes(value)) {
-    console.error(
-      `config.teardown_workflow is not a known workflow: ${JSON.stringify(value)} — using ${DEFAULT_TEARDOWN_WORKFLOW}`
-    );
-    return DEFAULT_TEARDOWN_WORKFLOW;
+// Returns {ok:true, mode, teardown, spinUp} or {ok:false, reason}.
+//
+// Deliberately does NOT fall back to a default when the mode cannot be
+// determined. This runs unattended every night, and the legacy pair is
+// the destructive one: guessing it at a stack that is on snapshots would
+// run an untargeted `tofu destroy`, rotate all 81 generated credentials
+// and orphan the snapshot. An unconfigured stack is a different case and
+// resolves successfully to 'legacy'.
+async function resolveLifecycle(db) {
+  if (!db) {
+    // Short-circuit rather than letting getConfigValue throw and be
+    // caught — a missing binding is a known state, not an exception, and
+    // it would otherwise log a stack trace on every scheduled run.
+    return { ok: false, reason: 'no D1 binding available' };
   }
-  return value;
+
+  let row;
+  try {
+    row = await db
+      .prepare('SELECT value FROM config WHERE key = ?')
+      .bind('lifecycle_mode')
+      .first();
+  } catch (error) {
+    console.error('Failed to read config.lifecycle_mode from D1:', error);
+    return { ok: false, reason: 'D1 read failed' };
+  }
+
+  const value = row ? row.value : null;
+  if (!value) {
+    return { ok: true, mode: DEFAULT_LIFECYCLE_MODE, ...LIFECYCLE_WORKFLOWS[DEFAULT_LIFECYCLE_MODE] };
+  }
+  if (!LIFECYCLE_MODES.includes(value)) {
+    // The value itself is never logged: it is an unvalidated database
+    // string, and a secret written to the wrong key would be retained.
+    console.error(
+      `config.lifecycle_mode holds an unrecognised value (expected one of: ${LIFECYCLE_MODES.join(', ')})`
+    );
+    return { ok: false, reason: 'unrecognised lifecycle_mode' };
+  }
+  return { ok: true, mode: value, ...LIFECYCLE_WORKFLOWS[value] };
 }
 
 async function deleteConfigValue(db, key) {
@@ -402,8 +435,8 @@ async function checkInfraStatus(env) {
     // would silently stop scheduled teardowns.
     const WORKFLOW_PATHS = {
       initialSetup: ['initial-setup.yaml'],
-      spinUp: ['spin-up.yml', 'spin-up-snapshot.yml'],
-      teardown: ['teardown.yml', 'teardown-snapshot.yml'],
+      spinUp: LIFECYCLE_MODES.map((m) => LIFECYCLE_WORKFLOWS[m].spinUp),
+      teardown: LIFECYCLE_MODES.map((m) => LIFECYCLE_WORKFLOWS[m].teardown),
       destroy: ['destroy-all.yml'],
     };
     const matchesPath = (path, candidates) => candidates.some((c) => path.includes(c));
@@ -609,13 +642,19 @@ async function triggerTeardown(env, config) {
   }
 
   try {
-    // The scheduled teardown is the one that runs unattended every night,
-    // so it is the single most important place for this to be config-driven:
-    // while it still hard-coded teardown.yml, every night's untargeted
-    // `tofu destroy` rotated all 81 generated credentials and left the
-    // previous day's disk snapshot unrestorable.
-    const workflow = await getTeardownWorkflow(env.NEXUS_DB);
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`;
+    // The scheduled teardown runs unattended every night, which makes
+    // this the single most important place not to guess. Skipping costs
+    // one more day of server time; guessing wrong destroys a snapshot
+    // and rotates every credential. The stack stays up and the next run
+    // retries.
+    const lifecycle = await resolveLifecycle(env.NEXUS_DB);
+    if (!lifecycle.ok) {
+      const message = `Skipping scheduled teardown: cannot determine the lifecycle mode (${lifecycle.reason})`;
+      console.error(message);
+      await logToD1(env.NEXUS_DB, 'error', message);
+      return;
+    }
+    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${lifecycle.teardown}/dispatches`;
 
     const response = await fetchWithTimeout(url, {
       method: 'POST',

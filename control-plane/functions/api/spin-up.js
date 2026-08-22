@@ -2,13 +2,14 @@
  * Trigger Spin-Up workflow
  * POST /api/spin-up
  *
- * Triggers the GitHub Actions spin-up.yml workflow.
+ * Triggers the configured spin-up workflow — spin-up.yml or
+ * spin-up-snapshot.yml, selected by config.lifecycle_mode in D1.
  * Reads enabled services from D1 (single source of truth).
  */
 
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
-import { getSpinUpWorkflow } from './_utils/workflow-selection.js';
+import { resolveLifecycle } from './_utils/workflow-selection.js';
 
 /**
  * Get enabled services from D1
@@ -54,9 +55,20 @@ export async function onRequestPost(context) {
       serviceCount: enabledServicesList.length,
     });
 
-    // See teardown.js — same config key family, same allowlist.
-    const workflow = await getSpinUpWorkflow(env.NEXUS_DB);
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`;
+    // See teardown.js. Less destructive on this side — a wrong spin-up
+    // wastes an image rather than destroying one — but guessing the mode
+    // would still start the wrong half of a pair.
+    const lifecycle = await resolveLifecycle(env.NEXUS_DB);
+    if (!lifecycle.ok) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Cannot determine the lifecycle mode (${lifecycle.reason}) — refusing to dispatch a spin-up`,
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${lifecycle.spinUp}/dispatches`;
 
     const response = await fetchWithTimeout(url, {
       method: 'POST',

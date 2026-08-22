@@ -6,6 +6,7 @@
  * More robust than before - uses workflow file paths instead of name matching.
  */
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 
 export async function onRequestGet(context) {
   const { env, request } = context;
@@ -36,8 +37,8 @@ export async function onRequestGet(context) {
   const WORKFLOW_PATHS = {
     initialSetup: ['initial-setup.yaml'],
     setup: ['setup-control-plane.yaml'],
-    spinUp: ['spin-up.yml', 'spin-up-snapshot.yml'],
-    teardown: ['teardown.yml', 'teardown-snapshot.yml'],
+    spinUp: ALL_SPINUP_WORKFLOWS,
+    teardown: ALL_TEARDOWN_WORKFLOWS,
     destroy: ['destroy-all.yml']
   };
   const matchesPath = (path, candidates) => candidates.some((c) => path.includes(c));

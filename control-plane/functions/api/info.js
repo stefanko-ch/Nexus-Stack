@@ -6,6 +6,7 @@
  * Configuration stored in Cloudflare D1 database
  */
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 
 // D1 Helper Functions
 async function getConfig(db, key, defaultValue = null) {
@@ -205,7 +206,7 @@ export async function onRequestGet(context) {
 
       // Find last successful spin-up (preferred) or setup
       const lastSpinUp = runs.find(r =>
-        ((r.path && (r.path.includes('spin-up.yml') || r.path.includes('spin-up-snapshot.yml'))) ||
+        ((r.path && ALL_SPINUP_WORKFLOWS.some((w) => r.path.includes(w))) ||
          (r.name && (r.name.includes('Spin Up') || r.name.includes('Spin-Up')))) &&
         r.conclusion === 'success'
       );
@@ -218,7 +219,7 @@ export async function onRequestGet(context) {
 
       // Find last successful teardown
       const lastTeardown = runs.find(r =>
-        ((r.path && (r.path.includes('teardown.yml') || r.path.includes('teardown-snapshot.yml'))) ||
+        ((r.path && ALL_TEARDOWN_WORKFLOWS.some((w) => r.path.includes(w))) ||
          (r.name && r.name.includes('Teardown'))) &&
         r.conclusion === 'success'
       );
