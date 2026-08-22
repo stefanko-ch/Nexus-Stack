@@ -100,9 +100,18 @@ runs:
         SERVER_IMAGE: ${{ inputs.server_image }}
       shell: bash
       run: |
-        # Either a Hetzner image name (ubuntu-24.04, debian-12) or a
-        # numeric snapshot image id. Nothing else is legitimate.
-        if ! printf '%s' "$SERVER_IMAGE" | grep -qE '^[a-z0-9][a-z0-9.-]{0,62}$'; then
+        # Exactly two legitimate shapes, and the alternation says so
+        # rather than approximating it:
+        #   - an image name, which always starts with a letter
+        #     (ubuntu-24.04, debian-12, rocky-9)
+        #   - a numeric snapshot id, which is digits only (422646995)
+        #
+        # A single character class would also admit things like `123abc`,
+        # which is neither. That is not a security hole — quotes,
+        # newlines and spaces are excluded either way, which is what this
+        # step exists for — but it would let a typo through to fail as an
+        # opaque `tofu apply` image error instead of by name here.
+        if ! printf '%s' "$SERVER_IMAGE" | grep -qE '^([a-z][a-z0-9.-]{0,62}|[0-9]{1,19})$'; then
           echo "❌ server_image is not a valid Hetzner image reference: '$SERVER_IMAGE'"
           echo "   Expected an image name (e.g. ubuntu-24.04) or a numeric"
           echo "   snapshot id. Refusing to write it into config.tfvars."
