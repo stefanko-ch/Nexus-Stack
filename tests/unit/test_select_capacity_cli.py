@@ -636,3 +636,36 @@ def test_constraint_flag_without_value_is_rc2(
 ) -> None:
     rc = _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), flag])
     assert rc == 2
+
+
+def test_excluded_preferences_appear_in_the_status_block(
+    tfvars_with_legacy_pair: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The status block must show WHY a tier was skipped.
+
+    render_status_lines iterates whatever list it is handed, so passing
+    it the post-filter tuple silently drops every excluded entry and the
+    ⊘ marker can never appear — leaving an operator debugging a failed
+    restore with no indication that disk size was the reason. This is the
+    integration the module-level render test cannot cover, because that
+    one passes the excluded spec in directly.
+    """
+    monkeypatch.setenv("HCLOUD_TOKEN", "t")
+    monkeypatch.setenv("SERVER_PREFERENCES", "cx43:hel1, cx53:hel1")
+    monkeypatch.setattr(
+        _hetzner,
+        "fetch_availability",
+        lambda _t, http_get=None: {"hel1": {"cx43", "cx53"}},
+    )
+    monkeypatch.setattr(_hetzner, "fetch_server_types", lambda _t, http_get=None: _TYPES)
+
+    assert _select_capacity(["--tfvars", str(tfvars_with_legacy_pair), "--min-disk-gb", "320"]) == 0
+
+    err = capsys.readouterr().err
+    assert "⊘" in err
+    assert "cx43:hel1" in err
+    assert "disk 160GB < 320GB required" in err
+    # And the count must describe the original list, not the survivors.
+    assert "excluded 1 of 2 preferences" in err

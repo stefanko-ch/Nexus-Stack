@@ -2762,7 +2762,14 @@ def _select_capacity(args: list[str]) -> int:
     # availability walk so a type that could never host the image is
     # never selected — the failure would otherwise only surface as an
     # opaque `tofu apply` error.
+    #
+    # ``all_preferences`` keeps the UNFILTERED list for the status block.
+    # render_status_lines iterates what it is given, so handing it the
+    # filtered tuple would silently drop every excluded entry and the ⊘
+    # marker could never appear — which is exactly the information an
+    # operator needs when a restore cannot find a host.
     excluded: dict[_hetzner.ServerSpec, str] = {}
+    all_preferences = preferences
     if min_disk_gb > 0 or arch is not None:
         try:
             types = _hetzner.fetch_server_types(token)
@@ -2782,7 +2789,7 @@ def _select_capacity(args: list[str]) -> int:
             constraint.append(f"arch {arch}")
         sys.stderr.write(
             f"select-capacity: restore constraints ({', '.join(constraint)}) "
-            f"excluded {len(excluded)} of {len(preferences) + len(excluded)} preferences\n",
+            f"excluded {len(excluded)} of {len(all_preferences)} preferences\n",
         )
         if not preferences:
             sys.stderr.write(
@@ -2794,7 +2801,12 @@ def _select_capacity(args: list[str]) -> int:
             return 2
 
     selected = _hetzner.select(preferences, availability)
-    status_lines = _hetzner.render_status_lines(preferences, availability, selected, excluded)
+    status_lines = _hetzner.render_status_lines(
+        all_preferences,
+        availability,
+        selected,
+        excluded,
+    )
 
     if selected is None:
         # PR #537 R7 #1: distinguish "every preference has an unknown

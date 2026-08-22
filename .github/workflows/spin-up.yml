@@ -330,8 +330,15 @@ jobs:
 
       - name: Generate config.tfvars
         # Shared with spin-up-snapshot.yml — see
-        # .github/actions/nexus-config-tfvars. server_image is left at its
-        # default here, so this workflow carries no snapshot awareness.
+        # .github/actions/nexus-config-tfvars.
+        #
+        # The `|| 'ubuntu-24.04'` is load-bearing, not decoration: the
+        # action's own `default:` only applies when a key is ABSENT, and
+        # `with:` always sends this one. An unset workflow input would
+        # otherwise arrive as an empty string and fail the image
+        # validation. This workflow still carries no snapshot awareness —
+        # it names the base image and nothing else; only
+        # spin-up-snapshot.yml ever supplies a snapshot id.
         uses: ./.github/actions/nexus-config-tfvars
         with:
           # Empty on the normal path — the action defaults to
