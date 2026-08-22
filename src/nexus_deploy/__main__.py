@@ -2971,7 +2971,7 @@ def _server_poweroff(args: list[str]) -> int:
     try:
         _hsnap.poweroff_server(server_id, token)
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"server-poweroff: {exc}", file=sys.stderr)
+        print(f"server-poweroff: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
         return 2
     sys.stderr.write(f"✓ server-poweroff: server {server_id} is off\n")
     return 0
@@ -3019,7 +3019,10 @@ def _snapshot_create(args: list[str]) -> int:
     try:
         total = _hsnap.count_snapshots(token)
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-create: could not count existing snapshots: {exc}", file=sys.stderr)
+        print(
+            f"snapshot-create: could not count existing snapshots ({type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
     if total >= _hsnap.DEFAULT_SNAPSHOT_LIMIT - 2:
         sys.stderr.write(
@@ -3039,7 +3042,7 @@ def _snapshot_create(args: list[str]) -> int:
             timestamp=timestamp,
         )
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-create: {exc}", file=sys.stderr)
+        print(f"snapshot-create: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
         return 2
 
     sys.stderr.write(f"✓ snapshot-create: {snapshot}\n")
@@ -3083,7 +3086,7 @@ def _snapshot_resolve(args: list[str]) -> int:
             expect_epoch=expect_epoch or None,
         )
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-resolve: {exc}", file=sys.stderr)
+        print(f"snapshot-resolve: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
         return 2
 
     if snapshot is None:
@@ -3130,7 +3133,7 @@ def _snapshot_prune(args: list[str]) -> int:
         snapshots = _hsnap.list_snapshots(token, domain_slug=domain_slug)
         prunable = _hsnap.select_prunable(snapshots, keep=keep)
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-prune: {exc}", file=sys.stderr)
+        print(f"snapshot-prune: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
         return 2
 
     if not prunable:
@@ -3147,7 +3150,10 @@ def _snapshot_prune(args: list[str]) -> int:
         try:
             _hsnap.delete_snapshot(snapshot.image_id, token)
         except _hsnap.HetznerSnapshotError as exc:
-            print(f"snapshot-prune: failed to delete {snapshot}: {exc}", file=sys.stderr)
+            print(
+                f"snapshot-prune: failed to delete {snapshot} ({type(exc).__name__})",
+                file=sys.stderr,
+            )
             return 2
         sys.stderr.write(f"✓ snapshot-prune: deleted {snapshot}\n")
 

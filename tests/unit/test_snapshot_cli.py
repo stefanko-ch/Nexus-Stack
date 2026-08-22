@@ -438,3 +438,52 @@ def test_dispatcher_routes_subcommand(
     # The subcommand name itself must be stripped before the handler
     # sees the flags.
     assert called["args"] == argv[1:]
+
+
+# ---------------------------------------------------------------------------
+# Error logging (PR #651 review)
+#
+# HetznerSnapshotError messages embed up to 400 characters of the upstream
+# HTTP response body (see _default_http_request), so they must never be
+# printed verbatim. Our own _FlagError messages are a different case: they
+# are text we wrote, and they are the diagnostic — "--server-id is
+# required" has to stay readable.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("handler", "argv", "patch_target"),
+    [
+        ("_server_poweroff", ["--server-id", "42"], "poweroff_server"),
+        ("_snapshot_resolve", ["--domain-slug", "example-com"], "resolve_latest"),
+        ("_snapshot_prune", ["--domain-slug", "example-com"], "list_snapshots"),
+    ],
+)
+def test_api_errors_are_logged_by_type_only(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    handler: str,
+    argv: list[str],
+    patch_target: str,
+) -> None:
+    def _raise(*_a: Any, **_k: Any) -> Any:
+        raise HetznerSnapshotError("HTTP 403 body={'token': 'SUPERSECRET'}")
+
+    monkeypatch.setattr(_hsnap, patch_target, _raise)
+    assert getattr(cli, handler)(argv) == 2
+
+    out = capsys.readouterr()
+    combined = out.err + out.out
+    assert "HetznerSnapshotError" in combined
+    assert "SUPERSECRET" not in combined
+    assert "HTTP 403" not in combined
+
+
+def test_flag_errors_keep_their_message(capsys: pytest.CaptureFixture[str]) -> None:
+    """Our own messages are the diagnostic and must survive.
+
+    Redacting these too would turn every misuse into an unhelpful
+    "_FlagError" with no indication of which flag was wrong.
+    """
+    assert cli._snapshot_create(["--server-id", "42"]) == 2
+    assert "--domain-slug is required" in capsys.readouterr().err
