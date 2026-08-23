@@ -40,7 +40,7 @@ A disk snapshot captures the whole root disk, so **all ~76 stacks** survive a te
 
 ## Switching a stack
 
-Two steps, in this order.
+Three steps, in this order. The third is not optional for a first switch — it is the only thing that proves the mechanism works before you rely on it.
 
 ### 1. Deploy the Control Plane
 
@@ -53,9 +53,13 @@ gh workflow run setup-control-plane.yaml
 ### 2. Flip the mode
 
 ```bash
-npx wrangler@4 d1 execute nexus-<your-domain-with-dashes>-db --remote \
+npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
   --command "UPDATE config SET value = 'snapshot' WHERE key = 'lifecycle_mode'"
 ```
+
+`<domain-slug>` is your domain with dots replaced by hyphens — for
+`nexus-stack.ch` the database is `nexus-nexus-stack-ch-db`. Same convention as
+the R2 buckets described in [Setup Guide](./setup-guide.md).
 
 Valid values are `legacy` and `snapshot`. Anything else is refused — see [When the mode cannot be determined](#when-the-mode-cannot-be-determined).
 
@@ -76,7 +80,7 @@ Cost: one power cycle. Check afterwards that the image appears in the Hetzner co
 ## Switching back
 
 ```bash
-npx wrangler@4 d1 execute nexus-<domain>-db --remote \
+npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
   --command "UPDATE config SET value = 'legacy' WHERE key = 'lifecycle_mode'"
 ```
 
