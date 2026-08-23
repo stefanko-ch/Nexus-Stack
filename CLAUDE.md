@@ -50,19 +50,20 @@ Nexus-Stack is an **open-source infrastructure-as-code project** that provides o
 Nexus-Stack/
 ├── Makefile                    # Main entry point - all commands here
 ├── README.md                   # User documentation
-├── AGENTS.md                   # Agent instructions (this file)
+├── CLAUDE.md                   # Agent instructions (this file)
+├── AGENTS.md                   # Deprecated stub, points at CLAUDE.md
 ├── services.yaml               # Service metadata (subdomain, port, description, image)
 ├── .github/
 │   ├── actions/               # Composite actions shared by the workflows
 │   │   ├── nexus-bootstrap/    # OpenTofu + uv + cloudflared + SSH key + R2 creds
-│   │   └── nexus-config-tfvars/# Generates tofu/stack/config.tfvars
+│   │   └── nexus-config-tfvars/ # Generates tofu/stack/config.tfvars
 │   └── workflows/             # GitHub Actions workflows
 │       ├── initial-setup.yaml  # Initial setup (triggers Control Plane + Spin Up)
 │       ├── setup-control-plane.yaml # Setup Control Plane only
 │       ├── spin-up.yml         # Spin-up workflow (re-deploy after teardown)
 │       ├── teardown.yml        # Teardown workflow (stops infrastructure)
-│       ├── spin-up-snapshot.yml# Spin-up restoring from a Hetzner disk snapshot
-│       ├── teardown-snapshot.yml# Teardown that snapshots the disk first
+│       ├── spin-up-snapshot.yml # Spin-up restoring from a Hetzner disk snapshot
+│       ├── teardown-snapshot.yml # Teardown that snapshots the disk first
 │       ├── destroy-all.yml     # Destroy workflow (full cleanup)
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
@@ -111,7 +112,7 @@ Nexus-Stack/
     │   ├── ssh-access.md       # SSH via Cloudflare Tunnel
     │   ├── snapshot-lifecycle.md # Disk-snapshot teardown/spin-up: switching + rollback
     │   ├── troubleshooting.md  # Common operational issues
-    │   └── docs-website-sync.md# How these docs sync to nexus-stack.ch
+    │   └── docs-website-sync.md # How these docs sync to nexus-stack.ch
     ├── stacks/                 # Per-service documentation (one .md per service)
     └── tutorials/              # Tutorials and walkthroughs
 ```
