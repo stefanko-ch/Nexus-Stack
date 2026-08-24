@@ -59,11 +59,20 @@ jobs:
       TF_VAR_r2_data_access_key: ${{ secrets.R2_DATA_ACCESS_KEY_ID || secrets.R2_ACCESS_KEY_ID }}
       TF_VAR_r2_data_secret_key: ${{ secrets.R2_DATA_SECRET_ACCESS_KEY || secrets.R2_SECRET_ACCESS_KEY }}
       TF_VAR_r2_data_bucket: ${{ secrets.R2_DATA_BUCKET }}
+      # Workflow inputs reach bash as env vars, never as ${{ }} inside a
+      # `run:` block. A template expansion is substituted BEFORE bash
+      # parses the script, so a dispatch value carrying shell syntax would
+      # execute inside a job that holds the Hetzner and Cloudflare provider
+      # credentials. Referencing "$CONFIRM" / "$DELETE_DATA" makes the
+      # value data instead of code. Step-level `if:` conditions are a
+      # different case and stay as expressions — they never reach a shell.
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      DELETE_DATA: ${{ github.event.inputs.delete_data }}
 
     steps:
       - name: Validate confirmation
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "DESTROY" ]; then
+          if [ "$CONFIRM" != "DESTROY" ]; then
             echo "❌ Destruction cancelled. You must type 'DESTROY' (uppercase) to confirm."
             exit 1
           fi
@@ -430,10 +439,20 @@ jobs:
         run: |
           set -euo pipefail
           DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
-          PURGE="uv run --quiet --project \"\$GITHUB_WORKSPACE\" \\
-            python -m nexus_deploy snapshot-purge --domain-slug $DOMAIN_SLUG --apply"
+          # Printed for humans to copy, so no --project
+          # "$GITHUB_WORKSPACE": that variable exists only on the runner and
+          # would expand to an empty path on a normal machine, failing before
+          # snapshot-purge ever runs. From a repo checkout, plain `uv run`
+          # resolves the project itself. Matches the command in
+          # docs/admin-guides/snapshot-lifecycle.md.
+          PURGE="uv run python -m nexus_deploy snapshot-purge \\
+            --domain-slug $DOMAIN_SLUG --apply"
 
-          if [ "${{ github.event.inputs.delete_data }}" = "DESTROY" ]; then
+          # ${VAR:-} because this step runs under `set -u` and the input
+          # is optional. Actions does set a declared env var to "" when the
+          # expression is empty, but an unbound-variable abort in the last
+          # step of the most destructive workflow is not worth the bet.
+          if [ "${DELETE_DATA:-}" = "DESTROY" ]; then
             echo "🔥 delete_data=DESTROY — deleting Hetzner disk snapshots"
             if ! uv run --quiet --project "$GITHUB_WORKSPACE" \
               python -m nexus_deploy snapshot-purge \
@@ -444,7 +463,10 @@ jobs:
               echo "     HCLOUD_TOKEN=<token> $PURGE"
               exit 1
             fi
-            echo "✅ Hetzner disk snapshots deleted"
+            # Not "all deleted": purge exits 0 having skipped any image
+            # still in `creating`, which the API cannot delete. It names
+            # those individually above.
+            echo "✅ snapshot-purge finished — see above for any image it could not delete"
           else
             # Dry run: report what survives so it cannot be forgotten.
             # Deliberately non-fatal — the infrastructure is already
@@ -479,11 +501,13 @@ jobs:
           echo "   - Cloudflare Access policies"
           echo "   - Control Plane (Pages + Worker + D1)"
           echo "   - Hetzner Object Storage buckets (LakeFS, General)"
-          if [ "${{ github.event.inputs.delete_data }}" = "DESTROY" ]; then
+          if [ "$DELETE_DATA" = "DESTROY" ]; then
             echo "   - R2 persistence bucket (snapshots) — wiped via delete_data=DESTROY"
             echo "   - R2 datalake bucket — wiped via delete_data=DESTROY"
             echo "   - R2 tofu state bucket — wiped via delete_data=DESTROY"
-            echo "   - Hetzner disk snapshots — deleted via delete_data=DESTROY"
+            echo "   - Hetzner disk snapshots — purged via delete_data=DESTROY"
+            echo "     (an image still in 'creating' cannot be deleted via the"
+            echo "      API; the step above names any that were left)"
           else
             echo ""
             echo "   Preserved (reused on next initial-setup):"
