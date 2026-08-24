@@ -536,7 +536,8 @@ jobs:
           SCRIPT
           sed -i 's/^          //' /tmp/install-tunnel.sh
 
-          # Retry the install-tunnel SSH up to 5 times with 20s gaps.
+          # Retry the install-tunnel SSH up to 6 times, with the
+          # connect timeout and the gap both escalating — schedule below.
           # Belt-and-suspenders: even with the readiness gate above, a
           # banner-exchange timeout can still happen on slow Hetzner
           # cold-starts (sshd reloading host keys, fail2ban tightening
@@ -571,8 +572,14 @@ jobs:
             # ConnectTimeout covers the TCP connect and the banner
             # exchange only. Once the session is up the install runs
             # unbounded, so a short value here cannot truncate the work.
+            # BatchMode=yes, as on the readiness probes above. Without it
+            # a failed key auth falls back to an interactive password
+            # prompt, which reads from stdin — and stdin here IS the
+            # install script. ssh would swallow it as a password attempt
+            # instead of running it, and the retry loop would keep
+            # feeding a consumed script to a prompt nobody can answer.
             if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=$connect_timeout \
-                 -o ServerAliveInterval=10 \
+                 -o ServerAliveInterval=10 -o BatchMode=yes \
                  root@"$SERVER_IP" bash < /tmp/install-tunnel.sh; then
               echo "✅ Cloudflare Tunnel installed on attempt $attempt"
               break
