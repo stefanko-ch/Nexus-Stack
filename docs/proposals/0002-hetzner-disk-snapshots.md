@@ -128,7 +128,7 @@ It costs nothing operationally: the documented resize flow is teardown → set `
 
 ## Known limits
 
-**30 snapshots per Hetzner account**, a raisable default. At two retained generations that caps a single project at roughly 15 stacks — a real constraint for the Education fork's 26 tenants, and the main reason this is opt-in per stack rather than a global switch.
+**30 snapshots per Hetzner customer**, counted across every project, and a raisable default rather than a ceiling. At two retained generations that caps a fleet at roughly 15 stacks until raised — which is why this is opt-in per stack rather than a global switch. Splitting tenants across projects does not help; the count is per customer. The effective value is read from `NEXUS_SNAPSHOT_LIMIT` (repository variable `SNAPSHOT_LIMIT`) because it is account-specific and cannot be a constant in this repo.
 
 **Disk-size ratchet.** A snapshot requires a target disk at least as large as its source. Restoring onto a larger tier makes the next snapshot larger, permanently excluding the smaller ones. Mitigated by the `--min-disk-gb` / `--arch` filters in capacity selection; reset by one `force_fresh` cycle.
 

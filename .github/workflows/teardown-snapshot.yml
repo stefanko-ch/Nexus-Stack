@@ -210,6 +210,12 @@ jobs:
         # running is the worse outcome.
         env:
           DOMAIN: ${{ secrets.DOMAIN }}
+          # Hetzner's snapshot cap is counted PER CUSTOMER across every
+          # project, and its default of 30 is raisable on request. Set the
+          # SNAPSHOT_LIMIT repository variable to whatever Hetzner granted
+          # so the pre-flight warning fires near the real ceiling instead
+          # of nagging from 28 onwards about a limit you already raised.
+          NEXUS_SNAPSHOT_LIMIT: ${{ vars.SNAPSHOT_LIMIT }}
         run: |
           set +e
           cd tofu/stack

@@ -3003,6 +3003,45 @@ def _snapshot_token() -> str:
     return token
 
 
+def _snapshot_limit() -> int:
+    """The account's snapshot cap, from ``NEXUS_SNAPSHOT_LIMIT``.
+
+    Hetzner's documented default is 30, counted per customer across
+    every project. Support raises it on request (Cloud Console ->
+    Limits -> Request change -> Limit increase), so the real cap is
+    account-specific and cannot be a constant in this repo — a fleet
+    of any size needs it raised, and hardcoding 30 then produces a
+    warning on every teardown telling the operator to do the thing
+    they already did.
+
+    Falls back to the documented default when unset, so a fork that has
+    raised nothing keeps the safe threshold.
+
+    A malformed value warns and falls back rather than failing. This
+    runs inside ``snapshot-create`` during a teardown, and the value
+    only governs a warning threshold — aborting a teardown over a typo
+    in an advisory setting would be wildly disproportionate.
+    """
+    raw = os.environ.get("NEXUS_SNAPSHOT_LIMIT", "").strip()
+    if not raw:
+        return _hsnap.DEFAULT_SNAPSHOT_LIMIT
+    try:
+        value = int(raw)
+    except ValueError:
+        sys.stderr.write(
+            f"⚠ NEXUS_SNAPSHOT_LIMIT is not an integer; using the "
+            f"default {_hsnap.DEFAULT_SNAPSHOT_LIMIT}\n",
+        )
+        return _hsnap.DEFAULT_SNAPSHOT_LIMIT
+    if value < 1:
+        sys.stderr.write(
+            f"⚠ NEXUS_SNAPSHOT_LIMIT must be >= 1; using the default "
+            f"{_hsnap.DEFAULT_SNAPSHOT_LIMIT}\n",
+        )
+        return _hsnap.DEFAULT_SNAPSHOT_LIMIT
+    return value
+
+
 def _server_poweroff(args: list[str]) -> int:
     """`nexus-deploy server-poweroff --server-id N`.
 
@@ -3068,9 +3107,9 @@ def _snapshot_create(args: list[str]) -> int:
         print(f"snapshot-create: {exc}", file=sys.stderr)
         return 2
 
-    # Pre-flight the project-wide cap. Hetzner rejects the create call
-    # itself when the real limit is hit, but a specific warning here is
-    # far more actionable than a generic API error mid-teardown.
+    # Pre-flight the cap. Hetzner rejects the create call itself when
+    # the real limit is hit, but a specific warning here is far more
+    # actionable than a generic API error mid-teardown.
     try:
         total = _hsnap.count_snapshots(token)
     except _hsnap.HetznerSnapshotError as exc:
@@ -3079,11 +3118,17 @@ def _snapshot_create(args: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
-    if total >= _hsnap.DEFAULT_SNAPSHOT_LIMIT - 2:
+    limit = _snapshot_limit()
+    if total >= limit - 2:
+        # "visible in this project" rather than a bare total: the token
+        # is project-scoped while the limit counts every project, so
+        # this number is a lower bound on real usage.
         sys.stderr.write(
-            f"⚠ snapshot-create: {total} snapshots exist project-wide "
-            f"(default limit {_hsnap.DEFAULT_SNAPSHOT_LIMIT}). Prune old "
-            "generations or ask Hetzner to raise the limit.\n",
+            f"⚠ snapshot-create: {total} snapshots visible in this project "
+            f"(limit {limit}, counted per customer across ALL projects). "
+            "Prune old generations, or raise the limit in the Hetzner Cloud "
+            "Console under Limits -> Request change, then set "
+            "NEXUS_SNAPSHOT_LIMIT to the new value.\n",
         )
 
     sys.stderr.write(f"snapshot-create: creating snapshot of server {server_id}...\n")

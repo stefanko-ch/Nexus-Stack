@@ -161,11 +161,15 @@ def test_create_passes_epoch_and_timestamp_through(monkeypatch: pytest.MonkeyPat
     assert seen["server_type"] == "cx43"
 
 
-def test_create_warns_near_the_project_cap(
+def test_create_warns_near_the_cap(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The cap is project-wide, so a sibling stack can block this one."""
+    """The cap is shared, so a sibling stack can block this one.
+
+    The message must not claim more than the number covers: an
+    HCLOUD_TOKEN sees one project, the limit counts every project.
+    """
     monkeypatch.setattr(_hsnap, "count_snapshots", lambda _t: 29)
     monkeypatch.setattr(_hsnap, "create_snapshot", lambda *a, **k: _snap())
     cli._snapshot_create(
@@ -178,7 +182,69 @@ def test_create_warns_near_the_project_cap(
             "20260805T210000Z",
         ],
     )
-    assert "snapshots exist project-wide" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "visible in this project" in err
+    assert "across ALL projects" in err
+    assert "limit 30" in err
+
+
+def test_create_cap_warning_respects_the_configured_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """29 snapshots against a raised limit of 100 is not noteworthy.
+
+    The regression this guards: the threshold used to be the hardcoded
+    default of 30, so every teardown from the 28th snapshot onwards
+    advised the operator to raise a limit they had already raised.
+    A warning that fires when nothing is wrong trains people to ignore
+    warnings.
+    """
+    monkeypatch.setenv("NEXUS_SNAPSHOT_LIMIT", "100")
+    monkeypatch.setattr(_hsnap, "count_snapshots", lambda _t: 29)
+    monkeypatch.setattr(_hsnap, "create_snapshot", lambda *a, **k: _snap())
+    cli._snapshot_create(
+        [
+            "--server-id",
+            "42",
+            "--domain-slug",
+            "example-com",
+            "--timestamp",
+            "20260805T210000Z",
+        ],
+    )
+    assert "⚠" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, 30),
+        ("", 30),
+        ("100", 100),
+        ("  100  ", 100),
+        ("abc", 30),
+        ("0", 30),
+        ("-5", 30),
+    ],
+)
+def test_snapshot_limit_reads_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str | None,
+    expected: int,
+) -> None:
+    """Unset or malformed falls back to Hetzner's documented default.
+
+    Falling back rather than failing is deliberate: this runs inside
+    snapshot-create during a teardown, and the value only governs a
+    warning threshold. Aborting a teardown over a typo in an advisory
+    setting would be wildly disproportionate.
+    """
+    if value is None:
+        monkeypatch.delenv("NEXUS_SNAPSHOT_LIMIT", raising=False)
+    else:
+        monkeypatch.setenv("NEXUS_SNAPSHOT_LIMIT", value)
+    assert cli._snapshot_limit() == expected
 
 
 def test_create_epoch_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:
