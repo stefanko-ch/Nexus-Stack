@@ -41,7 +41,7 @@ The top nav has seven sections:
 | [Monitoring](./monitoring.md) | Inspect workflow logs, config, and runtime state |
 | [Secrets](./secrets.md) | Read-only view of Infisical secrets |
 | [Firewall](./firewall.md) | Open TCP ports for services that need direct access |
-| [Settings](./settings.md) | Server info, teardown schedule, notifications |
+| [Settings](./settings.md) | Server info, teardown schedule, lifecycle, notifications |
 | [Integrations](./integrations.md) | Databricks sync and other third-party hookups |
 
 Each page is covered in its own short guide — linked above. Start with the [Dashboard](./dashboard.md) guide if you're brand new.

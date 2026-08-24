@@ -8,7 +8,7 @@ order: 7
 
 ![Settings page header introducing the Infrastructure Information, Scheduled Teardown, and Email Notifications blocks](./assets/settings-header.png)
 
-The Settings page is split into three blocks: **Infrastructure Information** (read-only), **Scheduled Teardown**, and **Email Notifications**.
+The Settings page is split into four blocks: **Infrastructure Information** (read-only), **Scheduled Teardown**, **Lifecycle**, and **Email Notifications**.
 
 ## Infrastructure Information
 
@@ -39,6 +39,36 @@ The cron worker can auto-teardown your stack on a daily schedule so you don't pa
 - **Delay Teardown by 4 Hours** — Pushes the next teardown back by 4 hours. Useful when you're mid-session. Limited to 3 extensions per UTC day by default.
 
 > If your admin has set `allow_disable_auto_shutdown = false`, the toggle is visible but locked — you can still use the delay button.
+
+## Lifecycle
+
+How your stack is torn down at night and brought back the next day. Both
+options stop the server, so both save the same amount of money — they differ in
+what survives and how long the spin-up takes.
+
+- **Rebuild** — Destroy everything and rebuild from a clean Ubuntu image each
+  time. Container images are pulled fresh, so stacks tracking `:latest` stay
+  current. What survives is only what the R2 backup covers: Gitea, Dify,
+  HedgeDoc, Planka and Metabase. Anything else — tables you created in
+  Postgres, dashboards you built in Grafana, Kestra run history, notebooks you
+  have not committed — is gone the next morning.
+- **Snapshot** — Take a disk snapshot before destroying the server and restore
+  from it. Everything on the server survives, across all stacks, and the boot
+  is faster because the system does not reinstall itself. In exchange the
+  container images age: they stay at whatever was pulled when the snapshot line
+  started.
+
+The block always names the mode currently in use and what it means, so you can
+read the setting even when you cannot change it.
+
+> **Only the stack administrator can change this.** For everyone else the
+> toggle is greyed out. Switching to Rebuild also asks for confirmation,
+> because it cannot be undone: the next teardown regenerates every service
+> password, and existing snapshots can no longer be restored after that.
+
+Committing your work to the workspace repository is worth doing either way. The
+repository lives in Gitea, which is backed up under both options — it is the
+one place your work is safe regardless of which mode the stack is on.
 
 ## Email Notifications
 
