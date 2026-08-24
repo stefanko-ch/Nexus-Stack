@@ -640,11 +640,33 @@ resource "hcloud_server" "main" {
     #!/bin/bash
     set -e
 
+    # Non-interactive apt for everything below. `-y` only answers apt's
+    # own yes/no prompts; a package whose debconf question is priority
+    # medium or higher still opens an ncurses dialog and then blocks
+    # FOREVER, because a cloud-init boot has no tty to answer it.
+    #
+    # That is not a slow boot the readiness gate can wait out — it is a
+    # permanent hang, and no timeout is large enough. Observed on
+    # 2026-08-24: keyboard-configuration 1.226ubuntu1.1 asked for the
+    # keyboard layout, every cold spin-up stalled, and the 6-minute gate
+    # failed the workflow with "cloud-init did not complete".
+    #
+    # This had worked for months purely because no upgraded package
+    # happened to ask anything. That is luck, not a property.
+    export DEBIAN_FRONTEND=noninteractive
+    # needrestart ships enabled on 24.04 and prompts about restarting
+    # services after a library upgrade. `a` applies automatically.
+    export NEEDRESTART_MODE=a
+
     if [ ! -f /opt/docker-server/.image-provisioned ]; then
       # ----- Heavy path: fresh Ubuntu image, provision from scratch -----
 
-      # Update system
-      apt-get update && apt-get upgrade -y
+      # Update system.
+      # --force-confold keeps the existing config file when a package
+      # ships a changed one. Without it dpkg asks which to keep — the
+      # same class of hang as the debconf dialog above.
+      apt-get update
+      apt-get upgrade -y -o Dpkg::Options::=--force-confold
 
       # Install Docker
       curl -fsSL https://get.docker.com | sh
