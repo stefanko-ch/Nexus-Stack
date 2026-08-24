@@ -3120,15 +3120,16 @@ def _snapshot_create(args: list[str]) -> int:
         return 2
     limit = _snapshot_limit()
     if total >= limit - 2:
-        # "visible in this project" rather than a bare total: the token
-        # is project-scoped while the limit counts every project, so
-        # this number is a lower bound on real usage.
+        # "in this project" is now literally true — count_snapshots is
+        # unfiltered — but the token still sees only one project while
+        # the limit counts every project, so say both. The number is a
+        # lower bound on real usage, not the figure Hetzner enforces.
         sys.stderr.write(
-            f"⚠ snapshot-create: {total} snapshots visible in this project "
+            f"⚠ snapshot-create: {total} snapshots in this project "
             f"(limit {limit}, counted per customer across ALL projects). "
             "Prune old generations, or raise the limit in the Hetzner Cloud "
-            "Console under Limits -> Request change, then set "
-            "NEXUS_SNAPSHOT_LIMIT to the new value.\n",
+            "Console under Limits -> Request change and set the "
+            "SNAPSHOT_LIMIT repository variable to the new value.\n",
         )
 
     sys.stderr.write(f"snapshot-create: creating snapshot of server {server_id}...\n")

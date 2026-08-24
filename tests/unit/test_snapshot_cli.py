@@ -183,9 +183,10 @@ def test_create_warns_near_the_cap(
         ],
     )
     err = capsys.readouterr().err
-    assert "visible in this project" in err
+    assert "in this project" in err
     assert "across ALL projects" in err
     assert "limit 30" in err
+    assert "SNAPSHOT_LIMIT" in err
 
 
 def test_create_cap_warning_respects_the_configured_limit(
@@ -230,6 +231,7 @@ def test_create_cap_warning_respects_the_configured_limit(
 )
 def test_snapshot_limit_reads_the_environment(
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
     value: str | None,
     expected: int,
 ) -> None:
@@ -245,6 +247,13 @@ def test_snapshot_limit_reads_the_environment(
     else:
         monkeypatch.setenv("NEXUS_SNAPSHOT_LIMIT", value)
     assert cli._snapshot_limit() == expected
+
+    # A silent fallback is the failure mode to guard against: the
+    # operator set the variable, it was rejected, and nothing said so.
+    err = capsys.readouterr().err
+    supplied = "" if value is None else value.strip()
+    rejected = supplied not in ("", "30") and expected == 30
+    assert ("⚠" in err) is rejected
 
 
 def test_create_epoch_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:

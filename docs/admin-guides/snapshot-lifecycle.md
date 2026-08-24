@@ -191,7 +191,11 @@ gh variable set SNAPSHOT_LIMIT --body 100
 
 `snapshot-create` counts before creating, and fails loudly naming foreign snapshots rather than deleting anything it does not own.
 
-Its count has one blind spot worth knowing: an `HCLOUD_TOKEN` is scoped to a **single project**, while the limit counts **every** project. With one project the two are the same number. With several, the check under-counts — and it under-counts hardest in exactly the layout that needs it most, since one project per tenant spreads the images out until no single project looks close to the cap. Hetzner exposes no account-wide count to a project token, so the warning says "visible in this project" rather than implying a total it cannot see.
+The count includes **every** snapshot in the project, not only the ones Nexus-Stack made — one taken by hand in the Console consumes quota exactly like ours does, so it has to be counted like ours.
+
+It has one blind spot left, and it is not fixable from here: an `HCLOUD_TOKEN` is scoped to a **single project**, while the limit counts **every** project. With one project the two are the same number. With several, the check under-counts — and it under-counts hardest in exactly the layout that needs it most, since one project per tenant spreads the images out until no single project looks close to the cap. Hetzner exposes no account-wide count to a project token, so the warning names what it actually covers rather than implying a total it cannot see.
+
+That is a concrete argument for keeping one project: the pre-flight warning only works when the project and the customer are the same scope.
 
 ### When the mode cannot be determined
 
