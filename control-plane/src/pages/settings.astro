@@ -428,8 +428,15 @@ import Layout from '../layouts/Layout.astro';
         info.appendChild(line4);
       }
     } catch {
-      info.textContent = 'Could not load the lifecycle mode.';
+      // Clear the state as well as showing the error. Without this the
+      // toggle keeps whatever the last successful load set, so the page
+      // would show a definite-looking mode next to a message saying it
+      // could not be read — worse than showing nothing.
+      lifecycleModes = [];
+      toggle.classList.remove('active');
       toggle.classList.add('disabled');
+      toggle.title = 'Lifecycle mode unavailable';
+      info.textContent = 'Could not load the lifecycle mode.';
     }
   }
 

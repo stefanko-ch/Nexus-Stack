@@ -28,7 +28,6 @@
 // the epoch guard permanently refuses every existing snapshot. Reading
 // is open to any Access-authenticated caller so the UI can show the
 // current state without an admin session.
-import { getAccessUserEmail } from './_utils/cf-access-email.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import {
@@ -186,12 +185,20 @@ export async function onRequestPost(context) {
       .bind(requested)
       .run();
 
-    const userEmail = getAccessUserEmail(request) || 'unknown';
+    // No caller email in the metadata. `requireAdmin` above allows
+    // exactly one identity through, so recording *who* adds no
+    // information — but /api/logs has no admin guard and the Monitoring
+    // page renders metadata verbatim, so it would put the admin address
+    // in front of every Access-authenticated user on the stack.
+    //
+    // Different from the extension log in scheduled-teardown.js, which
+    // does keep the address: extensions are counted per user, so there
+    // the identity is the whole point.
     const auditLogged = await logChange(
       env.NEXUS_DB,
       'info',
       `Lifecycle mode changed to ${requested}`,
-      { from: previous, to: requested, by: userEmail },
+      { from: previous, to: requested },
     );
 
     return json({
