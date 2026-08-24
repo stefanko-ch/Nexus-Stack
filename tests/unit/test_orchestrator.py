@@ -456,6 +456,7 @@ def test_partial_phase_continues_to_downstream(
     monkeypatch.setattr(
         orchestrator, "_phase_services_configure", make_phase("services", "partial")
     )
+    monkeypatch.setattr(orchestrator, "_phase_forgejo_configure", make_phase("forgejo-cfg"))
     monkeypatch.setattr(
         orchestrator, "_phase_forgejo_runner_register", make_phase("forgejo-runner")
     )
@@ -474,8 +475,8 @@ def test_partial_phase_continues_to_downstream(
     monkeypatch.setattr(orchestrator, "_phase_secret_sync_code_server", make_phase("ss-cs"))
 
     result = orchestrator.run_all()
-    # All 16 phases ran despite the partial in services-configure.
-    assert len(invoked) == 16
+    # All 17 phases ran despite the partial in services-configure.
+    assert len(invoked) == 17
     assert result.has_partial
     assert not result.has_hard_failure
 
@@ -1434,6 +1435,8 @@ def test_run_all_resets_results_between_runs(
     for phase_name in (
         "_phase_infisical_bootstrap",
         "_phase_services_configure",
+        "_phase_forgejo_configure",
+        "_phase_forgejo_runner_register",
         "_phase_gitea_configure",
         "_phase_compose_restart",
         "_phase_kestra_secret_sync",
@@ -1451,9 +1454,9 @@ def test_run_all_resets_results_between_runs(
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
     r1 = orchestrator.run_all()
     r2 = orchestrator.run_all()
-    # 16 phases per ``run_all`` invocation.
-    assert len(r1.phases) == 16
-    assert len(r2.phases) == 16
+    # 17 phases per ``run_all`` invocation.
+    assert len(r1.phases) == 17
+    assert len(r2.phases) == 17
 
 
 # ---------------------------------------------------------------------------

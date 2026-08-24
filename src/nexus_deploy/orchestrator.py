@@ -55,6 +55,7 @@ from nexus_deploy import _remote
 from nexus_deploy import compose_restart as _compose_restart
 from nexus_deploy import compose_runner as _compose_runner
 from nexus_deploy import firewall as _firewall
+from nexus_deploy import forgejo as _forgejo
 from nexus_deploy import forgejo_runner as _forgejo_runner
 from nexus_deploy import gitea as _gitea
 from nexus_deploy import infisical as _infisical
@@ -318,6 +319,7 @@ class Orchestrator:
             phases: list[Callable[[SSHClient], PhaseResult]] = [
                 self._phase_infisical_bootstrap,
                 self._phase_services_configure,
+                self._phase_forgejo_configure,
                 self._phase_forgejo_runner_register,
                 self._phase_gitea_configure,
                 self._phase_compose_restart,
@@ -429,6 +431,82 @@ class Orchestrator:
                 f"skipped-not-ready={result.skipped_not_ready}"
             ),
         )
+
+    def _phase_forgejo_configure(self, ssh: SSHClient) -> PhaseResult:
+        """Create the Forgejo admin + regular accounts.
+
+        Without this the stack is unusable: ``INSTALL_LOCK`` and
+        ``DISABLE_REGISTRATION`` are both on, so a fresh database has
+        no route to a first account and the web UI is locked from the
+        moment it starts — while OpenTofu has generated passwords and
+        pushed them to Infisical for accounts that do not exist.
+
+        Runs BEFORE the runner registration so that an operator who
+        watches the deploy can log in and see the runner appear.
+
+        "partial" rather than "failed" on error, for the same reason as
+        the registration phase: a broken optional stack is a real
+        problem and is reported as one, but not a reason to abandon the
+        remaining phases. Revisit when Forgejo becomes the workspace
+        backend — then a broken Forgejo *is* a broken deploy.
+        """
+        if "forgejo" not in self.enabled_services:
+            return PhaseResult(
+                name="forgejo-configure",
+                status="skipped",
+                detail="forgejo not enabled",
+            )
+        admin_password = self.config.forgejo_admin_password or ""
+        if not admin_password:
+            return PhaseResult(
+                name="forgejo-configure",
+                status="partial",
+                detail="FORGEJO_ADMIN_PASS missing — no admin account can be created",
+            )
+        admin_username = self.admin_username or self.config.admin_username or "admin"
+        admin_email = self.bootstrap_env.admin_email or ""
+        if not admin_email:
+            return PhaseResult(
+                name="forgejo-configure",
+                status="partial",
+                detail="admin_email missing — Forgejo requires an address per account",
+            )
+
+        accounts = [
+            _forgejo.Account(
+                username=admin_username,
+                password=admin_password,
+                email=admin_email,
+                admin=True,
+            ),
+        ]
+        # The student-facing account is optional: a stack with no
+        # user_email configured still gets a working admin login.
+        user_email = self.bootstrap_env.gitea_user_email or ""
+        user_password = self.config.forgejo_user_password or ""
+        user_username = self.gitea_user_username or (user_email.split("@")[0] if user_email else "")
+        if user_email and user_password and user_username and user_username != admin_username:
+            accounts.append(
+                _forgejo.Account(
+                    username=user_username,
+                    password=user_password,
+                    email=user_email,
+                ),
+            )
+
+        try:
+            result = _forgejo.run_configure(ssh, tuple(accounts))
+        except Exception as exc:
+            return PhaseResult(
+                name="forgejo-configure",
+                status="partial",
+                detail=f"unexpected ({type(exc).__name__})",
+            )
+        if result.status == "configured":
+            return PhaseResult(name="forgejo-configure", status="ok", detail=result.detail)
+        if result.status == "skipped":
+            return PhaseResult(name="forgejo-configure", status="skipped", detail=result.detail)
+        return PhaseResult(name="forgejo-configure", status="partial", detail=result.detail)
 
     def _phase_forgejo_runner_register(self, ssh: SSHClient) -> PhaseResult:
         """Teach the Forgejo instance the runner's shared secret.

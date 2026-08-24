@@ -70,9 +70,17 @@ runner starts first it simply fails to authenticate, and the restart
 policy brings it back until the server knows the secret. Both calls are
 idempotent, which is what makes them safe to repeat on every spin-up.
 
-The secret never appears in a process argument on either side: the
-registration script travels over SSH stdin, and the value reaches
+On the **server** side the secret never appears in a process argument:
+the registration script travels over SSH stdin, and the value reaches
 `forgejo-cli` through `--secret-stdin` rather than a flag.
+
+On the **runner** side it does. `forgejo-runner create-runner-file`
+accepts the secret only as `--secret <value>` — upstream offers no
+stdin or file variant — so the value is in that process's argv while it
+runs, and in the container environment that `docker inspect` shows.
+Both require host-level Docker access to observe. The call is guarded
+on `.runner` not already existing, so the argv window is first boot
+only rather than every restart.
 
 ### Writing workflows
 
@@ -115,9 +123,13 @@ Three things bound the blast radius:
 
 1. `forgejo-dind` runs the **rootless** Docker image, so a container
    escape lands as UID 1000 inside that container rather than as root.
-2. `forgejo-dind` is not on `app-network` and publishes no port. Only
-   the runner can reach it — no other stack can, and neither can the
-   internet.
+2. `forgejo-dind` sits alone with the runner on a second internal
+   network, `forgejo-ci`, and publishes no port. Only `forgejo-runner`
+   reaches its unauthenticated port 2375 — deliberately *not* the web
+   container or the database, which live on `forgejo-internal`. An
+   earlier revision put all four containers on one network, which
+   would have let a compromise of the web container drive a privileged
+   Docker daemon.
 3. `runner-config.yml` keeps `container.docker_host: "-"` and
    `valid_volumes: []`, so a job container gets **no** Docker socket of
    its own and may not bind-mount host paths. Without this, a workflow

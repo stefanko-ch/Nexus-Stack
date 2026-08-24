@@ -112,14 +112,19 @@ def test_malformed_secret_is_refused_before_any_ssh(bad: str) -> None:
     assert ssh.scripts == []
 
 
-def test_failure_detail_describes_the_shape_not_the_value() -> None:
-    """A rejected secret is still a secret — the error must not echo it."""
+def test_failure_detail_names_a_category_not_the_value() -> None:
+    """A rejected secret is still a secret — the error must not echo it.
+
+    The project rule is `type(exc).__name__` rather than `str(exc)` in
+    error output, so the detail carries the category and the field set,
+    not the exception message and never the value.
+    """
     bad = "deadbeef" * 4  # 32 chars: right alphabet, wrong length
     result = run_register(FakeSSH(), secret=bad)  # type: ignore[arg-type]
 
     assert result.status == "failed"
     assert bad not in result.detail
-    assert "40" in result.detail
+    assert "ValueError" in result.detail
 
 
 @pytest.mark.parametrize("bad", ["", "has space", "-leading", "a" * 64, "semi;colon"])

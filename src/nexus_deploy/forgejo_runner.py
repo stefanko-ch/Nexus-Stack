@@ -42,6 +42,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Literal
 
+from .forgejo import EXIT_NO_CONTAINER, EXIT_NOT_READY, render_ready_preamble
 from .ssh import SSHClient
 
 # Registration is a local database write behind a container exec. Two
@@ -52,10 +53,6 @@ _REGISTER_TIMEOUT = 120.0
 # Forgejo requires exactly this: 40 lowercase hex characters, the first
 # 16 being the runner's identifier and the rest the secret proper.
 _SECRET_PATTERN = re.compile(r"\A[0-9a-f]{40}\Z")
-
-# A distinct exit code so the caller can tell "nothing to do" from
-# "something is broken" without parsing prose.
-_EXIT_NO_CONTAINER = 3
 
 # Conservative: what Forgejo accepts as a runner name is broader, but
 # these values also end up in shell words and in the Actions UI, and
@@ -84,6 +81,8 @@ def render_register_script(
     name: str,
     scope: str = "",
     container: str = "forgejo",
+    attempts: int = 3,
+    interval: int = 5,
 ) -> str:
     """Render the remote bash, secret included.
 
@@ -109,23 +108,31 @@ def render_register_script(
 
     return f"""set -euo pipefail
 
-CONTAINER={shlex.quote(container)}
-
-# A missing container is not a failure — Forgejo may simply not be
-# enabled on this stack, or may still be starting. Say so with a
-# distinct exit code and let the caller decide.
-if ! docker ps --format '{{{{.Names}}}}' | grep -qx "$CONTAINER"; then
-    echo "container $CONTAINER is not running" >&2
-    exit {_EXIT_NO_CONTAINER}
-fi
-
+{render_ready_preamble(container=container)}
 set -- actions register --name {shlex.quote(name)}
 {scope_line}
-# printf is a shell builtin: the secret never becomes a process
-# argument on this side either, and --secret-stdin keeps it out of the
-# exec's own command line.
-printf '%s' {shlex.quote(secret)} \\
-    | docker exec -i -u git "$CONTAINER" forgejo forgejo-cli "$@" --secret-stdin
+# Bounded retry, because nothing downstream repairs this. The runner
+# keeps restarting until the server knows the secret, but the server
+# only learns it here — so a single transient failure would leave a
+# runner that can never authenticate. Registration is idempotent, so
+# repeating it costs nothing.
+attempt=1
+while :; do
+    # printf is a shell builtin: the secret never becomes a process
+    # argument on this side, and --secret-stdin keeps it out of the
+    # exec's own command line.
+    if printf '%s' {shlex.quote(secret)} \\
+        | docker exec -i -u git "$CONTAINER" forgejo forgejo-cli "$@" --secret-stdin
+    then
+        break
+    fi
+    if [ "$attempt" -ge {attempts} ]; then
+        echo "forgejo-cli actions register failed after $attempt attempt(s)" >&2
+        exit 1
+    fi
+    attempt=$((attempt + 1))
+    sleep {interval}
+done
 """
 
 
@@ -152,19 +159,25 @@ def run_register(
             container=container,
         )
     except ValueError as exc:
-        # str(exc) is built from the shape of the input, never its
-        # value — see the raises in render_register_script. A wrong
-        # length is the likely symptom of a mis-wired tofu output, and
-        # is exactly what an operator needs told.
-        return RegisterResult(status="failed", detail=str(exc))
+        # Category, not message. The project rule is `type(exc).__name__`
+        # rather than `str(exc)` in error output, and it applies even
+        # though these particular messages are shape-only: the rule
+        # exists so a later validation change cannot quietly turn this
+        # into a leak. The shape check below keeps the diagnosis.
+        return RegisterResult(
+            status="failed",
+            detail=f"validation ({type(exc).__name__}): secret/name/scope rejected",
+        )
 
     try:
         proc = ssh.run_script(script, check=False, timeout=timeout, merge_stderr=True)
     except (subprocess.TimeoutExpired, OSError) as exc:
         return RegisterResult(status="failed", detail=f"transport ({type(exc).__name__})")
 
-    if proc.returncode == _EXIT_NO_CONTAINER:
+    if proc.returncode == EXIT_NO_CONTAINER:
         return RegisterResult(status="skipped", detail="forgejo container not running")
+    if proc.returncode == EXIT_NOT_READY:
+        return RegisterResult(status="failed", detail="forgejo did not become healthy")
     if proc.returncode != 0:
         return RegisterResult(
             status="failed",
