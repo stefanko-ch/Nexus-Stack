@@ -392,7 +392,16 @@ import Layout from '../layouts/Layout.astro';
     try {
       const response = await fetch(API_URL + '/api/lifecycle', { credentials: 'same-origin' });
       const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'failed');
+      if (!data.success) {
+        // Tag the error so the catch can tell an API message apart from
+        // a network or parse failure. The backend returns a specific 500
+        // when ADMIN_EMAIL is unset so the operator can see the
+        // misconfiguration — throwing that away here would undo the
+        // point of returning it.
+        const apiError = new Error(data.error || 'failed');
+        apiError.apiMessage = data.error || null;
+        throw apiError;
+      }
       lifecycleModes = data.modes || [];
 
       const active = lifecycleModes.find((m) => m.value === data.mode);
@@ -427,7 +436,7 @@ import Layout from '../layouts/Layout.astro';
         line4.textContent = 'Only the stack administrator can change this.';
         info.appendChild(line4);
       }
-    } catch {
+    } catch (error) {
       // Clear the state as well as showing the error. Without this the
       // toggle keeps whatever the last successful load set, so the page
       // would show a definite-looking mode next to a message saying it
@@ -436,7 +445,15 @@ import Layout from '../layouts/Layout.astro';
       toggle.classList.remove('active');
       toggle.classList.add('disabled');
       toggle.title = 'Lifecycle mode unavailable';
-      info.textContent = 'Could not load the lifecycle mode.';
+      // Show the server's own message when there is one — "Server
+      // misconfigured: ADMIN_EMAIL is not set" is actionable in a way
+      // that "could not load" is not. A network or parse failure has no
+      // apiMessage and falls back to the generic text, since the
+      // browser's own wording ("Failed to fetch") explains nothing.
+      // textContent, so the message cannot carry markup either way.
+      info.textContent = error && error.apiMessage
+        ? 'Could not load the lifecycle mode: ' + error.apiMessage
+        : 'Could not load the lifecycle mode.';
     }
   }
 
