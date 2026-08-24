@@ -645,6 +645,14 @@ def test_purge_requires_domain_slug(capsys: pytest.CaptureFixture[str]) -> None:
         (["--domain-slug", "example-com", "extra"], "unknown argument 'extra'"),
         (["--domain-slug", "example-com", "--apply", "--apply"], "--apply given more than once"),
         (["--domain-slug"], "--domain-slug requires a value"),
+        # The slug is missing and --apply is swallowed as its value.
+        # Without the flag-shaped-value check this reached the
+        # DESTRUCTIVE path with domain_slug="--apply", matched no
+        # snapshots, and exited 0 — reporting success while every real
+        # snapshot survived. Same silent-no-op class the strict parsing
+        # exists to remove.
+        (["--domain-slug", "--apply"], "requires a value, got flag '--apply'"),
+        (["--apply", "--domain-slug"], "--domain-slug requires a value"),
     ],
 )
 def test_purge_rejects_bad_arguments(
@@ -701,3 +709,24 @@ def test_purge_accepts_every_valid_form(monkeypatch: pytest.MonkeyPatch, argv: l
     """Validation must not reject what the workflow actually sends."""
     monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: ())
     assert cli._snapshot_purge(argv) == 0
+
+
+def test_purge_apply_is_read_from_the_parse_not_from_argv() -> None:
+    """`"--apply" in args` cannot tell a flag from a value spelling one.
+
+    `--domain-slug --apply` puts the literal string "--apply" in argv as
+    a VALUE. A membership test sees it and switches on the destructive
+    path. The handler therefore reads the validated parse instead, and
+    this asserts the underlying helper reports flags only.
+    """
+    assert cli._validated_flags(
+        ["--domain-slug", "example-com"],
+        valued=("domain-slug",),
+        boolean=("apply",),
+    ) == {"domain-slug"}
+
+    assert cli._validated_flags(
+        ["--domain-slug", "example-com", "--apply"],
+        valued=("domain-slug",),
+        boolean=("apply",),
+    ) == {"domain-slug", "apply"}

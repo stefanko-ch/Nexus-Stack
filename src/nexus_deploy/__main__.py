@@ -2922,29 +2922,38 @@ def _flag(args: list[str], name: str) -> str | None:
     return None
 
 
-def _known_args_only(
+def _validated_flags(
     args: list[str],
     *,
     valued: tuple[str, ...] = (),
     boolean: tuple[str, ...] = (),
-) -> None:
-    """Reject any argument the handler does not understand.
+) -> set[str]:
+    """Validate an arg list strictly; report which flags were given.
 
     :func:`_flag` scans for the flags it wants and ignores everything
     else. That is tolerable for a handler whose worst case is an option
     going unread; it is not tolerable for a destructive one, where it
-    fails quietly in both directions:
+    fails quietly in three ways, all of them wrong:
 
-    * ``snapshot-purge --domain-slug X --apply --keep 2`` silently
-      ignores the ``--keep`` borrowed from ``snapshot-prune`` and
-      deletes every snapshot, when the operator asked to retain two.
-    * ``snapshot-purge --domain-slug X --aply`` silently downgrades a
-      real purge to a dry run that exits 0, so ``destroy-all`` reports
-      success while the images it was meant to remove survive.
+    * ``--domain-slug X --apply --keep 2`` — ``--keep`` is a
+      ``snapshot-prune`` option. Ignored, and purge does not retain, so
+      an operator reaching for the flag they know from the sibling
+      command deletes every snapshot when they asked to keep two.
+    * ``--domain-slug X --aply`` — a typo. Ignored, so a real purge
+      downgrades to a dry run that exits 0 while the images survive.
+    * ``--domain-slug --apply`` — the slug is missing, so ``--apply``
+      is taken as its value. The destructive path then runs against a
+      slug matching nothing and exits 0 having deleted none of the real
+      snapshots, reporting success.
+
+    Hence: a value may not itself look like a flag, and the return value
+    reports which names appeared **as flags**. Callers must use that
+    rather than ``"--x" in args`` — a membership test cannot tell a flag
+    from a value that happens to spell one, which is the third failure
+    above.
 
     Hand-rolled to match ``secret-sync`` rather than pulling in argparse
-    for three flags. A value is consumed positionally, so a value that
-    happens to look like a flag behaves exactly as :func:`_flag` would.
+    for three flags.
     """
     seen: set[str] = set()
     i = 0
@@ -2959,9 +2968,13 @@ def _known_args_only(
         if name in valued:
             if i + 1 >= len(args):
                 raise _FlagError(f"--{name} requires a value")
+            value = args[i + 1]
+            if value.startswith("--"):
+                raise _FlagError(f"--{name} requires a value, got flag {value!r}")
             i += 2
         else:
             i += 1
+    return seen
 
 
 def _required_flag(args: list[str], name: str) -> str:
@@ -3236,15 +3249,17 @@ def _snapshot_purge(args: list[str]) -> int:
     """
     try:
         # Strict, unlike the other snapshot handlers: this one deletes,
-        # and both ways of getting the arguments wrong are silent. See
-        # _known_args_only for the two concrete cases.
-        _known_args_only(args, valued=("domain-slug",), boolean=("apply",))
+        # and every way of getting the arguments wrong is silent. See
+        # _validated_flags for the three concrete cases.
+        present = _validated_flags(args, valued=("domain-slug",), boolean=("apply",))
         domain_slug = _required_flag(args, "domain-slug")
         token = _snapshot_token()
     except _FlagError as exc:
         print(f"snapshot-purge: {exc}", file=sys.stderr)
         return 2
-    apply_changes = "--apply" in args
+    # From the validated parse, NOT `"--apply" in args`: the latter
+    # cannot tell a flag from a value that spells one.
+    apply_changes = "apply" in present
 
     try:
         snapshots = _hsnap.list_snapshots(token, domain_slug=domain_slug)
