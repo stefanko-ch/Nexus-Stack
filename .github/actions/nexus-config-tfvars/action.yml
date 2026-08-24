@@ -10,7 +10,7 @@ description: >-
 # maintaining the D1 reads, the firewall sync and the Hetzner S3 lookup twice
 # and having them drift.
 #
-# `server_image` defaults to ubuntu-24.04, which is what the legacy path
+# `server_image` defaults to ubuntu-26.04, which is what the legacy path
 # passes. That keeps snapshot awareness OUT of spin-up.yml entirely: it
 # supplies a default like it always did, and only the snapshot workflow ever
 # passes an image id. The fallback path therefore stays independent of the
@@ -25,10 +25,10 @@ description: >-
 inputs:
   server_image:
     description: >-
-      Hetzner image to build from — `ubuntu-24.04` for a normal build, or a
+      Hetzner image to build from — `ubuntu-26.04` for a normal build, or a
       numeric snapshot image id to restore from.
     required: false
-    default: 'ubuntu-24.04'
+    default: 'ubuntu-26.04'
   enabled_services:
     description: Comma-separated service list; read from D1 when empty.
     required: false
@@ -103,7 +103,7 @@ runs:
         # Exactly two legitimate shapes, and the alternation says so
         # rather than approximating it:
         #   - an image name, which always starts with a letter
-        #     (ubuntu-24.04, debian-12, rocky-9)
+        #     (ubuntu-26.04, debian-12, rocky-9)
         #   - a numeric snapshot id, which is digits only (422646995)
         #
         # A single character class would also admit things like `123abc`,
@@ -113,7 +113,7 @@ runs:
         # opaque `tofu apply` image error instead of by name here.
         if ! printf '%s' "$SERVER_IMAGE" | grep -qE '^([a-z][a-z0-9.-]{0,62}|[0-9]{1,19})$'; then
           echo "❌ server_image is not a valid Hetzner image reference: '$SERVER_IMAGE'"
-          echo "   Expected an image name (e.g. ubuntu-24.04) or a numeric"
+          echo "   Expected an image name (e.g. ubuntu-26.04) or a numeric"
           echo "   snapshot id. Refusing to write it into config.tfvars."
           exit 1
         fi

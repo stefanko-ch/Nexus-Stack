@@ -26,7 +26,7 @@
 ## What This Does
 
 ### Infrastructure
-- **Hetzner Cloud Server** - x86 (default `cx43` in `hel1`, Intel-shared 8 vCPU / 16 GB RAM / 160 GB) running Ubuntu 24.04 — defaults switched permanently from ARM in 2026-05 because (a) Hetzner ARM EU capacity has been unavailable since 2026-01-22, and (b) Hetzner's 2025+ pricing flipped — ARM is now ~40% more expensive than the equivalent x86 spec. Smaller x86 alternatives (`cpx32` AMD 4-vCPU/8-GB, `cx32` Intel 4-vCPU/8-GB) and ARM (`cax*`) variants are supported via the `SERVER_TYPE` / `SERVER_LOCATION` repo variables for users who want to override the default — see [docs/admin-guides/setup-guide.md](docs/admin-guides/setup-guide.md#optional-repository-variables) for the canonical list
+- **Hetzner Cloud Server** - x86 (default `cx43` in `hel1`, Intel-shared 8 vCPU / 16 GB RAM / 160 GB) running Ubuntu 26.04 LTS — defaults switched permanently from ARM in 2026-05 because (a) Hetzner ARM EU capacity has been unavailable since 2026-01-22, and (b) Hetzner's 2025+ pricing flipped — ARM is now ~40% more expensive than the equivalent x86 spec. Smaller x86 alternatives (`cpx32` AMD 4-vCPU/8-GB, `cx32` Intel 4-vCPU/8-GB) and ARM (`cax*`) variants are supported via the `SERVER_TYPE` / `SERVER_LOCATION` repo variables for users who want to override the default — see [docs/admin-guides/setup-guide.md](docs/admin-guides/setup-guide.md#optional-repository-variables) for the canonical list
 - **Cloudflare Tunnel** - All traffic routed through Cloudflare, zero open ports
 - **Cloudflare Access** - Email OTP authentication for all services
 - **Remote State** - OpenTofu state stored in Cloudflare R2

@@ -2,7 +2,7 @@
 teardown/spin-up cycle.
 
 The default lifecycle destroys the whole stack on teardown and rebuilds
-it from ``ubuntu-24.04`` on the next spin-up. Most of that rebuild is
+it from ``ubuntu-26.04`` on the next spin-up. Most of that rebuild is
 repetition: patching Ubuntu, installing Docker, and pulling the same
 container images again — the single largest block of a spin-up.
 
@@ -579,7 +579,7 @@ def resolve_latest(
     ``None`` is the ordinary "take the fresh path" answer, not an error:
     a first-ever spin-up, a pruned-away snapshot and a rotated
     credential epoch are all normal states that must degrade to a
-    regular ``ubuntu-24.04`` build rather than fail the workflow.
+    regular ``ubuntu-26.04`` build rather than fail the workflow.
 
     When ``expect_epoch`` is given, a snapshot whose epoch differs is
     rejected. That is the guard against the legacy untargeted ``tofu

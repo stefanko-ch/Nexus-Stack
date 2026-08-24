@@ -47,7 +47,7 @@ def tfvars_with_legacy_pair(tmp_path: Path) -> Path:
     path.write_text(
         'server_type     = "cx43"\n'
         'server_location = "hel1"\n'
-        'server_image    = "ubuntu-24.04"\n'
+        'server_image    = "ubuntu-26.04"\n'
         'domain          = "example.com"\n',
         encoding="utf-8",
     )
@@ -456,7 +456,7 @@ def test_select_capacity_preserves_other_tfvars_lines(
     )
     _select_capacity(["--tfvars", str(tfvars_with_legacy_pair)])
     rewritten = tfvars_with_legacy_pair.read_text()
-    assert 'server_image    = "ubuntu-24.04"' in rewritten
+    assert 'server_image    = "ubuntu-26.04"' in rewritten
     assert 'domain          = "example.com"' in rewritten
 
 
@@ -471,7 +471,7 @@ def test_select_capacity_preserves_trailing_inline_comments(
     path.write_text(
         'server_type = "cx43" # primary instance class\n'
         'server_location = "hel1"  // hel1 was first in the list\n'
-        'server_image = "ubuntu-24.04"\n',
+        'server_image = "ubuntu-26.04"\n',
         encoding="utf-8",
     )
     monkeypatch.setenv("HCLOUD_TOKEN", "t")

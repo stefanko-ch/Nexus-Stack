@@ -39,7 +39,7 @@ on:
         default: false
         type: boolean
       force_fresh:
-        description: 'Ignore any snapshot and build from ubuntu-24.04. Use this to escape a bad snapshot, or to move to a new base image.'
+        description: 'Ignore any snapshot and build from ubuntu-26.04. Use this to escape a bad snapshot, or to move to a new base image.'
         required: false
         default: false
         type: boolean
@@ -96,7 +96,7 @@ jobs:
           fresh() {
             {
               echo "mode=fresh"
-              echo "server_image=ubuntu-24.04"
+              echo "server_image=ubuntu-26.04"
               echo "min_disk_gb="
               echo "arch="
               # R2 restore is the entire recovery story when no snapshot
@@ -106,7 +106,7 @@ jobs:
           }
 
           if [ "${{ github.event.inputs.force_fresh }}" = "true" ]; then
-            echo "🔄 force_fresh requested — building from ubuntu-24.04"
+            echo "🔄 force_fresh requested — building from ubuntu-26.04"
             fresh
             exit 0
           fi

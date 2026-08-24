@@ -55,7 +55,7 @@ variable "server_location" {
 variable "server_image" {
   description = "OS image for the server"
   type        = string
-  default     = "ubuntu-24.04"
+  default     = "ubuntu-26.04"
 }
 
 variable "ipv6_only" {

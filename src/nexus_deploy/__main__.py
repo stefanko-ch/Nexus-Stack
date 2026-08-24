@@ -3171,7 +3171,7 @@ def _snapshot_resolve(args: list[str]) -> int:
     - 0: a usable snapshot was found; restore from it.
     - 1: no usable snapshot. NOT an error — a first-ever spin-up, a
       pruned image and a rotated credential epoch all land here, and
-      all three must degrade to a normal ``ubuntu-24.04`` build. The
+      all three must degrade to a normal ``ubuntu-26.04`` build. The
       workflow branches on this rather than failing.
     - 2: the lookup itself failed (auth, network, schema). The
       workflow should stop, because "cannot tell" is not the same as

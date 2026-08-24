@@ -40,7 +40,7 @@ Nexus-Stack is an **open-source infrastructure-as-code project** that provides o
 - **Cloud Provider**: Hetzner Cloud
 - **Security**: Cloudflare Zero Trust, Cloudflare Tunnel, Cloudflare Access
 - **Containers**: Docker, Docker Compose
-- **OS**: Ubuntu 24.04 (ARM-based cax11 servers)
+- **OS**: Ubuntu 26.04 LTS (x86 `cx43` servers; see the stack-addition notes for the ARM history)
 - **Shell**: Bash scripts
 - **Build Tool**: Make
 
@@ -128,7 +128,7 @@ gh workflow run destroy-all.yml -f confirm=DESTROY  # Full cleanup
 ```
 
 **Two lifecycles.** `spin-up.yml` / `teardown.yml` destroy and rebuild from
-`ubuntu-24.04`. `spin-up-snapshot.yml` / `teardown-snapshot.yml` take a Hetzner
+`ubuntu-26.04`. `spin-up-snapshot.yml` / `teardown-snapshot.yml` take a Hetzner
 disk snapshot and restore from it — faster, and the only path that preserves
 data for stacks outside the five the R2 layer covers.
 
@@ -868,7 +868,7 @@ Use prefixes that match commit types:
 - This is a **public open-source project** - code should be clean, well-documented, and secure
 - **Never commit directly to `main`** - always use feature branches and PRs
 - Target platform is **macOS** for local development
-- Server runs **Ubuntu 24.04**
+- Server runs **Ubuntu 26.04 LTS**
 - Always test changes before committing
 - Keep README.md updated when adding features
 - Follow best security practices to protect sensitive data

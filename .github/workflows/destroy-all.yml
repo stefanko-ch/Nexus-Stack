@@ -136,7 +136,7 @@ jobs:
           cat > tofu/stack/config.tfvars << EOF
           server_type     = "${{ vars.SERVER_TYPE || 'cx43' }}"
           server_location = "${{ vars.SERVER_LOCATION || 'hel1' }}"
-          server_image    = "ubuntu-24.04"
+          server_image    = "ubuntu-26.04"
           ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
           ssh_private_key_path = "~/.ssh/id_ed25519"
           domain              = "${{ secrets.DOMAIN }}"

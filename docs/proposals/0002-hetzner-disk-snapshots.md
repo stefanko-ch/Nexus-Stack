@@ -13,7 +13,7 @@ The headline is speed, but the stronger argument is coverage: RFC 0001's R2 laye
 
 ### What the current cycle repeats
 
-Every teardown destroys the whole stack; every spin-up rebuilds it from `ubuntu-24.04`. Most of that rebuild is work already done: patching Ubuntu, installing Docker, and pulling the same container images.
+Every teardown destroys the whole stack; every spin-up rebuilds it from `ubuntu-26.04`. Most of that rebuild is work already done: patching Ubuntu, installing Docker, and pulling the same container images.
 
 Measured across real workflow runs (May–August 2026):
 
@@ -122,7 +122,7 @@ lifecycle {
 }
 ```
 
-Load-bearing, not tidiness. Without it a snapshot-restored server is one rebuild spin-up away from destruction: `spin-up.yml` supplies `ubuntu-24.04` and `select-capacity` rewrites `server_type`/`server_location`, so OpenTofu would plan a **replacement** of the live server. `image` and `user_data` are ForceNew, which makes it a silent data-loss path rather than a diff someone notices.
+Load-bearing, not tidiness. Without it a snapshot-restored server is one rebuild spin-up away from destruction: `spin-up.yml` supplies `ubuntu-26.04` and `select-capacity` rewrites `server_type`/`server_location`, so OpenTofu would plan a **replacement** of the live server. `image` and `user_data` are ForceNew, which makes it a silent data-loss path rather than a diff someone notices.
 
 It costs nothing operationally: the documented resize flow is teardown → set `SERVER_TYPE` → spin-up, so the server is always created fresh with the new values.
 

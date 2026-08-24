@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       server_image:
-        description: 'Hetzner image to build from. Empty = ubuntu-24.04. A numeric image id restores from that snapshot.'
+        description: 'Hetzner image to build from. Empty = ubuntu-26.04. A numeric image id restores from that snapshot.'
         required: false
         default: ''
         type: string
@@ -74,7 +74,7 @@ on:
         required: false
         type: string
       server_image:
-        description: 'Hetzner image to build from. Empty = ubuntu-24.04. A numeric image id restores from that snapshot.'
+        description: 'Hetzner image to build from. Empty = ubuntu-26.04. A numeric image id restores from that snapshot.'
         required: false
         default: ''
         type: string
@@ -332,7 +332,7 @@ jobs:
         # Shared with spin-up-snapshot.yml — see
         # .github/actions/nexus-config-tfvars.
         #
-        # The `|| 'ubuntu-24.04'` is load-bearing, not decoration: the
+        # The `|| 'ubuntu-26.04'` is load-bearing, not decoration: the
         # action's own `default:` only applies when a key is ABSENT, and
         # `with:` always sends this one. An unset workflow input would
         # otherwise arrive as an empty string and fail the image
@@ -342,8 +342,8 @@ jobs:
         uses: ./.github/actions/nexus-config-tfvars
         with:
           # Empty on the normal path — the action defaults to
-          # ubuntu-24.04. Only spin-up-snapshot.yml ever passes an id.
-          server_image: ${{ inputs.server_image || 'ubuntu-24.04' }}
+          # ubuntu-26.04. Only spin-up-snapshot.yml ever passes an id.
+          server_image: ${{ inputs.server_image || 'ubuntu-26.04' }}
           enabled_services: ${{ inputs.enabled_services }}
           server_type: ${{ vars.SERVER_TYPE }}
           server_location: ${{ vars.SERVER_LOCATION }}
@@ -489,7 +489,7 @@ jobs:
           #   (c) the second SSH connection won't compete with apt
           #       for I/O.
           # Bumped to 6 minutes — cloud-init's apt-get upgrade -y can
-          # take 4-5 min on a fresh Ubuntu 24.04 image when there's
+          # take 4-5 min on a fresh Ubuntu image when there's
           # a kernel update.
           for i in {1..72}; do
             if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \

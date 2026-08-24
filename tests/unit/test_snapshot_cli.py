@@ -390,7 +390,7 @@ def test_resolve_not_found_is_rc1_not_rc2(monkeypatch: pytest.MonkeyPatch) -> No
     """No snapshot is a normal state, not a failure.
 
     First-ever spin-up, pruned image, rotated epoch — all land here and
-    all must degrade to a fresh ubuntu-24.04 build. Returning 2 would
+    all must degrade to a fresh ubuntu-26.04 build. Returning 2 would
     fail the workflow on a perfectly ordinary first deploy.
     """
     monkeypatch.setattr(_hsnap, "resolve_latest", lambda *a, **k: None)

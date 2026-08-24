@@ -978,7 +978,7 @@ def test_restore_script_rejects_unknown_phase() -> None:
 
 
 def test_restore_script_detects_missing_latest_via_lsf_stdout_not_exit_code() -> None:
-    """Ubuntu 24.04's apt rclone (v1.60.1) returns rc=0 with empty
+    """Older apt rclone (Ubuntu 24.04 shipped v1.60.1) returns rc=0 with empty
     stdout for a missing remote object, so an ``if ! rclone lsf ...``
     check NEVER fires the fresh-start branch on that version — the
     script falls through to ``copyto`` (also rc=0, no local file

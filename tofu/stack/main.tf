@@ -769,7 +769,7 @@ resource "hcloud_server" "main" {
   #
   # Without this, a snapshot-restored server is one legacy spin-up away
   # from destruction: spin-up.yml hardcodes `server_image =
-  # "ubuntu-24.04"` and select-capacity rewrites server_type/location,
+  # "ubuntu-26.04"` and select-capacity rewrites server_type/location,
   # so tofu would plan a REPLACEMENT of the live server and take every
   # stack's data with it. image and user_data are ForceNew on
   # hcloud_server, which makes that a silent data-loss path rather than

@@ -10,7 +10,7 @@ Nexus-Stack has two teardown/spin-up pairs. This guide covers the second one, wh
 
 | Mode | Shown in Actions as | Files | What happens |
 |---|---|---|---|
-| `rebuild` | **Lifecycle: Teardown (Rebuild)**<br>**Lifecycle: Spin Up (Rebuild)** | `teardown.yml`<br>`spin-up.yml` | Destroy everything, rebuild from `ubuntu-24.04` |
+| `rebuild` | **Lifecycle: Teardown (Rebuild)**<br>**Lifecycle: Spin Up (Rebuild)** | `teardown.yml`<br>`spin-up.yml` | Destroy everything, rebuild from `ubuntu-26.04` |
 | `snapshot` | **Lifecycle: Teardown (Snapshot)**<br>**Lifecycle: Spin Up (Snapshot)** | `teardown-snapshot.yml`<br>`spin-up-snapshot.yml` | Snapshot the disk, destroy only the server, restore from the image |
 
 **The default is `rebuild`.** Nothing changes until you switch.
@@ -115,7 +115,7 @@ Rebuild teardown rotates every generated credential, so **every existing
 snapshot becomes unrestorable from that moment on**. Going back is cheap;
 going back and then forward again means starting the snapshot line over. The rebuild workflows were never modified and do not depend on anything the snapshot path added.
 
-For a single run rather than a permanent switch, `spin-up-snapshot.yml` takes `force_fresh=true`, which ignores any snapshot and builds from `ubuntu-24.04`.
+For a single run rather than a permanent switch, `spin-up-snapshot.yml` takes `force_fresh=true`, which ignores any snapshot and builds from `ubuntu-26.04`.
 
 ---
 
@@ -159,7 +159,7 @@ This is the **designed** behaviour, not a fault. A snapshot is only used when it
 - its credential epoch no longer matches
 - its architecture or disk size cannot be satisfied by any available server type
 
-In every case the spin-up falls back to a normal `ubuntu-24.04` build **with R2 restore enabled**, so the five R2-covered stacks keep their data. The other stacks come back empty — the same as the rebuild path has always behaved.
+In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the five R2-covered stacks keep their data. The other stacks come back empty — the same as the rebuild path has always behaved.
 
 The workflow log names the reason.
 
