@@ -1,4 +1,4 @@
-name: Cleanup Orphaned Resources
+name: "Ops: Cleanup Orphaned Resources"
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
       TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       TF_VAR_domain: ${{ secrets.DOMAIN }}
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -30,24 +30,24 @@ jobs:
           DOMAIN="${{ secrets.DOMAIN }}"
           RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
           D1_DATABASE_NAME="${RESOURCE_PREFIX}-db"
-          
+
           # Get all D1 databases
           D1_DATABASES_RESPONSE=$(curl -s \
             "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type: application/json")
-          
+
           D1_DATABASE_ID=$(echo "$D1_DATABASES_RESPONSE" | jq -r ".result[] | select(.name == \"$D1_DATABASE_NAME\") | .uuid" 2>/dev/null || echo "")
-          
+
           if [ -n "$D1_DATABASE_ID" ] && [ "$D1_DATABASE_ID" != "null" ]; then
             echo "  Found D1 Database ID: $D1_DATABASE_ID"
-            
+
             # Delete the database
             D1_DELETE_RESPONSE=$(curl -s -X DELETE \
               "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/$D1_DATABASE_ID" \
               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
               -H "Content-Type: application/json")
-            
+
             if echo "$D1_DELETE_RESPONSE" | grep -q '"success":true'; then
               echo "✅ D1 Database deleted"
             else
@@ -62,24 +62,24 @@ jobs:
         run: |
           echo "🔍 Finding Access Application..."
           ACCESS_APP_DOMAIN="control.${{ secrets.DOMAIN }}"
-          
+
           # Get all Access applications for the zone
           ACCESS_APPS_RESPONSE=$(curl -s \
             "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/access/apps" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type: application/json")
-          
+
           ACCESS_APP_ID=$(echo "$ACCESS_APPS_RESPONSE" | jq -r ".result[] | select(.domain == \"$ACCESS_APP_DOMAIN\") | .id" 2>/dev/null || echo "")
-          
+
           if [ -n "$ACCESS_APP_ID" ] && [ "$ACCESS_APP_ID" != "null" ]; then
             echo "  Found Access Application ID: $ACCESS_APP_ID"
-            
+
             # Delete the Access Application
             ACCESS_DELETE_RESPONSE=$(curl -s -X DELETE \
               "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/access/apps/$ACCESS_APP_ID" \
               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
               -H "Content-Type: application/json")
-            
+
             if echo "$ACCESS_DELETE_RESPONSE" | grep -q '"success":true'; then
               echo "✅ Access Application deleted"
             else

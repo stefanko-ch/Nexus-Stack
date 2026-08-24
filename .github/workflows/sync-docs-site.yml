@@ -15,7 +15,7 @@
 # 3. Set WEBSITE_SYNC_ENABLED repo variable to "true"
 # =============================================================================
 
-name: Sync docs to website
+name: "Docs: Sync to Website"
 
 on:
   push:

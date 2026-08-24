@@ -1,4 +1,4 @@
-name: Setup Nexus Control Plane
+name: "Setup: Control Plane"
 
 on:
   workflow_dispatch:
@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Setup Nexus Control Plane
+    name: Setup Control Plane
     runs-on: ubuntu-latest
     outputs:
       r2_access_key_id: ${{ steps.r2_credentials.outputs.r2_access_key_id }}
@@ -1370,4 +1370,4 @@ jobs:
           echo "ℹ️  Next steps:"
           echo "   1. Use the Control Plane to manage your infrastructure"
           echo "   2. Run 'Spin Up' workflow to deploy the Hetzner server and services"
-          echo "   3. Or trigger it manually: Actions → Spin Up Nexus-Stack → Run workflow"
+          echo "   3. Or trigger it manually: Actions → 'Lifecycle: Spin Up (Rebuild)' → Run workflow"

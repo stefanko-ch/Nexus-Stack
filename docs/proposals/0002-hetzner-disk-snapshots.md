@@ -45,7 +45,7 @@ That is five stacks out of roughly seventy-six. A disk snapshot captures the who
 ### What this is NOT
 
 - **Not a replacement for RFC 0001.** R2 remains, runs first on every snapshot teardown, and is the recovery path whenever a snapshot is unavailable, epoch-mismatched or architecture-incompatible. It is also logically consistent (`pg_dump`) where a disk image is not, and portable where a snapshot is vendor- and architecture-locked.
-- **Not the default.** Stacks stay on the legacy pair until switched.
+- **Not the default.** Stacks stay on the rebuild pair (config value `legacy`) until switched.
 - **Not a backup.** Retention is two generations and the images live in the same Hetzner project as the server.
 
 ## Design

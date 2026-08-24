@@ -133,8 +133,12 @@ disk snapshot and restore from it — faster, and the only path that preserves
 data for stacks outside the five the R2 layer covers.
 
 Which pair a stack uses is the D1 config value `lifecycle_mode`
-(`legacy` | `snapshot`), read by the Control Plane. **Never dispatch the two
-pairs at the same stack interchangeably**: the legacy teardown runs an
+(`legacy` | `snapshot`), read by the Control Plane. In the Actions UI the two
+pairs appear as **Lifecycle: … (Rebuild)** and **Lifecycle: … (Snapshot)** —
+the config value stayed `legacy` because it is a stored identifier, but the
+pair is a permanent fallback rather than something deprecated, so the workflow
+names describe what it does. **Never dispatch the two pairs at the same stack
+interchangeably**: the rebuild teardown runs an
 untargeted `tofu destroy` that regenerates all 81 service credentials, and the
 epoch guard then correctly refuses any existing snapshot. That is why it is one
 config key rather than one per workflow.

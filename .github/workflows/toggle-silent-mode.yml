@@ -1,4 +1,4 @@
-name: Toggle Silent Mode
+name: "Ops: Toggle Silent Mode"
 
 on:
   workflow_dispatch:

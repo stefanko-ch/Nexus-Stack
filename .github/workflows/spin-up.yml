@@ -1,4 +1,4 @@
-name: Spin Up Nexus-Stack
+name: "Lifecycle: Spin Up (Rebuild)"
 
 on:
   workflow_dispatch:
@@ -102,7 +102,7 @@ permissions:
 
 jobs:
   spin-up:
-    name: Spin Up Nexus-Stack
+    name: Spin Up
     runs-on: ubuntu-latest
     env:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}

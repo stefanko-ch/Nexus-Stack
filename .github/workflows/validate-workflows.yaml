@@ -1,4 +1,4 @@
-name: Validate Workflows
+name: "CI: Validate Workflows"
 
 on:
   push:

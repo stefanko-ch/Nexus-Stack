@@ -1,4 +1,4 @@
-name: Destroy All Infrastructure
+name: ⚠️ Destroy All Infrastructure
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Teardown Nexus-Stack
+name: "Lifecycle: Teardown (Rebuild)"
 
 on:
   workflow_dispatch:

@@ -10,7 +10,7 @@
 # during pure docs/stack PRs.
 # =============================================================================
 
-name: Python Tests
+name: "CI: Python Tests"
 
 on:
   pull_request:

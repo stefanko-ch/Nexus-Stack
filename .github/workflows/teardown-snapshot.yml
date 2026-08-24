@@ -1,4 +1,4 @@
-name: Teardown Nexus-Stack (Snapshot)
+name: "Lifecycle: Teardown (Snapshot)"
 
 # =============================================================================
 # Snapshot-based teardown — the counterpart to spin-up-snapshot.yml.

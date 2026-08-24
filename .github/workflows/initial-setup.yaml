@@ -1,4 +1,4 @@
-name: Initial Setup
+name: "Setup: First-Time Deploy"
 
 on:
   workflow_dispatch:
@@ -92,7 +92,7 @@ jobs:
           echo "✅ D1 updated with initial service selection"
 
   spin-up:
-    name: Spin Up Nexus-Stack
+    name: Spin Up
     needs: [setup-control-plane, configure-initial-services]
     if: ${{ always() && needs.setup-control-plane.result == 'success' && needs.configure-initial-services.result != 'failure' }}
     uses: ./.github/workflows/spin-up.yml
