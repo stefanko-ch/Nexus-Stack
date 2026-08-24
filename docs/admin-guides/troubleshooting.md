@@ -189,26 +189,37 @@ spin-up failure that surfaced this wrote the rclone config with
 *path* to a heredoc. That aborted the restore before it produced any
 output, so the workflow log showed one line and nothing else.
 
-The fix, and the pattern to prefer when you need a file created with
-restrictive permissions and no `chmod` race:
+The fix, and the pattern to prefer whenever you write a file that
+holds credentials:
 
 ```bash
 mkdir -p "$HOME/.config/rclone"
-rm -f "$HOME/.config/rclone/rclone.conf"
-(
-    umask 077
-    cat > "$HOME/.config/rclone/rclone.conf"
-) <<'EOF'
+TMP=$(mktemp "$HOME/.config/rclone/.rclone.conf.XXXXXX")
+trap 'rm -f "$TMP"' EXIT
+cat > "$TMP" <<'EOF'
 ...
 EOF
+mv -f "$TMP" "$HOME/.config/rclone/rclone.conf"
 ```
 
-`cat` reads file descriptor 0 directly and performs no path lookup, so
-it cannot fail the same way. The `umask` gives the file mode 0600 from
-its first byte — a plain redirect would create it 0644. The `rm -f`
-matters because `umask` only applies at *creation*: without it, an
-existing 0644 file is truncated and rewritten with its permissions
-intact.
+Four things this gets right, and each of them is a way the shorter
+forms go wrong:
+
+- **`cat` reads file descriptor 0** and performs no path lookup, so it
+  cannot fail the way `install /dev/stdin` did.
+- **Mode 0600 from the first byte.** `mktemp` creates with that mode by
+  construction and `mv` is a rename, so the mode survives. A plain
+  redirect would create the file 0644.
+- **No symlink-follow.** `mktemp` opens `O_EXCL` under a name that did
+  not exist, and `mv` *replaces* a symlink at the destination rather
+  than writing through it. A `rm -f` followed by a redirect leaves a
+  window in which the destination can be re-pointed.
+- **Atomic for readers.** The consumer sees the old file or the new
+  one, never a half-written one left by a session that died mid-write.
+
+The `trap` matters specifically because the temp file holds
+credentials: without it, every failed run strands one under a fresh
+name.
 
 **Where else to look.** Any rendered remote script that shells out to
 coreutils is a candidate. Bash-heavy paths in this project are the

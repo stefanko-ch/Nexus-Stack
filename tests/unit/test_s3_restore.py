@@ -330,9 +330,17 @@ def test_combined_script_writes_config_atomically_at_mode_600() -> None:
         postgres_targets=(),
         rsync_targets=(),
     )
-    assert 'rm -f "$HOME/.config/rclone/rclone.conf"' in script
-    assert "umask 077" in script
-    assert 'cat > "$HOME/.config/rclone/rclone.conf"' in script
+    # mktemp into the same directory, then rename. No unlink-then-
+    # reopen window for a symlink to be planted in, mode 0600 by
+    # mktemp's construction, and atomic for a concurrent reader.
+    assert 'RCLONE_CONF_TMP=$(mktemp "$HOME/.config/rclone/.rclone.conf.XXXXXX")' in script
+    assert 'cat > "$RCLONE_CONF_TMP"' in script
+    assert 'mv -f "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"' in script
+    # A credentials-bearing temp file must not survive a mid-script exit.
+    assert "trap 'rm -f \"$RCLONE_CONF_TMP\"' EXIT" in script
+    # The destination is never opened directly, which is what removes
+    # the symlink-follow path entirely.
+    assert 'cat > "$HOME/.config/rclone/rclone.conf"' not in script
     # Regression guard for the Ubuntu 26.04 failure: `install` asking
     # uutils to resolve a path to the heredoc died with a bare
     # "install: No such file or directory" before any body output.
@@ -359,7 +367,7 @@ def test_combined_script_orders_config_before_body() -> None:
         postgres_targets=(),
         rsync_targets=(),
     )
-    config_pos = script.find("umask 077")
+    config_pos = script.find("RCLONE_CONF_TMP=")
     body_pos = script.find("looking up latest snapshot")
     assert 0 < config_pos < body_pos
 
@@ -470,7 +478,7 @@ def test_combined_snapshot_script_writes_config_and_body() -> None:
     the restore direction. Single rendered script must:
 
     1. Write the rclone config at mode 600 to
-       ``~/.config/rclone/rclone.conf`` under ``umask 077``.
+       ``~/.config/rclone/rclone.conf`` atomically via same-dir mktemp.
     2. Then include the snapshot body — namespaced ``STACK`` /
        ``TEMPLATE_VERSION`` envs, the timestamp, the per-source
        rclone-sync invocations, and the latest.txt pointer write.
@@ -485,7 +493,7 @@ def test_combined_snapshot_script_writes_config_and_body() -> None:
         postgres_targets=postgres_targets,
         rsync_targets=rsync_targets,
     )
-    assert "umask 077" in script
+    assert 'mv -f "$RCLONE_CONF_TMP"' in script
     executable = _executable_lines(script)
     assert not [ln for ln in executable if "/dev/stdin" in ln]
     assert not [ln for ln in executable if ln.strip().startswith("install")]
@@ -508,7 +516,7 @@ def test_combined_snapshot_script_orders_config_before_body() -> None:
         postgres_targets=postgres_targets,
         rsync_targets=rsync_targets,
     )
-    config_pos = script.index("umask 077")
+    config_pos = script.index("RCLONE_CONF_TMP=")
     body_pos = script.index("STACK=nexus-test")
     assert 0 < config_pos < body_pos
 
