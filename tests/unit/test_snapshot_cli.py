@@ -42,8 +42,18 @@ def _snap(image_id: int = 99, created: str = "2026-08-05T21:00:00+00:00") -> Sna
 
 
 @pytest.fixture(autouse=True)
-def _token(monkeypatch: pytest.MonkeyPatch) -> None:
+def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the environment these handlers read.
+
+    NEXUS_SNAPSHOT_LIMIT is cleared for every test, not just the ones
+    that care. An operator running the suite on a machine where it is
+    exported — which is now a normal thing to have, since the variable
+    exists precisely so people set it — would otherwise see failures
+    that have nothing to do with their change. Tests that need a value
+    set it themselves; monkeypatch.setenv wins over this.
+    """
     monkeypatch.setenv("HCLOUD_TOKEN", "tok")
+    monkeypatch.delenv("NEXUS_SNAPSHOT_LIMIT", raising=False)
 
 
 def _kv(capsys: pytest.CaptureFixture[str]) -> dict[str, str]:
@@ -185,7 +195,9 @@ def test_create_warns_near_the_cap(
     err = capsys.readouterr().err
     assert "in this project" in err
     assert "across ALL projects" in err
-    assert "limit 30" in err
+    # Against the constant, not a literal: if the documented default
+    # ever changes, this should follow rather than fail.
+    assert f"limit {_hsnap.DEFAULT_SNAPSHOT_LIMIT}" in err
     assert "SNAPSHOT_LIMIT" in err
 
 
@@ -300,7 +312,8 @@ def test_snapshot_limit_reads_the_environment(
     # operator set the variable, it was rejected, and nothing said so.
     err = capsys.readouterr().err
     supplied = "" if value is None else value.strip()
-    rejected = supplied not in ("", "30") and expected == 30
+    default = str(_hsnap.DEFAULT_SNAPSHOT_LIMIT)
+    rejected = supplied not in ("", default) and expected == _hsnap.DEFAULT_SNAPSHOT_LIMIT
     assert ("⚠" in err) is rejected
 
 
