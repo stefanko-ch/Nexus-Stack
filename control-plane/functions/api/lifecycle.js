@@ -113,7 +113,17 @@ export async function onRequestGet(context) {
     // Reported so the page can present the setting as read-only instead
     // of offering a control that returns 403 on click — a student on the
     // Access whitelist reaches this endpoint like anyone else.
-    const canEdit = requireAdmin(env, request) === null;
+    //
+    // requireAdmin refuses for two different reasons and they must not
+    // collapse into one flag. 403 means "you are not the admin", which
+    // is an ordinary state and the whole point of canEdit. 500 means
+    // ADMIN_EMAIL is unset — nobody can change the setting and the stack
+    // is misconfigured. Reporting that as canEdit:false would show every
+    // caller a read-only page and hide the actual problem, so the denial
+    // is returned as-is and the operator sees it.
+    const denial = requireAdmin(env, request);
+    if (denial && denial.status !== 403) return denial;
+    const canEdit = denial === null;
     return json({
       success: true,
       canEdit,
