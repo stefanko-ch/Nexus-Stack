@@ -189,11 +189,22 @@ def _(months, os, s3_env_ok):
         # http(s):// itself based on s3_use_ssl). Strip it defensively
         # so users can paste a full URL into Infisical without
         # breaking things.
+        # DuckDB's SET statements take no parameter placeholders — you
+        # cannot write SET s3_access_key_id = ? — so these values have
+        # to be inlined into the SQL text. That makes quoting our job:
+        # an apostrophe inside a value would close the string literal
+        # early, and the statement then fails with a syntax error whose
+        # message can carry a fragment of the value into the notebook
+        # output. Doubling the apostrophe is the SQL-standard escape.
+        def _lit(value: object) -> str:
+            """Render a value as a safely quoted SQL string literal."""
+            return "'" + str(value).replace("'", "''") + "'"
+
         _endpoint = os.environ["HETZNER_S3_ENDPOINT"]
         _endpoint_host = _endpoint.replace("https://", "").replace("http://", "")
-        _con.execute(f"SET s3_endpoint = '{_endpoint_host}';")
-        _con.execute(f"SET s3_access_key_id = '{os.environ['HETZNER_S3_ACCESS_KEY']}';")
-        _con.execute(f"SET s3_secret_access_key = '{os.environ['HETZNER_S3_SECRET_KEY']}';")
+        _con.execute(f"SET s3_endpoint = {_lit(_endpoint_host)};")
+        _con.execute(f"SET s3_access_key_id = {_lit(os.environ['HETZNER_S3_ACCESS_KEY'])};")
+        _con.execute(f"SET s3_secret_access_key = {_lit(os.environ['HETZNER_S3_SECRET_KEY'])};")
         _con.execute("SET s3_url_style = 'path';")
         _con.execute("SET s3_use_ssl = true;")
 
@@ -211,8 +222,8 @@ def _(months, os, s3_env_ok):
                 f"yellow_tripdata_2025-{_month}.parquet"
             )
             _con.execute(
-                f"COPY (SELECT * FROM read_parquet('{_src}')) "
-                f"TO '{_dst}' (FORMAT PARQUET);"
+                f"COPY (SELECT * FROM read_parquet({_lit(_src)})) "
+                f"TO {_lit(_dst)} (FORMAT PARQUET);"
             )
             upload_results.append({"month": _month, "src": _src, "dst": _dst})
         _con.close()

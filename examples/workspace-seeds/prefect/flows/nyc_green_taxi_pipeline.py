@@ -41,6 +41,20 @@ from prefect import flow, get_run_logger, task
 CLOUDFRONT = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 
 
+def _lit(value: object) -> str:
+    """Render a value as a safely quoted SQL string literal.
+
+    DuckDB's SET statements take no parameter placeholders — you cannot
+    write ``SET s3_access_key_id = ?`` — so credentials and paths have
+    to be inlined into the SQL text. That makes quoting this code's job:
+    an apostrophe inside a value closes the string literal early, the
+    statement fails with a syntax error, and the error message can carry
+    a fragment of the value into the Prefect run log. Doubling the
+    apostrophe is the SQL-standard escape.
+    """
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 @task(retries=2, retry_delay_seconds=10, log_prints=True)
 def download_month(month: str) -> bytes:
     """Pull one Green-Taxi month from NYC TLC's CloudFront and return raw parquet bytes.
@@ -111,15 +125,15 @@ def aggregate_stats(months: list[str]) -> dict:
     # and unions them. Sort for stability (deterministic earliest/
     # latest in the result).
     paths = ", ".join(
-        f"'s3://{bucket}/nexus-tutorials/NYC/green_tripdata_2025-{m}.parquet'"
+        _lit(f"s3://{bucket}/nexus-tutorials/NYC/green_tripdata_2025-{m}.parquet")
         for m in sorted(set(months))
     )
     sql = f"""
         INSTALL httpfs;
         LOAD httpfs;
-        SET s3_endpoint          = '{endpoint_host}';
-        SET s3_access_key_id     = '{os.environ["R2_ACCESS_KEY"]}';
-        SET s3_secret_access_key = '{os.environ["R2_SECRET_KEY"]}';
+        SET s3_endpoint          = {_lit(endpoint_host)};
+        SET s3_access_key_id     = {_lit(os.environ["R2_ACCESS_KEY"])};
+        SET s3_secret_access_key = {_lit(os.environ["R2_SECRET_KEY"])};
         SET s3_url_style         = 'path';
         SET s3_use_ssl           = true;
 
