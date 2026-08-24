@@ -75,9 +75,12 @@ the registration script travels over SSH stdin, and the value reaches
 `forgejo-cli` through `--secret-stdin` rather than a flag.
 
 On the **runner** side it does. `forgejo-runner create-runner-file`
-accepts the secret only as `--secret <value>` — upstream offers no
-stdin or file variant — so the value is in that process's argv while it
-runs, and in the container environment that `docker inspect` shows.
+declares exactly four flags — `--connect`, `--instance`, `--secret`,
+`--name` — with no stdin or file variant, so the value is in that
+process's argv while it runs, and in the container environment that
+`docker inspect` shows. (The server-side `forgejo-cli actions register`
+*does* have `--secret-stdin` and `--secret-file`; the runner binary is
+a different program and does not.)
 Both require host-level Docker access to observe. The call is guarded
 on `.runner` not already existing, so the argv window is first boot
 only rather than every restart.

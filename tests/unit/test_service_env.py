@@ -129,6 +129,10 @@ def full_config() -> NexusConfig:
         gitea_admin_password="gitea-admin",
         gitea_user_password="gitea-user",
         gitea_db_password="gitea-db",
+        forgejo_admin_password="forgejo-admin",
+        forgejo_user_password="forgejo-user",
+        forgejo_db_password="forgejo-db",
+        forgejo_runner_secret="a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
         clickhouse_admin_password="ch-pw",
         wikijs_admin_password="wiki-admin",
         wikijs_db_password="wiki-db",
@@ -2071,3 +2075,61 @@ def test_separator_dash_lakefs_s3_domain(full_config: NexusConfig) -> None:
     ``s3.lakefs-user1.example.com``."""
     rendered = _render_lakefs(full_config, _flat_env())
     assert rendered.env_vars["LAKEFS_GATEWAYS_S3_DOMAIN_NAME"] == "s3.lakefs-user1.example.com"
+
+
+# ---------------------------------------------------------------------------
+# Forgejo renderer
+# ---------------------------------------------------------------------------
+
+
+def test_forgejo_renders_every_key_the_compose_reads(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The compose file dereferences each of these; a dropped key means
+    the stack starts with an empty value rather than failing loudly."""
+    from nexus_deploy.service_env import _render_forgejo
+
+    rendered = _render_forgejo(full_config, full_env)
+
+    assert rendered.skip_reason is None
+    assert rendered.env_vars == {
+        "FORGEJO_DB_PASSWORD": "forgejo-db",
+        "FORGEJO_RUNNER_SECRET": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+        "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
+        "DOMAIN": full_env.domain or "",
+    }
+
+
+def test_forgejo_instance_url_is_in_cluster_not_public(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The runner reaches Forgejo over the internal network. A public
+    URL would route it through the tunnel and Cloudflare Access, which
+    it cannot satisfy."""
+    from nexus_deploy.service_env import _render_forgejo
+
+    rendered = _render_forgejo(full_config, full_env)
+    assert rendered.env_vars["FORGEJO_INSTANCE_URL"] == "http://forgejo:3000"
+    assert "https://" not in rendered.env_vars["FORGEJO_INSTANCE_URL"]
+
+
+def test_forgejo_skipped_when_db_password_missing(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_forgejo
+
+    config = full_config.model_copy(update={"forgejo_db_password": ""})
+    assert _render_forgejo(config, full_env).skip_reason is not None
+
+
+def test_forgejo_skipped_when_runner_secret_missing(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Guarded as hard as the database password on purpose: rendering
+    without it starts a runner whose entrypoint fails under `set -e`,
+    handing the restart policy an endless loop — a stack that looks
+    alive while its CI can never work."""
+    from nexus_deploy.service_env import _render_forgejo
+
+    config = full_config.model_copy(update={"forgejo_runner_secret": ""})
+    assert _render_forgejo(config, full_env).skip_reason is not None

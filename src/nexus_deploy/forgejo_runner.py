@@ -121,8 +121,16 @@ while :; do
     # printf is a shell builtin: the secret never becomes a process
     # argument on this side, and --secret-stdin keeps it out of the
     # exec's own command line.
+    #
+    # The `=1` is not a typo and not the secret. Forgejo declares
+    # `secret-stdin` as a cli.StringFlag rather than a BoolFlag, so the
+    # parser demands a value — but the implementation only calls
+    # `IsSet("secret-stdin")` and then reads the actual secret from
+    # stdin, discarding whatever the flag was given. Passing the bare
+    # flag fails with "flag needs an argument"; passing a placeholder
+    # is the only way to reach the stdin path.
     if printf '%s' {shlex.quote(secret)} \\
-        | docker exec -i -u git "$CONTAINER" forgejo forgejo-cli "$@" --secret-stdin
+        | docker exec -i -u git "$CONTAINER" forgejo forgejo-cli "$@" --secret-stdin=1
     then
         break
     fi

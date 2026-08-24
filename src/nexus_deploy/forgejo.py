@@ -93,6 +93,13 @@ def _validate(account: Account) -> None:
         raise ValueError("invalid email")
     if not account.password:
         raise ValueError("empty password")
+    if "\n" in account.password or "\r" in account.password:
+        # The password crosses into the container through `read -r`,
+        # which stops at the first newline — a multi-line value would
+        # be silently truncated and the account would get a password
+        # nobody could reproduce. Generated passwords are alphanumeric,
+        # so this is a guard against a future change, not today's data.
+        raise ValueError("password contains a newline")
 
 
 def render_ready_preamble(
@@ -180,25 +187,36 @@ account_exists() {{
         | grep -qxF "$1"
 }}
 
+# The password reaches the container on STDIN, never as an argument to
+# `docker exec`. That is the project standard (see the argv-vs-stdin
+# note in services.py): a value passed as `--password "$p"` out here
+# lands in docker's argv on the HOST, visible to any local `ps`.
+#
+# `forgejo admin` has no password-stdin flag of its own, so the inner
+# shell still hands it to forgejo as an argument — the same cost
+# services.py accepts for Superset's `fab create-admin`. The host-level
+# surface is what this buys, and that is the surface that matters here.
 ensure_account() {{
     username=$1
     password=$2
     email=$3
     admin_flag=${{4:-}}
     if account_exists "$username"; then
-        docker exec -u git "$CONTAINER" forgejo admin user change-password \\
-            --username "$username" \\
-            --password "$password" \\
-            --must-change-password=false >/dev/null
+        printf '%s' "$password" | docker exec -i -u git "$CONTAINER" sh -c '
+            IFS= read -r p || true
+            exec forgejo admin user change-password \\
+                --username "$1" --password "$p" --must-change-password=false
+        ' _ "$username" >/dev/null
         echo "  = $username (password synced)"
     else
-        # shellcheck disable=SC2086 — admin_flag is either empty or the
-        # literal --admin, and must not become an empty argument.
-        docker exec -u git "$CONTAINER" forgejo admin user create $admin_flag \\
-            --username "$username" \\
-            --password "$password" \\
-            --email "$email" \\
-            --must-change-password=false >/dev/null
+        printf '%s' "$password" | docker exec -i -u git "$CONTAINER" sh -c '
+            IFS= read -r p || true
+            # shellcheck disable=SC2086 — $3 is empty or the literal
+            # --admin, and must not become an empty argument.
+            exec forgejo admin user create $3 \\
+                --username "$1" --password "$p" --email "$2" \\
+                --must-change-password=false
+        ' _ "$username" "$email" "$admin_flag" >/dev/null
         echo "  + $username (created)"
     fi
 }}

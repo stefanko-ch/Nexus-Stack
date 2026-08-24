@@ -57,7 +57,11 @@ def test_secret_is_piped_from_a_builtin_not_passed_as_a_flag() -> None:
     """--secret <value> would leave the secret in the remote ps table."""
     script = render_register_script(secret=SECRET, name="nexus-runner")
 
-    assert "--secret-stdin" in script
+    # Forgejo declares secret-stdin as a StringFlag, so the bare flag
+    # is rejected with "flag needs an argument" and the runner never
+    # registers. The value is discarded by the implementation — only
+    # its presence routes the read to stdin — but it must be there.
+    assert "--secret-stdin=1" in script
     # The bare --secret flag must not appear. Guard against the exact
     # regression: someone "simplifying" the printf pipe away.
     assert "--secret " not in script

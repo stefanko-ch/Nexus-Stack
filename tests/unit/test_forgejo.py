@@ -234,3 +234,26 @@ def test_result_is_frozen() -> None:
     result = ConfigureResult(status="configured", detail="x")
     with pytest.raises(dataclasses.FrozenInstanceError):
         result.detail = "y"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("bad", ["a\nb", "a\rb", "trailing\n"])
+def test_password_with_a_newline_is_refused(bad: str) -> None:
+    """The password crosses into the container through `read -r`, which
+    stops at the first newline. Accepting one would set a password
+    nobody could reproduce."""
+    with pytest.raises(ValueError, match="newline"):
+        render_configure_script((dataclasses.replace(ADMIN, password=bad),))
+
+
+def test_password_reaches_the_container_on_stdin_not_in_docker_argv() -> None:
+    """`--password "$p"` out here would land in docker's argv on the
+    HOST, visible to any local `ps`. The project standard is to pipe it
+    in and expand it only inside the container — see the argv-vs-stdin
+    note in services.py."""
+    script = render_configure_script((ADMIN,))
+    executable = _executable_lines(script)
+
+    assert any("printf '%s' \"$password\" | docker exec -i" in ln for ln in executable)
+    # The host-side docker exec must not carry the password variable.
+    docker_lines = [ln for ln in executable if "docker exec" in ln]
+    assert not [ln for ln in docker_lines if "--password" in ln]
