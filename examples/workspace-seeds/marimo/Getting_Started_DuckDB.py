@@ -363,10 +363,20 @@ def _(mo):
 
           ```python
           import os
+
+          # DuckDB's SET takes no parameter placeholders — you cannot
+          # write SET s3_access_key_id = ? — so the values have to be
+          # inlined into the SQL text, which makes quoting your job.
+          # Doubling any apostrophe is the SQL-standard escape; without
+          # it a value containing one closes the literal early and the
+          # statement fails to parse.
+          def _lit(value):
+              return "'" + str(value).replace("'", "''") + "'"
+
           con.sql(f\"\"\"
-              SET s3_endpoint = '{os.environ["HETZNER_S3_ENDPOINT"].removeprefix("https://")}';
-              SET s3_access_key_id = '{os.environ["HETZNER_S3_ACCESS_KEY"]}';
-              SET s3_secret_access_key = '{os.environ["HETZNER_S3_SECRET_KEY"]}';
+              SET s3_endpoint = {_lit(os.environ["HETZNER_S3_ENDPOINT"].removeprefix("https://"))};
+              SET s3_access_key_id = {_lit(os.environ["HETZNER_S3_ACCESS_KEY"])};
+              SET s3_secret_access_key = {_lit(os.environ["HETZNER_S3_SECRET_KEY"])};
               SET s3_url_style = 'path';
           \"\"\")
           # then read with: SELECT * FROM read_parquet('s3://<bucket>/path/file.parquet')
