@@ -167,6 +167,56 @@ When `HCLOUD_TOKEN` is not set in the environment (e.g. running the CLI locally 
 
 Hetzner ARM (`cax*`) availability has been chronically constrained since early 2026 and is now ~40% MORE expensive than equivalent x86 (was ~50% cheaper at project start), so the default list excludes ARM entirely. If you need ARM, add it explicitly: `SERVER_PREFERENCES = "cax31:fsn1, cax31:nbg1, cx43:fsn1"`.
 
+## Ubuntu 26.04 and uutils coreutils
+
+Ubuntu 26.04 replaced GNU coreutils with the Rust reimplementation
+[uutils](https://uutils.github.io/coreutils/) as its default userland.
+Around 80 utilities changed implementation; `cp`, `mv` and `rm` stayed
+GNU.
+
+They are close, not identical. Two things to know when a deploy fails
+on 26.04 in a way it never did on 24.04:
+
+**Error messages differ in shape.** GNU names the offending path —
+`install: cannot stat '/dev/stdin': No such file or directory`. uutils
+is terser and may print only `install: No such file or directory`. If
+you are looking at a message with no path in it, that alone is a hint
+about which implementation produced it.
+
+**Passing a device path where a file is expected can fail.** The
+spin-up failure that surfaced this wrote the rclone config with
+`install -m 600 /dev/stdin <<'EOF'`, asking `install` to resolve a
+*path* to a heredoc. That aborted the restore before it produced any
+output, so the workflow log showed one line and nothing else.
+
+The fix, and the pattern to prefer when you need a file created with
+restrictive permissions and no `chmod` race:
+
+```bash
+mkdir -p "$HOME/.config/rclone"
+rm -f "$HOME/.config/rclone/rclone.conf"
+(
+    umask 077
+    cat > "$HOME/.config/rclone/rclone.conf"
+) <<'EOF'
+...
+EOF
+```
+
+`cat` reads file descriptor 0 directly and performs no path lookup, so
+it cannot fail the same way. The `umask` gives the file mode 0600 from
+its first byte — a plain redirect would create it 0644. The `rm -f`
+matters because `umask` only applies at *creation*: without it, an
+existing 0644 file is truncated and rewritten with its permissions
+intact.
+
+**Where else to look.** Any rendered remote script that shells out to
+coreutils is a candidate. Bash-heavy paths in this project are the
+deploy pipeline, the rendered `s3_persistence` snapshot and restore
+scripts, and the per-service configure hooks. Failures there tend to be
+quiet — wrong output rather than a non-zero exit — so a green step is
+not proof.
+
 ## General Tips
 
 ### SSH Access Issues

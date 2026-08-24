@@ -419,15 +419,26 @@ def render_combined_restore_script(
     """Render a single bash script that does BOTH:
 
     1. Writes the rclone config to
-       ``~/.config/rclone/rclone.conf`` via ``install -m 600
-       /dev/stdin``. ``install`` creates the file with the
-       requested permission bits in one syscall — no ``open()
-       then chmod()`` race window where another process on the
-       host could read the credentials with default 644
-       permissions. The write itself is NOT a temp-file +
-       rename (an earlier docstring revision claimed it was);
-       it's a direct write at the target path with safe perms
-       set on creation. That's sufficient for our threat model
+       ``~/.config/rclone/rclone.conf`` under ``umask 077`` in a
+       subshell, preceded by ``rm -f``. The file therefore carries
+       0600 from its first byte — no ``open() then chmod()`` race
+       window where another process on the host could read the
+       credentials at the default 644. The ``rm -f`` matters
+       because umask only applies at *creation*: without it, an
+       existing 644 file would be truncated and rewritten with its
+       permissions intact.
+
+       This used to be ``install -m 600 /dev/stdin``, which gave
+       the same guarantee more compactly. It was replaced because
+       that form asks ``install(1)`` to resolve a *path* to the
+       heredoc, and on Ubuntu 26.04 — where coreutils is now uutils
+       rather than GNU — that resolution failed with a bare
+       ``install: No such file or directory``, aborting the restore
+       before it produced any output. ``cat`` reading fd 0 performs
+       no path lookup and cannot fail that way.
+
+       The write is a direct write at the target path, not a
+       temp-file + rename. That is sufficient for our threat model
        (single-user server, no concurrent writers).
     2. Runs the restore body produced by
        :func:`s3_persistence.render_restore_script`.
@@ -466,15 +477,30 @@ def render_combined_restore_script(
         "set -euo pipefail\n"
         "\n"
         "# ---- write rclone config (mode 600 from creation) -----\n"
-        "# `install -m 600 /dev/stdin` creates the file with the\n"
-        "# secure mode in one syscall — no chmod-race window. The\n"
-        "# write itself streams to the target path (not a\n"
-        "# temp-file + rename), but the surrounding `set -euo\n"
-        "# pipefail` guarantees fail-closed semantics: if the SSH\n"
-        "# session dies mid-write, the body below never runs, so a\n"
-        "# partial config can never feed into rclone.\n"
+        "# The umask makes the file 0600 from its first byte — the\n"
+        "# same no-chmod-race property `install -m 600` gave us, and\n"
+        "# the reason this is not a plain redirect. `rm -f` first so\n"
+        "# a pre-existing file with looser permissions is replaced\n"
+        "# rather than truncated in place, since umask only applies\n"
+        "# at creation.\n"
+        "#\n"
+        "# Deliberately NOT `install -m 600 /dev/stdin`, which this\n"
+        "# used to be. That form asks install(1) to resolve a *path*\n"
+        "# to the heredoc, and on Ubuntu 26.04 — whose coreutils are\n"
+        "# now uutils rather than GNU — that resolution failed with a\n"
+        "# bare `install: No such file or directory`. `cat` reading\n"
+        "# fd 0 involves no path lookup at all and cannot fail that\n"
+        "# way. See docs/admin-guides/troubleshooting.md.\n"
+        "#\n"
+        "# `set -euo pipefail` still guarantees fail-closed semantics:\n"
+        "# if the SSH session dies mid-write, the body below never\n"
+        "# runs, so a partial config can never feed into rclone.\n"
         'mkdir -p "$HOME/.config/rclone"\n'
-        "install -m 600 /dev/stdin \"$HOME/.config/rclone/rclone.conf\" <<'RCLONE_CONFIG_EOF'\n"
+        'rm -f "$HOME/.config/rclone/rclone.conf"\n'
+        "(\n"
+        "    umask 077\n"
+        '    cat > "$HOME/.config/rclone/rclone.conf"\n'
+        ") <<'RCLONE_CONFIG_EOF'\n"
         f"{rclone_config}"
         "RCLONE_CONFIG_EOF\n"
         "\n"
@@ -683,8 +709,9 @@ def render_combined_snapshot_script(
     """Render a single bash script that does BOTH:
 
     1. Writes the rclone config to ``~/.config/rclone/rclone.conf``
-       via ``install -m 600 /dev/stdin`` — same atomic-perms
-       pattern as :func:`render_combined_restore_script`.
+       under ``umask 077`` — same create-with-safe-perms pattern as
+       :func:`render_combined_restore_script`, including why it is
+       no longer ``install -m 600 /dev/stdin``.
     2. Runs the snapshot body from
        :func:`s3_persistence.render_snapshot_script`, which
        implements the RFC 0001 atomicity contract (stop →
@@ -724,15 +751,30 @@ def render_combined_snapshot_script(
         "set -euo pipefail\n"
         "\n"
         "# ---- write rclone config (mode 600 from creation) -----\n"
-        "# `install -m 600 /dev/stdin` creates the file with the\n"
-        "# secure mode in one syscall — no chmod-race window. The\n"
-        "# write itself streams to the target path (not a\n"
-        "# temp-file + rename), but the surrounding `set -euo\n"
-        "# pipefail` guarantees fail-closed semantics: if the SSH\n"
-        "# session dies mid-write, the body below never runs, so a\n"
-        "# partial config can never feed into rclone.\n"
+        "# The umask makes the file 0600 from its first byte — the\n"
+        "# same no-chmod-race property `install -m 600` gave us, and\n"
+        "# the reason this is not a plain redirect. `rm -f` first so\n"
+        "# a pre-existing file with looser permissions is replaced\n"
+        "# rather than truncated in place, since umask only applies\n"
+        "# at creation.\n"
+        "#\n"
+        "# Deliberately NOT `install -m 600 /dev/stdin`, which this\n"
+        "# used to be. That form asks install(1) to resolve a *path*\n"
+        "# to the heredoc, and on Ubuntu 26.04 — whose coreutils are\n"
+        "# now uutils rather than GNU — that resolution failed with a\n"
+        "# bare `install: No such file or directory`. `cat` reading\n"
+        "# fd 0 involves no path lookup at all and cannot fail that\n"
+        "# way. See docs/admin-guides/troubleshooting.md.\n"
+        "#\n"
+        "# `set -euo pipefail` still guarantees fail-closed semantics:\n"
+        "# if the SSH session dies mid-write, the body below never\n"
+        "# runs, so a partial config can never feed into rclone.\n"
         'mkdir -p "$HOME/.config/rclone"\n'
-        "install -m 600 /dev/stdin \"$HOME/.config/rclone/rclone.conf\" <<'RCLONE_CONFIG_EOF'\n"
+        'rm -f "$HOME/.config/rclone/rclone.conf"\n'
+        "(\n"
+        "    umask 077\n"
+        '    cat > "$HOME/.config/rclone/rclone.conf"\n'
+        ") <<'RCLONE_CONFIG_EOF'\n"
         f"{rclone_config}"
         "RCLONE_CONFIG_EOF\n"
         "\n"
