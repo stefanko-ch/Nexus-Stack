@@ -189,7 +189,7 @@ gh variable set SNAPSHOT_LIMIT --body 100
 
 #### What the warning can and cannot see
 
-`snapshot-create` counts before creating, and fails loudly naming foreign snapshots rather than deleting anything it does not own.
+`snapshot-create` counts before creating and warns when the total approaches the limit. It does not enumerate anything — the count is a bare total, and nothing is named. The related guarantee is real but belongs to a different command: `select_prunable` only ever sees images carrying **both** the `nexus_role` and `nexus_domain` labels, so prune and purge can only delete images this stack owns.
 
 The count includes **every** snapshot in the project, not only the ones Nexus-Stack made — one taken by hand in the Console consumes quota exactly like ours does, so it has to be counted like ours.
 

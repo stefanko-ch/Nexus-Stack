@@ -217,6 +217,54 @@ def test_create_cap_warning_respects_the_configured_limit(
     assert "⚠" not in capsys.readouterr().err
 
 
+def test_create_does_not_warn_on_an_empty_project(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A limit of 1 or 2 must not warn when nothing exists yet.
+
+    `total >= limit - 2` is <= 0 for those limits, so the bare form
+    held at zero snapshots and warned forever on a stack that had
+    taken none. Rejecting small limits instead would be worse: an
+    operator whose real cap IS 2 would be moved to 30 and warned never.
+    """
+    monkeypatch.setenv("NEXUS_SNAPSHOT_LIMIT", "2")
+    monkeypatch.setattr(_hsnap, "count_snapshots", lambda _t: 0)
+    monkeypatch.setattr(_hsnap, "create_snapshot", lambda *a, **k: _snap())
+    cli._snapshot_create(
+        [
+            "--server-id",
+            "42",
+            "--domain-slug",
+            "example-com",
+            "--timestamp",
+            "20260805T210000Z",
+        ],
+    )
+    assert "⚠" not in capsys.readouterr().err
+
+
+def test_create_still_warns_at_a_small_limit_once_snapshots_exist(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The floor must not silence a genuinely tight limit."""
+    monkeypatch.setenv("NEXUS_SNAPSHOT_LIMIT", "2")
+    monkeypatch.setattr(_hsnap, "count_snapshots", lambda _t: 1)
+    monkeypatch.setattr(_hsnap, "create_snapshot", lambda *a, **k: _snap())
+    cli._snapshot_create(
+        [
+            "--server-id",
+            "42",
+            "--domain-slug",
+            "example-com",
+            "--timestamp",
+            "20260805T210000Z",
+        ],
+    )
+    assert "⚠" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [

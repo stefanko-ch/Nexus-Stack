@@ -555,9 +555,14 @@ def count_snapshots(token: str, *, http_request: HttpRequest | None = None) -> i
     meta = payload.get("meta") if isinstance(payload, dict) else None
     pagination = meta.get("pagination") if isinstance(meta, dict) else None
     total = pagination.get("total_entries") if isinstance(pagination, dict) else None
-    if not isinstance(total, int):
+    # `type(total) is int` rather than isinstance: bool subclasses int in
+    # Python, so isinstance(True, int) passes and a `"total_entries": true`
+    # would silently become a count of 1. A negative total is equally
+    # meaningless. Both would suppress the warning while looking valid,
+    # which is the failure mode this whole function exists to avoid.
+    if type(total) is not int or total < 0:
         raise HetznerSnapshotError(
-            "Hetzner /v1/images response missing meta.pagination.total_entries",
+            "Hetzner /v1/images response has no usable meta.pagination.total_entries",
         )
     return total
 

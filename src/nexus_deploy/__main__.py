@@ -3119,7 +3119,13 @@ def _snapshot_create(args: list[str]) -> int:
         )
         return 2
     limit = _snapshot_limit()
-    if total >= limit - 2:
+    # max(1, ...) so an empty project never warns. With a limit of 1 or 2
+    # the bare `limit - 2` is <= 0, so `total >= limit - 2` holds at zero
+    # snapshots and the warning would fire forever on a stack that has
+    # taken none. Rejecting such limits instead would be worse: an
+    # operator whose real cap IS 2 would be silently moved to 30 and get
+    # no warning at all.
+    if total >= max(1, limit - 2):
         # "in this project" is now literally true — count_snapshots is
         # unfiltered — but the token still sees only one project while
         # the limit counts every project, so say both. The number is a

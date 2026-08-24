@@ -266,11 +266,35 @@ def test_count_snapshots_reads_the_reported_total_not_the_page() -> None:
     assert "per_page=1" in url
 
 
-def test_count_snapshots_rejects_a_response_without_a_total() -> None:
-    """Silently returning 0 would suppress the warning entirely."""
-    http = _Recorder({"/images": {"images": []}})
+@pytest.mark.parametrize(
+    "meta",
+    [
+        pytest.param({}, id="no-meta"),
+        pytest.param({"meta": {}}, id="no-pagination"),
+        pytest.param({"meta": {"pagination": {}}}, id="no-total"),
+        pytest.param({"meta": {"pagination": {"total_entries": None}}}, id="null-total"),
+        pytest.param({"meta": {"pagination": {"total_entries": "7"}}}, id="string-total"),
+        # bool subclasses int, so isinstance(True, int) passes and this
+        # would silently become a count of 1.
+        pytest.param({"meta": {"pagination": {"total_entries": True}}}, id="bool-total"),
+        pytest.param({"meta": {"pagination": {"total_entries": -1}}}, id="negative-total"),
+    ],
+)
+def test_count_snapshots_rejects_an_unusable_total(meta: dict[str, Any]) -> None:
+    """Anything but a non-negative int must raise, not be coerced.
+
+    A silently wrong total suppresses the cap warning while looking
+    valid — the exact failure this function exists to prevent.
+    """
+    http = _Recorder({"/images": {"images": [], **meta}})
     with pytest.raises(HetznerSnapshotError, match="total_entries"):
         count_snapshots("tok", http_request=http)
+
+
+def test_count_snapshots_accepts_zero() -> None:
+    """An empty project is a valid answer, not a malformed one."""
+    http = _Recorder({"/images": _pagination(0)})
+    assert count_snapshots("tok", http_request=http) == 0
 
 
 # ---------------------------------------------------------------------------
