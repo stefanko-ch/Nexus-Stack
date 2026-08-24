@@ -13,6 +13,9 @@
 #   1. reviews.profile: assertive → chill
 #   2. reviews.tools.languagetool.enabled: true → false
 #   3. reviews.auto_review.drafts: true → false
+#
+# request_changes_workflow was turned off for a different reason — see
+# the note at that key. It is about the verdict, not the volume.
 
 language: en
 
@@ -29,7 +32,19 @@ knowledge_base:
 
 reviews:
   profile: assertive             # flag more granular findings, not just high-confidence
-  request_changes_workflow: true # set "Changes requested" status when issues found
+  # Comment, never block. CodeRabbit's findings on this repo are worth
+  # having — it caught three real defects in #667 alone — but its
+  # "Changes requested" verdict does not clear itself: it posts follow-up
+  # reviews as COMMENTED and never converts to APPROVED, so every PR ends
+  # with a manual dismissal even after it has agreed in-thread that every
+  # finding is resolved. Observed on #656, #665 and #667; resolving all
+  # threads did not release it either.
+  #
+  # The findings are unchanged by this. What goes away is a gate that
+  # only ever opened by hand. Sourcery and Copilot already review without
+  # blocking, and branch protection is the right place for a hard gate if
+  # one is wanted.
+  request_changes_workflow: false
   high_level_summary: true       # PR-level summary at the top
   poem: false                    # disable the closing rhyme — pure noise
   review_status: true            # show review state in the PR
