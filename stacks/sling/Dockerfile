@@ -21,14 +21,15 @@
 
 FROM debian:bookworm-slim
 
-# NOT a single source of truth — the version is repeated in five places
+# NOT a single source of truth — the version is repeated in six places
 # and an upgrade has to touch all of them together:
 #
-#   stacks/sling/Dockerfile        this ARG (which binary is downloaded)
+#   stacks/sling/Dockerfile          this ARG (which binary is downloaded)
 #   stacks/sling/docker-compose.yml  the image tag
-#   services.yaml                  the image field
-#   docs/stacks/overview.md        the stack table
-#   docs/stacks/README.md          the image-version table
+#   services.yaml                    the image field
+#   docs/stacks/overview.md          twice: the custom-image paragraph
+#                                    and the stack table row
+#   docs/stacks/README.md            the image-version table
 #
 # Editing only this ARG fetches a different binary while the image tag
 # and all the metadata keep advertising the old version. The ARG earns
