@@ -58,7 +58,7 @@ const MODE_INFO = {
     summary: 'Snapshot the disk, restore from it on the next spin-up.',
     keeps: 'Everything on the server, across all stacks.',
     loses: 'Nothing, as long as a usable snapshot exists.',
-    images: 'Frozen at the snapshot — refresh them explicitly when you want newer ones.',
+    images: 'Frozen at the snapshot, so they age. Switching to Rebuild for one cycle is currently the only way to pull newer ones.',
   },
 };
 

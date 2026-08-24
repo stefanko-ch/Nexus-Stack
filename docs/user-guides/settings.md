@@ -56,7 +56,9 @@ what survives and how long the spin-up takes.
   from it. Everything on the server survives, across all stacks, and the boot
   is faster because the system does not reinstall itself. In exchange the
   container images age: they stay at whatever was pulled when the snapshot line
-  started.
+  started. There is no refresh button yet — switching to Rebuild for one cycle
+  is currently the only way to pull newer images, and that costs you everything
+  the R2 backup does not cover.
 
 The block always names the mode currently in use and what it means, so you can
 read the setting even when you cannot change it.
