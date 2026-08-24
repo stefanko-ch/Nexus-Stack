@@ -73,16 +73,26 @@ async function readMode(db) {
   return canonicalMode(row.value);
 }
 
+// Returns true when the audit row landed, false when it did not.
+//
+// Deliberately does NOT throw. By the time this runs the config write has
+// already committed, so failing the response would tell the caller the
+// change did not happen when it did — and their retry would switch
+// again. But the failure is not swallowed either: it is logged to the
+// Worker console and reported to the caller as `auditLogged: false`, so
+// a lifecycle change without an audit trail is visible rather than
+// silent. That is the part that matters for a setting whose next
+// teardown can rotate every credential on the stack.
 async function logChange(db, level, message, metadata) {
-  // Best-effort: a failed audit write must not fail the request that
-  // already succeeded, or the caller retries and switches twice.
   try {
     await db
       .prepare('INSERT INTO logs (source, level, message, metadata) VALUES (?, ?, ?, ?)')
       .bind('lifecycle', level, message, metadata ? JSON.stringify(metadata) : null)
       .run();
-  } catch {
-    /* ignore */
+    return true;
+  } catch (error) {
+    console.error('lifecycle: config was changed but the audit row failed:', error);
+    return false;
   }
 }
 
@@ -148,7 +158,14 @@ export async function onRequestPost(context) {
   }
 
   try {
-    const previous = await readMode(env.NEXUS_DB);
+    const stored = await readMode(env.NEXUS_DB);
+    // Only report a previous value we recognise. `stored` comes straight
+    // from a database row, and this file already refuses to put an
+    // unvalidated one in a log line or a response body — `previous` goes
+    // into BOTH, so it gets the same treatment. If someone ever writes a
+    // secret to this key, it must not be echoed back or persisted into
+    // the audit record.
+    const previous = LIFECYCLE_MODES.includes(stored) ? stored : null;
     if (previous === requested) {
       return json({ success: true, mode: requested, changed: false });
     }
@@ -162,17 +179,19 @@ export async function onRequestPost(context) {
       .run();
 
     const userEmail = getAccessUserEmail(request) || 'unknown';
-    await logChange(env.NEXUS_DB, 'info', `Lifecycle mode changed to ${requested}`, {
-      from: previous,
-      to: requested,
-      by: userEmail,
-    });
+    const auditLogged = await logChange(
+      env.NEXUS_DB,
+      'info',
+      `Lifecycle mode changed to ${requested}`,
+      { from: previous, to: requested, by: userEmail },
+    );
 
     return json({
       success: true,
       mode: requested,
       changed: true,
       previous,
+      auditLogged,
       workflows: LIFECYCLE_WORKFLOWS[requested],
       // Surfaced so the UI can warn rather than the operator finding out
       // at the next teardown.

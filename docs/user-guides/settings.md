@@ -6,7 +6,7 @@ order: 7
 
 # Settings
 
-![Settings page header introducing the Infrastructure Information, Scheduled Teardown, and Email Notifications blocks](./assets/settings-header.png)
+![Top of the Settings page, showing the start of the Infrastructure Information block](./assets/settings-header.png)
 
 The Settings page is split into four blocks: **Infrastructure Information** (read-only), **Scheduled Teardown**, **Lifecycle**, and **Email Notifications**.
 
