@@ -618,3 +618,86 @@ def test_purge_aborts_when_a_delete_fails(monkeypatch: pytest.MonkeyPatch) -> No
 def test_purge_requires_domain_slug(capsys: pytest.CaptureFixture[str]) -> None:
     assert cli._snapshot_purge([]) == 2
     assert "--domain-slug is required" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# snapshot-purge argument validation
+#
+# Strict, unlike the other snapshot handlers, because this one deletes and
+# both ways of getting the arguments wrong are SILENT:
+#
+#   --keep 2   borrowed from snapshot-prune, ignored -> deletes everything
+#              when the operator asked to retain two
+#   --aply     a typo, ignored -> a real purge silently downgrades to a
+#              dry run that exits 0, so destroy-all reports success while
+#              the images it was meant to remove survive
+#
+# The two failures point in opposite directions, which is why neither
+# default (accept-and-ignore) is defensible here.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["--domain-slug", "example-com", "--apply", "--keep", "2"], "unknown argument '--keep'"),
+        (["--domain-slug", "example-com", "--aply"], "unknown argument '--aply'"),
+        (["--domain-slug", "example-com", "extra"], "unknown argument 'extra'"),
+        (["--domain-slug", "example-com", "--apply", "--apply"], "--apply given more than once"),
+        (["--domain-slug"], "--domain-slug requires a value"),
+    ],
+)
+def test_purge_rejects_bad_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    expected: str,
+) -> None:
+    """rc=2 and, critically, nothing is deleted."""
+    deleted: list[int] = []
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: (_snap(1), _snap(2), _snap(3)))
+    monkeypatch.setattr(
+        _hsnap,
+        "delete_snapshot",
+        lambda image_id, token: deleted.append(image_id),
+    )
+
+    assert cli._snapshot_purge(argv) == 2
+    assert deleted == []
+    assert expected in capsys.readouterr().err
+
+
+def test_purge_rejects_keep_before_deleting_anything(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The regression this validation exists for, stated on its own.
+
+    `snapshot-purge --domain-slug X --apply --keep 2` used to delete
+    every snapshot: --keep is a snapshot-prune option, it was ignored,
+    and purge does not retain. An operator reaching for the flag they
+    know from the sibling command got the opposite of what they asked
+    for, irreversibly.
+    """
+    deleted: list[int] = []
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: (_snap(1), _snap(2), _snap(3)))
+    monkeypatch.setattr(
+        _hsnap,
+        "delete_snapshot",
+        lambda image_id, token: deleted.append(image_id),
+    )
+
+    rc = cli._snapshot_purge(["--domain-slug", "example-com", "--apply", "--keep", "2"])
+    assert rc == 2
+    assert deleted == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--domain-slug", "example-com"],
+        ["--domain-slug", "example-com", "--apply"],
+        ["--apply", "--domain-slug", "example-com"],
+    ],
+)
+def test_purge_accepts_every_valid_form(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
+    """Validation must not reject what the workflow actually sends."""
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: ())
+    assert cli._snapshot_purge(argv) == 0

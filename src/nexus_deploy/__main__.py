@@ -2922,6 +2922,48 @@ def _flag(args: list[str], name: str) -> str | None:
     return None
 
 
+def _known_args_only(
+    args: list[str],
+    *,
+    valued: tuple[str, ...] = (),
+    boolean: tuple[str, ...] = (),
+) -> None:
+    """Reject any argument the handler does not understand.
+
+    :func:`_flag` scans for the flags it wants and ignores everything
+    else. That is tolerable for a handler whose worst case is an option
+    going unread; it is not tolerable for a destructive one, where it
+    fails quietly in both directions:
+
+    * ``snapshot-purge --domain-slug X --apply --keep 2`` silently
+      ignores the ``--keep`` borrowed from ``snapshot-prune`` and
+      deletes every snapshot, when the operator asked to retain two.
+    * ``snapshot-purge --domain-slug X --aply`` silently downgrades a
+      real purge to a dry run that exits 0, so ``destroy-all`` reports
+      success while the images it was meant to remove survive.
+
+    Hand-rolled to match ``secret-sync`` rather than pulling in argparse
+    for three flags. A value is consumed positionally, so a value that
+    happens to look like a flag behaves exactly as :func:`_flag` would.
+    """
+    seen: set[str] = set()
+    i = 0
+    while i < len(args):
+        token = args[i]
+        name = token[2:] if token.startswith("--") else None
+        if name is None or (name not in valued and name not in boolean):
+            raise _FlagError(f"unknown argument {token!r}")
+        if name in seen:
+            raise _FlagError(f"--{name} given more than once")
+        seen.add(name)
+        if name in valued:
+            if i + 1 >= len(args):
+                raise _FlagError(f"--{name} requires a value")
+            i += 2
+        else:
+            i += 1
+
+
 def _required_flag(args: list[str], name: str) -> str:
     value = _flag(args, name)
     if value is None:
@@ -3193,6 +3235,10 @@ def _snapshot_purge(args: list[str]) -> int:
     Exit codes: 0 done (or nothing to do), 2 on API failure.
     """
     try:
+        # Strict, unlike the other snapshot handlers: this one deletes,
+        # and both ways of getting the arguments wrong are silent. See
+        # _known_args_only for the two concrete cases.
+        _known_args_only(args, valued=("domain-slug",), boolean=("apply",))
         domain_slug = _required_flag(args, "domain-slug")
         token = _snapshot_token()
     except _FlagError as exc:
