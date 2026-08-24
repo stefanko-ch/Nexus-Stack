@@ -43,8 +43,11 @@ The cron worker can auto-teardown your stack on a daily schedule so you don't pa
 ## Lifecycle
 
 How your stack is torn down at night and brought back the next day. Both
-options stop the server, so both save the same amount of money — they differ in
-what survives and how long the spin-up takes.
+options stop the server, which is where nearly all the saving comes from. They
+differ in what survives, how long the spin-up takes, and — slightly — in cost:
+Snapshot keeps disk images, and Hetzner bills those by used space. Measured on
+a real stack that is roughly 10 GB used, two retained snapshots come to a
+little under 30 cents a month. Small against a server, but not zero.
 
 - **Rebuild** — Destroy everything and rebuild from a clean Ubuntu image each
   time. Container images are pulled fresh, so stacks tracking `:latest` stay
