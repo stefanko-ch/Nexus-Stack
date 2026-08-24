@@ -109,11 +109,13 @@ async function resolveLifecycle(db) {
     return { ok: false, reason: 'D1 read failed' };
   }
 
-  const value = row ? row.value : null;
-  if (!value) {
+  // `!row`, NOT `!row.value` — see the Pages copy of this function.
+  // An empty stored string is invalid, not unconfigured, and must reach
+  // the refusal below rather than defaulting to the destructive pair.
+  if (!row) {
     return { ok: true, mode: DEFAULT_LIFECYCLE_MODE, ...LIFECYCLE_WORKFLOWS[DEFAULT_LIFECYCLE_MODE] };
   }
-  const mode = canonicalMode(value);
+  const mode = canonicalMode(row.value);
   if (!LIFECYCLE_MODES.includes(mode)) {
     // The value itself is never logged: it is an unvalidated database
     // string, and a secret written to the wrong key would be retained.

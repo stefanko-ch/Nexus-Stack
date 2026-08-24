@@ -101,15 +101,18 @@ export async function resolveLifecycle(db) {
     return { ok: false, reason: 'D1 read failed' };
   }
 
-  const value = row ? row.value : null;
-
-  // No row: this stack was never switched. That is a definite answer,
-  // not an unknown one.
-  if (!value) {
+  // `!row`, NOT `!row.value`. Absent and empty are different answers and
+  // this module exists to keep them apart: no row means the stack was
+  // never switched, which is definite and resolves to the default. An
+  // empty string is a stored value that is invalid, and must fall
+  // through to the refusal below — treating it as unconfigured would
+  // dispatch the DESTRUCTIVE pair at a stack that may be on snapshots,
+  // which is the exact failure the rest of this file guards against.
+  if (!row) {
     return { ok: true, mode: DEFAULT_LIFECYCLE_MODE, ...LIFECYCLE_WORKFLOWS[DEFAULT_LIFECYCLE_MODE] };
   }
 
-  const mode = canonicalMode(value);
+  const mode = canonicalMode(row.value);
   if (!LIFECYCLE_MODES.includes(mode)) {
     // Deliberately does not print the value. It is an unvalidated
     // database string, and this project does not put those in logs — if

@@ -67,9 +67,12 @@ async function readMode(db) {
     .prepare('SELECT value FROM config WHERE key = ?')
     .bind('lifecycle_mode')
     .first();
-  // An absent row is a definite answer, not an unknown: the stack was
-  // never switched, so the default applies.
-  if (!row || !row.value) return DEFAULT_LIFECYCLE_MODE;
+  // An absent row is a definite answer: the stack was never switched, so
+  // the default applies. An empty string is NOT that — it is a stored
+  // value that happens to be invalid, and it must come back as itself so
+  // the caller reports `recognised: false` instead of showing a mode the
+  // stack is not actually on.
+  if (!row) return DEFAULT_LIFECYCLE_MODE;
   return canonicalMode(row.value);
 }
 
