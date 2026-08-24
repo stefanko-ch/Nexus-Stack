@@ -128,6 +128,10 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("GITEA_ADMIN_PASS", "gitea_admin_password", ""),
     ("GITEA_USER_PASS", "gitea_user_password", ""),
     ("GITEA_DB_PASS", "gitea_db_password", ""),
+    ("FORGEJO_ADMIN_PASS", "forgejo_admin_password", ""),
+    ("FORGEJO_USER_PASS", "forgejo_user_password", ""),
+    ("FORGEJO_DB_PASS", "forgejo_db_password", ""),
+    ("FORGEJO_RUNNER_SECRET", "forgejo_runner_secret", ""),
     ("CLICKHOUSE_ADMIN_PASS", "clickhouse_admin_password", ""),
     ("WIKIJS_ADMIN_PASS", "wikijs_admin_password", ""),
     ("WIKIJS_DB_PASS", "wikijs_db_password", ""),
@@ -248,6 +252,10 @@ class NexusConfig(BaseModel):
     gitea_admin_password: str | None = None
     gitea_user_password: str | None = None
     gitea_db_password: str | None = None
+    forgejo_admin_password: str | None = None
+    forgejo_user_password: str | None = None
+    forgejo_db_password: str | None = None
+    forgejo_runner_secret: str | None = None
     clickhouse_admin_password: str | None = None
     wikijs_admin_password: str | None = None
     wikijs_db_password: str | None = None

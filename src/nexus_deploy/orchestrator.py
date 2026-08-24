@@ -55,6 +55,7 @@ from nexus_deploy import _remote
 from nexus_deploy import compose_restart as _compose_restart
 from nexus_deploy import compose_runner as _compose_runner
 from nexus_deploy import firewall as _firewall
+from nexus_deploy import forgejo_runner as _forgejo_runner
 from nexus_deploy import gitea as _gitea
 from nexus_deploy import infisical as _infisical
 from nexus_deploy import kestra as _kestra
@@ -317,6 +318,7 @@ class Orchestrator:
             phases: list[Callable[[SSHClient], PhaseResult]] = [
                 self._phase_infisical_bootstrap,
                 self._phase_services_configure,
+                self._phase_forgejo_runner_register,
                 self._phase_gitea_configure,
                 self._phase_compose_restart,
                 self._phase_kestra_secret_sync,
@@ -426,6 +428,62 @@ class Orchestrator:
                 f"configured={result.configured} already-configured={result.already_configured} "
                 f"skipped-not-ready={result.skipped_not_ready}"
             ),
+        )
+
+    def _phase_forgejo_runner_register(self, ssh: SSHClient) -> PhaseResult:
+        """Teach the Forgejo instance the runner's shared secret.
+
+        The other half of this handshake already happened: the runner
+        container wrote its credentials file at startup from the same
+        secret. Neither side talks to the other during registration, so
+        the order genuinely does not matter — if this phase runs after
+        the runner has already tried and failed to authenticate, the
+        restart policy brings it back and it succeeds.
+
+        NEVER "failed", only "partial". A CI runner that could not
+        register is a real problem and is reported as one, but it is not
+        a reason to abandon the remaining phases and leave forty other
+        stacks unconfigured. Revisit this when Forgejo becomes the
+        workspace backend — at that point a broken Forgejo *is* a
+        broken deploy and should abort.
+        """
+        if "forgejo" not in self.enabled_services:
+            return PhaseResult(
+                name="forgejo-runner-register",
+                status="skipped",
+                detail="forgejo not enabled",
+            )
+        secret = self.config.forgejo_runner_secret or ""
+        if not secret:
+            return PhaseResult(
+                name="forgejo-runner-register",
+                status="partial",
+                detail="FORGEJO_RUNNER_SECRET missing — runner cannot register",
+            )
+        try:
+            result = _forgejo_runner.run_register(ssh, secret=secret)
+        except Exception as exc:
+            return PhaseResult(
+                name="forgejo-runner-register",
+                status="partial",
+                detail=f"unexpected ({type(exc).__name__})",
+            )
+        if result.status == "registered":
+            return PhaseResult(
+                name="forgejo-runner-register",
+                status="ok",
+                detail=result.detail,
+            )
+        if result.status == "skipped":
+            return PhaseResult(
+                name="forgejo-runner-register",
+                status="skipped",
+                detail=result.detail,
+            )
+        return PhaseResult(
+            name="forgejo-runner-register",
+            status="partial",
+            detail=result.detail,
         )
 
     def _phase_gitea_configure(self, ssh: SSHClient) -> PhaseResult:

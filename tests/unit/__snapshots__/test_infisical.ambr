@@ -48,6 +48,9 @@
       'FILESTASH_ADMIN_PASSWORD': 'filestash_admin_password-VALUE',
       'FILESTASH_S3_BUCKET': 'hetzner_s3_bucket_general-VALUE',
     }),
+    'forgejo': dict({
+      'FORGEJO_ADMIN_USERNAME': 'nexus-test-user',
+    }),
     'garage': dict({
       'GARAGE_ADMIN_TOKEN': 'garage_admin_token-VALUE',
     }),

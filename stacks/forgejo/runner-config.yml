@@ -1,0 +1,71 @@
+# =============================================================================
+# Forgejo Runner configuration
+# =============================================================================
+# Mounted read-only into forgejo-runner at /data/runner-config.yml.
+# Keys and defaults follow the runner's own config.example.yaml; only
+# the ones we deliberately diverge on are set here, each with a reason.
+#
+# Credentials are NOT in this file. They land in /data/.runner, written
+# at container start by `forgejo-runner create-runner-file` from the
+# shared secret OpenTofu generated. That is why this file is safe to
+# keep in a public repository.
+# =============================================================================
+
+log:
+  level: info
+  job_level: info
+
+runner:
+  # Relative to working_dir (/data), so this resolves to /data/.runner —
+  # the same path create-runner-file writes at container start.
+  file: .runner
+
+  # Two jobs at a time. The stack shares a cx43 with 40+ other
+  # containers; unbounded concurrency here would starve them.
+  capacity: 2
+
+  # The Forgejo instance caps a job at 3h anyway. Half an hour is a
+  # teaching workload's honest ceiling — a job still running after that
+  # is stuck, and holding a slot open helps nobody.
+  timeout: 30m
+
+  # Labels decide which jobs this runner accepts and what image each
+  # job runs in. Three aliases, one image, on purpose: `docker` is the
+  # Forgejo-native name, and the two `ubuntu-*` aliases exist so a
+  # workflow copied from GitHub with `runs-on: ubuntu-latest` is picked
+  # up instead of queueing forever against a label nobody declares.
+  #
+  # Honest about what it is: node:22-bookworm is Debian with Node, not
+  # GitHub's large ubuntu image. Workflows expecting preinstalled
+  # toolchains must install them.
+  labels:
+    - "docker:docker://node:22-bookworm"
+    - "ubuntu-latest:docker://node:22-bookworm"
+    - "ubuntu-22.04:docker://node:22-bookworm"
+
+cache:
+  enabled: true
+  # Explicit path inside the bind mount. Left empty it would default to
+  # $HOME/.cache/actcache, and HOME for uid 1001 is not guaranteed
+  # writable in this image.
+  dir: /data/.cache
+
+container:
+  # Empty = the runner creates a per-job network. Job containers are
+  # therefore isolated from app-network and cannot reach the other
+  # stacks on this server.
+  network: ""
+
+  # Task containers stay unprivileged. Only forgejo-dind is privileged,
+  # and that is the boundary — jobs run against it, not as it.
+  privileged: false
+
+  # "-" means no Docker socket is mounted into the job container. This
+  # is the runner's own default and we keep it deliberately: a job that
+  # could talk to the daemon directly could start a privileged sibling
+  # container and walk straight out of its sandbox.
+  docker_host: "-"
+
+  # No host paths may be bind-mounted by a workflow. An empty list is
+  # the closed default; '**' would be the open one.
+  valid_volumes: []

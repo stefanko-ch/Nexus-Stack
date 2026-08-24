@@ -271,6 +271,24 @@ services:
     support_images:
       flink-taskmanager: "nexus-flink:1.20.1"
 
+  forgejo:
+    subdomain: "forgejo"
+    port: 3202
+    public: false
+    category: "core"
+    website: "https://forgejo.org"
+    description: "Self-hosted Git forge with pull requests, code review, and built-in Actions CI."
+    long_description: "Forgejo is a community-governed Git forge, hard-forked from Gitea and developed under a non-profit. It provides repository hosting, pull requests, code review, issue tracking, wikis, and Forgejo Actions — a CI system whose workflow syntax is familiar to anyone who has used GitHub Actions. Ships with its own Actions runner, so pipelines run on your own server with no external CI service."
+    image: "codeberg.org/forgejo/forgejo:15.0.7"
+    support_images:
+      # Deliberately NOT the shared `postgres` key. That key is used by
+      # 19 services and collapses to a single IMAGE_POSTGRES value, so
+      # claiming it here would silently retag every one of them —
+      # including Infisical, which is still on 14-alpine.
+      forgejo-postgres: "postgres:17-alpine"
+      forgejo-runner: "data.forgejo.org/forgejo/runner:13.0.0"
+      forgejo-dind: "docker:29.7.2-dind-rootless"
+
   garage:
     subdomain: "garage"
     port: 3909

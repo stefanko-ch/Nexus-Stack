@@ -258,6 +258,14 @@ output "secrets" {
     gitea_user_password  = random_password.gitea_user.result
     gitea_db_password    = random_password.gitea_db.result
 
+    # Forgejo
+    forgejo_admin_password = random_password.forgejo_admin.result
+    forgejo_user_password  = random_password.forgejo_user.result
+    forgejo_db_password    = random_password.forgejo_db.result
+    # 40 hex chars — the format Forgejo's offline runner registration
+    # requires. Shared verbatim by both halves of that handshake.
+    forgejo_runner_secret = random_id.forgejo_runner_secret.hex
+
     # Wiki.js
     wikijs_admin_password = random_password.wikijs_admin.result
     wikijs_db_password    = random_password.wikijs_db.result

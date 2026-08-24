@@ -29,8 +29,12 @@ Public surface:
   have silently fresh-started → data loss on next teardown.
   See the function's own docstring for the historical incident.
 * **``ensure_data_dirs``** — idempotent ``mkdir -p`` + ``chown`` on
-  the Gitea + Dify bind-mount sources under ``/mnt/nexus-data/``.
+  the Gitea + Forgejo + Dify bind-mount sources under
+  ``/mnt/nexus-data/``.
   Gitea: ``gitea/{repos,lfs}`` (uid 1000) + ``gitea/db`` (uid 70).
+  Forgejo: same shape, plus ``forgejo/runner`` at uid 1001 — the
+  Actions runner image's own uid, which must own that path before
+  it can write its ``.runner`` credentials file.
   Dify: ``dify/db`` (uid 70 for postgres-alpine) + ``dify/redis``
   (uid 999 for redis-alpine) + ``dify/{storage,weaviate,plugins}``
   (mkdir only — those containers run as root). Called by the
@@ -520,6 +524,16 @@ mkdir -p "$MOUNT_POINT/gitea/repos" "$MOUNT_POINT/gitea/lfs" "$MOUNT_POINT/gitea
 chown -R 1000:1000 "$MOUNT_POINT/gitea/repos" "$MOUNT_POINT/gitea/lfs"
 chown -R 70:70 "$MOUNT_POINT/gitea/db"
 
+# --- Forgejo bind-mount sources -----------------------------------
+# Same shape as Gitea: forgejo runs as uid 1000, forgejo-db (postgres-
+# alpine) as uid 70. The runner is the odd one out at uid 1001 — that
+# is the uid the upstream runner image uses, and it must own /data
+# before `create-runner-file` can write .runner there.
+mkdir -p "$MOUNT_POINT/forgejo/repos" "$MOUNT_POINT/forgejo/lfs" "$MOUNT_POINT/forgejo/db" "$MOUNT_POINT/forgejo/runner"
+chown -R 1000:1000 "$MOUNT_POINT/forgejo/repos" "$MOUNT_POINT/forgejo/lfs"
+chown -R 70:70 "$MOUNT_POINT/forgejo/db"
+chown -R 1001:1001 "$MOUNT_POINT/forgejo/runner"
+
 # --- Dify bind-mount sources --------------------------------------
 # dify-db is postgres:15-alpine (uid 70). dify-redis is redis:6-
 # alpine which uses uid 999. The other three Dify mounts (storage,
@@ -536,13 +550,13 @@ mkdir -p "$MOUNT_POINT/dify/db" "$MOUNT_POINT/dify/redis" "$MOUNT_POINT/dify/sto
 chown -R 70:70 "$MOUNT_POINT/dify/db"
 chown -R 999:999 "$MOUNT_POINT/dify/redis"
 
-echo "  ensured data-dir ownership under $MOUNT_POINT/{gitea,dify}" >&2
+echo "  ensured data-dir ownership under $MOUNT_POINT/{gitea,forgejo,dify}" >&2
 """
 
 
 def ensure_data_dirs(ssh: SSHClient) -> None:
-    """Idempotent ``mkdir -p`` + ``chown -R`` of the Gitea + Dify
-    bind-mount sources under ``/mnt/nexus-data/``.
+    """Idempotent ``mkdir -p`` + ``chown -R`` of the Gitea + Forgejo +
+    Dify bind-mount sources under ``/mnt/nexus-data/``.
 
     Called by the pipeline AFTER ``s3_restore.restore_from_s3`` —
     rclone-restored files land owned by the SSH user (root), but

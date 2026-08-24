@@ -975,6 +975,32 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             ),
         )
     )
+    # Forgejo. No FORGEJO_REPO_URL yet — Forgejo does not host the
+    # workspace repo at this point, so there is no URL to publish. That
+    # entry arrives with the role swap.
+    #
+    # FORGEJO_RUNNER_SECRET is included on purpose, following the
+    # project convention that every OpenTofu-generated credential lands
+    # in Infisical. Worth knowing what that implies: the Kestra secret
+    # sync copies every Infisical secret into Kestra's env, so a flow
+    # author can read this value. That is not a new boundary — the
+    # Gitea and Forgejo admin passwords above are already reachable the
+    # same way — but it does mean the runner secret should be treated
+    # as "anyone with flow-authoring rights", not "operators only".
+    folders.append(
+        FolderSpec(
+            "forgejo",
+            _filter_empty(
+                {
+                    "FORGEJO_ADMIN_USERNAME": admin_username,
+                    "FORGEJO_ADMIN_PASSWORD": config.forgejo_admin_password,
+                    "FORGEJO_USER_PASSWORD": config.forgejo_user_password,
+                    "FORGEJO_DB_PASSWORD": config.forgejo_db_password,
+                    "FORGEJO_RUNNER_SECRET": config.forgejo_runner_secret,
+                }
+            ),
+        )
+    )
     folders.append(
         FolderSpec(
             "clickhouse",

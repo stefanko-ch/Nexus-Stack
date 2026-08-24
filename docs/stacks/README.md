@@ -51,6 +51,10 @@ Images are pinned to **major versions** where supported for automatic security p
 | Filestash | `machines/filestash` | `latest` | Latest ² |
 | Flink JobManager | `flink` (custom build) | `1.20.1` | Exact ³ |
 | Flink TaskManager | `flink` (custom build) | `1.20.1` | Exact ³ |
+| Forgejo | `codeberg.org/forgejo/forgejo` | `15.0.7` | Exact ¹ |
+| PostgreSQL (Forgejo DB) | `postgres` | `17-alpine` | Major |
+| Forgejo Runner | `data.forgejo.org/forgejo/runner` | `13.0.0` | Exact ¹ |
+| Docker-in-Docker (Forgejo) | `docker` | `29.7.2-dind-rootless` | Exact ¹ |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
 | Git Proxy | `nginx` | `alpine` | Latest ² |
@@ -155,6 +159,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Apache Flink** | Distributed stream and batch processing | [flink.md](flink.md) |
+| **Forgejo** | Git forge with built-in Actions CI | [forgejo.md](forgejo.md) |
 | **Garage** | S3-compatible object storage | [garage.md](garage.md) |
 | **Git Proxy** | Public Git HTTPS proxy | [git-proxy.md](git-proxy.md) |
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |

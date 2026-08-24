@@ -440,6 +440,41 @@ resource "random_password" "gitea_db" {
   special = false
 }
 
+# Forgejo admin password
+resource "random_password" "forgejo_admin" {
+  length  = 24
+  special = false
+}
+
+# Forgejo user password (for user_email account - shared with students)
+resource "random_password" "forgejo_user" {
+  length  = 24
+  special = false
+}
+
+# Forgejo database password
+resource "random_password" "forgejo_db" {
+  length  = 24
+  special = false
+}
+
+# Forgejo Actions runner registration secret.
+#
+# random_id rather than random_password because the format is not free:
+# Forgejo requires exactly 40 hexadecimal characters, of which the first
+# 16 are the runner's identifier and the remaining 24 the secret proper.
+# 20 bytes rendered as hex is precisely that. A random_password with
+# special=false would emit mixed-case alphanumerics and be rejected.
+#
+# Both halves of the offline registration read this one value: the
+# server side via `forgejo-cli actions register --secret`, the runner
+# side via `forgejo-runner create-runner-file --secret`. That is what
+# lets a runner register with no human pasting a single-use token, and
+# what lets the pairing survive a teardown/spin-up cycle unchanged.
+resource "random_id" "forgejo_runner_secret" {
+  byte_length = 20
+}
+
 # Wiki.js
 resource "random_password" "wikijs_admin" {
   length  = 24
