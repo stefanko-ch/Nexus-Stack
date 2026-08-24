@@ -87,7 +87,7 @@ async function logChange(db, level, message, metadata) {
 }
 
 export async function onRequestGet(context) {
-  const { env } = context;
+  const { env, request } = context;
   if (!env.NEXUS_DB) {
     return json({ success: false, error: 'D1 database not configured' }, 500);
   }
@@ -95,8 +95,15 @@ export async function onRequestGet(context) {
   try {
     const mode = await readMode(env.NEXUS_DB);
     const known = LIFECYCLE_MODES.includes(mode);
+    // Reuse the guard rather than re-implementing the comparison, so the
+    // answer the UI renders and the answer POST enforces cannot drift.
+    // Reported so the page can present the setting as read-only instead
+    // of offering a control that returns 403 on click — a student on the
+    // Access whitelist reaches this endpoint like anyone else.
+    const canEdit = requireAdmin(env, request) === null;
     return json({
       success: true,
+      canEdit,
       // `null` rather than the raw string when unrecognised: the stored
       // value is unvalidated input and does not belong in a response
       // body any more than it belongs in a log line.

@@ -50,13 +50,13 @@ import Layout from '../layouts/Layout.astro';
   <!-- Lifecycle -->
   <div class="panel">
     <h2>Lifecycle</h2>
-    <div class="setting-info" style="margin-bottom: 0.9rem;">
-      How this stack is torn down at night and brought back the next day.
-      Both options stop the server, so both save the same amount of money —
-      they differ in what survives and how long the spin-up takes.
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">Snapshot Lifecycle</div>
+        <div class="setting-info" id="lifecycle-info">Loading...</div>
+      </div>
+      <div class="toggle-switch disabled" id="toggle-lifecycle"></div>
     </div>
-    <div id="lifecycle-options"><div class="setting-info">Loading...</div></div>
-    <div class="setting-info" id="lifecycle-current" style="margin-top: 0.8rem;"></div>
   </div>
 
   <!-- Email Notifications -->
@@ -375,75 +375,70 @@ import Layout from '../layouts/Layout.astro';
   // ---------------------------------------------------------------------
   // Lifecycle mode
   //
-  // Rendered from the API rather than hardcoded here, so the wording and
-  // the list of modes live next to the code that acts on them. Values are
-  // server-side constants, but everything is still written with
-  // textContent — this page has had innerHTML findings before and a
-  // radio label is not worth a second one.
+  // Two modes, so a toggle: off = Rebuild, on = Snapshot. The info line
+  // always names the ACTIVE mode and what it means, so the current
+  // setting is readable even when the control is greyed out.
+  //
+  // Greyed out for everyone but the admin. The API enforces this anyway
+  // (POST answers 403); disabling the control means a student sees which
+  // mode the stack is on without being offered a switch that fails.
   // ---------------------------------------------------------------------
+  let lifecycleModes = [];
+
   async function loadLifecycle() {
-    const box = document.getElementById('lifecycle-options');
-    const current = document.getElementById('lifecycle-current');
-    if (!box) return;
+    const toggle = document.getElementById('toggle-lifecycle');
+    const info = document.getElementById('lifecycle-info');
+    if (!toggle || !info) return;
     try {
       const response = await fetch(API_URL + '/api/lifecycle', { credentials: 'same-origin' });
       const data = await response.json();
       if (!data.success) throw new Error(data.error || 'failed');
+      lifecycleModes = data.modes || [];
 
-      box.textContent = '';
-      (data.modes || []).forEach((m) => {
-        const row = document.createElement('label');
-        row.className = 'setting-row';
-        row.style.cursor = 'pointer';
-        row.style.alignItems = 'flex-start';
+      const active = lifecycleModes.find((m) => m.value === data.mode);
+      toggle.classList.toggle('active', data.mode === 'snapshot');
 
-        const text = document.createElement('div');
-        const label = document.createElement('div');
-        label.className = 'setting-label';
-        label.textContent = m.label + (m.value === data.mode ? ' — active' : '');
-        const info = document.createElement('div');
-        info.className = 'setting-info';
-        info.textContent = m.summary;
-        const detail = document.createElement('div');
-        detail.className = 'setting-info';
-        detail.style.marginTop = '0.25rem';
-        detail.textContent = 'Keeps: ' + m.keeps + ' \u2014 Images: ' + m.images;
-        text.appendChild(label);
-        text.appendChild(info);
-        text.appendChild(detail);
+      if (data.canEdit) {
+        toggle.classList.remove('disabled');
+        toggle.title = 'Switch between Rebuild and Snapshot';
+      } else {
+        toggle.classList.add('disabled');
+        toggle.title = 'Only the stack administrator can change the lifecycle';
+      }
 
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'lifecycle-mode';
-        radio.value = m.value;
-        radio.checked = m.value === data.mode;
-        radio.addEventListener('change', () => {
-          if (radio.checked) saveLifecycle(m.value, m.label);
-        });
+      // textContent throughout: this page has had innerHTML findings.
+      info.textContent = '';
+      const line1 = document.createElement('div');
+      line1.textContent = data.recognised
+        ? 'Active: ' + (active ? active.label : data.mode) + ' \u2014 ' + (active ? active.summary : '')
+        : 'The stored mode is not recognised \u2014 nothing will be dispatched until it is set.';
+      info.appendChild(line1);
 
-        row.appendChild(text);
-        row.appendChild(radio);
-        box.appendChild(row);
-      });
-
-      if (current) {
-        current.textContent = data.recognised
-          ? 'Dispatches ' + data.workflows.teardown + ' and ' + data.workflows.spinUp + '.'
-          : 'The stored mode is not recognised — nothing will be dispatched until it is set.';
+      if (active) {
+        const line2 = document.createElement('div');
+        line2.textContent = 'Keeps: ' + active.keeps;
+        info.appendChild(line2);
+        const line3 = document.createElement('div');
+        line3.textContent = 'Images: ' + active.images;
+        info.appendChild(line3);
+      }
+      if (!data.canEdit) {
+        const line4 = document.createElement('div');
+        line4.textContent = 'Only the stack administrator can change this.';
+        info.appendChild(line4);
       }
     } catch {
-      box.textContent = '';
-      const err = document.createElement('div');
-      err.className = 'setting-info';
-      err.textContent = 'Could not load the lifecycle mode.';
-      box.appendChild(err);
+      info.textContent = 'Could not load the lifecycle mode.';
+      toggle.classList.add('disabled');
     }
   }
 
-  async function saveLifecycle(mode, label) {
-    // Rebuild is the destructive direction: the next teardown rotates
-    // every generated credential, after which existing snapshots are
-    // refused for good. Worth one confirmation.
+  async function saveLifecycle(mode) {
+    const entry = lifecycleModes.find((m) => m.value === mode);
+    const label = entry ? entry.label : mode;
+    // Rebuild is the direction that cannot be undone: the next teardown
+    // rotates every generated credential, after which existing snapshots
+    // are refused for good.
     if (mode === 'rebuild') {
       const ok = confirm(
         'Switch to Rebuild?\n\n' +
@@ -470,6 +465,13 @@ import Layout from '../layouts/Layout.astro';
     }
     loadLifecycle();
   }
+
+  document.getElementById('toggle-lifecycle')?.addEventListener('click', function () {
+    // .disabled sets pointer-events:none, so this cannot fire while
+    // greyed out — the guard is belt and braces.
+    if (this.classList.contains('disabled')) return;
+    saveLifecycle(this.classList.contains('active') ? 'rebuild' : 'snapshot');
+  });
 
   fetchInfo();
   loadScheduledTeardownConfig();
