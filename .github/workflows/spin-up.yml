@@ -578,6 +578,7 @@ jobs:
             # install script. ssh would swallow it as a password attempt
             # instead of running it, and the retry loop would keep
             # feeding a consumed script to a prompt nobody can answer.
+            attempt_started=$SECONDS
             if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=$connect_timeout \
                  -o ServerAliveInterval=10 -o BatchMode=yes \
                  root@"$SERVER_IP" bash < /tmp/install-tunnel.sh; then
@@ -588,7 +589,14 @@ jobs:
               echo "❌ Tunnel install failed after 6 attempts — server unreachable or sshd misbehaving"
               exit 1
             fi
-            echo "⚠️  Attempt $attempt failed after ${connect_timeout}s (likely SSH banner timeout); retrying in ${backoff}s..."
+            # Report the MEASURED duration, not the configured timeout.
+            # They differ in the case that matters: a refused connection
+            # or an unreachable host fails in well under a second, while
+            # a banner timeout runs the clock out. Printing the limit
+            # would make both look identical and send whoever reads this
+            # looking for a slow server when the server said no.
+            elapsed=$((SECONDS - attempt_started))
+            echo "⚠️  Attempt $attempt failed after ${elapsed}s (timeout was ${connect_timeout}s); retrying in ${backoff}s..."
             sleep $backoff
           done
           rm -f /tmp/install-tunnel.sh
