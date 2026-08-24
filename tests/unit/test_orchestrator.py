@@ -3531,3 +3531,65 @@ def test_phase_firewall_sync_copies_redpanda_firewall_yaml_when_present(
     ssh_scripts = [str(call.args[0]) for call in ssh_run_mock.call_args_list]
     assert any("chown -R 101:101" in s for s in ssh_scripts)
     assert any("chmod -R 777" in s for s in ssh_scripts)
+
+
+# ---------------------------------------------------------------------------
+# _transport_detail — a phase failure must be diagnosable in one run
+# ---------------------------------------------------------------------------
+
+
+def test_transport_detail_carries_rc_and_the_output_tail() -> None:
+    """The exact case that cost a deploy cycle: the remote script said
+    precisely what was wrong and the phase threw it away."""
+    from nexus_deploy.orchestrator import _transport_detail
+
+    exc = subprocess.CalledProcessError(
+        2,
+        ["ssh", "nexus", "bash", "-s"],
+        output="→ syncing\nsort: separator must be exactly one character long: ''\n",
+    )
+    detail = _transport_detail(exc)
+
+    assert "CalledProcessError" in detail
+    assert "rc=2" in detail
+    assert "separator must be exactly one character long" in detail
+
+
+def test_transport_detail_never_includes_the_command() -> None:
+    """`exc.cmd` can carry secrets through env-var-prefixed forms."""
+    from nexus_deploy.orchestrator import _transport_detail
+
+    exc = subprocess.CalledProcessError(
+        1,
+        ["ssh", "nexus", "SECRET_TOKEN=hunter2 some-command"],
+        output="failed",
+    )
+    detail = _transport_detail(exc)
+
+    assert "hunter2" not in detail
+    assert "SECRET_TOKEN" not in detail
+
+
+def test_transport_detail_collapses_newlines_into_one_line() -> None:
+    """PhaseResult details are rendered one per line in the phase log."""
+    from nexus_deploy.orchestrator import _transport_detail
+
+    exc = subprocess.CalledProcessError(1, ["x"], output="a\nb\n\nc")
+    assert "\n" not in _transport_detail(exc)
+
+
+def test_transport_detail_reports_the_timeout_not_a_missing_rc() -> None:
+    from nexus_deploy.orchestrator import _transport_detail
+
+    exc = subprocess.TimeoutExpired(cmd=["ssh", "h"], timeout=480)
+    detail = _transport_detail(exc)
+
+    assert "TimeoutExpired" in detail
+    assert "timeout=480s" in detail
+    assert "rc=" not in detail
+
+
+def test_transport_detail_handles_an_exception_with_no_output() -> None:
+    from nexus_deploy.orchestrator import _transport_detail
+
+    assert _transport_detail(OSError("boom")) == "transport (OSError)"

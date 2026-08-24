@@ -1081,3 +1081,42 @@ def test_cli_secret_sync_no_result_line_returns_0(
     captured = capsys.readouterr()
     assert rc == 0
     assert "no usable result" in captured.out
+
+
+def test_sort_separator_is_a_separate_argument_not_attached() -> None:
+    """Regression guard for the Ubuntu 26.04 secret-sync failure.
+
+    uutils (26.04's coreutils) parses `-t=` as "-t with an empty
+    value" and exits 2. GNU and BSD read it as "separator is =". The
+    block runs under `set -e`, so on 26.04 this killed the whole
+    phase with nothing but `transport (CalledProcessError)` to show
+    for it.
+    """
+    script = render_remote_script(
+        target=StackTarget(name="kestra", key_prefix="SECRET_", use_base64_values=True),
+        project_id="p",
+        infisical_token="t",
+        infisical_env="dev",
+        gitea_token="g",
+    )
+    executable = [ln for ln in script.splitlines() if not ln.lstrip().startswith("#")]
+
+    assert any("sort -t '=' -k1,1" in ln for ln in executable)
+    assert not [ln for ln in executable if "-t=" in ln]
+
+
+def test_sort_still_orders_by_key_not_by_whole_line() -> None:
+    """The fix must not become "drop the flags".
+
+    Plain line sort is not equivalent: for keys where one is a prefix
+    of another, `A1=x` sorts before `A=y` on the whole line but after
+    it on the key. Keeping `-k1,1` is what preserves the key order.
+    """
+    script = render_remote_script(
+        target=StackTarget(name="kestra", key_prefix="SECRET_", use_base64_values=True),
+        project_id="p",
+        infisical_token="t",
+        infisical_env="dev",
+        gitea_token="g",
+    )
+    assert "-k1,1" in script

@@ -127,6 +127,42 @@ class OrchestratorState:
     git_email: str | None = None
 
 
+def _transport_detail(exc: BaseException) -> str:
+    """Format a transport failure for a PhaseResult detail line.
+
+    The type alone is not a diagnosis. A phase reporting only
+    ``transport (CalledProcessError)`` says a remote script exited
+    non-zero and nothing about why — which cost a full deploy cycle on
+    the Ubuntu 26.04 rollout, where the answer was one `sort` flag the
+    script had printed a perfectly clear message about.
+
+    So the exit code and a tail of the captured output come along. What
+    does NOT come along is ``exc.cmd``: it can carry secrets through
+    env-var-prefixed command forms. Same split ``__main__`` already
+    makes for the pipeline-level handler.
+
+    The rendered remote scripts print progress, key *names* and folder
+    labels — never secret values — so their output is safe to surface.
+    A phase whose script does not hold to that must not use this.
+    """
+    parts: list[str] = [type(exc).__name__]
+    returncode = getattr(exc, "returncode", None)
+    if isinstance(returncode, int):
+        parts.append(f"rc={returncode}")
+    timeout = getattr(exc, "timeout", None)
+    if timeout is not None:
+        parts.append(f"timeout={timeout}s")
+
+    raw = getattr(exc, "stderr", None) or getattr(exc, "stdout", None) or ""
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    # One line, so collapse the newlines and keep the tail — the last
+    # thing a `set -e` script printed is the thing that killed it.
+    tail = " ".join(str(raw).split())[-280:]
+    detail = f"transport ({', '.join(parts)})"
+    return f"{detail}: {tail}" if tail else detail
+
+
 @dataclass(frozen=True)
 class PhaseResult:
     """Outcome of a single phase. Same shape as the per-module
@@ -306,7 +342,7 @@ class Orchestrator:
             return PhaseResult(
                 name="infisical-bootstrap",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -339,7 +375,7 @@ class Orchestrator:
             return PhaseResult(
                 name="services-configure",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -395,7 +431,7 @@ class Orchestrator:
             return PhaseResult(
                 name="gitea-configure",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -456,7 +492,7 @@ class Orchestrator:
             return PhaseResult(
                 name="seed",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -518,7 +554,7 @@ class Orchestrator:
             return PhaseResult(
                 name="kestra-register",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -573,7 +609,7 @@ class Orchestrator:
             return PhaseResult(
                 name="woodpecker-oauth",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except _gitea.GiteaError as exc:
             return PhaseResult(
@@ -647,7 +683,7 @@ class Orchestrator:
             return PhaseResult(
                 name="mirror-setup",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except _gitea.GiteaError as exc:
             return PhaseResult(name="mirror-setup", status="failed", detail=str(exc))
@@ -702,7 +738,7 @@ class Orchestrator:
             return PhaseResult(
                 name=f"secret-sync-{stack}",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -799,7 +835,7 @@ class Orchestrator:
             return PhaseResult(
                 name="service-env",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -904,7 +940,7 @@ class Orchestrator:
             return PhaseResult(
                 name="stack-sync",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -966,7 +1002,7 @@ class Orchestrator:
             return PhaseResult(
                 name="firewall-configure",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1037,7 +1073,7 @@ class Orchestrator:
             return PhaseResult(
                 name="compose-up",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1096,7 +1132,7 @@ class Orchestrator:
             return PhaseResult(
                 name="infisical-provision",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1415,7 +1451,7 @@ class Orchestrator:
             return PhaseResult(
                 name="firewall-sync",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1563,7 +1599,7 @@ class Orchestrator:
             return PhaseResult(
                 name="global-env",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1619,7 +1655,7 @@ class Orchestrator:
             return PhaseResult(
                 name="compose-restart",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1762,7 +1798,7 @@ class Orchestrator:
             return PhaseResult(
                 name="kestra-secret-sync",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
@@ -1976,7 +2012,7 @@ class Orchestrator:
             return PhaseResult(
                 name="mirror-seed-rerun",
                 status="failed",
-                detail=f"transport ({type(exc).__name__})",
+                detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
