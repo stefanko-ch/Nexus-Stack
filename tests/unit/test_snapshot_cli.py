@@ -457,6 +457,7 @@ def test_dispatcher_routes_subcommand(
         ("_server_poweroff", ["--server-id", "42"], "poweroff_server"),
         ("_snapshot_resolve", ["--domain-slug", "example-com"], "resolve_latest"),
         ("_snapshot_prune", ["--domain-slug", "example-com"], "list_snapshots"),
+        ("_snapshot_purge", ["--domain-slug", "example-com"], "list_snapshots"),
     ],
 )
 def test_api_errors_are_logged_by_type_only(
@@ -486,4 +487,134 @@ def test_flag_errors_keep_their_message(capsys: pytest.CaptureFixture[str]) -> N
     "_FlagError" with no indication of which flag was wrong.
     """
     assert cli._snapshot_create(["--server-id", "42"]) == 2
+    assert "--domain-slug is required" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# snapshot-purge — destroy-all's cleanup
+#
+# A Hetzner snapshot survives `tofu destroy` by design, so destroy-all
+# leaves one behind unless something deletes it explicitly. What makes
+# that worse than a stray euro: the destroy takes all 81 random_*
+# resources with it, the next initial-setup mints a new credential
+# epoch, and the epoch guard then refuses the old image forever. It is
+# unusable AND it occupies one of the 30 per-account snapshot slots.
+# ---------------------------------------------------------------------------
+
+
+def test_purge_is_dry_run_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Same guarantee as prune: deletion is irreversible, so opt in."""
+    deleted: list[int] = []
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: (_snap(1), _snap(2)))
+    monkeypatch.setattr(
+        _hsnap,
+        "delete_snapshot",
+        lambda image_id, token: deleted.append(image_id),
+    )
+
+    assert cli._snapshot_purge(["--domain-slug", "example-com"]) == 0
+    assert deleted == []
+    err = capsys.readouterr().err
+    assert "would delete" in err
+    assert "--apply" in err
+
+
+def test_purge_apply_deletes_every_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The point of the command: nothing is kept back.
+
+    This is what separates it from prune, whose `select_prunable`
+    refuses `keep < 1` precisely so a retention pass can never empty a
+    stack out.
+    """
+    deleted: list[int] = []
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: (_snap(1), _snap(2), _snap(3)))
+    monkeypatch.setattr(
+        _hsnap,
+        "delete_snapshot",
+        lambda image_id, token: deleted.append(image_id),
+    )
+
+    assert cli._snapshot_purge(["--domain-slug", "example-com", "--apply"]) == 0
+    assert deleted == [1, 2, 3]
+
+
+def test_purge_is_scoped_to_the_domain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Never a project-wide wipe — other tenants share the account.
+
+    The 30-snapshot limit is per account, so a multi-tenant project has
+    other stacks' images sitting right next to these ones.
+    """
+    seen: dict[str, Any] = {}
+
+    def _fake_list(_token: str, *, domain_slug: str) -> tuple[Snapshot, ...]:
+        seen["domain_slug"] = domain_slug
+        return ()
+
+    monkeypatch.setattr(_hsnap, "list_snapshots", _fake_list)
+    assert cli._snapshot_purge(["--domain-slug", "example-com", "--apply"]) == 0
+    assert seen["domain_slug"] == "example-com"
+
+
+def test_purge_on_empty_listing_is_a_success(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stack that never took a snapshot must not fail destroy-all."""
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: ())
+    assert cli._snapshot_purge(["--domain-slug", "example-com", "--apply"]) == 0
+    assert "nothing to do" in capsys.readouterr().err
+
+
+def test_purge_reports_images_it_cannot_delete(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A `creating` image is skipped loudly, not silently.
+
+    The API cannot delete one mid-creation. Staying quiet would leave
+    exactly the orphan this command exists to prevent — and nobody
+    would know to go looking for it.
+    """
+    stuck = Snapshot(
+        image_id=7,
+        description="nexus-example-com-7",
+        created="2026-08-05T21:00:00+00:00",
+        disk_gb=160,
+        architecture="x86",
+        epoch=EPOCH,
+        server_type="cx43",
+        status="creating",
+        image_gb=0.0,
+    )
+    deleted: list[int] = []
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: (_snap(1), stuck))
+    monkeypatch.setattr(
+        _hsnap,
+        "delete_snapshot",
+        lambda image_id, token: deleted.append(image_id),
+    )
+
+    assert cli._snapshot_purge(["--domain-slug", "example-com", "--apply"]) == 0
+    assert deleted == [1]
+    err = capsys.readouterr().err
+    assert "#7" in err
+    assert "creating" in err
+
+
+def test_purge_aborts_when_a_delete_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """rc=2 so destroy-all reports failure instead of a false all-clear."""
+    monkeypatch.setattr(_hsnap, "list_snapshots", lambda *a, **k: (_snap(1), _snap(2)))
+
+    def _raise(image_id: int, token: str) -> None:
+        raise HetznerSnapshotError("HTTP 409")
+
+    monkeypatch.setattr(_hsnap, "delete_snapshot", _raise)
+    assert cli._snapshot_purge(["--domain-slug", "example-com", "--apply"]) == 2
+
+
+def test_purge_requires_domain_slug(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli._snapshot_purge([]) == 2
     assert "--domain-slug is required" in capsys.readouterr().err

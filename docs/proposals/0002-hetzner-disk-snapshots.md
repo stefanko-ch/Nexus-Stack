@@ -134,6 +134,8 @@ It costs nothing operationally: the documented resize flow is teardown → set `
 
 **Architecture lock.** x86 snapshots restore only onto x86. Relevant if the project ever reverts to ARM, and a reason the R2 layer stays.
 
+**Living outside Tofu state cuts both ways.** It is what lets a snapshot survive the `tofu destroy` in its own teardown, and equally what stops `destroy-all.yml` from removing it as a side effect. Handled by an explicit `snapshot-purge` step under the existing `delete_data=DESTROY` opt-in; the default lists what survives rather than deleting it, because an unrestorable image is still readable by hand and is the last recovery path after an accidental destroy-all.
+
 **Cross-network-zone restore is unverified.** Keep snapshot preferences within one zone.
 
 **Nothing has run end to end.** `skip_destroy=true` proved snapshot creation against the live stack on 2026-08-21 (72 s: 28 s power-off, 44 s create-and-available). The restore half has never executed. Five review rounds found eight genuine defects in this path before it ran once — the first real restore remains the test that matters.

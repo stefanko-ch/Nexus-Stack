@@ -3162,6 +3162,83 @@ def _snapshot_prune(args: list[str]) -> int:
     return 0
 
 
+def _snapshot_purge(args: list[str]) -> int:
+    """`nexus-deploy snapshot-purge --domain-slug S [--apply]`.
+
+    Deletes EVERY snapshot of one stack. Label-scoped exactly like
+    ``snapshot-prune``, so it can never reach another tenant's images.
+
+    Deliberately a separate command rather than ``snapshot-prune
+    --keep 0``. ``select_prunable`` refuses ``keep < 1`` so a retention
+    pass can never leave a stack with nothing to restore from, and that
+    guard is worth keeping absolute. Purge has the opposite intent —
+    the stack itself is going away — and says so in its name rather
+    than by passing a value the other command exists to reject.
+
+    Written for ``destroy-all.yml``. A Hetzner snapshot survives ``tofu
+    destroy`` by design, which is precisely what makes it dead weight
+    after a full teardown: the destroy takes all 81 ``random_*``
+    resources with it, so the next initial-setup mints a new credential
+    epoch and the epoch guard will refuse the old image forever. It
+    keeps costing money and keeps occupying one of the 30 per-account
+    snapshot slots.
+
+    Images that are not ``available`` (an interrupted create) cannot be
+    deleted through the API. They are reported individually rather than
+    silently skipped — an orphan nobody knows about is the whole
+    problem this command exists to solve — but they do not fail the
+    run, since there is no action the caller could take to fix it in
+    the moment.
+
+    Exit codes: 0 done (or nothing to do), 2 on API failure.
+    """
+    try:
+        domain_slug = _required_flag(args, "domain-slug")
+        token = _snapshot_token()
+    except _FlagError as exc:
+        print(f"snapshot-purge: {exc}", file=sys.stderr)
+        return 2
+    apply_changes = "--apply" in args
+
+    try:
+        snapshots = _hsnap.list_snapshots(token, domain_slug=domain_slug)
+    except _hsnap.HetznerSnapshotError as exc:
+        print(
+            f"snapshot-purge: Hetzner API failure ({type(exc).__name__})",
+            file=sys.stderr,
+        )
+        return 2
+
+    if not snapshots:
+        sys.stderr.write(f"snapshot-purge: no snapshots for {domain_slug} — nothing to do\n")
+        return 0
+
+    for snapshot in snapshots:
+        if not snapshot.is_available:
+            sys.stderr.write(
+                f"⚠ snapshot-purge: #{snapshot.image_id} is '{snapshot.status}', "
+                f"not 'available' — the API cannot delete it. Remove it from the "
+                f"Hetzner console once the create settles.\n"
+            )
+            continue
+        if not apply_changes:
+            sys.stderr.write(f"snapshot-purge: would delete {snapshot}\n")
+            continue
+        try:
+            _hsnap.delete_snapshot(snapshot.image_id, token)
+        except _hsnap.HetznerSnapshotError as exc:
+            print(
+                f"snapshot-purge: failed to delete {snapshot} ({type(exc).__name__})",
+                file=sys.stderr,
+            )
+            return 2
+        sys.stderr.write(f"✓ snapshot-purge: deleted {snapshot}\n")
+
+    if not apply_changes:
+        sys.stderr.write("snapshot-purge: dry run — pass --apply to delete\n")
+    return 0
+
+
 def _run_pipeline(args: list[str]) -> int:
     """`nexus-deploy run-pipeline`.
 
@@ -3781,6 +3858,8 @@ def main() -> int:
         return _snapshot_resolve(args[1:])
     if args[:1] == ["snapshot-prune"]:
         return _snapshot_prune(args[1:])
+    if args[:1] == ["snapshot-purge"]:
+        return _snapshot_purge(args[1:])
     if args[:1] == ["run-pipeline"]:
         return _run_pipeline(args[1:])
     if args[:1] == ["s3-snapshot"]:
@@ -3830,6 +3909,8 @@ def main() -> int:
         "(newest restorable snapshot; rc=0 found, rc=1 none — build fresh, rc=2 lookup failed), "
         "snapshot-prune --domain-slug SLUG [--keep 2] [--apply] "
         "(drop all but the newest N; dry-run unless --apply), "
+        "snapshot-purge --domain-slug SLUG [--apply] "
+        "(delete EVERY snapshot of one stack, for destroy-all; dry-run unless --apply), "
         "run-pipeline (top-level deploy entry; reads tofu state + "
         "config.tfvars; optional env: SSH_PRIVATE_KEY_CONTENT, "
         "GH_MIRROR_TOKEN, GH_MIRROR_REPOS, DOCKERHUB_USER, DOCKERHUB_TOKEN, "

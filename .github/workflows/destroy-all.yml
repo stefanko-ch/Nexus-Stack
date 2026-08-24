@@ -8,14 +8,20 @@ on:
         required: true
         type: string
       delete_data:
-        # Opt-in extra step that wipes the R2 buckets after tofu
-        # destroy: persistence (snapshots), data (datalake), and
-        # state (tofu state) buckets. Without this, those buckets
-        # survive destroy-all so a later initial-setup + spin-up
-        # reattaches to existing snapshot history (RFC 0001 decision
-        # #6). Setting this to "DESTROY" turns destroy-all into a
-        # true one-shot wipe.
-        description: 'Type "DESTROY" to ALSO wipe R2 buckets (snapshots + data + tofu state). Leave empty to preserve them.'
+        # Opt-in extra steps that wipe what tofu destroy cannot reach:
+        # the R2 buckets — persistence (snapshots), data (datalake) and
+        # state (tofu state) — plus the Hetzner disk snapshots from
+        # teardown-snapshot.yml, which survive `tofu destroy` by design
+        # because they live outside Tofu state.
+        #
+        # Without this, all of it survives destroy-all: a later
+        # initial-setup + spin-up reattaches to the existing R2
+        # snapshot history (RFC 0001 decision #6). The Hetzner images
+        # are a different case — they survive but cannot be restored
+        # from, since the destroy rotates the credential epoch (see the
+        # "Handle Hetzner disk snapshots" step). Setting this to
+        # "DESTROY" turns destroy-all into a true one-shot wipe.
+        description: 'Type "DESTROY" to ALSO wipe R2 buckets (snapshots + data + tofu state) and Hetzner disk snapshots. Leave empty to preserve them.'
         required: false
         type: string
         default: ''
@@ -70,6 +76,19 @@ jobs:
         uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: 1.10.0
+
+      - name: Install uv
+        # Needed by the Hetzner snapshot cleanup at the end of this
+        # workflow. Version kept in step with .github/actions/
+        # nexus-bootstrap and python-tests.yml.
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: '0.11.7'
+          enable-cache: true
+
+      - name: Sync nexus_deploy runtime deps
+        # --no-dev: ruff/mypy/pytest are not needed here.
+        run: uv sync --frozen --no-dev
 
       - name: Generate SSH key for OpenTofu
         run: |
@@ -383,6 +402,73 @@ jobs:
           done
           echo "✅ All R2 buckets wiped"
 
+      - name: Handle Hetzner disk snapshots
+        # Hetzner disk snapshots live OUTSIDE Tofu state on purpose: a
+        # Tofu-managed snapshot would be destroyed by the very
+        # `tofu destroy` it exists to survive. The consequence is that
+        # nothing above this step removes them.
+        #
+        # Leaving one behind is worse than untidy. The stack destroy
+        # above took all 81 random_* resources with it, so the next
+        # initial-setup mints a fresh credential epoch and the epoch
+        # guard in spin-up-snapshot.yml will refuse the old image for
+        # good. It is unrestorable, it keeps billing, and it occupies
+        # one of the 30 per-account snapshot slots — the binding
+        # constraint for multi-tenant projects long before the cost is.
+        #
+        # WHY THIS IS OPT-IN, like the R2 buckets: a snapshot is data.
+        # Even with the automated restore path closed by the epoch
+        # guard, an operator who ran destroy-all by mistake can still
+        # attach the image to a scratch server and read files off it by
+        # hand. Deleting it by default would remove the last recovery
+        # net from the most destructive workflow in the repo. So the
+        # default lists them and prints the command; delete_data=DESTROY
+        # deletes them.
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          set -euo pipefail
+          DOMAIN_SLUG=$(echo "$DOMAIN" | tr '.' '-')
+          PURGE="uv run --quiet --project \"\$GITHUB_WORKSPACE\" \\
+            python -m nexus_deploy snapshot-purge --domain-slug $DOMAIN_SLUG --apply"
+
+          if [ "${{ github.event.inputs.delete_data }}" = "DESTROY" ]; then
+            echo "🔥 delete_data=DESTROY — deleting Hetzner disk snapshots"
+            if ! uv run --quiet --project "$GITHUB_WORKSPACE" \
+              python -m nexus_deploy snapshot-purge \
+                --domain-slug "$DOMAIN_SLUG" --apply; then
+              echo "❌ ERROR: Failed to delete one or more Hetzner snapshots"
+              echo "   They are still billing and still occupy account snapshot slots."
+              echo "   Retry manually:"
+              echo "     HCLOUD_TOKEN=<token> $PURGE"
+              exit 1
+            fi
+            echo "✅ Hetzner disk snapshots deleted"
+          else
+            # Dry run: report what survives so it cannot be forgotten.
+            # Deliberately non-fatal — the infrastructure is already
+            # gone at this point, and failing the run over a listing
+            # would turn a successful destroy red for no actionable
+            # reason. The failure is announced rather than swallowed.
+            echo "📸 Hetzner disk snapshots preserved (delete_data was not DESTROY):"
+            if ! uv run --quiet --project "$GITHUB_WORKSPACE" \
+              python -m nexus_deploy snapshot-purge \
+                --domain-slug "$DOMAIN_SLUG"; then
+              echo "   ⚠️  Could not list snapshots (API or token problem)."
+              echo "      Check the Hetzner console manually — any image left"
+              echo "      behind keeps billing and holds an account slot."
+            fi
+            echo ""
+            echo "   These can no longer be restored from: the destroy above"
+            echo "   rotated every generated credential, so the epoch guard"
+            echo "   will reject them. They remain only as a manual recovery"
+            echo "   path (attach to a scratch server and copy files off)."
+            echo ""
+            echo "   To delete them: re-run with delete_data=DESTROY, or run"
+            echo "     HCLOUD_TOKEN=<token> $PURGE"
+          fi
+
       - name: Confirm destruction
         run: |
           echo ""
@@ -397,12 +483,16 @@ jobs:
             echo "   - R2 persistence bucket (snapshots) — wiped via delete_data=DESTROY"
             echo "   - R2 datalake bucket — wiped via delete_data=DESTROY"
             echo "   - R2 tofu state bucket — wiped via delete_data=DESTROY"
+            echo "   - Hetzner disk snapshots — deleted via delete_data=DESTROY"
           else
             echo ""
             echo "   Preserved (reused on next initial-setup):"
             echo "   - R2 state bucket and credentials"
             echo "   - R2 datalake bucket and credentials"
             echo "   - R2 persistence bucket (snapshots)"
+            echo ""
+            echo "   Preserved but NOT reusable — see the step above:"
+            echo "   - Hetzner disk snapshots (credential epoch rotated)"
             echo ""
             echo "   To wipe these too, re-run with delete_data=DESTROY."
           fi

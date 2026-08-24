@@ -90,6 +90,35 @@ For a single run rather than a permanent switch, `spin-up-snapshot.yml` takes `f
 
 ---
 
+## Destroying a stack for good
+
+`destroy-all.yml` does **not** delete the Hetzner disk snapshots by default, and the reason is worth understanding before you decide.
+
+A snapshot lives outside OpenTofu state on purpose — a Tofu-managed one would be destroyed by the very `tofu destroy` it exists to survive. So `destroy-all` cannot reach it as a side effect, and a leftover image keeps billing and keeps holding one of the 30 per-account slots.
+
+It is also **unrestorable** at that point. The destroy takes all 81 `random_*` resources with it, so the next initial-setup mints a fresh credential epoch and the [epoch guard](#the-credential-epoch-stopped-matching) rejects the old image permanently.
+
+Unrestorable is not the same as worthless, which is why the default keeps it: you can still attach the image to a scratch server and copy files off it by hand. That is the last recovery path after an accidental `destroy-all`, so removing it automatically would be the wrong default for the most destructive workflow in the repo.
+
+The workflow therefore lists what survives and prints the command to remove it. To delete the snapshots in the same run, use the same opt-in that wipes the R2 buckets:
+
+```bash
+gh workflow run destroy-all.yml -f confirm=DESTROY -f delete_data=DESTROY
+```
+
+To delete them later, or from a machine:
+
+```bash
+HCLOUD_TOKEN=<token> uv run python -m nexus_deploy snapshot-purge \
+  --domain-slug <domain-slug> --apply
+```
+
+`snapshot-purge` is label-scoped to one stack, so it can never reach another tenant's images, and it is a dry run until `--apply`. It is a separate command from `snapshot-prune` rather than `--keep 0`: prune refuses `keep < 1` so a retention pass can never leave a stack with nothing to restore from, and that guard is worth keeping absolute.
+
+An image still in `creating` state cannot be deleted through the API. Purge names it and moves on — remove it from the Hetzner console once the create settles.
+
+---
+
 ## What can go wrong
 
 ### The snapshot is refused and the stack rebuilds fresh
