@@ -24,7 +24,7 @@ Sling is a fast data integration CLI for moving data between databases and stora
 
 ### Custom Build
 
-Sling is built from a custom Dockerfile since the official Docker image doesn't support ARM64. The ARM64 binary is downloaded from GitHub releases.
+Sling is built from a custom Dockerfile rather than the official image, which does not cover every architecture Nexus-Stack targets. The binary is downloaded from the upstream GitHub release, which publishes both `linux/amd64` and `linux/arm64`; the Dockerfile selects the matching one via `dpkg --print-architecture`, verifies it against the release's checksum file, and runs `sling --version` so an architecture mismatch fails the image build instead of surfacing later as an unhealthy container.
 
 ### Usage
 
