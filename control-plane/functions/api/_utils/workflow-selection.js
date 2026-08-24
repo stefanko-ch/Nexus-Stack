@@ -4,7 +4,7 @@
  * Nexus-Stack has two pairs:
  *
  *   rebuild   teardown.yml / spin-up.yml
- *             destroy everything, rebuild from ubuntu-24.04
+ *             destroy everything, rebuild from ubuntu-26.04
  *   snapshot  teardown-snapshot.yml / spin-up-snapshot.yml
  *             snapshot the disk, destroy only the server, restore from
  *             the image

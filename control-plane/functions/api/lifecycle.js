@@ -3,7 +3,7 @@
 // Nexus-Stack has two lifecycles and they are a genuine choice, not a
 // migration with an old and a new side:
 //
-//   rebuild   Destroy everything, rebuild from ubuntu-24.04 on the next
+//   rebuild   Destroy everything, rebuild from ubuntu-26.04 on the next
 //             spin-up. Fresh OS and freshly pulled images every time, so
 //             nothing drifts and `:latest` stacks stay current. Costs a
 //             few minutes per spin-up, and anything not covered by the

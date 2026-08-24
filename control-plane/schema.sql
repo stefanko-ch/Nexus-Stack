@@ -99,7 +99,7 @@ INSERT OR IGNORE INTO config (key, value) VALUES
     ('notify_on_spinup', 'true'),
     ('silent_mode', 'false'),
     -- Which lifecycle workflow pair to dispatch: 'rebuild' (destroy and
-    -- rebuild from ubuntu-24.04) or 'snapshot' (snapshot the disk,
+    -- rebuild from ubuntu-26.04) or 'snapshot' (snapshot the disk,
     -- destroy only the server, restore from the image).
     --
     -- ONE key, not one per workflow. Two independent keys could drift,

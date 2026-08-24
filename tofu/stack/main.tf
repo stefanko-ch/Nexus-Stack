@@ -654,8 +654,9 @@ resource "hcloud_server" "main" {
     # This had worked for months purely because no upgraded package
     # happened to ask anything. That is luck, not a property.
     export DEBIAN_FRONTEND=noninteractive
-    # needrestart ships enabled on 24.04 and prompts about restarting
-    # services after a library upgrade. `a` applies automatically.
+    # needrestart has shipped enabled since 22.04 and prompts about
+    # restarting services after a library upgrade. `a` applies
+    # automatically.
     export NEEDRESTART_MODE=a
 
     if [ ! -f /opt/docker-server/.image-provisioned ]; then
@@ -767,9 +768,11 @@ resource "hcloud_server" "main" {
 
   # image / user_data / server_type / location are create-only.
   #
-  # Without this, a snapshot-restored server is one legacy spin-up away
-  # from destruction: spin-up.yml hardcodes `server_image =
-  # "ubuntu-26.04"` and select-capacity rewrites server_type/location,
+  # Without this, a snapshot-restored server is one rebuild spin-up away
+  # from destruction: spin-up.yml supplies the base image through its
+  # `inputs.server_image || 'ubuntu-26.04'` fallback — not a hardcode,
+  # but the same effect when nothing overrides it — and select-capacity
+  # rewrites server_type/location,
   # so tofu would plan a REPLACEMENT of the live server and take every
   # stack's data with it. image and user_data are ForceNew on
   # hcloud_server, which makes that a silent data-loss path rather than
