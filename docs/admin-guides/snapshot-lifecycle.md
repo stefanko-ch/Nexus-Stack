@@ -8,22 +8,20 @@ order: 6
 
 Nexus-Stack has two teardown/spin-up pairs. This guide covers the second one, when to use it, and — more importantly — how to get out of it.
 
-| Config value | Shown in Actions as | Files | What happens |
+| Mode | Shown in Actions as | Files | What happens |
 |---|---|---|---|
-| `legacy` | **Lifecycle: Teardown (Rebuild)**<br>**Lifecycle: Spin Up (Rebuild)** | `teardown.yml`<br>`spin-up.yml` | Destroy everything, rebuild from `ubuntu-24.04` |
+| `rebuild` | **Lifecycle: Teardown (Rebuild)**<br>**Lifecycle: Spin Up (Rebuild)** | `teardown.yml`<br>`spin-up.yml` | Destroy everything, rebuild from `ubuntu-24.04` |
 | `snapshot` | **Lifecycle: Teardown (Snapshot)**<br>**Lifecycle: Spin Up (Snapshot)** | `teardown-snapshot.yml`<br>`spin-up-snapshot.yml` | Snapshot the disk, destroy only the server, restore from the image |
 
-**The default is `legacy`.** Nothing changes until you switch.
+**The default is `rebuild`.** Nothing changes until you switch.
 
-> **On the two names for one thing.** The config value is `legacy`; the
-> workflows are called **Rebuild**. The mismatch is deliberate. `legacy`
-> is the stored identifier and renaming it would break every stack whose
-> D1 row already holds it. But the word is a poor description: this pair
-> is not deprecated and is not going away. It is the permanent fallback
-> whenever a snapshot is unusable, it is the only option on an
-> architecture switch, and `spin-up.yml` is the shared engine that the
-> snapshot spin-up itself calls. "Rebuild" says what the pair does;
-> `legacy` says only what it is called in the database.
+> The mode was called `legacy` until it was renamed here. The word
+> described the pair wrongly: it is not deprecated and is not going away.
+> It is the permanent fallback whenever a snapshot is unusable, the only
+> option across an architecture change, and `spin-up.yml` is the shared
+> engine that the snapshot spin-up itself calls. Existing stacks are
+> migrated by `schema.sql` on the next Control Plane deploy; no alias is
+> kept in code.
 
 **Never mix the pairs at one stack.** Both halves carry their lifecycle's
 name so this is visible at the moment you click. Running the Rebuild
@@ -67,6 +65,17 @@ gh workflow run setup-control-plane.yaml
 
 ### 2. Flip the mode
 
+**Control Plane → Settings → Lifecycle.** Pick Rebuild or Snapshot; the change
+takes effect on the next teardown. The page states what each option keeps and
+what it does to your images, and switching *to* Rebuild asks for confirmation
+because it is the direction that cannot be undone — see
+[Switching back](#switching-back).
+
+Writing the setting requires the admin identity (`ADMIN_EMAIL`). Reading it
+does not, so anyone with Access can see which mode a stack is on.
+
+If the Control Plane is unavailable, the same row can be set directly:
+
 ```bash
 npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
   --command "UPDATE config SET value = 'snapshot' WHERE key = 'lifecycle_mode'"
@@ -76,7 +85,7 @@ npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
 `nexus-stack.ch` the database is `nexus-nexus-stack-ch-db`. Same convention as
 the R2 buckets described in [Setup Guide](./setup-guide.md).
 
-Valid values are `legacy` and `snapshot`. Anything else is refused — see [When the mode cannot be determined](#when-the-mode-cannot-be-determined).
+Valid values are `rebuild` and `snapshot`. Anything else is refused — see [When the mode cannot be determined](#when-the-mode-cannot-be-determined).
 
 **One key controls both workflows on purpose.** An earlier design had one key per workflow and it was wrong: a half-applied switch means snapshot spin-up with rebuild teardown, and the rebuild teardown runs an untargeted `tofu destroy` that regenerates every service credential — which orphans the snapshot it just produced.
 
@@ -94,12 +103,17 @@ Cost: one power cycle. Check afterwards that the image appears in the Hetzner co
 
 ## Switching back
 
+**Control Plane → Settings → Lifecycle → Rebuild**, or directly:
+
 ```bash
 npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
-  --command "UPDATE config SET value = 'legacy' WHERE key = 'lifecycle_mode'"
+  --command "UPDATE config SET value = 'rebuild' WHERE key = 'lifecycle_mode'"
 ```
 
-That is the whole rollback. The rebuild workflows were never modified and do not depend on anything the snapshot path added.
+That is the whole rollback — with one caveat the UI warns about: the next
+Rebuild teardown rotates every generated credential, so **every existing
+snapshot becomes unrestorable from that moment on**. Going back is cheap;
+going back and then forward again means starting the snapshot line over. The rebuild workflows were never modified and do not depend on anything the snapshot path added.
 
 For a single run rather than a permanent switch, `spin-up-snapshot.yml` takes `force_fresh=true`, which ignores any snapshot and builds from `ubuntu-24.04`.
 
@@ -221,7 +235,7 @@ If D1 is unreachable, the binding is missing, or `lifecycle_mode` holds an unrec
 
 This is deliberate. "Cannot tell" is not "not configured": guessing would fall back to the rebuild pair, which is the *destructive* one, and running it at a stack that is on snapshots would rotate every credential and orphan the snapshot. Skipping costs one more day of server time; guessing wrong costs the snapshot.
 
-An **unconfigured** stack — no row at all — is a different case and resolves to `legacy` without complaint.
+An **unconfigured** stack — no row at all — is a different case and resolves to `rebuild` without complaint.
 
 ---
 

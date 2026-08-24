@@ -98,13 +98,39 @@ INSERT OR IGNORE INTO config (key, value) VALUES
     ('notify_on_shutdown', 'true'),
     ('notify_on_spinup', 'true'),
     ('silent_mode', 'false'),
-    -- Which lifecycle workflow pair to dispatch: 'legacy' (destroy and
+    -- Which lifecycle workflow pair to dispatch: 'rebuild' (destroy and
     -- rebuild from ubuntu-24.04) or 'snapshot' (snapshot the disk,
     -- destroy only the server, restore from the image).
     --
     -- ONE key, not one per workflow. Two independent keys could drift,
     -- and a half-applied switch is harmful rather than merely untidy:
-    -- snapshot spin-up with legacy teardown means the nightly untargeted
+    -- snapshot spin-up with rebuild teardown means the nightly untargeted
     -- `tofu destroy` rotates every generated credential and orphans the
     -- snapshot it just produced.
-    ('lifecycle_mode', 'legacy');
+    ('lifecycle_mode', 'rebuild');
+
+-- ---------------------------------------------------------------------------
+-- Migration: 'legacy' -> 'rebuild'
+--
+-- 'legacy' was the original name for this pair and described it wrongly:
+-- it is not deprecated. It is the permanent fallback whenever a snapshot
+-- is unusable, the only option across an architecture change, and
+-- spin-up.yml is the shared engine the snapshot spin-up itself calls via
+-- workflow_call. The name is now 'rebuild', which says what it does.
+--
+-- No alias is kept in code, deliberately: an alias keeps a name alive
+-- that nobody should use. This file is applied on every
+-- setup-control-plane run, so every stack is migrated the next time its
+-- Control Plane is deployed.
+--
+-- ORDERING, and the one rough edge: the Worker is deployed before this
+-- runs, so the scheduled teardown never sees a value it cannot read. The
+-- Pages Functions are deployed AFTER, so between this statement and that
+-- step the API is briefly serving code that does not know 'rebuild' and
+-- will answer 503. That window is minutes long, only during a deliberate
+-- deploy, and it fails closed rather than dispatching the wrong pair.
+--
+-- Idempotent: after the first run no row matches.
+UPDATE config
+   SET value = 'rebuild', updated_at = datetime('now')
+ WHERE key = 'lifecycle_mode' AND value = 'legacy';

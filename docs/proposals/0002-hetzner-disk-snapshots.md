@@ -45,7 +45,7 @@ That is five stacks out of roughly seventy-six. A disk snapshot captures the who
 ### What this is NOT
 
 - **Not a replacement for RFC 0001.** R2 remains, runs first on every snapshot teardown, and is the recovery path whenever a snapshot is unavailable, epoch-mismatched or architecture-incompatible. It is also logically consistent (`pg_dump`) where a disk image is not, and portable where a snapshot is vendor- and architecture-locked.
-- **Not the default.** Stacks stay on the rebuild pair (config value `legacy`) until switched.
+- **Not the default.** Stacks stay on the rebuild pair until switched.
 - **Not a backup.** Retention is two generations and the images live in the same Hetzner project as the server.
 
 ## Design
@@ -75,9 +75,9 @@ The one resource destroyed alongside the server is `cloudflare_record.firewall_t
 
 ### One config value, not two
 
-`lifecycle_mode` is `legacy` or `snapshot`, and both workflow filenames are derived from it.
+`lifecycle_mode` is `rebuild` or `snapshot`, and both workflow filenames are derived from it. It was originally `legacy`, renamed because the pair is a permanent fallback rather than something deprecated; `schema.sql` migrates existing rows.
 
-The first implementation used one key per workflow. That allows drift, and a half-applied switch is harmful rather than untidy: snapshot spin-up with legacy teardown means the nightly untargeted destroy rotates every credential and orphans the snapshot it just made. Documenting "switch both together" is not the same as making the other case impossible.
+The first implementation used one key per workflow. That allows drift, and a half-applied switch is harmful rather than untidy: snapshot spin-up with rebuild teardown means the nightly untargeted destroy rotates every credential and orphans the snapshot it just made. Documenting "switch both together" is not the same as making the other case impossible.
 
 Deriving the names rather than storing them also removes an injection surface: no database value reaches the GitHub API URL path.
 
@@ -89,12 +89,12 @@ This rule appears in four places across the implementation, and it is the one mo
 |---|---|---|
 | No snapshot exists | definite | build fresh |
 | Epoch mismatch | definite | build fresh |
-| No `lifecycle_mode` row | definite | `legacy` |
+| No `lifecycle_mode` row | definite | `rebuild` |
 | Snapshot lookup failed | **unknown** | stop |
 | `tofu init` failed | **unknown** | stop |
 | D1 unreadable | **unknown** | dispatch nothing |
 
-The asymmetry matters because the fallbacks are not neutral. Building fresh during an API outage discards a snapshot that may hold the only copy of most stacks' data. Defaulting to `legacy` when the mode is unknown dispatches the *destructive* pair at a stack that may be on snapshots.
+The asymmetry matters because the fallbacks are not neutral. Building fresh during an API outage discards a snapshot that may hold the only copy of most stacks' data. Defaulting to `rebuild` when the mode is unknown dispatches the *destructive* pair at a stack that may be on snapshots.
 
 ### Boot readiness
 
@@ -112,7 +112,7 @@ test -f /run/nexus-setup-complete \
   || { test -f /opt/docker-server/.setup-complete && systemctl is-active --quiet docker; }
 ```
 
-This is monotonically safer for the legacy path: it accepts everything the old gate accepted, plus requires Docker to be up. It can only wait longer, never pass earlier.
+This is monotonically safer for the rebuild path: it accepts everything the old gate accepted, plus requires Docker to be up. It can only wait longer, never pass earlier.
 
 ### `lifecycle.ignore_changes` on the server
 
@@ -122,7 +122,7 @@ lifecycle {
 }
 ```
 
-Load-bearing, not tidiness. Without it a snapshot-restored server is one legacy spin-up away from destruction: `spin-up.yml` supplies `ubuntu-24.04` and `select-capacity` rewrites `server_type`/`server_location`, so OpenTofu would plan a **replacement** of the live server. `image` and `user_data` are ForceNew, which makes it a silent data-loss path rather than a diff someone notices.
+Load-bearing, not tidiness. Without it a snapshot-restored server is one rebuild spin-up away from destruction: `spin-up.yml` supplies `ubuntu-24.04` and `select-capacity` rewrites `server_type`/`server_location`, so OpenTofu would plan a **replacement** of the live server. `image` and `user_data` are ForceNew, which makes it a silent data-loss path rather than a diff someone notices.
 
 It costs nothing operationally: the documented resize flow is teardown → set `SERVER_TYPE` → spin-up, so the server is always created fresh with the new values.
 

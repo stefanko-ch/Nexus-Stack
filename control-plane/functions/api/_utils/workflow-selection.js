@@ -3,18 +3,18 @@
  *
  * Nexus-Stack has two pairs:
  *
- *   legacy    teardown.yml / spin-up.yml
+ *   rebuild   teardown.yml / spin-up.yml
  *             destroy everything, rebuild from ubuntu-24.04
  *   snapshot  teardown-snapshot.yml / spin-up-snapshot.yml
  *             snapshot the disk, destroy only the server, restore from
  *             the image
  *
  * ONE config value, not two. The pair is selected by `lifecycle_mode`
- * ('legacy' | 'snapshot') and both workflow names are derived from it.
+ * ('rebuild' | 'snapshot') and both workflow names are derived from it.
  *
  * Two independent keys were the first design and it was wrong: they can
  * drift, and a half-applied switch is actively harmful. Snapshot spin-up
- * with legacy teardown means the nightly untargeted `tofu destroy`
+ * with rebuild teardown means the nightly untargeted `tofu destroy`
  * rotates all 81 generated credentials, and the epoch guard then refuses
  * the snapshot it just made. Documenting "switch both together" is not
  * the same as making it impossible to do otherwise.
@@ -27,23 +27,39 @@
  * "CANNOT TELL" IS NOT "NOT CONFIGURED". These are different answers and
  * the caller must be able to tell them apart:
  *
- *   absent      no row -> the stack was never switched -> legacy is right
+ *   absent      no row -> the stack was never switched -> the default is right
  *   unreadable  D1 down, no binding, unknown value -> we do not know which
- *               mode this stack is in, and guessing legacy would dispatch
+ *               mode this stack is in, and guessing rebuild would dispatch
  *               the DESTRUCTIVE pair at a stack that may be on snapshots
  *
  * That is why this returns a result rather than a bare string with a
  * fallback baked in.
  */
 
-export const LIFECYCLE_MODES = ['legacy', 'snapshot'];
-export const DEFAULT_LIFECYCLE_MODE = 'legacy';
-
 /** Workflow filenames per mode. The only place these strings live. */
 export const LIFECYCLE_WORKFLOWS = {
-  legacy: { teardown: 'teardown.yml', spinUp: 'spin-up.yml' },
+  rebuild: { teardown: 'teardown.yml', spinUp: 'spin-up.yml' },
   snapshot: { teardown: 'teardown-snapshot.yml', spinUp: 'spin-up-snapshot.yml' },
 };
+
+export const LIFECYCLE_MODES = Object.keys(LIFECYCLE_WORKFLOWS);
+export const DEFAULT_LIFECYCLE_MODE = 'rebuild';
+
+/**
+ * Normalise a submitted or stored mode for comparison.
+ *
+ * Trims and lowercases only — there is deliberately no alias table.
+ * `legacy` was the original name for `rebuild` and is migrated in
+ * `schema.sql`, which runs on every setup-control-plane deploy AFTER
+ * the Worker is updated. New code therefore never meets an old value,
+ * and an alias would only keep a name nobody should use alive.
+ *
+ * Returns the input lowercased when unrecognised, so the caller can
+ * reject it rather than having it silently coerced to a default.
+ */
+export function canonicalMode(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
 
 /** Every filename either mode can produce — for run detection, not dispatch. */
 export const ALL_TEARDOWN_WORKFLOWS = LIFECYCLE_MODES.map(
@@ -63,7 +79,7 @@ export const ALL_SPINUP_WORKFLOWS = LIFECYCLE_MODES.map(
  * `ok: false` means the configuration could not be determined. Callers
  * must NOT fall back to a default on that — see the note above. It is
  * only returned for a genuine unknown; an unconfigured stack resolves
- * successfully to 'legacy'.
+ * successfully to the default.
  */
 export async function resolveLifecycle(db) {
   if (!db) {
@@ -93,7 +109,8 @@ export async function resolveLifecycle(db) {
     return { ok: true, mode: DEFAULT_LIFECYCLE_MODE, ...LIFECYCLE_WORKFLOWS[DEFAULT_LIFECYCLE_MODE] };
   }
 
-  if (!LIFECYCLE_MODES.includes(value)) {
+  const mode = canonicalMode(value);
+  if (!LIFECYCLE_MODES.includes(mode)) {
     // Deliberately does not print the value. It is an unvalidated
     // database string, and this project does not put those in logs — if
     // a secret were ever written to the wrong key, the log would keep it.
@@ -103,5 +120,5 @@ export async function resolveLifecycle(db) {
     return { ok: false, reason: 'unrecognised lifecycle_mode' };
   }
 
-  return { ok: true, mode: value, ...LIFECYCLE_WORKFLOWS[value] };
+  return { ok: true, mode, ...LIFECYCLE_WORKFLOWS[mode] };
 }

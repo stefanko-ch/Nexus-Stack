@@ -69,21 +69,27 @@ async function getConfigValue(db, key, defaultValue = null) {
 // ONE mode, both names derived from it, so the pair cannot drift.
 // Deriving rather than reading the names also means no database value
 // ever reaches the GitHub API URL path.
-const LIFECYCLE_MODES = ['legacy', 'snapshot'];
-const DEFAULT_LIFECYCLE_MODE = 'legacy';
 const LIFECYCLE_WORKFLOWS = {
-  legacy: { teardown: 'teardown.yml', spinUp: 'spin-up.yml' },
+  rebuild: { teardown: 'teardown.yml', spinUp: 'spin-up.yml' },
   snapshot: { teardown: 'teardown-snapshot.yml', spinUp: 'spin-up-snapshot.yml' },
 };
+const LIFECYCLE_MODES = Object.keys(LIFECYCLE_WORKFLOWS);
+const DEFAULT_LIFECYCLE_MODE = 'rebuild';
+// No alias table: `legacy` was the original name for `rebuild` and is
+// migrated in schema.sql, which runs on every setup-control-plane
+// deploy AFTER this Worker is updated.
+function canonicalMode(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
 
 // Returns {ok:true, mode, teardown, spinUp} or {ok:false, reason}.
 //
 // Deliberately does NOT fall back to a default when the mode cannot be
-// determined. This runs unattended every night, and the legacy pair is
+// determined. This runs unattended every night, and the rebuild pair is
 // the destructive one: guessing it at a stack that is on snapshots would
 // run an untargeted `tofu destroy`, rotate all 81 generated credentials
 // and orphan the snapshot. An unconfigured stack is a different case and
-// resolves successfully to 'legacy'.
+// resolves successfully to the default.
 async function resolveLifecycle(db) {
   if (!db) {
     // Short-circuit rather than letting getConfigValue throw and be
@@ -107,7 +113,8 @@ async function resolveLifecycle(db) {
   if (!value) {
     return { ok: true, mode: DEFAULT_LIFECYCLE_MODE, ...LIFECYCLE_WORKFLOWS[DEFAULT_LIFECYCLE_MODE] };
   }
-  if (!LIFECYCLE_MODES.includes(value)) {
+  const mode = canonicalMode(value);
+  if (!LIFECYCLE_MODES.includes(mode)) {
     // The value itself is never logged: it is an unvalidated database
     // string, and a secret written to the wrong key would be retained.
     console.error(
@@ -115,7 +122,7 @@ async function resolveLifecycle(db) {
     );
     return { ok: false, reason: 'unrecognised lifecycle_mode' };
   }
-  return { ok: true, mode: value, ...LIFECYCLE_WORKFLOWS[value] };
+  return { ok: true, mode, ...LIFECYCLE_WORKFLOWS[mode] };
 }
 
 async function deleteConfigValue(db, key) {

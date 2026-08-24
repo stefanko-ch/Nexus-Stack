@@ -36,7 +36,7 @@ export async function onRequestPost(context) {
 
   // Refuse rather than guess. If the lifecycle mode cannot be determined
   // we do not know whether this stack is on snapshots, and defaulting to
-  // the legacy pair would run an untargeted `tofu destroy` that rotates
+  // the rebuild pair would run an untargeted `tofu destroy` that rotates
   // every generated credential and orphans any existing snapshot.
   // An UNCONFIGURED stack is a different case and resolves fine.
   const lifecycle = await resolveLifecycle(env.NEXUS_DB);
