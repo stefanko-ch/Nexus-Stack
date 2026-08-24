@@ -54,6 +54,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TextIO
 
 from nexus_deploy import s3_restore as _s3_restore
 from nexus_deploy import setup as _setup
@@ -451,6 +452,7 @@ def run_pipeline(
 
         pre_result = orchestrator.run_pre_bootstrap()
         if pre_result.has_hard_failure:
+            write_phase_log((("pre-bootstrap", pre_result),))
             raise PipelineError(
                 "pre-bootstrap pipeline aborted (see per-phase log above)",
             )
@@ -473,6 +475,11 @@ def run_pipeline(
 
         all_result = orchestrator.run_all()
         if all_result.has_hard_failure:
+            # Both sections, not just run-all: a phase can fail because
+            # an earlier pre-bootstrap phase came back "partial" and
+            # left it without an input, and that context is invisible
+            # if only the failing half is printed.
+            write_phase_log((("pre-bootstrap", pre_result), ("run-all", all_result)))
             raise PipelineError(
                 "post-bootstrap pipeline aborted (see per-phase log above)",
             )
@@ -773,6 +780,35 @@ def run_snapshot(
             template_version=template_version,
         )
     return SnapshotResult(outcome=outcome)
+
+
+_PHASE_MARKERS = {"ok": "✓", "partial": "⚠", "failed": "✗", "skipped": "—"}
+
+
+def write_phase_log(
+    sections: tuple[tuple[str, OrchestratorResult], ...],
+    stream: TextIO | None = None,
+) -> None:
+    """Write the per-phase outcome lines for the given sections.
+
+    Shared by the success path in the CLI handler and by the two abort
+    paths in :func:`run_pipeline`. It exists as one function rather
+    than two loops for a reason that cost a debugging cycle: the abort
+    messages say "see per-phase log above", but the CLI handler's loop
+    lives *after* its ``try`` block, so on a ``PipelineError`` it never
+    ran. Operators got the sentence and nothing to look at — with
+    fifteen phases in ``run_all``, that is not a narrowing.
+
+    ``stream`` defaults to ``sys.stderr`` at call time rather than at
+    import, so a caller that redirects stderr still gets captured.
+    """
+    out = stream if stream is not None else sys.stderr
+    for label, sub_result in sections:
+        out.write(f"\n[{label}]\n")
+        for phase in sub_result.phases:
+            marker = _PHASE_MARKERS.get(phase.status, "?")
+            detail = f" — {phase.detail}" if phase.detail else ""
+            out.write(f"  {marker} {phase.name}: {phase.status}{detail}\n")
 
 
 def format_done_banner(result: PipelineResult) -> str:

@@ -41,6 +41,7 @@ from nexus_deploy.pipeline import (
     format_done_banner,
     run_pipeline,
     run_snapshot,
+    write_phase_log,
 )
 from nexus_deploy.s3_restore import S3SnapshotApplied, S3SnapshotSkipped
 from nexus_deploy.tofu import TofuRunner
@@ -1405,3 +1406,110 @@ def test_run_snapshot_returns_applied_when_full_env_set(
     ssh_instance.run_script.assert_called_once()
     rendered_script = ssh_instance.run_script.call_args.args[0]
     assert rendered_script.startswith("#!/usr/bin/env bash")
+
+
+# ---------------------------------------------------------------------------
+# write_phase_log — the abort paths must print what they point at
+# ---------------------------------------------------------------------------
+
+
+def _result(*phases: PhaseResult) -> OrchestratorResult:
+    return OrchestratorResult(phases=phases, state=OrchestratorState())
+
+
+def test_write_phase_log_renders_a_marker_per_status() -> None:
+    import io
+
+    buf = io.StringIO()
+    write_phase_log(
+        (
+            (
+                "run-all",
+                _result(
+                    PhaseResult(name="a", status="ok"),
+                    PhaseResult(name="b", status="partial", detail="half"),
+                    PhaseResult(name="c", status="failed", detail="boom"),
+                    PhaseResult(name="d", status="skipped"),
+                ),
+            ),
+        ),
+        stream=buf,
+    )
+    out = buf.getvalue()
+    assert "[run-all]" in out
+    assert "✓ a: ok" in out
+    assert "⚠ b: partial — half" in out
+    assert "✗ c: failed — boom" in out
+    assert "— d: skipped" in out
+
+
+def test_write_phase_log_renders_every_section_in_order() -> None:
+    import io
+
+    buf = io.StringIO()
+    write_phase_log(
+        (
+            ("pre-bootstrap", _result(PhaseResult(name="early", status="ok"))),
+            ("run-all", _result(PhaseResult(name="late", status="failed"))),
+        ),
+        stream=buf,
+    )
+    out = buf.getvalue()
+    assert out.index("[pre-bootstrap]") < out.index("[run-all]")
+    assert out.index("early") < out.index("late")
+
+
+def test_post_bootstrap_abort_prints_the_phase_log_before_raising(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Regression guard for a debugging cycle lost to a missing log.
+
+    The abort message says "see per-phase log above". The CLI handler
+    that prints phases sits after its try block, so on PipelineError it
+    never ran and operators got the sentence with nothing above it.
+    """
+    mock_orchestrator.run_pre_bootstrap.return_value = _result(
+        PhaseResult(name="pre", status="ok"),
+    )
+    mock_orchestrator.run_all.return_value = _result(
+        PhaseResult(name="infisical-bootstrap", status="failed", detail="token missing"),
+    )
+
+    with pytest.raises(PipelineError, match="post-bootstrap"):
+        run_pipeline(
+            project_root=project_root,
+            options=PipelineOptions(),
+            tofu_runner=fake_tofu_runner,
+        )
+
+    err = capsys.readouterr().err
+    assert "✗ infisical-bootstrap: failed — token missing" in err
+    # Both halves, so a "partial" earlier on is visible as context.
+    assert "[pre-bootstrap]" in err
+    assert "[run-all]" in err
+
+
+def test_pre_bootstrap_abort_prints_the_phase_log_before_raising(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mock_orchestrator.run_pre_bootstrap.return_value = _result(
+        PhaseResult(name="compose-up", status="failed", detail="stack down"),
+    )
+
+    with pytest.raises(PipelineError, match="pre-bootstrap"):
+        run_pipeline(
+            project_root=project_root,
+            options=PipelineOptions(),
+            tofu_runner=fake_tofu_runner,
+        )
+
+    err = capsys.readouterr().err
+    assert "✗ compose-up: failed — stack down" in err

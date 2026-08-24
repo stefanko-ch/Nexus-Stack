@@ -3455,21 +3455,20 @@ def _run_pipeline(args: list[str]) -> int:
     # Per-phase log to stderr — operators need visibility into which
     # phases ran/skipped/failed/partialled. The Orchestrator records
     # PhaseResult into result.phases but never emits stderr lines of
-    # its own; without this loop a successful run-pipeline shows only
-    # the compose-up "started and running" markers + the done banner,
+    # its own; without this a successful run-pipeline shows only the
+    # compose-up "started and running" markers + the done banner,
     # masking secret-sync / git-sync / kestra-secret-sync failures
     # that surfaced via PhaseResult(status='partial' or 'failed').
-    # Mirror the legacy ``_run_pre_bootstrap`` / ``_run_all`` handlers.
-    markers = {"ok": "✓", "partial": "⚠", "failed": "✗", "skipped": "—"}
-    for label, sub_result in (
-        ("pre-bootstrap", result.pre_bootstrap),
-        ("run-all", result.run_all),
-    ):
-        sys.stderr.write(f"\n[{label}]\n")
-        for phase in sub_result.phases:
-            marker = markers.get(phase.status, "?")
-            detail = f" — {phase.detail}" if phase.detail else ""
-            sys.stderr.write(f"  {marker} {phase.name}: {phase.status}{detail}\n")
+    #
+    # This is the SUCCESS path only — it sits after the try block. The
+    # abort paths call the same helper from inside run_pipeline, which
+    # is what makes their "see per-phase log above" true.
+    _pipeline.write_phase_log(
+        (
+            ("pre-bootstrap", result.pre_bootstrap),
+            ("run-all", result.run_all),
+        ),
+    )
 
     sys.stdout.write(_pipeline.format_done_banner(result))
 
