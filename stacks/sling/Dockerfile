@@ -21,8 +21,19 @@
 
 FROM debian:bookworm-slim
 
-# Single source of truth for the version. Also referenced by the image tag
-# in docker-compose.yml and by services.yaml — keep the three in step.
+# NOT a single source of truth — the version is repeated in five places
+# and an upgrade has to touch all of them together:
+#
+#   stacks/sling/Dockerfile        this ARG (which binary is downloaded)
+#   stacks/sling/docker-compose.yml  the image tag
+#   services.yaml                  the image field
+#   docs/stacks/overview.md        the stack table
+#   docs/stacks/README.md          the image-version table
+#
+# Editing only this ARG fetches a different binary while the image tag
+# and all the metadata keep advertising the old version. The ARG earns
+# its place by removing the four repetitions that used to sit inside the
+# download URLs below, not by centralising the version project-wide.
 ARG SLING_VERSION=1.5.13
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
