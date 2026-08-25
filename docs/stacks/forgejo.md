@@ -24,7 +24,7 @@ Forgejo is a hard fork of Gitea, developed under a non-profit. It provides:
 | Website | [forgejo.org](https://forgejo.org) |
 | Source | [Codeberg](https://codeberg.org/forgejo/forgejo) |
 
-> ✅ **Auto-configured:** The admin account is created during deployment. A second, non-admin account is created as well *when a user identity is configured* — without one the stack has an admin login and nothing else. Their passwords, together with the database password, are stored in Infisical under the `forgejo` tag. The Actions runner registers itself; its registration secret is deliberately **not** in Infisical — everything there is copied into Kestra's environment, so it is passed straight from the OpenTofu output to the two registration steps instead. An operator who needs it can read `tofu output`.
+> ✅ **Auto-configured:** The admin account is created during deployment. A second, non-admin account is created as well *when a user identity is configured* — without one the stack has an admin login and nothing else. Their passwords, together with the database password, are stored in Infisical under the `forgejo` tag. The Actions runner registers itself; its registration secret is deliberately **not** in Infisical — everything there is copied into Kestra's environment, so it is passed straight from the OpenTofu output to the two registration steps instead. An operator who needs it can read it out of the JSON form — `tofu output -json secrets | jq -r .forgejo_runner_secret` — since the `secrets` output is marked sensitive and plain `tofu output` redacts it.
 
 ### Why v15 and not v16
 
@@ -145,12 +145,16 @@ Three things bound the blast radius:
 1. `forgejo-dind` runs the **rootless** Docker image, so a container
    escape lands as UID 1000 inside that container rather than as root.
 2. `forgejo-dind` sits alone with the runner on a second internal
-   network, `forgejo-ci`, and publishes no port. Only `forgejo-runner`
-   reaches its unauthenticated port 2375 — deliberately *not* the web
-   container or the database, which live on `forgejo-internal`. An
-   earlier revision put all four containers on one network, which
-   would have let a compromise of the web container drive a privileged
-   Docker daemon.
+   network, `forgejo-ci`, and publishes no port. Of the four
+   containers, only `forgejo-runner` is attached to it — deliberately
+   *not* the web container or the database, which live on
+   `forgejo-internal`. An earlier revision put all four on one network,
+   which would have let a compromise of the web container drive a
+   privileged Docker daemon.
+
+   This is a statement about the four stack containers. It says nothing
+   about *job* containers, which are a separate matter — see the limit
+   noted under point 3.
 3. `runner-config.yml` keeps `container.docker_host: "-"` and
    `valid_volumes: []`, so the runner does not hand a job container a
    Docker socket and a workflow may not name host paths to bind-mount.
@@ -178,10 +182,14 @@ once; it does not bound what each may consume, which is why both are
 needed.
 
 Note these use `mem_limit` rather than the `deploy.resources.limits`
-the rest of the repo uses. That is deliberate: `docker compose up`
-ignores `deploy.resources` — it is a Swarm key honoured only under
-`--compatibility`, which the deploy pipeline does not pass. On a stack
-running arbitrary repository workflows an advisory limit is worse than
+the rest of the repo uses, and the reason is uncertainty rather than a
+flat claim about either key. `deploy.resources` began as a Swarm-only
+setting applied under `--compatibility`; some Compose v2 releases
+honour it directly. Nexus-Stack installs Docker from an unpinned
+`get.docker.com`, so the Compose version on a given server is not known
+in advance — which is exactly why the ambiguous key is the wrong choice
+here. `mem_limit` binds on every version. On a stack running arbitrary
+repository workflows, a limit that may or may not apply is worse than
 none, because it reads as protection.
 
 **Disk is not bounded.** The layer cache lives in a named volume with

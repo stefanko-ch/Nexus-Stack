@@ -98,14 +98,19 @@ services:
       # students copying a GitHub workflow would reach out to github.com,
       # which defeats the point of a self-hosted forge.
       FORGEJO__actions__DEFAULT_ACTIONS_URL: https://data.forgejo.org
-    # `mem_limit`, not `deploy.resources.limits`. The rest of this repo
-    # uses the latter, but `docker compose up` ignores it — it is a
-    # Swarm key, honoured only under `--compatibility`, which the
-    # deploy pipeline does not pass. So every stack using it currently
-    # runs unbounded. Diverging here is deliberate: this stack runs
-    # arbitrary repository workflows, and an advisory limit would be
-    # worse than none because it reads as protection. Tracked for the
-    # other stacks separately.
+    # `mem_limit`, not `deploy.resources.limits`, and the reason is
+    # uncertainty rather than a flat claim about either key.
+    # `deploy.resources` began as a Swarm-only setting honoured under
+    # `--compatibility`; some Compose v2 releases apply it directly.
+    # This project installs Docker from an unpinned get.docker.com, so
+    # the Compose version on any given server is not known in advance
+    # — which is precisely why the ambiguous key is the wrong one here.
+    # `mem_limit` is applied by every version.
+    #
+    # Worth the divergence from the repo's style for this stack in
+    # particular: it runs arbitrary repository workflows, and a limit
+    # that may or may not bind is worse than none, because it reads as
+    # protection.
     mem_limit: 1g
     volumes:
       - /mnt/nexus-data/forgejo/repos:/data/git/repositories
