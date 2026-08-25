@@ -81,9 +81,14 @@ services:
       FORGEJO__database__NAME: forgejo
       FORGEJO__database__USER: nexus-forgejo
       FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWORD}
-      FORGEJO__server__ROOT_URL: https://forgejo.${DOMAIN}
-      FORGEJO__server__SSH_DOMAIN: forgejo.${DOMAIN}
-      FORGEJO__server__DOMAIN: forgejo.${DOMAIN}
+      # FORGEJO_HOST, not `forgejo.${DOMAIN}`. The renderer composes it
+      # with the configured subdomain separator, so a flat-subdomain
+      # tenant gets `forgejo-user1.example.com` — matching the DNS and
+      # Access records Tofu provisions — instead of a dotted host that
+      # resolves nowhere.
+      FORGEJO__server__ROOT_URL: https://${FORGEJO_HOST}
+      FORGEJO__server__SSH_DOMAIN: ${FORGEJO_HOST}
+      FORGEJO__server__DOMAIN: ${FORGEJO_HOST}
       FORGEJO__service__DISABLE_REGISTRATION: "true"
       FORGEJO__security__INSTALL_LOCK: "true"
       # Actions is enabled by default since Forgejo v1.21; set explicitly

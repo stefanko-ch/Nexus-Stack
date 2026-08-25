@@ -996,6 +996,15 @@ def _render_forgejo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "FORGEJO_DB_PASSWORD": c.forgejo_db_password or "",
             "FORGEJO_RUNNER_SECRET": c.forgejo_runner_secret or "",
             "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
+            # The public hostname, composed here rather than as
+            # `forgejo.${DOMAIN}` in the compose file. A multi-tenant
+            # fork sets subdomain_separator='-', and Tofu then
+            # provisions DNS and Access for `forgejo-user1.example.com`
+            # — a hardcoded dot would have Forgejo advertise and
+            # redirect to `forgejo.user1.example.com`, which resolves
+            # nowhere. Clone URLs and every OAuth redirect derive from
+            # this value, so getting it wrong breaks more than the UI.
+            "FORGEJO_HOST": service_host("forgejo", e.domain or "", e.subdomain_separator),
             "DOMAIN": e.domain or "",
         },
         # 0600, not the 0644 most stacks use. This file carries the

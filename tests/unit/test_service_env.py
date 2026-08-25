@@ -2096,6 +2096,7 @@ def test_forgejo_renders_every_key_the_compose_reads(
         "FORGEJO_DB_PASSWORD": "forgejo-db",
         "FORGEJO_RUNNER_SECRET": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
         "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
+        "FORGEJO_HOST": f"forgejo.{full_env.domain}",
         "DOMAIN": full_env.domain or "",
     }
 
@@ -2169,3 +2170,40 @@ def test_forgejo_compose_gives_the_runner_secret_only_to_the_runner() -> None:
         if "FORGEJO_RUNNER_SECRET" in (spec.get("environment") or {})
     ]
     assert holders == ["forgejo-runner"]
+
+
+def test_forgejo_host_honours_the_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A multi-tenant fork sets the separator to `-`, and Tofu then
+    provisions DNS and Access for `forgejo-user1.example.com`. A
+    hardcoded dot would have Forgejo advertise and redirect to
+    `forgejo.user1.example.com`, which resolves nowhere — and clone
+    URLs and every OAuth redirect derive from it, so the damage is
+    wider than the UI.
+    """
+    import dataclasses
+
+    from nexus_deploy.service_env import _render_forgejo
+
+    flat = dataclasses.replace(full_env, domain="user1.example.com", subdomain_separator="-")
+    assert (
+        _render_forgejo(full_config, flat).env_vars["FORGEJO_HOST"] == "forgejo-user1.example.com"
+    )
+
+    dotted = dataclasses.replace(full_env, domain="example.com", subdomain_separator=".")
+    assert _render_forgejo(full_config, dotted).env_vars["FORGEJO_HOST"] == "forgejo.example.com"
+
+
+def test_forgejo_compose_uses_the_rendered_host_not_a_hardcoded_dot() -> None:
+    """Guard the other half: the renderer can be right while the
+    compose file quietly keeps `forgejo.${DOMAIN}`."""
+    from pathlib import Path
+
+    lines = Path("stacks/forgejo/docker-compose.yml").read_text().splitlines()
+    # Comments only — the header explains *why* it is not the dotted
+    # form, so a naive substring check matches the explanation.
+    executable = [ln for ln in lines if not ln.lstrip().startswith("#")]
+
+    assert [ln for ln in executable if "${FORGEJO_HOST}" in ln]
+    assert not [ln for ln in executable if "forgejo.${DOMAIN}" in ln]
