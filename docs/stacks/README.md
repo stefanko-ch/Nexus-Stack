@@ -54,7 +54,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Forgejo | `codeberg.org/forgejo/forgejo` | `15.0.7` | Exact ¹ |
 | PostgreSQL (Forgejo DB) | `postgres` | `17-alpine` | Major |
 | Forgejo Runner | `data.forgejo.org/forgejo/runner` | `13.0.0` | Exact ¹ |
-| Docker-in-Docker (Forgejo) | `docker` | `29.7.2-dind-rootless` | Exact ¹ |
+| Docker-in-Docker (Forgejo) | `docker` | `29.7.2-dind` | Exact ¹ |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
 | Git Proxy | `nginx` | `alpine` | Latest ² |

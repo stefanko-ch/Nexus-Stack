@@ -132,9 +132,7 @@ execution primitive.
 
 Three things bound the blast radius:
 
-1. `forgejo-dind` runs the **rootless** Docker image, so a container
-   escape lands as UID 1000 inside that container rather than as root.
-2. `forgejo-dind` sits alone with the runner on a second internal
+1. `forgejo-dind` sits alone with the runner on a second internal
    network, `forgejo-ci`, and publishes no port. Of the four
    containers, only `forgejo-runner` is attached to it — deliberately
    *not* the web container or the database, which live on
@@ -154,16 +152,16 @@ yet settled.** `forgejo-dind` listens unauthenticated on
 `0.0.0.0:2375`, and job containers are created *by that same daemon*,
 on networks it owns. A job may therefore be able to reach the daemon
 through its bridge gateway and drive the Docker API directly,
-regardless of what the runner chose not to mount. That would confine
-an attacker to the rootless dind container rather than the host — but
-it is a weaker boundary than "jobs cannot reach the daemon", which is
-what an earlier version of this page implied.
+regardless of what the runner chose not to mount. It is a weaker
+boundary than "jobs cannot reach the daemon", which is what an earlier
+version of this page implied — and since that daemon runs as root, the
+consequence is correspondingly larger.
 
 Binding the daemon to a unix socket shared only with the runner would
 close it. That is not done here because it needs a live test of the
-rootless socket path and the uid 1000 / uid 1001 permission split, and
-shipping an untested isolation change is worse than an accurately
-described one.
+socket path and the uid split between the two containers, and shipping
+an untested isolation change is worse than an accurately described
+one.
 
 **Resource ceilings.** `forgejo-dind` carries `mem_limit: 4g` and
 `cpus: 2.0`, and job containers are its children, so the limit applies
@@ -187,14 +185,26 @@ no quota. A workflow that pulls large images repeatedly can fill the
 host disk and take the other services with it. Watch `docker system df`
 and prune, or move CI to a dedicated host if the stack is shared.
 
-What is *not* mitigated: `forgejo-dind` itself runs with
-`privileged: true`. The rootless variant still requires it in order to
-unmask seccomp and AppArmor. Rootless reduces what an escape gains; it
-does not remove the privilege — which is exactly why this
-stack is optional and off by default. A server that never enables CI
-does not carry that container at all. If that trade is unacceptable for your
-deployment, disable this stack — there is no configuration that gives
-you container-based CI without it.
+What is *not* mitigated: `forgejo-dind` runs `privileged: true` with
+dockerd as **root** inside it.
+
+An earlier revision used the `dind-rootless` image, so that an escape
+would land as an unprivileged user inside the daemon container. That
+does not work on this platform, and the claim has been removed rather
+than left standing. Ubuntu sets
+`kernel.apparmor_restrict_unprivileged_userns=1` from 23.10 onward;
+RootlessKit needs exactly that capability and dies with
+`fork/exec /proc/self/exe: operation not permitted` even inside a
+privileged container. The two ways to make it run — clearing the sysctl
+host-wide, or shipping an AppArmor profile for a binary inside an image
+— both weaken the host in order to harden one container, which is a net
+loss on a box running forty other services.
+
+This is exactly why the stack is optional and off by default: a server
+that never enables CI carries no root-privileged Docker daemon at all.
+If that trade is unacceptable for your deployment, leave it disabled —
+there is no configuration here that gives you container-based CI
+without it.
 
 To narrow further, the registration accepts a `--scope` limiting the
 runner to one owner or `owner/repo`. Nexus-Stack registers

@@ -316,7 +316,7 @@ services:
     long_description: "Executes Forgejo Actions jobs on this server, in containers created by a bundled docker-in-docker daemon. Optional and off by default: the Forgejo forge is core and always present, but CI is only useful if somebody writes workflows — and this is the part that carries a privileged container, so it should not sit on servers that never use it. Registers itself automatically; no token to paste."
     image: "data.forgejo.org/forgejo/runner:13.0.0"
     support_images:
-      forgejo-dind: "docker:29.7.2-dind-rootless"
+      forgejo-dind: "docker:29.7.2-dind"
 
   garage:
     subdomain: "garage"

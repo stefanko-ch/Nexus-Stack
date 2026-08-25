@@ -22,20 +22,28 @@
 # primitive on this server.
 #
 # Three things bound the blast radius:
-#   1. The job daemon is `dind-rootless`, so a container escape lands
-#      as UID 1000 inside forgejo-dind rather than as root.
-#   2. forgejo-dind is alone with the runner on `forgejo-ci` and
+#   1. forgejo-dind is alone with the runner on `forgejo-ci` and
 #      publishes no port. It is deliberately NOT on app-network, where
 #      the other forty services live.
-#   3. runner-config.yml leaves `container.docker_host: "-"` and
+#   2. runner-config.yml leaves `container.docker_host: "-"` and
 #      `valid_volumes: []`, so the runner does not hand a job container
 #      a Docker socket and a workflow may not name host paths.
 #
 # NOT mitigated, and the reason this stack is separable in the first
-# place: `privileged: true` on forgejo-dind is required — the rootless
-# variant needs it to unmask seccomp and AppArmor. Rootless reduces
-# what an escape gains; it does not remove the privilege. Leaving this
-# stack disabled is the only way to not have that container at all.
+# place: forgejo-dind runs `privileged: true` with dockerd as root.
+#
+# An earlier revision used `dind-rootless`, so that an escape would
+# land as an unprivileged user inside the daemon container. That does
+# not work on this platform and the claim has been removed rather than
+# left standing: Ubuntu sets `kernel.apparmor_restrict_unprivileged_userns=1`
+# from 23.10 onward, RootlessKit needs exactly that capability, and it
+# dies with `fork/exec /proc/self/exe: operation not permitted` even
+# inside a privileged container. The two ways to make it run — clearing
+# the sysctl host-wide, or shipping an AppArmor profile for a binary
+# inside an image — both weaken the host to harden one container.
+#
+# So leaving this stack disabled is the only way to not have a
+# root-privileged Docker daemon on the box.
 #
 # See docs/stacks/forgejo-runner.md for the open question about whether
 # job containers can reach the forge, which is still unverified.
@@ -46,7 +54,7 @@ services:
   # only by the runner: it listens unauthenticated on 2375, so every
   # additional container that can route to it is another way in.
   forgejo-dind:
-    image: ${IMAGE_FORGEJO_DIND:-docker:29.7.2-dind-rootless}
+    image: ${IMAGE_FORGEJO_DIND:-docker:29.7.2-dind}
     container_name: forgejo-dind
     restart: unless-stopped
     privileged: true
@@ -76,7 +84,7 @@ services:
     mem_limit: 4g
     cpus: 2.0
     volumes:
-      - forgejo-dind-data:/home/rootless/.local/share/docker
+      - forgejo-dind-data:/var/lib/docker
     networks:
       - forgejo-ci
     healthcheck:
@@ -124,10 +132,17 @@ services:
         if [ ! -f /data/.runner ]; then
           forgejo-runner create-runner-file \
             --instance "$${FORGEJO_INSTANCE_URL}" \
+            --name nexus-runner \
             --secret "$${FORGEJO_RUNNER_SECRET}"
         fi
         exec forgejo-runner daemon --config /data/runner-config.yml
     mem_limit: 512m
+    # Wait for the daemon to answer before starting. Without it the
+    # runner spends its first minutes in a restart loop logging
+    # "cannot ping the docker daemon", which buries any real error.
+    depends_on:
+      forgejo-dind:
+        condition: service_healthy
     volumes:
       # Bind mount rather than a named volume: the runner drops to
       # 1001:1001, and a fresh named volume would come up root-owned so
@@ -145,9 +160,9 @@ services:
 
 volumes:
   # Named volume, not a bind mount: this is the CI layer cache. It is
-  # rebuildable, it grows without bound, and the rootless image already
-  # owns this path so the volume inherits the right uid. Keeping it out
-  # of /mnt/nexus-data also keeps it out of the persistence targets.
+  # rebuildable and it grows without bound. Keeping it out of
+  # /mnt/nexus-data also keeps it out of the persistence targets — a CI
+  # layer cache is not state worth carrying across a teardown.
   forgejo-dind-data:
 
 networks:
