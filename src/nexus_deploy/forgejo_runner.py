@@ -19,7 +19,7 @@ so ordering does not matter, and re-running either one with the same
 secret is a no-op.
 
 This module is the server half. The runner half lives in the runner
-container's entrypoint (``stacks/forgejo/docker-compose.yml``), and the
+container's entrypoint (``stacks/forgejo-runner/docker-compose.yml``), and the
 secret both read comes from ``random_id.forgejo_runner_secret``.
 
 TWO PLACES THE SECRET MUST NOT APPEAR, and how each is avoided:

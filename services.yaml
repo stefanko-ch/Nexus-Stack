@@ -295,10 +295,20 @@ services:
       forgejo-postgres: "postgres:17-alpine"
 
   forgejo-runner:
-    # No subdomain: runners have no web UI of their own. They appear in
-    # Forgejo under Site Administration -> Actions -> Runners.
-    subdomain: ""
-    port: 0
+    # internal_only, with no subdomain and no port. A runner listens on
+    # nothing — it polls Forgejo outbound — and has no web UI of its
+    # own; it appears in Forgejo under Site Administration -> Actions
+    # -> Runners. The validator only checks these fields when present,
+    # and rejects both an empty subdomain and port 0, so omitting them
+    # is the declaration rather than a placeholder.
+    internal_only: true
+    # Required by the schema validator, and inert for this service. A
+    # runner listens on nothing — it polls Forgejo outbound — and the
+    # tunnel, DNS and Access resources all key off `subdomain`, which
+    # an internal_only service does not have. 2375 is the dind API
+    # port the runner talks to inside the stack; it is never published
+    # and never routed.
+    port: 2375
     public: false
     category: "ci-cd"
     website: "https://forgejo.org/docs/latest/admin/actions/"

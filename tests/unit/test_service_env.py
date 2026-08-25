@@ -2203,15 +2203,20 @@ def test_forgejo_compose_gives_the_runner_secret_only_to_the_runner() -> None:
     assert holders == ["forgejo-runner"]
 
 
-def test_forgejo_host_honours_the_subdomain_separator(
+def test_forgejo_host_matches_what_tofu_provisions_not_the_separator(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """A multi-tenant fork sets the separator to `-`, and Tofu then
-    provisions DNS and Access for `forgejo-user1.example.com`. A
-    hardcoded dot would have Forgejo advertise and redirect to
-    `forgejo.user1.example.com`, which resolves nowhere — and clone
-    URLs and every OAuth redirect derive from it, so the damage is
-    wider than the UI.
+    """Deliberately a plain dot, even when the separator says otherwise.
+
+    An earlier revision composed this with `service_host()`, reasoning
+    that a flat-subdomain tenant should get `forgejo-user1.example.com`.
+    That was wrong. The stack's DNS record, tunnel ingress and Access
+    application are all built as `${subdomain}.${var.domain}` in
+    `main.tf`, and `variables.tf` states outright that no stack-side
+    resource references `subdomain_separator`. Composing with it would
+    have Forgejo advertise a host nothing provisions — and ROOT_URL
+    drives clone URLs and every OAuth redirect, so it has to match what
+    is actually routed.
     """
     import dataclasses
 
@@ -2219,7 +2224,7 @@ def test_forgejo_host_honours_the_subdomain_separator(
 
     flat = dataclasses.replace(full_env, domain="user1.example.com", subdomain_separator="-")
     assert (
-        _render_forgejo(full_config, flat).env_vars["FORGEJO_HOST"] == "forgejo-user1.example.com"
+        _render_forgejo(full_config, flat).env_vars["FORGEJO_HOST"] == "forgejo.user1.example.com"
     )
 
     dotted = dataclasses.replace(full_env, domain="example.com", subdomain_separator=".")
@@ -2238,3 +2243,20 @@ def test_forgejo_compose_uses_the_rendered_host_not_a_hardcoded_dot() -> None:
 
     assert [ln for ln in executable if "${FORGEJO_HOST}" in ln]
     assert not [ln for ln in executable if "forgejo.${DOMAIN}" in ln]
+
+
+def test_forgejo_runner_is_declared_internal_only_with_no_subdomain() -> None:
+    """The schema validator rejects an empty subdomain and port 0, so a
+    no-UI service is declared by omission plus the internal_only flag —
+    not by placeholder values. Getting this wrong fails the deploy
+    before any stack is applied, which no other unit test would catch.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    entry = yaml.safe_load(Path("services.yaml").read_text())["services"]["forgejo-runner"]
+
+    assert entry["internal_only"] is True
+    assert "subdomain" not in entry
+    assert entry.get("core", False) is False

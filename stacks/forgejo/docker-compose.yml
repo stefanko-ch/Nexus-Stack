@@ -17,45 +17,18 @@
 # so the server is destroyed and the data with it. R2 coverage lands
 # with the role swap — see docs/stacks/forgejo.md.
 #
-# FOUR CONTAINERS, one stack. The runner is not a separate stack on
-# purpose: it is useless without Forgejo, it shares Forgejo's
-# registration secret, and the Control Plane should show one switch
-# rather than two that must be flipped together.
+# TWO CONTAINERS:
 #
-#   forgejo         the forge itself
-#   forgejo-db      its own PostgreSQL (never the shared one)
-#   forgejo-runner  executes Actions jobs
-#   forgejo-dind    the Docker daemon those jobs run against
+#   forgejo     the forge itself
+#   forgejo-db  its own PostgreSQL (never the shared one)
 #
-# SECURITY — read before enabling this on a shared stack:
-# Anyone who can push to a repository here can execute code on the
-# runner. That is not a Forgejo quirk; it is what self-hosted CI is.
-# Three things bound the blast radius:
-#   1. The job daemon is `dind-rootless`, so a container escape lands
-#      as UID 1000 inside forgejo-dind rather than as root.
-#   2. forgejo-dind sits alone with the runner on `forgejo-ci` and
-#      publishes no port, so its unauthenticated 2375 is reachable
-#      ONLY by forgejo-runner. It is deliberately not on
-#      `forgejo-internal`: the web/API container and the database live
-#      there, and a compromise of either would otherwise be able to
-#      drive a privileged Docker daemon.
-#   3. runner-config.yml leaves `container.docker_host: "-"` and
-#      `valid_volumes: []`, so job containers get no Docker socket of
-#      their own and cannot bind-mount host paths.
-# `privileged: true` on forgejo-dind is still required — the rootless
-# variant needs it to unmask seccomp/AppArmor. Rootless reduces the
-# damage; it does not remove the privilege. See docs/stacks/forgejo.md.
+# The Actions runner is a separate, optional stack — see
+# stacks/forgejo-runner/. This one is core and runs everywhere; that
+# one carries a privileged docker-in-docker container and should only
+# exist where somebody actually uses CI.
 #
-# WHAT IS *NOT* PROTECTED — the runner's registration secret:
-# `forgejo-runner create-runner-file` accepts the secret only as
-# `--secret <value>`; upstream provides no stdin or file variant. So on
-# the runner side the value is unavoidably in that process's argv while
-# it runs, and it is in the container environment via `env_file`, which
-# `docker inspect` shows. Both require host-level Docker access to
-# observe. The call is guarded on `.runner` not existing, so the argv
-# window is first boot only rather than every restart. The server-side
-# half has no such constraint and does keep it out of argv — see
-# src/nexus_deploy/forgejo_runner.py.
+# The security notes about running untrusted workflow code moved
+# with the container they describe — see stacks/forgejo-runner/.
 #
 # Documentation: https://forgejo.org/docs/latest/
 # =============================================================================

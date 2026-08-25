@@ -985,15 +985,24 @@ def _render_forgejo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(
         env_vars={
             "FORGEJO_DB_PASSWORD": c.forgejo_db_password or "",
-            # The public hostname, composed here rather than as
-            # `forgejo.${DOMAIN}` in the compose file. A multi-tenant
-            # fork sets subdomain_separator='-', and Tofu then
-            # provisions DNS and Access for `forgejo-user1.example.com`
-            # — a hardcoded dot would have Forgejo advertise and
-            # redirect to `forgejo.user1.example.com`, which resolves
-            # nowhere. Clone URLs and every OAuth redirect derive from
-            # this value, so getting it wrong breaks more than the UI.
-            "FORGEJO_HOST": service_host("forgejo", e.domain or "", e.subdomain_separator),
+            # The public hostname. Composed here rather than inline in
+            # the compose file so the reasoning has somewhere to live —
+            # and it is deliberately a plain dot, NOT service_host().
+            #
+            # An earlier revision used the separator, on the reasoning
+            # that a flat-subdomain tenant should get
+            # `forgejo-user1.example.com`. That was wrong: the stack's
+            # DNS record, tunnel ingress and Access application are all
+            # built as `${subdomain}.${var.domain}` in main.tf, and
+            # `variables.tf` says so outright — "no stack-side resource
+            # references var.subdomain_separator today". Composing with
+            # the separator would have Forgejo advertise a host nothing
+            # provisions.
+            #
+            # ROOT_URL drives clone URLs and every OAuth redirect, so it
+            # has to match what is actually routed, not what a different
+            # layer might prefer.
+            "FORGEJO_HOST": f"forgejo.{e.domain or ''}",
             "DOMAIN": e.domain or "",
         },
         # 0600, not the 0644 most stacks use. This file carries the

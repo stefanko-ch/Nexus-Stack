@@ -190,9 +190,9 @@ and prune, or move CI to a dedicated host if the stack is shared.
 What is *not* mitigated: `forgejo-dind` itself runs with
 `privileged: true`. The rootless variant still requires it in order to
 unmask seccomp and AppArmor. Rootless reduces what an escape gains; it
-does not remove the privilege — and because this is a core service,
-every server carries that container whether or not anybody uses
-Actions. If that trade is unacceptable for your
+does not remove the privilege — which is exactly why this
+stack is optional and off by default. A server that never enables CI
+does not carry that container at all. If that trade is unacceptable for your
 deployment, disable this stack — there is no configuration that gives
 you container-based CI without it.
 
