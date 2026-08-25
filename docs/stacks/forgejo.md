@@ -92,15 +92,23 @@ exist, Forgejo falls back to `.github/workflows/`, so a repository
 copied from GitHub will often just run — but prefer the Forgejo path
 for anything written here, so it is obvious which system executes it.
 
-> ⚠️ **Job-to-forge connectivity is not yet verified.** Job containers
-> run inside `forgejo-dind`, which is a *separate* Docker daemon from
-> the host's, on networks that daemon creates. They therefore have no
-> route to `forgejo-internal`, where the forge lives — so
-> `actions/checkout` resolving `http://forgejo:3000` may fail. Raised
-> in review and not settled: it needs a real job run to determine
-> whether a usable path exists (the forge does publish 3202 on the
-> host) or whether the topology has to change. Treat Actions on this
-> stack as experimental until that is answered.
+> ⚠️ **One thing here is unverified, and it is this stack's wiring —
+> not Forgejo.** Forgejo Actions is stable, released software; nothing
+> below is a caveat about it.
+>
+> What has not been tested is whether a job container can reach the
+> forge *in this particular topology*. Jobs run inside `forgejo-dind`,
+> a separate Docker daemon from the host's, on networks that daemon
+> creates. Those networks have no route to `forgejo-internal` where the
+> forge lives, and dind's embedded DNS does not know the name
+> `forgejo`. So `actions/checkout` against `http://forgejo:3000` — the
+> address baked into the runner's registration — may not resolve.
+>
+> That is a consequence of choosing dind for isolation rather than
+> mounting the host Docker socket, which is what this repo's Woodpecker
+> agent does. The stricter choice is the reason the question exists.
+> It is answerable with one real job run, and is being settled rather
+> than lived with.
 
 The runner declares three labels, all pointing at the same image:
 
