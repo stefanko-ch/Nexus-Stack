@@ -492,6 +492,12 @@ def render_combined_restore_script(
         "#   symlink to be planted at, and `mv` replaces a symlink at\n"
         "#   the destination rather than following it.\n"
         "#\n"
+        "#   `-T` is load-bearing, not decoration. Without it, a\n"
+        "#   destination that happens to be a DIRECTORY makes mv move\n"
+        "#   the temp file *into* it — and the EXIT trap then cleans a\n"
+        "#   path that no longer holds the file, stranding the\n"
+        "#   credentials inside rclone.conf/ instead.\n"
+        "#\n"
         "#   atomic for readers — rclone either sees the old config or\n"
         "#   the new one, never a half-written one left behind by an\n"
         "#   SSH session that died mid-write.\n"
@@ -513,7 +519,7 @@ def render_combined_restore_script(
         "cat > \"$RCLONE_CONF_TMP\" <<'RCLONE_CONFIG_EOF'\n"
         f"{rclone_config}"
         "RCLONE_CONFIG_EOF\n"
-        'mv -f "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"\n'
+        'mv -fT "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"\n'
         "\n"
         "# ---- restore body -------------------------------------\n"
         f"{body_inner}\n"
@@ -776,6 +782,12 @@ def render_combined_snapshot_script(
         "#   symlink to be planted at, and `mv` replaces a symlink at\n"
         "#   the destination rather than following it.\n"
         "#\n"
+        "#   `-T` is load-bearing, not decoration. Without it, a\n"
+        "#   destination that happens to be a DIRECTORY makes mv move\n"
+        "#   the temp file *into* it — and the EXIT trap then cleans a\n"
+        "#   path that no longer holds the file, stranding the\n"
+        "#   credentials inside rclone.conf/ instead.\n"
+        "#\n"
         "#   atomic for readers — rclone either sees the old config or\n"
         "#   the new one, never a half-written one left behind by an\n"
         "#   SSH session that died mid-write.\n"
@@ -797,7 +809,7 @@ def render_combined_snapshot_script(
         "cat > \"$RCLONE_CONF_TMP\" <<'RCLONE_CONFIG_EOF'\n"
         f"{rclone_config}"
         "RCLONE_CONFIG_EOF\n"
-        'mv -f "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"\n'
+        'mv -fT "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"\n'
         "\n"
         "# ---- snapshot body ------------------------------------\n"
         f"{body_inner}\n"

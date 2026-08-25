@@ -335,7 +335,11 @@ def test_combined_script_writes_config_atomically_at_mode_600() -> None:
     # mktemp's construction, and atomic for a concurrent reader.
     assert 'RCLONE_CONF_TMP=$(mktemp "$HOME/.config/rclone/.rclone.conf.XXXXXX")' in script
     assert 'cat > "$RCLONE_CONF_TMP"' in script
-    assert 'mv -f "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"' in script
+    # -T, not a bare mv: a destination that happens to be a DIRECTORY
+    # would otherwise make mv move the credential file *into* it, and
+    # the EXIT trap would then clean a path that no longer holds it.
+    assert 'mv -fT "$RCLONE_CONF_TMP" "$HOME/.config/rclone/rclone.conf"' in script
+    assert 'mv -f "$RCLONE_CONF_TMP"' not in script
     # A credentials-bearing temp file must not survive a mid-script exit.
     assert "trap 'rm -f \"$RCLONE_CONF_TMP\"' EXIT" in script
     # The destination is never opened directly, which is what removes
@@ -493,7 +497,7 @@ def test_combined_snapshot_script_writes_config_and_body() -> None:
         postgres_targets=postgres_targets,
         rsync_targets=rsync_targets,
     )
-    assert 'mv -f "$RCLONE_CONF_TMP"' in script
+    assert 'mv -fT "$RCLONE_CONF_TMP"' in script
     executable = _executable_lines(script)
     assert not [ln for ln in executable if "/dev/stdin" in ln]
     assert not [ln for ln in executable if ln.strip().startswith("install")]

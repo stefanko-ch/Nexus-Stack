@@ -199,7 +199,7 @@ trap 'rm -f "$TMP"' EXIT
 cat > "$TMP" <<'EOF'
 ...
 EOF
-mv -f "$TMP" "$HOME/.config/rclone/rclone.conf"
+mv -fT "$TMP" "$HOME/.config/rclone/rclone.conf"
 ```
 
 Four things this gets right, and each of them is a way the shorter
@@ -216,6 +216,13 @@ forms go wrong:
   window in which the destination can be re-pointed.
 - **Atomic for readers.** The consumer sees the old file or the new
   one, never a half-written one left by a session that died mid-write.
+- **`-T` on the `mv`.** Without it, a destination that happens to be a
+  *directory* makes `mv` move the temp file inside it rather than
+  replacing it — and the `trap` then cleans a path that no longer holds
+  the file, leaving the credentials sitting in `rclone.conf/`. `-T`
+  forces file semantics for every destination shape. It exists on GNU
+  and uutils; BSD `mv` has no equivalent, which matters only if you
+  reuse this pattern outside Linux.
 
 The `trap` matters specifically because the temp file holds
 credentials: without it, every failed run strands one under a fresh
