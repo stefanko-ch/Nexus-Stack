@@ -127,6 +127,21 @@ class OrchestratorState:
     git_email: str | None = None
 
 
+# Any `<name>=<value>` where the name looks credential-bearing. Applied
+# to captured remote output before it reaches a phase detail line.
+# Deliberately broad on the name side and greedy on the value side: a
+# false redaction costs a little diagnostic detail, a missed one costs
+# a secret in a public CI log.
+_SECRET_ASSIGNMENT_RE = re.compile(
+    # The affix wildcards matter: `\btoken` does not match inside
+    # `SECRET_GITEA_TOKEN`, because `_` is a word character. Names in
+    # these scripts are overwhelmingly of that shape.
+    r"([A-Za-z0-9_]*(?:token|secret|password|passwd|apikey|key|credential|auth)[A-Za-z0-9_]*)"
+    r"\s*=\s*\S+",
+    re.IGNORECASE,
+)
+
+
 def _transport_detail(exc: BaseException) -> str:
     """Format a transport failure for a PhaseResult detail line.
 
@@ -156,9 +171,21 @@ def _transport_detail(exc: BaseException) -> str:
     raw = getattr(exc, "stderr", None) or getattr(exc, "stdout", None) or ""
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8", errors="replace")
-    # One line, so collapse the newlines and keep the tail — the last
-    # thing a `set -e` script printed is the thing that killed it.
-    tail = " ".join(str(raw).split())[-280:]
+    # Redact BEFORE truncating, so a value split across the cut cannot
+    # survive as a fragment.
+    #
+    # The claim above — that the rendered scripts print names and never
+    # values — is the contract, not a guarantee. It is already broken
+    # once: `infisical.render_provision_admin_script` emits
+    # `RESULT status=... token=<base64> project_id=...` on stdout, and
+    # base64 is an encoding, not redaction. Without this scrub a failure
+    # in that phase would put an Infisical bearer token into the log of
+    # a public repository.
+    #
+    # So the scrub is the safety net rather than the caveat: a future
+    # script that prints a secret fails closed instead of leaking.
+    tail = _SECRET_ASSIGNMENT_RE.sub(r"\1=<redacted>", str(raw))
+    tail = " ".join(tail.split())[-280:]
     detail = f"transport ({', '.join(parts)})"
     return f"{detail}: {tail}" if tail else detail
 

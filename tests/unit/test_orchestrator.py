@@ -3593,3 +3593,56 @@ def test_transport_detail_handles_an_exception_with_no_output() -> None:
     from nexus_deploy.orchestrator import _transport_detail
 
     assert _transport_detail(OSError("boom")) == "transport (OSError)"
+
+
+@pytest.mark.parametrize(
+    ("output", "secret"),
+    [
+        # The one that broke the contract: infisical's provision script
+        # prints its bearer token on stdout, base64-encoded. base64 is
+        # an encoding, not redaction.
+        ("RESULT status=loaded-existing token=aGVsbG8= project_id=abc", "aGVsbG8="),
+        # Underscore-prefixed names are the common shape here, and a
+        # naive \b anchor would miss every one of them.
+        ("SECRET_GITEA_TOKEN=czoZGVhZGJlZWY= wrote=1", "czoZGVhZGJlZWY="),
+        ("GITEA_ADMIN_PASSWORD=hunter2", "hunter2"),
+        ("r2_secret_access_key=AKIAsomething", "AKIAsomething"),
+    ],
+)
+def test_transport_detail_redacts_credential_assignments(output: str, secret: str) -> None:
+    """This repository is public and its CI logs are world-readable."""
+    from nexus_deploy.orchestrator import _transport_detail
+
+    detail = _transport_detail(subprocess.CalledProcessError(1, ["ssh"], output=output))
+
+    assert secret not in detail
+    assert "<redacted>" in detail
+
+
+def test_transport_detail_keeps_the_diagnostic_parts() -> None:
+    """Redaction must not cost the thing the tail exists for."""
+    from nexus_deploy.orchestrator import _transport_detail
+
+    detail = _transport_detail(
+        subprocess.CalledProcessError(
+            2, ["ssh"], output="pushed=128 failed=0 wrote=1 — sort: separator must be one char"
+        )
+    )
+
+    assert "pushed=128" in detail
+    assert "failed=0" in detail
+    assert "sort: separator must be one char" in detail
+    assert "<redacted>" not in detail
+
+
+def test_transport_detail_redacts_before_truncating() -> None:
+    """A value split across the 280-char cut must not survive as a
+    fragment, so the scrub has to run on the full text first."""
+    from nexus_deploy.orchestrator import _transport_detail
+
+    noise = "x" * 400
+    detail = _transport_detail(
+        subprocess.CalledProcessError(1, ["ssh"], output=f"{noise} token=SUPERSECRETVALUE")
+    )
+
+    assert "SUPERSECRET" not in detail
