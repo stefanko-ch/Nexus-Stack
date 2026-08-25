@@ -1188,8 +1188,10 @@ def test_ensure_data_dirs_covers_the_forgejo_bind_mounts() -> None:
     ensure_data_dirs(ssh)
     rendered = ssh.run_script.call_args.args[0]
 
-    for path in ("repos", "lfs", "db", "runner"):
+    for path in ("repos", "lfs", "db"):
         assert f'"$MOUNT_POINT/forgejo/{path}"' in rendered, path
+    # The runner is a separate, opt-in stack and gets its own tree.
+    assert '"$MOUNT_POINT/forgejo-runner"' in rendered
 
     # uid 1000 for the forge, 70 for its postgres, 1001 for the runner.
     forgejo_block = rendered.split("Forgejo bind-mount sources")[1]
@@ -1198,4 +1200,4 @@ def test_ensure_data_dirs_covers_the_forgejo_bind_mounts() -> None:
     # cannot write them back without this.
     assert '"$MOUNT_POINT/forgejo/lfs"' in forgejo_block.split("chown -R 70:70")[0]
     assert 'chown -R 70:70 "$MOUNT_POINT/forgejo/db"' in forgejo_block
-    assert 'chown -R 1001:1001 "$MOUNT_POINT/forgejo/runner"' in forgejo_block
+    assert 'chown -R 1001:1001 "$MOUNT_POINT/forgejo-runner"' in rendered

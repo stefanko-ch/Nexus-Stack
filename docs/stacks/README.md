@@ -160,6 +160,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Apache Flink** | Distributed stream and batch processing | [flink.md](flink.md) |
 | **Forgejo** | Git forge with built-in Actions CI | [forgejo.md](forgejo.md) |
+| **Forgejo Runner** | Actions CI runner for Forgejo (optional) | [forgejo-runner.md](forgejo-runner.md) |
 | **Garage** | S3-compatible object storage | [garage.md](garage.md) |
 | **Git Proxy** | Public Git HTTPS proxy | [git-proxy.md](git-proxy.md) |
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |

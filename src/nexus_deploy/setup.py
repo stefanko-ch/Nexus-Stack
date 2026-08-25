@@ -32,9 +32,9 @@ Public surface:
   the Gitea + Forgejo + Dify bind-mount sources under
   ``/mnt/nexus-data/``.
   Gitea: ``gitea/{repos,lfs}`` (uid 1000) + ``gitea/db`` (uid 70).
-  Forgejo: same shape, plus ``forgejo/runner`` at uid 1001 — the
-  Actions runner image's own uid, which must own that path before
-  it can write its ``.runner`` credentials file.
+  Forgejo: same shape as Gitea. The Actions runner gets its own
+  tree at ``forgejo-runner`` (uid 1001, the upstream image's user)
+  because it is a separate, opt-in stack.
   Dify: ``dify/db`` (uid 70 for postgres-alpine) + ``dify/redis``
   (uid 999 for redis-alpine) + ``dify/{storage,weaviate,plugins}``
   (mkdir only — those containers run as root). Called by the
@@ -529,10 +529,18 @@ chown -R 70:70 "$MOUNT_POINT/gitea/db"
 # alpine) as uid 70. The runner is the odd one out at uid 1001 — that
 # is the uid the upstream runner image uses, and it must own /data
 # before `create-runner-file` can write .runner there.
-mkdir -p "$MOUNT_POINT/forgejo/repos" "$MOUNT_POINT/forgejo/lfs" "$MOUNT_POINT/forgejo/db" "$MOUNT_POINT/forgejo/runner"
+mkdir -p "$MOUNT_POINT/forgejo/repos" "$MOUNT_POINT/forgejo/lfs" "$MOUNT_POINT/forgejo/db"
 chown -R 1000:1000 "$MOUNT_POINT/forgejo/repos" "$MOUNT_POINT/forgejo/lfs"
 chown -R 70:70 "$MOUNT_POINT/forgejo/db"
-chown -R 1001:1001 "$MOUNT_POINT/forgejo/runner"
+
+# --- Forgejo Actions runner -----------------------------------------
+# Its own tree, matching its own stack. uid 1001 is the upstream runner
+# image's user, and it must own this before `create-runner-file` can
+# write .runner — without it the runner restart-loops on first boot.
+# Created unconditionally: the stack is opt-in, but an unused empty
+# directory costs nothing and one less conditional cannot go stale.
+mkdir -p "$MOUNT_POINT/forgejo-runner"
+chown -R 1001:1001 "$MOUNT_POINT/forgejo-runner"
 
 # --- Dify bind-mount sources --------------------------------------
 # dify-db is postgres:15-alpine (uid 70). dify-redis is redis:6-

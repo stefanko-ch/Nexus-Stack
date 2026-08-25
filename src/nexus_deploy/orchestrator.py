@@ -556,11 +556,15 @@ class Orchestrator:
         stacks unconfigured — least of all now that Forgejo is a core
         service and therefore present on every deploy.
         """
-        if "forgejo" not in self.enabled_services:
+        # Gated on the RUNNER stack, not the forge. Forgejo is core and
+        # therefore always present; the runner is opt-in, and telling a
+        # forge with no runner about a runner secret would create a
+        # registration nobody can use.
+        if "forgejo-runner" not in self.enabled_services:
             return PhaseResult(
                 name="forgejo-runner-register",
                 status="skipped",
-                detail="forgejo not enabled",
+                detail="forgejo-runner not enabled",
             )
         secret = self.config.forgejo_runner_secret or ""
         if not secret:

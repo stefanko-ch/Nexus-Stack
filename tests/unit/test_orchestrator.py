@@ -3676,7 +3676,7 @@ def _forgejo_orchestrator(**overrides: Any) -> Orchestrator:
             admin_email="admin@example.com",
             gitea_user_email="student@example.com",
         ),
-        enabled_services=overrides.pop("enabled_services", ["forgejo"]),
+        enabled_services=overrides.pop("enabled_services", ["forgejo", "forgejo-runner"]),
         project_id="proj-id",
         infisical_token="infi-token",
         **overrides,
@@ -3806,3 +3806,30 @@ def test_forgejo_runner_register_failure_is_partial_not_fatal(
     result = _forgejo_orchestrator()._phase_forgejo_runner_register(MagicMock())
 
     assert result.status == "partial"
+
+
+def test_forgejo_runner_register_skipped_when_only_the_forge_is_enabled() -> None:
+    """The forge is core and always on; the runner is opt-in. Telling a
+    forge with no runner about a runner secret would create a
+    registration nobody can use."""
+    orch = _forgejo_orchestrator(enabled_services=["forgejo"])
+    result = orch._phase_forgejo_runner_register(MagicMock())
+
+    assert result.status == "skipped"
+    assert "forgejo-runner" in result.detail
+
+
+def test_forgejo_configure_runs_without_the_runner_stack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Account provisioning belongs to the forge, so it must not depend
+    on CI being enabled."""
+    from nexus_deploy.forgejo import ConfigureResult
+
+    monkeypatch.setattr(
+        "nexus_deploy.forgejo.run_configure",
+        lambda *a, **k: ConfigureResult(status="configured", detail="accounts=admin"),
+    )
+    orch = _forgejo_orchestrator(enabled_services=["forgejo"])
+
+    assert orch._phase_forgejo_configure(MagicMock()).status == "ok"

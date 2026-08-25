@@ -1,0 +1,158 @@
+# =============================================================================
+# Forgejo Runner - Actions CI for the Forgejo stack
+# =============================================================================
+# Executes Forgejo Actions jobs. Optional: the Forgejo stack is core and
+# always runs, but CI is only useful if somebody writes workflows — and
+# it is the part that carries the privileged container, so it should
+# not be present on servers that never use it.
+#
+# Requires the `forgejo` stack, which is core and therefore always
+# there. The pairing is one-directional: enable this and it works.
+#
+# No web UI. Runners appear in Forgejo under
+# Site Administration -> Actions -> Runners.
+#
+#   forgejo-runner  polls Forgejo for jobs and drives the daemon below
+#   forgejo-dind    the Docker daemon those jobs actually run in
+#
+# SECURITY — read before enabling this on a shared stack:
+# Anyone who can push to a repository can execute code here. That is
+# not a Forgejo quirk; it is what self-hosted CI is. For a class stack
+# it means every student with commit rights holds a code-execution
+# primitive on this server.
+#
+# Three things bound the blast radius:
+#   1. The job daemon is `dind-rootless`, so a container escape lands
+#      as UID 1000 inside forgejo-dind rather than as root.
+#   2. forgejo-dind is alone with the runner on `forgejo-ci` and
+#      publishes no port. It is deliberately NOT on app-network, where
+#      the other forty services live.
+#   3. runner-config.yml leaves `container.docker_host: "-"` and
+#      `valid_volumes: []`, so the runner does not hand a job container
+#      a Docker socket and a workflow may not name host paths.
+#
+# NOT mitigated, and the reason this stack is separable in the first
+# place: `privileged: true` on forgejo-dind is required — the rootless
+# variant needs it to unmask seccomp and AppArmor. Rootless reduces
+# what an escape gains; it does not remove the privilege. Leaving this
+# stack disabled is the only way to not have that container at all.
+#
+# See docs/stacks/forgejo-runner.md for the open question about whether
+# job containers can reach the forge, which is still unverified.
+# =============================================================================
+
+services:
+  # The Docker daemon that Actions jobs run in. Deliberately reachable
+  # only by the runner: it listens unauthenticated on 2375, so every
+  # additional container that can route to it is another way in.
+  forgejo-dind:
+    image: ${IMAGE_FORGEJO_DIND:-docker:29.7.2-dind-rootless}
+    container_name: forgejo-dind
+    restart: unless-stopped
+    privileged: true
+    environment:
+      # Plain TCP on a network with exactly two members. Generating and
+      # distributing TLS material between them would add moving parts
+      # without changing who can connect.
+      DOCKER_TLS_CERTDIR: ""
+    command: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
+    # This is the container that runs whatever a student pushed. Without
+    # a ceiling one job can starve the other services on the box —
+    # `runner.capacity: 2` bounds how many jobs run, not what each may
+    # consume. Job containers are children of this daemon, so the limit
+    # applies to their aggregate.
+    #
+    # `mem_limit`, not `deploy.resources.limits`, and the reason is
+    # uncertainty rather than a flat claim about either key.
+    # `deploy.resources` began as a Swarm-only setting applied under
+    # `--compatibility`; some Compose v2 releases honour it directly.
+    # Docker here comes from an unpinned get.docker.com, so the Compose
+    # version on a given server is not known in advance — which is
+    # precisely why the ambiguous key is the wrong one for the stack
+    # that runs untrusted code. `mem_limit` binds on every version.
+    #
+    # Disk is NOT bounded by this. The layer cache has no quota; if CI
+    # fills the disk it takes the host with it.
+    mem_limit: 4g
+    cpus: 2.0
+    volumes:
+      - forgejo-dind-data:/home/rootless/.local/share/docker
+    networks:
+      - forgejo-ci
+    healthcheck:
+      test: ["CMD-SHELL", "docker -H tcp://localhost:2375 info >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  forgejo-runner:
+    image: ${IMAGE_FORGEJO_RUNNER:-data.forgejo.org/forgejo/runner:13.0.0}
+    container_name: forgejo-runner
+    restart: unless-stopped
+    user: "1001:1001"
+    working_dir: /data
+    environment:
+      DOCKER_HOST: tcp://forgejo-dind:2375
+      # Named explicitly rather than pulled in with an `env_file:`. The
+      # runner is the only container that needs these two, and nothing
+      # else in this stack should see the registration secret.
+      FORGEJO_INSTANCE_URL: ${FORGEJO_INSTANCE_URL}
+      FORGEJO_RUNNER_SECRET: ${FORGEJO_RUNNER_SECRET}
+    # Offline registration: OpenTofu generates one 40-hex secret and both
+    # sides receive it, so no human ever pastes a single-use token out of
+    # the web UI. `create-runner-file` is deterministic — same secret in,
+    # same .runner out — which is what makes re-running this safe.
+    #
+    # The server-side half (`forgejo forgejo-cli actions register`) runs
+    # in the deploy pipeline, possibly AFTER this container first
+    # starts. That is fine: the daemon fails to authenticate, the
+    # restart policy brings it back, and it succeeds once the server
+    # knows the secret.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        # Only on first boot. `create-runner-file` is deterministic —
+        # same secret in, same .runner out — so re-running it changes
+        # nothing, and skipping it keeps the secret out of argv on
+        # every restart after the first.
+        #
+        # It cannot be kept out of argv entirely: `create-runner-file`
+        # accepts the secret only as `--secret <value>`, with no stdin
+        # or file variant. The server-side half has both and uses them.
+        if [ ! -f /data/.runner ]; then
+          forgejo-runner create-runner-file \
+            --instance "$${FORGEJO_INSTANCE_URL}" \
+            --secret "$${FORGEJO_RUNNER_SECRET}"
+        fi
+        exec forgejo-runner daemon --config /data/runner-config.yml
+    mem_limit: 512m
+    volumes:
+      # Bind mount rather than a named volume: the runner drops to
+      # 1001:1001, and a fresh named volume would come up root-owned so
+      # `create-runner-file` could not write .runner. setup.py chowns
+      # this path, the same way it does for the forge's own mounts.
+      - /mnt/nexus-data/forgejo-runner:/data
+      - ./runner-config.yml:/data/runner-config.yml:ro
+    networks:
+      # app-network to reach the forge, which lives in the `forgejo`
+      # stack; forgejo-ci to reach the job daemon. The runner is the
+      # only container on both, which is what makes it the sole path
+      # between the forge and the Docker socket.
+      - app-network
+      - forgejo-ci
+
+volumes:
+  # Named volume, not a bind mount: this is the CI layer cache. It is
+  # rebuildable, it grows without bound, and the rootless image already
+  # owns this path so the volume inherits the right uid. Keeping it out
+  # of /mnt/nexus-data also keeps it out of the persistence targets.
+  forgejo-dind-data:
+
+networks:
+  app-network:
+    external: true
+  # forgejo-dind + forgejo-runner ONLY.
+  forgejo-ci:
+    driver: bridge

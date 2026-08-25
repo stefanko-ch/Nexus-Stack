@@ -973,29 +973,18 @@ def _render_gitea(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_forgejo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Dual guard: FORGEJO_DB_PASS and FORGEJO_RUNNER_SECRET both required.
+    """The forge itself. Guard: FORGEJO_DB_PASS.
 
-    The runner secret is guarded as hard as the database password on
-    purpose. Rendering without it would start a runner whose entrypoint
-    calls ``create-runner-file --secret ""``, which fails under ``set
-    -e`` and hands the restart policy an endless loop — a stack that
-    looks alive while its CI can never work. Both values come from the
-    same tofu ``secrets`` output, so an empty one means the plumbing is
-    broken upstream and should say so once, loudly.
-
-    ``FORGEJO_INSTANCE_URL`` is the in-cluster address, not the public
-    one: the runner reaches Forgejo over ``forgejo-internal`` and must
-    not depend on the tunnel or on Cloudflare Access being satisfied.
+    Deliberately does NOT carry the runner's registration secret. That
+    belongs to the separate ``forgejo-runner`` stack, and a credential
+    the forge never uses has no business in the environment of the one
+    process here that is exposed through the tunnel.
     """
-    if _empty(c.forgejo_db_password) or _empty(c.forgejo_runner_secret):
-        return RenderedEnv(
-            skip_reason="FORGEJO_DB_PASS + FORGEJO_RUNNER_SECRET both required",
-        )
+    if _empty(c.forgejo_db_password):
+        return RenderedEnv(skip_reason="FORGEJO_DB_PASS required")
     return RenderedEnv(
         env_vars={
             "FORGEJO_DB_PASSWORD": c.forgejo_db_password or "",
-            "FORGEJO_RUNNER_SECRET": c.forgejo_runner_secret or "",
-            "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
             # The public hostname, composed here rather than as
             # `forgejo.${DOMAIN}` in the compose file. A multi-tenant
             # fork sets subdomain_separator='-', and Tofu then
@@ -1010,6 +999,34 @@ def _render_forgejo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         # 0600, not the 0644 most stacks use. This file carries the
         # runner's registration credential and the database password in
         # cleartext, which is the same reason SFTPGo's env is 0600.
+        mode=0o600,
+    )
+
+
+def _render_forgejo_runner(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """The Actions runner. Guard: FORGEJO_RUNNER_SECRET.
+
+    Guarded as hard as any database password. Rendering without it
+    would start a runner whose entrypoint calls
+    ``create-runner-file --secret ""``, which fails under ``set -e`` and
+    hands the restart policy an endless loop — a stack that looks alive
+    while its CI can never work.
+
+    ``FORGEJO_INSTANCE_URL`` is the in-cluster address, not the public
+    one. The runner reaches the forge over ``app-network`` — the two
+    live in different stacks — and must not depend on the tunnel or on
+    satisfying Cloudflare Access, which it cannot do.
+
+    0600 because the file holds the registration credential in
+    cleartext, the same reason SFTPGo's env is.
+    """
+    if _empty(c.forgejo_runner_secret):
+        return RenderedEnv(skip_reason="FORGEJO_RUNNER_SECRET required")
+    return RenderedEnv(
+        env_vars={
+            "FORGEJO_RUNNER_SECRET": c.forgejo_runner_secret or "",
+            "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
+        },
         mode=0o600,
     )
 
@@ -1517,6 +1534,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("openmetadata", _is_enabled("openmetadata"), _render_openmetadata),
     EnvSpec("gitea", _is_enabled("gitea"), _render_gitea),
     EnvSpec("forgejo", _is_enabled("forgejo"), _render_forgejo),
+    EnvSpec("forgejo-runner", _is_enabled("forgejo-runner"), _render_forgejo_runner),
     EnvSpec("clickhouse", _is_enabled("clickhouse"), _render_clickhouse),
     EnvSpec("trino", _is_enabled("trino"), _render_trino),
     EnvSpec("rustfs", _is_enabled("rustfs"), _render_rustfs),

@@ -2094,24 +2094,39 @@ def test_forgejo_renders_every_key_the_compose_reads(
     assert rendered.skip_reason is None
     assert rendered.env_vars == {
         "FORGEJO_DB_PASSWORD": "forgejo-db",
-        "FORGEJO_RUNNER_SECRET": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
-        "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
         "FORGEJO_HOST": f"forgejo.{full_env.domain}",
         "DOMAIN": full_env.domain or "",
     }
+    # The registration secret belongs to the runner stack. A credential
+    # the forge never uses has no business in the environment of the
+    # one process here that is exposed through the tunnel.
+    assert "FORGEJO_RUNNER_SECRET" not in rendered.env_vars
 
 
-def test_forgejo_instance_url_is_in_cluster_not_public(
+def test_forgejo_runner_instance_url_is_in_cluster_not_public(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """The runner reaches Forgejo over the internal network. A public
-    URL would route it through the tunnel and Cloudflare Access, which
-    it cannot satisfy."""
-    from nexus_deploy.service_env import _render_forgejo
+    """The runner reaches the forge over app-network — they are separate
+    stacks. A public URL would route it through the tunnel and
+    Cloudflare Access, which it cannot satisfy."""
+    from nexus_deploy.service_env import _render_forgejo_runner
 
-    rendered = _render_forgejo(full_config, full_env)
+    rendered = _render_forgejo_runner(full_config, full_env)
     assert rendered.env_vars["FORGEJO_INSTANCE_URL"] == "http://forgejo:3000"
     assert "https://" not in rendered.env_vars["FORGEJO_INSTANCE_URL"]
+
+
+def test_forgejo_runner_env_carries_only_what_the_runner_needs(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_forgejo_runner
+
+    rendered = _render_forgejo_runner(full_config, full_env)
+
+    assert set(rendered.env_vars) == {"FORGEJO_RUNNER_SECRET", "FORGEJO_INSTANCE_URL"}
+    assert "FORGEJO_DB_PASSWORD" not in rendered.env_vars
+    # Cleartext registration credential — same reason SFTPGo's env is 0600.
+    assert rendered.mode == 0o600
 
 
 def test_forgejo_skipped_when_db_password_missing(
@@ -2123,17 +2138,28 @@ def test_forgejo_skipped_when_db_password_missing(
     assert _render_forgejo(config, full_env).skip_reason is not None
 
 
-def test_forgejo_skipped_when_runner_secret_missing(
+def test_forgejo_runner_skipped_when_secret_missing(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Guarded as hard as the database password on purpose: rendering
-    without it starts a runner whose entrypoint fails under `set -e`,
-    handing the restart policy an endless loop — a stack that looks
-    alive while its CI can never work."""
+    """Guarded as hard as any database password: rendering without it
+    starts a runner whose entrypoint fails under `set -e`, handing the
+    restart policy an endless loop — a stack that looks alive while its
+    CI can never work."""
+    from nexus_deploy.service_env import _render_forgejo_runner
+
+    config = full_config.model_copy(update={"forgejo_runner_secret": ""})
+    assert _render_forgejo_runner(config, full_env).skip_reason is not None
+
+
+def test_forgejo_forge_still_renders_without_a_runner_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The forge is core and must come up on servers that never enable
+    CI — so it cannot depend on the runner's credential existing."""
     from nexus_deploy.service_env import _render_forgejo
 
     config = full_config.model_copy(update={"forgejo_runner_secret": ""})
-    assert _render_forgejo(config, full_env).skip_reason is not None
+    assert _render_forgejo(config, full_env).skip_reason is None
 
 
 def test_forgejo_env_file_is_mode_0600(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
@@ -2159,14 +2185,19 @@ def test_forgejo_compose_gives_the_runner_secret_only_to_the_runner() -> None:
 
     import yaml
 
-    compose = yaml.safe_load(Path("stacks/forgejo/docker-compose.yml").read_text())
-    services = compose["services"]
+    forge = yaml.safe_load(Path("stacks/forgejo/docker-compose.yml").read_text())
+    runner = yaml.safe_load(Path("stacks/forgejo-runner/docker-compose.yml").read_text())
 
-    assert not [n for n, s in services.items() if "env_file" in s], "env_file reintroduced"
+    for compose in (forge, runner):
+        assert not [n for n, s in compose["services"].items() if "env_file" in s]
+
+    # The forge stack must not see the registration secret at all.
+    for spec in forge["services"].values():
+        assert "FORGEJO_RUNNER_SECRET" not in (spec.get("environment") or {})
 
     holders = [
         name
-        for name, spec in services.items()
+        for name, spec in runner["services"].items()
         if "FORGEJO_RUNNER_SECRET" in (spec.get("environment") or {})
     ]
     assert holders == ["forgejo-runner"]
