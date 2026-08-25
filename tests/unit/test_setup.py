@@ -1194,5 +1194,8 @@ def test_ensure_data_dirs_covers_the_forgejo_bind_mounts() -> None:
     # uid 1000 for the forge, 70 for its postgres, 1001 for the runner.
     forgejo_block = rendered.split("Forgejo bind-mount sources")[1]
     assert 'chown -R 1000:1000 "$MOUNT_POINT/forgejo/repos"' in forgejo_block
+    # LFS too: restored objects land owned by the SSH user, and Forgejo
+    # cannot write them back without this.
+    assert '"$MOUNT_POINT/forgejo/lfs"' in forgejo_block.split("chown -R 70:70")[0]
     assert 'chown -R 70:70 "$MOUNT_POINT/forgejo/db"' in forgejo_block
     assert 'chown -R 1001:1001 "$MOUNT_POINT/forgejo/runner"' in forgejo_block

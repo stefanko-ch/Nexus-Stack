@@ -2133,3 +2133,13 @@ def test_forgejo_skipped_when_runner_secret_missing(
 
     config = full_config.model_copy(update={"forgejo_runner_secret": ""})
     assert _render_forgejo(config, full_env).skip_reason is not None
+
+
+def test_forgejo_env_file_is_mode_0600(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """This file carries the runner's registration credential and the
+    database password in cleartext. 0644 would make both readable to
+    every local account on the server — the same reason SFTPGo's env
+    is 0600."""
+    from nexus_deploy.service_env import _render_forgejo
+
+    assert _render_forgejo(full_config, full_env).mode == 0o600

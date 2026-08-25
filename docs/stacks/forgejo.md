@@ -24,7 +24,7 @@ Forgejo is a hard fork of Gitea, developed under a non-profit. It provides:
 | Website | [forgejo.org](https://forgejo.org) |
 | Source | [Codeberg](https://codeberg.org/forgejo/forgejo) |
 
-> ✅ **Auto-configured:** The Actions runner registers itself during deployment. Credentials are stored in Infisical under the `forgejo` tag.
+> ✅ **Auto-configured:** The admin and user accounts are created during deployment and their passwords, together with the database password, are stored in Infisical under the `forgejo` tag. The Actions runner registers itself; its registration secret is deliberately **not** in Infisical — everything there is copied into Kestra's environment, so it is passed straight from the OpenTofu output to the two registration steps instead. An operator who needs it can read `tofu output`.
 
 ### Why v15 and not v16
 
@@ -92,6 +92,16 @@ exist, Forgejo falls back to `.github/workflows/`, so a repository
 copied from GitHub will often just run — but prefer the Forgejo path
 for anything written here, so it is obvious which system executes it.
 
+> ⚠️ **Job-to-forge connectivity is not yet verified.** Job containers
+> run inside `forgejo-dind`, which is a *separate* Docker daemon from
+> the host's, on networks that daemon creates. They therefore have no
+> route to `forgejo-internal`, where the forge lives — so
+> `actions/checkout` resolving `http://forgejo:3000` may fail. Raised
+> in review and not settled: it needs a real job run to determine
+> whether a usable path exists (the forge does publish 3202 on the
+> host) or whether the topology has to change. Treat Actions on this
+> stack as experimental until that is answered.
+
 The runner declares three labels, all pointing at the same image:
 
 ```yaml
@@ -134,9 +144,24 @@ Three things bound the blast radius:
    would have let a compromise of the web container drive a privileged
    Docker daemon.
 3. `runner-config.yml` keeps `container.docker_host: "-"` and
-   `valid_volumes: []`, so a job container gets **no** Docker socket of
-   its own and may not bind-mount host paths. Without this, a workflow
-   could start a privileged sibling container and walk straight out.
+   `valid_volumes: []`, so the runner does not hand a job container a
+   Docker socket and a workflow may not name host paths to bind-mount.
+
+**A limit of point 3, stated because it was raised in review and is not
+yet settled.** `forgejo-dind` listens unauthenticated on
+`0.0.0.0:2375`, and job containers are created *by that same daemon*,
+on networks it owns. A job may therefore be able to reach the daemon
+through its bridge gateway and drive the Docker API directly,
+regardless of what the runner chose not to mount. That would confine
+an attacker to the rootless dind container rather than the host — but
+it is a weaker boundary than "jobs cannot reach the daemon", which is
+what an earlier version of this page implied.
+
+Binding the daemon to a unix socket shared only with the runner would
+close it. That is not done here because it needs a live test of the
+rootless socket path and the uid 1000 / uid 1001 permission split, and
+shipping an untested isolation change is worse than an accurately
+described one.
 
 **Resource ceilings.** `forgejo-dind` carries `mem_limit: 4g` and
 `cpus: 2.0`, and job containers are its children, so the limit applies

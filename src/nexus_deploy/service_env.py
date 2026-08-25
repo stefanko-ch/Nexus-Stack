@@ -998,6 +998,10 @@ def _render_forgejo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
             "DOMAIN": e.domain or "",
         },
+        # 0600, not the 0644 most stacks use. This file carries the
+        # runner's registration credential and the database password in
+        # cleartext, which is the same reason SFTPGo's env is 0600.
+        mode=0o600,
     )
 
 

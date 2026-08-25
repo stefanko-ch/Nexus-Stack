@@ -482,7 +482,12 @@ class Orchestrator:
         ]
         # The student-facing account is optional: a stack with no
         # user_email configured still gets a working admin login.
-        user_email = self.bootstrap_env.gitea_user_email or ""
+        # Same precedence as workspace-coords (line ~980) and the Gitea
+        # phase: the constructor field first, bootstrap_env as the
+        # fallback. Reading only bootstrap_env meant a caller that set
+        # the field — which the pipeline does — silently got no user
+        # account while the phase reported "ok".
+        user_email = self.gitea_user_email or self.bootstrap_env.gitea_user_email or ""
         user_password = self.config.forgejo_user_password or ""
         user_username = self.gitea_user_username or (user_email.split("@")[0] if user_email else "")
         user_note = ""
