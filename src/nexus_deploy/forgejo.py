@@ -86,6 +86,19 @@ class ConfigureResult:
     detail: str
 
 
+def is_valid_username(username: str) -> bool:
+    """True when Forgejo will accept this as a username.
+
+    Exposed so callers can decide *before* building a batch. The
+    identity derivation upstream allows local parts that are valid
+    e-mail but invalid usernames — `alice+tag@example.com` is the
+    common one — and letting such a value reach
+    :func:`render_configure_script` fails the whole batch, taking the
+    admin account down with it.
+    """
+    return bool(_USERNAME_PATTERN.match(username))
+
+
 def _validate(account: Account) -> None:
     if not _USERNAME_PATTERN.match(account.username):
         raise ValueError("invalid username")

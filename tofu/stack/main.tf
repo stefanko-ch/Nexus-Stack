@@ -466,9 +466,12 @@ resource "random_password" "forgejo_db" {
 # 20 bytes rendered as hex is precisely that. A random_password with
 # special=false would emit mixed-case alphanumerics and be rejected.
 #
-# Both halves of the offline registration read this one value: the
-# server side via `forgejo-cli actions register --secret`, the runner
-# side via `forgejo-runner create-runner-file --secret`. That is what
+# Both halves of the offline registration read this one value, but not
+# the same way: the server side pipes it through `forgejo-cli actions
+# register --secret-stdin=1` so it never enters argv, while the runner
+# side has only `create-runner-file --secret <value>` — upstream gives
+# it no stdin or file form. Do not "simplify" the server side to match
+# the runner; that would put the secret back in the process list. That is what
 # lets a runner register with no human pasting a single-use token, and
 # what lets the pairing survive a teardown/spin-up cycle unchanged.
 resource "random_id" "forgejo_runner_secret" {

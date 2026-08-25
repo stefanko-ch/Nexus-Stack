@@ -138,6 +138,24 @@ Three things bound the blast radius:
    its own and may not bind-mount host paths. Without this, a workflow
    could start a privileged sibling container and walk straight out.
 
+**Resource ceilings.** `forgejo-dind` carries `mem_limit: 4g` and
+`cpus: 2.0`, and job containers are its children, so the limit applies
+to their aggregate. `runner.capacity: 2` bounds how many jobs run at
+once; it does not bound what each may consume, which is why both are
+needed.
+
+Note these use `mem_limit` rather than the `deploy.resources.limits`
+the rest of the repo uses. That is deliberate: `docker compose up`
+ignores `deploy.resources` — it is a Swarm key honoured only under
+`--compatibility`, which the deploy pipeline does not pass. On a stack
+running arbitrary repository workflows an advisory limit is worse than
+none, because it reads as protection.
+
+**Disk is not bounded.** The layer cache lives in a named volume with
+no quota. A workflow that pulls large images repeatedly can fill the
+host disk and take the other services with it. Watch `docker system df`
+and prune, or move CI to a dedicated host if the stack is shared.
+
 What is *not* mitigated: `forgejo-dind` itself runs with
 `privileged: true`. The rootless variant still requires it in order to
 unmask seccomp and AppArmor. Rootless reduces what an escape gains; it

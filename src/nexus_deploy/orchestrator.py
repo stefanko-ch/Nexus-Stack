@@ -485,14 +485,29 @@ class Orchestrator:
         user_email = self.bootstrap_env.gitea_user_email or ""
         user_password = self.config.forgejo_user_password or ""
         user_username = self.gitea_user_username or (user_email.split("@")[0] if user_email else "")
+        user_note = ""
         if user_email and user_password and user_username and user_username != admin_username:
-            accounts.append(
-                _forgejo.Account(
-                    username=user_username,
-                    password=user_password,
-                    email=user_email,
-                ),
-            )
+            # Check the username here rather than letting run_configure
+            # reject the batch. The identity derivation allows local
+            # parts Forgejo will not take as usernames — `alice+tag` is
+            # a valid address and an invalid username — and a rejected
+            # batch takes the ADMIN account down with it. With
+            # INSTALL_LOCK on, that leaves an instance nobody can log
+            # into because of one student's mail alias.
+            #
+            # Not sanitising it silently: a username the operator did
+            # not choose is worse than a missing optional account, and
+            # the detail line says exactly what was dropped.
+            if _forgejo.is_valid_username(user_username):
+                accounts.append(
+                    _forgejo.Account(
+                        username=user_username,
+                        password=user_password,
+                        email=user_email,
+                    ),
+                )
+            else:
+                user_note = " (user account skipped — derived username is not Forgejo-safe)"
 
         try:
             result = _forgejo.run_configure(ssh, tuple(accounts))
@@ -503,7 +518,14 @@ class Orchestrator:
                 detail=f"unexpected ({type(exc).__name__})",
             )
         if result.status == "configured":
-            return PhaseResult(name="forgejo-configure", status="ok", detail=result.detail)
+            # A skipped user account is reported as "partial": the stack
+            # works, but somebody asked for an account that did not get
+            # made, and that should not read as a clean run.
+            return PhaseResult(
+                name="forgejo-configure",
+                status="partial" if user_note else "ok",
+                detail=f"{result.detail}{user_note}",
+            )
         if result.status == "skipped":
             return PhaseResult(name="forgejo-configure", status="skipped", detail=result.detail)
         return PhaseResult(name="forgejo-configure", status="partial", detail=result.detail)

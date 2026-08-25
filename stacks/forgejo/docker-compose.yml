@@ -88,10 +88,15 @@ services:
       # students copying a GitHub workflow would reach out to github.com,
       # which defeats the point of a self-hosted forge.
       FORGEJO__actions__DEFAULT_ACTIONS_URL: https://data.forgejo.org
-    deploy:
-      resources:
-        limits:
-          memory: 1g
+    # `mem_limit`, not `deploy.resources.limits`. The rest of this repo
+    # uses the latter, but `docker compose up` ignores it — it is a
+    # Swarm key, honoured only under `--compatibility`, which the
+    # deploy pipeline does not pass. So every stack using it currently
+    # runs unbounded. Diverging here is deliberate: this stack runs
+    # arbitrary repository workflows, and an advisory limit would be
+    # worse than none because it reads as protection. Tracked for the
+    # other stacks separately.
+    mem_limit: 1g
     volumes:
       - /mnt/nexus-data/forgejo/repos:/data/git/repositories
       - /mnt/nexus-data/forgejo/lfs:/data/git/lfs
@@ -118,6 +123,7 @@ services:
       POSTGRES_USER: nexus-forgejo
       POSTGRES_DB: forgejo
       POSTGRES_PASSWORD: ${FORGEJO_DB_PASSWORD}
+    mem_limit: 512m
     volumes:
       - /mnt/nexus-data/forgejo/db:/var/lib/postgresql/data
     networks:
@@ -142,6 +148,18 @@ services:
       # would add moving parts without changing who can connect.
       DOCKER_TLS_CERTDIR: ""
     command: ["--host=tcp://0.0.0.0:2375", "--tls=false"]
+    # This is the container that runs whatever a student pushed. Without
+    # a ceiling one job can starve the other 40+ services on the box —
+    # `runner.capacity: 2` bounds how many jobs run, not what each may
+    # consume. Job containers are children of this daemon, so the limit
+    # applies to their aggregate.
+    #
+    # Disk is NOT bounded by this. The layer cache lives in a named
+    # volume with no quota; if CI fills the disk it takes the host with
+    # it. Watch `docker system df` and prune, or move CI to its own
+    # host — see docs/stacks/forgejo.md.
+    mem_limit: 4g
+    cpus: 2.0
     volumes:
       - forgejo-dind-data:/home/rootless/.local/share/docker
     networks:
@@ -190,10 +208,7 @@ services:
             --secret "$${FORGEJO_RUNNER_SECRET}"
         fi
         exec forgejo-runner daemon --config /data/runner-config.yml
-    deploy:
-      resources:
-        limits:
-          memory: 512m
+    mem_limit: 512m
     volumes:
       # Bind mount rather than a named volume: the runner drops to
       # 1001:1001, and a fresh named volume would come up root-owned so

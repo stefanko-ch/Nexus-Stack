@@ -1102,8 +1102,23 @@ def test_forgejo_folder_carries_every_generated_credential() -> None:
         "FORGEJO_ADMIN_PASSWORD": "fj-admin",
         "FORGEJO_USER_PASSWORD": "fj-user",
         "FORGEJO_DB_PASSWORD": "fj-db",
-        "FORGEJO_RUNNER_SECRET": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
     }
+
+
+def test_forgejo_runner_secret_is_never_published_to_infisical() -> None:
+    """Everything in Infisical is copied into Kestra's environment by
+    `secret_sync`, so publishing the runner's registration credential
+    would hand it to every flow author. Nothing reads it from here —
+    the pipeline takes it from the tofu output — so it stays out."""
+    config = NexusConfig(
+        admin_username="nexus-admin",
+        forgejo_runner_secret="a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+    )
+    folders = compute_folders(config, BootstrapEnv(domain="example.com"))
+
+    for folder in folders:
+        assert "FORGEJO_RUNNER_SECRET" not in folder.secrets, folder.name
+        assert "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678" not in folder.secrets.values()
 
 
 def test_forgejo_folder_drops_unset_credentials() -> None:
@@ -1114,7 +1129,6 @@ def test_forgejo_folder_drops_unset_credentials() -> None:
     forgejo = next(f for f in folders if f.name == "forgejo")
 
     assert "FORGEJO_ADMIN_PASSWORD" not in forgejo.secrets
-    assert "FORGEJO_RUNNER_SECRET" not in forgejo.secrets
     assert forgejo.secrets["FORGEJO_DB_PASSWORD"] == "fj-db"
 
 
