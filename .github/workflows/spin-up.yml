@@ -817,7 +817,16 @@ jobs:
 
           # Store CREDENTIALS_JSON for email credentials feature (send-credentials.js)
           if [ "$SECRETS_JSON" != "{}" ]; then
-            CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'to_entries | map(select(.value != null and .value != "")) | from_entries')
+            # `forgejo_runner_secret` is dropped deliberately. This bundle
+            # is stored as a Pages secret and read by send-credentials.js,
+            # which mails it to the stack's users — so it must carry only
+            # credentials a human logs in with. The runner's registration
+            # secret is machine-to-machine: the deploy pipeline takes it
+            # from the tofu output and the runner container from its
+            # rendered .env, and nobody needs it in an inbox. It is kept
+            # out of Infisical for the same reason; without this line
+            # that exclusion would simply be undone here.
+            CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'del(.forgejo_runner_secret) | to_entries | map(select(.value != null and .value != "")) | from_entries')
             if echo "$CREDENTIALS" | npx wrangler@4 pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
               echo "  ✅ CREDENTIALS_JSON stored"
             else

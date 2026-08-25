@@ -67,7 +67,12 @@ services:
     restart: unless-stopped
     ports:
       - "3202:3000"
-    env_file: .env
+    # No `env_file:`. The stack's .env also holds FORGEJO_RUNNER_SECRET,
+    # and the forge has no use for it — attaching the whole file would
+    # put the runner's registration credential into the environment of
+    # the one process exposed to the internet. The `${...}` entries
+    # below are substituted by compose from that same .env, so each
+    # container receives only what it names.
     environment:
       USER_UID: "1000"
       USER_GID: "1000"
@@ -118,7 +123,6 @@ services:
     image: ${IMAGE_FORGEJO_POSTGRES:-postgres:17-alpine}
     container_name: forgejo-db
     restart: unless-stopped
-    env_file: .env
     environment:
       POSTGRES_USER: nexus-forgejo
       POSTGRES_DB: forgejo
@@ -179,11 +183,15 @@ services:
     image: ${IMAGE_FORGEJO_RUNNER:-data.forgejo.org/forgejo/runner:13.0.0}
     container_name: forgejo-runner
     restart: unless-stopped
-    env_file: .env
     user: "1001:1001"
     working_dir: /data
     environment:
       DOCKER_HOST: tcp://forgejo-dind:2375
+      # Named explicitly rather than pulled in with the whole .env: the
+      # runner is the only container that needs these two, and the
+      # database password is none of its business.
+      FORGEJO_INSTANCE_URL: ${FORGEJO_INSTANCE_URL}
+      FORGEJO_RUNNER_SECRET: ${FORGEJO_RUNNER_SECRET}
     # Offline registration: OpenTofu generates one 40-hex secret and both
     # sides receive it, so no human ever pastes a single-use token out of
     # the web UI. `create-runner-file` is deterministic — same secret in,

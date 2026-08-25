@@ -24,7 +24,7 @@ Forgejo is a hard fork of Gitea, developed under a non-profit. It provides:
 | Website | [forgejo.org](https://forgejo.org) |
 | Source | [Codeberg](https://codeberg.org/forgejo/forgejo) |
 
-> ✅ **Auto-configured:** The admin and user accounts are created during deployment and their passwords, together with the database password, are stored in Infisical under the `forgejo` tag. The Actions runner registers itself; its registration secret is deliberately **not** in Infisical — everything there is copied into Kestra's environment, so it is passed straight from the OpenTofu output to the two registration steps instead. An operator who needs it can read `tofu output`.
+> ✅ **Auto-configured:** The admin account is created during deployment. A second, non-admin account is created as well *when a user identity is configured* — without one the stack has an admin login and nothing else. Their passwords, together with the database password, are stored in Infisical under the `forgejo` tag. The Actions runner registers itself; its registration secret is deliberately **not** in Infisical — everything there is copied into Kestra's environment, so it is passed straight from the OpenTofu output to the two registration steps instead. An operator who needs it can read `tofu output`.
 
 ### Why v15 and not v16
 
@@ -60,7 +60,7 @@ So Nexus-Stack uses **offline registration**. OpenTofu generates one
 40-character hex secret (`random_id.forgejo_runner_secret`) and both
 sides receive it independently:
 
-- **Server side** — `forgejo-cli actions register --secret-stdin`, run
+- **Server side** — `forgejo forgejo-cli actions register --secret-stdin`, run
   by the `forgejo-runner-register` deploy phase.
 - **Runner side** — `forgejo-runner create-runner-file`, run by the
   runner container's own entrypoint at startup.
@@ -78,7 +78,7 @@ On the **runner** side it does. `forgejo-runner create-runner-file`
 declares exactly four flags — `--connect`, `--instance`, `--secret`,
 `--name` — with no stdin or file variant, so the value is in that
 process's argv while it runs, and in the container environment that
-`docker inspect` shows. (The server-side `forgejo-cli actions register`
+`docker inspect` shows. (The server-side `forgejo forgejo-cli actions register`
 *does* have `--secret-stdin` and `--secret-file`; the runner binary is
 a different program and does not.)
 Both require host-level Docker access to observe. The call is guarded

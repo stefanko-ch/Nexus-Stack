@@ -2143,3 +2143,29 @@ def test_forgejo_env_file_is_mode_0600(full_config: NexusConfig, full_env: Boots
     from nexus_deploy.service_env import _render_forgejo
 
     assert _render_forgejo(full_config, full_env).mode == 0o600
+
+
+def test_forgejo_compose_gives_the_runner_secret_only_to_the_runner() -> None:
+    """Least privilege across the four containers.
+
+    The stack's single `.env` holds the runner's registration secret and
+    the database password. Attaching that file wholesale — which an
+    `env_file:` entry does — would hand the internet-facing forge a
+    credential it never uses. Each container names what it needs
+    instead, and compose substitutes from the same file.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    compose = yaml.safe_load(Path("stacks/forgejo/docker-compose.yml").read_text())
+    services = compose["services"]
+
+    assert not [n for n, s in services.items() if "env_file" in s], "env_file reintroduced"
+
+    holders = [
+        name
+        for name, spec in services.items()
+        if "FORGEJO_RUNNER_SECRET" in (spec.get("environment") or {})
+    ]
+    assert holders == ["forgejo-runner"]
