@@ -1,10 +1,14 @@
 """Server-side half of the Forgejo Actions runner registration.
 
-Forgejo offers two ways to pair a runner with an instance:
+Forgejo v15 offers three ways to pair a runner with an instance —
+interactive, over the HTTP API, and offline. Only the last one fits
+here.
 
-*Token registration* — an operator clicks through Site Administration →
-Actions → Runners, copies a token, and pastes it into the runner. The
-tokens are single-use. That is fine for one runner tended by hand and
+*Interactive and API registration* both hand out a token an operator
+then gives to the runner: through Site Administration → Actions →
+Runners, or by driving the same endpoint programmatically. Both need
+somebody, or something, holding an authenticated session at the moment
+of registration. That is fine for one runner tended by hand and
 useless for a platform that rebuilds a stack on every spin-up.
 
 *Offline registration* — the same 40-hex-character secret is handed to

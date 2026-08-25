@@ -67,10 +67,20 @@ exist where somebody actually uses it.
 | `/mnt/nexus-data/forgejo/lfs` | Git LFS objects | `1000:1000` |
 | `/mnt/nexus-data/forgejo/db` | PostgreSQL data | `70:70` |
 
-The runner directory is a bind mount rather than a named volume
-specifically because of that `1001`: the runner drops privileges to
-that UID, and a fresh named volume would come up root-owned, leaving
-`create-runner-file` unable to write.
+**These survive both lifecycles.** A disk snapshot captures them
+wholesale; a rebuild teardown copies the repositories and LFS objects
+to R2 and takes a `pg_dump` of the database before destroying the
+server.
+
+That coverage was added when Forgejo became core. While the stack was
+opt-in an operator enabling it accepted the risk, but once it is on
+every server by default, a git forge that silently loses its
+repositories on a scheduled teardown is not a git forge.
+
+The runner's own directory is not here — it belongs to the
+[runner stack](./forgejo-runner.md), and is deliberately *not*
+persisted: its `.runner` file is regenerated from the shared secret on
+every start, and the rest is a throwaway build cache.
 
 The Docker layer cache used by jobs lives in a **named** volume
 (`forgejo-dind-data`), not under `/mnt/nexus-data`. It is rebuildable,

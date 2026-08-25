@@ -13,7 +13,7 @@ title: "Forgejo Runner"
 | Web UI | None — runners appear in Forgejo under Site Administration → Actions → Runners |
 | Public Access | No |
 | Requires | The [Forgejo](./forgejo.md) stack, which is core and always present |
-| Website | [Forgejo Actions docs](https://forgejo.org/docs/latest/admin/actions/) |
+| Website | [Forgejo Actions docs (v15)](https://forgejo.org/docs/v15.0/admin/actions/) |
 
 > ⚠️ **Off by default, and that is the point.** The Forgejo forge is a
 > core service and always runs. This stack is separate and optional
@@ -41,7 +41,7 @@ services.
 ### How the runner registers itself
 
 Forgejo supports two pairing methods. The obvious one — copy a
-single-use token out of Site Administration → Actions → Runners —
+token out of Site Administration → Actions → Runners —
 cannot work here, because a stack is torn down and rebuilt on a
 schedule and nobody is standing by to paste a token each time.
 

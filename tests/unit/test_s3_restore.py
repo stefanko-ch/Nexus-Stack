@@ -665,3 +665,39 @@ def test_snapshot_to_s3_uses_default_timestamp_factory_when_none() -> None:
     )
     assert isinstance(result, S3SnapshotApplied)
     assert re.fullmatch(r"\d{8}T\d{6}Z", result.timestamp)
+
+
+def test_forgejo_is_persisted_because_it_is_a_core_service() -> None:
+    """A git forge on every server must not lose its repositories to a
+    scheduled teardown.
+
+    While Forgejo was opt-in, an operator enabling it accepted that the
+    default `rebuild` lifecycle destroys unlisted bind mounts. As a core
+    service it is deployed everywhere, so the coverage is not optional
+    any more — and the mapping must match
+    `stacks/forgejo/docker-compose.yml`, which is what this asserts.
+    """
+    postgres, rsync = standard_targets()
+
+    pg = {p.container: p for p in postgres}
+    assert pg["forgejo-db"].database == "forgejo"
+    assert pg["forgejo-db"].user == "nexus-forgejo"
+
+    paths = {r.name: r.local_path for r in rsync}
+    assert paths["forgejo-repos"] == "/mnt/nexus-data/forgejo/repos"
+    assert paths["forgejo-lfs"] == "/mnt/nexus-data/forgejo/lfs"
+
+    # Stopping the stack before the rsync is what makes the copy
+    # consistent; the invariant test pairs this with the targets above.
+    assert "/opt/docker-server/stacks/forgejo/docker-compose.yml" in _STANDARD_STOP_COMPOSE_FILES
+
+
+def test_the_runner_stack_is_deliberately_not_persisted() -> None:
+    """Its `.runner` file is regenerated from the shared secret on every
+    start and the rest is a build cache. Snapshotting either would cost
+    bandwidth to restore something reproducible or worthless."""
+    postgres, rsync = standard_targets()
+
+    assert not [p for p in postgres if "runner" in p.container]
+    assert not [r for r in rsync if "runner" in r.name]
+    assert not [f for f in _STANDARD_STOP_COMPOSE_FILES if "forgejo-runner" in f]

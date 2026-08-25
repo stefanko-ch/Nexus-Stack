@@ -287,8 +287,8 @@ def is_enabled(env: dict[str, str] | None = None) -> bool:
 
 
 def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.RsyncTarget, ...]]:
-    """Return the (postgres, rsync) target tuples for the three stacks
-    that v1.0 persists.
+    """Return the (postgres, rsync) target tuples for the stacks whose
+    state survives a rebuild teardown.
 
     Hard-coded because:
     1. Stateful stacks are explicitly opted in here. Adding a stack
@@ -348,6 +348,12 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
         _s3.PostgresDumpTarget(container="dify-db", database="dify", user="nexus-dify"),
         _s3.PostgresDumpTarget(container="hedgedoc-db", database="hedgedoc", user="nexus-hedgedoc"),
         _s3.PostgresDumpTarget(container="planka-db", database="planka", user="nexus-planka"),
+        # Forgejo. Added when Forgejo became a core service: it is now
+        # deployed on every stack, and under the default `rebuild`
+        # lifecycle an unlisted stack's bind mounts are destroyed with
+        # the server. A git forge that silently loses its repositories
+        # on a scheduled teardown is not a git forge.
+        _s3.PostgresDumpTarget(container="forgejo-db", database="forgejo", user="nexus-forgejo"),
     )
     rsync = (
         _s3.RsyncTarget(
@@ -359,6 +365,16 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="gitea-lfs",
             local_path="/mnt/nexus-data/gitea/lfs",
             s3_subpath="gitea/lfs",
+        ),
+        _s3.RsyncTarget(
+            name="forgejo-repos",
+            local_path="/mnt/nexus-data/forgejo/repos",
+            s3_subpath="forgejo/repos",
+        ),
+        _s3.RsyncTarget(
+            name="forgejo-lfs",
+            local_path="/mnt/nexus-data/forgejo/lfs",
+            s3_subpath="forgejo/lfs",
         ),
         _s3.RsyncTarget(
             name="dify-storage",
@@ -693,7 +709,15 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/metabase/docker-compose.yml",
     "/opt/docker-server/stacks/hedgedoc/docker-compose.yml",
     "/opt/docker-server/stacks/planka/docker-compose.yml",
+    "/opt/docker-server/stacks/forgejo/docker-compose.yml",
 )
+
+# The runner stack is deliberately absent from both lists. Its bind
+# mount holds a `.runner` credentials file that
+# `create-runner-file` regenerates deterministically from the shared
+# secret on every start, plus an Actions cache that exists to be
+# thrown away. Snapshotting either would cost bandwidth to restore
+# state that is either reproducible or worthless.
 
 
 def _build_snapshot_timestamp() -> str:
