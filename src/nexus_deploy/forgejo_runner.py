@@ -62,6 +62,35 @@ _SECRET_PATTERN = re.compile(r"\A[0-9a-f]{40}\Z")
 # these values also end up in shell words and in the Actions UI, and
 # nothing in this project needs punctuation beyond dot/dash/underscore.
 _NAME_PATTERN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,62}\Z")
+
+# The labels this runner advertises, and the reason they are here
+# rather than only in runner-config.yml.
+#
+# Offline registration writes the server's runner record from
+# `forgejo-cli actions register`. A record created without `--labels`
+# has none — and the server matches a workflow's `runs-on:` against
+# the record, not against whatever the daemon later reads from its own
+# config. So a runner can sit there green and idle while every job
+# queues forever against a label nobody declared. That is exactly what
+# the first live deploy showed: connected, idle, Labels column empty.
+#
+# `runner-config.yml` carries the same list for the daemon's own use;
+# a test asserts the two stay identical, because drift between them is
+# silent in precisely this way.
+#
+# Three names, one image, deliberately: `docker` is the Forgejo-native
+# label, and the two `ubuntu-*` aliases exist so a workflow copied from
+# GitHub with `runs-on: ubuntu-latest` is picked up instead of hanging.
+DEFAULT_RUNNER_LABELS: tuple[str, ...] = (
+    "docker:docker://node:22-bookworm",
+    "ubuntu-latest:docker://node:22-bookworm",
+    "ubuntu-22.04:docker://node:22-bookworm",
+)
+
+# A label is `<name>:<backend>://<image>` or `<name>:host`. Kept
+# deliberately loose on the value side and strict on the separator, so
+# a malformed entry is caught here rather than by the remote CLI.
+_LABEL_PATTERN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._:/+-]*\Z")
 _SCOPE_PATTERN = re.compile(
     r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,62}(/[A-Za-z0-9][A-Za-z0-9._-]{0,62})?\Z"
 )
@@ -85,6 +114,7 @@ def render_register_script(
     name: str,
     scope: str = "",
     container: str = "forgejo",
+    labels: tuple[str, ...] = DEFAULT_RUNNER_LABELS,
     attempts: int = 3,
     interval: int = 5,
 ) -> str:
@@ -107,14 +137,18 @@ def render_register_script(
         raise ValueError(f"invalid runner name: {name!r}")
     if scope and not _SCOPE_PATTERN.match(scope):
         raise ValueError(f"invalid runner scope: {scope!r}")
+    for label in labels:
+        if not _LABEL_PATTERN.match(label):
+            raise ValueError(f"invalid runner label: {label!r}")
 
     scope_line = f'set -- "$@" --scope {shlex.quote(scope)}\n' if scope else ""
+    labels_line = f'set -- "$@" --labels {shlex.quote(",".join(labels))}\n' if labels else ""
 
     return f"""set -euo pipefail
 
 {render_ready_preamble(container=container)}
 set -- actions register --name {shlex.quote(name)}
-{scope_line}
+{scope_line}{labels_line}
 # Bounded retry, because nothing downstream repairs this. The runner
 # keeps restarting until the server knows the secret, but the server
 # only learns it here — so a single transient failure would leave a
@@ -155,6 +189,7 @@ def run_register(
     name: str = "nexus-runner",
     scope: str = "",
     container: str = "forgejo",
+    labels: tuple[str, ...] = DEFAULT_RUNNER_LABELS,
     timeout: float = _REGISTER_TIMEOUT,
 ) -> RegisterResult:
     """Register the runner with the Forgejo instance. Idempotent.
@@ -169,6 +204,7 @@ def run_register(
             name=name,
             scope=scope,
             container=container,
+            labels=labels,
         )
     except ValueError as exc:
         # Category, not message. The project rule is `type(exc).__name__`
@@ -197,5 +233,5 @@ def run_register(
         )
     return RegisterResult(
         status="registered",
-        detail=f"name={name} scope={scope or 'instance-wide'}",
+        detail=f"name={name} scope={scope or 'instance-wide'} labels={len(labels)}",
     )

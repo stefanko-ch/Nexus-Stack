@@ -99,7 +99,13 @@ for anything written here, so it is obvious which system executes it.
 > It is answerable with one real job run, and is being settled rather
 > than lived with.
 
-The runner declares three labels, all pointing at the same image:
+Three labels are declared, all pointing at the same image. With offline
+registration they are set by the **server-side** `forgejo-cli actions
+register --labels`, not by the runner's config: the server matches a
+workflow's `runs-on:` against the record it holds, so a record
+registered without labels leaves the runner green, idle and unable to
+receive a single job. `runner-config.yml` carries the same list for the
+daemon, and a test asserts the two never drift.
 
 ```yaml
 runs-on: docker          # the Forgejo-native name

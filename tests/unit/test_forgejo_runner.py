@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from nexus_deploy.forgejo_runner import (
+    DEFAULT_RUNNER_LABELS,
     RegisterResult,
     render_register_script,
     run_register,
@@ -212,3 +213,65 @@ def test_container_name_is_quoted_into_the_script() -> None:
         or 'CONTAINER="forgejo"' in script
         or "CONTAINER=forgejo" in script
     )
+
+
+# ---------------------------------------------------------------------------
+# Labels — the difference between a runner that works and one that idles
+# ---------------------------------------------------------------------------
+
+
+def test_registration_declares_the_labels() -> None:
+    """A record created without `--labels` has none, and the server
+    matches `runs-on:` against the record — not against whatever the
+    daemon later reads from its own config. The first live deploy showed
+    exactly that: connected, idle, Labels column empty, and every job
+    would have queued forever.
+    """
+    script = render_register_script(secret=SECRET, name="nexus-runner")
+
+    assert "--labels" in script
+    for label in DEFAULT_RUNNER_LABELS:
+        assert label in script
+
+
+def test_github_style_labels_are_present_so_copied_workflows_resolve() -> None:
+    """`runs-on: ubuntu-latest` is what a workflow copied from GitHub
+    says. Without the alias it matches nothing and hangs."""
+    names = {label.split(":", 1)[0] for label in DEFAULT_RUNNER_LABELS}
+
+    assert "docker" in names
+    assert "ubuntu-latest" in names
+
+
+def test_runner_config_labels_match_the_registration_labels() -> None:
+    """The two lists must not drift.
+
+    The server stores what registration declares; the daemon reads
+    `runner-config.yml`. If they disagree, the mismatch is silent — the
+    runner shows up healthy and jobs either never dispatch or dispatch
+    to a label the daemon does not honour.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    config = yaml.safe_load(Path("stacks/forgejo-runner/runner-config.yml").read_text())
+
+    assert tuple(config["runner"]["labels"]) == DEFAULT_RUNNER_LABELS
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["nocolon", ":leading", "has space:docker://x", "-dash:docker://x", ""],
+)
+def test_malformed_labels_are_refused(bad: str) -> None:
+    with pytest.raises(ValueError, match="invalid runner label"):
+        render_register_script(secret=SECRET, name="nexus-runner", labels=(bad,))
+
+
+def test_no_labels_means_no_labels_flag() -> None:
+    """An empty tuple is a deliberate "leave the record alone", not a
+    reason to emit a bare flag the CLI would reject."""
+    script = render_register_script(secret=SECRET, name="nexus-runner", labels=())
+
+    assert "--labels" not in script
