@@ -12,6 +12,12 @@
 # Note: You also need stacks/<service>/docker-compose.yml for the container!
 #
 # CORE SERVICES (core: true):
+# - forgejo: Git forge and the CI the platform builds on. Core rather
+#            than opt-in because Nexus Conductor drives a class through
+#            it — a management plane that can be switched off is not a
+#            management plane. Note the cost: the stack includes a
+#            privileged docker-in-docker container, so every server runs
+#            one whether or not anybody uses Actions.
 # - gitea: Self-hosted Git service
 # - grafana: Observability platform
 # - infisical: Required for secret management
@@ -275,12 +281,8 @@ services:
     subdomain: "forgejo"
     port: 3202
     public: false
-    # ci-cd, not core: this stack is opt-in, and `core` is the category
-    # the Control Plane renders as "Core Infrastructure" — the services
-    # its API refuses to disable. Woodpecker sits here for the same
-    # reason. If Forgejo later takes over the workspace repo it gains
-    # `core: true` and moves, but that is the role swap, not this.
-    category: "ci-cd"
+    core: true
+    category: "core"
     website: "https://forgejo.org"
     description: "Self-hosted Git forge with pull requests, code review, and built-in Actions CI."
     long_description: "Forgejo is a community-governed Git forge, hard-forked from Gitea and developed under a non-profit. It provides repository hosting, pull requests, code review, issue tracking, wikis, and Forgejo Actions — a CI system whose workflow syntax is familiar to anyone who has used GitHub Actions. Ships with its own Actions runner, so pipelines run on your own server with no external CI service."

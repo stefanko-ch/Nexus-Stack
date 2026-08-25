@@ -444,11 +444,16 @@ class Orchestrator:
         Runs BEFORE the runner registration so that an operator who
         watches the deploy can log in and see the runner appear.
 
-        "partial" rather than "failed" on error, for the same reason as
-        the registration phase: a broken optional stack is a real
-        problem and is reported as one, but not a reason to abandon the
-        remaining phases. Revisit when Forgejo becomes the workspace
-        backend — then a broken Forgejo *is* a broken deploy.
+        "partial" rather than "failed" on error. Forgejo is a core
+        service, so this always runs — but nothing on the platform
+        depends on it yet: Gitea still holds the workspace repo, the
+        seeding and Kestra's flow sync. A Forgejo that failed to
+        provision is a real problem, reported as one, and not a reason
+        to abandon the forty other stacks behind it.
+
+        That calculus flips with the role swap. Once Forgejo owns the
+        workspace repo, a failure here means the seeding and flow sync
+        have nothing to work against, and this should become "failed".
         """
         if "forgejo" not in self.enabled_services:
             return PhaseResult(
@@ -548,9 +553,8 @@ class Orchestrator:
         NEVER "failed", only "partial". A CI runner that could not
         register is a real problem and is reported as one, but it is not
         a reason to abandon the remaining phases and leave forty other
-        stacks unconfigured. Revisit this when Forgejo becomes the
-        workspace backend — at that point a broken Forgejo *is* a
-        broken deploy and should abort.
+        stacks unconfigured — least of all now that Forgejo is a core
+        service and therefore present on every deploy.
         """
         if "forgejo" not in self.enabled_services:
             return PhaseResult(

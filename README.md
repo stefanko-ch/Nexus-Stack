@@ -250,7 +250,7 @@ Manage your Nexus-Stack infrastructure via web interface at `https://control.YOU
 
 **Pre-select services during Initial Setup:**
 ```bash
-# Core services (Gitea, Grafana, Infisical, Portainer) are always enabled —
+# Core services (Forgejo, Gitea, Grafana, Infisical, Portainer) are always enabled —
 # pass any additional services you want active on the first spin-up.
 gh workflow run initial-setup.yaml -f enabled_services="n8n,kestra"
 ```

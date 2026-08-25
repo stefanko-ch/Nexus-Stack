@@ -133,7 +133,7 @@ Duration: ~10-15 minutes (D1 database re-created + OpenTofu apply on new server 
 | Cloudflare Tunnel + DNS + Access | – |
 | Control Plane (Pages + Worker + D1) — re-created fresh | – |
 | Infisical (with **newly generated** secrets) | If you had **external** secrets (Databricks tokens, GitHub mirror tokens etc.), re-add them in Infisical |
-| Core stacks: gitea, grafana, infisical, portainer | Click "Spin Up" once you've toggled additional stacks |
+| Core stacks: forgejo, gitea, grafana, infisical, portainer | Click "Spin Up" once you've toggled additional stacks |
 
 ### About R2 buckets after destroy-all
 
