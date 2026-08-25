@@ -6,13 +6,12 @@ title: "Forgejo"
 
 ![Forgejo](https://img.shields.io/badge/Forgejo-FB923C?logo=forgejo&logoColor=white)
 
-**Community-governed Git forge with built-in Actions CI and its own runner**
+**Community-governed Git forge, with Actions CI available as a separate stack**
 
 Forgejo is a hard fork of Gitea, developed under a non-profit. It provides:
 - Pull requests and code review
 - Issue tracking, wikis, and releases
-- **Forgejo Actions** — CI whose workflow syntax will look familiar to anyone who has used GitHub Actions
-- An Actions runner that ships with the stack, so pipelines execute on your own server
+- **Forgejo Actions** — CI whose workflow syntax will look familiar to anyone who has used GitHub Actions. The runner ships as a separate, optional stack — see [forgejo-runner.md](./forgejo-runner.md)
 - Repository mirroring and migration from GitHub, GitLab, Gitea and Gogs
 - HTTPS access via Cloudflare Tunnel
 

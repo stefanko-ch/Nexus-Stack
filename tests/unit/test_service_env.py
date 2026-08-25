@@ -2173,13 +2173,13 @@ def test_forgejo_env_file_is_mode_0600(full_config: NexusConfig, full_env: Boots
 
 
 def test_forgejo_compose_gives_the_runner_secret_only_to_the_runner() -> None:
-    """Least privilege across the four containers.
+    """Least privilege across the two stacks.
 
-    The stack's single `.env` holds the runner's registration secret and
-    the database password. Attaching that file wholesale — which an
-    `env_file:` entry does — would hand the internet-facing forge a
-    credential it never uses. Each container names what it needs
-    instead, and compose substitutes from the same file.
+    Since the split, the registration secret is rendered only into the
+    runner stack's `.env` and the forge's does not contain it at all.
+    Both stacks still name their values explicitly rather than using
+    `env_file:`, which is what keeps a future addition to either file
+    from silently reaching every container in it.
     """
     from pathlib import Path
 
