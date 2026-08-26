@@ -1181,6 +1181,65 @@ def test_phase_kestra_register_ok(
     assert "execution=SUCCESS" in result.detail
 
 
+def test_phase_kestra_register_defers_the_trigger_in_mirror_mode(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mirror mode must register the flows without executing flow-sync.
+
+    This phase runs before _phase_mirror_setup creates the fork and
+    before _phase_mirror_seed_rerun fills it, so an execution here asks
+    Kestra to clone a repository that does not exist. It failed on every
+    mirror-mode spin-up and surfaced as a yellow `partial` for work that
+    _phase_mirror_finalize then does successfully.
+    """
+    from nexus_deploy.kestra import RegisterResult, SystemFlowsResult
+
+    seen: dict[str, object] = {}
+
+    def _fake(*_a: object, **kw: object) -> SystemFlowsResult:
+        seen.update(kw)
+        return SystemFlowsResult(
+            flows=(RegisterResult(name="git-sync", status="created"),),
+            execution_state=None,
+            verify_skipped_reason=None,
+        )
+
+    monkeypatch.setattr("nexus_deploy.orchestrator._kestra.run_register_system_flows", _fake)
+    orchestrator.gh_mirror_repos = "owner/repo"
+    result = orchestrator._phase_kestra_register(_ssh_with_tunnel())
+
+    assert seen["trigger_onboarding"] is False
+    assert result.status == "ok"
+    assert "execution=deferred" in result.detail
+    assert "mirror-finalize" in result.detail
+
+
+def test_phase_kestra_register_triggers_when_not_mirroring(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without a mirror the workspace repo exists by now, so the
+    onboarding execution still runs here."""
+    from nexus_deploy.kestra import RegisterResult, SystemFlowsResult
+
+    seen: dict[str, object] = {}
+
+    def _fake(*_a: object, **kw: object) -> SystemFlowsResult:
+        seen.update(kw)
+        return SystemFlowsResult(
+            flows=(RegisterResult(name="git-sync", status="created"),),
+            execution_state="SUCCESS",
+            verify_skipped_reason=None,
+        )
+
+    monkeypatch.setattr("nexus_deploy.orchestrator._kestra.run_register_system_flows", _fake)
+    orchestrator.gh_mirror_repos = None
+    result = orchestrator._phase_kestra_register(_ssh_with_tunnel())
+
+    assert seen["trigger_onboarding"] is True
+    assert result.status == "ok"
+    assert "execution=SUCCESS" in result.detail
+
+
 def test_phase_kestra_register_partial_when_admin_email_missing(
     minimal_config: NexusConfig,
 ) -> None:

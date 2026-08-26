@@ -650,6 +650,17 @@ class Orchestrator:
                 status="partial",
                 detail="ADMIN_EMAIL missing",
             )
+        # In mirror mode the fork does not exist yet: this phase runs
+        # before _phase_mirror_setup creates it and before
+        # _phase_mirror_seed_rerun writes the seed files into it. Firing
+        # system.flow-sync here asks Kestra to clone a repository that is
+        # not there, which fails every time — reported as a yellow
+        # `partial` for a step that _phase_mirror_finalize then performs
+        # successfully a few phases later, by design.
+        #
+        # So the trigger is left to that phase. Registration itself still
+        # happens here; only the execution moves.
+        trigger_onboarding = not self.gh_mirror_repos
         local_port = _allocate_free_port()
         try:
             with ssh.port_forward(local_port, "localhost", 8085) as port:
@@ -660,6 +671,7 @@ class Orchestrator:
                     repo_name=self.repo_name,
                     branch=self.workspace_branch,
                     admin_email=admin_email,
+                    trigger_onboarding=trigger_onboarding,
                 )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
             return PhaseResult(
@@ -678,6 +690,15 @@ class Orchestrator:
                 name="kestra-register",
                 status="partial",
                 detail=f"execution={result.execution_state or 'skipped'}",
+            )
+        if result.execution_state is None and not trigger_onboarding:
+            return PhaseResult(
+                name="kestra-register",
+                status="ok",
+                detail=(
+                    f"flows={len(result.flows)} execution=deferred "
+                    "(mirror mode — mirror-finalize triggers it once the fork exists)"
+                ),
             )
         return PhaseResult(
             name="kestra-register",
