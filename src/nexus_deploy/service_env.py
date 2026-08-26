@@ -19,10 +19,10 @@ Architecture:
   each ``.env`` (and its sidecar files) atomically via
   ``tempfile.mkstemp`` + ``os.replace`` — same pattern as
   :func:`setup.configure_ssh`.
-* :func:`append_gitea_workspace_block` is a separate post-pass:
-  the Gitea workspace .env block (idempotent ``cat >> .env`` with
+* :func:`append_forgejo_workspace_block` is a separate post-pass:
+  the Forgejo workspace .env block (idempotent ``cat >> .env`` with
   marker-block sed-strip) is appended to jupyter / marimo /
-  code-server / meltano / prefect when Gitea is enabled.
+  code-server / meltano / prefect when Forgejo is enabled.
 """
 
 from __future__ import annotations
@@ -1297,8 +1297,8 @@ def _render_filestash(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 def _render_woodpecker(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Guard: skip if WOODPECKER_AGENT_SECRET is empty.
 
-    Gitea OAuth client+secret start as empty placeholders (compose
-    substitutes ``${WOODPECKER_GITEA_CLIENT}`` without ``:-``, so
+    Forgejo OAuth client+secret start as empty placeholders (compose
+    substitutes ``${WOODPECKER_FORGEJO_CLIENT}`` without ``:-``, so
     the keys MUST exist in .env even before the OAuth phase
     populates them). The real values are appended later by the
     ``_phase_woodpecker_apply`` orchestrator phase."""
@@ -1309,8 +1309,8 @@ def _render_woodpecker(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "DOMAIN": e.domain or "",
             "WOODPECKER_AGENT_SECRET": c.woodpecker_agent_secret or "",
             "WOODPECKER_ADMIN": c.admin_username or "",
-            "WOODPECKER_GITEA_CLIENT": "",
-            "WOODPECKER_GITEA_SECRET": "",
+            "WOODPECKER_FORGEJO_CLIENT": "",
+            "WOODPECKER_FORGEJO_SECRET": "",
         },
     )
 
@@ -1372,17 +1372,17 @@ def _render_jupyter(c: NexusConfig, e: BootstrapEnv, *, spark_enabled: bool) -> 
 
 def _render_marimo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Marimo: HETZNER_S3_* land in ``.infisical.env`` via the
-    secret-sync block (same pattern as Jupyter), and the Gitea
+    secret-sync block (same pattern as Jupyter), and the Forgejo
     workspace coordinates land in ``.env`` via
-    :func:`append_gitea_workspace_block` AFTER this render runs.
+    :func:`append_forgejo_workspace_block` AFTER this render runs.
 
     This render itself emits no env vars — but it MUST exist so
     that ``stacks/marimo/.env`` is created (even if empty); without
-    a base file, the Gitea-append helper sees ``not env_path.exists()``
-    and silently skips, leaving Marimo with no ``GITEA_REPO_URL`` /
-    ``GITEA_USERNAME`` / ``GITEA_PASSWORD`` / ``REPO_NAME`` plumbed
+    a base file, the Forgejo-append helper sees ``not env_path.exists()``
+    and silently skips, leaving Marimo with no ``FORGEJO_REPO_URL`` /
+    ``FORGEJO_USERNAME`` / ``FORGEJO_PASSWORD`` / ``REPO_NAME`` plumbed
     through to the container — the bug the user observed in
-    initial-setup test surfaced — Marimo wasn't connected to Gitea
+    initial-setup test surfaced — Marimo wasn't connected to Forgejo
     and the workspace repo wasn't visible in the Marimo UI.
 
     SPARK_CONNECT_URL is hardcoded in stacks/marimo/docker-compose.yml's
@@ -1404,12 +1404,12 @@ def _render_marimo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_code_server(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """code-server: Gitea-append pattern (like Marimo).
+    """code-server: Forgejo-append pattern (like Marimo).
 
     The ``.env`` file is unconditionally created so
-    :func:`append_gitea_workspace_block` can append the Gitea workspace
+    :func:`append_forgejo_workspace_block` can append the Forgejo workspace
     block — same bug-class fix as the Marimo placeholder (commit
-    fb586ab). Without the .env file, the Gitea-append step silently
+    fb586ab). Without the .env file, the Forgejo-append step silently
     skips and the entrypoint can't clone the workspace repo.
 
     All other code-server config lives in the docker-compose.yml's
@@ -1731,19 +1731,19 @@ def render_all_env_files(
 
 
 # ---------------------------------------------------------------------------
-# Gitea workspace block (append-mode for jupyter / marimo / code-server /
-# meltano / prefect when Gitea is enabled).
+# Forgejo workspace block (append-mode for jupyter / marimo / code-server /
+# meltano / prefect when Forgejo is enabled).
 # ---------------------------------------------------------------------------
 
 # Marker pair for idempotent strip+append. Block markers are pinned
-# strings: ``_strip_gitea_block()`` finds (and removes) any block a
+# strings: ``_strip_forgejo_block()`` finds (and removes) any block a
 # previous run wrote before appending the new one. Diverging markers
 # would cause re-runs to stack a second block.
-_GITEA_BLOCK_BEGIN = "# >>> Gitea workspace repo (auto-generated, do not edit)"
-_GITEA_BLOCK_END = "# <<< Gitea workspace repo"
+_FORGEJO_BLOCK_BEGIN = "# >>> Forgejo workspace repo (auto-generated, do not edit)"
+_FORGEJO_BLOCK_END = "# <<< Forgejo workspace repo"
 
-# Services that get the Gitea block appended.
-_GITEA_APPEND_TARGETS: tuple[str, ...] = (
+# Services that get the Forgejo block appended.
+_FORGEJO_APPEND_TARGETS: tuple[str, ...] = (
     "jupyter",
     "marimo",
     "code-server",
@@ -1753,18 +1753,18 @@ _GITEA_APPEND_TARGETS: tuple[str, ...] = (
 
 
 @dataclass(frozen=True)
-class GiteaWorkspaceConfig:
-    """Inputs for the Gitea workspace block append.
+class ForgejoWorkspaceConfig:
+    """Inputs for the Forgejo workspace block append.
 
     Captures the result of the workspace-coords + credentials
     derivation. The orchestrator computes these BEFORE calling
-    :func:`append_gitea_workspace_block` since they depend on
+    :func:`append_forgejo_workspace_block` since they depend on
     mirror-mode + user-vs-admin selection.
     """
 
-    gitea_repo_url: str
-    gitea_username: str
-    gitea_password: str
+    forgejo_repo_url: str
+    forgejo_username: str
+    forgejo_password: str
     git_author_name: str
     git_author_email: str
     repo_name: str
@@ -1779,49 +1779,49 @@ class GiteaWorkspaceConfig:
     workspace_branch: str = "main"
 
 
-def _strip_gitea_block(content: str) -> str:
-    """Remove any existing ``# >>> Gitea workspace ...`` to ``# <<<``
+def _strip_forgejo_block(content: str) -> str:
+    """Remove any existing ``# >>> Forgejo workspace ...`` to ``# <<<``
     block (idempotent re-run)."""
     pattern = re.compile(
-        rf"\n?{re.escape(_GITEA_BLOCK_BEGIN)}.*?{re.escape(_GITEA_BLOCK_END)}\n?",
+        rf"\n?{re.escape(_FORGEJO_BLOCK_BEGIN)}.*?{re.escape(_FORGEJO_BLOCK_END)}\n?",
         re.DOTALL,
     )
     return pattern.sub("\n", content).rstrip() + "\n" if content else ""
 
 
-def _render_gitea_workspace_block(cfg: GiteaWorkspaceConfig) -> str:
-    """Render the marker-wrapped Gitea workspace block."""
+def _render_forgejo_workspace_block(cfg: ForgejoWorkspaceConfig) -> str:
+    """Render the marker-wrapped Forgejo workspace block."""
     return f"""\
-{_GITEA_BLOCK_BEGIN}
-GITEA_URL=http://gitea:3000
-GITEA_REPO_URL={cfg.gitea_repo_url}
-GITEA_USERNAME={cfg.gitea_username}
-GITEA_PASSWORD={cfg.gitea_password}
+{_FORGEJO_BLOCK_BEGIN}
+FORGEJO_URL=http://forgejo:3000
+FORGEJO_REPO_URL={cfg.forgejo_repo_url}
+FORGEJO_USERNAME={cfg.forgejo_username}
+FORGEJO_PASSWORD={cfg.forgejo_password}
 GIT_AUTHOR_NAME={cfg.git_author_name}
 GIT_AUTHOR_EMAIL={cfg.git_author_email}
 GIT_COMMITTER_NAME={cfg.git_author_name}
 GIT_COMMITTER_EMAIL={cfg.git_author_email}
 REPO_NAME={cfg.repo_name}
 WORKSPACE_BRANCH={cfg.workspace_branch}
-{_GITEA_BLOCK_END}
+{_FORGEJO_BLOCK_END}
 """
 
 
-def append_gitea_workspace_block(
-    cfg: GiteaWorkspaceConfig,
+def append_forgejo_workspace_block(
+    cfg: ForgejoWorkspaceConfig,
     enabled: list[str],
     *,
     stacks_dir: Path,
 ) -> tuple[str, ...]:
-    """For each git-integrated service in :data:`_GITEA_APPEND_TARGETS`
+    """For each git-integrated service in :data:`_FORGEJO_APPEND_TARGETS`
     that is in the enabled list, idempotently strip + append the
-    Gitea workspace block to its ``.env`` file.
+    Forgejo workspace block to its ``.env`` file.
 
     Returns the tuple of services that got the block appended.
     """
-    block = _render_gitea_workspace_block(cfg)
+    block = _render_forgejo_workspace_block(cfg)
     appended: list[str] = []
-    for svc in _GITEA_APPEND_TARGETS:
+    for svc in _FORGEJO_APPEND_TARGETS:
         if svc not in enabled:
             continue
         env_path = stacks_dir / svc / ".env"
@@ -1830,7 +1830,7 @@ def append_gitea_workspace_block(
             # spec-not-found; skip gracefully).
             continue
         existing = env_path.read_text(encoding="utf-8")
-        cleaned = _strip_gitea_block(existing)
+        cleaned = _strip_forgejo_block(existing)
         if cleaned and not cleaned.endswith("\n"):
             cleaned += "\n"
         new_content = cleaned + block

@@ -3,7 +3,7 @@
 Snapshot tests for representative services + special-case tests
 for the 6 quirks (SFTPGo fail-fast, Filestash bcrypt+jq+base64,
 pg-ducklake SQL escape, SeaweedFS/Garage sidecar files, LakeFS
-2-paths, Gitea append-block idempotency).
+2-paths, Forgejo append-block idempotency).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from syrupy.assertion import SnapshotAssertion
 from nexus_deploy.config import NexusConfig
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.service_env import (
-    GiteaWorkspaceConfig,
+    ForgejoWorkspaceConfig,
     ServiceEnvError,
     _atomic_write,
     _bcrypt_password,
@@ -34,8 +34,8 @@ from nexus_deploy.service_env import (
     _render_prometheus_remote_write_block,
     _render_seaweedfs,
     _render_sftpgo,
-    _strip_gitea_block,
-    append_gitea_workspace_block,
+    _strip_forgejo_block,
+    append_forgejo_workspace_block,
     render_all_env_files,
 )
 
@@ -159,13 +159,13 @@ def full_env() -> BootstrapEnv:
     return BootstrapEnv(
         domain="example.com",
         admin_email="admin@example.com",
-        gitea_user_email="user@example.com",
-        gitea_user_username="user",
-        gitea_repo_owner="admin",
-        repo_name="nexus-example-com-gitea",
+        forgejo_user_email="user@example.com",
+        forgejo_user_username="user",
+        forgejo_repo_owner="admin",
+        repo_name="nexus-example-com-forgejo",
         om_principal_domain="example.com",
-        woodpecker_gitea_client="wp-client-id",
-        woodpecker_gitea_secret="wp-client-secret",
+        woodpecker_forgejo_client="wp-client-id",
+        woodpecker_forgejo_secret="wp-client-secret",
         ssh_private_key_base64="c2g6c2g6Cg==",
     )
 
@@ -1249,102 +1249,102 @@ def test_filestash_no_config_json_when_no_s3(
 
 
 # ---------------------------------------------------------------------------
-# Gitea workspace block — append + idempotency
+# Forgejo workspace block — append + idempotency
 # ---------------------------------------------------------------------------
 
 
-def test_strip_gitea_block_on_clean_content_is_noop() -> None:
+def test_strip_forgejo_block_on_clean_content_is_noop() -> None:
     content = "FOO=bar\nBAZ=qux\n"
-    assert _strip_gitea_block(content) == content
+    assert _strip_forgejo_block(content) == content
 
 
-def test_strip_gitea_block_removes_existing_block() -> None:
+def test_strip_forgejo_block_removes_existing_block() -> None:
     content = (
         "FOO=bar\n"
-        "# >>> Gitea workspace repo (auto-generated, do not edit)\n"
-        "GITEA_URL=http://gitea:3000\n"
+        "# >>> Forgejo workspace repo (auto-generated, do not edit)\n"
+        "FORGEJO_URL=http://forgejo:3000\n"
         "OLD=stale\n"
-        "# <<< Gitea workspace repo\n"
+        "# <<< Forgejo workspace repo\n"
         "BAZ=qux\n"
     )
-    cleaned = _strip_gitea_block(content)
+    cleaned = _strip_forgejo_block(content)
     assert "OLD=stale" not in cleaned
-    assert ">>> Gitea workspace" not in cleaned
+    assert ">>> Forgejo workspace" not in cleaned
     assert "FOO=bar" in cleaned
     assert "BAZ=qux" in cleaned
 
 
-def test_append_gitea_workspace_block_idempotent(tmp_path: Path) -> None:
+def test_append_forgejo_workspace_block_idempotent(tmp_path: Path) -> None:
     """R-idempotency: re-running adds the block once, doesn't pile."""
     stacks = tmp_path / "stacks"
     (stacks / "jupyter").mkdir(parents=True)
     (stacks / "jupyter" / ".env").write_text("EXISTING=value\n")
 
-    cfg = GiteaWorkspaceConfig(
-        gitea_repo_url="http://gitea:3000/admin/repo",
-        gitea_username="admin",
-        gitea_password="pw",
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/admin/repo",
+        forgejo_username="admin",
+        forgejo_password="pw",
         git_author_name="admin",
         git_author_email="admin@example.com",
         repo_name="repo",
     )
     # First append
-    appended1 = append_gitea_workspace_block(cfg, ["jupyter", "gitea"], stacks_dir=stacks)
+    appended1 = append_forgejo_workspace_block(cfg, ["jupyter", "gitea"], stacks_dir=stacks)
     content1 = (stacks / "jupyter" / ".env").read_text()
     assert appended1 == ("jupyter",)
-    assert content1.count("# >>> Gitea workspace") == 1
+    assert content1.count("# >>> Forgejo workspace") == 1
 
     # Second append with different password — should still have ONE block.
-    cfg2 = GiteaWorkspaceConfig(
-        gitea_repo_url="http://gitea:3000/admin/repo",
-        gitea_username="admin",
-        gitea_password="new-pw",
+    cfg2 = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/admin/repo",
+        forgejo_username="admin",
+        forgejo_password="new-pw",
         git_author_name="admin",
         git_author_email="admin@example.com",
         repo_name="repo",
     )
-    append_gitea_workspace_block(cfg2, ["jupyter", "gitea"], stacks_dir=stacks)
+    append_forgejo_workspace_block(cfg2, ["jupyter", "gitea"], stacks_dir=stacks)
     content2 = (stacks / "jupyter" / ".env").read_text()
-    assert content2.count("# >>> Gitea workspace") == 1
-    assert "GITEA_PASSWORD=new-pw" in content2
-    assert "GITEA_PASSWORD=pw\n" not in content2  # old password gone
+    assert content2.count("# >>> Forgejo workspace") == 1
+    assert "FORGEJO_PASSWORD=new-pw" in content2
+    assert "FORGEJO_PASSWORD=pw\n" not in content2  # old password gone
     # Original content preserved
     assert "EXISTING=value" in content2
 
 
-def test_append_gitea_skips_disabled_services(tmp_path: Path) -> None:
+def test_append_forgejo_skips_disabled_services(tmp_path: Path) -> None:
     stacks = tmp_path / "stacks"
     (stacks / "jupyter").mkdir(parents=True)
     (stacks / "jupyter" / ".env").write_text("X=1\n")
 
-    cfg = GiteaWorkspaceConfig(
-        gitea_repo_url="x",
-        gitea_username="x",
-        gitea_password="x",
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="x",
+        forgejo_username="x",
+        forgejo_password="x",
         git_author_name="x",
         git_author_email="x",
         repo_name="x",
     )
     # marimo not enabled; jupyter is
-    appended = append_gitea_workspace_block(cfg, ["jupyter"], stacks_dir=stacks)
+    appended = append_forgejo_workspace_block(cfg, ["jupyter"], stacks_dir=stacks)
     assert appended == ("jupyter",)
 
 
-def test_append_gitea_skips_when_env_missing(tmp_path: Path) -> None:
+def test_append_forgejo_skips_when_env_missing(tmp_path: Path) -> None:
     """A service in the enabled list but without .env yet (e.g.
     spec failed to render) — append silently skips it."""
     stacks = tmp_path / "stacks"
     (stacks / "jupyter").mkdir(parents=True)
     # NO .env file written
-    cfg = GiteaWorkspaceConfig(
-        gitea_repo_url="x",
-        gitea_username="x",
-        gitea_password="x",
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="x",
+        forgejo_username="x",
+        forgejo_password="x",
         git_author_name="x",
         git_author_email="x",
         repo_name="x",
     )
-    appended = append_gitea_workspace_block(cfg, ["jupyter"], stacks_dir=stacks)
+    appended = append_forgejo_workspace_block(cfg, ["jupyter"], stacks_dir=stacks)
     assert appended == ()
 
 
@@ -1414,7 +1414,7 @@ def test_render_all_writes_only_enabled_services(
 
     assert (tmp_path / "postgres" / ".env").exists()
     assert (tmp_path / "kestra" / ".env").exists()
-    # gitea is NOT in enabled
+    # forgejo is NOT in enabled
     assert not (tmp_path / "gitea" / ".env").exists()
 
     # Counts
@@ -1425,14 +1425,14 @@ def test_render_all_writes_only_enabled_services(
     assert "gitea" in skipped_not_enabled
 
 
-def test_render_all_marimo_creates_env_file_for_gitea_append(
+def test_render_all_marimo_creates_env_file_for_forgejo_append(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:
-    """R-marimo-gitea (#531): Marimo MUST get a (possibly empty) ``.env``
+    """R-marimo-forgejo (#531): Marimo MUST get a (possibly empty) ``.env``
     file from its EnvSpec render — without it,
-    ``append_gitea_workspace_block`` sees ``not env_path.exists()``
-    and silently skips, leaving Marimo with no GITEA_REPO_URL /
-    GITEA_USERNAME / GITEA_PASSWORD / REPO_NAME plumbed through to
+    ``append_forgejo_workspace_block`` sees ``not env_path.exists()``
+    and silently skips, leaving Marimo with no FORGEJO_REPO_URL /
+    FORGEJO_USERNAME / FORGEJO_PASSWORD / REPO_NAME plumbed through to
     the container, so the workspace repo never becomes visible in
     the Marimo UI. This was the bug observed during initial-setup
     testing.
@@ -1444,49 +1444,49 @@ def test_render_all_marimo_creates_env_file_for_gitea_append(
     assert marimo_result.status == "rendered"
 
 
-def test_render_all_marimo_then_append_gitea_block_succeeds(
+def test_render_all_marimo_then_append_forgejo_block_succeeds(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:
     """End-to-end: render_all_env_files creates Marimo's .env, then
-    append_gitea_workspace_block writes the Gitea coords into it."""
+    append_forgejo_workspace_block writes the Forgejo coords into it."""
     render_all_env_files(full_config, full_env, ["marimo"], stacks_dir=tmp_path)
-    cfg = GiteaWorkspaceConfig(
-        gitea_repo_url="http://gitea:3000/owner/workspace.git",
-        gitea_username="ops",
-        gitea_password="pw",
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/owner/workspace.git",
+        forgejo_username="ops",
+        forgejo_password="pw",
         git_author_name="Operator",
         git_author_email="ops@example.com",
         repo_name="workspace",
     )
-    appended = append_gitea_workspace_block(cfg, ["marimo"], stacks_dir=tmp_path)
+    appended = append_forgejo_workspace_block(cfg, ["marimo"], stacks_dir=tmp_path)
     assert appended == ("marimo",)
     content = (tmp_path / "marimo" / ".env").read_text()
-    # Assert ALL env-vars the Gitea-integrated stacks depend on. The
+    # Assert ALL env-vars the Forgejo-integrated stacks depend on. The
     # original bug was that ZERO of them landed in .env (file didn't
     # exist for the appender), but a future regression that drops
-    # only one (e.g. GITEA_PASSWORD or WORKSPACE_BRANCH) would still
+    # only one (e.g. FORGEJO_PASSWORD or WORKSPACE_BRANCH) would still
     # let the clone fail in production — Prefect's `pull:` step
     # explicitly references WORKSPACE_BRANCH in the seeded manifest,
-    # and Marimo's clone step needs the four GITEA_* + REPO_NAME.
+    # and Marimo's clone step needs the four FORGEJO_* + REPO_NAME.
     # Each line is asserted explicitly.
-    assert "GITEA_REPO_URL=http://gitea:3000/owner/workspace.git" in content
-    assert "GITEA_USERNAME=ops" in content
-    assert "GITEA_PASSWORD=pw" in content
+    assert "FORGEJO_REPO_URL=http://forgejo:3000/owner/workspace.git" in content
+    assert "FORGEJO_USERNAME=ops" in content
+    assert "FORGEJO_PASSWORD=pw" in content
     assert "REPO_NAME=workspace" in content
     # WORKSPACE_BRANCH defaults to "main" when not explicitly set on
-    # the GiteaWorkspaceConfig — locks the back-compat default in.
+    # the ForgejoWorkspaceConfig — locks the back-compat default in.
     assert "WORKSPACE_BRANCH=main" in content
 
 
-def test_render_all_code_server_creates_env_file_for_gitea_append(
+def test_render_all_code_server_creates_env_file_for_forgejo_append(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:
-    """R-code-server-gitea (#580 follow-up): code-server MUST get a
+    """R-code-server-forgejo (#580 follow-up): code-server MUST get a
     (possibly empty) ``.env`` file from its EnvSpec render — same bug
     class as the Marimo fix in commit fb586ab. Without it,
-    ``append_gitea_workspace_block`` sees ``not env_path.exists()``
-    and silently skips, leaving code-server with no GITEA_REPO_URL /
-    GITEA_USERNAME / GITEA_PASSWORD / REPO_NAME plumbed through; the
+    ``append_forgejo_workspace_block`` sees ``not env_path.exists()``
+    and silently skips, leaving code-server with no FORGEJO_REPO_URL /
+    FORGEJO_USERNAME / FORGEJO_PASSWORD / REPO_NAME plumbed through; the
     compose entrypoint's clone step then never fires and students see
     only the bare /home/coder/ instead of the workspace fork.
     """
@@ -1497,30 +1497,30 @@ def test_render_all_code_server_creates_env_file_for_gitea_append(
     assert code_server_result.status == "rendered"
 
 
-def test_render_all_code_server_then_append_gitea_block_succeeds(
+def test_render_all_code_server_then_append_forgejo_block_succeeds(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:
     """End-to-end for code-server: render_all_env_files creates the
-    .env, then append_gitea_workspace_block writes the Gitea coords
+    .env, then append_forgejo_workspace_block writes the Forgejo coords
     into it. Mirrors the equivalent Marimo test (commit fb586ab) —
     these two tests together pin the invariant for every entry in
-    _GITEA_APPEND_TARGETS: spec render must create the .env so the
-    Gitea-append helper can populate it."""
+    _FORGEJO_APPEND_TARGETS: spec render must create the .env so the
+    Forgejo-append helper can populate it."""
     render_all_env_files(full_config, full_env, ["code-server"], stacks_dir=tmp_path)
-    cfg = GiteaWorkspaceConfig(
-        gitea_repo_url="http://gitea:3000/owner/workspace.git",
-        gitea_username="ops",
-        gitea_password="pw",
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/owner/workspace.git",
+        forgejo_username="ops",
+        forgejo_password="pw",
         git_author_name="Operator",
         git_author_email="ops@example.com",
         repo_name="workspace",
     )
-    appended = append_gitea_workspace_block(cfg, ["code-server"], stacks_dir=tmp_path)
+    appended = append_forgejo_workspace_block(cfg, ["code-server"], stacks_dir=tmp_path)
     assert appended == ("code-server",)
     content = (tmp_path / "code-server" / ".env").read_text()
-    assert "GITEA_REPO_URL=http://gitea:3000/owner/workspace.git" in content
-    assert "GITEA_USERNAME=ops" in content
-    assert "GITEA_PASSWORD=pw" in content
+    assert "FORGEJO_REPO_URL=http://forgejo:3000/owner/workspace.git" in content
+    assert "FORGEJO_USERNAME=ops" in content
+    assert "FORGEJO_PASSWORD=pw" in content
     assert "REPO_NAME=workspace" in content
     assert "WORKSPACE_BRANCH=main" in content
 
@@ -1547,7 +1547,7 @@ def test_render_all_code_server_never_emits_nexus_postgres_enabled(
     assert "NEXUS_POSTGRES_ENABLED" not in content
 
 
-def test_render_all_prefect_then_append_gitea_block_writes_custom_branch(
+def test_render_all_prefect_then_append_forgejo_block_writes_custom_branch(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:
     """R-workspace-branch (#531 R8 #4): a non-default branch (e.g.
@@ -1557,16 +1557,16 @@ def test_render_all_prefect_then_append_gitea_block_writes_custom_branch(
     that ignores the cfg.workspace_branch field would silently keep
     'main' and break mirrored Prefect workspaces."""
     render_all_env_files(full_config, full_env, ["prefect"], stacks_dir=tmp_path)
-    cfg = GiteaWorkspaceConfig(
-        gitea_repo_url="http://gitea:3000/owner/workspace.git",
-        gitea_username="ops",
-        gitea_password="pw",
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/owner/workspace.git",
+        forgejo_username="ops",
+        forgejo_password="pw",
         git_author_name="Operator",
         git_author_email="ops@example.com",
         repo_name="workspace",
         workspace_branch="master",
     )
-    append_gitea_workspace_block(cfg, ["prefect"], stacks_dir=tmp_path)
+    append_forgejo_workspace_block(cfg, ["prefect"], stacks_dir=tmp_path)
     content = (tmp_path / "prefect" / ".env").read_text()
     assert "WORKSPACE_BRANCH=master" in content
     assert "WORKSPACE_BRANCH=main" not in content
@@ -2019,8 +2019,8 @@ def _flat_env() -> BootstrapEnv:
     return BootstrapEnv(
         domain="user1.example.com",
         admin_email="user1@example.com",
-        gitea_user_email="user1@example.com",
-        gitea_user_username="user1",
+        forgejo_user_email="user1@example.com",
+        forgejo_user_username="user1",
         subdomain_separator="-",
     )
 

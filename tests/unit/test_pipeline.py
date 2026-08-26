@@ -13,7 +13,7 @@ Coverage targets:
   skip; pipeline continues.
 - R-domain-required: empty ``domain`` in tfvars aborts.
 - R-collision-fallback: admin == user_email triggers
-  ``gitea-admin@<domain>`` (smoke through the pipeline).
+  ``forgejo-admin@<domain>`` (smoke through the pipeline).
 - R-orchestrator-hard-fail: hard failure → PipelineError.
 - R-banner-renders: format_done_banner produces a stable shape.
 - R-options-defaults: missing PipelineOptions fields default
@@ -82,7 +82,7 @@ def fake_secrets_payload() -> dict[str, str]:
     accepts. NexusConfig is permissive — unknown keys are ignored."""
     return {
         "ADMIN_USERNAME": "admin",
-        "GITEA_ADMIN_PASS": "g-admin-pw",
+        "FORGEJO_ADMIN_PASS": "g-admin-pw",
         "INFISICAL_PASS": "inf-admin-pw",
         "WOODPECKER_AGENT_SECRET": "wp-secret",
     }
@@ -498,7 +498,7 @@ def test_pipeline_runs_restore_then_ensure_data_dirs_then_pg_restore(
        ``_phase_compose_up`` so containers are running after
     4. ``restore_from_s3(phase="postgres")`` — pg_restore via
        docker exec, requires running containers
-    5. ``orchestrator.run_all()`` — gitea-configure et al. now
+    5. ``orchestrator.run_all()`` — forgejo-configure et al. now
        see the restored database
 
     A parent MagicMock receives every call so we can assert the

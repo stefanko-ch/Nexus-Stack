@@ -4,7 +4,7 @@ Pure-logic test surface. Two layers:
 
 1. ``parse(path)`` — regex extraction of domain / admin_email /
    user_email from a synthetic config.tfvars fixture.
-2. ``derive_gitea_identity(config)`` — admin-email collision
+2. ``derive_forgejo_identity(config)`` — admin-email collision
    fallback + first-comma-trim semantics.
 """
 
@@ -15,10 +15,10 @@ from pathlib import Path
 import pytest
 
 from nexus_deploy.tfvars import (
-    GiteaIdentity,
+    ForgejoIdentity,
     TfvarsConfig,
     TfvarsError,
-    derive_gitea_identity,
+    derive_forgejo_identity,
     parse,
 )
 
@@ -184,17 +184,17 @@ def test_parse_wraps_unreadable_file_oserror(
 
 
 # ---------------------------------------------------------------------------
-# derive_gitea_identity — admin/user collision fallback
+# derive_forgejo_identity — admin/user collision fallback
 # ---------------------------------------------------------------------------
 
 
 def test_derive_no_collision(tfvars_no_collision: TfvarsConfig) -> None:
     """admin distinct from user → both used as-is."""
-    identity = derive_gitea_identity(tfvars_no_collision)
-    assert identity == GiteaIdentity(
+    identity = derive_forgejo_identity(tfvars_no_collision)
+    assert identity == ForgejoIdentity(
         admin_email="admin@example.com",
-        gitea_user_email="user@example.com",
-        gitea_user_username="user",
+        forgejo_user_email="user@example.com",
+        forgejo_user_username="user",
         om_principal_domain="example.com",
     )
 
@@ -202,10 +202,10 @@ def test_derive_no_collision(tfvars_no_collision: TfvarsConfig) -> None:
 def test_derive_collision_falls_back_to_synthetic(
     tfvars_collision: TfvarsConfig,
 ) -> None:
-    """admin == user → synthesise gitea-admin@<domain>."""
-    identity = derive_gitea_identity(tfvars_collision)
-    assert identity.admin_email == "gitea-admin@example.com"
-    assert identity.gitea_user_email == "shared@example.com"
+    """admin == user → synthesise forgejo-admin@<domain>."""
+    identity = derive_forgejo_identity(tfvars_collision)
+    assert identity.admin_email == "forgejo-admin@example.com"
+    assert identity.forgejo_user_email == "shared@example.com"
     assert identity.om_principal_domain == "example.com"
 
 
@@ -217,45 +217,45 @@ def test_derive_empty_admin_falls_back_to_synthetic(tmp_path: Path) -> None:
         admin_email_raw="",
         user_email_raw="user@example.com",
     )
-    assert derive_gitea_identity(config).admin_email == "gitea-admin@example.com"
+    assert derive_forgejo_identity(config).admin_email == "forgejo-admin@example.com"
 
 
 def test_derive_first_comma_entry_used(tmp_path: Path) -> None:
     """Multi-admin user_email list: only the first entry is used for
-    the Gitea user.email column (Gitea rejects commas with 'unsupported
+    the Forgejo user.email column (Forgejo rejects commas with 'unsupported
     character')."""
     config = TfvarsConfig(
         domain="example.com",
         admin_email_raw="admin@example.com",
         user_email_raw="first@example.com, second@example.com, third@example.com",
     )
-    identity = derive_gitea_identity(config)
-    assert identity.gitea_user_email == "first@example.com"
-    assert identity.gitea_user_username == "first"
+    identity = derive_forgejo_identity(config)
+    assert identity.forgejo_user_email == "first@example.com"
+    assert identity.forgejo_user_username == "first"
 
 
 def test_derive_trims_whitespace_from_emails(tmp_path: Path) -> None:
     """Self-provisioned tfvars commonly have leading spaces inside
-    quoted values. Gitea/Windmill/Wiki.js validators reject those, so
+    quoted values. Forgejo/Windmill/Wiki.js validators reject those, so
     derive() trims both halves before further processing."""
     config = TfvarsConfig(
         domain="example.com",
         admin_email_raw="   admin@example.com   ",
         user_email_raw=" user@example.com ",
     )
-    identity = derive_gitea_identity(config)
+    identity = derive_forgejo_identity(config)
     assert identity.admin_email == "admin@example.com"
-    assert identity.gitea_user_email == "user@example.com"
+    assert identity.forgejo_user_email == "user@example.com"
 
 
 def test_derive_username_is_local_part(tmp_path: Path) -> None:
-    """gitea_user_username = local part of email (text before @)."""
+    """forgejo_user_username = local part of email (text before @)."""
     config = TfvarsConfig(
         domain="example.com",
         admin_email_raw="admin@example.com",
         user_email_raw="alice.bob+tag@university.edu",
     )
-    assert derive_gitea_identity(config).gitea_user_username == "alice.bob+tag"
+    assert derive_forgejo_identity(config).forgejo_user_username == "alice.bob+tag"
 
 
 def test_derive_om_principal_domain_extracted_from_admin(tmp_path: Path) -> None:
@@ -267,7 +267,7 @@ def test_derive_om_principal_domain_extracted_from_admin(tmp_path: Path) -> None
         admin_email_raw="admin@my.subdomain.example.com",
         user_email_raw="user@my.subdomain.example.com",
     )
-    identity = derive_gitea_identity(config)
+    identity = derive_forgejo_identity(config)
     # Collision → synthetic admin → OM domain = project domain
     assert identity.om_principal_domain == "my.subdomain.example.com"
 
@@ -281,15 +281,15 @@ def test_derive_no_user_email_skips_username(tmp_path: Path) -> None:
         admin_email_raw="admin@example.com",
         user_email_raw="",
     )
-    identity = derive_gitea_identity(config)
-    assert identity.gitea_user_email == ""
-    assert identity.gitea_user_username == ""
+    identity = derive_forgejo_identity(config)
+    assert identity.forgejo_user_email == ""
+    assert identity.forgejo_user_username == ""
     assert identity.admin_email == "admin@example.com"
 
 
 def test_derive_collision_with_no_domain_returns_empty_admin(tmp_path: Path) -> None:
     """Defensive: if domain is empty AND we hit the collision branch,
-    we can't synthesise gitea-admin@<empty> meaningfully — return an
+    we can't synthesise forgejo-admin@<empty> meaningfully — return an
     empty admin_email and let the pipeline's own gates abort. (The
     pipeline rejects empty domain BEFORE this function runs, so this
     branch is a defence-in-depth safety net.)"""
@@ -298,7 +298,7 @@ def test_derive_collision_with_no_domain_returns_empty_admin(tmp_path: Path) -> 
         admin_email_raw="shared@somewhere.com",
         user_email_raw="shared@somewhere.com",
     )
-    assert derive_gitea_identity(config).admin_email == ""
+    assert derive_forgejo_identity(config).admin_email == ""
 
 
 # ---------------------------------------------------------------------------
@@ -337,11 +337,11 @@ def test_tfvars_config_frozen() -> None:
         config.domain = "other"  # type: ignore[misc]
 
 
-def test_gitea_identity_frozen() -> None:
+def test_forgejo_identity_frozen() -> None:
     from dataclasses import FrozenInstanceError
 
-    identity = GiteaIdentity(
-        admin_email="a", gitea_user_email="b", gitea_user_username="c", om_principal_domain="d"
+    identity = ForgejoIdentity(
+        admin_email="a", forgejo_user_email="b", forgejo_user_username="c", om_principal_domain="d"
     )
     with pytest.raises(FrozenInstanceError):
         identity.admin_email = "other"  # type: ignore[misc]

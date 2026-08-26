@@ -93,7 +93,7 @@ def test_workspace_username_uses_email_local_part_when_set() -> None:
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_user_email="alice.bob@example.com",
+        forgejo_user_email="alice.bob@example.com",
     )
     assert _resolve_workspace_username(inputs) == "alice.bob"
 
@@ -103,7 +103,7 @@ def test_workspace_username_falls_back_to_admin_when_no_user_email() -> None:
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_user_email=None,
+        forgejo_user_email=None,
     )
     assert _resolve_workspace_username(inputs) == "admin"
 
@@ -114,19 +114,19 @@ def test_workspace_username_falls_back_to_admin_when_no_user_email() -> None:
 
 
 def test_repo_coords_branch1_mirror_plus_user_email_produces_fork() -> None:
-    """Branch 1: GH_MIRROR_REPOS + GITEA_USER_EMAIL set → fork in user
+    """Branch 1: GH_MIRROR_REPOS + FORGEJO_USER_EMAIL set → fork in user
     namespace as ``<repo>_<sanitized_user>``."""
     inputs = WorkspaceInputs(
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_user_email="alice.bob@example.com",
+        forgejo_user_email="alice.bob@example.com",
         gh_mirror_repos="https://github.com/upstream/Bsc_EDS_GIS.git",
     )
     repo_name, owner, url = _resolve_repo_coords(inputs, workspace_username="alice.bob")
     assert repo_name == "Bsc_EDS_GIS_alice_bob"
     assert owner == "alice.bob"
-    assert url == "http://gitea:3000/alice.bob/Bsc_EDS_GIS_alice_bob.git"
+    assert url == "http://forgejo:3000/alice.bob/Bsc_EDS_GIS_alice_bob.git"
 
 
 def test_repo_coords_branch2_mirror_no_user_email_produces_mirror_readonly() -> None:
@@ -136,18 +136,18 @@ def test_repo_coords_branch2_mirror_no_user_email_produces_mirror_readonly() -> 
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_user_email=None,
+        forgejo_user_email=None,
         gh_mirror_repos="https://github.com/upstream/Bsc_EDS_GIS.git",
     )
     repo_name, owner, url = _resolve_repo_coords(inputs, workspace_username="admin")
     assert repo_name == "mirror-readonly-Bsc_EDS_GIS"
     assert owner == "admin"
-    assert url == "http://gitea:3000/admin/mirror-readonly-Bsc_EDS_GIS.git"
+    assert url == "http://forgejo:3000/admin/mirror-readonly-Bsc_EDS_GIS.git"
 
 
 def test_repo_coords_branch3_no_mirror_produces_default_workspace() -> None:
     """Branch 3: no mirror → admin's default empty workspace as
-    ``nexus-<domain-dashed>-gitea``."""
+    ``nexus-<domain-dashed>-forgejo``."""
     inputs = WorkspaceInputs(
         domain="example.com",
         admin_username="admin",
@@ -155,13 +155,13 @@ def test_repo_coords_branch3_no_mirror_produces_default_workspace() -> None:
         gh_mirror_repos=None,
     )
     repo_name, owner, url = _resolve_repo_coords(inputs, workspace_username="admin")
-    assert repo_name == "nexus-example-com-gitea"
+    assert repo_name == "nexus-example-com-workspace"
     assert owner == "admin"
-    assert url == "http://gitea:3000/admin/nexus-example-com-gitea.git"
+    assert url == "http://forgejo:3000/admin/nexus-example-com-workspace.git"
 
 
 def test_repo_coords_branch3_handles_subdomain_in_domain() -> None:
-    """``my.domain.com`` → ``nexus-my-domain-com-gitea`` (every dot
+    """``my.domain.com`` → ``nexus-my-domain-com-forgejo`` (every dot
     becomes a dash)."""
     inputs = WorkspaceInputs(
         domain="my.domain.com",
@@ -169,7 +169,7 @@ def test_repo_coords_branch3_handles_subdomain_in_domain() -> None:
         admin_email="admin@my.domain.com",
     )
     repo_name, _, _ = _resolve_repo_coords(inputs, workspace_username="admin")
-    assert repo_name == "nexus-my-domain-com-gitea"
+    assert repo_name == "nexus-my-domain-com-workspace"
 
 
 # ---------------------------------------------------------------------------
@@ -182,8 +182,8 @@ def test_git_identity_uses_user_when_both_email_and_pass_set() -> None:
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_user_email="alice@example.com",
-        gitea_user_pass="user-pw",
+        forgejo_user_email="alice@example.com",
+        forgejo_user_pass="user-pw",
     )
     git_user, git_pass, git_author, git_email = _resolve_git_identity(
         inputs,
@@ -197,14 +197,14 @@ def test_git_identity_uses_user_when_both_email_and_pass_set() -> None:
 
 def test_git_identity_falls_back_to_admin_when_user_pass_missing() -> None:
     """Even with email set, missing password forces admin identity —
-    matches the canonical layout's ``[ -n "$GITEA_USER_EMAIL" ] && [ -n "$GITEA_USER_PASS" ]``."""
+    matches the canonical layout's ``[ -n "$FORGEJO_USER_EMAIL" ] && [ -n "$FORGEJO_USER_PASS" ]``."""
     inputs = WorkspaceInputs(
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_admin_pass="admin-pw",
-        gitea_user_email="alice@example.com",
-        gitea_user_pass=None,
+        forgejo_admin_pass="admin-pw",
+        forgejo_user_email="alice@example.com",
+        forgejo_user_pass=None,
     )
     git_user, git_pass, git_author, git_email = _resolve_git_identity(
         inputs,
@@ -218,13 +218,13 @@ def test_git_identity_falls_back_to_admin_when_user_pass_missing() -> None:
 
 def test_git_identity_admin_branch_with_no_admin_pass_returns_empty_string() -> None:
     """Admin password may legitimately be unset (orchestrator's
-    gitea-configure phase will skip with status='partial' in that
+    forgejo-configure phase will skip with status='partial' in that
     case). Function returns empty string — the orchestrator decides."""
     inputs = WorkspaceInputs(
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_admin_pass=None,
+        forgejo_admin_pass=None,
     )
     _, git_pass, _, _ = _resolve_git_identity(inputs, workspace_username="admin")
     assert git_pass == ""
@@ -394,16 +394,16 @@ def test_derive_no_mirror_no_user_minimal_inputs() -> None:
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_admin_pass="admin-pw",
+        forgejo_admin_pass="admin-pw",
     )
     coords = derive(inputs)
     assert coords == WorkspaceCoords(
-        repo_name="nexus-example-com-gitea",
-        gitea_repo_owner="admin",
-        gitea_repo_url="http://gitea:3000/admin/nexus-example-com-gitea.git",
+        repo_name="nexus-example-com-workspace",
+        forgejo_repo_owner="admin",
+        forgejo_repo_url="http://forgejo:3000/admin/nexus-example-com-workspace.git",
         workspace_branch="main",
-        gitea_git_user="admin",
-        gitea_git_pass="admin-pw",
+        forgejo_git_user="admin",
+        forgejo_git_pass="admin-pw",
         git_author="admin",
         git_email="admin@example.com",
     )
@@ -416,13 +416,13 @@ def test_derive_mirror_no_user_falls_back_to_main_when_no_token() -> None:
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_admin_pass="admin-pw",
+        forgejo_admin_pass="admin-pw",
         gh_mirror_repos="https://github.com/upstream/Bsc_EDS_GIS.git",
         gh_mirror_token=None,
     )
     coords = derive(inputs)
     assert coords.repo_name == "mirror-readonly-Bsc_EDS_GIS"
-    assert coords.gitea_repo_owner == "admin"
+    assert coords.forgejo_repo_owner == "admin"
     assert coords.workspace_branch == "main"
 
 
@@ -432,20 +432,20 @@ def test_derive_mirror_plus_user_with_default_branch_detection() -> None:
         domain="example.com",
         admin_username="admin",
         admin_email="admin@example.com",
-        gitea_admin_pass="admin-pw",
-        gitea_user_email="alice.bob@example.com",
-        gitea_user_pass="user-pw",
+        forgejo_admin_pass="admin-pw",
+        forgejo_user_email="alice.bob@example.com",
+        forgejo_user_pass="user-pw",
         gh_mirror_repos="https://github.com/upstream/Bsc_EDS_GIS.git",
         gh_mirror_token="ghp_xxx",
     )
     coords = derive(inputs, http_runner=lambda _t, _r: "master")
     assert coords == WorkspaceCoords(
         repo_name="Bsc_EDS_GIS_alice_bob",
-        gitea_repo_owner="alice.bob",
-        gitea_repo_url="http://gitea:3000/alice.bob/Bsc_EDS_GIS_alice_bob.git",
+        forgejo_repo_owner="alice.bob",
+        forgejo_repo_url="http://forgejo:3000/alice.bob/Bsc_EDS_GIS_alice_bob.git",
         workspace_branch="master",
-        gitea_git_user="alice.bob",
-        gitea_git_pass="user-pw",
+        forgejo_git_user="alice.bob",
+        forgejo_git_pass="user-pw",
         git_author="alice.bob",
         git_email="alice.bob@example.com",
     )
@@ -515,11 +515,11 @@ def test_workspace_coords_frozen() -> None:
 
     coords = WorkspaceCoords(
         repo_name="r",
-        gitea_repo_owner="o",
-        gitea_repo_url="u",
+        forgejo_repo_owner="o",
+        forgejo_repo_url="u",
         workspace_branch="main",
-        gitea_git_user="u",
-        gitea_git_pass="p",
+        forgejo_git_user="u",
+        forgejo_git_pass="p",
         git_author="a",
         git_email="e",
     )

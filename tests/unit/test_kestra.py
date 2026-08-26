@@ -436,12 +436,12 @@ def test_render_git_sync_substitutes_placeholders() -> None:
         branch="main",
         admin_username="admin",
     )
-    assert "url: http://gitea:3000/alice/ws-repo.git" in yaml_body
+    assert "url: http://forgejo:3000/alice/ws-repo.git" in yaml_body
     assert "branch: main" in yaml_body
     assert "username: admin" in yaml_body
     # Pebble template must reach Kestra verbatim — single-brace form
     # after Python's str.format processes the double-brace escape.
-    assert "{{ secret('GITEA_TOKEN') }}" in yaml_body
+    assert "{{ secret('FORGEJO_TOKEN') }}" in yaml_body
     assert "gitDirectory: nexus_seeds/kestra/workflows" in yaml_body
 
 
@@ -581,17 +581,17 @@ def test_render_flow_export_pins_source_namespace_for_echo_break() -> None:
     # Target path is the USER path, not the seeds path.
     assert "gitDirectory: kestra/flows" in yaml_body
     assert "gitDirectory: nexus_seeds/kestra/flows" not in yaml_body
-    assert "url: http://gitea:3000/carol/ws.git" in yaml_body
+    assert "url: http://forgejo:3000/carol/ws.git" in yaml_body
     assert "branch: main" in yaml_body
     assert "username: admin" in yaml_body
     # Pebble secret reference passes through unchanged.
-    assert "{{ secret('GITEA_TOKEN') }}" in yaml_body
+    assert "{{ secret('FORGEJO_TOKEN') }}" in yaml_body
 
 
 def test_render_flow_export_is_additive_not_destructive() -> None:
     """``delete: false`` because a UI deletion shouldn't auto-rewrite
     Git history. To permanently delete a flow, the operator commits
-    the deletion directly in the Gitea fork. Pinning this prevents
+    the deletion directly in the Forgejo fork. Pinning this prevents
     a future copy-paste from flow-sync (which uses ``delete: true``
     for the reverse direction) from accidentally enabling destructive
     Git rewrites here."""
@@ -643,7 +643,7 @@ def test_render_flow_export_has_10min_schedule() -> None:
 
 
 def test_render_system_flows_does_not_double_substitute_secret_pebble() -> None:
-    """The Pebble syntax {{ secret('GITEA_TOKEN') }} must remain as
+    """The Pebble syntax {{ secret('FORGEJO_TOKEN') }} must remain as
     single-braces in the rendered YAML so Kestra's templating engine
     can interpret it. Python str.format escape uses double-braces in
     the template; if a future contributor accidentally drops the
@@ -651,7 +651,7 @@ def test_render_system_flows_does_not_double_substitute_secret_pebble() -> None:
     KeyError. This test pins the contract."""
     flows = render_system_flows(repo_owner="o", repo_name="r", branch="b", admin_username="a")
     for body in flows.values():
-        assert "{{ secret('GITEA_TOKEN') }}" in body
+        assert "{{ secret('FORGEJO_TOKEN') }}" in body
         # No double-braces should remain (those would be a Python escape
         # leaking into the rendered Kestra YAML).
         assert "{{{{ secret" not in body
@@ -1296,7 +1296,7 @@ def test_flow_exists_raises_on_connection_error() -> None:
 def _set_required_env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> None:
     """Default env var set for the CLI tests; overrides override."""
     defaults: dict[str, str] = {
-        "GITEA_REPO_OWNER": "alice",
+        "FORGEJO_REPO_OWNER": "alice",
         "REPO_NAME": "ws-repo",
         "WORKSPACE_BRANCH": "main",
         "ADMIN_EMAIL": "admin@example.com",
@@ -1321,7 +1321,7 @@ def test_cli_kestra_missing_required_env_returns_2(
 ) -> None:
     from nexus_deploy.__main__ import _kestra_register_system_flows
 
-    monkeypatch.delenv("GITEA_REPO_OWNER", raising=False)
+    monkeypatch.delenv("FORGEJO_REPO_OWNER", raising=False)
     monkeypatch.delenv("REPO_NAME", raising=False)
     monkeypatch.delenv("ADMIN_EMAIL", raising=False)
     rc = _kestra_register_system_flows([])

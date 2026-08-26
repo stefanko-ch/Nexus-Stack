@@ -57,7 +57,7 @@ class BootstrapEnv:
 
     The folder payloads reference values that come from a mix of
     sources — config.tfvars (DOMAIN, ADMIN_EMAIL), workflow inputs
-    (SSH_PRIVATE_KEY_CONTENT, WOODPECKER_GITEA_*), other tofu
+    (SSH_PRIVATE_KEY_CONTENT, WOODPECKER_FORGEJO_*), other tofu
     outputs, etc. Rather than reach into ``os.environ`` from inside
     :func:`compute_folders`, we take them as a typed dataclass so
     callers can also build folders from fixtures in tests.
@@ -69,13 +69,13 @@ class BootstrapEnv:
 
     domain: str | None = None
     admin_email: str | None = None
-    gitea_user_email: str | None = None
-    gitea_user_username: str | None = None
-    gitea_repo_owner: str | None = None
+    forgejo_user_email: str | None = None
+    forgejo_user_username: str | None = None
+    forgejo_repo_owner: str | None = None
     repo_name: str | None = None
     om_principal_domain: str | None = None
-    woodpecker_gitea_client: str | None = None
-    woodpecker_gitea_secret: str | None = None
+    woodpecker_forgejo_client: str | None = None
+    woodpecker_forgejo_secret: str | None = None
     ssh_private_key_base64: str | None = None
     # Issue #540: separator used to compose service hostnames under
     # DOMAIN. ``"."`` (default) yields ``kestra.example.com``;
@@ -244,7 +244,7 @@ def render_provision_admin_script(
     All API calls keep the freshly-minted token in env vars / mode-600
     curl --config tmpfile, NEVER in argv. The token IS embedded in the
     RESULT line (base64-encoded) so the runner can extract it; that's
-    the contract used by gitea-configure + woodpecker-oauth.
+    the contract used by forgejo-configure + woodpecker-oauth.
     """
     email_q = shlex.quote(admin_email)
     pw_q = shlex.quote(admin_password)
@@ -722,7 +722,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "mage",
             _filter_empty(
                 {
-                    "MAGE_USERNAME": env.gitea_user_email or env.admin_email,
+                    "MAGE_USERNAME": env.forgejo_user_email or env.admin_email,
                     "MAGE_PASSWORD": config.mage_admin_password,
                 }
             ),
@@ -947,14 +947,15 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             ),
         )
     )
-    # Gitea: GITEA_REPO_URL is built from DOMAIN + repo_owner + repo_name
-    # with the same `${REPO_NAME:-nexus-${DOMAIN//./-}-gitea}` fallback
+    # Forgejo hosts the workspace repo: FORGEJO_REPO_URL is built from
+    # DOMAIN + repo_owner + repo_name
+    # with the same `${REPO_NAME:-nexus-${DOMAIN//./-}-workspace}` fallback
     # the bash carried at L2300.
     repo_name = env.repo_name or (
-        f"nexus-{env.domain.replace('.', '-')}-gitea" if env.domain else None
+        f"nexus-{env.domain.replace('.', '-')}-workspace" if env.domain else None
     )
-    repo_owner = env.gitea_repo_owner or admin_username
-    gitea_repo_url = (
+    repo_owner = env.forgejo_repo_owner or admin_username
+    forgejo_repo_url = (
         f"https://{service_host('git', env.domain, env.subdomain_separator)}"
         f"/{repo_owner}/{repo_name}.git"
         if env.domain and repo_owner and repo_name
@@ -967,17 +968,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                 {
                     "GITEA_ADMIN_USERNAME": admin_username,
                     "GITEA_ADMIN_PASSWORD": config.gitea_admin_password,
-                    "GITEA_USER_USERNAME": env.gitea_user_username,
                     "GITEA_USER_PASSWORD": config.gitea_user_password,
-                    "GITEA_REPO_URL": gitea_repo_url,
                     "GITEA_DB_PASSWORD": config.gitea_db_password,
                 }
             ),
         )
     )
-    # Forgejo. No FORGEJO_REPO_URL yet — Forgejo does not host the
-    # workspace repo at this point, so there is no URL to publish. That
-    # entry arrives with the role swap.
+    # Forgejo now hosts the workspace repo, so FORGEJO_REPO_URL is
+    # published here. It points at the git-proxy hostname rather than
+    # the forge's own: that is the only endpoint reachable without a
+    # Cloudflare Access browser login, which a git client cannot do.
     #
     # FORGEJO_RUNNER_SECRET is deliberately NOT published here, which
     # breaks the convention that every generated credential lands in
@@ -1004,7 +1004,9 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                 {
                     "FORGEJO_ADMIN_USERNAME": admin_username,
                     "FORGEJO_ADMIN_PASSWORD": config.forgejo_admin_password,
+                    "FORGEJO_USER_USERNAME": env.forgejo_user_username,
                     "FORGEJO_USER_PASSWORD": config.forgejo_user_password,
+                    "FORGEJO_REPO_URL": forgejo_repo_url,
                     "FORGEJO_DB_PASSWORD": config.forgejo_db_password,
                 }
             ),
@@ -1026,7 +1028,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "wikijs",
             _filter_empty(
                 {
-                    "WIKIJS_USERNAME": env.gitea_user_email or env.admin_email,
+                    "WIKIJS_USERNAME": env.forgejo_user_email or env.admin_email,
                     "WIKIJS_PASSWORD": config.wikijs_admin_password,
                     "WIKIJS_DB_PASSWORD": config.wikijs_db_password,
                 }
@@ -1037,10 +1039,10 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     woodpecker_secrets: dict[str, str | None] = {
         "WOODPECKER_AGENT_SECRET": config.woodpecker_agent_secret,
     }
-    if env.woodpecker_gitea_client:
-        woodpecker_secrets["WOODPECKER_GITEA_CLIENT"] = env.woodpecker_gitea_client
-    if env.woodpecker_gitea_secret:
-        woodpecker_secrets["WOODPECKER_GITEA_SECRET"] = env.woodpecker_gitea_secret
+    if env.woodpecker_forgejo_client:
+        woodpecker_secrets["WOODPECKER_FORGEJO_CLIENT"] = env.woodpecker_forgejo_client
+    if env.woodpecker_forgejo_secret:
+        woodpecker_secrets["WOODPECKER_FORGEJO_SECRET"] = env.woodpecker_forgejo_secret
     folders.append(FolderSpec("woodpecker", _filter_empty(woodpecker_secrets)))
 
     if env.ssh_private_key_base64:

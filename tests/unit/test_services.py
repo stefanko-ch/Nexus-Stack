@@ -634,14 +634,14 @@ def test_render_wikijs_hook_skips_when_password_empty() -> None:
 
 
 def test_render_wikijs_hook_skips_when_email_empty() -> None:
-    """Email comes from gitea_user_email or admin_email — both empty → skip."""
-    env = BootstrapEnv(domain="example.com")  # no admin_email, no gitea_user_email
+    """Email comes from forgejo_user_email or admin_email — both empty → skip."""
+    env = BootstrapEnv(domain="example.com")  # no admin_email, no forgejo_user_email
     script = render_wikijs_hook(_make_config(), env)
     assert "RESULT hook=wikijs status=skipped-not-ready" in script
 
 
-def test_render_wikijs_hook_prefers_gitea_user_email_over_admin_email() -> None:
-    """When both are set, gitea_user_email wins (single-address user
+def test_render_wikijs_hook_prefers_forgejo_user_email_over_admin_email() -> None:
+    """When both are set, forgejo_user_email wins (single-address user
     identity). Use disjoint email values so the check is unambiguous —
     shlex.quote('admin@example.com') returns the bare string (no
     shell-special chars), so the previous assertion
@@ -652,12 +652,12 @@ def test_render_wikijs_hook_prefers_gitea_user_email_over_admin_email() -> None:
     env = BootstrapEnv(
         domain="example.com",
         admin_email="admin-should-not-appear@example.org",
-        gitea_user_email="user@example.com",
+        forgejo_user_email="user@example.com",
     )
     script = render_wikijs_hook(_make_config(), env)
     assert "user@example.com" in script
     # The admin email's distinctive prefix MUST NOT appear anywhere
-    # in the rendered script — pins both the gitea-user-wins choice
+    # in the rendered script — pins both the forgejo-user-wins choice
     # AND defends against shlex.quote rendering ambiguities.
     assert "admin-should-not-appear" not in script
 
@@ -770,14 +770,14 @@ def test_render_windmill_hook_creates_admin_user() -> None:
     assert "NEXUS_E=" in script
 
 
-def test_render_windmill_hook_creates_regular_user_when_gitea_user_email_differs() -> None:
+def test_render_windmill_hook_creates_regular_user_when_forgejo_user_email_differs() -> None:
     """Step 2: legacy conditionally creates super_admin=false user
-    for GITEA_USER_EMAIL when it differs from ADMIN_EMAIL."""
+    for FORGEJO_USER_EMAIL when it differs from ADMIN_EMAIL."""
     script = render_windmill_hook(_make_config(), _make_env())
     assert "super_admin: false" in script
-    assert "GITEA_UE=" in script
+    assert "FORGEJO_UE=" in script
     # Conditional gate
-    assert '[ -n "$GITEA_UE" ]' in script
+    assert '[ -n "$FORGEJO_UE" ]' in script
 
 
 def test_render_windmill_hook_secures_default_admin_account() -> None:
@@ -1427,13 +1427,13 @@ def test_run_admin_setups_filters_unknown_services() -> None:
     run_admin_setups(
         _make_config(),
         _make_env(),
-        # gitea + jupyter are not in any admin-setup registry
-        # (gitea uses its own dedicated module; jupyter has no admin hook)
-        ["portainer", "gitea", "jupyter"],
+        # forgejo + jupyter are not in any admin-setup registry
+        # (forgejo uses its own dedicated module; jupyter has no admin hook)
+        ["portainer", "forgejo", "jupyter"],
         script_runner=capture,
     )
-    # gitea + jupyter (not in any registry) must NOT reach the script
-    assert "gitea_hook" not in captured["script"]
+    # forgejo + jupyter (not in any registry) must NOT reach the script
+    assert "forgejo_hook" not in captured["script"]
     assert "jupyter_hook" not in captured["script"]
     assert "portainer_hook" in captured["script"]
 
@@ -1449,8 +1449,8 @@ def test_run_admin_setups_all_unknown_returns_empty_result() -> None:
     result = run_admin_setups(
         _make_config(),
         _make_env(),
-        # neither gitea nor jupyter are in any registry
-        ["gitea", "jupyter"],
+        # neither forgejo nor jupyter are in any registry
+        ["forgejo", "jupyter"],
         script_runner=runner,
     )
     assert result == SetupResult(hooks=())
@@ -2186,7 +2186,7 @@ def test_render_wikijs_hook_uses_separator_in_site_url() -> None:
     env = BootstrapEnv(
         domain="user1.example.com",
         admin_email="user1@example.com",
-        gitea_user_email="user1@example.com",
+        forgejo_user_email="user1@example.com",
         subdomain_separator="-",
     )
     config = _make_config(wikijs_admin_password="pw")
@@ -2207,7 +2207,7 @@ def test_render_wikijs_hook_default_separator_is_dot_form_unchanged() -> None:
     env = BootstrapEnv(
         domain="example.com",
         admin_email="admin@example.com",
-        gitea_user_email="user@example.com",
+        forgejo_user_email="user@example.com",
     )
     config = _make_config(wikijs_admin_password="pw")
     script = render_wikijs_hook(config, env)

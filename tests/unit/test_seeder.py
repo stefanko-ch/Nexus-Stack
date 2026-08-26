@@ -300,7 +300,7 @@ def test_round_1_set_euo_pipefail_first_executable_line() -> None:
 
 
 def test_round_2_token_only_in_config_tmpfile_never_argv() -> None:
-    """R2 — token reaches Gitea ONLY via the curl --config tmpfile.
+    """R2 — token reaches Forgejo ONLY via the curl --config tmpfile.
 
     The token must NOT appear on any curl argv; --config reads the
     Authorization header from a mode-600 tmpfile written by printf.
@@ -706,35 +706,35 @@ def _run_cli(args: list[str], env: dict[str, str] | None = None) -> tuple[int, s
 
 
 def test_cli_seed_missing_repo_returns_2() -> None:
-    rc, _, err = _run_cli([], env={"GITEA_TOKEN": "t"})
+    rc, _, err = _run_cli([], env={"FORGEJO_TOKEN": "t"})
     assert rc == 2
     assert "--repo" in err
 
 
 def test_cli_seed_invalid_repo_format_returns_2() -> None:
-    rc, _, err = _run_cli(["--repo", "no-slash"], env={"GITEA_TOKEN": "t"})
+    rc, _, err = _run_cli(["--repo", "no-slash"], env={"FORGEJO_TOKEN": "t"})
     assert rc == 2
     assert "must contain '/'" in err or "'/'" in err
 
 
 def test_cli_seed_missing_token_returns_2() -> None:
-    rc, _, err = _run_cli(["--repo", "admin/ws"], env={"GITEA_TOKEN": ""})
+    rc, _, err = _run_cli(["--repo", "admin/ws"], env={"FORGEJO_TOKEN": ""})
     assert rc == 2
-    assert "GITEA_TOKEN" in err
+    assert "FORGEJO_TOKEN" in err
 
 
 def test_cli_seed_missing_root_returns_zero() -> None:
     """Missing seed dir is non-fatal — early-return with rc=0."""
     rc, _, err = _run_cli(
         ["--repo", "admin/ws", "--root", "/does/not/exist"],
-        env={"GITEA_TOKEN": "t"},
+        env={"FORGEJO_TOKEN": "t"},
     )
     assert rc == 0
     assert "not a directory" in err
 
 
 def test_cli_seed_unknown_arg_returns_2() -> None:
-    rc, _, err = _run_cli(["--repo", "admin/ws", "--bogus"], env={"GITEA_TOKEN": "t"})
+    rc, _, err = _run_cli(["--repo", "admin/ws", "--bogus"], env={"FORGEJO_TOKEN": "t"})
     assert rc == 2
     assert "unknown arg" in err
 
@@ -772,7 +772,7 @@ def test_cli_seed_prefix_validation(prefix: str, valid: bool) -> None:
     """
     rc, _, err = _run_cli(
         ["--repo", "admin/ws", "--root", "/does/not/exist", "--prefix", prefix],
-        env={"GITEA_TOKEN": "t"},
+        env={"FORGEJO_TOKEN": "t"},
     )
     if valid:
         # rc=0 because --root doesn't exist (non-fatal early-return),

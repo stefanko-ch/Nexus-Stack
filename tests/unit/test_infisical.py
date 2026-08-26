@@ -195,13 +195,13 @@ def test_compute_folders_woodpecker_oauth_optional() -> None:
 
     folders = compute_folders(
         _make_config(woodpecker_agent_secret="s"),
-        BootstrapEnv(woodpecker_gitea_client="cid", woodpecker_gitea_secret="csec"),
+        BootstrapEnv(woodpecker_forgejo_client="cid", woodpecker_forgejo_secret="csec"),
     )
     w = next(f for f in folders if f.name == "woodpecker")
     assert w.secrets == {
         "WOODPECKER_AGENT_SECRET": "s",
-        "WOODPECKER_GITEA_CLIENT": "cid",
-        "WOODPECKER_GITEA_SECRET": "csec",
+        "WOODPECKER_FORGEJO_CLIENT": "cid",
+        "WOODPECKER_FORGEJO_SECRET": "csec",
     }
 
 
@@ -217,14 +217,19 @@ def test_compute_folders_ssh_optional() -> None:
     assert ssh.secrets == {"SSH_PRIVATE_KEY_BASE64": "b64-key"}
 
 
-def test_compute_folders_gitea_repo_url_falls_back_to_default_repo_name() -> None:
-    """`${REPO_NAME:-nexus-${DOMAIN//./-}-gitea}` mirror."""
+def test_compute_folders_repo_url_falls_back_to_default_repo_name() -> None:
+    """`${REPO_NAME:-nexus-${DOMAIN//./-}-workspace}` mirror.
+
+    The URL lives in the forgejo folder: Forgejo hosts the workspace
+    repo now, and it points at git-proxy because that is the only
+    endpoint a git client can reach without an Access browser login.
+    """
     config = _make_config(admin_username="bob")
     folders = compute_folders(config, BootstrapEnv(domain="ex.example.com"))
-    gitea = next(f for f in folders if f.name == "gitea")
+    forgejo = next(f for f in folders if f.name == "forgejo")
     assert (
-        gitea.secrets["GITEA_REPO_URL"]
-        == "https://git.ex.example.com/bob/nexus-ex-example-com-gitea.git"
+        forgejo.secrets["FORGEJO_REPO_URL"]
+        == "https://git.ex.example.com/bob/nexus-ex-example-com-workspace.git"
     )
 
 
@@ -239,13 +244,13 @@ def test_compute_folders_full_snapshot(snapshot: SnapshotAssertion) -> None:
     env = BootstrapEnv(
         domain="snapshot.test",
         admin_email="admin@snapshot.test",
-        gitea_user_email="user@snapshot.test",
-        gitea_user_username="snapshot-user",
-        gitea_repo_owner="snapshot-org",
+        forgejo_user_email="user@snapshot.test",
+        forgejo_user_username="snapshot-user",
+        forgejo_repo_owner="snapshot-org",
         repo_name="snapshot-repo",
         om_principal_domain="snapshot.test",
-        woodpecker_gitea_client="cid",
-        woodpecker_gitea_secret="csec",
+        woodpecker_forgejo_client="cid",
+        woodpecker_forgejo_secret="csec",
         ssh_private_key_base64="snapshot-ssh-base64",
     )
     folders = compute_folders(config, env)
@@ -1101,6 +1106,7 @@ def test_forgejo_folder_carries_every_generated_credential() -> None:
         "FORGEJO_ADMIN_USERNAME": "nexus-admin",
         "FORGEJO_ADMIN_PASSWORD": "fj-admin",
         "FORGEJO_USER_PASSWORD": "fj-user",
+        "FORGEJO_REPO_URL": "https://git.example.com/nexus-admin/nexus-example-com-workspace.git",
         "FORGEJO_DB_PASSWORD": "fj-db",
     }
 
@@ -1132,11 +1138,17 @@ def test_forgejo_folder_drops_unset_credentials() -> None:
     assert forgejo.secrets["FORGEJO_DB_PASSWORD"] == "fj-db"
 
 
-def test_forgejo_folder_has_no_repo_url_yet() -> None:
-    """Forgejo does not host the workspace repo at this point, so
-    publishing a URL for it would be a claim the platform cannot keep."""
+def test_forgejo_folder_publishes_the_workspace_repo_url() -> None:
+    """Forgejo hosts the workspace repo, so the URL belongs here.
+
+    This assertion used to be the opposite: while Gitea still held
+    the internal role, publishing a Forgejo URL would have been a
+    claim the platform could not keep.
+    """
     config = NexusConfig(admin_username="nexus-admin", forgejo_db_password="fj-db")
     folders = compute_folders(config, BootstrapEnv(domain="example.com"))
     forgejo = next(f for f in folders if f.name == "forgejo")
 
-    assert "FORGEJO_REPO_URL" not in forgejo.secrets
+    assert forgejo.secrets["FORGEJO_REPO_URL"].endswith("-workspace.git")
+    gitea = next(f for f in folders if f.name == "gitea")
+    assert "GITEA_REPO_URL" not in gitea.secrets

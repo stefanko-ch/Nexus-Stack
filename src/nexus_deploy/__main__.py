@@ -10,7 +10,7 @@ Subcommand dispatcher. Subcommands:
 - ``compose up --enabled <comma-list>``
 - ``services configure --enabled <comma-list>``
 - ``kestra register-system-flows``
-- ``gitea configure`` / ``gitea woodpecker-oauth`` / ``gitea mirror-setup``
+- ``forgejo configure`` / ``forgejo woodpecker-oauth`` / ``forgejo mirror-setup``
 - ``stack-sync --enabled <comma-list>``
 - ``setup ssh-config`` / ``setup wait-ssh`` / ``setup ensure-jq`` /
   ``setup wetty-ssh-agent``
@@ -34,9 +34,9 @@ from nexus_deploy import s3_persistence as _s3_persistence
 from nexus_deploy import s3_restore as _s3_restore
 from nexus_deploy.compose_runner import run_compose_up
 from nexus_deploy.config import ConfigError, NexusConfig
-from nexus_deploy.gitea import (
-    GiteaError,
-    run_configure_gitea,
+from nexus_deploy.forgejo import (
+    ForgejoError,
+    run_configure_forgejo,
     run_mirror_setup,
     run_woodpecker_oauth_setup,
 )
@@ -56,9 +56,9 @@ from nexus_deploy.r2_tokens import (
 from nexus_deploy.secret_sync import StackTarget, run_sync_for_stack
 from nexus_deploy.seeder import _is_safe_repo_path, run_seed_for_repo
 from nexus_deploy.service_env import (
-    GiteaWorkspaceConfig,
+    ForgejoWorkspaceConfig,
     ServiceEnvError,
-    append_gitea_workspace_block,
+    append_forgejo_workspace_block,
     render_all_env_files,
 )
 from nexus_deploy.services import run_admin_setups
@@ -129,7 +129,7 @@ def _infisical_bootstrap(args: list[str]) -> int:
     """`nexus-deploy infisical bootstrap`.
 
     Reads SECRETS_JSON from stdin, reads the additional ``BootstrapEnv``
-    fields (DOMAIN, ADMIN_EMAIL, GITEA_*, OM_PRINCIPAL_DOMAIN,
+    fields (DOMAIN, ADMIN_EMAIL, FORGEJO_*, OM_PRINCIPAL_DOMAIN,
     WOODPECKER_*, SSH_KEY_BASE64) from environment variables,
     plus PROJECT_ID + INFISICAL_TOKEN + INFISICAL_ENV from environment
     variables. Computes the folders, writes payloads, runs the
@@ -174,13 +174,13 @@ def _infisical_bootstrap(args: list[str]) -> int:
     bootstrap_env = BootstrapEnv(
         domain=os.environ.get("DOMAIN") or None,
         admin_email=os.environ.get("ADMIN_EMAIL") or None,
-        gitea_user_email=os.environ.get("GITEA_USER_EMAIL") or None,
-        gitea_user_username=os.environ.get("GITEA_USER_USERNAME") or None,
-        gitea_repo_owner=os.environ.get("GITEA_REPO_OWNER") or None,
+        forgejo_user_email=os.environ.get("FORGEJO_USER_EMAIL") or None,
+        forgejo_user_username=os.environ.get("FORGEJO_USER_USERNAME") or None,
+        forgejo_repo_owner=os.environ.get("FORGEJO_REPO_OWNER") or None,
         repo_name=os.environ.get("REPO_NAME") or None,
         om_principal_domain=os.environ.get("OM_PRINCIPAL_DOMAIN") or None,
-        woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
-        woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
+        woodpecker_forgejo_client=os.environ.get("WOODPECKER_FORGEJO_CLIENT") or None,
+        woodpecker_forgejo_secret=os.environ.get("WOODPECKER_FORGEJO_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
         monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
         monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
@@ -334,8 +334,8 @@ def _secret_sync(args: list[str]) -> int:
     writes ``SECRET_<KEY>=<base64>`` lines into ``.env`` directly).
 
     Required env: ``PROJECT_ID``, ``INFISICAL_TOKEN``.
-    Optional env: ``INFISICAL_ENV`` (default ``dev``), ``GITEA_TOKEN``
-    (special-case append — auto-generated post-Gitea-bootstrap, not
+    Optional env: ``INFISICAL_ENV`` (default ``dev``), ``FORGEJO_TOKEN``
+    (special-case append — auto-generated post-Forgejo-bootstrap, not
     in Infisical at sync time).
 
     Exit codes:
@@ -383,7 +383,7 @@ def _secret_sync(args: list[str]) -> int:
         )
         return 2
     infisical_env = os.environ.get("INFISICAL_ENV") or "dev"
-    gitea_token = os.environ.get("GITEA_TOKEN") or ""
+    forgejo_token = os.environ.get("FORGEJO_TOKEN") or ""
 
     # Kestra writes SECRET_<KEY>=<base64> to .env directly (no separate
     # .infisical.env), and force-recreates so EnvVarSecretProvider
@@ -406,7 +406,7 @@ def _secret_sync(args: list[str]) -> int:
             project_id=project_id,
             infisical_token=token,
             infisical_env=infisical_env,
-            gitea_token=gitea_token,
+            forgejo_token=forgejo_token,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         # Same defence-in-depth as `infisical bootstrap`: never print
@@ -477,12 +477,12 @@ def _seed(args: list[str]) -> int:
 
     Walks the local seed tree (default ``examples/workspace-seeds/``),
     base64-encodes each file, rsyncs the JSON payloads to the server,
-    and POSTs each one to Gitea's Contents API under the prefix
+    and POSTs each one to Forgejo's Contents API under the prefix
     (default ``nexus_seeds/``). Two call-sites use this: non-mirror
     mode (admin-owned repo) and mirror+user mode (user's fork). Each
     invokes this CLI with the appropriate ``--repo`` arg.
 
-    Required env: ``GITEA_TOKEN``.
+    Required env: ``FORGEJO_TOKEN``.
 
     Exit codes:
     - 0: all seeds either created (HTTP 201/200) or correctly skipped
@@ -566,9 +566,9 @@ def _seed(args: list[str]) -> int:
             )
             return 2
 
-    token = os.environ.get("GITEA_TOKEN", "").strip()
+    token = os.environ.get("FORGEJO_TOKEN", "").strip()
     if not token:
-        print("seed: GITEA_TOKEN env var required", file=sys.stderr)
+        print("seed: FORGEJO_TOKEN env var required", file=sys.stderr)
         return 2
 
     root = Path(root_arg) if root_arg else Path("examples/workspace-seeds")
@@ -741,13 +741,13 @@ def _services_configure(args: list[str]) -> int:
     bootstrap_env = BootstrapEnv(
         domain=os.environ.get("DOMAIN") or None,
         admin_email=os.environ.get("ADMIN_EMAIL") or None,
-        gitea_user_email=os.environ.get("GITEA_USER_EMAIL") or None,
-        gitea_user_username=os.environ.get("GITEA_USER_USERNAME") or None,
-        gitea_repo_owner=os.environ.get("GITEA_REPO_OWNER") or None,
+        forgejo_user_email=os.environ.get("FORGEJO_USER_EMAIL") or None,
+        forgejo_user_username=os.environ.get("FORGEJO_USER_USERNAME") or None,
+        forgejo_repo_owner=os.environ.get("FORGEJO_REPO_OWNER") or None,
         repo_name=os.environ.get("REPO_NAME") or None,
         om_principal_domain=os.environ.get("OM_PRINCIPAL_DOMAIN") or None,
-        woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
-        woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
+        woodpecker_forgejo_client=os.environ.get("WOODPECKER_FORGEJO_CLIENT") or None,
+        woodpecker_forgejo_secret=os.environ.get("WOODPECKER_FORGEJO_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
         monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
         monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
@@ -801,7 +801,7 @@ def _kestra_register_system_flows(args: list[str]) -> int:
     as ``services configure``:
 
     - ``ADMIN_EMAIL`` — Kestra basic-auth username
-    - ``GITEA_REPO_OWNER`` — owner of the workspace repo (admin in
+    - ``FORGEJO_REPO_OWNER`` — owner of the workspace repo (admin in
       non-mirror, the user in mirror+user mode)
     - ``REPO_NAME`` — workspace repo name
     - ``WORKSPACE_BRANCH`` — git branch (default ``main``)
@@ -821,7 +821,7 @@ def _kestra_register_system_flows(args: list[str]) -> int:
         print(f"kestra register-system-flows: unknown args {args!r}", file=sys.stderr)
         return 2
 
-    repo_owner = os.environ.get("GITEA_REPO_OWNER") or ""
+    repo_owner = os.environ.get("FORGEJO_REPO_OWNER") or ""
     repo_name = os.environ.get("REPO_NAME") or ""
     branch = os.environ.get("WORKSPACE_BRANCH") or "main"
     admin_email = os.environ.get("ADMIN_EMAIL") or ""
@@ -830,7 +830,7 @@ def _kestra_register_system_flows(args: list[str]) -> int:
     missing = [
         name
         for name, val in (
-            ("GITEA_REPO_OWNER", repo_owner),
+            ("FORGEJO_REPO_OWNER", repo_owner),
             ("REPO_NAME", repo_name),
             ("ADMIN_EMAIL", admin_email),
         )
@@ -929,10 +929,10 @@ def _kestra_register_system_flows(args: list[str]) -> int:
     return 0 if result.is_success else 1
 
 
-def _gitea_configure(args: list[str]) -> int:
-    """`nexus-deploy gitea configure`.
+def _forgejo_configure(args: list[str]) -> int:
+    """`nexus-deploy forgejo configure`.
 
-    Opens an SSH port-forward to nexus, runs the synchronous Gitea
+    Opens an SSH port-forward to nexus, runs the synchronous Forgejo
     configure flow (DB password sync, admin/user create-or-sync with
     legacy email-collision PATCH, API token create with retry-via-
     delete, workspace repo + collaborator), emits stdout in
@@ -940,12 +940,12 @@ def _gitea_configure(args: list[str]) -> int:
 
     .. code-block:: bash
 
-        GITEA_OUT=$(mktemp); python -m nexus_deploy gitea configure > "$GITEA_OUT"
-        eval "$(cat "$GITEA_OUT")"  # GITEA_TOKEN=...; RESTART_SERVICES=...
-        rm -f "$GITEA_OUT"
+        FORGEJO_OUT=$(mktemp); python -m nexus_deploy forgejo configure > "$FORGEJO_OUT"
+        eval "$(cat "$FORGEJO_OUT")"  # FORGEJO_TOKEN=...; RESTART_SERVICES=...
+        rm -f "$FORGEJO_OUT"
 
     **stdout** (eval-able):
-    - ``GITEA_TOKEN=<sha1>`` — only if token was successfully minted
+    - ``FORGEJO_TOKEN=<sha1>`` — only if token was successfully minted
     - ``RESTART_SERVICES=<csv>`` — git-integrated services intersected
       with ``$ENABLED_SERVICES`` (always emitted, may be empty string)
 
@@ -955,19 +955,19 @@ def _gitea_configure(args: list[str]) -> int:
     coordinates from environment variables:
 
     - ``ADMIN_EMAIL`` — admin's email
-    - ``GITEA_USER_EMAIL`` (optional) — regular user's email. Drives the
+    - ``FORGEJO_USER_EMAIL`` (optional) — regular user's email. Drives the
       legacy email-collision PATCH check on the admin row. The user is
-      created/synced ONLY when both this AND ``GITEA_USER_PASS`` are set
+      created/synced ONLY when both this AND ``FORGEJO_USER_PASS`` are set
       — if either is missing the user-create/sync branch is silently
       skipped.
-    - ``GITEA_USER_PASS`` (optional) — see ``GITEA_USER_EMAIL`` above
-    - ``REPO_NAME`` — workspace repo name (e.g. nexus-<slug>-gitea)
-    - ``GITEA_REPO_OWNER`` — owner of the workspace repo
+    - ``FORGEJO_USER_PASS`` (optional) — see ``FORGEJO_USER_EMAIL`` above
+    - ``REPO_NAME`` — workspace repo name (e.g. nexus-<slug>-workspace)
+    - ``FORGEJO_REPO_OWNER`` — owner of the workspace repo
     - ``ENABLED_SERVICES`` — comma-or-space list driving the
       RESTART_SERVICES intersection
     - ``GH_MIRROR_REPOS`` (optional) — if non-empty, skip repo+collab
       (mirror mode handles repo creation differently)
-    - ``GITEA_HOST`` — SSH host alias (default ``nexus``)
+    - ``FORGEJO_HOST`` — SSH host alias (default ``nexus``)
 
     Exit codes:
     - 0: success — admin configured, token minted, repo state OK
@@ -975,16 +975,16 @@ def _gitea_configure(args: list[str]) -> int:
     - 2: bad args / ssh / unexpected — NO token in stdout
     """
     if args:
-        print(f"gitea configure: unknown args {args!r}", file=sys.stderr)
+        print(f"forgejo configure: unknown args {args!r}", file=sys.stderr)
         return 2
 
     admin_email = os.environ.get("ADMIN_EMAIL") or ""
     repo_name = os.environ.get("REPO_NAME") or ""
-    gitea_repo_owner = os.environ.get("GITEA_REPO_OWNER") or ""
+    forgejo_repo_owner = os.environ.get("FORGEJO_REPO_OWNER") or ""
     enabled_str = os.environ.get("ENABLED_SERVICES") or ""
-    ssh_host = os.environ.get("GITEA_HOST") or "nexus"
-    gitea_user_email = os.environ.get("GITEA_USER_EMAIL") or None
-    gitea_user_password = os.environ.get("GITEA_USER_PASS") or None
+    ssh_host = os.environ.get("FORGEJO_HOST") or "nexus"
+    forgejo_user_email = os.environ.get("FORGEJO_USER_EMAIL") or None
+    forgejo_user_password = os.environ.get("FORGEJO_USER_PASS") or None
     is_mirror_mode = bool(os.environ.get("GH_MIRROR_REPOS") or "")
 
     missing = [
@@ -992,13 +992,13 @@ def _gitea_configure(args: list[str]) -> int:
         for name, val in (
             ("ADMIN_EMAIL", admin_email),
             ("REPO_NAME", repo_name),
-            ("GITEA_REPO_OWNER", gitea_repo_owner),
+            ("FORGEJO_REPO_OWNER", forgejo_repo_owner),
         )
         if not val
     ]
     if missing:
         print(
-            f"gitea configure: missing required env: {', '.join(missing)}",
+            f"forgejo configure: missing required env: {', '.join(missing)}",
             file=sys.stderr,
         )
         return 2
@@ -1008,16 +1008,16 @@ def _gitea_configure(args: list[str]) -> int:
     try:
         config = NexusConfig.from_secrets_json(sys.stdin.read())
     except ConfigError as exc:
-        print(f"gitea configure: {exc}", file=sys.stderr)
+        print(f"forgejo configure: {exc}", file=sys.stderr)
         return 2
 
-    if not config.gitea_admin_password:
+    if not config.forgejo_admin_password:
         # Required for both the CLI sync_password and REST basic-auth
         # paths. Without it everything 401s; emit rc=1 so the caller
         # routes to yellow warning, NOT rc=0 (a silent green pass
         # would be the wrong signal here).
         print(
-            "gitea configure: GITEA_ADMIN_PASS missing from SECRETS_JSON — "
+            "forgejo configure: FORGEJO_ADMIN_PASS missing from SECRETS_JSON — "
             "skipping (basic-auth would 401 on every call)",
             file=sys.stderr,
         )
@@ -1033,37 +1033,37 @@ def _gitea_configure(args: list[str]) -> int:
             SSHClient(ssh_host) as ssh,
             ssh.port_forward(local_port, "localhost", 3200) as port,
         ):
-            result = run_configure_gitea(
+            result = run_configure_forgejo(
                 config,
                 base_url=f"http://localhost:{port}",
                 ssh=ssh,
                 admin_email=admin_email,
-                gitea_user_email=gitea_user_email,
-                gitea_user_password=gitea_user_password,
+                forgejo_user_email=forgejo_user_email,
+                forgejo_user_password=forgejo_user_password,
                 repo_name=repo_name,
-                gitea_repo_owner=gitea_repo_owner,
+                forgejo_repo_owner=forgejo_repo_owner,
                 is_mirror_mode=is_mirror_mode,
                 enabled_services=enabled,
             )
     except SSHError as exc:
-        print(f"gitea configure: ssh tunnel failed: {exc}", file=sys.stderr)
+        print(f"forgejo configure: ssh tunnel failed: {exc}", file=sys.stderr)
         return 2
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         print(
-            f"gitea configure: transport failure ({type(exc).__name__})",
+            f"forgejo configure: transport failure ({type(exc).__name__})",
             file=sys.stderr,
         )
         return 2
     except Exception as exc:
         print(
-            f"gitea configure: unexpected error ({type(exc).__name__})",
+            f"forgejo configure: unexpected error ({type(exc).__name__})",
             file=sys.stderr,
         )
         return 2
 
     # Per-step status lines on stderr for the deploy log.
     if result.db_pw_synced:
-        sys.stderr.write("  • gitea-db password synced\n")
+        sys.stderr.write("  • forgejo-db password synced\n")
     sys.stderr.write(
         f"  • admin: {result.admin.status}"
         f"{(' — ' + result.admin.detail) if result.admin.detail else ''}\n"
@@ -1084,38 +1084,38 @@ def _gitea_configure(args: list[str]) -> int:
         # Always surface the diagnostic — the post-#519 spin-up showed
         # how a silent token-mint failure (no error string in the deploy
         # log) blocks debugging. ``token_error`` is constructed from
-        # Gitea CLI error text + return codes, no secrets.
+        # Forgejo CLI error text + return codes, no secrets.
         detail = f" — {result.token_error}" if result.token_error else ""
         sys.stderr.write(f"  • token: NOT minted (downstream skipped){detail}\n")
 
     # Eval-able stdout. RESTART_SERVICES is always emitted (even
     # empty) so the caller's ``eval`` doesn't leave a stale value
     # from a previous run in the variable. ``shlex.quote`` on every
-    # value — Gitea sha1 tokens are 40 hex chars in practice (no
+    # value — Forgejo sha1 tokens are 40 hex chars in practice (no
     # special chars), but the explicit quote contract makes
     # injection-safety unambiguous (same convention as #508).
     import shlex as _shlex
 
     if result.token is not None:
-        sys.stdout.write(f"GITEA_TOKEN={_shlex.quote(result.token)}\n")
+        sys.stdout.write(f"FORGEJO_TOKEN={_shlex.quote(result.token)}\n")
     sys.stdout.write(f"RESTART_SERVICES={_shlex.quote(','.join(result.restart_services))}\n")
 
     return 0 if result.is_success else 1
 
 
-def _gitea_woodpecker_oauth(args: list[str]) -> int:
-    """`nexus-deploy gitea woodpecker-oauth`.
+def _forgejo_woodpecker_oauth(args: list[str]) -> int:
+    """`nexus-deploy forgejo woodpecker-oauth`.
 
-    Provisions Gitea's "Woodpecker CI" OAuth2 application. Idempotent
+    Provisions Forgejo's "Woodpecker CI" OAuth2 application. Idempotent
     re-run: deletes any existing app of that name, then creates fresh
     so callers see a known-fresh client_secret on every spin-up
-    (Gitea has no rotate-secret API).
+    (Forgejo has no rotate-secret API).
 
     Required env:
 
     - ``DOMAIN`` — used to build redirect URI ``https://woodpecker.<domain>/authorize``
-    - ``GITEA_TOKEN`` — token-bearer auth for the admin user
-      (eval-captured from the prior ``gitea configure`` invocation)
+    - ``FORGEJO_TOKEN`` — token-bearer auth for the admin user
+      (eval-captured from the prior ``forgejo configure`` invocation)
 
     Optional env:
 
@@ -1123,12 +1123,12 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
       ``admin``). Mirrors :class:`NexusConfig`'s ``admin_username``
       default so the CLI works without an explicit env-passing
       layer when invoked manually.
-    - ``GITEA_HOST`` — SSH host alias (default ``nexus``)
+    - ``FORGEJO_HOST`` — SSH host alias (default ``nexus``)
 
     **stdout** (eval-able):
 
-    - ``WOODPECKER_GITEA_CLIENT=<id>``
-    - ``WOODPECKER_GITEA_SECRET=<secret>``
+    - ``WOODPECKER_FORGEJO_CLIENT=<id>``
+    - ``WOODPECKER_FORGEJO_SECRET=<secret>``
 
     Both lines emitted only when the create succeeds. On failure
     (rc=1), only a stderr diagnostic is emitted; the caller's eval
@@ -1139,7 +1139,7 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
 
     - 0: created — both env-var lines on stdout, ready to ``eval``
     - 1: partial — list/delete/create REST failure with rotation
-      NOT started (Gitea state still consistent with the existing
+      NOT started (Forgejo state still consistent with the existing
       Woodpecker .env). Deploy continues without rotating.
     - 2: hard failure — bad args, missing required env, invalid
       ADMIN_USERNAME, SSH tunnel failure, transport/unexpected
@@ -1148,13 +1148,13 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
       until next successful deploy if we continued). Abort.
     """
     if args:
-        print(f"gitea woodpecker-oauth: unknown args {args!r}", file=sys.stderr)
+        print(f"forgejo woodpecker-oauth: unknown args {args!r}", file=sys.stderr)
         return 2
 
     domain = os.environ.get("DOMAIN") or ""
-    gitea_token = os.environ.get("GITEA_TOKEN") or ""
+    forgejo_token = os.environ.get("FORGEJO_TOKEN") or ""
     admin_username = os.environ.get("ADMIN_USERNAME") or "admin"
-    ssh_host = os.environ.get("GITEA_HOST") or "nexus"
+    ssh_host = os.environ.get("FORGEJO_HOST") or "nexus"
     # Issue #540: SUBDOMAIN_SEPARATOR threaded through to the redirect-URI
     # builder. ``"."`` (default) yields ``woodpecker.<domain>/authorize``;
     # multi-tenant forks set ``"-"`` for ``woodpecker-<domain>/authorize``.
@@ -1163,11 +1163,11 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
     missing: list[str] = []
     if not domain:
         missing.append("DOMAIN")
-    if not gitea_token:
-        missing.append("GITEA_TOKEN")
+    if not forgejo_token:
+        missing.append("FORGEJO_TOKEN")
     if missing:
         print(
-            f"gitea woodpecker-oauth: missing required env: {', '.join(missing)}",
+            f"forgejo woodpecker-oauth: missing required env: {', '.join(missing)}",
             file=sys.stderr,
         )
         return 2
@@ -1185,40 +1185,40 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
             result, error, rotation_started = run_woodpecker_oauth_setup(
                 base_url=f"http://localhost:{port}",
                 domain=domain,
-                gitea_token=gitea_token,
+                forgejo_token=forgejo_token,
                 admin_username=admin_username,
                 subdomain_separator=subdomain_separator,
             )
     except SSHError as exc:
-        print(f"gitea woodpecker-oauth: ssh tunnel failed: {exc}", file=sys.stderr)
+        print(f"forgejo woodpecker-oauth: ssh tunnel failed: {exc}", file=sys.stderr)
         return 2
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         print(
-            f"gitea woodpecker-oauth: transport failure ({type(exc).__name__})",
+            f"forgejo woodpecker-oauth: transport failure ({type(exc).__name__})",
             file=sys.stderr,
         )
         return 2
-    except GiteaError as exc:
+    except ForgejoError as exc:
         # Path-safety violations (unsafe admin_username) and other
         # input-validation failures inside run_woodpecker_oauth_setup
-        # surface as GiteaError. Their messages are constructed from
+        # surface as ForgejoError. Their messages are constructed from
         # fixed format strings + operator-controlled identifiers
         # (no secrets), so safe to surface verbatim. (Copilot R5 —
         # the previous catch-all collapsed these to "unexpected
-        # error (GiteaError)" which lost the actionable detail.)
-        print(f"gitea woodpecker-oauth: {exc}", file=sys.stderr)
+        # error (ForgejoError)" which lost the actionable detail.)
+        print(f"forgejo woodpecker-oauth: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
         print(
-            f"gitea woodpecker-oauth: unexpected error ({type(exc).__name__})",
+            f"forgejo woodpecker-oauth: unexpected error ({type(exc).__name__})",
             file=sys.stderr,
         )
         return 2
 
     if result is None:
         # ``error`` is constructed in :func:`run_woodpecker_oauth_setup`
-        # from GiteaError format strings only (HTTP status codes,
-        # type names) — never from ``gitea_token``. CodeQL's taint
+        # from ForgejoError format strings only (HTTP status codes,
+        # type names) — never from ``forgejo_token``. CodeQL's taint
         # analysis can't prove that and surfaces the line as
         # ``py/clear-text-logging-sensitive-data``. Alert dismissed
         # as "won't fix" with the same rationale (see PR #521).
@@ -1227,7 +1227,7 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
         # invalidated the previous client_secret; if we returned
         # rc=1 (yellow warn, deploy continues), Woodpecker would
         # keep running with the now-stale secret in its .env and
-        # 401 on every Gitea login until the next deploy succeeds.
+        # 401 on every Forgejo login until the next deploy succeeds.
         # rc=2 routes the caller to its red-abort branch. (Copilot R2)
         if rotation_started:
             sys.stderr.write(
@@ -1242,7 +1242,7 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
     import shlex as _shlex
 
     # Eval-able stdout handoff — same intentional pattern as
-    # ``GITEA_TOKEN=`` in :func:`_gitea_configure`. ``shlex.quote``
+    # ``FORGEJO_TOKEN=`` in :func:`_forgejo_configure`. ``shlex.quote``
     # guarantees the value can't break out of the assignment if it
     # ever contains shell metacharacters; the caller writes the
     # eval'd values into Woodpecker's ``.env`` (mode 600) before
@@ -1251,18 +1251,18 @@ def _gitea_woodpecker_oauth(args: list[str]) -> int:
     # alert dismissed as "won't fix" — the eval-handoff is the
     # documented contract, mitigated by tempfile mode 600 +
     # trap-driven cleanup of the captured stdout file.
-    sys.stdout.write(f"WOODPECKER_GITEA_CLIENT={_shlex.quote(result.client_id)}\n")
-    sys.stdout.write(f"WOODPECKER_GITEA_SECRET={_shlex.quote(result.client_secret)}\n")
+    sys.stdout.write(f"WOODPECKER_FORGEJO_CLIENT={_shlex.quote(result.client_id)}\n")
+    sys.stdout.write(f"WOODPECKER_FORGEJO_SECRET={_shlex.quote(result.client_secret)}\n")
     return 0
 
 
-def _gitea_mirror_setup(args: list[str]) -> int:
-    """`nexus-deploy gitea mirror-setup`.
+def _forgejo_mirror_setup(args: list[str]) -> int:
+    """`nexus-deploy forgejo mirror-setup`.
 
-    Provisions GH_MIRROR_REPOS as Gitea pull-mirrors plus per-user
+    Provisions GH_MIRROR_REPOS as Forgejo pull-mirrors plus per-user
     forks. Per-mirror operations:
 
-    1. Migrate (clone-mirror via Gitea's /api/v1/repos/migrate +
+    1. Migrate (clone-mirror via Forgejo's /api/v1/repos/migrate +
        GitHub PAT) — idempotent: already_exists is soft-success
     2. On the FIRST mirror with a configured user: fork into the
        user's namespace via temp user-token (created+deleted
@@ -1274,17 +1274,17 @@ def _gitea_mirror_setup(args: list[str]) -> int:
 
     Required env:
 
-    - ``GITEA_TOKEN`` — admin's bearer token for migrate / collab /
-      mirror-sync (from earlier ``gitea configure`` invocation)
+    - ``FORGEJO_TOKEN`` — admin's bearer token for migrate / collab /
+      mirror-sync (from earlier ``forgejo configure`` invocation)
     - ``GH_MIRROR_REPOS`` — comma-separated GitHub repo URLs
     - ``GH_MIRROR_TOKEN`` — GitHub PAT (Contents:read for private
       sources)
 
     Conditionally required env:
 
-    - ``GITEA_ADMIN_PASS`` — admin password (basic-auth for the
+    - ``FORGEJO_ADMIN_PASS`` — admin password (basic-auth for the
       temp user-token mint inside the fork flow). Required ONLY
-      when ``GITEA_USER_USERNAME`` is set; mirrors-only mode
+      when ``FORGEJO_USER_USERNAME`` is set; mirrors-only mode
       (no user, no fork) doesn't need it. (Copilot R6)
 
     Optional env:
@@ -1293,19 +1293,19 @@ def _gitea_mirror_setup(args: list[str]) -> int:
       ``admin``). Mirrors :class:`NexusConfig`'s ``admin_username``
       default so the CLI works without an explicit env-passing layer
       when invoked manually. (Same default as
-      ``gitea woodpecker-oauth`` — Copilot R1 consistency fix.)
-    - ``GITEA_USER_USERNAME`` — Gitea username for the per-user fork.
+      ``forgejo woodpecker-oauth`` — Copilot R1 consistency fix.)
+    - ``FORGEJO_USER_USERNAME`` — Forgejo username for the per-user fork.
       If unset, the fork step is skipped (mirrors-only mode);
-      ``GITEA_ADMIN_PASS`` becomes optional in this case.
+      ``FORGEJO_ADMIN_PASS`` becomes optional in this case.
     - ``WORKSPACE_BRANCH`` — branch for the merge-upstream step
       (default ``main``). The orchestrator resolves this from the
       GitHub API ahead of time and exports it.
-    - ``GITEA_HOST`` — SSH host alias (default ``nexus``)
+    - ``FORGEJO_HOST`` — SSH host alias (default ``nexus``)
 
     **stdout** (eval-able, only when fork was created/exists):
 
     - ``FORK_NAME=<name>``
-    - ``GITEA_REPO_OWNER=<user>``
+    - ``FORGEJO_REPO_OWNER=<user>``
 
     These two are consumed by the seed phase so the seed POST hits
     the user's fork rather than the per-iteration mirror name.
@@ -1321,41 +1321,41 @@ def _gitea_mirror_setup(args: list[str]) -> int:
       exception. Abort.
     """
     if args:
-        print(f"gitea mirror-setup: unknown args {args!r}", file=sys.stderr)
+        print(f"forgejo mirror-setup: unknown args {args!r}", file=sys.stderr)
         return 2
 
     admin_username = os.environ.get("ADMIN_USERNAME") or "admin"
-    admin_password = os.environ.get("GITEA_ADMIN_PASS") or ""
-    gitea_token = os.environ.get("GITEA_TOKEN") or ""
+    admin_password = os.environ.get("FORGEJO_ADMIN_PASS") or ""
+    forgejo_token = os.environ.get("FORGEJO_TOKEN") or ""
     gh_mirror_repos_csv = os.environ.get("GH_MIRROR_REPOS") or ""
     gh_mirror_token = os.environ.get("GH_MIRROR_TOKEN") or ""
-    gitea_user_username = os.environ.get("GITEA_USER_USERNAME") or None
+    forgejo_user_username = os.environ.get("FORGEJO_USER_USERNAME") or None
     workspace_branch = os.environ.get("WORKSPACE_BRANCH") or "main"
-    ssh_host = os.environ.get("GITEA_HOST") or "nexus"
+    ssh_host = os.environ.get("FORGEJO_HOST") or "nexus"
 
     missing: list[str] = []
-    if not gitea_token:
-        missing.append("GITEA_TOKEN")
+    if not forgejo_token:
+        missing.append("FORGEJO_TOKEN")
     if not gh_mirror_repos_csv:
         missing.append("GH_MIRROR_REPOS")
     if not gh_mirror_token:
         missing.append("GH_MIRROR_TOKEN")
-    # GITEA_ADMIN_PASS is only consumed by the fork flow's temp
+    # FORGEJO_ADMIN_PASS is only consumed by the fork flow's temp
     # user-token mint (basic-auth: admin acts on behalf of user).
-    # Mirrors-only mode (no GITEA_USER_USERNAME) doesn't need it.
+    # Mirrors-only mode (no FORGEJO_USER_USERNAME) doesn't need it.
     # (Copilot R6)
-    if gitea_user_username and not admin_password:
-        missing.append("GITEA_ADMIN_PASS (required when GITEA_USER_USERNAME is set)")
+    if forgejo_user_username and not admin_password:
+        missing.append("FORGEJO_ADMIN_PASS (required when FORGEJO_USER_USERNAME is set)")
     if missing:
         print(
-            f"gitea mirror-setup: missing required env: {', '.join(missing)}",
+            f"forgejo mirror-setup: missing required env: {', '.join(missing)}",
             file=sys.stderr,
         )
         return 2
 
     repos = [s.strip() for s in gh_mirror_repos_csv.split(",") if s.strip()]
     if not repos:
-        print("gitea mirror-setup: GH_MIRROR_REPOS contained no repo URLs", file=sys.stderr)
+        print("forgejo mirror-setup: GH_MIRROR_REPOS contained no repo URLs", file=sys.stderr)
         return 2
 
     try:
@@ -1369,30 +1369,30 @@ def _gitea_mirror_setup(args: list[str]) -> int:
                 base_url=f"http://localhost:{port}",
                 admin_username=admin_username,
                 admin_password=admin_password,
-                gitea_token=gitea_token,
-                gitea_user_username=gitea_user_username,
+                forgejo_token=forgejo_token,
+                forgejo_user_username=forgejo_user_username,
                 gh_mirror_repos=repos,
                 gh_mirror_token=gh_mirror_token,
                 workspace_branch=workspace_branch,
             )
     except SSHError as exc:
-        print(f"gitea mirror-setup: ssh tunnel failed: {exc}", file=sys.stderr)
+        print(f"forgejo mirror-setup: ssh tunnel failed: {exc}", file=sys.stderr)
         return 2
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         print(
-            f"gitea mirror-setup: transport failure ({type(exc).__name__})",
+            f"forgejo mirror-setup: transport failure ({type(exc).__name__})",
             file=sys.stderr,
         )
         return 2
-    except GiteaError as exc:
+    except ForgejoError as exc:
         # Path-safety violations + REST-layer errors not caught by
         # the orchestrator's per-call try/except. Surface verbatim
         # (messages are constructed from format strings only).
-        print(f"gitea mirror-setup: {exc}", file=sys.stderr)
+        print(f"forgejo mirror-setup: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
         print(
-            f"gitea mirror-setup: unexpected error ({type(exc).__name__})",
+            f"forgejo mirror-setup: unexpected error ({type(exc).__name__})",
             file=sys.stderr,
         )
         return 2
@@ -1408,7 +1408,7 @@ def _gitea_mirror_setup(args: list[str]) -> int:
                 f"  • admin UID lookup failed ({result.admin_uid_error}) — skipping all mirrors\n"
             )
         else:
-            sys.stderr.write("  • admin user not found in Gitea — skipping all mirrors\n")
+            sys.stderr.write("  • admin user not found in Forgejo — skipping all mirrors\n")
         return 1
     sys.stderr.write(f"  • admin UID: {result.admin_uid}\n")
     for m in result.mirrors:
@@ -1425,7 +1425,7 @@ def _gitea_mirror_setup(args: list[str]) -> int:
     if result.fork_synced:
         sys.stderr.write("  • fork merge-upstream attempted\n")
 
-    # Eval-able stdout: emit FORK_NAME + GITEA_REPO_OWNER iff the
+    # Eval-able stdout: emit FORK_NAME + FORGEJO_REPO_OWNER iff the
     # fork is in a usable state. The seed phase reads these to point
     # its POST at the user's fork rather than at any iteration's
     # mirror name.
@@ -1433,7 +1433,7 @@ def _gitea_mirror_setup(args: list[str]) -> int:
 
     if result.fork is not None and result.fork.status in ("created", "already_exists"):
         sys.stdout.write(f"FORK_NAME={_shlex.quote(result.fork.name)}\n")
-        sys.stdout.write(f"GITEA_REPO_OWNER={_shlex.quote(result.fork.owner)}\n")
+        sys.stdout.write(f"FORGEJO_REPO_OWNER={_shlex.quote(result.fork.owner)}\n")
 
     return 0 if result.is_success else 1
 
@@ -1863,18 +1863,18 @@ def _service_env(args: list[str]) -> int:
 
     Reads ``SECRETS_JSON`` from stdin + ``BootstrapEnv`` fields from
     environment variables, renders the per-service ``.env`` files
-    for every enabled service, optionally appends the Gitea
+    for every enabled service, optionally appends the Forgejo
     workspace block to git-integrated stacks (jupyter / marimo /
-    code-server / meltano / prefect) when Gitea is enabled and
+    code-server / meltano / prefect) when Forgejo is enabled and
     the workspace-repo coordinates are provided via env-vars.
 
     Required env: ``DOMAIN``, ``ADMIN_EMAIL``.
-    Optional env (drives the Gitea workspace append):
-    ``GITEA_REPO_URL``, ``GITEA_USERNAME``, ``GITEA_PASSWORD``,
+    Optional env (drives the Forgejo workspace append):
+    ``FORGEJO_REPO_URL``, ``FORGEJO_USERNAME``, ``FORGEJO_PASSWORD``,
     ``GIT_AUTHOR_NAME``, ``GIT_AUTHOR_EMAIL``, ``REPO_NAME``.
-    Optional env (BootstrapEnv): ``GITEA_USER_EMAIL``, ``GITEA_USER_USERNAME``,
-    ``GITEA_REPO_OWNER``, ``OM_PRINCIPAL_DOMAIN``, ``WOODPECKER_GITEA_CLIENT``,
-    ``WOODPECKER_GITEA_SECRET``, ``SSH_KEY_BASE64``.
+    Optional env (BootstrapEnv): ``FORGEJO_USER_EMAIL``, ``FORGEJO_USER_USERNAME``,
+    ``FORGEJO_REPO_OWNER``, ``OM_PRINCIPAL_DOMAIN``, ``WOODPECKER_FORGEJO_CLIENT``,
+    ``WOODPECKER_FORGEJO_SECRET``, ``SSH_KEY_BASE64``.
 
     Exit codes:
     - 0: every enabled spec rendered (or skipped per its guard)
@@ -1933,13 +1933,13 @@ def _service_env(args: list[str]) -> int:
     bootstrap_env = BootstrapEnv(
         domain=os.environ.get("DOMAIN") or None,
         admin_email=os.environ.get("ADMIN_EMAIL") or None,
-        gitea_user_email=os.environ.get("GITEA_USER_EMAIL") or None,
-        gitea_user_username=os.environ.get("GITEA_USER_USERNAME") or None,
-        gitea_repo_owner=os.environ.get("GITEA_REPO_OWNER") or None,
+        forgejo_user_email=os.environ.get("FORGEJO_USER_EMAIL") or None,
+        forgejo_user_username=os.environ.get("FORGEJO_USER_USERNAME") or None,
+        forgejo_repo_owner=os.environ.get("FORGEJO_REPO_OWNER") or None,
         repo_name=os.environ.get("REPO_NAME") or None,
         om_principal_domain=os.environ.get("OM_PRINCIPAL_DOMAIN") or None,
-        woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
-        woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
+        woodpecker_forgejo_client=os.environ.get("WOODPECKER_FORGEJO_CLIENT") or None,
+        woodpecker_forgejo_secret=os.environ.get("WOODPECKER_FORGEJO_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
         monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
         monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
@@ -1966,12 +1966,12 @@ def _service_env(args: list[str]) -> int:
         else:
             sys.stderr.write(f"  ✗ {r.service}: {r.detail}\n")
 
-    # Optional: append Gitea workspace block. Driven by env-vars —
+    # Optional: append Forgejo workspace block. Driven by env-vars —
     # the orchestrator derives these from mirror/non-mirror logic;
     # we just consume them when present.
-    gitea_repo_url = os.environ.get("GITEA_REPO_URL") or ""
-    gitea_username = os.environ.get("GITEA_USERNAME") or ""
-    gitea_password = os.environ.get("GITEA_PASSWORD") or ""
+    forgejo_repo_url = os.environ.get("FORGEJO_REPO_URL") or ""
+    forgejo_username = os.environ.get("FORGEJO_USERNAME") or ""
+    forgejo_password = os.environ.get("FORGEJO_PASSWORD") or ""
     git_author_name = os.environ.get("GIT_AUTHOR_NAME") or ""
     git_author_email = os.environ.get("GIT_AUTHOR_EMAIL") or ""
     repo_name = os.environ.get("REPO_NAME") or ""
@@ -1988,27 +1988,27 @@ def _service_env(args: list[str]) -> int:
     # invocation with partial env-vars.
     workspace_coords_complete = all(
         (
-            gitea_repo_url,
-            gitea_username,
-            gitea_password,
+            forgejo_repo_url,
+            forgejo_username,
+            forgejo_password,
             git_author_name,
             git_author_email,
             repo_name,
         ),
     )
-    if workspace_coords_complete and "gitea" in enabled:
-        cfg = GiteaWorkspaceConfig(
-            gitea_repo_url=gitea_repo_url,
-            gitea_username=gitea_username,
-            gitea_password=gitea_password,
+    if workspace_coords_complete and "forgejo" in enabled:
+        cfg = ForgejoWorkspaceConfig(
+            forgejo_repo_url=forgejo_repo_url,
+            forgejo_username=forgejo_username,
+            forgejo_password=forgejo_password,
             git_author_name=git_author_name,
             git_author_email=git_author_email,
             repo_name=repo_name,
             workspace_branch=workspace_branch,
         )
-        appended = append_gitea_workspace_block(cfg, enabled, stacks_dir=stacks_dir)
+        appended = append_forgejo_workspace_block(cfg, enabled, stacks_dir=stacks_dir)
         for svc in appended:
-            sys.stderr.write(f"  ✓ {svc} Gitea workspace block appended\n")
+            sys.stderr.write(f"  ✓ {svc} Forgejo workspace block appended\n")
 
     print(
         f"service-env: rendered={result.rendered} skipped={result.skipped} failed={result.failed}",
@@ -2326,17 +2326,17 @@ def _run_all(args: list[str]) -> int:
     glue to ``eval``:
 
     - ``RESTART_SERVICES=<csv>`` — compose-restart loop input
-    - ``WOODPECKER_GITEA_CLIENT=<id>`` — written into stacks/woodpecker/.env
-    - ``WOODPECKER_GITEA_SECRET=<secret>`` — written into stacks/woodpecker/.env
+    - ``WOODPECKER_FORGEJO_CLIENT=<id>`` — written into stacks/woodpecker/.env
+    - ``WOODPECKER_FORGEJO_SECRET=<secret>`` — written into stacks/woodpecker/.env
 
-    Other state (GITEA_TOKEN, FORK_NAME, FORK_OWNER) is consumed
+    Other state (FORGEJO_TOKEN, FORK_NAME, FORK_OWNER) is consumed
     entirely inside the orchestrator and never exits Python.
 
-    Required env: ``ADMIN_EMAIL``, ``REPO_NAME``, ``GITEA_REPO_OWNER``,
+    Required env: ``ADMIN_EMAIL``, ``REPO_NAME``, ``FORGEJO_REPO_OWNER``,
     ``ENABLED_SERVICES``, ``DOMAIN``, ``PROJECT_ID``, ``INFISICAL_TOKEN``.
     Optional env: ``WORKSPACE_BRANCH`` (default ``main``),
-    ``GH_MIRROR_REPOS``, ``GH_MIRROR_TOKEN``, ``GITEA_USER_USERNAME``,
-    ``GITEA_USER_EMAIL``, ``GITEA_USER_PASS``, ``OM_PRINCIPAL_DOMAIN``,
+    ``GH_MIRROR_REPOS``, ``GH_MIRROR_TOKEN``, ``FORGEJO_USER_USERNAME``,
+    ``FORGEJO_USER_EMAIL``, ``FORGEJO_USER_PASS``, ``OM_PRINCIPAL_DOMAIN``,
     ``INFISICAL_ENV`` (default ``dev``), ``SSH_HOST_ALIAS`` (default ``nexus``).
 
     Exit codes:
@@ -2350,7 +2350,7 @@ def _run_all(args: list[str]) -> int:
 
     admin_email = os.environ.get("ADMIN_EMAIL") or ""
     repo_name = os.environ.get("REPO_NAME") or ""
-    gitea_repo_owner = os.environ.get("GITEA_REPO_OWNER") or ""
+    forgejo_repo_owner = os.environ.get("FORGEJO_REPO_OWNER") or ""
     enabled_str = os.environ.get("ENABLED_SERVICES") or ""
     domain = os.environ.get("DOMAIN") or ""
     project_id = os.environ.get("PROJECT_ID") or ""
@@ -2361,7 +2361,7 @@ def _run_all(args: list[str]) -> int:
         for name, val in (
             ("ADMIN_EMAIL", admin_email),
             ("REPO_NAME", repo_name),
-            ("GITEA_REPO_OWNER", gitea_repo_owner),
+            ("FORGEJO_REPO_OWNER", forgejo_repo_owner),
             ("ENABLED_SERVICES", enabled_str),
             ("DOMAIN", domain),
             ("PROJECT_ID", project_id),
@@ -2377,9 +2377,9 @@ def _run_all(args: list[str]) -> int:
     workspace_branch = os.environ.get("WORKSPACE_BRANCH") or "main"
     gh_mirror_repos_csv = os.environ.get("GH_MIRROR_REPOS") or ""
     gh_mirror_token = os.environ.get("GH_MIRROR_TOKEN") or None
-    gitea_user_username = os.environ.get("GITEA_USER_USERNAME") or None
-    gitea_user_email = os.environ.get("GITEA_USER_EMAIL") or None
-    gitea_user_password = os.environ.get("GITEA_USER_PASS") or None
+    forgejo_user_username = os.environ.get("FORGEJO_USER_USERNAME") or None
+    forgejo_user_email = os.environ.get("FORGEJO_USER_EMAIL") or None
+    forgejo_user_password = os.environ.get("FORGEJO_USER_PASS") or None
     ssh_host = os.environ.get("SSH_HOST_ALIAS") or "nexus"
     infisical_env = os.environ.get("INFISICAL_ENV") or "dev"
     gh_mirror_repos = [s.strip() for s in gh_mirror_repos_csv.split(",") if s.strip()]
@@ -2397,13 +2397,13 @@ def _run_all(args: list[str]) -> int:
     bootstrap_env = BootstrapEnv(
         domain=domain,
         admin_email=admin_email,
-        gitea_user_email=gitea_user_email,
-        gitea_user_username=gitea_user_username,
-        gitea_repo_owner=gitea_repo_owner,
+        forgejo_user_email=forgejo_user_email,
+        forgejo_user_username=forgejo_user_username,
+        forgejo_repo_owner=forgejo_repo_owner,
         repo_name=repo_name,
         om_principal_domain=os.environ.get("OM_PRINCIPAL_DOMAIN") or None,
-        woodpecker_gitea_client=os.environ.get("WOODPECKER_GITEA_CLIENT") or None,
-        woodpecker_gitea_secret=os.environ.get("WOODPECKER_GITEA_SECRET") or None,
+        woodpecker_forgejo_client=os.environ.get("WOODPECKER_FORGEJO_CLIENT") or None,
+        woodpecker_forgejo_secret=os.environ.get("WOODPECKER_FORGEJO_SECRET") or None,
         ssh_private_key_base64=os.environ.get("SSH_KEY_BASE64") or None,
         monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
         monitoring_token=os.environ.get("MONITORING_TOKEN") or None,
@@ -2415,13 +2415,13 @@ def _run_all(args: list[str]) -> int:
         bootstrap_env=bootstrap_env,
         enabled_services=enabled,
         repo_name=repo_name,
-        gitea_repo_owner=gitea_repo_owner,
+        forgejo_repo_owner=forgejo_repo_owner,
         workspace_branch=workspace_branch,
         gh_mirror_repos=gh_mirror_repos,
         gh_mirror_token=gh_mirror_token,
-        gitea_user_username=gitea_user_username,
-        gitea_user_email=gitea_user_email,
-        gitea_user_password=gitea_user_password,
+        forgejo_user_username=forgejo_user_username,
+        forgejo_user_email=forgejo_user_email,
+        forgejo_user_password=forgejo_user_password,
         ssh_host=ssh_host,
         project_id=project_id,
         infisical_token=infisical_token,
@@ -2465,10 +2465,10 @@ def _run_all(args: list[str]) -> int:
         f"RESTART_SERVICES={_shlex.quote(','.join(result.state.restart_services))}\n",
     )
     sys.stdout.write(
-        f"WOODPECKER_GITEA_CLIENT={_shlex.quote(result.state.woodpecker_client_id or '')}\n",
+        f"WOODPECKER_FORGEJO_CLIENT={_shlex.quote(result.state.woodpecker_client_id or '')}\n",
     )
     sys.stdout.write(
-        f"WOODPECKER_GITEA_SECRET={_shlex.quote(result.state.woodpecker_client_secret or '')}\n",
+        f"WOODPECKER_FORGEJO_SECRET={_shlex.quote(result.state.woodpecker_client_secret or '')}\n",
     )
 
     if result.has_hard_failure:
@@ -3360,7 +3360,7 @@ def _run_pipeline(args: list[str]) -> int:
 
     - R2 credentials env-injection from ``tofu/.r2-credentials``
     - ``tofu state list`` pre-flight
-    - config.tfvars parse + Gitea identity derivation
+    - config.tfvars parse + Forgejo identity derivation
     - 6 ``tofu output`` reads
     - ssh-keygen -R cleanup
     - setup chain (configure_ssh / wait_for_ssh / ensure_jq) +
@@ -3695,11 +3695,11 @@ def _run_pre_bootstrap(args: list[str]) -> int:
     override files. Operators MUST pass an explicit ``"{}"`` to opt
     into zero-entry mode.
 
-    Optional env: ``REPO_NAME``, ``GITEA_REPO_OWNER`` (now derived
+    Optional env: ``REPO_NAME``, ``FORGEJO_REPO_OWNER`` (now derived
     by ``_phase_workspace_coords``; can be pre-seeded for tests),
     ``WORKSPACE_BRANCH`` (default ``main``),
-    ``GITEA_USER_USERNAME``, ``GITEA_USER_EMAIL``, ``GITEA_USER_PASS``,
-    ``GITEA_ADMIN_PASS``, ``USER_EMAIL`` (passed into global-env's
+    ``FORGEJO_USER_USERNAME``, ``FORGEJO_USER_EMAIL``, ``FORGEJO_USER_PASS``,
+    ``FORGEJO_ADMIN_PASS``, ``USER_EMAIL`` (passed into global-env's
     stacks/.env), ``GH_MIRROR_REPOS`` (csv), ``GH_MIRROR_TOKEN``
     (gates default-branch detection), ``IMAGE_VERSIONS_JSON`` (default
     ``"{}"``; consumed by the global-env phase),
@@ -3721,7 +3721,7 @@ def _run_pre_bootstrap(args: list[str]) -> int:
 
     admin_email = os.environ.get("ADMIN_EMAIL") or ""
     repo_name = os.environ.get("REPO_NAME") or ""
-    gitea_repo_owner = os.environ.get("GITEA_REPO_OWNER") or ""
+    forgejo_repo_owner = os.environ.get("FORGEJO_REPO_OWNER") or ""
     enabled_str = os.environ.get("ENABLED_SERVICES") or ""
     domain = os.environ.get("DOMAIN") or ""
     admin_password_infisical = os.environ.get("INFISICAL_PASS") or ""
@@ -3734,7 +3734,7 @@ def _run_pre_bootstrap(args: list[str]) -> int:
     # Inputs for the workspace-coords + firewall-sync + global-env phases:
     admin_username = os.environ.get("ADMIN_USERNAME") or ""
     user_email = os.environ.get("USER_EMAIL") or ""
-    gitea_admin_pass = os.environ.get("GITEA_ADMIN_PASS") or None
+    forgejo_admin_pass = os.environ.get("FORGEJO_ADMIN_PASS") or None
     image_versions_json = os.environ.get("IMAGE_VERSIONS_JSON") or "{}"
     gh_mirror_repos_csv = os.environ.get("GH_MIRROR_REPOS") or ""
     gh_mirror_token = os.environ.get("GH_MIRROR_TOKEN") or None
@@ -3746,7 +3746,7 @@ def _run_pre_bootstrap(args: list[str]) -> int:
     # the (name) projection — not the (val) — gets emitted to stderr.
     # Caught in PR #532 R1 #1 (CodeQL false positive).
     #
-    # REPO_NAME + GITEA_REPO_OWNER are NOT required:
+    # REPO_NAME + FORGEJO_REPO_OWNER are NOT required:
     # _phase_workspace_coords derives them from raw inputs. They can
     # still be passed for back-compat / pre-seeding (e.g. tests).
     required_env = (
@@ -3767,9 +3767,9 @@ def _run_pre_bootstrap(args: list[str]) -> int:
 
     enabled = [s.strip() for s in enabled_str.replace(",", " ").split() if s.strip()]
     workspace_branch = os.environ.get("WORKSPACE_BRANCH") or "main"
-    gitea_user_username = os.environ.get("GITEA_USER_USERNAME") or None
-    gitea_user_email = os.environ.get("GITEA_USER_EMAIL") or None
-    gitea_user_password = os.environ.get("GITEA_USER_PASS") or None
+    forgejo_user_username = os.environ.get("FORGEJO_USER_USERNAME") or None
+    forgejo_user_email = os.environ.get("FORGEJO_USER_EMAIL") or None
+    forgejo_user_password = os.environ.get("FORGEJO_USER_PASS") or None
     ssh_host = os.environ.get("SSH_HOST_ALIAS") or "nexus"
     project_root_env = os.environ.get("PROJECT_ROOT")
     project_root = Path(project_root_env) if project_root_env else Path.cwd()
@@ -3783,9 +3783,9 @@ def _run_pre_bootstrap(args: list[str]) -> int:
     bootstrap_env = BootstrapEnv(
         domain=domain,
         admin_email=admin_email,
-        gitea_user_email=gitea_user_email,
-        gitea_user_username=gitea_user_username,
-        gitea_repo_owner=gitea_repo_owner,
+        forgejo_user_email=forgejo_user_email,
+        forgejo_user_username=forgejo_user_username,
+        forgejo_repo_owner=forgejo_repo_owner,
         repo_name=repo_name,
         om_principal_domain=os.environ.get("OM_PRINCIPAL_DOMAIN") or None,
         monitoring_endpoint=os.environ.get("MONITORING_ENDPOINT") or None,
@@ -3799,13 +3799,13 @@ def _run_pre_bootstrap(args: list[str]) -> int:
         bootstrap_env=bootstrap_env,
         enabled_services=enabled,
         repo_name=repo_name,
-        gitea_repo_owner=gitea_repo_owner,
+        forgejo_repo_owner=forgejo_repo_owner,
         workspace_branch=workspace_branch,
         gh_mirror_repos=gh_mirror_repos,
         gh_mirror_token=gh_mirror_token,
-        gitea_user_username=gitea_user_username,
-        gitea_user_email=gitea_user_email,
-        gitea_user_password=gitea_user_password,
+        forgejo_user_username=forgejo_user_username,
+        forgejo_user_email=forgejo_user_email,
+        forgejo_user_password=forgejo_user_password,
         ssh_host=ssh_host,
         domain=domain,
         firewall_json=firewall_json,
@@ -3814,7 +3814,7 @@ def _run_pre_bootstrap(args: list[str]) -> int:
         # workspace-coords + global-env inputs:
         admin_username=admin_username,
         user_email=user_email,
-        gitea_admin_pass=gitea_admin_pass,
+        forgejo_admin_pass=forgejo_admin_pass,
         image_versions_json=image_versions_json,
     )
 
@@ -3842,7 +3842,7 @@ def _run_pre_bootstrap(args: list[str]) -> int:
     # Eval-able stdout: 5 values for the caller. Always emit (with
     # empty values when not populated) so ``eval`` clears stale
     # shell vars from prior runs. The 3 workspace-coords lines
-    # (REPO_NAME, GITEA_REPO_OWNER, WORKSPACE_BRANCH) come from the
+    # (REPO_NAME, FORGEJO_REPO_OWNER, WORKSPACE_BRANCH) come from the
     # workspace-coords phase.
     import shlex as _shlex
 
@@ -3856,7 +3856,7 @@ def _run_pre_bootstrap(args: list[str]) -> int:
         f"REPO_NAME={_shlex.quote(result.state.repo_name or '')}\n",
     )
     sys.stdout.write(
-        f"GITEA_REPO_OWNER={_shlex.quote(result.state.gitea_repo_owner or '')}\n",
+        f"FORGEJO_REPO_OWNER={_shlex.quote(result.state.forgejo_repo_owner or '')}\n",
     )
     sys.stdout.write(
         f"WORKSPACE_BRANCH={_shlex.quote(result.state.workspace_branch or 'main')}\n",
@@ -3944,12 +3944,12 @@ def main() -> int:
         return _services_configure(args[1:])
     if args[:2] == ["kestra", "register-system-flows"]:
         return _kestra_register_system_flows(args[2:])
-    if args[:2] == ["gitea", "configure"]:
-        return _gitea_configure(args[2:])
-    if args[:2] == ["gitea", "woodpecker-oauth"]:
-        return _gitea_woodpecker_oauth(args[2:])
-    if args[:2] == ["gitea", "mirror-setup"]:
-        return _gitea_mirror_setup(args[2:])
+    if args[:2] == ["forgejo", "configure"]:
+        return _forgejo_configure(args[2:])
+    if args[:2] == ["forgejo", "woodpecker-oauth"]:
+        return _forgejo_woodpecker_oauth(args[2:])
+    if args[:2] == ["forgejo", "mirror-setup"]:
+        return _forgejo_mirror_setup(args[2:])
     if args[:1] == ["stack-sync"]:
         return _stack_sync(args[1:])
     if args[:1] == ["setup"]:
@@ -3995,19 +3995,19 @@ def main() -> int:
         "compose up --enabled <comma-list>, "
         "services configure --enabled <comma-list> (reads SECRETS_JSON from stdin), "
         "kestra register-system-flows (reads SECRETS_JSON from stdin + env vars), "
-        "gitea configure (reads SECRETS_JSON from stdin + env vars; emits eval-able stdout), "
-        "gitea woodpecker-oauth (env-only; emits WOODPECKER_GITEA_CLIENT + WOODPECKER_GITEA_SECRET), "
-        "gitea mirror-setup (env-only; emits FORK_NAME + GITEA_REPO_OWNER iff a fork was provisioned), "
+        "forgejo configure (reads SECRETS_JSON from stdin + env vars; emits eval-able stdout), "
+        "forgejo woodpecker-oauth (env-only; emits WOODPECKER_FORGEJO_CLIENT + WOODPECKER_FORGEJO_SECRET), "
+        "forgejo mirror-setup (env-only; emits FORK_NAME + FORGEJO_REPO_OWNER iff a fork was provisioned), "
         "stack-sync --enabled <comma-list> [--stacks-dir PATH], "
         "setup ssh-config | wait-ssh | ensure-jq | wetty-ssh-agent, "
         "service-env --enabled <comma-list> [--stacks-dir PATH] (reads SECRETS_JSON from stdin), "
         "run-all (reads SECRETS_JSON from stdin + env vars; emits eval-able stdout: "
-        "RESTART_SERVICES + WOODPECKER_GITEA_CLIENT + WOODPECKER_GITEA_SECRET), "
+        "RESTART_SERVICES + WOODPECKER_FORGEJO_CLIENT + WOODPECKER_FORGEJO_SECRET), "
         "run-pre-bootstrap (workspace-coords → service-env → firewall-configure → "
         "stack-sync → firewall-sync → global-env → compose-up → infisical-provision; reads "
         "SECRETS_JSON from stdin + env vars incl. INFISICAL_PASS, FIREWALL_RULES_JSON, "
         "ADMIN_USERNAME, IMAGE_VERSIONS_JSON; emits eval-able stdout: INFISICAL_TOKEN + "
-        "PROJECT_ID + REPO_NAME + GITEA_REPO_OWNER + WORKSPACE_BRANCH), "
+        "PROJECT_ID + REPO_NAME + FORGEJO_REPO_OWNER + WORKSPACE_BRANCH), "
         "select-capacity --tfvars PATH (Issue #536: pre-flight Hetzner capacity "
         "check; reads HCLOUD_TOKEN + optional SERVER_PREFERENCES env, walks "
         "<type>:<location> preference list, rewrites server_type+server_location "

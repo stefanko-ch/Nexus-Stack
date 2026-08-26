@@ -42,9 +42,9 @@ def test_virtual_services_derived_from_stack_parents_keys() -> None:
 
 def test_expand_targets_no_virtuals() -> None:
     """All-leaf input: parents empty, leaves preserve order."""
-    parents, leaves = expand_targets(["jupyter", "marimo", "gitea"])
+    parents, leaves = expand_targets(["jupyter", "marimo", "forgejo"])
     assert parents == []
-    assert leaves == ["jupyter", "marimo", "gitea"]
+    assert leaves == ["jupyter", "marimo", "forgejo"]
 
 
 def test_round_5_parent_dedupe_two_virtual_children() -> None:
@@ -65,10 +65,10 @@ def test_round_5_parent_skipped_in_leaves_when_already_added() -> None:
 
 def test_round_6_deferred_services_skipped() -> None:
     """R6 — woodpecker is deferred (started later by the orchestrator)."""
-    parents, leaves = expand_targets(["jupyter", "woodpecker", "gitea"])
+    parents, leaves = expand_targets(["jupyter", "woodpecker", "forgejo"])
     assert parents == []
     assert "woodpecker" not in leaves
-    assert leaves == ["jupyter", "gitea"]
+    assert leaves == ["jupyter", "forgejo"]
 
 
 def test_expand_targets_preserves_source_order() -> None:

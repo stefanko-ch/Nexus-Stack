@@ -247,7 +247,7 @@ def _render_default(stack: str = "jupyter", **kwargs: Any) -> str:
         "project_id": "p",
         "infisical_token": "tok",
         "infisical_env": "dev",
-        "gitea_token": "",
+        "forgejo_token": "",
     }
     defaults.update(kwargs)
     return render_remote_script(**defaults)
@@ -329,7 +329,7 @@ def test_round_6_uses_bash_case_not_grep_for_multiline_check() -> None:
     a match for EVERY non-empty single-line value because grep
     processes input line-by-line and the ``\\n`` pattern matches the
     implicit line terminator. Result: every secret was skipped as
-    "multi-line" and only ``GITEA_TOKEN`` (added via a separate code
+    "multi-line" and only ``FORGEJO_TOKEN`` (added via a separate code
     path) survived. Confirmed by the spin-up after #510 where
     ``secret-sync: jupyter wrote 1 env-vars`` instead of ~25.
 
@@ -717,7 +717,7 @@ def test_render_jupyter_snapshot(snapshot: SnapshotAssertion) -> None:
         project_id="snapshot-project",
         infisical_token="snapshot-token",
         infisical_env="dev",
-        gitea_token="snapshot-gitea-token",
+        forgejo_token="snapshot-forgejo-token",
     )
     assert script == snapshot
 
@@ -728,7 +728,7 @@ def test_render_marimo_snapshot(snapshot: SnapshotAssertion) -> None:
         project_id="snapshot-project",
         infisical_token="snapshot-token",
         infisical_env="dev",
-        gitea_token="snapshot-gitea-token",
+        forgejo_token="snapshot-forgejo-token",
     )
     assert script == snapshot
 
@@ -746,7 +746,7 @@ def test_render_kestra_snapshot(snapshot: SnapshotAssertion) -> None:
         project_id="snapshot-project",
         infisical_token="snapshot-token",
         infisical_env="dev",
-        gitea_token="snapshot-gitea-token",
+        forgejo_token="snapshot-forgejo-token",
     )
     assert script == snapshot
 
@@ -795,25 +795,25 @@ def test_render_kestra_skips_legacy_strip_when_no_legacy_file() -> None:
     assert 'if [ -n "$LEGACY_ENV" ] && [ -f "$LEGACY_ENV" ]' in script
 
 
-def test_render_kestra_gitea_token_in_base64() -> None:
-    """When gitea_token is set, the SECRET_GITEA_TOKEN line is also
+def test_render_kestra_forgejo_token_in_base64() -> None:
+    """When forgejo_token is set, the SECRET_FORGEJO_TOKEN line is also
     base64-encoded (not the plaintext-escaped form Jupyter/Marimo use)."""
     script = render_remote_script(
         target=_kestra_target(),
         project_id="p",
         infisical_token="t",
         infisical_env="dev",
-        gitea_token="my-gitea-token",
+        forgejo_token="my-forgejo-token",
     )
     # Kestra branch base64-encodes the token before appending.
     assert "GTOKEN_B64=$(printf '%s' \"$GTOKEN\" | base64 | tr -d '\\n')" in script
-    assert 'printf \'%sGITEA_TOKEN=%s\\n\' "$KEY_PREFIX" "$GTOKEN_B64"' in script
+    assert 'printf \'%sFORGEJO_TOKEN=%s\\n\' "$KEY_PREFIX" "$GTOKEN_B64"' in script
     # And the dedup-grep uses the prefix
-    assert 'grep -qE "^${KEY_PREFIX}GITEA_TOKEN="' in script
+    assert 'grep -qE "^${KEY_PREFIX}FORGEJO_TOKEN="' in script
 
 
-def test_render_jupyter_branch_unchanged_for_gitea_token() -> None:
-    """Defence in depth: Jupyter/Marimo gitea-token path stays plain-
+def test_render_jupyter_branch_unchanged_for_forgejo_token() -> None:
+    """Defence in depth: Jupyter/Marimo forgejo-token path stays plain-
     escaped (regression check that the new Kestra branch didn't break
     the original behavior)."""
     script = render_remote_script(
@@ -821,13 +821,13 @@ def test_render_jupyter_branch_unchanged_for_gitea_token() -> None:
         project_id="p",
         infisical_token="t",
         infisical_env="dev",
-        gitea_token="my-gitea-token",
+        forgejo_token="my-forgejo-token",
     )
     # No base64-encode of GTOKEN in the jupyter branch
     assert "GTOKEN_B64=$(printf" in script  # both branches render
     # But the actual emit uses ESCAPED_GTOKEN (plain-escaped) inside the USE_B64=0 branch
     assert "ESCAPED_GTOKEN=" in script
-    assert 'printf \'%sGITEA_TOKEN="%s"\\n\' "$KEY_PREFIX" "$ESCAPED_GTOKEN"' in script
+    assert 'printf \'%sFORGEJO_TOKEN="%s"\\n\' "$KEY_PREFIX" "$ESCAPED_GTOKEN"' in script
 
 
 def test_render_kestra_skips_multiline_guard() -> None:
@@ -1097,7 +1097,7 @@ def test_sort_separator_is_a_separate_argument_not_attached() -> None:
         project_id="p",
         infisical_token="t",
         infisical_env="dev",
-        gitea_token="g",
+        forgejo_token="g",
     )
     executable = [ln for ln in script.splitlines() if not ln.lstrip().startswith("#")]
 
@@ -1117,6 +1117,6 @@ def test_sort_still_orders_by_key_not_by_whole_line() -> None:
         project_id="p",
         infisical_token="t",
         infisical_env="dev",
-        gitea_token="g",
+        forgejo_token="g",
     )
     assert "-k1,1" in script

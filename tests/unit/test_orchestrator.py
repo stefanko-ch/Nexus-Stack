@@ -3,8 +3,8 @@
 Heavy mocking of underlying module functions — orchestrator is wiring,
 not new logic. Focus on:
 
-- State-handoff between phases (gitea_token → seed/kestra/woodpecker/mirror)
-- Phase ordering (gitea before seed, gitea before kestra, etc.)
+- State-handoff between phases (forgejo_token → seed/kestra/woodpecker/mirror)
+- Phase ordering (forgejo before seed, forgejo before kestra, etc.)
 - Skip-conditions (kestra skipped when 'kestra' not enabled, etc.)
 - Failed phase aborts orchestrator (later phases not invoked)
 - Partial phase keeps orchestrator running
@@ -14,7 +14,6 @@ not new logic. Focus on:
 
 from __future__ import annotations
 
-import dataclasses
 import subprocess
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -23,11 +22,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nexus_deploy.config import NexusConfig
-from nexus_deploy.gitea import (
+from nexus_deploy.forgejo import (
     CreateRepoResult,
     CreateUserResult,
+    ForgejoResult,
     ForkResult,
-    GiteaResult,
     MirrorResult,
     MirrorSetupResult,
     OAuthAppResult,
@@ -51,7 +50,7 @@ def minimal_config() -> NexusConfig:
     are mocked so most fields don't matter."""
     return NexusConfig(
         admin_username="admin",
-        gitea_admin_password="gitea-admin",
+        forgejo_admin_password="forgejo-admin",
         kestra_admin_password="kestra-pw",
     )
 
@@ -71,9 +70,9 @@ def orchestrator(minimal_config: NexusConfig, minimal_env: BootstrapEnv) -> Orch
     return Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea", "kestra", "jupyter", "marimo", "woodpecker"],
-        repo_name="nexus-example-com-gitea",
-        gitea_repo_owner="admin",
+        enabled_services=["forgejo", "kestra", "jupyter", "marimo", "woodpecker"],
+        repo_name="nexus-example-com-workspace",
+        forgejo_repo_owner="admin",
         project_id="proj-id",
         infisical_token="infi-token",
     )
@@ -123,13 +122,13 @@ def test_orchestrator_result_hard_failure() -> None:
 
 
 # ---------------------------------------------------------------------------
-# State-handoff: gitea_token flows from gitea-configure to downstream phases
+# State-handoff: forgejo_token flows from forgejo-configure to downstream phases
 # ---------------------------------------------------------------------------
 
 
-def _mk_gitea_result(token: str = "abc-token") -> GiteaResult:
-    """Helper: build a GiteaResult with the given token."""
-    return GiteaResult(
+def _mk_forgejo_result(token: str = "abc-token") -> ForgejoResult:
+    """Helper: build a ForgejoResult with the given token."""
+    return ForgejoResult(
         db_pw_synced=True,
         admin=CreateUserResult(name="admin", status="created"),
         user=None,
@@ -141,14 +140,14 @@ def _mk_gitea_result(token: str = "abc-token") -> GiteaResult:
     )
 
 
-def test_state_handoff_gitea_token_reaches_seed(
+def test_state_handoff_forgejo_token_reaches_seed(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R-state: gitea-configure populates state.gitea_token; seed reads it."""
+    """R-state: forgejo-configure populates state.forgejo_token; seed reads it."""
     captured_tokens: list[str | None] = []
 
-    def fake_gitea_configure(*args: Any, **kwargs: Any) -> GiteaResult:
-        return _mk_gitea_result(token="abc-token")
+    def fake_forgejo_configure(*args: Any, **kwargs: Any) -> ForgejoResult:
+        return _mk_forgejo_result(token="abc-token")
 
     def fake_seed(**kwargs: Any) -> Any:
         captured_tokens.append(kwargs.get("token"))
@@ -159,7 +158,7 @@ def test_state_handoff_gitea_token_reaches_seed(
         return result
 
     monkeypatch.setattr(
-        "nexus_deploy.orchestrator._gitea.run_configure_gitea", fake_gitea_configure
+        "nexus_deploy.orchestrator._forgejo.run_configure_forgejo", fake_forgejo_configure
     )
     monkeypatch.setattr("nexus_deploy.orchestrator._seeder.run_seed_for_repo", fake_seed)
     # Mock other phases to avoid running them. The post-bootstrap
@@ -186,19 +185,19 @@ def test_state_handoff_gitea_token_reaches_seed(
     monkeypatch.setattr("nexus_deploy.orchestrator.Path.is_dir", lambda self: True)
 
     result = orchestrator.run_all()
-    assert orchestrator.state.gitea_token == "abc-token"
+    assert orchestrator.state.forgejo_token == "abc-token"
     assert captured_tokens == ["abc-token"]
-    assert result.state.gitea_token == "abc-token"
+    assert result.state.forgejo_token == "abc-token"
 
 
-def test_state_handoff_restart_services_populated_from_gitea(
+def test_state_handoff_restart_services_populated_from_forgejo(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R-stdout: state.restart_services populated by gitea-configure;
+    """R-stdout: state.restart_services populated by forgejo-configure;
     will be emitted to stdout by the CLI."""
     monkeypatch.setattr(
-        "nexus_deploy.orchestrator._gitea.run_configure_gitea",
-        lambda *a, **kw: _mk_gitea_result(),
+        "nexus_deploy.orchestrator._forgejo.run_configure_forgejo",
+        lambda *a, **kw: _mk_forgejo_result(),
     )
     monkeypatch.setattr("nexus_deploy.orchestrator.SSHClient", MagicMock())
     for phase_name in (
@@ -227,7 +226,7 @@ def test_state_handoff_woodpecker_creds_populated(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """R-stdout: woodpecker-oauth populates state.woodpecker_*."""
-    orchestrator.state.gitea_token = "pre-set-token"  # skip the gitea phase
+    orchestrator.state.forgejo_token = "pre-set-token"  # skip the forgejo phase
 
     def fake_woodpecker(*args: Any, **kwargs: Any) -> tuple[OAuthAppResult, str | None, bool]:
         return (
@@ -237,13 +236,13 @@ def test_state_handoff_woodpecker_creds_populated(
         )
 
     monkeypatch.setattr(
-        "nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", fake_woodpecker
+        "nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", fake_woodpecker
     )
     monkeypatch.setattr("nexus_deploy.orchestrator.SSHClient", MagicMock())
     for phase_name in (
         "_phase_infisical_bootstrap",
         "_phase_services_configure",
-        "_phase_gitea_configure",
+        "_phase_forgejo_configure",
         "_phase_compose_restart",
         "_phase_kestra_secret_sync",
         "_phase_seed",
@@ -270,8 +269,8 @@ def test_state_handoff_fork_populated_from_mirror(
     when a fork is provisioned."""
     orchestrator.gh_mirror_repos = ["https://github.com/owner/repo"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.gitea_user_username = "user"
-    orchestrator.state.gitea_token = "pre-set-token"
+    orchestrator.forgejo_user_username = "user"
+    orchestrator.state.forgejo_token = "pre-set-token"
 
     def fake_mirror(*args: Any, **kwargs: Any) -> MirrorSetupResult:
         return MirrorSetupResult(
@@ -283,12 +282,12 @@ def test_state_handoff_fork_populated_from_mirror(
             fork_synced=True,
         )
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", fake_mirror)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
     monkeypatch.setattr("nexus_deploy.orchestrator.SSHClient", MagicMock())
     for phase_name in (
         "_phase_infisical_bootstrap",
         "_phase_services_configure",
-        "_phase_gitea_configure",
+        "_phase_forgejo_configure",
         "_phase_compose_restart",
         "_phase_kestra_secret_sync",
         "_phase_seed",
@@ -319,9 +318,9 @@ def test_phase_kestra_skipped_when_kestra_not_enabled(
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],  # kestra NOT enabled
+        enabled_services=["forgejo"],  # kestra NOT enabled
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     ssh = MagicMock()
     result = orch._phase_kestra_register(ssh)
@@ -335,9 +334,9 @@ def test_phase_mirror_skipped_when_no_mirrors_configured(
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],
+        enabled_services=["forgejo"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         # gh_mirror_repos defaults to []
     )
     ssh = MagicMock()
@@ -346,23 +345,23 @@ def test_phase_mirror_skipped_when_no_mirrors_configured(
     assert "no mirrors" in result.detail
 
 
-def test_phase_seed_skipped_when_no_gitea_token(
+def test_phase_seed_skipped_when_no_forgejo_token(
     minimal_config: NexusConfig, minimal_env: BootstrapEnv
 ) -> None:
-    """Seed depends on gitea_token; if a prior phase didn't produce
+    """Seed depends on forgejo_token; if a prior phase didn't produce
     one, seed skips gracefully."""
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],
+        enabled_services=["forgejo"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
-    # state.gitea_token is None by default
+    # state.forgejo_token is None by default
     ssh = MagicMock()
     result = orch._phase_seed(ssh)
     assert result.status == "skipped"
-    assert "no gitea_token" in result.detail
+    assert "no forgejo_token" in result.detail
 
 
 def test_phase_woodpecker_skipped_when_woodpecker_not_enabled(
@@ -371,28 +370,28 @@ def test_phase_woodpecker_skipped_when_woodpecker_not_enabled(
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],  # NOT woodpecker
+        enabled_services=["forgejo"],  # NOT woodpecker
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     ssh = MagicMock()
     result = orch._phase_woodpecker_oauth(ssh)
     assert result.status == "skipped"
 
 
-def test_phase_woodpecker_skipped_when_no_gitea_token(
+def test_phase_woodpecker_skipped_when_no_forgejo_token(
     minimal_config: NexusConfig, minimal_env: BootstrapEnv
 ) -> None:
-    """If gitea-configure didn't produce a token (e.g. partial fail),
+    """If forgejo-configure didn't produce a token (e.g. partial fail),
     woodpecker-oauth skips."""
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
         enabled_services=["woodpecker"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
-    # state.gitea_token is None
+    # state.forgejo_token is None
     ssh = MagicMock()
     result = orch._phase_woodpecker_oauth(ssh)
     assert result.status == "skipped"
@@ -422,7 +421,7 @@ def test_failed_phase_aborts_downstream_phases(
     # services-configure FAILS
     monkeypatch.setattr(orchestrator, "_phase_services_configure", make_phase("services", "failed"))
     # Downstream phases — should NOT be invoked
-    monkeypatch.setattr(orchestrator, "_phase_gitea_configure", make_phase("gitea"))
+    monkeypatch.setattr(orchestrator, "_phase_forgejo_configure", make_phase("forgejo"))
     monkeypatch.setattr(orchestrator, "_phase_seed", make_phase("seed"))
     monkeypatch.setattr(orchestrator, "_phase_kestra_register", make_phase("kestra"))
     monkeypatch.setattr(orchestrator, "_phase_woodpecker_oauth", make_phase("woodpecker"))
@@ -461,7 +460,7 @@ def test_partial_phase_continues_to_downstream(
     monkeypatch.setattr(
         orchestrator, "_phase_forgejo_runner_register", make_phase("forgejo-runner")
     )
-    monkeypatch.setattr(orchestrator, "_phase_gitea_configure", make_phase("gitea"))
+    monkeypatch.setattr(orchestrator, "_phase_forgejo_configure", make_phase("forgejo"))
     monkeypatch.setattr(orchestrator, "_phase_compose_restart", make_phase("compose-restart"))
     monkeypatch.setattr(orchestrator, "_phase_kestra_secret_sync", make_phase("kestra-ss"))
     monkeypatch.setattr(orchestrator, "_phase_seed", make_phase("seed"))
@@ -477,7 +476,7 @@ def test_partial_phase_continues_to_downstream(
 
     result = orchestrator.run_all()
     # All 17 phases ran despite the partial in services-configure.
-    assert len(invoked) == 17
+    assert len(invoked) == 16
     assert result.has_partial
     assert not result.has_hard_failure
 
@@ -492,7 +491,7 @@ def test_phases_run_in_deterministic_order(
 ) -> None:
     """R-order: phases run in the documented order. Updated for Phase
     4b2 (#505) — 14 phases instead of 9. New phases interleave per the
-    state-handoff dependency graph (compose-restart after gitea;
+    state-handoff dependency graph (compose-restart after forgejo;
     kestra-secret-sync before kestra-register; woodpecker-apply after
     woodpecker-oauth; mirror-seed-rerun + mirror-finalize after
     mirror-setup)."""
@@ -508,7 +507,7 @@ def test_phases_run_in_deterministic_order(
     monkeypatch.setattr("nexus_deploy.orchestrator.SSHClient", MagicMock())
     monkeypatch.setattr(orchestrator, "_phase_infisical_bootstrap", make_phase("1-infisical"))
     monkeypatch.setattr(orchestrator, "_phase_services_configure", make_phase("2-services"))
-    monkeypatch.setattr(orchestrator, "_phase_gitea_configure", make_phase("3-gitea"))
+    monkeypatch.setattr(orchestrator, "_phase_forgejo_configure", make_phase("3-workspace"))
     monkeypatch.setattr(orchestrator, "_phase_compose_restart", make_phase("4-compose-restart"))
     monkeypatch.setattr(orchestrator, "_phase_kestra_secret_sync", make_phase("5-kestra-ss"))
     monkeypatch.setattr(orchestrator, "_phase_kestra_register", make_phase("6-kestra-reg"))
@@ -530,7 +529,7 @@ def test_phases_run_in_deterministic_order(
     assert invoked == [
         "1-infisical",
         "2-services",
-        "3-gitea",
+        "3-workspace",
         "4-compose-restart",
         "5-kestra-ss",
         "6-kestra-reg",
@@ -567,7 +566,7 @@ def test_cli_run_all_missing_env_returns_2(
     for var in (
         "ADMIN_EMAIL",
         "REPO_NAME",
-        "GITEA_REPO_OWNER",
+        "FORGEJO_REPO_OWNER",
         "ENABLED_SERVICES",
         "DOMAIN",
         "PROJECT_ID",
@@ -587,8 +586,8 @@ def test_cli_run_all_rc0_on_all_ok(
     for var, val in (
         ("ADMIN_EMAIL", "a@b"),
         ("REPO_NAME", "r"),
-        ("GITEA_REPO_OWNER", "o"),
-        ("ENABLED_SERVICES", "gitea,kestra"),
+        ("FORGEJO_REPO_OWNER", "o"),
+        ("ENABLED_SERVICES", "forgejo,kestra"),
         ("DOMAIN", "example.com"),
         ("PROJECT_ID", "p"),
         ("INFISICAL_TOKEN", "t"),
@@ -614,8 +613,8 @@ def test_cli_run_all_rc1_on_partial(monkeypatch: pytest.MonkeyPatch) -> None:
     for var, val in (
         ("ADMIN_EMAIL", "a@b"),
         ("REPO_NAME", "r"),
-        ("GITEA_REPO_OWNER", "o"),
-        ("ENABLED_SERVICES", "gitea"),
+        ("FORGEJO_REPO_OWNER", "o"),
+        ("ENABLED_SERVICES", "forgejo"),
         ("DOMAIN", "example.com"),
         ("PROJECT_ID", "p"),
         ("INFISICAL_TOKEN", "t"),
@@ -638,8 +637,8 @@ def test_cli_run_all_rc2_on_hard_failure(monkeypatch: pytest.MonkeyPatch) -> Non
     for var, val in (
         ("ADMIN_EMAIL", "a@b"),
         ("REPO_NAME", "r"),
-        ("GITEA_REPO_OWNER", "o"),
-        ("ENABLED_SERVICES", "gitea"),
+        ("FORGEJO_REPO_OWNER", "o"),
+        ("ENABLED_SERVICES", "forgejo"),
         ("DOMAIN", "example.com"),
         ("PROJECT_ID", "p"),
         ("INFISICAL_TOKEN", "t"),
@@ -666,8 +665,8 @@ def test_cli_run_all_emits_woodpecker_creds_when_set(
     for var, val in (
         ("ADMIN_EMAIL", "a@b"),
         ("REPO_NAME", "r"),
-        ("GITEA_REPO_OWNER", "o"),
-        ("ENABLED_SERVICES", "gitea,woodpecker"),
+        ("FORGEJO_REPO_OWNER", "o"),
+        ("ENABLED_SERVICES", "forgejo,woodpecker"),
         ("DOMAIN", "example.com"),
         ("PROJECT_ID", "p"),
         ("INFISICAL_TOKEN", "t"),
@@ -687,17 +686,19 @@ def test_cli_run_all_emits_woodpecker_creds_when_set(
         _run_all([])
     out = capsys.readouterr().out
     assert (
-        "WOODPECKER_GITEA_CLIENT='wp-client'" in out or "WOODPECKER_GITEA_CLIENT=wp-client" in out
+        "WOODPECKER_FORGEJO_CLIENT='wp-client'" in out
+        or "WOODPECKER_FORGEJO_CLIENT=wp-client" in out
     )
     assert (
-        "WOODPECKER_GITEA_SECRET='wp-secret'" in out or "WOODPECKER_GITEA_SECRET=wp-secret" in out
+        "WOODPECKER_FORGEJO_SECRET='wp-secret'" in out
+        or "WOODPECKER_FORGEJO_SECRET=wp-secret" in out
     )
 
 
-def test_cli_run_all_no_gitea_token_in_stdout(
+def test_cli_run_all_no_forgejo_token_in_stdout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """R-state-confinement: gitea_token must NOT leak to stdout —
+    """R-state-confinement: forgejo_token must NOT leak to stdout —
     it's consumed entirely inside the orchestrator. Same for
     fork_name / fork_owner."""
     from nexus_deploy.__main__ import _run_all
@@ -705,8 +706,8 @@ def test_cli_run_all_no_gitea_token_in_stdout(
     for var, val in (
         ("ADMIN_EMAIL", "a@b"),
         ("REPO_NAME", "r"),
-        ("GITEA_REPO_OWNER", "o"),
-        ("ENABLED_SERVICES", "gitea"),
+        ("FORGEJO_REPO_OWNER", "o"),
+        ("ENABLED_SERVICES", "forgejo"),
         ("DOMAIN", "example.com"),
         ("PROJECT_ID", "p"),
         ("INFISICAL_TOKEN", "t"),
@@ -717,7 +718,7 @@ def test_cli_run_all_no_gitea_token_in_stdout(
     fake_result = OrchestratorResult(
         phases=(PhaseResult("p1", "ok"),),
         state=OrchestratorState(
-            gitea_token="SECRET-TOKEN-ABCDEF",
+            forgejo_token="SECRET-TOKEN-ABCDEF",
             fork_name="some-fork",
             fork_owner="some-owner",
         ),
@@ -727,7 +728,7 @@ def test_cli_run_all_no_gitea_token_in_stdout(
     captured = capsys.readouterr()
     assert "SECRET-TOKEN-ABCDEF" not in captured.out
     assert "SECRET-TOKEN-ABCDEF" not in captured.err
-    assert "GITEA_TOKEN" not in captured.out
+    assert "FORGEJO_TOKEN" not in captured.out
     assert "FORK_NAME" not in captured.out
     assert "FORK_OWNER" not in captured.out
 
@@ -740,14 +741,14 @@ def test_phase_infisical_skipped_without_creds(
         bootstrap_env=minimal_env,
         enabled_services=[],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         # project_id + infisical_token left as None
     )
     result = orch._phase_infisical_bootstrap(MagicMock())
     assert result.status == "skipped"
 
 
-def test_phase_gitea_configure_skipped_when_gitea_disabled(
+def test_phase_forgejo_configure_skipped_when_forgejo_disabled(
     minimal_env: BootstrapEnv,
 ) -> None:
     config = NexusConfig()
@@ -756,26 +757,26 @@ def test_phase_gitea_configure_skipped_when_gitea_disabled(
         bootstrap_env=minimal_env,
         enabled_services=[],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
-    result = orch._phase_gitea_configure(MagicMock())
+    result = orch._phase_forgejo_configure(MagicMock())
     assert result.status == "skipped"
 
 
-def test_phase_gitea_configure_partial_without_admin_password(
+def test_phase_forgejo_configure_partial_without_admin_password(
     minimal_env: BootstrapEnv,
 ) -> None:
-    config = NexusConfig()  # no gitea_admin_password
+    config = NexusConfig()  # no forgejo_admin_password
     orch = Orchestrator(
         config=config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],
+        enabled_services=["forgejo"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
-    result = orch._phase_gitea_configure(MagicMock())
+    result = orch._phase_forgejo_configure(MagicMock())
     assert result.status == "partial"
-    assert "GITEA_ADMIN_PASS" in result.detail
+    assert "FORGEJO_ADMIN_PASS" in result.detail
 
 
 def test_phase_kestra_partial_without_admin_pass(minimal_env: BootstrapEnv) -> None:
@@ -785,7 +786,7 @@ def test_phase_kestra_partial_without_admin_pass(minimal_env: BootstrapEnv) -> N
         bootstrap_env=minimal_env,
         enabled_services=["kestra"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     result = orch._phase_kestra_register(MagicMock())
     assert result.status == "partial"
@@ -798,7 +799,7 @@ def test_phase_secret_sync_jupyter_skipped_when_disabled(minimal_env: BootstrapE
         bootstrap_env=minimal_env,
         enabled_services=[],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     result = orch._phase_secret_sync_jupyter(MagicMock())
     assert result.status == "skipped"
@@ -811,7 +812,7 @@ def test_phase_secret_sync_marimo_skipped_when_disabled(minimal_env: BootstrapEn
         bootstrap_env=minimal_env,
         enabled_services=[],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     result = orch._phase_secret_sync_marimo(MagicMock())
     assert result.status == "skipped"
@@ -824,7 +825,7 @@ def test_phase_secret_sync_code_server_skipped_when_disabled(minimal_env: Bootst
         bootstrap_env=minimal_env,
         enabled_services=[],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     result = orch._phase_secret_sync_code_server(MagicMock())
     assert result.status == "skipped"
@@ -837,7 +838,7 @@ def test_phase_secret_sync_partial_without_creds(minimal_env: BootstrapEnv) -> N
         bootstrap_env=minimal_env,
         enabled_services=["jupyter"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         # project_id + infisical_token left as None
     )
     result = orch._phase_secret_sync_jupyter(MagicMock())
@@ -852,8 +853,8 @@ def test_cli_run_all_unexpected_exception_returns_2(
     for var, val in (
         ("ADMIN_EMAIL", "a@b"),
         ("REPO_NAME", "r"),
-        ("GITEA_REPO_OWNER", "o"),
-        ("ENABLED_SERVICES", "gitea"),
+        ("FORGEJO_REPO_OWNER", "o"),
+        ("ENABLED_SERVICES", "forgejo"),
         ("DOMAIN", "example.com"),
         ("PROJECT_ID", "p"),
         ("INFISICAL_TOKEN", "t"),
@@ -958,7 +959,7 @@ def test_phase_infisical_bootstrap_skipped_when_creds_missing(
         bootstrap_env=minimal_env,
         enabled_services=[],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         # project_id / infisical_token default to None
     )
     result = orch._phase_infisical_bootstrap(MagicMock())
@@ -1046,23 +1047,23 @@ def test_phase_services_configure_omits_empty_name_lists(
     assert result.detail == "configured=1 already-configured=0 skipped-not-ready=0"
 
 
-def test_phase_gitea_configure_ok_populates_state(
+def test_phase_forgejo_configure_ok_populates_state(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake = _mk_gitea_result(token="abc-token")
+    fake = _mk_forgejo_result(token="abc-token")
     monkeypatch.setattr(
-        "nexus_deploy.orchestrator._gitea.run_configure_gitea", lambda *_a, **_kw: fake
+        "nexus_deploy.orchestrator._forgejo.run_configure_forgejo", lambda *_a, **_kw: fake
     )
-    result = orchestrator._phase_gitea_configure(_ssh_with_tunnel())
+    result = orchestrator._phase_forgejo_configure(_ssh_with_tunnel())
     assert result.status == "ok"
-    assert orchestrator.state.gitea_token == "abc-token"
+    assert orchestrator.state.forgejo_token == "abc-token"
     assert orchestrator.state.restart_services == ("kestra", "jupyter")
 
 
-def test_phase_gitea_configure_partial_when_subresult_unsuccessful(
+def test_phase_forgejo_configure_partial_when_subresult_unsuccessful(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake = GiteaResult(
+    fake = ForgejoResult(
         db_pw_synced=True,
         admin=CreateUserResult(name="admin", status="failed"),  # is_success=False
         user=None,
@@ -1073,36 +1074,36 @@ def test_phase_gitea_configure_partial_when_subresult_unsuccessful(
         restart_services=(),
     )
     monkeypatch.setattr(
-        "nexus_deploy.orchestrator._gitea.run_configure_gitea", lambda *_a, **_kw: fake
+        "nexus_deploy.orchestrator._forgejo.run_configure_forgejo", lambda *_a, **_kw: fake
     )
-    result = orchestrator._phase_gitea_configure(_ssh_with_tunnel())
+    result = orchestrator._phase_forgejo_configure(_ssh_with_tunnel())
     assert result.status == "partial"
 
 
-def test_phase_gitea_configure_partial_when_admin_password_missing(
+def test_phase_forgejo_configure_partial_when_admin_password_missing(
     minimal_env: BootstrapEnv,
 ) -> None:
-    cfg = NexusConfig(admin_username="admin")  # no gitea_admin_password
+    cfg = NexusConfig(admin_username="admin")  # no forgejo_admin_password
     orch = Orchestrator(
         config=cfg,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],
+        enabled_services=["forgejo"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
-    result = orch._phase_gitea_configure(MagicMock())
+    result = orch._phase_forgejo_configure(MagicMock())
     assert result.status == "partial"
-    assert "GITEA_ADMIN_PASS" in result.detail
+    assert "FORGEJO_ADMIN_PASS" in result.detail
 
 
-def test_phase_gitea_configure_failed_on_transport(
+def test_phase_forgejo_configure_failed_on_transport(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def boom(*_a: Any, **_kw: Any) -> Any:
         raise OSError("connection refused")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_configure_gitea", boom)
-    result = orchestrator._phase_gitea_configure(_ssh_with_tunnel())
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_configure_forgejo", boom)
+    result = orchestrator._phase_forgejo_configure(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "OSError" in result.detail
 
@@ -1110,7 +1111,7 @@ def test_phase_gitea_configure_failed_on_transport(
 def test_phase_seed_ok(orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch) -> None:
     from nexus_deploy.seeder import SeedResult
 
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
     monkeypatch.setattr(
         "nexus_deploy.orchestrator._seeder.run_seed_for_repo",
         lambda **_kw: SeedResult(created=4, skipped=1, failed=0),
@@ -1126,7 +1127,7 @@ def test_phase_seed_partial_when_some_failed_but_progress_made(
 ) -> None:
     from nexus_deploy.seeder import SeedResult
 
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
     monkeypatch.setattr(
         "nexus_deploy.orchestrator._seeder.run_seed_for_repo",
         lambda **_kw: SeedResult(created=2, skipped=1, failed=1),
@@ -1141,7 +1142,7 @@ def test_phase_seed_failed_when_zero_progress(
 ) -> None:
     from nexus_deploy.seeder import SeedResult
 
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
     monkeypatch.setattr(
         "nexus_deploy.orchestrator._seeder.run_seed_for_repo",
         lambda **_kw: SeedResult(created=0, skipped=0, failed=5),
@@ -1154,7 +1155,7 @@ def test_phase_seed_failed_when_zero_progress(
 def test_phase_seed_skipped_when_seeds_dir_missing(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
     monkeypatch.setattr("nexus_deploy.orchestrator.Path.is_dir", lambda self: False)
     result = orchestrator._phase_seed(MagicMock())
     assert result.status == "skipped"
@@ -1189,7 +1190,7 @@ def test_phase_kestra_register_partial_when_admin_email_missing(
         bootstrap_env=env,
         enabled_services=["kestra"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
     result = orch._phase_kestra_register(MagicMock())
     assert result.status == "partial"
@@ -1219,9 +1220,9 @@ def test_phase_woodpecker_oauth_partial_when_domain_missing(
         bootstrap_env=env,
         enabled_services=["woodpecker"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
     )
-    orch.state.gitea_token = "tok"
+    orch.state.forgejo_token = "tok"
     result = orch._phase_woodpecker_oauth(MagicMock())
     assert result.status == "partial"
     assert "DOMAIN" in result.detail
@@ -1232,12 +1233,12 @@ def test_phase_woodpecker_oauth_failed_when_rotation_half_complete(
 ) -> None:
     """If create succeeded but rotation didn't, the failed branch
     surfaces the half-complete state."""
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def fake_oauth(*_a: Any, **_kw: Any) -> tuple[Any, str | None, bool]:
         return (None, "rotation aborted mid-flight", True)
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", fake_oauth)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", fake_oauth)
     result = orchestrator._phase_woodpecker_oauth(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "half-complete" in result.detail
@@ -1246,12 +1247,12 @@ def test_phase_woodpecker_oauth_failed_when_rotation_half_complete(
 def test_phase_woodpecker_oauth_partial_when_create_failed_no_rotation(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def fake_oauth(*_a: Any, **_kw: Any) -> tuple[Any, str | None, bool]:
         return (None, "create returned 422", False)
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", fake_oauth)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", fake_oauth)
     result = orchestrator._phase_woodpecker_oauth(_ssh_with_tunnel())
     assert result.status == "partial"
 
@@ -1262,12 +1263,12 @@ def test_phase_mirror_setup_partial_when_gh_token_missing(
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],
+        enabled_services=["forgejo"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         gh_mirror_repos=["https://github.com/x/y"],
     )
-    orch.state.gitea_token = "tok"
+    orch.state.forgejo_token = "tok"
     result = orch._phase_mirror_setup(MagicMock())
     assert result.status == "partial"
     assert "GH_MIRROR_TOKEN" in result.detail
@@ -1278,7 +1279,7 @@ def test_phase_mirror_setup_partial_when_some_mirrors_failed(
 ) -> None:
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def fake_mirror(*_a: Any, **_kw: Any) -> MirrorSetupResult:
         return MirrorSetupResult(
@@ -1293,7 +1294,7 @@ def test_phase_mirror_setup_partial_when_some_mirrors_failed(
             fork_synced=False,
         )
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", fake_mirror)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "partial"
 
@@ -1309,7 +1310,7 @@ def test_phase_mirror_setup_surfaces_sync_detail_in_phase_result(
     leave the operator without their diagnostic."""
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def fake_mirror(*_a: Any, **_kw: Any) -> MirrorSetupResult:
         return MirrorSetupResult(
@@ -1322,7 +1323,7 @@ def test_phase_mirror_setup_surfaces_sync_detail_in_phase_result(
             sync_detail="mirror synced (oldsha12 -> newsha34), merge_upstream=200",
         )
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", fake_mirror)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "ok"
     assert "mirrors=1" in result.detail
@@ -1338,7 +1339,7 @@ def test_phase_mirror_setup_omits_sync_detail_when_empty(
     ' | ' separator for an absent diagnostic."""
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def fake_mirror(*_a: Any, **_kw: Any) -> MirrorSetupResult:
         return MirrorSetupResult(
@@ -1351,7 +1352,7 @@ def test_phase_mirror_setup_omits_sync_detail_when_empty(
             sync_detail="",
         )
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", fake_mirror)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "ok"
     assert result.detail == "mirrors=1"
@@ -1363,9 +1364,9 @@ def test_phase_secret_sync_jupyter_skipped_when_not_enabled(
     orch = Orchestrator(
         config=minimal_config,
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],  # NOT jupyter
+        enabled_services=["forgejo"],  # NOT jupyter
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         project_id="p",
         infisical_token="t",
     )
@@ -1381,7 +1382,7 @@ def test_phase_secret_sync_jupyter_partial_when_creds_missing(
         bootstrap_env=minimal_env,
         enabled_services=["jupyter"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         # project_id / infisical_token default None
     )
     result = orch._phase_secret_sync_jupyter(MagicMock())
@@ -1481,7 +1482,7 @@ def test_run_all_resets_results_between_runs(
         "_phase_services_configure",
         "_phase_forgejo_configure",
         "_phase_forgejo_runner_register",
-        "_phase_gitea_configure",
+        "_phase_forgejo_configure",
         "_phase_compose_restart",
         "_phase_kestra_secret_sync",
         "_phase_seed",
@@ -1499,8 +1500,8 @@ def test_run_all_resets_results_between_runs(
     r1 = orchestrator.run_all()
     r2 = orchestrator.run_all()
     # 17 phases per ``run_all`` invocation.
-    assert len(r1.phases) == 17
-    assert len(r2.phases) == 17
+    assert len(r1.phases) == 16
+    assert len(r2.phases) == 16
 
 
 # ---------------------------------------------------------------------------
@@ -1547,14 +1548,14 @@ def test_phase_services_configure_unexpected_exception(
     assert "ValueError" in result.detail
 
 
-def test_phase_gitea_configure_unexpected_exception(
+def test_phase_forgejo_configure_unexpected_exception(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def boom(*_a: Any, **_kw: Any) -> Any:
         raise RuntimeError("oops")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_configure_gitea", boom)
-    result = orchestrator._phase_gitea_configure(_ssh_with_tunnel())
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_configure_forgejo", boom)
+    result = orchestrator._phase_forgejo_configure(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "RuntimeError" in result.detail
 
@@ -1562,7 +1563,7 @@ def test_phase_gitea_configure_unexpected_exception(
 def test_phase_seed_unexpected_exception(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(**_kw: Any) -> Any:
         raise RuntimeError("oops")
@@ -1605,18 +1606,18 @@ def test_phase_kestra_register_partial_when_not_success(
     assert result.status == "partial"
 
 
-def test_phase_woodpecker_oauth_failed_on_gitea_error(
+def test_phase_woodpecker_oauth_failed_on_forgejo_error(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """GiteaError branch (lines 486-491)."""
-    from nexus_deploy.gitea import GiteaError
+    """ForgejoError branch (lines 486-491)."""
+    from nexus_deploy.forgejo import ForgejoError
 
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(*_a: Any, **_kw: Any) -> Any:
-        raise GiteaError("API 500")
+        raise ForgejoError("API 500")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", boom)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", boom)
     result = orchestrator._phase_woodpecker_oauth(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "API 500" in result.detail
@@ -1625,12 +1626,12 @@ def test_phase_woodpecker_oauth_failed_on_gitea_error(
 def test_phase_woodpecker_oauth_failed_on_transport(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(*_a: Any, **_kw: Any) -> Any:
         raise OSError("conn refused")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", boom)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", boom)
     result = orchestrator._phase_woodpecker_oauth(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "OSError" in result.detail
@@ -1639,12 +1640,12 @@ def test_phase_woodpecker_oauth_failed_on_transport(
 def test_phase_woodpecker_oauth_unexpected_exception(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(*_a: Any, **_kw: Any) -> Any:
         raise RuntimeError("oops")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", boom)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", boom)
     result = orchestrator._phase_woodpecker_oauth(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "RuntimeError" in result.detail
@@ -1654,7 +1655,7 @@ def test_phase_woodpecker_oauth_ok_populates_state(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Happy path: result populated → state mutation + ok status."""
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def fake_oauth(*_a: Any, **_kw: Any) -> tuple[OAuthAppResult, str | None, bool]:
         return (
@@ -1663,7 +1664,7 @@ def test_phase_woodpecker_oauth_ok_populates_state(
             False,
         )
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_woodpecker_oauth_setup", fake_oauth)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_woodpecker_oauth_setup", fake_oauth)
     result = orchestrator._phase_woodpecker_oauth(_ssh_with_tunnel())
     assert result.status == "ok"
     assert orchestrator.state.woodpecker_client_id == "cid"
@@ -1675,30 +1676,30 @@ def test_phase_mirror_setup_failed_on_transport(
 ) -> None:
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(*_a: Any, **_kw: Any) -> Any:
         raise OSError("conn refused")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", boom)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", boom)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "OSError" in result.detail
 
 
-def test_phase_mirror_setup_failed_on_gitea_error(
+def test_phase_mirror_setup_failed_on_forgejo_error(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from nexus_deploy.gitea import GiteaError
+    from nexus_deploy.forgejo import ForgejoError
 
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(*_a: Any, **_kw: Any) -> Any:
-        raise GiteaError("API 403")
+        raise ForgejoError("API 403")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", boom)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", boom)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "API 403" in result.detail
@@ -1709,12 +1710,12 @@ def test_phase_mirror_setup_unexpected_exception(
 ) -> None:
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
 
     def boom(*_a: Any, **_kw: Any) -> Any:
         raise RuntimeError("oops")
 
-    monkeypatch.setattr("nexus_deploy.orchestrator._gitea.run_mirror_setup", boom)
+    monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", boom)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "failed"
     assert "RuntimeError" in result.detail
@@ -1780,20 +1781,20 @@ def test_phase_service_env_happy_path(
         "nexus_deploy.orchestrator._service_env.render_all_env_files",
         lambda *_a, **_kw: fake_result,
     )
-    # Skip the gitea-block append branch. Post-R3 #1 the
-    # workspace_coords_complete check uses self.gitea_repo_owner (set
+    # Skip the forgejo-block append branch. Post-R3 #1 the
+    # workspace_coords_complete check uses self.forgejo_repo_owner (set
     # to "admin" by the fixture), so clearing the bootstrap_env mirror
     # alone wouldn't fail the guard. The actual skip happens because
-    # the orchestrator fixture leaves gitea_user_username, _password,
+    # the orchestrator fixture leaves forgejo_user_username, _password,
     # _email at None — those three coords fail the all() check, which
     # is what we want here (this test focuses on the happy path of
-    # render_all_env_files, not the gitea-append branch). The minimal
+    # render_all_env_files, not the forgejo-append branch). The minimal
     # bootstrap_env is kept for hygiene. Comment corrected in PR #532
     # R8 #1.
     orchestrator.bootstrap_env = type(orchestrator.bootstrap_env)(
         domain="example.com",
         admin_email="admin@example.com",
-        gitea_repo_owner=None,
+        forgejo_repo_owner=None,
     )
     orchestrator.project_root = tmp_path
     result = orchestrator._phase_service_env()
@@ -1822,7 +1823,7 @@ def test_phase_service_env_partial_when_failures(
     orchestrator.bootstrap_env = type(orchestrator.bootstrap_env)(
         domain="example.com",
         admin_email="admin@example.com",
-        gitea_repo_owner=None,
+        forgejo_repo_owner=None,
     )
     orchestrator.project_root = tmp_path
     result = orchestrator._phase_service_env()
@@ -2255,13 +2256,13 @@ def test_run_pre_bootstrap_resets_stale_credentials(
     assert cast(str | None, orchestrator.project_id) is None
 
 
-def test_phase_service_env_skips_gitea_block_on_incomplete_coords(
+def test_phase_service_env_skips_forgejo_block_on_incomplete_coords(
     orchestrator: Orchestrator,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Any,
 ) -> None:
-    """R-gitea-guard (PR #532 R1 #3): when ANY workspace coord is
-    empty (e.g. gitea_user_password=None), the Gitea workspace block
+    """R-forgejo-guard (PR #532 R1 #3): when ANY workspace coord is
+    empty (e.g. forgejo_user_password=None), the Forgejo workspace block
     is NOT appended — refuses to write a broken block with empty
     PASSWORD/AUTHOR fields. Mirrors the CLI handler's
     workspace_coords_complete check."""
@@ -2283,16 +2284,16 @@ def test_phase_service_env_skips_gitea_block_on_incomplete_coords(
         return ()
 
     monkeypatch.setattr(
-        "nexus_deploy.orchestrator._service_env.append_gitea_workspace_block",
+        "nexus_deploy.orchestrator._service_env.append_forgejo_workspace_block",
         _spy_append,
     )
 
-    # The orchestrator fixture already sets self.gitea_repo_owner +
+    # The orchestrator fixture already sets self.forgejo_repo_owner +
     # self.repo_name (the canonical sources of truth post-R3 #1). We
     # override the user-cred coords here: username + email are present
-    # but gitea_user_password=None. Since the workspace_coords_complete
+    # but forgejo_user_password=None. Since the workspace_coords_complete
     # check requires ALL 5 inputs (repo_owner, repo_name,
-    # gitea_user_username, gitea_user_password, gitea_user_email) to
+    # forgejo_user_username, forgejo_user_password, forgejo_user_email) to
     # be non-empty, the missing password alone must skip the append —
     # otherwise we'd write an .env block with PASSWORD="" which breaks
     # the workspace git_clone at runtime. Comment updated in PR #532
@@ -2301,18 +2302,18 @@ def test_phase_service_env_skips_gitea_block_on_incomplete_coords(
     orchestrator.bootstrap_env = type(orchestrator.bootstrap_env)(
         domain="example.com",
         admin_email="admin@example.com",
-        gitea_repo_owner="owner",
-        gitea_user_email="ops@example.com",
+        forgejo_repo_owner="owner",
+        forgejo_user_email="ops@example.com",
     )
-    orchestrator.gitea_user_username = "ops"
-    orchestrator.gitea_user_password = None  # missing → workspace_coords_complete=False
+    orchestrator.forgejo_user_username = "ops"
+    orchestrator.forgejo_user_password = None  # missing → workspace_coords_complete=False
     orchestrator.project_root = tmp_path
 
     result = orchestrator._phase_service_env()
     assert result.status == "ok"
-    assert "gitea_appended=0" in result.detail
+    assert "forgejo_appended=0" in result.detail
     assert append_called is False, (
-        "append_gitea_workspace_block must NOT be called when any coord is empty"
+        "append_forgejo_workspace_block must NOT be called when any coord is empty"
     )
 
 
@@ -2324,12 +2325,12 @@ def test_phase_service_env_skips_gitea_block_on_incomplete_coords(
 def _setup_pre_bootstrap_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set the 6 required env vars for run-pre-bootstrap.
 
-    REPO_NAME + GITEA_REPO_OWNER are NOT required (workspace-coords
+    REPO_NAME + FORGEJO_REPO_OWNER are NOT required (workspace-coords
     derives them); ADMIN_USERNAME IS required.
     """
     for var, val in (
         ("ADMIN_EMAIL", "admin@example.com"),
-        ("ENABLED_SERVICES", "gitea,kestra"),
+        ("ENABLED_SERVICES", "forgejo,kestra"),
         ("DOMAIN", "example.com"),
         ("ADMIN_USERNAME", "admin"),
         ("INFISICAL_PASS", "pw"),
@@ -2356,7 +2357,7 @@ def test_cli_run_pre_bootstrap_missing_env_returns_2(
 
     # ADMIN_EMAIL deliberately missing; set the rest.
     for var, val in (
-        ("ENABLED_SERVICES", "gitea"),
+        ("ENABLED_SERVICES", "forgejo"),
         ("DOMAIN", "example.com"),
         ("ADMIN_USERNAME", "admin"),
         ("INFISICAL_PASS", "pw"),
@@ -2385,7 +2386,7 @@ def test_cli_run_pre_bootstrap_missing_firewall_rules_returns_2(
     # All other required vars set; FIREWALL_RULES_JSON deliberately missing.
     for var, val in (
         ("ADMIN_EMAIL", "admin@example.com"),
-        ("ENABLED_SERVICES", "gitea"),
+        ("ENABLED_SERVICES", "forgejo"),
         ("DOMAIN", "example.com"),
         ("ADMIN_USERNAME", "admin"),
         ("INFISICAL_PASS", "pw"),
@@ -2485,11 +2486,11 @@ def test_cli_run_pre_bootstrap_transport_failure_returns_2(
 
 def test_phase_seed_skips_in_mirror_mode(orchestrator: Orchestrator) -> None:
     """R-mirror-seed-skip (Plan-agent catch): _phase_seed must early-skip
-    when gh_mirror_repos is set, even if gitea_token is populated. Otherwise
+    when gh_mirror_repos is set, even if forgejo_token is populated. Otherwise
     seeding the read-only mirror-readonly-* repo returns HTTP 423.
     Re-seeding against the user's fork happens in _phase_mirror_seed_rerun."""
     orchestrator.gh_mirror_repos = ["https://github.com/owner/repo.git"]
-    orchestrator.state.gitea_token = "valid-token"
+    orchestrator.state.forgejo_token = "valid-token"
     result = orchestrator._phase_seed(MagicMock())
     assert result.status == "skipped"
     assert "mirror mode" in result.detail
@@ -2503,35 +2504,35 @@ def test_phase_workspace_coords_dual_writes_user_identity_for_admin_fallback(
     minimal_env: BootstrapEnv,
 ) -> None:
     """R-admin-fallback (PR #533 R1 #3): in admin-fallback mode (no
-    GITEA_USER_EMAIL / _PASS env), workspace-coords must populate
-    self.gitea_user_username / _password / _email from admin coords
+    FORGEJO_USER_EMAIL / _PASS env), workspace-coords must populate
+    self.forgejo_user_username / _password / _email from admin coords
     so _phase_service_env's workspace-block-append guard passes.
     Otherwise the workspace block is silently skipped — breaking
     git-integrated stacks (jupyter/marimo/code-server etc.)."""
     orchestrator = Orchestrator(
         config=NexusConfig(
             admin_username="admin",
-            gitea_admin_password="admin-pw",
+            forgejo_admin_password="admin-pw",
         ),
         bootstrap_env=minimal_env,
-        enabled_services=["gitea"],
+        enabled_services=["forgejo"],
         repo_name="",
-        gitea_repo_owner="",
+        forgejo_repo_owner="",
         domain="example.com",
         admin_username="admin",
-        gitea_admin_pass="admin-pw",
-        # No gitea_user_* — admin-fallback mode
-        gitea_user_email=None,
-        gitea_user_password=None,
-        gitea_user_username=None,
+        forgejo_admin_pass="admin-pw",
+        # No forgejo_user_* — admin-fallback mode
+        forgejo_user_email=None,
+        forgejo_user_password=None,
+        forgejo_user_username=None,
     )
     result = orchestrator._phase_workspace_coords()
     assert result.status == "ok"
-    # Critical: self.gitea_user_* must be populated for the workspace
+    # Critical: self.forgejo_user_* must be populated for the workspace
     # block to be appended in admin-fallback mode.
-    assert orchestrator.gitea_user_username == "admin"
-    assert orchestrator.gitea_user_password == "admin-pw"
-    assert orchestrator.gitea_user_email == "admin@example.com"
+    assert orchestrator.forgejo_user_username == "admin"
+    assert orchestrator.forgejo_user_password == "admin-pw"
+    assert orchestrator.forgejo_user_email == "admin@example.com"
 
 
 def test_phase_workspace_coords_dual_writes_state_and_self_field(
@@ -2541,7 +2542,7 @@ def test_phase_workspace_coords_dual_writes_state_and_self_field(
     AND bootstrap_env (where empty)."""
     orchestrator.domain = "nexus.example.com"
     orchestrator.admin_username = "admin"
-    orchestrator.gitea_admin_pass = "admin-pw"
+    orchestrator.forgejo_admin_pass = "admin-pw"
     orchestrator.bootstrap_env = BootstrapEnv(
         domain="nexus.example.com",
         admin_email="admin@example.com",
@@ -2551,20 +2552,20 @@ def test_phase_workspace_coords_dual_writes_state_and_self_field(
     assert result.status == "ok"
 
     # state mirrors populated
-    assert orchestrator.state.repo_name == "nexus-nexus-example-com-gitea"
-    assert orchestrator.state.gitea_repo_owner == "admin"
+    assert orchestrator.state.repo_name == "nexus-nexus-example-com-workspace"
+    assert orchestrator.state.forgejo_repo_owner == "admin"
     assert orchestrator.state.workspace_branch == "main"
-    assert orchestrator.state.gitea_git_user == "admin"
+    assert orchestrator.state.forgejo_git_user == "admin"
     assert orchestrator.state.git_email == "admin@example.com"
 
     # self.* fields populated (the post-bootstrap phases gate on these)
-    assert orchestrator.repo_name == "nexus-nexus-example-com-gitea"
-    assert orchestrator.gitea_repo_owner == "admin"
+    assert orchestrator.repo_name == "nexus-nexus-example-com-workspace"
+    assert orchestrator.forgejo_repo_owner == "admin"
     assert orchestrator.workspace_branch == "main"
 
     # bootstrap_env populated where empty
-    assert orchestrator.bootstrap_env.gitea_repo_owner == "admin"
-    assert orchestrator.bootstrap_env.repo_name == "nexus-nexus-example-com-gitea"
+    assert orchestrator.bootstrap_env.forgejo_repo_owner == "admin"
+    assert orchestrator.bootstrap_env.repo_name == "nexus-nexus-example-com-workspace"
 
 
 def test_phase_workspace_coords_mirror_mode_with_user(
@@ -2573,11 +2574,11 @@ def test_phase_workspace_coords_mirror_mode_with_user(
     """Mirror + user → fork name + user as owner. GitHub API mocked."""
     orchestrator.domain = "example.com"
     orchestrator.admin_username = "admin"
-    orchestrator.gitea_admin_pass = "admin-pw"
+    orchestrator.forgejo_admin_pass = "admin-pw"
     orchestrator.gh_mirror_repos = ["https://github.com/upstream/MyRepo.git"]
     orchestrator.gh_mirror_token = "ghp_xxx"
-    orchestrator.gitea_user_email = "alice.bob@example.com"
-    orchestrator.gitea_user_password = "user-pw"
+    orchestrator.forgejo_user_email = "alice.bob@example.com"
+    orchestrator.forgejo_user_password = "user-pw"
     orchestrator.bootstrap_env = BootstrapEnv(
         domain="example.com",
         admin_email="admin@example.com",
@@ -2590,7 +2591,7 @@ def test_phase_workspace_coords_mirror_mode_with_user(
     result = orchestrator._phase_workspace_coords()
     assert result.status == "ok"
     assert orchestrator.state.repo_name == "MyRepo_alice_bob"
-    assert orchestrator.state.gitea_repo_owner == "alice.bob"
+    assert orchestrator.state.forgejo_repo_owner == "alice.bob"
     assert orchestrator.state.workspace_branch == "develop"
 
 
@@ -2719,7 +2720,7 @@ def test_phase_mirror_seed_rerun_skipped_when_no_fork(
 ) -> None:
     orchestrator.gh_mirror_repos = ["https://github.com/o/r.git"]
     orchestrator.state.fork_name = None
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
     result = orchestrator._phase_mirror_seed_rerun(MagicMock())
     assert result.status == "skipped"
     assert "no fork" in result.detail
@@ -2728,16 +2729,16 @@ def test_phase_mirror_seed_rerun_skipped_when_no_fork(
 def test_phase_mirror_seed_rerun_mutates_state_to_fork_target(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
-    """After re-seeding, state.repo_name + state.gitea_repo_owner must
+    """After re-seeding, state.repo_name + state.forgejo_repo_owner must
     point at the fork (so mirror-finalize hits the right repo)."""
     from nexus_deploy.seeder import SeedResult
 
     orchestrator.gh_mirror_repos = ["https://github.com/o/r.git"]
     orchestrator.state.fork_name = "user-fork"
     orchestrator.state.fork_owner = "user"
-    orchestrator.state.gitea_token = "tok"
+    orchestrator.state.forgejo_token = "tok"
     orchestrator.state.repo_name = "mirror-readonly-r"  # was mirror name
-    orchestrator.state.gitea_repo_owner = "admin"
+    orchestrator.state.forgejo_repo_owner = "admin"
 
     seeds_dir = tmp_path / "examples" / "workspace-seeds"
     seeds_dir.mkdir(parents=True)
@@ -2750,7 +2751,7 @@ def test_phase_mirror_seed_rerun_mutates_state_to_fork_target(
     result = orchestrator._phase_mirror_seed_rerun(MagicMock())
     assert result.status == "ok"
     assert orchestrator.state.repo_name == "user-fork"
-    assert orchestrator.state.gitea_repo_owner == "user"
+    assert orchestrator.state.forgejo_repo_owner == "user"
     assert "user/user-fork" in result.detail
 
 
@@ -2803,7 +2804,7 @@ def test_phase_kestra_secret_sync_partial_when_kestra_pass_missing(
     """NexusConfig is frozen — fresh Orchestrator with no kestra pw."""
     config_no_kestra = NexusConfig(
         admin_username="admin",
-        gitea_admin_password="gitea-admin",
+        forgejo_admin_password="forgejo-admin",
         kestra_admin_password=None,
     )
     orchestrator = Orchestrator(
@@ -2811,7 +2812,7 @@ def test_phase_kestra_secret_sync_partial_when_kestra_pass_missing(
         bootstrap_env=minimal_env,
         enabled_services=["kestra"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         project_id="p",
         infisical_token="t",
     )
@@ -2826,8 +2827,8 @@ def test_phase_kestra_secret_sync_constructs_correct_stack_target(
     """Issue #543: regression test pinning the Kestra-specific
     StackTarget overrides inside the orchestrator phase. Without
     these overrides the secret-sync would write to .infisical.env
-    (Jupyter/Marimo default) with bare ``GITEA_TOKEN=`` keys
-    instead of .env with ``SECRET_GITEA_TOKEN=<base64>``, and
+    (Jupyter/Marimo default) with bare ``FORGEJO_TOKEN=`` keys
+    instead of .env with ``SECRET_FORGEJO_TOKEN=<base64>``, and
     Kestra's EnvVarSecretProvider would fail to resolve any
     ``{{ secret('NAME') }}`` reference at runtime.
 
@@ -2836,7 +2837,7 @@ def test_phase_kestra_secret_sync_constructs_correct_stack_target(
     """
     config = NexusConfig(
         admin_username="admin",
-        gitea_admin_password="gitea-admin",
+        forgejo_admin_password="forgejo-admin",
         kestra_admin_password="k-pw",
     )
     orchestrator = Orchestrator(
@@ -2844,12 +2845,12 @@ def test_phase_kestra_secret_sync_constructs_correct_stack_target(
         bootstrap_env=minimal_env,
         enabled_services=["kestra"],
         repo_name="r",
-        gitea_repo_owner="o",
+        forgejo_repo_owner="o",
         project_id="proj-1",
         infisical_token="inf-tok",
         domain="example.com",
     )
-    orchestrator.state.gitea_token = "gt"
+    orchestrator.state.forgejo_token = "gt"
     from nexus_deploy.secret_sync import StackTarget, SyncResult
 
     captured: dict[str, StackTarget] = {}
@@ -3147,8 +3148,8 @@ def test_phase_woodpecker_apply_happy_path(
     # The .env content must include the OAuth credentials. Operators
     # debugging a misconfigured woodpecker would look here first.
     env_content = (woodpecker_dir / ".env").read_text()
-    assert "WOODPECKER_GITEA_CLIENT=wp-id" in env_content
-    assert "WOODPECKER_GITEA_SECRET=wp-secret" in env_content
+    assert "WOODPECKER_FORGEJO_CLIENT=wp-id" in env_content
+    assert "WOODPECKER_FORGEJO_SECRET=wp-secret" in env_content
     assert "WOODPECKER_AGENT_SECRET=agent-secret" in env_content
     assert "DOMAIN=example.com" in env_content
 
@@ -3654,8 +3655,8 @@ def test_transport_detail_handles_an_exception_with_no_output() -> None:
         ("RESULT status=loaded-existing token=aGVsbG8= project_id=abc", "aGVsbG8="),
         # Underscore-prefixed names are the common shape here, and a
         # naive \b anchor would miss every one of them.
-        ("SECRET_GITEA_TOKEN=czoZGVhZGJlZWY= wrote=1", "czoZGVhZGJlZWY="),
-        ("GITEA_ADMIN_PASSWORD=hunter2", "hunter2"),
+        ("SECRET_FORGEJO_TOKEN=czoZGVhZGJlZWY= wrote=1", "czoZGVhZGJlZWY="),
+        ("FORGEJO_ADMIN_PASSWORD=hunter2", "hunter2"),
         ("r2_secret_access_key=AKIAsomething", "AKIAsomething"),
     ],
 )
@@ -3717,7 +3718,7 @@ def _forgejo_orchestrator(**overrides: Any) -> Orchestrator:
         bootstrap_env=BootstrapEnv(
             domain="example.com",
             admin_email="admin@example.com",
-            gitea_user_email="student@example.com",
+            forgejo_user_email="student@example.com",
         ),
         enabled_services=overrides.pop("enabled_services", ["forgejo", "forgejo-runner"]),
         project_id="proj-id",
@@ -3742,66 +3743,6 @@ def test_forgejo_configure_partial_without_admin_password() -> None:
 
     assert result.status == "partial"
     assert "FORGEJO_ADMIN_PASS" in result.detail
-
-
-def test_forgejo_configure_provisions_admin_and_user(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-
-    def _fake(ssh: Any, accounts: Any, **kwargs: Any) -> Any:
-        captured["accounts"] = accounts
-        from nexus_deploy.forgejo import ConfigureResult
-
-        return ConfigureResult(status="configured", detail="accounts=admin, student")
-
-    monkeypatch.setattr("nexus_deploy.forgejo.run_configure", _fake)
-    result = _forgejo_orchestrator()._phase_forgejo_configure(MagicMock())
-
-    assert result.status == "ok"
-    accounts = captured["accounts"]
-    assert [a.username for a in accounts] == ["admin", "student"]
-    assert accounts[0].admin is True
-    assert accounts[1].admin is False
-
-
-def test_forgejo_configure_skips_the_user_when_it_collides_with_admin(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stack where user_email's local part is `admin` must not try to
-    create the same account twice with two different passwords."""
-    captured: dict[str, Any] = {}
-
-    def _fake(ssh: Any, accounts: Any, **kwargs: Any) -> Any:
-        captured["accounts"] = accounts
-        from nexus_deploy.forgejo import ConfigureResult
-
-        return ConfigureResult(status="configured", detail="accounts=admin")
-
-    monkeypatch.setattr("nexus_deploy.forgejo.run_configure", _fake)
-    orch = _forgejo_orchestrator()
-    orch.bootstrap_env = dataclasses.replace(
-        orch.bootstrap_env, gitea_user_email="admin@example.com"
-    )
-    result = orch._phase_forgejo_configure(MagicMock())
-
-    assert result.status == "ok"
-    assert [a.username for a in captured["accounts"]] == ["admin"]
-
-
-def test_forgejo_configure_failure_is_partial_not_fatal(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A broken optional stack must not abandon the remaining phases."""
-    from nexus_deploy.forgejo import ConfigureResult
-
-    monkeypatch.setattr(
-        "nexus_deploy.forgejo.run_configure",
-        lambda *a, **k: ConfigureResult(status="failed", detail="forgejo admin exited 1"),
-    )
-    result = _forgejo_orchestrator()._phase_forgejo_configure(MagicMock())
-
-    assert result.status == "partial"
 
 
 def test_forgejo_runner_register_skipped_when_stack_disabled() -> None:
@@ -3860,19 +3801,3 @@ def test_forgejo_runner_register_skipped_when_only_the_forge_is_enabled() -> Non
 
     assert result.status == "skipped"
     assert "forgejo-runner" in result.detail
-
-
-def test_forgejo_configure_runs_without_the_runner_stack(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Account provisioning belongs to the forge, so it must not depend
-    on CI being enabled."""
-    from nexus_deploy.forgejo import ConfigureResult
-
-    monkeypatch.setattr(
-        "nexus_deploy.forgejo.run_configure",
-        lambda *a, **k: ConfigureResult(status="configured", detail="accounts=admin"),
-    )
-    orch = _forgejo_orchestrator(enabled_services=["forgejo"])
-
-    assert orch._phase_forgejo_configure(MagicMock()).status == "ok"

@@ -50,6 +50,8 @@
     }),
     'forgejo': dict({
       'FORGEJO_ADMIN_USERNAME': 'nexus-test-user',
+      'FORGEJO_REPO_URL': 'https://git.snapshot.test/snapshot-org/snapshot-repo.git',
+      'FORGEJO_USER_USERNAME': 'snapshot-user',
     }),
     'garage': dict({
       'GARAGE_ADMIN_TOKEN': 'garage_admin_token-VALUE',
@@ -58,9 +60,7 @@
       'GITEA_ADMIN_PASSWORD': 'with"double"quotes',
       'GITEA_ADMIN_USERNAME': 'nexus-test-user',
       'GITEA_DB_PASSWORD': 'gitea_db_password-VALUE',
-      'GITEA_REPO_URL': 'https://git.snapshot.test/snapshot-org/snapshot-repo.git',
       'GITEA_USER_PASSWORD': 'gitea_user_password-VALUE',
-      'GITEA_USER_USERNAME': 'snapshot-user',
     }),
     'grafana': dict({
       'GRAFANA_PASSWORD': 'grafana_admin_password-VALUE',
@@ -212,8 +212,8 @@
     }),
     'woodpecker': dict({
       'WOODPECKER_AGENT_SECRET': 'woodpecker_agent_secret-VALUE',
-      'WOODPECKER_GITEA_CLIENT': 'cid',
-      'WOODPECKER_GITEA_SECRET': 'csec',
+      'WOODPECKER_FORGEJO_CLIENT': 'cid',
+      'WOODPECKER_FORGEJO_SECRET': 'csec',
     }),
   })
 # ---
