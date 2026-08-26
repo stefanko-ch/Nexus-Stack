@@ -188,6 +188,26 @@ def test_render_portainer_hook_treats_any_2xx_as_configured() -> None:
     assert "2??)" in script
 
 
+def test_render_portainer_hook_captures_a_single_status_code() -> None:
+    """`|| echo "000"` would double curl's own transport code.
+
+    On a connection failure curl writes ``000`` through ``-w`` *and*
+    exits non-zero, so the fallback appends a second one and the
+    capture becomes the six-character ``000000``. Harmless where a
+    value is only equality-tested against a success code — this hook
+    prints it and branches on it.
+    """
+    script = render_portainer_hook(_make_config(), _make_env())
+    assert "/api/users/admin/check' 2>/dev/null || true)" in script
+    assert "--data-binary @- 2>/dev/null || true)" in script
+    assert script.count("${ADMIN_CHECK:-000}") == 1
+    assert script.count("${INIT_CODE:-000}") == 1
+    # The shared readiness preamble still carries the older
+    # `|| echo "000"`; it is only equality-tested there, so it is left
+    # alone rather than changed under an unrelated PR.
+    assert 'echo "000"' in script
+
+
 def test_render_n8n_hook_uses_admin_email_from_env() -> None:
     """n8n needs admin_email — comes from BootstrapEnv, not NexusConfig."""
     script = render_n8n_hook(_make_config(), _make_env(admin_email="alice@example.com"))

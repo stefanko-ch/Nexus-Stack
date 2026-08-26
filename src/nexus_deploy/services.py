@@ -253,6 +253,16 @@ def render_portainer_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     this endpoint is the one we POST credentials to, and an error
     payload is not a safe thing to echo into a public CI log.
 
+    Both captures end ``|| true`` with a ``:-000`` default rather than
+    the ``|| echo "000"`` used elsewhere in this module. curl already
+    writes ``000`` through ``-w`` when it never gets a response *and*
+    exits non-zero, so the fallback appends a second one and the
+    capture becomes the six-character ``000000``. That is harmless
+    where the value is only equality-tested against a success code,
+    which is what the other call sites do — but this hook prints the
+    code in its failure diagnostic and branches on it, so a malformed
+    value would be both misleading and unmatched.
+
     Secrets reach jq via env vars (``NEXUS_U`` / ``NEXUS_P``) and are
     referenced in the filter as ``env.NEXUS_U`` / ``env.NEXUS_P`` —
     NEVER as positional ``--arg`` values, which would put them in
@@ -277,7 +287,8 @@ def render_portainer_hook(config: NexusConfig, env: BootstrapEnv) -> str:
 portainer_hook() {{
     {wait}
     ADMIN_CHECK=$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 \\
-        'http://localhost:9090/api/users/admin/check' 2>/dev/null || echo "000")
+        'http://localhost:9090/api/users/admin/check' 2>/dev/null || true)
+    ADMIN_CHECK=${{ADMIN_CHECK:-000}}
     if [ "$ADMIN_CHECK" = "204" ]; then
         echo "RESULT hook=portainer status=already-configured"
         return 0
@@ -288,7 +299,8 @@ portainer_hook() {{
         -X POST 'http://localhost:9090/api/users/admin/init' \\
         --max-time 30 \\
         -H 'Content-Type: application/json' \\
-        --data-binary @- 2>/dev/null || echo "000")
+        --data-binary @- 2>/dev/null || true)
+    INIT_CODE=${{INIT_CODE:-000}}
     case "$INIT_CODE" in
         2??)
             echo "RESULT hook=portainer status=configured"

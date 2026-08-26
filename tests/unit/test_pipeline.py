@@ -1495,7 +1495,7 @@ def test_partial_phase_gets_a_warning_annotation_under_actions(
         env={"GITHUB_ACTIONS": "true"},
         monkeypatch=monkeypatch,
     )
-    assert "::warning title=run-all: services-configure::failed=1 (portainer)" in out
+    assert "::warning title=run-all%3A services-configure::failed=1 (portainer)" in out
 
 
 def test_failed_phase_gets_an_error_annotation(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1504,7 +1504,7 @@ def test_failed_phase_gets_an_error_annotation(monkeypatch: pytest.MonkeyPatch) 
         env={"GITHUB_ACTIONS": "true"},
         monkeypatch=monkeypatch,
     )
-    assert "::error title=run-all: stack-sync::rc=255" in out
+    assert "::error title=run-all%3A stack-sync::rc=255" in out
 
 
 def test_clean_run_emits_no_annotations(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1542,7 +1542,7 @@ def test_annotation_escapes_workflow_command_characters(
         env={"GITHUB_ACTIONS": "true"},
         monkeypatch=monkeypatch,
     )
-    assert "::warning title=run-all: p::100%25 done%0Asecond line" in out
+    assert "::warning title=run-all%3A p::100%25 done%0Asecond line" in out
 
 
 def test_annotation_falls_back_to_status_when_detail_is_empty(
@@ -1554,7 +1554,27 @@ def test_annotation_falls_back_to_status_when_detail_is_empty(
         env={"GITHUB_ACTIONS": "true"},
         monkeypatch=monkeypatch,
     )
-    assert "::warning title=run-all: p::partial" in out
+    assert "::warning title=run-all%3A p::partial" in out
+
+
+def test_annotation_title_escapes_property_delimiters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The property section delimits on `:` and `,`, the message does not.
+
+    GitHub's parser uses two escape sets (`escapeProperty` vs
+    `escapeData` in actions/toolkit). A comma in a title would start a
+    second property; a colon can close the property section early. The
+    same characters in the message body are literal and must stay
+    readable.
+    """
+    out = _phase_log(
+        PhaseResult(name="a,b", status="partial", detail="x, y: z"),
+        label="run:all",
+        env={"GITHUB_ACTIONS": "true"},
+        monkeypatch=monkeypatch,
+    )
+    assert "::warning title=run%3Aall%3A a%2Cb::x, y: z" in out
 
 
 def test_post_bootstrap_abort_prints_the_phase_log_before_raising(

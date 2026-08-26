@@ -784,10 +784,18 @@ def run_snapshot(
 
 _PHASE_MARKERS = {"ok": "✓", "partial": "⚠", "failed": "✗", "skipped": "—"}
 
-# GitHub's workflow-command parser reads `%`, CR and LF as structure.
-# A detail line carrying any of them would truncate or split the
-# annotation, so they go in percent-encoded.
-_GA_ESCAPES = str.maketrans({"%": "%25", "\r": "%0D", "\n": "%0A"})
+# GitHub's workflow-command parser reads `%`, CR and LF as structure,
+# so a message carrying any of them would truncate or split the
+# annotation. Mirrors `escapeData` in actions/toolkit's command.ts.
+_GA_DATA_ESCAPES = str.maketrans({"%": "%25", "\r": "%0D", "\n": "%0A"})
+
+# The property section — everything between `::warning ` and the
+# closing `::` — additionally delimits on `:` and `,`, so those need
+# encoding too (`escapeProperty` in the same file). Our titles are
+# built as "<section>: <phase>" and so always contain a colon; phase
+# names never contain a comma today, but the encoding is defined by
+# the parser rather than by what we happen to pass it.
+_GA_PROPERTY_ESCAPES = str.maketrans({"%": "%25", "\r": "%0D", "\n": "%0A", ":": "%3A", ",": "%2C"})
 
 # A phase whose status is degraded but not fatal. `failed` is included
 # even though it also aborts the run: the abort message names the
@@ -822,8 +830,8 @@ def _github_annotations(
             level = _GA_ANNOTATED.get(phase.status)
             if level is None:
                 continue
-            title = f"{label}: {phase.name}".translate(_GA_ESCAPES)
-            body = (phase.detail or phase.status).translate(_GA_ESCAPES)
+            title = f"{label}: {phase.name}".translate(_GA_PROPERTY_ESCAPES)
+            body = (phase.detail or phase.status).translate(_GA_DATA_ESCAPES)
             lines.append(f"::{level} title={title}::{body}")
     return lines
 
