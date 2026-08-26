@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.71.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.70.0...v0.71.0) (2026-08-26)
+
+
+### 🚀 Features
+
+* **ci:** Add snapshot-based spin-up and share workflow steps via composite actions ([#651](https://github.com/stefanko-ch/Nexus-Stack/issues/651)) ([350da47](https://github.com/stefanko-ch/Nexus-Stack/commit/350da475bb57ec8d04aee1c73e23cffcbe2625fb))
+* **ci:** Add snapshot-based teardown lifecycle ([#649](https://github.com/stefanko-ch/Nexus-Stack/issues/649)) ([ae74532](https://github.com/stefanko-ch/Nexus-Stack/commit/ae7453215ea6419c6311b865c283177180a5238d))
+* **control-plane:** Let the stack owner choose the lifecycle ([#667](https://github.com/stefanko-ch/Nexus-Stack/issues/667)) ([4748b9c](https://github.com/stefanko-ch/Nexus-Stack/commit/4748b9c8cf33e24ef1a1e8e9cc29fe110f1e43f6))
+* **control-plane:** Make the dispatched lifecycle workflow configurable ([#653](https://github.com/stefanko-ch/Nexus-Stack/issues/653)) ([709613b](https://github.com/stefanko-ch/Nexus-Stack/commit/709613b051803fa5f8de5a8f5af9b7be06d6d4bb))
+* **stacks:** Add Forgejo with a self-registering Actions runner ([#676](https://github.com/stefanko-ch/Nexus-Stack/issues/676)) ([7f3146e](https://github.com/stefanko-ch/Nexus-Stack/commit/7f3146e34d7834bb864f283dc324d20d75426144))
+* **stacks:** Add PostgREST — auto-generated REST API for shared Postgres ([#645](https://github.com/stefanko-ch/Nexus-Stack/issues/645)) ([a9cb829](https://github.com/stefanko-ch/Nexus-Stack/commit/a9cb8291762eecc06925aacc7a3be569bcf60fd6))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Delete Hetzner disk snapshots on destroy-all ([#656](https://github.com/stefanko-ch/Nexus-Stack/issues/656)) ([dbf2e97](https://github.com/stefanko-ch/Nexus-Stack/commit/dbf2e9776a23e0536f4d6024d33ec33672645b97))
+* **ci:** Fail loudly when the R2 credential lifecycle cannot finish ([#687](https://github.com/stefanko-ch/Nexus-Stack/issues/687)) ([29f4958](https://github.com/stefanko-ch/Nexus-Stack/commit/29f4958c04eede6a208d7ed9025982e6b3837548))
+* **ci:** Pass secrets to gh secret set via stdin, not --body ([#692](https://github.com/stefanko-ch/Nexus-Stack/issues/692)) ([241a46a](https://github.com/stefanko-ch/Nexus-Stack/commit/241a46a212f1b3e7ec8e3bd077ebbbe99a8436a5))
+* **ci:** Stop overriding admin_username default in workflows ([#639](https://github.com/stefanko-ch/Nexus-Stack/issues/639)) ([4221651](https://github.com/stefanko-ch/Nexus-Stack/commit/42216517b1eec6d63b5512f3794a59bc007d2634))
+* **ci:** Stop printing R2 credentials to public workflow logs ([#685](https://github.com/stefanko-ch/Nexus-Stack/issues/685)) ([8f2ba37](https://github.com/stefanko-ch/Nexus-Stack/commit/8f2ba37af49062800ea0d1dbf0780ca16236dfec))
+* **deploy:** Make the Portainer hook idempotent and name degraded hooks ([#684](https://github.com/stefanko-ch/Nexus-Stack/issues/684)) ([a97bfba](https://github.com/stefanko-ch/Nexus-Stack/commit/a97bfbaa058379a939d10a80e3b7da7b746d164a))
+* **deploy:** Read the snapshot cap from configuration, not a constant ([#665](https://github.com/stefanko-ch/Nexus-Stack/issues/665)) ([b150bee](https://github.com/stefanko-ch/Nexus-Stack/commit/b150bee2fb55be7bca2d8b59b05169dcb60b2969))
+* **deploy:** Repair two Ubuntu 26.04 coreutils failures and make phase aborts diagnosable ([#677](https://github.com/stefanko-ch/Nexus-Stack/issues/677)) ([4139498](https://github.com/stefanko-ch/Nexus-Stack/commit/4139498e743f25e848f9946aecf164b5e2a5568e))
+* **examples:** Quote values inlined into DuckDB SQL ([#659](https://github.com/stefanko-ch/Nexus-Stack/issues/659)) ([a5d9bc9](https://github.com/stefanko-ch/Nexus-Stack/commit/a5d9bc9369be924916efdd217f5d3997de43b120))
+* **orchestrator:** Drop subprocess stdout from woodpecker-apply phase result ([#640](https://github.com/stefanko-ch/Nexus-Stack/issues/640)) ([7a57ef7](https://github.com/stefanko-ch/Nexus-Stack/commit/7a57ef7a7d5fe79e7356ee3adb16b14129d406d6))
+* **redpanda:** Remove Admin API (9644) from firewall-exposable tcp_ports ([#642](https://github.com/stefanko-ch/Nexus-Stack/issues/642)) ([323fcee](https://github.com/stefanko-ch/Nexus-Stack/commit/323fcee547c8ef5e2463b8233398209a7f8c2b59))
+* **redpanda:** Use rpk --password-stdin to keep SASL password off argv ([#643](https://github.com/stefanko-ch/Nexus-Stack/issues/643)) ([6e20c48](https://github.com/stefanko-ch/Nexus-Stack/commit/6e20c4825cd52f3de5d3a92d23768e4554bf25f4))
+* **stacks:** Build Sling for the target architecture ([#658](https://github.com/stefanko-ch/Nexus-Stack/issues/658)) ([25b87aa](https://github.com/stefanko-ch/Nexus-Stack/commit/25b87aa0e67adddb8047fe4b2a51571733d67622))
+* **tofu:** Run cloud-init apt non-interactively ([#666](https://github.com/stefanko-ch/Nexus-Stack/issues/666)) ([a7a8352](https://github.com/stefanko-ch/Nexus-Stack/commit/a7a8352924089c140925ef5571ae5ff246582df9))
+* **tofu:** Validate firewall_rules source_ips instead of silently allowing all ([#638](https://github.com/stefanko-ch/Nexus-Stack/issues/638)) ([59ed0a4](https://github.com/stefanko-ch/Nexus-Stack/commit/59ed0a40a3f4571f1dcb181900f2bec0f8dcfbec))
+
+
+### ♻️ Refactoring
+
+* **deploy:** Move the internal forge role from Gitea to Forgejo ([#690](https://github.com/stefanko-ch/Nexus-Stack/issues/690)) ([61a8b6e](https://github.com/stefanko-ch/Nexus-Stack/commit/61a8b6e013eeb601bd8edf6836b0ffb25900367d))
+
+
+### ⚡ Performance
+
+* **ci:** Cache OpenTofu providers + Control-Plane node_modules in spin-up ([#644](https://github.com/stefanko-ch/Nexus-Stack/issues/644)) ([396ff70](https://github.com/stefanko-ch/Nexus-Stack/commit/396ff707da05da0ead4c497272043e8bac93ce7e))
+* **ci:** Escalate the SSH retry instead of a flat 60s timeout ([#673](https://github.com/stefanko-ch/Nexus-Stack/issues/673)) ([360d72c](https://github.com/stefanko-ch/Nexus-Stack/commit/360d72cc95324bb5b35f254ac0195410480859fd))
+
+
+### 📚 Documentation
+
+* Add conventions for verifiable claims and exit-status checks ([#688](https://github.com/stefanko-ch/Nexus-Stack/issues/688)) ([3edd471](https://github.com/stefanko-ch/Nexus-Stack/commit/3edd47173e3e34529695f3662ff885b95512efac))
+* Document the snapshot lifecycle ([#654](https://github.com/stefanko-ch/Nexus-Stack/issues/654)) ([4047199](https://github.com/stefanko-ch/Nexus-Stack/commit/4047199e4083f48dea51267355046c56a6565466))
+
+
+### 🔧 Maintenance
+
+* **deps:** Update dependencies to clear known advisories ([#655](https://github.com/stefanko-ch/Nexus-Stack/issues/655)) ([35091c0](https://github.com/stefanko-ch/Nexus-Stack/commit/35091c08edea09c47cc3b22f17ad4eb779215c5f))
+* **deps:** Upgrade the Control Plane to Astro 7 ([#693](https://github.com/stefanko-ch/Nexus-Stack/issues/693)) ([ff486f7](https://github.com/stefanko-ch/Nexus-Stack/commit/ff486f7a3c12138b15bd77aed884e2a7d05725f8))
+* **tofu:** Upgrade the server base image to Ubuntu 26.04 LTS ([#674](https://github.com/stefanko-ch/Nexus-Stack/issues/674)) ([5157ed1](https://github.com/stefanko-ch/Nexus-Stack/commit/5157ed18e38ab391a13bb9b5eef2c2a8455903e7))
+
 ## [0.70.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.69.0...v0.70.0) (2026-06-03)
 
 
