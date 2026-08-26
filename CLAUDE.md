@@ -222,6 +222,67 @@ ssh nexus "docker logs <service>"  # View container logs
    - Green checkmarks on failed workflows are misleading and dangerous
    - Errors provide critical debugging information
 
+6. **The failure indicator is the exit status — never a by-product.**
+   `|| true` is the obvious version. This is the version that survives
+   review, because it looks careful:
+
+   ```bash
+   # BAD - the message doubles as the flag
+   SAVE_ERROR=""
+   if ! OUTPUT=$(gh secret set KEY -b "$VALUE" 2>&1); then SAVE_ERROR="$OUTPUT"; fi
+   if [ -z "$SAVE_ERROR" ]; then : "continue as if it worked"; fi
+   ```
+
+   A command that exits non-zero while writing nothing to either stream
+   leaves `SAVE_ERROR` empty, and the failure becomes indistinguishable
+   from success. Keep status and message in separate variables
+   (`SAVE_FAILED` / `SAVE_ERROR`), and print `${SAVE_ERROR:-(no output)}`
+   so the silent case still says something.
+
+   Two relatives of the same bug:
+   - **A success message outside the success branch.** `cmd || true`
+     followed by an unconditional `echo "✅ done"` does not hide the
+     failure, it asserts the opposite.
+   - **Validating the container, not the content.** That a credentials
+     file *exists* is not that its values are usable — `gh secret set -b ""`
+     stores an empty secret and reports success. Test the value.
+
+### Claims must be verifiable — especially in error messages
+
+Code gets executed; prose does not. Sentences about system behaviour drift
+silently, and the place they hurt most is a failure message, which someone
+reads while something is already broken.
+
+**Before writing any claim about what the system does — in an error message,
+a recovery instruction, a PR description, an issue, or a guide — point at the
+code that makes it true.** One `grep` is enough. If it cannot be checked in
+that moment, write the uncertainty instead: *"this step cannot determine
+which"* is a better message than a confident wrong one.
+
+The recurring shapes, all observed in this repo:
+
+| Claim | What to check first |
+|---|---|
+| "X was already deleted / saved / created" | Does that operation run under `\|\| true` or `2>/dev/null`? Then it is best-effort and you cannot assert it. |
+| "the next run takes path Y" | Read the condition that selects the path. In `setup-control-plane.yaml` that is `check_r2`, which needs **both** R2 secrets — an incomplete pair takes the first-time path. |
+| "nothing is left behind" | Does the cleanup verify its own result, or only attempt it? |
+| A doc quoting an error string | Does the code print it verbatim? Two code paths with near-identical wording means a log search finds only one. Make the messages identical rather than documenting both. |
+| "this test / run covers X" | Trace it. A rebuild spin-up does not exercise a restored Postgres data directory, because `s3_restore` persists that database as a `pg_dump`, not as a filesystem tree. |
+
+**Never report an action as done before its tool call has returned.** Write the
+sentence after the result, not while planning the call — a wrong "I have
+updated the issue" cannot be caught by tests, reviewers, or CI, only by the
+user going to look.
+
+**When copying an adjacent pattern, audit it once.** Consistency is right in
+this repo, but copying transfers defects too: `SAVE_ERROR`-as-flag came from a
+sibling step, and `|| echo "000"` — which doubles curl's own transport code into
+the six-character `000000` — is still the house style throughout
+`src/nexus_deploy/services.py`. Ask why the original looks that way. There it is
+harmless, because the value is only compared against a success code; in a hook
+that *prints* the code or branches on it with `case`, it is not. The answer
+usually reveals that your case differs.
+
 ### Service Account Naming Convention
 
 All service accounts MUST use the `nexus-` prefix to prevent default username guessing:
