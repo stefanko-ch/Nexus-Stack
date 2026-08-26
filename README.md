@@ -68,7 +68,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (77)
+## Available Stacks (78)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -128,6 +128,7 @@ After deployment you'll have:
 [![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)](https://www.prefect.io)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
+[![Redpanda Console](https://img.shields.io/badge/Redpanda%20Console-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![RisingWave](https://img.shields.io/badge/RisingWave-0065FF?logoColor=white)](https://risingwave.com)
@@ -208,6 +209,7 @@ After deployment you'll have:
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
+| **Redpanda Console** | Web UI for managing and debugging Redpanda/Kafka workloads | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
 | **RisingWave** | PostgreSQL-compatible streaming database for real-time materialized views | [risingwave.com](https://risingwave.com) |
