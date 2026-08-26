@@ -520,7 +520,15 @@ class Orchestrator:
                 user_note = " (user account skipped — derived username is not Forgejo-safe)"
 
         try:
-            result = _forgejo.run_configure(ssh, tuple(accounts))
+            result = _forgejo.run_configure(
+                ssh,
+                tuple(accounts),
+                # Applied before anything else touches the forge. A
+                # restored database carries the previous generation's
+                # password, and Forgejo cannot become healthy without
+                # this — so it runs ahead of the health poll, not after.
+                db_password=self.config.forgejo_db_password or "",
+            )
         except Exception as exc:
             return PhaseResult(
                 name="forgejo-configure",

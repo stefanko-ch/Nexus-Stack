@@ -63,6 +63,16 @@ services:
       # Forgejo advertise a host nothing routes to.
       FORGEJO__server__ROOT_URL: https://${FORGEJO_HOST}
       FORGEJO__server__SSH_DOMAIN: ${FORGEJO_HOST}
+      # No SSH port is published and the tunnel's SSH ingress is a
+      # different hostname, so an advertised `git@forgejo.<domain>`
+      # clone URL routes nowhere. Turned off rather than left as a
+      # URL the UI offers and nothing serves.
+      #
+      # Not a permanent decision: deploy-key access over SSH is a
+      # plausible thing for Nexus Conductor to want. Turning it back on
+      # means publishing a port and adding a `tcp_ports` entry — 2222 is
+      # free, 2022 belongs to SFTPGo.
+      FORGEJO__server__DISABLE_SSH: "true"
       FORGEJO__server__DOMAIN: ${FORGEJO_HOST}
       FORGEJO__service__DISABLE_REGISTRATION: "true"
       FORGEJO__security__INSTALL_LOCK: "true"

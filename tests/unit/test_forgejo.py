@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 
 from nexus_deploy.forgejo import (
+    EXIT_DB_SYNC_FAILED,
     EXIT_NO_CONTAINER,
     EXIT_NOT_READY,
     Account,
@@ -257,3 +258,79 @@ def test_password_reaches_the_container_on_stdin_not_in_docker_argv() -> None:
     # The host-side docker exec must not carry the password variable.
     docker_lines = [ln for ln in executable if "docker exec" in ln]
     assert not [ln for ln in docker_lines if "--password" in ln]
+
+
+# ---------------------------------------------------------------------------
+# Database password sync — the rebuild-cycle failure
+# ---------------------------------------------------------------------------
+
+
+def test_db_password_sync_runs_before_the_health_poll() -> None:
+    """Ordering is the whole point.
+
+    `POSTGRES_PASSWORD` is read only when Postgres initialises an empty
+    data directory. Forgejo's lives on a restored bind mount, so after a
+    rebuild teardown the database carries the previous generation's
+    password while `tofu destroy` has handed Forgejo a new one. A forge
+    that cannot reach its database never reports healthy — so polling
+    first would time out on exactly the condition this repairs.
+    """
+    script = render_configure_script((ADMIN,), db_password="s3cret")
+    executable = _executable_lines(script)
+
+    def pos(needle: str) -> int:
+        return next(i for i, ln in enumerate(executable) if needle in ln)
+
+    assert pos("docker ps") < pos("ALTER USER") < pos("/api/healthz")
+
+
+def test_db_password_sync_is_omitted_when_no_password_is_given() -> None:
+    """Callers without one still get a working configure script."""
+    script = render_configure_script((ADMIN,))
+    assert "ALTER USER" not in script
+
+
+@pytest.mark.parametrize("password", ["with space", "quote'inside", "back\\slash"])
+def test_db_password_is_sql_escaped(password: str) -> None:
+    """The value lands inside a single-quoted SQL literal. A quote would
+    end the literal; a backslash must be doubled before the quote is,
+    or a password containing both breaks the escape."""
+    import subprocess
+
+    script = render_configure_script((ADMIN,), db_password=password)
+
+    assert subprocess.run(["bash", "-n", "-c", script], capture_output=True).returncode == 0
+    assert "ALTER USER" in script
+
+
+def test_db_sync_failure_is_reported_distinctly() -> None:
+    """Its own exit code, so "the database refused the password" does
+    not read as "Forgejo is slow to start"."""
+    result = run_configure(FakeSSH(returncode=EXIT_DB_SYNC_FAILED), (ADMIN,))  # type: ignore[arg-type]
+
+    assert result.status == "failed"
+    assert "database password" in result.detail
+
+
+def test_empty_db_password_is_refused_by_the_renderer() -> None:
+    from nexus_deploy.forgejo import render_db_password_sync
+
+    with pytest.raises(ValueError, match="empty password"):
+        render_db_password_sync("")
+
+
+def test_db_sync_targets_the_role_the_compose_declares() -> None:
+    """A mismatch here is silent: the ALTER succeeds against the wrong
+    role and Forgejo still cannot log in."""
+    from pathlib import Path
+
+    import yaml
+
+    from nexus_deploy.forgejo import render_db_password_sync
+
+    compose = yaml.safe_load(Path("stacks/forgejo/docker-compose.yml").read_text())
+    env = compose["services"]["forgejo-db"]["environment"]
+    script = render_db_password_sync("pw")
+
+    assert env["POSTGRES_USER"] in script
+    assert env["POSTGRES_DB"] in script
