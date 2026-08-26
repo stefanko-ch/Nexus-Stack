@@ -1003,6 +1003,49 @@ def test_phase_services_configure_partial_when_failed(
     assert "failed=1" in result.detail
 
 
+def test_phase_services_configure_names_the_failing_hooks(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The detail must say *which* hook failed.
+
+    A bare ``failed=1`` over six enabled services is not a diagnosis;
+    recovering the name previously meant correlating three workflow
+    runs.
+    """
+    from nexus_deploy.services import HookResult, SetupResult
+
+    fake = SetupResult(
+        hooks=(
+            HookResult(name="portainer", status="failed"),
+            HookResult(name="metabase", status="skipped-not-ready"),
+            HookResult(name="lakefs", status="failed"),
+        )
+    )
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._services.run_admin_setups", lambda *_a, **_kw: fake
+    )
+    result = orchestrator._phase_services_configure(MagicMock())
+    assert result.status == "partial"
+    assert "failed=2 (portainer, lakefs)" in result.detail
+    assert "skipped-not-ready=1 (metabase)" in result.detail
+
+
+def test_phase_services_configure_omits_empty_name_lists(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An all-green line must not gain a stray ``()``."""
+    from nexus_deploy.services import HookResult, SetupResult
+
+    fake = SetupResult(hooks=(HookResult(name="x", status="configured"),))
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._services.run_admin_setups", lambda *_a, **_kw: fake
+    )
+    result = orchestrator._phase_services_configure(MagicMock())
+    assert result.status == "ok"
+    assert "()" not in result.detail
+    assert result.detail == "configured=1 already-configured=0 skipped-not-ready=0"
+
+
 def test_phase_gitea_configure_ok_populates_state(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:

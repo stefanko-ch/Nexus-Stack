@@ -46,7 +46,7 @@ import re
 import shlex
 import socket
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -142,6 +142,22 @@ _SECRET_ASSIGNMENT_RE = re.compile(
     r"\s*=\s*\S+",
     re.IGNORECASE,
 )
+
+
+def _hook_names_suffix(names: Sequence[str]) -> str:
+    """Render ``" (a, b)"`` for a non-empty name list, else ``""``.
+
+    Appended to a count in a phase detail so ``failed=1`` becomes
+    ``failed=1 (portainer)``. Empty stays empty rather than printing
+    ``()``, which would add noise to the common all-green line.
+
+    Hook names come from a fixed registry and are validated against
+    ``[A-Za-z0-9_-]+`` when the RESULT line is parsed, so nothing
+    operator-supplied reaches this string.
+    """
+    if not names:
+        return ""
+    return f" ({', '.join(names)})"
 
 
 def _transport_detail(exc: BaseException) -> str:
@@ -414,13 +430,18 @@ class Orchestrator:
                 status="failed",
                 detail=f"unexpected ({type(exc).__name__})",
             )
+        # Name the hooks behind every non-configured outcome. A count
+        # on its own sends the reader to a second log to find out which
+        # service it was.
+        not_ready = _hook_names_suffix(result.skipped_not_ready_hooks)
         if result.failed > 0:
             return PhaseResult(
                 name="services-configure",
                 status="partial",
                 detail=(
                     f"configured={result.configured} already-configured={result.already_configured} "
-                    f"skipped-not-ready={result.skipped_not_ready} failed={result.failed}"
+                    f"skipped-not-ready={result.skipped_not_ready}{not_ready} "
+                    f"failed={result.failed}{_hook_names_suffix(result.failed_hooks)}"
                 ),
             )
         return PhaseResult(
@@ -428,7 +449,7 @@ class Orchestrator:
             status="ok",
             detail=(
                 f"configured={result.configured} already-configured={result.already_configured} "
-                f"skipped-not-ready={result.skipped_not_ready}"
+                f"skipped-not-ready={result.skipped_not_ready}{not_ready}"
             ),
         )
 

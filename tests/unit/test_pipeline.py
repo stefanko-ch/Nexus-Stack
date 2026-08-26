@@ -1459,6 +1459,104 @@ def test_write_phase_log_renders_every_section_in_order() -> None:
     assert out.index("early") < out.index("late")
 
 
+# ---------------------------------------------------------------------------
+# GitHub Actions annotations for degraded phases (#682)
+# ---------------------------------------------------------------------------
+
+
+def _phase_log(
+    *phases: PhaseResult,
+    label: str = "run-all",
+    env: dict[str, str] | None = None,
+    monkeypatch: Any = None,
+) -> str:
+    import io
+
+    if monkeypatch is not None:
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+        for key, value in (env or {}).items():
+            monkeypatch.setenv(key, value)
+    buf = io.StringIO()
+    write_phase_log(((label, _result(*phases)),), stream=buf)
+    return buf.getvalue()
+
+
+def test_partial_phase_gets_a_warning_annotation_under_actions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A degraded phase must be visible without opening the step log.
+
+    ``partial`` deliberately keeps rc=0 (PR #535), so run, job and step
+    all stay green. The annotation is what carries the signal into the
+    run summary instead.
+    """
+    out = _phase_log(
+        PhaseResult(name="services-configure", status="partial", detail="failed=1 (portainer)"),
+        env={"GITHUB_ACTIONS": "true"},
+        monkeypatch=monkeypatch,
+    )
+    assert "::warning title=run-all: services-configure::failed=1 (portainer)" in out
+
+
+def test_failed_phase_gets_an_error_annotation(monkeypatch: pytest.MonkeyPatch) -> None:
+    out = _phase_log(
+        PhaseResult(name="stack-sync", status="failed", detail="rc=255"),
+        env={"GITHUB_ACTIONS": "true"},
+        monkeypatch=monkeypatch,
+    )
+    assert "::error title=run-all: stack-sync::rc=255" in out
+
+
+def test_clean_run_emits_no_annotations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An all-green run must not add noise to the summary."""
+    out = _phase_log(
+        PhaseResult(name="a", status="ok", detail="fine"),
+        PhaseResult(name="b", status="skipped", detail="not enabled"),
+        env={"GITHUB_ACTIONS": "true"},
+        monkeypatch=monkeypatch,
+    )
+    assert "::warning" not in out
+    assert "::error" not in out
+
+
+def test_no_annotations_outside_github_actions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Local runs and tests get the human log only."""
+    out = _phase_log(
+        PhaseResult(name="services-configure", status="partial", detail="failed=1 (portainer)"),
+        monkeypatch=monkeypatch,
+    )
+    assert "⚠ services-configure: partial" in out
+    assert "::warning" not in out
+
+
+def test_annotation_escapes_workflow_command_characters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`%`, CR and LF are structure to GitHub's parser.
+
+    An unescaped newline in a detail would split the annotation and
+    drop everything after it.
+    """
+    out = _phase_log(
+        PhaseResult(name="p", status="partial", detail="100% done\nsecond line"),
+        env={"GITHUB_ACTIONS": "true"},
+        monkeypatch=monkeypatch,
+    )
+    assert "::warning title=run-all: p::100%25 done%0Asecond line" in out
+
+
+def test_annotation_falls_back_to_status_when_detail_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An annotation with an empty body says nothing at all."""
+    out = _phase_log(
+        PhaseResult(name="p", status="partial"),
+        env={"GITHUB_ACTIONS": "true"},
+        monkeypatch=monkeypatch,
+    )
+    assert "::warning title=run-all: p::partial" in out
+
+
 def test_post_bootstrap_abort_prints_the_phase_log_before_raising(
     project_root: Path,
     fake_tofu_runner: MagicMock,

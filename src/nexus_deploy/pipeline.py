@@ -784,6 +784,49 @@ def run_snapshot(
 
 _PHASE_MARKERS = {"ok": "✓", "partial": "⚠", "failed": "✗", "skipped": "—"}
 
+# GitHub's workflow-command parser reads `%`, CR and LF as structure.
+# A detail line carrying any of them would truncate or split the
+# annotation, so they go in percent-encoded.
+_GA_ESCAPES = str.maketrans({"%": "%25", "\r": "%0D", "\n": "%0A"})
+
+# A phase whose status is degraded but not fatal. `failed` is included
+# even though it also aborts the run: the abort message names the
+# phase, but an annotation puts it in the run summary next to the
+# partials rather than only in the step log.
+_GA_ANNOTATED = {"partial": "warning", "failed": "error"}
+
+
+def _github_annotations(
+    sections: tuple[tuple[str, OrchestratorResult], ...],
+) -> list[str]:
+    """Render GitHub Actions annotations for degraded phases.
+
+    Why this exists: ``partial`` deliberately keeps the exit code at 0
+    (see :func:`run_pipeline` — PR #535 tightened that, because a
+    non-zero exit under ``shell: bash -e`` fails a workflow whose
+    deploy actually succeeded). The cost of that contract is that a
+    degraded phase is visible **only** to somebody who opens the step
+    log and reads it: the run, the job and the step all stay green.
+
+    An annotation restores the signal without touching the exit code.
+    It surfaces in the run summary and against the step in the UI, so
+    a partial phase is something an operator sees rather than
+    something they have to go looking for.
+
+    Returns the lines; the caller writes them. Empty when nothing is
+    degraded, so a clean run adds no output at all.
+    """
+    lines: list[str] = []
+    for label, sub_result in sections:
+        for phase in sub_result.phases:
+            level = _GA_ANNOTATED.get(phase.status)
+            if level is None:
+                continue
+            title = f"{label}: {phase.name}".translate(_GA_ESCAPES)
+            body = (phase.detail or phase.status).translate(_GA_ESCAPES)
+            lines.append(f"::{level} title={title}::{body}")
+    return lines
+
 
 def write_phase_log(
     sections: tuple[tuple[str, OrchestratorResult], ...],
@@ -801,6 +844,12 @@ def write_phase_log(
 
     ``stream`` defaults to ``sys.stderr`` at call time rather than at
     import, so a caller that redirects stderr still gets captured.
+
+    Degraded phases additionally get a GitHub Actions annotation, for
+    the same reason this function is shared in the first place: the
+    alternative — a second emitter beside each call site — is how the
+    abort paths lost their phase log. Annotations are emitted only
+    under ``GITHUB_ACTIONS``, so local runs and tests stay clean.
     """
     out = stream if stream is not None else sys.stderr
     for label, sub_result in sections:
@@ -809,6 +858,9 @@ def write_phase_log(
             marker = _PHASE_MARKERS.get(phase.status, "?")
             detail = f" — {phase.detail}" if phase.detail else ""
             out.write(f"  {marker} {phase.name}: {phase.status}{detail}\n")
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for line in _github_annotations(sections):
+            out.write(f"{line}\n")
 
 
 def format_done_banner(result: PipelineResult) -> str:
