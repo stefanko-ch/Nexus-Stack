@@ -1181,6 +1181,47 @@ def test_phase_kestra_register_ok(
     assert "execution=SUCCESS" in result.detail
 
 
+def test_mirror_finalize_waits_for_the_flow_sync_execution(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Triggering is not finishing.
+
+    Mirror mode defers the onboarding execution to this phase, so a POST
+    that returns an id while the execution then fails would leave Kestra
+    without the seeded flows and report green.
+    """
+    calls: dict[str, object] = {}
+
+    class _Client:
+        def __init__(self, **_kw: object) -> None: ...
+
+        def execute_flow(self, ns: str, flow: str) -> str:
+            calls["executed"] = f"{ns}.{flow}"
+            return "exec-1"
+
+        def wait_for_execution(self, exec_id: str, **_kw: object) -> str:
+            calls["waited"] = exec_id
+            return "FAILED"
+
+    monkeypatch.setattr("nexus_deploy.orchestrator._kestra.KestraClient", _Client)
+    from nexus_deploy.compose_restart import RestartResult
+
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._compose_restart.run_restart",
+        lambda *_a, **_k: RestartResult(restarted=0, failed=0),
+    )
+    orchestrator.gh_mirror_repos = "owner/repo"
+    orchestrator.state.fork_name = "user/fork"
+    orchestrator.enabled_services = ["kestra"]
+
+    result = orchestrator._phase_mirror_finalize(_ssh_with_tunnel())
+
+    assert calls["executed"] == "system.flow-sync"
+    assert calls["waited"] == "exec-1"
+    assert result.status == "partial"
+    assert "flow_state=FAILED" in result.detail
+
+
 def test_phase_kestra_register_defers_the_trigger_in_mirror_mode(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -143,6 +143,11 @@ _SECRET_ASSIGNMENT_RE = re.compile(
 )
 
 
+# How long mirror-finalize waits for the onboarding flow-sync to
+# settle. Generous: it clones the fork and walks nexus_seeds/.
+_FLOW_SYNC_TIMEOUT_S = 120.0
+
+
 def _hook_names_suffix(names: Sequence[str]) -> str:
     """Render ``" (a, b)"`` for a non-empty name list, else ``""``.
 
@@ -2211,6 +2216,7 @@ class Orchestrator:
             )
 
         flow_triggered = False
+        flow_state: str | None = None
         flow_skipped_reason: str | None = None
         # Sub-step 1: flow-sync re-trigger (Kestra-gated)
         if (
@@ -2226,8 +2232,18 @@ class Orchestrator:
                         username=self.bootstrap_env.admin_email,
                         password=self.config.kestra_admin_password,
                     )
-                    client.execute_flow("system", "flow-sync")
+                    exec_id = client.execute_flow("system", "flow-sync")
                     flow_triggered = True
+                    # Firing it is not finishing it. Since kestra-register
+                    # defers the onboarding execution in mirror mode — the
+                    # fork does not exist when that phase runs — this is
+                    # now the only place it happens. A POST that returns an
+                    # id while the execution then fails would leave Kestra
+                    # without the seeded flows and nothing would say so.
+                    flow_state = client.wait_for_execution(
+                        exec_id,
+                        timeout_s=_FLOW_SYNC_TIMEOUT_S,
+                    )
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
                 flow_skipped_reason = f"transport ({type(exc).__name__})"
             except _kestra.KestraError as exc:
@@ -2263,10 +2279,10 @@ class Orchestrator:
                 ),
             )
 
-        details = [
-            f"flow_triggered={flow_triggered}",
-            f"git_restarted={restart_result.restarted}",
-        ]
+        details = [f"flow_triggered={flow_triggered}"]
+        if flow_state is not None:
+            details.append(f"flow_state={flow_state}")
+        details.append(f"git_restarted={restart_result.restarted}")
         if restart_result.failed:
             details.append(f"git_failed={restart_result.failed}")
         if flow_skipped_reason and not flow_triggered:
@@ -2283,9 +2299,15 @@ class Orchestrator:
         # legitimate "no flow-sync to trigger" case. PR #533 R6 #2
         # corrected the comment — was: "only ALL-failed → partial",
         # which contradicted the actual logic.
+        # (c) an execution that ran and ended FAILED / KILLED is a
+        #     degraded outcome. RUNNING is excluded: the poll timed
+        #     out while it was still going, which usually settles.
+        flow_execution_bad = flow_state in ("FAILED", "KILLED")
         is_partial = (
-            not flow_triggered and "kestra" in self.enabled_services
-        ) or restart_result.failed > 0
+            (not flow_triggered and "kestra" in self.enabled_services)
+            or flow_execution_bad
+            or restart_result.failed > 0
+        )
         return PhaseResult(
             name="mirror-finalize",
             status="partial" if is_partial else "ok",
