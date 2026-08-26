@@ -153,6 +153,41 @@ def test_render_portainer_hook_skips_when_password_empty() -> None:
     assert script.strip() == 'echo "RESULT hook=portainer status=skipped-not-ready"'
 
 
+def test_render_portainer_hook_checks_before_it_writes() -> None:
+    """The admin pre-check must precede the init POST.
+
+    Order is the whole point: if the POST came first, a re-run would
+    hit the conflict path and depend on the backstop rather than
+    avoiding the write entirely. Compare positions rather than mere
+    presence, which a reordering would not catch.
+    """
+    script = render_portainer_hook(_make_config(), _make_env())
+    assert script.index("/api/users/admin/check") < script.index("/api/users/admin/init")
+
+
+def test_render_portainer_hook_never_echoes_the_response_body() -> None:
+    """Only the status code may be logged on failure.
+
+    This hook POSTs credentials; its error payload is not something to
+    echo into a public CI log. The diagnostic carries the two codes and
+    nothing else.
+    """
+    script = render_portainer_hook(_make_config(), _make_env())
+    assert "-o /dev/null" in script  # response discarded, code kept via -w
+    assert 'echo "$RESP"' not in script
+    assert "$INIT_CODE" in script
+
+
+def test_render_portainer_hook_treats_any_2xx_as_configured() -> None:
+    """Success is a 2xx class, not one hardcoded code.
+
+    The previous revision looked for `"Id"` in the body; keying on the
+    class keeps the hook correct if Portainer answers 201 instead.
+    """
+    script = render_portainer_hook(_make_config(), _make_env())
+    assert "2??)" in script
+
+
 def test_render_n8n_hook_uses_admin_email_from_env() -> None:
     """n8n needs admin_email — comes from BootstrapEnv, not NexusConfig."""
     script = render_n8n_hook(_make_config(), _make_env(admin_email="alice@example.com"))
@@ -1115,8 +1150,23 @@ def test_round_5_idempotent_skip_via_substring_match() -> None:
     Each hook has a distinct "already configured" signal. Pin them
     so refactors don't accidentally drop the check.
     """
+    # Portainer: pre-check on GET /api/users/admin/check (204 = an
+    # administrator exists), plus 409 from the init POST as a backstop.
+    #
+    # This assertion used to read `"already initialized" in portainer`,
+    # commented "Portainer's API response substring". It was not one.
+    # That text is the name of Portainer's Go identifier
+    # (`errAdminAlreadyInitialized`); what the handler puts on the wire
+    # is "An administrator user already exists". So the hook's
+    # already-configured branch could never be reached, every re-run
+    # reported `failed`, and this test pinned the broken string in
+    # place — which is why it survived. Assert on the status codes: a
+    # code is a contract, an error message is prose.
     portainer = render_portainer_hook(_make_config(), _make_env())
-    assert "already initialized" in portainer  # Portainer's API response substring
+    assert "/api/users/admin/check" in portainer
+    assert '"$ADMIN_CHECK" = "204"' in portainer
+    assert "409)" in portainer
+    assert "already initialized" not in portainer
 
     n8n = render_n8n_hook(_make_config(), _make_env())
     assert "showSetupOnFirstLoad" in n8n  # n8n's settings probe
@@ -1303,6 +1353,30 @@ def test_setup_result_counters() -> None:
 def test_setup_result_empty_is_success() -> None:
     """Zero hooks = no failures = success."""
     assert SetupResult(hooks=()).is_success is True
+
+
+def test_setup_result_names_the_degraded_hooks() -> None:
+    """Counts alone cost a debugging cycle; the names were already here.
+
+    ``failed=1`` over six enabled services means opening a second log
+    to find out which one. Both degraded outcomes get named.
+    """
+    r = SetupResult(
+        hooks=(
+            HookResult(name="portainer", status="failed"),
+            HookResult(name="n8n", status="configured"),
+            HookResult(name="metabase", status="skipped-not-ready"),
+            HookResult(name="lakefs", status="failed"),
+        )
+    )
+    assert r.failed_hooks == ("portainer", "lakefs")
+    assert r.skipped_not_ready_hooks == ("metabase",)
+
+
+def test_setup_result_degraded_names_empty_when_all_fine() -> None:
+    r = SetupResult(hooks=(HookResult(name="portainer", status="already-configured"),))
+    assert r.failed_hooks == ()
+    assert r.skipped_not_ready_hooks == ()
 
 
 # ---------------------------------------------------------------------------

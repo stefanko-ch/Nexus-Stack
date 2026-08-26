@@ -148,6 +148,27 @@ class SetupResult:
         return sum(1 for h in self.hooks if h.status == "failed")
 
     @property
+    def failed_hooks(self) -> tuple[str, ...]:
+        """Names of the hooks that failed, in the order they ran.
+
+        A bare ``failed=1`` forces whoever reads the phase log to
+        reconstruct which of the enabled services it was — from a
+        second log, or by re-running. The names are already here; the
+        summary just never carried them.
+        """
+        return tuple(h.name for h in self.hooks if h.status == "failed")
+
+    @property
+    def skipped_not_ready_hooks(self) -> tuple[str, ...]:
+        """Names of the hooks that timed out waiting for their service.
+
+        Same argument as :attr:`failed_hooks`: this is a degraded
+        outcome, and a count alone does not say which service never
+        came up.
+        """
+        return tuple(h.name for h in self.hooks if h.status == "skipped-not-ready")
+
+    @property
     def is_success(self) -> bool:
         """All hooks ended in a non-failed terminal state."""
         return self.failed == 0
@@ -209,6 +230,29 @@ fi
 def render_portainer_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     """Portainer first-init: ``POST /api/users/admin/init`` (no auth).
 
+    Idempotent via a **pre-check**, the same shape as the n8n and
+    Metabase hooks: ``GET /api/users/admin/check`` answers 204 when an
+    administrator already exists and 404 when none does
+    (``api/http/handler/users/admin_check.go``). A re-run therefore
+    reports ``already-configured`` without attempting a second write.
+
+    Both branches key on the **HTTP status code**, never on the prose
+    in an error body. An earlier revision matched the response against
+    ``already initialized`` and every re-run landed in ``failed``: that
+    string is the name of Portainer's Go identifier
+    (``errAdminAlreadyInitialized``), while the text it actually puts
+    on the wire is ``An administrator user already exists``. Matching
+    an identifier instead of the payload is silently wrong for as long
+    as nobody re-runs the hook.
+
+    The POST's status code is kept as a second signal — 409 is
+    Portainer's conflict for an existing administrator — so the hook is
+    still correct if an admin appears between the check and the write.
+
+    Only the status code is logged on failure, never the response body:
+    this endpoint is the one we POST credentials to, and an error
+    payload is not a safe thing to echo into a public CI log.
+
     Secrets reach jq via env vars (``NEXUS_U`` / ``NEXUS_P``) and are
     referenced in the filter as ``env.NEXUS_U`` / ``env.NEXUS_P`` —
     NEVER as positional ``--arg`` values, which would put them in
@@ -232,19 +276,31 @@ def render_portainer_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     return f"""
 portainer_hook() {{
     {wait}
+    ADMIN_CHECK=$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 \\
+        'http://localhost:9090/api/users/admin/check' 2>/dev/null || echo "000")
+    if [ "$ADMIN_CHECK" = "204" ]; then
+        echo "RESULT hook=portainer status=already-configured"
+        return 0
+    fi
     BODY=$(NEXUS_U={username_q} NEXUS_P={password_q} jq -n \\
         '{{Username: env.NEXUS_U, Password: env.NEXUS_P}}')
-    RESP=$(printf '%s' "$BODY" | curl -s -X POST 'http://localhost:9090/api/users/admin/init' \\
+    INIT_CODE=$(printf '%s' "$BODY" | curl -s -o /dev/null -w '%{{http_code}}' \\
+        -X POST 'http://localhost:9090/api/users/admin/init' \\
         --max-time 30 \\
         -H 'Content-Type: application/json' \\
-        --data-binary @- 2>/dev/null || echo "")
-    if echo "$RESP" | grep -q '"Id"'; then
-        echo "RESULT hook=portainer status=configured"
-    elif echo "$RESP" | grep -q 'already initialized'; then
-        echo "RESULT hook=portainer status=already-configured"
-    else
-        echo "RESULT hook=portainer status=failed"
-    fi
+        --data-binary @- 2>/dev/null || echo "000")
+    case "$INIT_CODE" in
+        2??)
+            echo "RESULT hook=portainer status=configured"
+            ;;
+        409)
+            echo "RESULT hook=portainer status=already-configured"
+            ;;
+        *)
+            echo "  ⚠ portainer admin init returned HTTP $INIT_CODE (admin/check=$ADMIN_CHECK)" >&2
+            echo "RESULT hook=portainer status=failed"
+            ;;
+    esac
 }}
 portainer_hook
 """
