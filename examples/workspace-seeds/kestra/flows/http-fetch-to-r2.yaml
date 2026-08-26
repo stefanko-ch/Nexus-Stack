@@ -24,8 +24,11 @@ description: |
 
   This file was seeded into your Forgejo workspace repo from
   `nexus-stack/examples/workspace-seeds/kestra/flows/http-fetch-to-r2.yaml`.
-  Edit the file in Forgejo — Kestra picks up the change within 15 minutes
-  via `system.flow-sync`. Subsequent spin-ups leave your edits
+  Edit the file in Forgejo, then
+  run `system.flow-sync` from the Kestra UI to pick it up
+    immediately; it also runs once on every spin-up. It is deliberately
+    unscheduled — a periodic pull with `delete: true` used to overwrite
+    edits made in the Kestra UI without any error. Subsequent spin-ups leave your edits
   untouched (seeding only adds new files, never overwrites).
 
   Manual trigger only — no `triggers:` block, by Nexus-Stack

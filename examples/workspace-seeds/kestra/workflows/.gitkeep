@@ -2,9 +2,10 @@
 # user's workspace Forgejo repo from the first deploy.
 #
 # Why this file is here:
-# `system.git-sync` (the Kestra flow registered by deploy.sh) pulls
-# helper files from this directory every 15 minutes via the
-# SyncNamespaceFiles plugin. The plugin throws
+# `system.git-sync` (registered by the orchestrator's kestra-register
+# phase) pulls helper files from this directory via the
+# SyncNamespaceFiles plugin — once per spin-up, plus whenever it is
+# triggered manually. The plugin throws
 # `IllegalArgumentException: The directory 'kestra/workflows' was
 # not found in the git repository` and the run lands in FAILED
 # state when the directory is missing — flooding the Kestra

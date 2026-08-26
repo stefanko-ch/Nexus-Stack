@@ -147,7 +147,7 @@ def test_repo_coords_branch2_mirror_no_user_email_produces_mirror_readonly() -> 
 
 def test_repo_coords_branch3_no_mirror_produces_default_workspace() -> None:
     """Branch 3: no mirror → admin's default empty workspace as
-    ``nexus-<domain-dashed>-forgejo``."""
+    ``nexus-<domain-dashed>-workspace``."""
     inputs = WorkspaceInputs(
         domain="example.com",
         admin_username="admin",
@@ -161,7 +161,7 @@ def test_repo_coords_branch3_no_mirror_produces_default_workspace() -> None:
 
 
 def test_repo_coords_branch3_handles_subdomain_in_domain() -> None:
-    """``my.domain.com`` → ``nexus-my-domain-com-forgejo`` (every dot
+    """``my.domain.com`` → ``nexus-my-domain-com-workspace`` (every dot
     becomes a dash)."""
     inputs = WorkspaceInputs(
         domain="my.domain.com",

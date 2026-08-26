@@ -43,10 +43,10 @@ from urllib.parse import quote
 
 from nexus_deploy import _remote
 
-# Server-side Forgejo endpoint (port 3202, NOT 3000 — Forgejo's
-# docker-compose maps the host port to 3200). Hardcoded: this is the
-# convention enforced by the forgejo stack's compose file, not a
-# per-environment knob.
+# Server-side Forgejo endpoint. Port 3202, NOT 3000: the forgejo
+# stack's compose file maps host 3202 to the container's 3000.
+# Hardcoded because that mapping is a convention of the stack, not a
+# per-environment knob. (3201 belongs to git-proxy.)
 _FORGEJO_BASE_URL = "http://localhost:3202"
 
 # Server-side path where rsync uploads the payload tree and the curl

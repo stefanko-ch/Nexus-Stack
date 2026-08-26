@@ -45,6 +45,7 @@ A small set of services are marked **core** and cannot be disabled:
 - **Forgejo** — Git server used by several integrations
 - **Grafana** — monitoring and observability
 - **Infisical** — secrets store
+- **Portainer** — container dashboard, the first stop when a service misbehaves
 
 Core stacks are shown with a **CORE** badge and their toggle is locked.
 

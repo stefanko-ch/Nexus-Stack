@@ -69,7 +69,7 @@ During deployment, a shared workspace repo named `nexus-<domain>-workspace` is a
 | code-server | `/home/coder/<repo>` | Entrypoint clone (opens as workspace) |
 | Meltano | `/project/<repo>` | Entrypoint clone |
 | Prefect | `/flows/<repo>` (worker) | Entrypoint clone |
-| Kestra | Git sync flow | `plugin-git` SyncNamespaceFiles (every 15 min) |
+| Kestra | Git sync flow | `plugin-git` SyncNamespaceFiles — once per spin-up, or on demand from the UI |
 
 ### GitHub Repository Mirroring (Optional)
 

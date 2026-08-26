@@ -13,7 +13,7 @@ Woodpecker CI is a simple, container-native continuous integration engine forked
 **Features:**
 - **Pipeline-as-code** - Define CI/CD pipelines in `.woodpecker.yml` files alongside your code
 - **Docker-native** - Each pipeline step runs in its own container
-- **Multi-forge support** - Integrates with GitHub, Forgejo, GitLab, Bitbucket, and Forgejo
+- **Multi-forge support** - Integrates with GitHub, Gitea, Forgejo, GitLab, and Bitbucket
 - **Lightweight** - Minimal resource usage compared to Jenkins or GitLab CI
 - **Matrix builds** - Run pipeline variants across multiple configurations
 - **Secrets management** - Built-in secret storage for pipeline credentials

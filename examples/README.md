@@ -6,7 +6,7 @@ Sample code that ships with Nexus-Stack and lands automatically in every freshly
 
 | Subtree | Purpose | Auto-seeded? |
 |---|---|---|
-| [`workspace-seeds/`](./workspace-seeds/) | Files that get committed into the user's Forgejo workspace repo on every spin-up | **Yes** — copied 1:1 by `scripts/deploy.sh` after the workspace repo is created |
+| [`workspace-seeds/`](./workspace-seeds/) | Files that get committed into the user's Forgejo workspace repo on every spin-up | **Yes** — copied 1:1 by the orchestrator's seed phase after the workspace repo is created |
 
 For now there is only `workspace-seeds/`. If we ever ship reference material that is *not* meant to land in the workspace repo (e.g. contributor recipes for adding a new stack), it gets a sibling directory like `examples/contributing/` and an explicit "**not** auto-seeded" note.
 
@@ -83,7 +83,7 @@ If a new stack needs its own per-stack folder, add it under `workspace-seeds/<st
 
 ## How seeding works
 
-`scripts/deploy.sh`, after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3200/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (deploy.sh resolves this via `$FORGEJO_REPO_OWNER`, set per-mode at the top of the script).
+The orchestrator's `_phase_seed` (`src/nexus_deploy/seeder.py`), after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3200/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (deploy.sh resolves this via `$FORGEJO_REPO_OWNER`, set per-mode at the top of the script).
 
 - HTTP **201/200** → file created. Counted as `SEEDED`.
 - HTTP **422** → file already exists. Counted as `SKIPPED`. **Existing files are never overwritten** — user edits persist across re-deploys.
