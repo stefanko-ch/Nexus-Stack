@@ -37,15 +37,15 @@ services:
           chown -R appuser:appuser /app/notebooks;
         fi;
         gosu appuser sh -c '
-          if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
-            echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > ~/.netrc;
+          if [ -n \"$$FORGEJO_USERNAME\" ] && [ -n \"$$FORGEJO_PASSWORD\" ]; then
+            echo \"machine forgejo login $$FORGEJO_USERNAME password $$FORGEJO_PASSWORD\" > ~/.netrc;
             chmod 600 ~/.netrc;
           fi;
-          if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /app/notebooks/$$REPO_NAME/.git ]; then
-            if git clone \"$$GITEA_REPO_URL\" /app/notebooks/$$REPO_NAME; then
+          if [ -n \"$$FORGEJO_REPO_URL\" ] && [ ! -d /app/notebooks/$$REPO_NAME/.git ]; then
+            if git clone \"$$FORGEJO_REPO_URL\" /app/notebooks/$$REPO_NAME; then
               echo \"[marimo] Cloned Git repo into /app/notebooks/$$REPO_NAME\";
             else
-              echo \"[marimo] Warning: Failed to clone $$GITEA_REPO_URL\" >&2;
+              echo \"[marimo] Warning: Failed to clone $$FORGEJO_REPO_URL\" >&2;
             fi;
           fi;
         ';

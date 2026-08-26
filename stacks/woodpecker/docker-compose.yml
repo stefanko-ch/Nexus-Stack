@@ -24,12 +24,15 @@ services:
       WOODPECKER_ADMIN: ${WOODPECKER_ADMIN:-}
       # Database: SQLite (default, stored in volume)
       WOODPECKER_DATABASE_DRIVER: sqlite3
-      # Gitea forge integration (OAuth)
-      WOODPECKER_GITEA: "true"
-      WOODPECKER_GITEA_URL: http://gitea:3000
-      WOODPECKER_EXPERT_FORGE_OAUTH_HOST: https://gitea.${DOMAIN}
-      WOODPECKER_GITEA_CLIENT: ${WOODPECKER_GITEA_CLIENT}
-      WOODPECKER_GITEA_SECRET: ${WOODPECKER_GITEA_SECRET}
+      # Forgejo forge integration (OAuth). Woodpecker ships a native
+      # Forgejo driver — these are not Gitea-compatibility aliases.
+      # Verified against cmd/server/flags.go in v3.13.0, the tag this
+      # stack pins.
+      WOODPECKER_FORGEJO: "true"
+      WOODPECKER_FORGEJO_URL: http://forgejo:3000
+      WOODPECKER_EXPERT_FORGE_OAUTH_HOST: https://forgejo.${DOMAIN}
+      WOODPECKER_FORGEJO_CLIENT: ${WOODPECKER_FORGEJO_CLIENT}
+      WOODPECKER_FORGEJO_SECRET: ${WOODPECKER_FORGEJO_SECRET}
     deploy:
       resources:
         limits:

@@ -338,16 +338,15 @@ services:
     public: true
     category: "server-access"
     website: ""
-    description: "Public Git HTTPS proxy for external tools (Databricks, Git Desktop). Forwards to Gitea with built-in authentication."
-    long_description: "A lightweight Nginx-based reverse proxy that provides public HTTPS access to your Gitea repositories. Enables external tools like Databricks Repos, GitHub Desktop, and CI/CD systems to clone and push via standard Git HTTPS protocol with built-in authentication."
+    description: "The one endpoint NOT behind Cloudflare Access — public HTTPS to Forgejo, so git clients can authenticate. Enable only if you clone from outside the stack."
+    long_description: "A lightweight Nginx reverse proxy that exposes your Forgejo repositories over public HTTPS, so tools that cannot complete a Cloudflare Access browser login — git itself, Databricks Repos, GitHub Desktop, hosted CI — can clone and push. This is the only stack in Nexus-Stack reachable without Access: what protects it is Forgejo's own login, not the platform's email-OTP gate. Inside the stack you do not need it — Jupyter, Marimo, code-server, Meltano and Prefect clone the workspace repo over the internal Docker network at container start. Enable this only if you want to clone from your own machine or from an external service."
     image: "nginx:alpine"
 
   gitea:
     subdomain: "gitea"
     port: 3200
     public: false
-    core: true
-    category: "core"
+    category: "ci-cd"
     website: "https://gitea.com"
     description: "Self-hosted Git service with pull requests, code review, and CI/CD."
     long_description: "Gitea is a painless self-hosted Git service. It provides repository hosting, pull requests, code review, issue tracking, wikis, and CI/CD integration. Lightweight and fast, written in Go, with a familiar GitHub-like interface."

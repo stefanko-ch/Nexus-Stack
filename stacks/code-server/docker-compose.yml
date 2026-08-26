@@ -24,15 +24,15 @@ services:
           printf '\\n# Auto-activate Nexus-Stack pre-installed dbt + notebook venv\\nif [ -f /opt/nexus-venv/bin/activate ]; then\\n  . /opt/nexus-venv/bin/activate\\nfi\\n' >> /home/coder/.bashrc;
           echo '[code-server] Appended nexus-venv auto-activate block to ~/.bashrc';
         fi;
-        if [ -n \"$$GITEA_USERNAME\" ] && [ -n \"$$GITEA_PASSWORD\" ]; then
-          echo \"machine gitea login $$GITEA_USERNAME password $$GITEA_PASSWORD\" > /home/coder/.netrc;
+        if [ -n \"$$FORGEJO_USERNAME\" ] && [ -n \"$$FORGEJO_PASSWORD\" ]; then
+          echo \"machine forgejo login $$FORGEJO_USERNAME password $$FORGEJO_PASSWORD\" > /home/coder/.netrc;
           chmod 600 /home/coder/.netrc;
         fi;
-        if [ -n \"$$GITEA_REPO_URL\" ] && [ ! -d /home/coder/$$REPO_NAME/.git ]; then
-          if git clone \"$$GITEA_REPO_URL\" /home/coder/$$REPO_NAME; then
+        if [ -n \"$$FORGEJO_REPO_URL\" ] && [ ! -d /home/coder/$$REPO_NAME/.git ]; then
+          if git clone \"$$FORGEJO_REPO_URL\" /home/coder/$$REPO_NAME; then
             echo '[code-server] Cloned Git repo into /home/coder/'$$REPO_NAME;
           else
-            echo '[code-server] Warning: Failed to clone '$$GITEA_REPO_URL >&2;
+            echo '[code-server] Warning: Failed to clone '$$FORGEJO_REPO_URL >&2;
           fi;
         fi;
         USER_EXT_DIR=/home/coder/.local/share/code-server/extensions;
