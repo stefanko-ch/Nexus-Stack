@@ -4,7 +4,7 @@ This document provides an overview of all available Docker stacks in Nexus-Stack
 
 ## Docker Image Versions
 
-Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Versions are defined in [`services.yaml`](../../services.yaml).
+Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Anything holding persistent state is pinned to an exact version or a digest instead — a surprise major on the next spin-up would meet data written by the previous one. Versions are defined in [`services.yaml`](../../services.yaml).
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
@@ -12,7 +12,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Adminer | `adminer` | `latest` | Latest ² |
 | Appsmith | `appsmith/appsmith-ce` | `v1.98` | Minor |
 | Big-AGI | `ghcr.io/enricoros/big-agi` | `v2.0.4` | Exact ¹ |
-| Budibase | `budibase/budibase` | `latest` | Latest ² |
+| Budibase | `budibase/budibase` | `v3.43.0` | Exact ¹ |
 | Chroma | `chromadb/chroma` | `1.5.9` | Exact ¹ |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
@@ -33,7 +33,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Node Exporter | `prom/node-exporter` | `v1` | Major |
 | Portainer | `portainer/portainer-ce` | `2` | Major |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
-| n8n | `n8nio/n8n` | `1` | Major |
+| n8n | `n8nio/n8n` | `1.123.75` | Exact ⁴ |
 | OpenMetadata Server | `docker.getcollate.io/openmetadata/server` | `1.6.6` | Exact ¹ |
 | OpenMetadata Ingestion | `docker.getcollate.io/openmetadata/ingestion` | `1.6.6` | Exact ¹ |
 | Elasticsearch (OpenMetadata) | `docker.elastic.co/elasticsearch/elasticsearch` | `8.11.4` | Exact ¹ |
@@ -48,7 +48,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `python-3.13` | Minor |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
 | Evidence | `evidencedev/devenv` | `latest` | Latest ² |
-| Filestash | `machines/filestash` | `latest` | Latest ² |
+| Filestash | `machines/filestash` | `@sha256:68171bf3…` | Digest ⁵ |
 | Flink JobManager | `flink` (custom build) | `1.20.1` | Exact ³ |
 | Flink TaskManager | `flink` (custom build) | `1.20.1` | Exact ³ |
 | Forgejo | `codeberg.org/forgejo/forgejo` | `15.0.7` | Exact ¹ |
@@ -61,7 +61,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Gitea | `gitea/gitea` | `1.23` | Major |
 | PostgreSQL (Gitea DB) | `postgres` | `16-alpine` | Major |
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
-| Mage | `mageai/mageai` | `latest` | Latest ² |
+| Mage | `mageai/mageai` | `0.9.79` | Exact ¹ |
 | MinIO | `minio/minio` | `latest` | Latest ² |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
@@ -122,6 +122,8 @@ Images are pinned to **major versions** where supported for automatic security p
 ¹ No major version tags available, requires manual updates.
 ² Only `latest` tags published, no semantic versions available.
 ³ Custom build (ARM64 support or additional connectors/dependencies).
+⁴ Held on the 1.x line deliberately: upstream is at 2.x, and moving a stack that stores workflow definitions, credentials and execution history across a major needs its own migration.
+⁵ No version tags published at all — only `latest`, `lowa`, `trial` and commit SHAs, and the SHA tags are single-arch. Pinned to the digest of the multi-arch manifest list, which keeps amd64 and arm64. Holds state in a volume, so `latest` was not an option.
 
 **Strategies:**
 - **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
