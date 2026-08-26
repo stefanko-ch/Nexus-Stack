@@ -170,7 +170,7 @@ HTTPServer(('0.0.0.0', 9999), Handler).serve_forever()
 # token from your production central-monitoring tier — never paste it
 # into `--body "..."`.
 gh secret set MONITORING_ENDPOINT --body "http://<your-runner-tunnel>:9999"
-printf 'test-token-123' | gh secret set MONITORING_TOKEN --body-file -
+printf 'test-token-123' | gh secret set MONITORING_TOKEN
 # Or use the GitHub UI: Settings → Secrets and variables → Actions → New
 # repository secret (the value is typed into a password field, no shell at all).
 
