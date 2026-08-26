@@ -232,8 +232,14 @@ Nothing to do here — the first run creates `R2_ACCESS_KEY_ID` and
 later deployment picks them up automatically.
 
 If the run stops with `GH_SECRETS_TOKEN is not configured`, add the token as
-described above and re-run the workflow. It mints a fresh R2 token and retires
-the previous one, so a failed first attempt leaves nothing dangling.
+described above and re-run the workflow. It mints a fresh R2 token and attempts
+to delete the one from the failed attempt.
+
+That cleanup is best-effort: `init-r2-state.sh` treats a failed token listing or
+deletion as non-fatal, so a transient Cloudflare API error can leave the earlier
+token active. Watch the re-run for a `Could not delete stale token` warning, and
+if you see one, remove it under **Cloudflare dashboard → My Profile → API
+Tokens**.
 
 ---
 

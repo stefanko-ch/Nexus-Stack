@@ -267,8 +267,10 @@ jobs:
                 echo "   'Secrets: Read and write' repository permission."
                 echo ""
                 echo "   Fix the token permission, then re-run this workflow."
-                echo "   It will mint a fresh R2 token and retire this one, so"
-                echo "   nothing is left dangling."
+                echo "   It mints a fresh R2 token and tries to retire this one."
+                echo "   That cleanup is best-effort, so if the re-run warns that"
+                echo "   it could not delete a stale token, remove it by hand:"
+                echo "   Cloudflare dashboard -> My Profile -> API Tokens."
                 exit 1
               fi
             else
