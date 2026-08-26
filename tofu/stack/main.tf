@@ -441,6 +441,14 @@ resource "random_password" "gitea_db" {
 }
 
 # Forgejo admin password
+# `special = false` is load-bearing beyond password strength. These values
+# are interpolated into the entrypoint scripts of the workspace stacks
+# (jupyter, marimo, code-server, meltano, prefect), where compose's
+# string-form `entrypoint:` is run through `sh -c` before bash parses it —
+# so a value containing `"`, `$` or a backtick would be substituted into
+# the script TEXT rather than into a variable. Alphanumeric-only keeps
+# that harmless. Raising entropy via `special = true` would need the
+# entrypoints converted to the list form first (see the follow-up issue).
 resource "random_password" "forgejo_admin" {
   length  = 24
   special = false
