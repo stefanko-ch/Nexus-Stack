@@ -1735,6 +1735,18 @@ def render_all_env_files(
 # meltano / prefect when Forgejo is enabled).
 # ---------------------------------------------------------------------------
 
+# FORGEJO_REPO_URL here is the INTERNAL url (http://forgejo:3000/...),
+# which is what the containers clone over the Docker network and what
+# their `.netrc` line `machine forgejo` authenticates against. The
+# public git-proxy url lives in Infisical under the distinct name
+# FORGEJO_REPO_URL_PUBLIC — sharing the bare name meant the Infisical
+# copy overwrote this one inside the containers, because compose reads
+# .infisical.env after .env. See #694.
+#
+# Do NOT rename FORGEJO_REPO_URL here: examples/workspace-seeds/prefect/
+# prefect.yaml reads it, and seeded files are create-only, so existing
+# user repos would keep the old name and break.
+
 # Marker pair for idempotent strip+append. Block markers are pinned
 # strings: ``_strip_forgejo_block()`` finds (and removes) any block a
 # previous run wrote before appending the new one. Diverging markers

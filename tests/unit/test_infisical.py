@@ -217,7 +217,7 @@ def test_compute_folders_ssh_optional() -> None:
     assert ssh.secrets == {"SSH_PRIVATE_KEY_BASE64": "b64-key"}
 
 
-def test_compute_folders_repo_url_falls_back_to_default_repo_name() -> None:
+def test_compute_folders_public_repo_url_falls_back_to_default_repo_name() -> None:
     """`${REPO_NAME:-nexus-${DOMAIN//./-}-workspace}` mirror.
 
     The URL lives in the forgejo folder: Forgejo hosts the workspace
@@ -228,7 +228,7 @@ def test_compute_folders_repo_url_falls_back_to_default_repo_name() -> None:
     folders = compute_folders(config, BootstrapEnv(domain="ex.example.com"))
     forgejo = next(f for f in folders if f.name == "forgejo")
     assert (
-        forgejo.secrets["FORGEJO_REPO_URL"]
+        forgejo.secrets["FORGEJO_REPO_URL_PUBLIC"]
         == "https://git.ex.example.com/bob/nexus-ex-example-com-workspace.git"
     )
 
@@ -1106,7 +1106,7 @@ def test_forgejo_folder_carries_every_generated_credential() -> None:
         "FORGEJO_ADMIN_USERNAME": "nexus-admin",
         "FORGEJO_ADMIN_PASSWORD": "fj-admin",
         "FORGEJO_USER_PASSWORD": "fj-user",
-        "FORGEJO_REPO_URL": "https://git.example.com/nexus-admin/nexus-example-com-workspace.git",
+        "FORGEJO_REPO_URL_PUBLIC": "https://git.example.com/nexus-admin/nexus-example-com-workspace.git",
         "FORGEJO_DB_PASSWORD": "fj-db",
     }
 
@@ -1138,7 +1138,7 @@ def test_forgejo_folder_drops_unset_credentials() -> None:
     assert forgejo.secrets["FORGEJO_DB_PASSWORD"] == "fj-db"
 
 
-def test_forgejo_folder_publishes_the_workspace_repo_url() -> None:
+def test_forgejo_folder_publishes_the_public_workspace_repo_url() -> None:
     """Forgejo hosts the workspace repo, so the URL belongs here.
 
     This assertion used to be the opposite: while Gitea still held
@@ -1149,6 +1149,24 @@ def test_forgejo_folder_publishes_the_workspace_repo_url() -> None:
     folders = compute_folders(config, BootstrapEnv(domain="example.com"))
     forgejo = next(f for f in folders if f.name == "forgejo")
 
-    assert forgejo.secrets["FORGEJO_REPO_URL"].endswith("-workspace.git")
+    assert forgejo.secrets["FORGEJO_REPO_URL_PUBLIC"].endswith("-workspace.git")
     gitea = next(f for f in folders if f.name == "gitea")
     assert "GITEA_REPO_URL" not in gitea.secrets
+
+
+def test_the_two_clone_urls_never_share_a_name() -> None:
+    """Infisical must not publish the bare ``FORGEJO_REPO_URL``.
+
+    ``secret_sync`` writes every Infisical key unprefixed into a stack's
+    ``.infisical.env``, and compose reads that AFTER ``.env`` — so a key
+    sharing the workspace block's name silently replaces the internal
+    clone URL inside the container, whose ``.netrc`` authenticates
+    ``machine forgejo``. That was #694; the names must stay distinct.
+    """
+    config = _make_config(admin_username="bob")
+    folders = compute_folders(config, BootstrapEnv(domain="example.com"))
+    for folder in folders:
+        assert "FORGEJO_REPO_URL" not in folder.secrets, (
+            f"folder {folder.name!r} publishes the bare name — it would "
+            "override the internal URL in every workspace stack"
+        )

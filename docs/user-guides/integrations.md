@@ -31,10 +31,19 @@ Inside the `nexus` scope, every key is prefixed with its Infisical folder: `<fol
 |---|---|
 | folder `postgres`, key `POSTGRES_USERNAME` | `postgres/POSTGRES_USERNAME` |
 | folder `redpanda`, key `REDPANDA_KAFKA_PUBLIC_URL` | `redpanda/REDPANDA_KAFKA_PUBLIC_URL` |
-| folder `forgejo`, key `FORGEJO_REPO_URL` | `forgejo/FORGEJO_REPO_URL` |
+| folder `forgejo`, key `FORGEJO_REPO_URL_PUBLIC` | `forgejo/FORGEJO_REPO_URL_PUBLIC` |
 | folder `r2-datalake`, keys `R2_ENDPOINT` / `R2_ACCESS_KEY` / `R2_SECRET_KEY` / `R2_BUCKET` | `r2-datalake/R2_ENDPOINT` etc. — see the [R2 data-lake tutorial](/docs/tutorials/databricks/r2-datalake/) |
 
 This matches the folder view on the Control Plane's Secrets page exactly, so whatever you can see there is also what the sync pushes.
+
+> **Why `FORGEJO_REPO_URL_PUBLIC` and not `FORGEJO_REPO_URL`:** there are two
+> clone URLs for the same repository. The one published here goes through
+> `git.<domain>`, the only endpoint reachable without a Cloudflare Access
+> browser login — which is what an external caller like Databricks needs.
+> The stacks running on the server clone over the internal Docker network
+> instead, using `http://forgejo:3000/...` from their own `.env`. They used
+> to share one name, and the Infisical copy quietly won inside the
+> containers.
 
 ### Drift cleanup
 

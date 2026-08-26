@@ -50,7 +50,7 @@
     }),
     'forgejo': dict({
       'FORGEJO_ADMIN_USERNAME': 'nexus-test-user',
-      'FORGEJO_REPO_URL': 'https://git.snapshot.test/snapshot-org/snapshot-repo.git',
+      'FORGEJO_REPO_URL_PUBLIC': 'https://git.snapshot.test/snapshot-org/snapshot-repo.git',
       'FORGEJO_USER_USERNAME': 'snapshot-user',
     }),
     'garage': dict({

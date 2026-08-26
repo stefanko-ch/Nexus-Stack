@@ -947,15 +947,15 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             ),
         )
     )
-    # Forgejo hosts the workspace repo: FORGEJO_REPO_URL is built from
-    # DOMAIN + repo_owner + repo_name
+    # The public clone URL: DOMAIN + repo_owner + repo_name, via the
+    # git-proxy host. Published as FORGEJO_REPO_URL_PUBLIC below.
     # with the same `${REPO_NAME:-nexus-${DOMAIN//./-}-workspace}` fallback
     # the bash carried at L2300.
     repo_name = env.repo_name or (
         f"nexus-{env.domain.replace('.', '-')}-workspace" if env.domain else None
     )
     repo_owner = env.forgejo_repo_owner or admin_username
-    forgejo_repo_url = (
+    forgejo_repo_url_public = (
         f"https://{service_host('git', env.domain, env.subdomain_separator)}"
         f"/{repo_owner}/{repo_name}.git"
         if env.domain and repo_owner and repo_name
@@ -974,10 +974,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             ),
         )
     )
-    # Forgejo now hosts the workspace repo, so FORGEJO_REPO_URL is
-    # published here. It points at the git-proxy hostname rather than
-    # the forge's own: that is the only endpoint reachable without a
-    # Cloudflare Access browser login, which a git client cannot do.
+    # Forgejo now hosts the workspace repo. The URL published here is
+    # the PUBLIC one — it points at the git-proxy hostname, the only
+    # endpoint reachable without a Cloudflare Access browser login,
+    # which a git client cannot complete. It is what an external
+    # consumer needs: Databricks Repos, a laptop, hosted CI.
+    #
+    # The name carries _PUBLIC deliberately. The workspace stacks get
+    # a different URL under the bare name FORGEJO_REPO_URL — the
+    # internal http://forgejo:3000/... form — written into their .env
+    # by service_env's workspace block. Both names used to be
+    # FORGEJO_REPO_URL, and since secret_sync writes every Infisical
+    # key unprefixed into .infisical.env, which compose reads AFTER
+    # .env, the public URL silently won inside the containers. Their
+    # .netrc says `machine forgejo`, so a private workspace repo then
+    # failed to authenticate. See #694.
     #
     # FORGEJO_RUNNER_SECRET is deliberately NOT published here, which
     # breaks the convention that every generated credential lands in
@@ -1006,7 +1017,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                     "FORGEJO_ADMIN_PASSWORD": config.forgejo_admin_password,
                     "FORGEJO_USER_USERNAME": env.forgejo_user_username,
                     "FORGEJO_USER_PASSWORD": config.forgejo_user_password,
-                    "FORGEJO_REPO_URL": forgejo_repo_url,
+                    "FORGEJO_REPO_URL_PUBLIC": forgejo_repo_url_public,
                     "FORGEJO_DB_PASSWORD": config.forgejo_db_password,
                 }
             ),
