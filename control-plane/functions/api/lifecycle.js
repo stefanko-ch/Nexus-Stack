@@ -49,7 +49,7 @@ const MODE_INFO = {
   rebuild: {
     label: 'Rebuild',
     summary: 'Destroy and rebuild from a clean Ubuntu image every time.',
-    keeps: 'Only what the R2 layer backs up: Forgejo, Dify, HedgeDoc, Planka, Metabase.',
+    keeps: 'Only what the R2 layer backs up: Forgejo, Gitea, Dify, HedgeDoc, Planka, Metabase.',
     loses: 'Everything else — your own Postgres tables, Grafana dashboards, Kestra run history, uncommitted notebooks.',
     images: 'Always freshly pulled, so `:latest` stacks stay current.',
   },

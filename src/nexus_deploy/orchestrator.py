@@ -1384,9 +1384,27 @@ class Orchestrator:
         # must replicate that behavior so the workspace block IS
         # appended. Existing constructor values win — tests can
         # pre-seed alternative identities.
-        self.forgejo_user_username = self.forgejo_user_username or coords.forgejo_git_user or None
-        self.forgejo_user_password = self.forgejo_user_password or coords.forgejo_git_pass or None
-        self.forgejo_user_email = self.forgejo_user_email or coords.git_email or None
+        # Fall back as ONE identity, not field by field.
+        # workspace_coords decides between the user and the admin on a
+        # single gate — both FORGEJO_USER_EMAIL and _PASS present —
+        # and returns admin_username / admin_pass / admin_email
+        # together when it falls back. Mirroring that with three
+        # independent `or` chains could mix them: with the email set
+        # and the password missing, the user's email and username
+        # survive while the password comes from the admin, and
+        # _phase_forgejo_configure then sets the ADMIN password on the
+        # student account.
+        #
+        # A caller that supplied a complete identity still wins, which
+        # is what the pre-seeding tests rely on; an incomplete one is
+        # replaced wholesale rather than topped up.
+        _caller_identity_complete = bool(
+            self.forgejo_user_username and self.forgejo_user_password and self.forgejo_user_email
+        )
+        if not _caller_identity_complete:
+            self.forgejo_user_username = coords.forgejo_git_user or None
+            self.forgejo_user_password = coords.forgejo_git_pass or None
+            self.forgejo_user_email = coords.git_email or None
         # bootstrap_env mirrors — synced so the downstream Infisical-
         # bootstrap secret push uses the same user identity the
         # workspace block was rendered against. BootstrapEnv is frozen

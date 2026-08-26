@@ -33,5 +33,5 @@ External tools ──HTTPS──> git.<domain> (PUBLIC)
 ### Usage with Databricks
 
 1. Create a Personal Access Token (PAT) in Forgejo
-2. In Databricks, add Git Credentials: select "GitHub" provider, use Forgejo username + PAT
+2. In Databricks, add Git Credentials: select "GitHub" as the provider (Databricks does not list Forgejo, and the GitHub provider is used because both speak the same Git HTTPS + token protocol — a workaround, not a supported combination), then use your Forgejo username + PAT
 3. Clone repos via: `https://git.<domain>/<user>/<repo>.git`

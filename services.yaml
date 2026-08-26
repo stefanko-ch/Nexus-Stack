@@ -672,7 +672,7 @@ services:
     category: "core"
     website: "https://www.portainer.io"
     description: "Always-on Docker dashboard. First stop for diagnosing a misbehaving container — logs, state, restart, image inspection, network and volume views in a single pane."
-    long_description: "Portainer is a container management platform that simplifies Docker operations. View running containers, inspect logs, manage images, networks, and volumes through an intuitive web UI. Monitor resource usage, restart services, and deploy new containers without CLI access. Marked `core: true` because diagnosing a stuck container shouldn't require an opt-in step — Portainer ships always-on alongside Gitea, Grafana, and Infisical."
+    long_description: "Portainer is a container management platform that simplifies Docker operations. View running containers, inspect logs, manage images, networks, and volumes through an intuitive web UI. Monitor resource usage, restart services, and deploy new containers without CLI access. Marked `core: true` because diagnosing a stuck container shouldn't require an opt-in step — Portainer ships always-on alongside Forgejo, Grafana, and Infisical."
     image: "portainer/portainer-ce:2.40.0"
 
   pgadmin:
@@ -970,7 +970,7 @@ services:
     category: "ci-cd"
     website: "https://woodpecker-ci.org"
     description: "Lightweight Docker-native CI/CD engine with pipeline-as-code."
-    long_description: "Woodpecker CI is a community fork of Drone CI. Define pipelines in YAML, run builds in isolated Docker containers, and integrate with Gitea, GitHub, and GitLab. Lightweight, fast, and designed for self-hosted environments with multi-pipeline and matrix build support."
+    long_description: "Woodpecker CI is a community fork of Drone CI. Define pipelines in YAML, run builds in isolated Docker containers, and integrate with Forgejo, Gitea, GitHub, and GitLab. Lightweight, fast, and designed for self-hosted environments with multi-pipeline and matrix build support."
     image: "woodpeckerci/woodpecker-server:v3.13.0"
     support_images:
       woodpecker-agent: "woodpeckerci/woodpecker-agent:v3.13.0"

@@ -1181,6 +1181,51 @@ def test_phase_kestra_register_ok(
     assert "execution=SUCCESS" in result.detail
 
 
+def test_partial_user_identity_never_borrows_the_admin_password(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An incomplete user identity must be replaced, not topped up.
+
+    workspace_coords picks user-or-admin on one gate (both
+    FORGEJO_USER_EMAIL and _PASS present) and returns the admin trio
+    together when it falls back. Filling the three orchestrator fields
+    with independent `or` chains used to mix them: the user's email and
+    username survived while the password came from the admin, and
+    _phase_forgejo_configure would then set the ADMIN password on the
+    student's account.
+    """
+    from nexus_deploy import workspace_coords as _wc
+
+    coords = _wc.WorkspaceCoords(
+        repo_name="repo",
+        forgejo_repo_owner="nexus-admin",
+        forgejo_repo_url="http://forgejo:3000/nexus-admin/repo.git",
+        workspace_branch="main",
+        forgejo_git_user="nexus-admin",
+        forgejo_git_pass="ADMIN-PASSWORD",
+        git_author="nexus-admin",
+        git_email="admin@example.com",
+    )
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._workspace_coords.derive", lambda *_a, **_k: coords
+    )
+
+    # The reachable shape: an email arrives, the password does not.
+    # forgejo_user_password stays at the fixture default of None. It is
+    # deliberately neither assigned nor asserted here: either would narrow
+    # the attribute to None for mypy, which then calls the assertions
+    # after the phase unreachable.
+    orchestrator.forgejo_user_email = "student@example.com"
+    orchestrator.forgejo_user_username = "student"
+
+    orchestrator._phase_workspace_coords()
+
+    assert orchestrator.forgejo_user_password == "ADMIN-PASSWORD"
+    # …but then it must be the admin all the way through, not a hybrid.
+    assert orchestrator.forgejo_user_username == "nexus-admin"
+    assert orchestrator.forgejo_user_email == "admin@example.com"
+
+
 def test_mirror_finalize_waits_for_the_flow_sync_execution(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:

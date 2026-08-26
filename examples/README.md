@@ -83,7 +83,7 @@ If a new stack needs its own per-stack folder, add it under `workspace-seeds/<st
 
 ## How seeding works
 
-The orchestrator's `_phase_seed` (`src/nexus_deploy/seeder.py`), after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3202/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (`workspace_coords.py` resolves this and the pipeline passes it as `FORGEJO_REPO_OWNER`).
+The orchestrator's `_phase_seed` (in `src/nexus_deploy/orchestrator.py`, delegating to `run_seed_for_repo` in `src/nexus_deploy/seeder.py`), after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3202/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (`workspace_coords.py` resolves this and the pipeline passes it as `FORGEJO_REPO_OWNER`).
 
 - HTTP **201/200** → file created. Counted as `SEEDED`.
 - HTTP **422** → file already exists. Counted as `SKIPPED`. **Existing files are never overwritten** — user edits persist across re-deploys.

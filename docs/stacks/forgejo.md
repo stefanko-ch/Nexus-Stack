@@ -60,7 +60,7 @@ exist where somebody actually uses it.
 
 ### Shared Workspace Repo
 
-During deployment, a shared workspace repo named `nexus-<domain>-workspace` is automatically created. This repo is auto-cloned into the following services:
+During deployment, a shared workspace repo named `nexus-<domain-with-dashes>-workspace` (for `example.com`: `nexus-example-com-workspace`) is automatically created. This repo is auto-cloned into the following services:
 
 | Service | Clone Location | Method |
 |---------|---------------|--------|
@@ -99,9 +99,9 @@ https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 - The student user (derived from `TF_VAR_user_email`) is automatically added as a **read-only** collaborator
 - The operation is **idempotent**: re-running spin-up skips mirrors that already exist
 
-**GitHub rate limits:** 10-minute intervals = 6 git fetches/hour per repo — well within the 5,000/hour PAT limit.
+**GitHub rate limits:** 10-minute intervals = 6 git fetches/hour per repo. These are Git-protocol fetches, not REST calls, so the 5,000/hour PAT limit does not apply to them — GitHub rate-limits Git traffic separately and does not publish a fixed figure. Six per hour per repo is far below any threshold that has been observed to bite.
 
-**Triggering an immediate sync:** Log into Forgejo as admin → open the mirrored repo → Settings → Mirror sync. This is a built-in Forgejo feature, no additional setup required.
+**Triggering an immediate sync:** Log into Forgejo as admin → open the mirrored repo → Settings → Repository → Mirror Settings → **Synchronize Now**. This is a built-in Forgejo feature, no additional setup required.
 
 #### Creating a Fine-grained PAT
 

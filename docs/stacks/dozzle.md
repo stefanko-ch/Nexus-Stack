@@ -41,7 +41,7 @@ Dozzle is a tiny web UI that streams `docker logs` for every running container l
 
 ### Auth model
 
-Dozzle has its own basic-auth and OIDC modes, but we disable them (`DOZZLE_NO_AUTH=true`) and rely on **Cloudflare Access (email OTP)** at the edge — same model as Grafana, Forgejo, Infisical, every other admin UI in Nexus-Stack. CF Access in front + no second-layer auth in the container avoids double-prompting and a redundant password to manage in Infisical.
+Dozzle has its own basic-auth and OIDC modes, but we disable them (`DOZZLE_NO_AUTH=true`) and rely on **Cloudflare Access (email OTP)** at the edge — same model as Grafana and Infisical (Forgejo is the exception — it keeps its own login on top of Access), every other admin UI in Nexus-Stack. CF Access in front + no second-layer auth in the container avoids double-prompting and a redundant password to manage in Infisical.
 
 ### Security note
 
