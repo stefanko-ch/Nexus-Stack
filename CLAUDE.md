@@ -229,7 +229,7 @@ ssh nexus "docker logs <service>"  # View container logs
    ```bash
    # BAD - the message doubles as the flag
    SAVE_ERROR=""
-   if ! OUTPUT=$(gh secret set KEY -b "$VALUE" 2>&1); then SAVE_ERROR="$OUTPUT"; fi
+   if ! OUTPUT=$(printf '%s' "$VALUE" | gh secret set KEY 2>&1); then SAVE_ERROR="$OUTPUT"; fi
    if [ -z "$SAVE_ERROR" ]; then : "continue as if it worked"; fi
    ```
 
@@ -237,15 +237,22 @@ ssh nexus "docker logs <service>"  # View container logs
    leaves `SAVE_ERROR` empty, and the failure becomes indistinguishable
    from success. Keep status and message in separate variables
    (`SAVE_FAILED` / `SAVE_ERROR`), and print `${SAVE_ERROR:-(no output)}`
-   so the silent case still says something.
+   so the silent case still says something. The snippet pipes the value
+   in rather than passing `--body "$VALUE"`: `gh secret set` reads from
+   standard input when `--body` is omitted, keeping the secret out of the
+   process argument list — the same rule the service hooks follow.
 
    Two relatives of the same bug:
    - **A success message outside the success branch.** `cmd || true`
-     followed by an unconditional `echo "✅ done"` does not hide the
-     failure, it asserts the opposite.
+     forces the compound status to zero, hiding the failure from `set -e`
+     and from any later check — and an unconditional `echo "✅ done"` then
+     states the opposite of what happened. The success line belongs inside
+     the zero-status branch.
    - **Validating the container, not the content.** That a credentials
-     file *exists* is not that its values are usable — `gh secret set -b ""`
-     stores an empty secret and reports success. Test the value.
+     file *exists* is not that its values are usable. Handed an empty
+     string, `gh secret set` stores an empty secret and exits zero, so the
+     step reports success for something nothing downstream can use. Test
+     the value, not just the file.
 
 ### Claims must be verifiable — especially in error messages
 
@@ -255,15 +262,18 @@ reads while something is already broken.
 
 **Before writing any claim about what the system does — in an error message,
 a recovery instruction, a PR description, an issue, or a guide — point at the
-code that makes it true.** One `grep` is enough. If it cannot be checked in
-that moment, write the uncertainty instead: *"this step cannot determine
-which"* is a better message than a confident wrong one.
+code that makes it true.** A search locates the relevant code; it does not
+establish the claim. Read the path you found: branch conditions, exit-status
+handling, retries, and what the caller does with the result are all invisible
+to `grep`. If it cannot be checked in that moment, write the uncertainty
+instead: *"this step cannot determine which"* is a better message than a
+confident wrong one.
 
 The recurring shapes, all observed in this repo:
 
 | Claim | What to check first |
 |---|---|
-| "X was already deleted / saved / created" | Does that operation run under `\|\| true` or `2>/dev/null`? Then it is best-effort and you cannot assert it. |
+| "X was already deleted / saved / created" | Does that operation *discard its exit status* — `\|\| true`, `\|\| echo …`, or an unchecked call? Then it is best-effort and you cannot assert it. `2>/dev/null` alone does not qualify: it hides the diagnostic, not the status. |
 | "the next run takes path Y" | Read the condition that selects the path. In `setup-control-plane.yaml` that is `check_r2`, which needs **both** R2 secrets — an incomplete pair takes the first-time path. |
 | "nothing is left behind" | Does the cleanup verify its own result, or only attempt it? |
 | A doc quoting an error string | Does the code print it verbatim? Two code paths with near-identical wording means a log search finds only one. Make the messages identical rather than documenting both. |

@@ -43,7 +43,7 @@ The same rule applies to sentences a *user will read while something is broken* 
 
 Flag any claim of this shape unless the surrounding code guarantees it:
 
-- **"X was already deleted / created / saved"** where the operation runs `|| true`, `2>/dev/null`, or is otherwise best-effort. It may not have happened, and a recovery message is the worst place to be confidently wrong.
+- **"X was already deleted / created / saved"** where the operation *discards its exit status* — `|| true`, `|| echo …`, or an unchecked call. The operation may not have happened, and a recovery message is the worst place to be confidently wrong. Note that `2>/dev/null` alone does **not** qualify: it hides the diagnostic, not the status, so a caller that checks the status still knows what happened. `cmd 2>/dev/null || true` is best-effort because of the `|| true`.
 - **"the next run will take path Y"** without checking the condition that selects the path. In `setup-control-plane.yaml` that is `check_r2`, which requires *both* R2 secrets to be non-empty — so an incomplete pair takes the first-time path, not the recreate path.
 - **"nothing is left behind"** for a cleanup that does not verify its own result.
 - Documentation quoting an error string that the code does not print verbatim. An operator searching the log finds nothing. Prefer making the messages identical over documenting two variants.
@@ -68,8 +68,8 @@ A `|| true` is the obvious version of this bug. The subtle version passes the ru
 ```bash
 # WRONG — the message doubles as the flag
 SAVE_ERROR=""
-if ! OUTPUT=$(gh secret set KEY -b "$VALUE" 2>&1); then SAVE_ERROR="$OUTPUT"; fi
-if [ -z "$SAVE_ERROR" ]; then …continue as if it worked… fi
+if ! OUTPUT=$(printf '%s' "$VALUE" | gh secret set KEY 2>&1); then SAVE_ERROR="$OUTPUT"; fi
+if [ -z "$SAVE_ERROR" ]; then : "continues as if it worked"; fi
 ```
 
 A command that exits non-zero while writing nothing to either stream leaves `SAVE_ERROR` empty, so the failure is indistinguishable from success. Keep the status and the message in separate variables:
@@ -78,14 +78,16 @@ A command that exits non-zero while writing nothing to either stream leaves `SAV
 # RIGHT
 SAVE_FAILED=0
 SAVE_ERROR=""
-if ! OUTPUT=$(gh secret set KEY -b "$VALUE" 2>&1); then SAVE_FAILED=1; SAVE_ERROR="$OUTPUT"; fi
+if ! OUTPUT=$(printf '%s' "$VALUE" | gh secret set KEY 2>&1); then SAVE_FAILED=1; SAVE_ERROR="$OUTPUT"; fi
 if [ "$SAVE_FAILED" -ne 0 ]; then echo "  ${SAVE_ERROR:-(no output)}"; exit 1; fi
 ```
 
+Both snippets pipe the value in rather than passing `gh secret set --body "$VALUE"`: `gh` reads the secret from standard input when `--body` is omitted, which keeps it out of the process argument list. Same rule as the service hooks in `src/nexus_deploy/services.py`.
+
 Two related shapes worth flagging in the same breath:
 
-- **A success message outside the success branch.** `cmd || true` followed by an unconditional `echo "✅ done"` does not merely hide a failure, it asserts the opposite.
-- **Validating the container instead of the content.** Checking that a credentials file *exists* is not the same as checking that the values in it are non-empty — `gh secret set -b ""` stores an empty secret and reports success. Where a value must be usable, test the value.
+- **A success message outside the success branch.** `cmd || true` forces the compound status to zero, so the failure is hidden from `set -e` and from any later check; an unconditional `echo "✅ done"` then states the opposite of what happened. The success line belongs inside the zero-status branch.
+- **Validating the container instead of the content.** Checking that a credentials file *exists* is not the same as checking that the values in it are non-empty. Handed an empty string, `gh secret set` stores an empty secret and exits zero, so the step reports success for something nothing downstream can use. Where a value must be usable, test the value.
 
 ## 6. Documentation conventions — watch for these specifically
 
