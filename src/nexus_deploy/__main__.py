@@ -1248,9 +1248,11 @@ def _forgejo_woodpecker_oauth(args: list[str]) -> int:
     # eval'd values into Woodpecker's ``.env`` (mode 600) before
     # ``docker compose up -d``. CodeQL flags the secret-bearing line
     # because ``client_secret`` matches its sensitive-name classifier;
-    # alert dismissed as "won't fix" — the eval-handoff is the
-    # documented contract, mitigated by tempfile mode 600 +
-    # trap-driven cleanup of the captured stdout file.
+    # alerts #11 and #28 dismissed as "won't fix" — the eval-handoff
+    # is the documented contract, mitigated by tempfile mode 600 +
+    # trap-driven cleanup of the captured stdout file. #28 is #11
+    # re-issued: renaming WOODPECKER_GITEA_* to WOODPECKER_FORGEJO_*
+    # changed the line, so CodeQL re-reported unchanged behaviour.
     sys.stdout.write(f"WOODPECKER_FORGEJO_CLIENT={_shlex.quote(result.client_id)}\n")
     sys.stdout.write(f"WOODPECKER_FORGEJO_SECRET={_shlex.quote(result.client_secret)}\n")
     return 0
