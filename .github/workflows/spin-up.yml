@@ -9,7 +9,7 @@ on:
         default: ''
         type: string
       smoke_check:
-        description: 'Check that every enabled service answers on its port after the deploy (adds ~10s)'
+        description: 'Check every container after the deploy: answering on its port, exited, or restart-looping (adds ~10s)'
         required: false
         default: true
         type: boolean
@@ -79,7 +79,7 @@ on:
         required: false
         type: string
       smoke_check:
-        description: 'Check that every enabled service answers on its port after the deploy'
+        description: 'Check every container after the deploy: answering on its port, exited, or restart-looping'
         required: false
         default: true
         type: boolean
@@ -1068,52 +1068,104 @@ jobs:
         env:
           # Single-quoted on the way in so THIS shell does not touch it —
           # every expansion below belongs to the shell on the server.
+          #
+          # `docker ps -a`, not `docker ps`: a container that crashed on
+          # boot is no longer running, so listing only running containers
+          # would hide the exact condition this step exists to catch.
+          #
+          # The port is taken from any `<addr>:<port>-><cport>` binding
+          # rather than `0.0.0.0:` alone — Docker also publishes on
+          # `[::]:` and, where a compose file says so, on `127.0.0.1:`.
+          # Matching one address form silently skipped the others.
+          #
+          # The whole loop is inside `{ ...; wait; }` so that `wait` runs
+          # in the same subshell that spawned the probes. A pipeline's
+          # right-hand side is its own subshell; a `wait` placed after
+          # `done` belongs to the parent and would not wait for anything,
+          # leaving the probes orphaned and their output lost.
           # shellcheck disable=SC2016
-          REMOTE_PROBE: 'docker ps --format "{{.Names}}\t{{.Ports}}" 2>/dev/null | while IFS="$(printf "\t")" read -r n pts; do pt=$(printf "%s" "$pts" | grep -oE "0\.0\.0\.0:[0-9]+" | head -1 | cut -d: -f2); if [ -z "$pt" ]; then printf "%s\tNOPORT\tNOPORT\n" "$n"; else ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}" ) & fi; done; wait'
+          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; pt=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | head -1 | tr -cd "0-9"); if [ -z "$pt" ]; then printf "%s\t-\tNOPORT\n" "$n"; else ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}" ) & fi; done; wait; }'
         run: |
           set -uo pipefail
 
-          # `docker ps` rather than services.yaml: it reports the port
-          # actually bound, which is the thing being verified. The YAML
-          # says what should have been bound, and a disagreement between
-          # the two is exactly the defect worth catching.
+          # Container state comes from Docker rather than services.yaml:
+          # the YAML says what should have been bound, Docker reports what
+          # was. A disagreement between the two is exactly the defect
+          # worth catching, and consulting the YAML would hide it.
           #
           # Probes run ON the server and in parallel, so wall-clock is the
           # slowest single probe rather than their sum. That matters when
           # things are broken: twenty dead services sequentially at
           # --max-time 4 would cost 80s; in parallel it stays at 4.
-          REPORT=$(ssh -o BatchMode=yes -o ConnectTimeout=15 nexus "$REMOTE_PROBE" 2>/dev/null || true)
+          #
+          # Status and output are kept apart: an empty report has three
+          # possible causes and the annotation must not guess which.
+          SSH_FAILED=0
+          REPORT=""
+          if ! REPORT=$(ssh -o BatchMode=yes -o ConnectTimeout=15 nexus "$REMOTE_PROBE" 2>/tmp/smoke-ssh.err); then
+            SSH_FAILED=1
+          fi
 
-          if [ -z "$REPORT" ]; then
-            echo "::warning title=smoke-check::Could not reach the server over ssh — no service check ran"
+          if [ "$SSH_FAILED" -ne 0 ]; then
+            echo "::warning title=smoke-check::Could not reach the server over ssh, so no service check ran. $(head -c 300 /tmp/smoke-ssh.err 2>/dev/null || echo '(no stderr)')"
             exit 0
           fi
 
-          healthy=0; unreachable=0; noport=0
+          if [ -z "$REPORT" ]; then
+            echo "::warning title=smoke-check::The server was reachable but Docker listed no containers at all."
+            exit 0
+          fi
+
+          healthy=0; faulty=0; quiet=0
           while IFS="$(printf '\t')" read -r name port code; do
             [ -n "$name" ] || continue
             case "$code" in
               # Any HTTP status means the application answered. A 401 or
               # 403 is a service that is up and wants a login — success,
-              # not a failure. Only "no connection" and 5xx are faults.
+              # not a failure. Only refused connections and 5xx are faults.
               2??|3??|4??)
                 healthy=$((healthy + 1))
                 printf '  ok    %-26s :%-6s %s\n' "$name" "$port" "$code"
                 ;;
               NOPORT)
-                noport=$((noport + 1))
+                quiet=$((quiet + 1))
                 printf '  --    %-26s %-7s no published port (internal-only)\n' "$name" ""
                 ;;
+              # A one-shot container that finished cleanly. The stacks do
+              # contain these (lakekeeper-bootstrap, openmetadata-migrate),
+              # so a zero exit is the job being done, not a failure.
+              EXITED:0)
+                quiet=$((quiet + 1))
+                printf '  --    %-26s %-7s ran once and exited cleanly\n' "$name" ""
+                ;;
+              EXITED:*)
+                faulty=$((faulty + 1))
+                printf '  FAIL  %-26s %-7s %s\n' "$name" "" "$code"
+                echo "::warning title=smoke-check: $name::Container exited with a non-zero status (${code#EXITED:}). The deploy finished; this service is not running."
+                ;;
+              RESTARTING)
+                faulty=$((faulty + 1))
+                printf '  FAIL  %-26s %-7s restart loop\n' "$name" ""
+                echo "::warning title=smoke-check: $name::Container is in a restart loop — it starts, fails, and is restarted. Check its logs for the crash reason."
+                ;;
+              # created / paused / dead. Never normal after a deploy, but
+              # the state is all this step knows — it must not claim a
+              # port was probed when none was.
+              STATE:*)
+                faulty=$((faulty + 1))
+                printf '  FAIL  %-26s %-7s %s\n' "$name" "" "$code"
+                echo "::warning title=smoke-check: $name::Container is in Docker state '${code#STATE:}', neither running nor cleanly exited. No port was probed."
+                ;;
               *)
-                unreachable=$((unreachable + 1))
+                faulty=$((faulty + 1))
                 printf '  FAIL  %-26s :%-6s %s\n' "$name" "$port" "$code"
-                echo "::warning title=smoke-check: $name::Container is running but nothing answered on port $port (curl reported $code). The deploy succeeded; this service did not come up."
+                echo "::warning title=smoke-check: $name::Container is running but nothing answered on port $port (curl reported $code). The deploy finished; this service did not come up."
                 ;;
             esac
           done <<< "$REPORT"
 
           echo ""
-          echo "[smoke] $healthy answering, $unreachable not answering, $noport without a published port"
+          echo "[smoke] $healthy answering, $faulty faulty, $quiet with nothing to probe"
 
       - name: Show spin-up info
         run: |

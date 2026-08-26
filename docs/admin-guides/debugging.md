@@ -29,17 +29,20 @@ If Wetty is enabled, access it via browser at `https://wetty.yourdomain.com`. Th
 ## Start Here: The Spin-Up Smoke Check
 
 Before debugging by hand, read the **Check services answer** step at the end
-of the last Spin Up run. It probes every running container on its published
-port and tells you which service is the problem — often before you notice
+of the last Spin Up run. It looks at every container on the server — running
+or not — and tells you which one is the problem, often before you notice
 anything is wrong.
 
 ```
   ok    forgejo                    :3202   200
   ok    portainer                  :9090   401
   --    kestra-postgres                    no published port (internal-only)
+  --    lakekeeper-bootstrap               ran once and exited cleanly
   FAIL  metabase                   :3000   000
+  FAIL  openmetadata                       EXITED:1
+  FAIL  woodpecker-agent                   restart loop
 
-[smoke] 42 answering, 1 not answering, 12 without a published port
+[smoke] 42 answering, 3 faulty, 13 with nothing to probe
 ```
 
 How to read it:
@@ -48,15 +51,18 @@ How to read it:
 |---|---|
 | `ok` with any 2xx/3xx/4xx | The application answered. `401` / `403` is a healthy service asking for a login, not a fault. |
 | `--` / `no published port` | Internal-only container (databases, sidecars). Nothing to probe — not an error. |
-| `FAIL` with `000` | Nothing accepted the connection. The container is running but the process inside never started listening. |
+| `--` / `ran once and exited cleanly` | A one-shot job that finished, such as `lakekeeper-bootstrap` or `openmetadata-migrate`. Expected. |
+| `FAIL` with `000` | Nothing accepted the connection. The container runs but the process inside never started listening. |
 | `FAIL` with `5xx` | The process listens but is erroring — usually a bad config or an unreachable dependency. |
+| `FAIL` with `EXITED:<n>` | The container stopped with a non-zero status. It crashed rather than started. |
+| `FAIL` with `restart loop` | The container starts, fails, and Docker restarts it, over and over. Its logs hold the crash reason. |
 
 A `FAIL` never fails the workflow. The step runs *after* the deploy, so it
 reports "the deploy finished and this one service is silent" — the server
 itself is up. Failures appear as run annotations at the top of the run
 summary, so you see them without opening the log.
 
-Each `FAIL` names the container and port, which is exactly what
+Each `FAIL` names the container, which is exactly what
 [Step 2](#step-2-check-container-logs) needs:
 
 ```bash
@@ -64,11 +70,11 @@ ssh nexus "docker logs metabase --tail 100"
 ```
 
 **Skipping it:** the check is on by default. When dispatching Spin Up, clear
-the *"Check that every enabled service answers on its port after the deploy"*
-checkbox if you are iterating on something unrelated and want the shortest
-cycle. It costs about ten seconds, and that stays true when things are
-broken: the probes run on the server in parallel, so twenty dead services
-cost one 4-second timeout, not twenty.
+the *"Check every container after the deploy"* checkbox if you are iterating
+on something unrelated and want the shortest cycle. It costs about ten
+seconds, and that stays true when things are broken: the probes run on the
+server in parallel, so twenty dead services cost one 4-second timeout, not
+twenty.
 
 ---
 
