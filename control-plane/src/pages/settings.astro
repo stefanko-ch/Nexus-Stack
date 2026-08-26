@@ -16,6 +16,18 @@ import Layout from '../layouts/Layout.astro';
         <div class="info-item-value" id="info-server-location">Loading...</div>
       </div>
       <div class="info-item">
+        <div class="info-item-label">OS</div>
+        <div class="info-item-value" id="info-host-os">Loading...</div>
+      </div>
+      <div class="info-item">
+        <div class="info-item-label">Disk</div>
+        <div class="info-item-value" id="info-host-disk">Loading...</div>
+      </div>
+      <div class="info-item">
+        <div class="info-item-label">Docker</div>
+        <div class="info-item-value" id="info-host-docker">Loading...</div>
+      </div>
+      <div class="info-item">
         <div class="info-item-label">Domain</div>
         <div class="info-item-value highlight" id="info-domain">Loading...</div>
       </div>
@@ -141,6 +153,14 @@ import Layout from '../layouts/Layout.astro';
       document.getElementById('info-server-type').textContent = info.server?.type || 'Unknown';
       document.getElementById('info-server-location').textContent = info.server?.location || 'Unknown';
       document.getElementById('info-domain').textContent = info.server?.domain || 'Unknown';
+
+      // These three come from the server itself and are only present once
+      // a spin-up has collected them. An em dash rather than 'Unknown':
+      // the value was never read, which is different from being unknowable.
+      document.getElementById('info-host-os').textContent = info.server?.os || '—';
+      const diskGb = info.server?.diskGb;
+      document.getElementById('info-host-disk').textContent = diskGb ? `${diskGb} GB` : '—';
+      document.getElementById('info-host-docker').textContent = info.server?.docker || '—';
 
       const lastSpinUp = info.server?.lastSpinUp || info.time?.lastDeploy;
       const lastTeardown = info.server?.lastTeardown || info.time?.lastTeardown;

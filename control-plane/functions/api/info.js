@@ -89,6 +89,9 @@ export async function onRequestGet(context) {
     let domain = null;
     let lastSpinUp = null;
     let lastTeardown = null;
+    let hostOs = null;
+    let hostDiskGb = null;
+    let hostDocker = null;
 
     if (env.NEXUS_DB) {
       serverType = await getConfig(env.NEXUS_DB, 'server_type', null);
@@ -96,6 +99,12 @@ export async function onRequestGet(context) {
       domain = await getConfig(env.NEXUS_DB, 'domain', null);
       lastSpinUp = await getConfig(env.NEXUS_DB, 'last_spin_up', null);
       lastTeardown = await getConfig(env.NEXUS_DB, 'last_teardown', null);
+      // Host facts, collected over ssh during the last spin-up. Absent
+      // when that lookup failed or on a stack deployed before this
+      // existed — the UI renders those as "—" rather than guessing.
+      hostOs = await getConfig(env.NEXUS_DB, 'host_os', null);
+      hostDiskGb = await getConfig(env.NEXUS_DB, 'host_disk_gb', null);
+      hostDocker = await getConfig(env.NEXUS_DB, 'host_docker', null);
     }
 
     // Fallback to env vars if D1 doesn't have values
@@ -123,6 +132,12 @@ export async function onRequestGet(context) {
       subdomainSeparator,
       lastSpinUp: lastSpinUp,
       lastTeardown: lastTeardown,
+      // Read from the box itself rather than derived from the server
+      // type: a snapshot restored onto a larger type ratchets the disk
+      // permanently upward, so type and disk can legitimately disagree.
+      os: hostOs,
+      diskGb: hostDiskGb,
+      docker: hostDocker,
     };
 
     // Get scheduled teardown config from D1

@@ -16,16 +16,23 @@ Read-only facts about the current deployment.
 
 ![Infrastructure Information block listing read-only deployment facts: server type, location, domain, last spin-up and teardown timestamps, and uptime](./assets/settings-infrastructure-info.png)
 
+> The screenshot predates the **OS**, **Disk** and **Docker** rows and will be refreshed on the next capture pass. The alt text describes what the image shows rather than what the table below lists, so it is left as-is.
+
 | Field | Description |
 |-------|-------------|
-| **Server Type** | Hetzner server model (e.g. `cx43`) |
+| **Server Type** | Hetzner server model (e.g. `cx43`) — the one actually provisioned, which can differ from the one requested if that type was sold out |
 | **Location** | Hetzner datacenter code — EU options: `hel1` (Helsinki), `fsn1` (Falkenstein), `nbg1` (Nuremberg); US option: `ash` (Ashburn) |
+| **OS** | The distribution running on the box, read from it during the last spin-up |
+| **Disk** | Root filesystem size. Not derived from the server type: a snapshot restored onto a larger type ratchets the disk permanently upward, so the two can legitimately disagree |
+| **Docker** | Docker Engine version on the server |
 | **Domain** | Your root domain |
 | **Last Spin Up** | Timestamp of the most recent spin-up |
 | **Last Teardown** | Timestamp of the most recent teardown |
 | **Uptime** | Time elapsed since last spin-up |
 
 To change server type or location, edit `config.tfvars` and re-deploy — the Control Plane can't change these on the fly.
+
+**OS**, **Disk** and **Docker** are read from the server over SSH at the end of each spin-up. They show `—` on a stack that has not spun up since this was added, and after a teardown they keep the last reading rather than blanking — a value from the previous run is more useful than none, and there is no server to ask while the stack is down. If the collection fails, the spin-up still succeeds and logs a warning; the fields keep their previous values.
 
 ## Scheduled Teardown
 

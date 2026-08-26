@@ -754,20 +754,72 @@ jobs:
             exit 0
           fi
 
-          # Server config values
-          SERVER_TYPE="${{ vars.SERVER_TYPE || 'cx43' }}"
-          SERVER_LOCATION="${{ vars.SERVER_LOCATION || 'hel1' }}"
+          # Read what was actually provisioned, not what was requested.
+          # `select-capacity` rewrites server_type / server_location in
+          # config.tfvars when the preferred pair is sold out — a repo
+          # variable cannot reflect that, so the panel would keep showing
+          # the preference while the box was something else. The tfvars
+          # file is the only place that knows the outcome.
+          TFVARS=tofu/stack/config.tfvars
+          SERVER_TYPE=$(sed -n 's/^[[:space:]]*server_type[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" | head -1)
+          SERVER_LOCATION=$(sed -n 's/^[[:space:]]*server_location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" | head -1)
+          # Fall back to the request only if the file cannot be read — an
+          # approximate value beats an empty panel, but say so.
+          if [ -z "$SERVER_TYPE" ]; then
+            echo "⚠️  Could not read server_type from $TFVARS — falling back to the requested value"
+            SERVER_TYPE="${{ vars.SERVER_TYPE || 'cx43' }}"
+          fi
+          if [ -z "$SERVER_LOCATION" ]; then
+            SERVER_LOCATION="${{ vars.SERVER_LOCATION || 'hel1' }}"
+          fi
 
           # Escape values for safe SQL insertion (single quotes doubled)
           ESCAPED_SERVER_TYPE=${SERVER_TYPE//\'/\'\'}
           ESCAPED_SERVER_LOCATION=${SERVER_LOCATION//\'/\'\'}
           ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
 
+          # Host facts, in one round trip. Best-effort by construction:
+          # the panel is a convenience and a broken ssh must not fail a
+          # deploy that otherwise worked. A failure here leaves the
+          # previous values in D1 rather than blanking them — a stale
+          # reading is more useful than none, and the panel shows when
+          # each value was written.
+          #
+          # The OS is read from the box rather than from server_image
+          # because under the snapshot lifecycle that variable holds a
+          # Hetzner snapshot ID (e.g. 423792562), which is not an OS name.
+          # Reading /etc/os-release works under either lifecycle with no
+          # special-casing.
+          HOST_OS=""
+          HOST_DISK=""
+          HOST_DOCKER=""
+          if HOST_FACTS=$(timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=15 nexus \
+                '. /etc/os-release 2>/dev/null && printf "OS=%s\n" "$PRETTY_NAME";
+                 printf "DISK=%s\n" "$(df -BG --output=size / 2>/dev/null | tail -1 | tr -d " G")";
+                 printf "DOCKER=%s\n" "$(docker --version 2>/dev/null | sed -n "s/^Docker version \([^,]*\),.*/\1/p")"' 2>/dev/null); then
+            HOST_OS=$(printf '%s' "$HOST_FACTS" | sed -n 's/^OS=//p' | head -1)
+            HOST_DISK=$(printf '%s' "$HOST_FACTS" | sed -n 's/^DISK=//p' | head -1)
+            HOST_DOCKER=$(printf '%s' "$HOST_FACTS" | sed -n 's/^DOCKER=//p' | head -1)
+            echo "🖥️  Host: ${HOST_OS:-?} · ${HOST_DISK:-?} GB disk · Docker ${HOST_DOCKER:-?}"
+          else
+            echo "⚠️  Could not read host facts over ssh — keeping the previous values in D1"
+          fi
+
           # Write config to D1
           npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
           npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
           npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
           npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_spin_up', datetime('now'), datetime('now'))"
+
+          # Only write what was actually read. An empty string would
+          # replace a good previous reading with a blank field.
+          for pair in "host_os:$HOST_OS" "host_disk_gb:$HOST_DISK" "host_docker:$HOST_DOCKER"; do
+            key=${pair%%:*}
+            value=${pair#*:}
+            [ -n "$value" ] || continue
+            escaped=${value//\'/\'\'}
+            npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('$key', '$escaped', datetime('now'))"
+          done
 
           if [ "${{ inputs.silent_mode }}" = "true" ]; then
             npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', 'true', datetime('now'))"
