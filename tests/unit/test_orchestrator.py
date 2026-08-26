@@ -1210,7 +1210,7 @@ def test_mirror_finalize_waits_for_the_flow_sync_execution(
         "nexus_deploy.orchestrator._compose_restart.run_restart",
         lambda *_a, **_k: RestartResult(restarted=0, failed=0),
     )
-    orchestrator.gh_mirror_repos = "owner/repo"
+    orchestrator.gh_mirror_repos = ["owner/repo"]
     orchestrator.state.fork_name = "user/fork"
     orchestrator.enabled_services = ["kestra"]
 
@@ -1246,7 +1246,7 @@ def test_phase_kestra_register_defers_the_trigger_in_mirror_mode(
         )
 
     monkeypatch.setattr("nexus_deploy.orchestrator._kestra.run_register_system_flows", _fake)
-    orchestrator.gh_mirror_repos = "owner/repo"
+    orchestrator.gh_mirror_repos = ["owner/repo"]
     result = orchestrator._phase_kestra_register(_ssh_with_tunnel())
 
     assert seen["trigger_onboarding"] is False
@@ -1273,7 +1273,7 @@ def test_phase_kestra_register_triggers_when_not_mirroring(
         )
 
     monkeypatch.setattr("nexus_deploy.orchestrator._kestra.run_register_system_flows", _fake)
-    orchestrator.gh_mirror_repos = None
+    orchestrator.gh_mirror_repos = []
     result = orchestrator._phase_kestra_register(_ssh_with_tunnel())
 
     assert seen["trigger_onboarding"] is True
