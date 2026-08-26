@@ -192,7 +192,13 @@ jobs:
         if: steps.check_r2.outputs.r2_exists == 'false'
         id: init_r2
         env:
-          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
+          # No `|| secrets.GITHUB_TOKEN` fallback. The default token cannot
+          # write repository secrets, so falling back to it only guaranteed
+          # that `[ -n "$GH_TOKEN" ]` was true and turned a missing
+          # prerequisite into a generic "gh secret set failed" further down.
+          # init-r2-state.sh does not use this token at all — the only
+          # consumer in this step is `gh secret set`.
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
           echo "🪣 Creating R2 bucket and credentials..."
 

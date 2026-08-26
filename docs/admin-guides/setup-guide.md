@@ -129,6 +129,21 @@ Add these secrets to your GitHub repository:
 | `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
 | `GH_SECRETS_TOKEN` | GitHub PAT | Stores the generated R2 credentials ([how to create](#gh_secrets_token)) |
 
+#### GH_SECRETS_TOKEN
+
+This token is what lets the setup workflow store the generated R2 credentials as repository secrets. It is also used as the runtime `GITHUB_TOKEN` in Cloudflare (for the scheduled teardown worker and Control Plane), so it must be able to dispatch workflows.
+
+Without it the first run stops with an explanatory error, and Cloudflare-based automation that triggers GitHub Actions will not work. The workflow used to print the credentials to the log as a fallback; it no longer does, because Actions logs on a public repository are readable by anyone and these keys open the OpenTofu state bucket.
+
+**How to create:**
+1. Go to **GitHub** → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+2. Click **"Generate new token"**
+3. **Repository access**: Select your Nexus-Stack repository
+4. **Permissions** (Repository permissions):
+   - **Secrets** → **Read and write**
+   - **Actions** → **Read and write** (required so Cloudflare workers can dispatch workflows)
+5. Copy the token and save it as `GH_SECRETS_TOKEN` in your repository secrets
+
 ### Optional Secrets
 
 | Secret Name | Description |
@@ -154,21 +169,6 @@ Optional secrets (only set if you want to override defaults):
 |-------------|---------|---------------------|
 | `NEXUS_S3_PERSISTENCE` | `"true"` (workflow fallback) | Set explicitly to `"false"` to bypass persistence for an experiment. |
 | `PERSISTENCE_STACK_SLUG` | `github.event.repository.name` | Set if you want the manifest written under a different slug (e.g. for Education-mode forks that share a persistence bucket layout). |
-
-#### GH_SECRETS_TOKEN
-
-This token is what lets the setup workflow store the generated R2 credentials as repository secrets. It is also used as the runtime `GITHUB_TOKEN` in Cloudflare (for the scheduled teardown worker and Control Plane), so it must be able to dispatch workflows.
-
-Without it the first run stops with an explanatory error, and Cloudflare-based automation that triggers GitHub Actions will not work. The workflow used to print the credentials to the log as a fallback; it no longer does, because Actions logs on a public repository are readable by anyone and these keys open the OpenTofu state bucket.
-
-**How to create:**
-1. Go to **GitHub** → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
-2. Click **"Generate new token"**
-3. **Repository access**: Select your Nexus-Stack repository
-4. **Permissions** (Repository permissions):
-   - **Secrets** → **Read and write**
-   - **Actions** → **Read and write** (required so Cloudflare workers can dispatch workflows)
-5. Copy the token and save it as `GH_SECRETS_TOKEN` in your repository secrets
 
 ### Optional Repository Variables
 
