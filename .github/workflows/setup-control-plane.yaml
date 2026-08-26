@@ -282,8 +282,18 @@ jobs:
           # standard input when --body is omitted, keeping it out of the
           # process argument list where anything on the runner could read it
           # via /proc or ps. Same rule the service hooks in services.py
-          # follow. A pipeline reports its last command's exit status, so the
-          # `if !` check and SAVE_FAILED below are unaffected.
+          # follow.
+          #
+          # The `if !` check and SAVE_FAILED below are unaffected, under
+          # either shell setting. This workflow declares no `shell:`, so
+          # Actions runs `bash -e {0}` — no pipefail — and the pipeline
+          # reports `gh secret set`'s status, which is the one that
+          # matters. (python-tests.yml sets `shell: bash` precisely
+          # because pipefail is NOT the default; without it a `pytest |
+          # tee` once hid three failing tests.) Were pipefail switched on
+          # here later, a printf that dies on EPIPE would also fail the
+          # step — which is still the correct outcome, since printf only
+          # breaks that way when gh has already exited.
           SAVE_FAILED=0
           SAVE_ERROR=""
           if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | gh secret set R2_ACCESS_KEY_ID 2>&1); then
