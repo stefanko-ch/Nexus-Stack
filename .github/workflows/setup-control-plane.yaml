@@ -254,6 +254,21 @@ jobs:
           fi
 
           source tofu/.r2-credentials
+
+          # The file existing is not the same as the values being usable.
+          # `source` on a truncated or partially written file leaves either
+          # variable empty, `gh secret set -b ""` stores an empty secret
+          # happily, SAVE_FAILED stays 0, and the step reports success for a
+          # credential nothing downstream can use. The export step already
+          # makes this check; by then the secrets have been written.
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "❌ R2 credentials are empty after sourcing tofu/.r2-credentials"
+            echo "   Refusing to store an empty secret. The token minted above"
+            echo "   is unusable — the next run deletes it before minting a"
+            echo "   replacement."
+            exit 1
+          fi
+
           echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
 
           # SAVE_FAILED carries the exit status; SAVE_ERROR only carries the
@@ -423,6 +438,20 @@ jobs:
 
           source tofu/.r2-credentials
 
+          # The file existing is not the same as the values being usable.
+          # `source` on a truncated or partially written file leaves either
+          # variable empty, `gh secret set -b ""` stores an empty secret
+          # happily, SAVE_FAILED stays 0, and the step reports success for a
+          # credential nothing downstream can use. The export step already
+          # makes this check; by then the secrets have been written.
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "❌ R2 credentials are empty after sourcing tofu/.r2-credentials"
+            echo "   Refusing to store an empty secret. The token minted above"
+            echo "   is unusable — the next run deletes it before minting a"
+            echo "   replacement."
+            exit 1
+          fi
+
           # Not `|| true`. A failed write here is the case described above:
           # the old token is already retired and this value is unrecoverable.
           #
@@ -445,7 +474,7 @@ jobs:
           fi
 
           if [ "$SAVE_FAILED" -ne 0 ]; then
-            echo "❌ Could not save the new R2 credentials to GitHub Secrets."
+            echo "❌ Could not save the R2 credentials to GitHub Secrets."
             echo ""
             echo "   gh secret set reported:"
             echo "     ${SAVE_ERROR:-(no output)}"
