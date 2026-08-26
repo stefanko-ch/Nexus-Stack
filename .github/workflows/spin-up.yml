@@ -8,6 +8,11 @@ on:
         required: false
         default: ''
         type: string
+      smoke_check:
+        description: 'Check that every enabled service answers on its port after the deploy (adds ~10s)'
+        required: false
+        default: true
+        type: boolean
       silent_mode:
         description: 'Suppress all automated emails for this run (persists in D1 until reset via toggle-silent-mode workflow)'
         required: false
@@ -73,6 +78,11 @@ on:
         description: 'SSH Private Key (from setup-control-plane, for initial setup)'
         required: false
         type: string
+      smoke_check:
+        description: 'Check that every enabled service answers on its port after the deploy'
+        required: false
+        default: true
+        type: boolean
       server_image:
         description: 'Hetzner image to build from. Empty = ubuntu-26.04. A numeric image id restores from that snapshot.'
         required: false
@@ -1045,6 +1055,65 @@ jobs:
             echo "--- Docker Start Log ---"
             cat /tmp/docker-start.log || true
           fi
+
+      # Runs after the deploy, so a failure here means "the deploy
+      # finished and something is not answering" — never "the deploy
+      # failed". It therefore does not fail the job: the server is up,
+      # and one silent side service should not look like a broken
+      # spin-up. Failures surface as annotations instead, the same way
+      # degraded phases have since #688.
+      - name: Check services answer
+        if: inputs.smoke_check
+        continue-on-error: true
+        env:
+          # Single-quoted on the way in so THIS shell does not touch it —
+          # every expansion below belongs to the shell on the server.
+          # shellcheck disable=SC2016
+          REMOTE_PROBE: 'docker ps --format "{{.Names}}\t{{.Ports}}" 2>/dev/null | while IFS="$(printf "\t")" read -r n pts; do pt=$(printf "%s" "$pts" | grep -oE "0\.0\.0\.0:[0-9]+" | head -1 | cut -d: -f2); if [ -z "$pt" ]; then printf "%s\tNOPORT\tNOPORT\n" "$n"; else ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}" ) & fi; done; wait'
+        run: |
+          set -uo pipefail
+
+          # `docker ps` rather than services.yaml: it reports the port
+          # actually bound, which is the thing being verified. The YAML
+          # says what should have been bound, and a disagreement between
+          # the two is exactly the defect worth catching.
+          #
+          # Probes run ON the server and in parallel, so wall-clock is the
+          # slowest single probe rather than their sum. That matters when
+          # things are broken: twenty dead services sequentially at
+          # --max-time 4 would cost 80s; in parallel it stays at 4.
+          REPORT=$(ssh -o BatchMode=yes -o ConnectTimeout=15 nexus "$REMOTE_PROBE" 2>/dev/null || true)
+
+          if [ -z "$REPORT" ]; then
+            echo "::warning title=smoke-check::Could not reach the server over ssh — no service check ran"
+            exit 0
+          fi
+
+          healthy=0; unreachable=0; noport=0
+          while IFS="$(printf '\t')" read -r name port code; do
+            [ -n "$name" ] || continue
+            case "$code" in
+              # Any HTTP status means the application answered. A 401 or
+              # 403 is a service that is up and wants a login — success,
+              # not a failure. Only "no connection" and 5xx are faults.
+              2??|3??|4??)
+                healthy=$((healthy + 1))
+                printf '  ok    %-26s :%-6s %s\n' "$name" "$port" "$code"
+                ;;
+              NOPORT)
+                noport=$((noport + 1))
+                printf '  --    %-26s %-7s no published port (internal-only)\n' "$name" ""
+                ;;
+              *)
+                unreachable=$((unreachable + 1))
+                printf '  FAIL  %-26s :%-6s %s\n' "$name" "$port" "$code"
+                echo "::warning title=smoke-check: $name::Container is running but nothing answered on port $port (curl reported $code). The deploy succeeded; this service did not come up."
+                ;;
+            esac
+          done <<< "$REPORT"
+
+          echo ""
+          echo "[smoke] $healthy answering, $unreachable not answering, $noport without a published port"
 
       - name: Show spin-up info
         run: |

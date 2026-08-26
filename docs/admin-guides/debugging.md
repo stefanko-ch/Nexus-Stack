@@ -26,6 +26,52 @@ If Wetty is enabled, access it via browser at `https://wetty.yourdomain.com`. Th
 
 ---
 
+## Start Here: The Spin-Up Smoke Check
+
+Before debugging by hand, read the **Check services answer** step at the end
+of the last Spin Up run. It probes every running container on its published
+port and tells you which service is the problem — often before you notice
+anything is wrong.
+
+```
+  ok    forgejo                    :3202   200
+  ok    portainer                  :9090   401
+  --    kestra-postgres                    no published port (internal-only)
+  FAIL  metabase                   :3000   000
+
+[smoke] 42 answering, 1 not answering, 12 without a published port
+```
+
+How to read it:
+
+| Line | Meaning |
+|---|---|
+| `ok` with any 2xx/3xx/4xx | The application answered. `401` / `403` is a healthy service asking for a login, not a fault. |
+| `--` / `no published port` | Internal-only container (databases, sidecars). Nothing to probe — not an error. |
+| `FAIL` with `000` | Nothing accepted the connection. The container is running but the process inside never started listening. |
+| `FAIL` with `5xx` | The process listens but is erroring — usually a bad config or an unreachable dependency. |
+
+A `FAIL` never fails the workflow. The step runs *after* the deploy, so it
+reports "the deploy finished and this one service is silent" — the server
+itself is up. Failures appear as run annotations at the top of the run
+summary, so you see them without opening the log.
+
+Each `FAIL` names the container and port, which is exactly what
+[Step 2](#step-2-check-container-logs) needs:
+
+```bash
+ssh nexus "docker logs metabase --tail 100"
+```
+
+**Skipping it:** the check is on by default. When dispatching Spin Up, clear
+the *"Check that every enabled service answers on its port after the deploy"*
+checkbox if you are iterating on something unrelated and want the shortest
+cycle. It costs about ten seconds, and that stays true when things are
+broken: the probes run on the server in parallel, so twenty dead services
+cost one 4-second timeout, not twenty.
+
+---
+
 ## Systematic Debugging Process
 
 When a service is not working, follow this systematic approach:
