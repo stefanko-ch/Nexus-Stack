@@ -36,7 +36,7 @@
 #
 # We therefore use a docker-named-volume rather than a bind-mount onto
 # the persistent Hetzner volume at /mnt/nexus-data/. This is deliberate:
-# - destroy-all preserves /mnt/nexus-data/ (Gitea repos, Postgres data
+# - destroy-all preserves /mnt/nexus-data/ (Forgejo repos, Postgres data
 #   that genuinely need to outlive a teardown live there) but
 # - random_password.sftpgo_admin / random_password.sftpgo_user values
 #   are stable across normal `tofu apply` runs (Terraform / OpenTofu

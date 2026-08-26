@@ -19,7 +19,7 @@
 #   - "Did the spin-up workflow finish all stacks?" → open Dozzle,
 #     scan the container list, look for any in restart-loop
 #   - Multi-container debugging: open the same Dozzle URL in two tabs,
-#     one tailing `gitea`, one tailing `kestra-postgres` during a
+#     one tailing `forgejo`, one tailing `kestra-postgres` during a
 #     spin-up
 #
 # Multi-arch verified for v10.5.3 via `docker manifest inspect
@@ -27,7 +27,7 @@
 # Satisfies CLAUDE.md's "must support amd64; arm64 preferred" rule.
 #
 # Auth: --no-analytics + DOZZLE_NO_AUTH=true relies on Cloudflare Access
-# at the edge as the only auth layer (same model as Grafana, Gitea,
+# at the edge as the only auth layer (same model as Grafana, Forgejo,
 # Infisical etc.). Dozzle has its own basic-auth / OIDC modes but they'd
 # be redundant double-auth behind CF Access.
 #

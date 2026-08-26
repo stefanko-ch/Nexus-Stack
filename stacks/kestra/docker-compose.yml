@@ -54,7 +54,7 @@ services:
             # popup adds zero security (the request never reaches the
             # container without a valid CF JWT) and forces students to
             # look up the rotated KESTRA_ADMIN_PASSWORD in Infisical
-            # every session. Same model as Grafana / Gitea / Infisical:
+            # every session. Same model as Grafana / Forgejo / Infisical:
             # CF Access at the perimeter, app handles RBAC internally.
             # Trade-off: with basic-auth OFF, Kestra logs actions as
             # anon/system instead of as the single shared $KESTRA_ADMIN_USER.

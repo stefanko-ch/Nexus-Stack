@@ -4,7 +4,7 @@ title: Nexus-Stack on Evidence
 
 Welcome to Evidence. This file is `pages/index.md` in the project mounted at
 `/evidence-workspace`. Edit it from the host (or via the `code-server` /
-`gitea` stacks) and the dev server reloads on save.
+`forgejo` stacks) and the dev server reloads on save.
 
 ## Postgres source
 

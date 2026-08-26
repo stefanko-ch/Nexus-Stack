@@ -11,7 +11,7 @@
 # - prefect-worker: Local flow executor (work pool: "local-pool")
 # - prefect-db: Dedicated PostgreSQL database
 #
-# Git Integration: If Gitea is enabled, the shared workspace repo is
+# Git Integration: If Forgejo is enabled, the shared workspace repo is
 # auto-cloned into /flows/ in the worker container.
 #
 # SECURITY:

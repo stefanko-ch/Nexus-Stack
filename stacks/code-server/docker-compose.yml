@@ -8,7 +8,7 @@
 # Note: Password authentication is disabled (--auth none) since Cloudflare
 # Access provides email OTP protection at the network level.
 #
-# Git Integration: If Gitea is enabled, the shared workspace repo is
+# Git Integration: If Forgejo is enabled, the shared workspace repo is
 # auto-cloned and code-server opens directly in that folder.
 # =============================================================================
 

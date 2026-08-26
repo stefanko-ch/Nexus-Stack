@@ -4,11 +4,11 @@
 # Access via: https://woodpecker.${domain}
 # A simple, container-native CI/CD engine with pipeline-as-code.
 # Pipelines are defined in .woodpecker.yml files in your Git repositories.
-# Authentication is handled via Git forge OAuth (GitHub, Gitea, etc.).
+# Authentication is handled via Git forge OAuth (GitHub, Forgejo, etc.).
 #
 # SECURITY:
 # - Protected by Cloudflare Access (email OTP authentication)
-# - Authentication delegated to Git forge (GitHub/Gitea OAuth)
+# - Authentication delegated to Git forge (GitHub/Forgejo OAuth)
 # - Agent-server communication secured via shared secret
 # =============================================================================
 

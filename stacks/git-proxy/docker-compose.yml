@@ -1,12 +1,12 @@
 # =============================================================================
 # Git Proxy - Public HTTPS Git Access
 # =============================================================================
-# Nginx reverse proxy that forwards Git HTTPS requests to Gitea.
+# Nginx reverse proxy that forwards Git HTTPS requests to Forgejo.
 # Provides public Git clone/push/pull access for external tools (Databricks).
-# The Gitea Web UI remains behind Cloudflare Access for security.
+# The Forgejo Web UI remains behind Cloudflare Access for security.
 #
 # Access: https://git.<domain>/<user>/<repo>.git
-# Auth: Gitea username + Personal Access Token
+# Auth: Forgejo username + Personal Access Token
 # =============================================================================
 
 services:

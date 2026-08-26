@@ -3,7 +3,7 @@
 # =============================================================================
 # Base: ghcr.io/marimo-team/marimo:latest-sql (python:3.13-slim, includes
 # marimo[sql] = duckdb + sqlglot + ibis + polars + pyarrow). We layer on
-# git (so the entrypoint can clone the workspace repo from Gitea) and the
+# git (so the entrypoint can clone the workspace repo from Forgejo) and the
 # Spark Connect client packages so notebooks can talk to the spark-connect
 # service via sc://spark-connect:15002 — no JDK or full pyspark needed.
 #

@@ -10,7 +10,7 @@
 #
 # Image: Uses quay.io registry (Docker Hub images are deprecated).
 #
-# Git Integration: If Gitea is enabled, jupyterlab-git is installed and the
+# Git Integration: If Forgejo is enabled, jupyterlab-git is installed and the
 # shared workspace repo is auto-cloned into /home/jovyan/work/.
 #
 # Spark Integration: Automatically connects to spark://spark-master:7077

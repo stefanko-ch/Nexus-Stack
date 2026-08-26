@@ -7,7 +7,7 @@
 # Internal Access: docker exec -it meltano meltano --help
 # Docs: https://docs.meltano.com/
 #
-# Git Integration: If Gitea is enabled, the shared workspace repo is
+# Git Integration: If Forgejo is enabled, the shared workspace repo is
 # auto-cloned into /project/.
 # =============================================================================
 
