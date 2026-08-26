@@ -200,6 +200,38 @@ jobs:
           # consumer in this step is `gh secret set`.
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
+          # Check the prerequisite BEFORE minting anything. The old shape ran
+          # the init script first and only then discovered it had nowhere to
+          # put the result — creating a Cloudflare token whose secret is
+          # revealed exactly once, and then throwing it away. Failing first
+          # means a missing token leaves the account untouched.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "❌ GH_SECRETS_TOKEN is not configured."
+            echo ""
+            echo "   It is required for first-time setup: R2 credentials are"
+            echo "   generated once and must be stored as repository secrets"
+            echo "   for any later spin-up to reach the state bucket."
+            echo ""
+            echo "   Nothing has been created yet — this stops before minting"
+            echo "   a token it could not save."
+            echo ""
+            echo "   The credentials are never printed to this log: the"
+            echo "   repository is public, so anyone could read them, and they"
+            echo "   grant read access to every service credential in the"
+            echo "   OpenTofu state."
+            echo ""
+            echo "   Create a fine-grained Personal Access Token:"
+            echo "     GitHub → Settings → Developer settings"
+            echo "              → Personal access tokens → Fine-grained tokens"
+            echo "     Repository permissions:"
+            echo "       Secrets → Read and write"
+            echo "       Actions → Read and write"
+            echo "     Save it as the GH_SECRETS_TOKEN repository secret."
+            echo ""
+            echo "   Then re-run this workflow."
+            exit 1
+          fi
+
           echo "🪣 Creating R2 bucket and credentials..."
 
           # Run the init script
@@ -219,91 +251,63 @@ jobs:
             exit 1
           fi
 
-          # Read the generated credentials
-          if [ -f tofu/.r2-credentials ]; then
-            source tofu/.r2-credentials
+          source tofu/.r2-credentials
+          echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
 
-            # Check if we have a token to auto-save secrets
-            if [ -n "$GH_TOKEN" ]; then
-              echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
-
-              SECRET_ERROR=""
-              if ! OUTPUT=$(gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1); then
-                SECRET_ERROR="$OUTPUT"
-              fi
-
-              if [ -z "$SECRET_ERROR" ]; then
-                if ! OUTPUT=$(gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1); then
-                  SECRET_ERROR="$OUTPUT"
-                fi
-              fi
-
-              if [ -z "$SECRET_ERROR" ]; then
-                echo "✅ R2 credentials saved to GitHub Secrets automatically!"
-                echo ""
-                echo "Future deployments will use these credentials."
-              else
-                # NEVER print the credentials here. This repository is public,
-                # so Actions logs are world-readable, and these keys grant read
-                # access to the OpenTofu state bucket — which holds every
-                # generated service credential in plaintext.
-                #
-                # There is no safe channel for handing them to the operator
-                # from a public workflow run: artifacts are downloadable by
-                # anyone with repository read access, which for a public repo
-                # is everyone. So the only correct outcome is to fail and let
-                # the operator re-run once the token can write secrets.
-                echo "❌ Could not save the R2 credentials to GitHub Secrets."
-                echo ""
-                echo "   gh secret set reported:"
-                echo "     $SECRET_ERROR"
-                echo ""
-                echo "   The credentials are NOT printed here on purpose — this"
-                echo "   repository is public and its Actions logs are readable"
-                echo "   by anyone. They grant read access to the OpenTofu state"
-                echo "   bucket, which contains every service credential."
-                echo ""
-                echo "   Most likely cause: GH_SECRETS_TOKEN lacks the"
-                echo "   'Secrets: Read and write' repository permission."
-                echo ""
-                echo "   Fix the token permission, then re-run this workflow."
-                echo "   It mints a fresh R2 token and tries to retire this one."
-                echo "   That cleanup is best-effort, so if the re-run warns that"
-                echo "   it could not delete a stale token, remove it by hand:"
-                echo "   Cloudflare dashboard -> My Profile -> API Tokens."
-                exit 1
-              fi
-            else
-              # Same reasoning as above: without a token that can write repo
-              # secrets there is nowhere safe to put these, and printing them
-              # is what this branch used to do.
-              echo "❌ GH_SECRETS_TOKEN is not configured."
-              echo ""
-              echo "   It is required for first-time setup: R2 credentials are"
-              echo "   generated once and must be stored as repository secrets"
-              echo "   for any later spin-up to reach the state bucket."
-              echo ""
-              echo "   They are deliberately not printed to this log — the"
-              echo "   repository is public, so anyone could read them, and they"
-              echo "   grant read access to every service credential in the"
-              echo "   OpenTofu state."
-              echo ""
-              echo "   Create a fine-grained Personal Access Token:"
-              echo "     GitHub → Settings → Developer settings"
-              echo "              → Personal access tokens → Fine-grained tokens"
-              echo "     Repository permissions:"
-              echo "       Secrets → Read and write"
-              echo "       Actions → Read and write"
-              echo "     Save it as the GH_SECRETS_TOKEN repository secret."
-              echo ""
-              echo "   Then re-run this workflow."
-              exit 1
+          # SAVE_FAILED carries the exit status; SAVE_ERROR only carries the
+          # message. Using the message as the flag — as this did — silently
+          # ignores a failure that produced no output on either stream: the
+          # flag stays empty, the second write runs, and the step reports
+          # success for a credential it never stored. Which is precisely the
+          # bug class this workflow is being hardened against.
+          SAVE_FAILED=0
+          SAVE_ERROR=""
+          if ! OUTPUT=$(gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1); then
+            SAVE_FAILED=1
+            SAVE_ERROR="$OUTPUT"
+          fi
+          if [ "$SAVE_FAILED" -eq 0 ]; then
+            if ! OUTPUT=$(gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1); then
+              SAVE_FAILED=1
+              SAVE_ERROR="$OUTPUT"
             fi
+          fi
 
-          else
-            echo "❌ Failed to create R2 credentials"
+          if [ "$SAVE_FAILED" -ne 0 ]; then
+            # NEVER print the credentials here. This repository is public,
+            # so Actions logs are world-readable, and these keys grant read
+            # access to the OpenTofu state bucket — which holds every
+            # generated service credential in plaintext.
+            #
+            # There is no safe channel for handing them to the operator
+            # from a public workflow run: artifacts are downloadable by
+            # anyone with repository read access, which for a public repo
+            # is everyone. So the only correct outcome is to fail and let
+            # the operator re-run once the token can write secrets.
+            echo "❌ Could not save the R2 credentials to GitHub Secrets."
+            echo ""
+            echo "   gh secret set reported:"
+            echo "     ${SAVE_ERROR:-(no output)}"
+            echo ""
+            echo "   The credentials are NOT printed here on purpose — this"
+            echo "   repository is public and its Actions logs are readable"
+            echo "   by anyone. They grant read access to the OpenTofu state"
+            echo "   bucket, which contains every service credential."
+            echo ""
+            echo "   Most likely cause: GH_SECRETS_TOKEN lacks the"
+            echo "   'Secrets: Read and write' repository permission."
+            echo ""
+            echo "   A live R2 token now exists that nothing can use, because"
+            echo "   its secret was only ever held on this runner. Fix the"
+            echo "   permission and re-run: the next run deletes every token"
+            echo "   named for this stack before minting a replacement, and"
+            echo "   aborts rather than proceeding if it cannot confirm that."
             exit 1
           fi
+
+          echo "✅ R2 credentials saved to GitHub Secrets automatically!"
+          echo ""
+          echo "Future deployments will use these credentials."
 
       - name: Create R2 credentials from secrets
         if: steps.check_r2.outputs.r2_exists == 'true'
@@ -419,21 +423,30 @@ jobs:
 
           # Not `|| true`. A failed write here is the case described above:
           # the old token is already retired and this value is unrecoverable.
+          #
+          # SAVE_FAILED carries the exit status; SAVE_ERROR only carries the
+          # message. Using the message as the flag hides a failure that wrote
+          # nothing to either stream — the flag would stay empty, the second
+          # write would run, and the step would report success for a
+          # credential it never stored.
+          SAVE_FAILED=0
           SAVE_ERROR=""
           if ! OUTPUT=$(gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1); then
+            SAVE_FAILED=1
             SAVE_ERROR="$OUTPUT"
           fi
-          if [ -z "$SAVE_ERROR" ]; then
+          if [ "$SAVE_FAILED" -eq 0 ]; then
             if ! OUTPUT=$(gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1); then
+              SAVE_FAILED=1
               SAVE_ERROR="$OUTPUT"
             fi
           fi
 
-          if [ -n "$SAVE_ERROR" ]; then
+          if [ "$SAVE_FAILED" -ne 0 ]; then
             echo "❌ Could not save the new R2 credentials to GitHub Secrets."
             echo ""
             echo "   gh secret set reported:"
-            echo "     $SAVE_ERROR"
+            echo "     ${SAVE_ERROR:-(no output)}"
             echo ""
             echo "   The values are NOT printed here — this repository is"
             echo "   public and they grant read access to the OpenTofu state."
@@ -441,10 +454,16 @@ jobs:
             echo "   Most likely cause: GH_SECRETS_TOKEN lacks the"
             echo "   'Secrets: Read and write' repository permission."
             echo ""
-            echo "   Recovery: fix the permission and re-run. The stored"
-            echo "   secrets still hold the old, already-invalid credentials,"
-            echo "   so the next run takes this same path, mints another"
-            echo "   token, retires the one just created, and saves it."
+            echo "   State right now: the validation step already deleted the"
+            echo "   stale R2 secrets, and either none or only one of the two"
+            echo "   replacements was written. A live R2 token also exists"
+            echo "   whose secret was held only on this runner."
+            echo ""
+            echo "   Recovery: fix the permission and re-run. An incomplete"
+            echo "   pair reads as 'no credentials', so the next run takes the"
+            echo "   first-time path — which deletes every token named for this"
+            echo "   stack before minting a replacement, and aborts rather than"
+            echo "   proceeding if it cannot confirm that."
             exit 1
           fi
 
