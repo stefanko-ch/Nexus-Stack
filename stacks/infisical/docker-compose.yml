@@ -15,7 +15,7 @@
 
 services:
   infisical:
-    image: ${IMAGE_INFISICAL:-infisical/infisical:latest}
+    image: ${IMAGE_INFISICAL:-infisical/infisical:v0.155.5}
     container_name: infisical
     env_file:
       - .env

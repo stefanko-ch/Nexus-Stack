@@ -15,7 +15,7 @@
 
 services:
   mage:
-    image: mageai/mageai:latest
+    image: ${IMAGE_MAGE:-mageai/mageai:0.9.79}
     container_name: mage
     restart: unless-stopped
     ports:

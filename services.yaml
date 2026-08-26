@@ -108,7 +108,7 @@ services:
     website: "https://budibase.com"
     description: "Open-source low-code platform for building internal tools, CRUD apps, and dashboards."
     long_description: "Budibase lets you build internal tools and business apps in minutes. Connect to databases (PostgreSQL, MySQL, MongoDB), REST APIs, or use built-in tables. Drag-and-drop UI builder, role-based access control, workflow automation, and self-hosted deployment."
-    image: "budibase/budibase:latest"
+    image: "budibase/budibase:v3.43.0"
 
   chroma:
     subdomain: "chroma"
@@ -262,7 +262,7 @@ services:
     website: "https://www.filestash.app"
     description: "Web-based file manager with S3/FTP/SFTP/WebDAV backend support."
     long_description: "Filestash is a modern web file manager that connects to various storage backends including S3, FTP, SFTP, WebDAV, Git, and Dropbox. Features include file preview, image thumbnails, video streaming, full-text search, and a built-in text editor. Manage all your storage from one interface."
-    image: "machines/filestash:latest"
+    image: "machines/filestash@sha256:68171bf3ae791486056d59efb36e5fcc13ea0297465aaff3bd93f8ed69548e74"
     admin_path: "/admin"
 
   flink:
@@ -508,7 +508,7 @@ services:
     website: "https://www.mage.ai"
     description: "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
     long_description: "Mage AI is a modern data pipeline tool for transforming and integrating data. Build ETL/ELT pipelines with a hybrid notebook-style interface, test with built-in unit tests, and deploy to production. Supports Python, SQL, and R with native integration for dbt, Spark, and major data warehouses."
-    image: "mageai/mageai:latest"
+    image: "mageai/mageai:0.9.79"
     support_images:
       postgres: "postgres:14-alpine"
 
@@ -600,7 +600,7 @@ services:
     website: "https://n8n.io"
     description: "Workflow automation tool with 400+ integrations for connecting apps and services."
     long_description: "n8n is a workflow automation platform with 400+ integrations. Connect apps, automate tasks, and build complex workflows with a visual editor. Supports webhooks, scheduled triggers, conditional logic, and custom JavaScript/Python code nodes. Self-hosted for full data control."
-    image: "n8nio/n8n:1"
+    image: "n8nio/n8n:1.123.75"
     support_images:
       postgres: "postgres:16-alpine"
 

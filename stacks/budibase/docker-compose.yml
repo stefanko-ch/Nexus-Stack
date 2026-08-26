@@ -10,7 +10,7 @@
 
 services:
   budibase:
-    image: ${IMAGE_BUDIBASE:-budibase/budibase:latest}
+    image: ${IMAGE_BUDIBASE:-budibase/budibase:v3.43.0}
     container_name: budibase
     restart: unless-stopped
     ports:

@@ -15,7 +15,7 @@
 
 services:
   filestash:
-    image: ${IMAGE_FILESTASH:-machines/filestash:latest}
+    image: ${IMAGE_FILESTASH:-machines/filestash@sha256:68171bf3ae791486056d59efb36e5fcc13ea0297465aaff3bd93f8ed69548e74}
     container_name: filestash
     restart: unless-stopped
     ports:
