@@ -761,15 +761,32 @@ jobs:
           # the preference while the box was something else. The tfvars
           # file is the only place that knows the outcome.
           TFVARS=tofu/stack/config.tfvars
-          SERVER_TYPE=$(sed -n 's/^[[:space:]]*server_type[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" | head -1)
-          SERVER_LOCATION=$(sed -n 's/^[[:space:]]*server_location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" | head -1)
-          # Fall back to the request only if the file cannot be read — an
-          # approximate value beats an empty panel, but say so.
+          SERVER_TYPE=""
+          SERVER_LOCATION=""
+          # Readability is checked rather than left to sed. Today a missing
+          # file happens to be survivable: the step runs under GitHub's
+          # default `bash -e` without pipefail, so `sed ... | head -1`
+          # carries head's zero status and the fallback below is reached.
+          # That is an accident of the pipe, not a decision — adding
+          # `set -o pipefail` later would silently turn the fallback into
+          # dead code. The guard makes the intent explicit and keeps sed's
+          # "No such file" out of the log.
+          if [ -r "$TFVARS" ]; then
+            SERVER_TYPE=$(sed -n 's/^[[:space:]]*server_type[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" | head -1)
+            SERVER_LOCATION=$(sed -n 's/^[[:space:]]*server_location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" | head -1)
+          else
+            echo "⚠️  $TFVARS is not readable — the panel will show what was requested, not what was provisioned"
+          fi
+          # Fall back to the request only if the file could not be read — an
+          # approximate value beats an empty panel, but say so. Both values
+          # warn: capacity selection rewrites the location as readily as the
+          # type, so a silent fallback there is just as misleading.
           if [ -z "$SERVER_TYPE" ]; then
             echo "⚠️  Could not read server_type from $TFVARS — falling back to the requested value"
             SERVER_TYPE="${{ vars.SERVER_TYPE || 'cx43' }}"
           fi
           if [ -z "$SERVER_LOCATION" ]; then
+            echo "⚠️  Could not read server_location from $TFVARS — falling back to the requested value"
             SERVER_LOCATION="${{ vars.SERVER_LOCATION || 'hel1' }}"
           fi
 
