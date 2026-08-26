@@ -25,12 +25,22 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
+          # Through env: rather than `${{ }}` in the script. The value is a
+          # `type: choice` limited to 'true'/'false', so GitHub constrains it
+          # today and nothing here is exploitable. The pattern is removed
+          # anyway: an expression is substituted into the script text before
+          # bash parses it, and this one lands inside a SQL literal inside a
+          # shell command. Widening the input to a free-form string later
+          # would open both at once, with nothing at that line to warn.
+          SILENT_MODE: ${{ inputs.enabled }}
         run: |
+          set -euo pipefail
+
           D1_DB_NAME="nexus-${DOMAIN//./-}-db"
           npx wrangler@4 d1 execute "$D1_DB_NAME" --remote \
-            --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', '${{ inputs.enabled }}', datetime('now'))"
+            --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', '${SILENT_MODE}', datetime('now'))"
 
-          if [ "${{ inputs.enabled }}" = "true" ]; then
+          if [ "$SILENT_MODE" = "true" ]; then
             echo "🔇 Silent mode ENABLED - automated emails suppressed"
             echo "   Run this workflow with enabled=false to re-enable emails"
           else

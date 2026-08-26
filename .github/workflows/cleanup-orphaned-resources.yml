@@ -23,76 +23,131 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # Values reach bash through env: rather than `${{ }}` interpolation.
+      # An expression is substituted into the script TEXT before bash parses
+      # it, so a value carrying shell syntax would execute in a job holding
+      # the Cloudflare API token. Same treatment destroy-all.yml got in #656.
       - name: Cleanup D1 Database
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         run: |
+          set -euo pipefail
+
           echo "🔍 Finding D1 Database..."
           # Resource prefix is derived from domain (e.g., stefanko.ch -> nexus-stefanko-ch)
-          DOMAIN="${{ secrets.DOMAIN }}"
           RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
           D1_DATABASE_NAME="${RESOURCE_PREFIX}-db"
 
-          # Get all D1 databases
-          D1_DATABASES_RESPONSE=$(curl -s \
-            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json")
-
-          D1_DATABASE_ID=$(echo "$D1_DATABASES_RESPONSE" | jq -r ".result[] | select(.name == \"$D1_DATABASE_NAME\") | .uuid" 2>/dev/null || echo "")
-
-          if [ -n "$D1_DATABASE_ID" ] && [ "$D1_DATABASE_ID" != "null" ]; then
-            echo "  Found D1 Database ID: $D1_DATABASE_ID"
-
-            # Delete the database
-            D1_DELETE_RESPONSE=$(curl -s -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/d1/database/$D1_DATABASE_ID" \
-              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-              -H "Content-Type: application/json")
-
-            if echo "$D1_DELETE_RESPONSE" | grep -q '"success":true'; then
-              echo "✅ D1 Database deleted"
-            else
-              echo "⚠️  Could not delete D1 Database"
-              echo "$D1_DELETE_RESPONSE" | jq '.' 2>/dev/null || echo "$D1_DELETE_RESPONSE"
-            fi
-          else
-            echo "⚠️  D1 Database not found (may already be deleted)"
+          # The distinction this whole step turns on: "nothing orphaned" is a
+          # success, "could not tell" is not. The previous form collapsed both
+          # into an empty id via `|| echo ""`, so a 401 or a 5xx read as
+          # "nothing to do" and the run went green while the orphan kept
+          # costing money and holding its name against the next setup.
+          if ! LIST_BODY=$(curl -sS --fail-with-body \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json"); then
+            echo "❌ Could not list D1 databases — the API call itself failed."
+            echo "   Not treating that as 'nothing to clean up': an orphan may"
+            echo "   still exist. Check the token's D1 permission and re-run."
+            exit 1
           fi
+
+          if ! echo "$LIST_BODY" | jq -e '.success == true' >/dev/null 2>&1; then
+            echo "❌ Cloudflare rejected the D1 listing:"
+            echo "$LIST_BODY" | jq -r '.errors[]?.message // "no error message"' 2>/dev/null \
+              || echo "   (response was not JSON)"
+            exit 1
+          fi
+
+          D1_DATABASE_ID=$(echo "$LIST_BODY" \
+            | jq -r --arg name "$D1_DATABASE_NAME" \
+                '.result[] | select(.name == $name) | .uuid')
+
+          if [ -z "$D1_DATABASE_ID" ]; then
+            echo "✅ No D1 database named '${D1_DATABASE_NAME}' — nothing to clean up."
+            exit 0
+          fi
+
+          echo "  Found D1 Database ID: $D1_DATABASE_ID"
+          if ! DELETE_BODY=$(curl -sS --fail-with-body -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${D1_DATABASE_ID}" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json"); then
+            echo "❌ Delete request for D1 database ${D1_DATABASE_ID} failed."
+            echo "$DELETE_BODY"
+            exit 1
+          fi
+
+          if ! echo "$DELETE_BODY" | jq -e '.success == true' >/dev/null 2>&1; then
+            echo "❌ Cloudflare refused to delete D1 database ${D1_DATABASE_ID}:"
+            echo "$DELETE_BODY" | jq -r '.errors[]?.message // "no error message"' 2>/dev/null \
+              || echo "   (response was not JSON)"
+            exit 1
+          fi
+          echo "✅ D1 Database deleted"
 
       - name: Cleanup Access Application
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         run: |
+          set -euo pipefail
+
           echo "🔍 Finding Access Application..."
-          ACCESS_APP_DOMAIN="control.${{ secrets.DOMAIN }}"
+          ACCESS_APP_DOMAIN="control.${DOMAIN}"
 
-          # Get all Access applications for the zone
-          ACCESS_APPS_RESPONSE=$(curl -s \
-            "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/access/apps" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json")
-
-          ACCESS_APP_ID=$(echo "$ACCESS_APPS_RESPONSE" | jq -r ".result[] | select(.domain == \"$ACCESS_APP_DOMAIN\") | .id" 2>/dev/null || echo "")
-
-          if [ -n "$ACCESS_APP_ID" ] && [ "$ACCESS_APP_ID" != "null" ]; then
-            echo "  Found Access Application ID: $ACCESS_APP_ID"
-
-            # Delete the Access Application
-            ACCESS_DELETE_RESPONSE=$(curl -s -X DELETE \
-              "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/access/apps/$ACCESS_APP_ID" \
-              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-              -H "Content-Type: application/json")
-
-            if echo "$ACCESS_DELETE_RESPONSE" | grep -q '"success":true'; then
-              echo "✅ Access Application deleted"
-            else
-              echo "⚠️  Could not delete Access Application"
-              echo "$ACCESS_DELETE_RESPONSE" | jq '.' 2>/dev/null || echo "$ACCESS_DELETE_RESPONSE"
-            fi
-          else
-            echo "⚠️  Access Application not found (may already be deleted)"
+          if ! LIST_BODY=$(curl -sS --fail-with-body \
+            "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/access/apps" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json"); then
+            echo "❌ Could not list Access applications — the API call itself failed."
+            echo "   Not treating that as 'nothing to clean up': an orphaned app"
+            echo "   would keep gating control.${DOMAIN}. Check the token's"
+            echo "   Access permission and re-run."
+            exit 1
           fi
+
+          if ! echo "$LIST_BODY" | jq -e '.success == true' >/dev/null 2>&1; then
+            echo "❌ Cloudflare rejected the Access listing:"
+            echo "$LIST_BODY" | jq -r '.errors[]?.message // "no error message"' 2>/dev/null \
+              || echo "   (response was not JSON)"
+            exit 1
+          fi
+
+          ACCESS_APP_ID=$(echo "$LIST_BODY" \
+            | jq -r --arg d "$ACCESS_APP_DOMAIN" \
+                '.result[] | select(.domain == $d) | .id')
+
+          if [ -z "$ACCESS_APP_ID" ]; then
+            echo "✅ No Access application for '${ACCESS_APP_DOMAIN}' — nothing to clean up."
+            exit 0
+          fi
+
+          echo "  Found Access Application ID: $ACCESS_APP_ID"
+          if ! DELETE_BODY=$(curl -sS --fail-with-body -X DELETE \
+            "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/access/apps/${ACCESS_APP_ID}" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json"); then
+            echo "❌ Delete request for Access application ${ACCESS_APP_ID} failed."
+            echo "$DELETE_BODY"
+            exit 1
+          fi
+
+          if ! echo "$DELETE_BODY" | jq -e '.success == true' >/dev/null 2>&1; then
+            echo "❌ Cloudflare refused to delete Access application ${ACCESS_APP_ID}:"
+            echo "$DELETE_BODY" | jq -r '.errors[]?.message // "no error message"' 2>/dev/null \
+              || echo "   (response was not JSON)"
+            exit 1
+          fi
+          echo "✅ Access Application deleted"
 
       - name: Summary
         run: |
           echo ""
-          echo "✅ Cleanup complete!"
+          echo "✅ Cleanup complete — every step above verified its own result."
           echo ""
           echo "You can now deploy via GitHub Actions again."
