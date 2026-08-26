@@ -1,16 +1,16 @@
-"""config.tfvars parser + Gitea identity derivation.
+"""config.tfvars parser + Forgejo identity derivation.
 
 Reads ``tofu/stack/config.tfvars`` to extract the three operator-supplied
 fields (``domain``, ``admin_email``, ``user_email``) and derives the
-Gitea identity (admin + user names + display names) used by the rest of
+Forgejo identity (admin + user names + display names) used by the rest of
 the pipeline. Pure logic + a single file read; no subprocess.
 
 Public surface:
 
 * :class:`TfvarsConfig` — frozen dataclass for the 3 raw fields.
-* :class:`GiteaIdentity` — frozen dataclass for the 4 derived fields.
+* :class:`ForgejoIdentity` — frozen dataclass for the 4 derived fields.
 * :func:`parse` — read + regex-extract a config.tfvars file.
-* :func:`derive_gitea_identity` — apply the collision-fallback logic.
+* :func:`derive_forgejo_identity` — apply the collision-fallback logic.
 
 Why a regex parser instead of a real HCL parser:
 
@@ -69,18 +69,18 @@ class TfvarsConfig:
 
 
 @dataclass(frozen=True)
-class GiteaIdentity:
+class ForgejoIdentity:
     """Post-derivation identity values consumed by the orchestrator.
 
     All four fields are post-fallback / post-trim. ``admin_email``
-    is the SYNTHETIC ``gitea-admin@<domain>`` form when the original
+    is the SYNTHETIC ``forgejo-admin@<domain>`` form when the original
     admin_email was empty or collided with the user email — this
-    avoids the Gitea uniqueness violation on user.email.
+    avoids the Forgejo uniqueness violation on user.email.
     """
 
     admin_email: str
-    gitea_user_email: str
-    gitea_user_username: str
+    forgejo_user_email: str
+    forgejo_user_username: str
     om_principal_domain: str
 
 
@@ -150,7 +150,7 @@ def parse(path: Path) -> TfvarsConfig:
 def _trim(value: str) -> str:
     """Whitespace-trim a tfvars-derived string.
 
-    Necessary because Gitea / Windmill / Wiki.js validators reject
+    Necessary because Forgejo / Windmill / Wiki.js validators reject
     space-prefixed emails, and self-provisioned tfvars commonly have
     leading spaces inside the quoted value (especially when copy-
     pasted from a list).
@@ -158,51 +158,51 @@ def _trim(value: str) -> str:
     return value.strip()
 
 
-def derive_gitea_identity(config: TfvarsConfig) -> GiteaIdentity:
+def derive_forgejo_identity(config: TfvarsConfig) -> ForgejoIdentity:
     """Apply the admin-email collision fallback.
 
     Splits user_email on the first comma (it may be a multi-admin
-    list for the Cloudflare Access allow-list, but Gitea's
+    list for the Cloudflare Access allow-list, but Forgejo's
     user.email column accepts only one address), trims both, and
     then enforces the admin != user invariant with a synthetic
-    ``gitea-admin@<domain>`` fallback.
+    ``forgejo-admin@<domain>`` fallback.
 
     Reasons (in priority order) for falling back:
     1. ``admin_email`` is empty after trim — self-provisioned tfvars
        commonly omit it.
-    2. ``admin_email`` equals ``gitea_user_email`` after trim — a
+    2. ``admin_email`` equals ``forgejo_user_email`` after trim — a
        multi-tenant admin-panel caller (e.g. a classroom-provisioning
        fork) passes both values from the same source field today.
 
-    Without the fallback, Gitea's ``CREATE`` for the user row would
+    Without the fallback, Forgejo's ``CREATE`` for the user row would
     fail with "e-mail already in use" because both Admin + User
-    rows would share the same email. ``gitea-admin@<domain>`` is a
+    rows would share the same email. ``forgejo-admin@<domain>`` is a
     local-part no human-email scheme would produce, so it's
     guaranteed distinct from any real USER_EMAIL.
     """
     admin_email_trimmed = _trim(config.admin_email_raw)
     # Take the first comma-entry, trim. Empty → empty (no fallback to
-    # admin — that's deliberate; the Gitea user-create is gated on
-    # GITEA_USER_EMAIL non-empty in the orchestrator's
+    # admin — that's deliberate; the Forgejo user-create is gated on
+    # FORGEJO_USER_EMAIL non-empty in the orchestrator's
     # workspace-coords phase, so an empty value cleanly skips user
     # creation instead of colliding with admin).
     first_user = config.user_email_raw.split(",", 1)[0]
-    gitea_user_email = _trim(first_user)
-    gitea_user_username = (
-        gitea_user_email.split("@", 1)[0] if "@" in gitea_user_email else gitea_user_email
+    forgejo_user_email = _trim(first_user)
+    forgejo_user_username = (
+        forgejo_user_email.split("@", 1)[0] if "@" in forgejo_user_email else forgejo_user_email
     )
 
-    if not admin_email_trimmed or admin_email_trimmed == gitea_user_email:
+    if not admin_email_trimmed or admin_email_trimmed == forgejo_user_email:
         # Synthesize. Same shape the legacy bash uses.
-        admin_email = f"gitea-admin@{config.domain}" if config.domain else ""
+        admin_email = f"forgejo-admin@{config.domain}" if config.domain else ""
     else:
         admin_email = admin_email_trimmed
 
     om_principal_domain = admin_email.split("@", 1)[1] if "@" in admin_email else ""
 
-    return GiteaIdentity(
+    return ForgejoIdentity(
         admin_email=admin_email,
-        gitea_user_email=gitea_user_email,
-        gitea_user_username=gitea_user_username,
+        forgejo_user_email=forgejo_user_email,
+        forgejo_user_username=forgejo_user_username,
         om_principal_domain=om_principal_domain,
     )

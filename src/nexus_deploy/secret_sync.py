@@ -232,7 +232,7 @@ def render_remote_script(
     project_id: str,
     infisical_token: str,
     infisical_env: str,
-    gitea_token: str = "",
+    forgejo_token: str = "",
 ) -> str:
     """Render the remote bash script for one stack's secret sync.
 
@@ -245,7 +245,7 @@ def render_remote_script(
     pid_q = shlex.quote(project_id)
     token_q = shlex.quote(infisical_token)
     env_q = shlex.quote(infisical_env)
-    gtoken_q = shlex.quote(gitea_token)
+    gtoken_q = shlex.quote(forgejo_token)
     env_file_q = shlex.quote(target.env_file)
     # Legacy env-file is optional: kestra-style targets write to .env
     # directly with no separate legacy file. We render an empty string
@@ -349,7 +349,7 @@ while IFS= read -r FOLDER; do
         # the legacy form processed input line-by-line where the
         # implicit line-terminator could match the pattern, so
         # every non-empty single-line value falsely triggered the
-        # skip (resulting in only GITEA_TOKEN ever landing in
+        # skip (resulting in only FORGEJO_TOKEN ever landing in
         # .infisical.env). bash's case glob compares the variable's
         # bytes directly and only matches genuine embedded newlines.
         #
@@ -392,13 +392,13 @@ while IFS= read -r FOLDER; do
     done < "$TSV"
 done <<< "$FOLDERS"
 
-if [ -n "$GTOKEN" ] && ! grep -qE "^${{KEY_PREFIX}}GITEA_TOKEN=" "$APPEND"; then
+if [ -n "$GTOKEN" ] && ! grep -qE "^${{KEY_PREFIX}}FORGEJO_TOKEN=" "$APPEND"; then
     if [ "$USE_B64" = "1" ]; then
         GTOKEN_B64=$(printf '%s' "$GTOKEN" | base64 | tr -d '\\n')
-        printf '%sGITEA_TOKEN=%s\\n' "$KEY_PREFIX" "$GTOKEN_B64" >> "$APPEND"
+        printf '%sFORGEJO_TOKEN=%s\\n' "$KEY_PREFIX" "$GTOKEN_B64" >> "$APPEND"
     else
         ESCAPED_GTOKEN=$(printf '%s' "$GTOKEN" | sed -e 's/\\\\/\\\\\\\\/g' -e 's/"/\\\\"/g')
-        printf '%sGITEA_TOKEN="%s"\\n' "$KEY_PREFIX" "$ESCAPED_GTOKEN" >> "$APPEND"
+        printf '%sFORGEJO_TOKEN="%s"\\n' "$KEY_PREFIX" "$ESCAPED_GTOKEN" >> "$APPEND"
     fi
     PUSHED=$((PUSHED+1))
 fi
@@ -502,7 +502,7 @@ def run_sync_for_stack(
     project_id: str,
     infisical_token: str,
     infisical_env: str = "dev",
-    gitea_token: str = "",
+    forgejo_token: str = "",
     host: str = "nexus",
     script_runner: ScriptRunner | None = None,
     command_runner: CommandRunner | None = None,
@@ -535,7 +535,7 @@ def run_sync_for_stack(
         project_id=project_id,
         infisical_token=infisical_token,
         infisical_env=infisical_env,
-        gitea_token=gitea_token,
+        forgejo_token=forgejo_token,
     )
 
     completed = run_script(script)

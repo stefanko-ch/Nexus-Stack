@@ -437,7 +437,7 @@ class KestraClient:
 # targetNamespace / namespace fields on v1.0).
 # ---------------------------------------------------------------------------
 
-# Pull-direction flows (Gitea → Kestra) deliberately have NO
+# Pull-direction flows (Forgejo → Kestra) deliberately have NO
 # schedule trigger. They run ONCE at spin-up via the onboarding
 # kick-offs in ``run_register_system_flows`` and can additionally
 # be triggered manually from the Kestra UI. The previous form
@@ -445,31 +445,31 @@ class KestraClient:
 #
 # 1. **Silent overwrite of UI edits.** Every 15 min the SyncFlows
 #    task with ``delete: true`` would reconcile Kestra's
-#    ``nexus-tutorials`` namespace to whatever's in the Gitea
+#    ``nexus-tutorials`` namespace to whatever's in the Forgejo
 #    fork. A student editing a flow in the Kestra UI had a
 #    15-min window before their changes vanished — invisible
 #    data loss with no error log.
 #
 # 2. **Ping-pong with flow-export below.** Push-direction
-#    (Kestra → Gitea, ``system.flow-export``) and pull-direction
+#    (Kestra → Forgejo, ``system.flow-export``) and pull-direction
 #    running on similar cadences caused commit churn: every push
 #    triggered a pull which re-pushed identical content.
 #
 # Steady-state source of truth: Kestra UI for student edits,
-# Gitea for upstream/seeded flows. ``flow-export`` (push) keeps
-# Gitea in sync with UI; ``flow-sync`` (pull) re-hydrates Kestra
-# from Gitea ONLY at spin-up so cross-stack restoration works.
+# Forgejo for upstream/seeded flows. ``flow-export`` (push) keeps
+# Forgejo in sync with UI; ``flow-sync`` (pull) re-hydrates Kestra
+# from Forgejo ONLY at spin-up so cross-stack restoration works.
 GIT_SYNC_FLOW_TEMPLATE = """\
 id: git-sync
 namespace: system
-description: Pull namespace files (SQL/scripts/queries) from internal Gitea on spin-up. No schedule — UI edits would otherwise be silently reconciled away.
+description: Pull namespace files (SQL/scripts/queries) from internal Forgejo on spin-up. No schedule — UI edits would otherwise be silently reconciled away.
 tasks:
   - id: sync
     type: io.kestra.plugin.git.SyncNamespaceFiles
-    url: http://gitea:3000/{repo_owner}/{repo_name}.git
+    url: http://forgejo:3000/{repo_owner}/{repo_name}.git
     branch: {branch}
     username: {admin_username}
-    password: "{{{{ secret('GITEA_TOKEN') }}}}"
+    password: "{{{{ secret('FORGEJO_TOKEN') }}}}"
     namespace: "{{{{ flow.namespace }}}}"
     gitDirectory: nexus_seeds/kestra/workflows
 """
@@ -477,31 +477,31 @@ tasks:
 FLOW_SYNC_FLOW_TEMPLATE = """\
 id: flow-sync
 namespace: system
-description: Pull flow definitions from internal Gitea on spin-up. Two-task design separates seeded reference flows from the student's own work — seeds at nexus_seeds/kestra/flows/ → nexus-tutorials.*, student work at kestra/flows/ → my-flows.*. Both load with delete:true so Git is canonical at restore-time; namespaces don't collide so the two reconciles don't interfere.
+description: Pull flow definitions from internal Forgejo on spin-up. Two-task design separates seeded reference flows from the student's own work — seeds at nexus_seeds/kestra/flows/ → nexus-tutorials.*, student work at kestra/flows/ → my-flows.*. Both load with delete:true so Git is canonical at restore-time; namespaces don't collide so the two reconciles don't interfere.
 tasks:
   - id: sync-seeds
     type: io.kestra.plugin.git.SyncFlows
-    url: http://gitea:3000/{repo_owner}/{repo_name}.git
+    url: http://forgejo:3000/{repo_owner}/{repo_name}.git
     branch: {branch}
     username: {admin_username}
-    password: "{{{{ secret('GITEA_TOKEN') }}}}"
+    password: "{{{{ secret('FORGEJO_TOKEN') }}}}"
     gitDirectory: nexus_seeds/kestra/flows
     targetNamespace: nexus-tutorials
     includeChildNamespaces: true
     delete: true
   - id: sync-user
     type: io.kestra.plugin.git.SyncFlows
-    url: http://gitea:3000/{repo_owner}/{repo_name}.git
+    url: http://forgejo:3000/{repo_owner}/{repo_name}.git
     branch: {branch}
     username: {admin_username}
-    password: "{{{{ secret('GITEA_TOKEN') }}}}"
+    password: "{{{{ secret('FORGEJO_TOKEN') }}}}"
     gitDirectory: kestra/flows
     targetNamespace: my-flows
     includeChildNamespaces: true
     delete: true
 """
 
-# Push direction: Kestra UI → Gitea fork. Runs every 10 minutes
+# Push direction: Kestra UI → Forgejo fork. Runs every 10 minutes
 # so a stack crash loses at most ~10 minutes of student work.
 #
 # **Scope: ``my-flows.*`` only.** Two namespaces with two
@@ -530,29 +530,29 @@ tasks:
 #
 # ``delete: false`` because a UI delete shouldn't auto-rewrite
 # Git history. To permanently delete a my-flows.* flow,
-# the operator commits the deletion directly in the Gitea fork.
+# the operator commits the deletion directly in the Forgejo fork.
 #
 # Synthetic commit identity (``Kestra Auto-Export`` /
 # ``kestra@nexus-stack.local``) so commits aren't attributed to
-# a real user. The Gitea push log still shows the admin token
+# a real user. The Forgejo push log still shows the admin token
 # holder as the pusher — acceptable trade-off.
 #
 # Conflict behaviour: PushFlows fails loud on
 # ``REJECTED_NONFASTFORWARD`` (no force-push, no rebase). A
-# parallel direct-to-Gitea commit from the operator would
+# parallel direct-to-Forgejo commit from the operator would
 # cause this — visible in the Kestra execution log, manually
 # resolvable.
 FLOW_EXPORT_FLOW_TEMPLATE = """\
 id: flow-export
 namespace: system
-description: Push UI-edited flows from the my-flows.* namespace back to the internal Gitea fork every 10 min. Source-of-truth direction for student work; loses at most ~10 min on stack crash. Seeded tutorial flows in nexus-tutorials.* are NOT pushed (would corrupt upstream reference material) — copy into my-flows.* first to make edits persistent.
+description: Push UI-edited flows from the my-flows.* namespace back to the internal Forgejo fork every 10 min. Source-of-truth direction for student work; loses at most ~10 min on stack crash. Seeded tutorial flows in nexus-tutorials.* are NOT pushed (would corrupt upstream reference material) — copy into my-flows.* first to make edits persistent.
 tasks:
   - id: export
     type: io.kestra.plugin.git.PushFlows
-    url: http://gitea:3000/{repo_owner}/{repo_name}.git
+    url: http://forgejo:3000/{repo_owner}/{repo_name}.git
     branch: {branch}
     username: {admin_username}
-    password: "{{{{ secret('GITEA_TOKEN') }}}}"
+    password: "{{{{ secret('FORGEJO_TOKEN') }}}}"
     sourceNamespace: my-flows
     includeChildNamespaces: true
     flows: "**"
@@ -579,8 +579,8 @@ def render_system_flow_yaml(
 ) -> str:
     """Substitute placeholders into a system-flow YAML template.
 
-    The double-brace ``{{{{ secret('GITEA_TOKEN') }}}}`` in the templates
-    becomes a single ``{{ secret('GITEA_TOKEN') }}`` after format —
+    The double-brace ``{{{{ secret('FORGEJO_TOKEN') }}}}`` in the templates
+    becomes a single ``{{ secret('FORGEJO_TOKEN') }}`` after format —
     that's intentional, it's the Kestra Pebble template syntax that
     must reach the registered flow verbatim.
     """
@@ -641,7 +641,7 @@ def trigger_git_sync_onboarding(
     Symmetric to :func:`trigger_flow_sync_onboarding`. Since the
     pull-direction flows lost their schedule trigger, this is the
     ONLY automated path for namespace files (SQL/scripts/queries)
-    to reach Kestra from the Gitea fork. Without it, seeded
+    to reach Kestra from the Forgejo fork. Without it, seeded
     namespace files would only appear if an operator manually
     triggered the flow from the UI.
 

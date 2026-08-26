@@ -1062,11 +1062,11 @@ def render_wikijs_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     - Re-run: response message contains "already" → ``already-configured``
     - Other: ``failed``
 
-    Email source: ``env.gitea_user_email`` if non-empty, else
+    Email source: ``env.forgejo_user_email`` if non-empty, else
     ``env.admin_email`` (single-address user identity for the Wiki).
     """
     password = config.wikijs_admin_password or ""
-    email = env.gitea_user_email or env.admin_email or ""
+    email = env.forgejo_user_email or env.admin_email or ""
     domain = env.domain or ""
     if not password or not email or not domain:
         return 'echo "RESULT hook=wikijs status=skipped-not-ready"\n'
@@ -1225,7 +1225,7 @@ def render_windmill_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     2. POST ``/users/create`` for ``$ADMIN_EMAIL`` with
        ``super_admin: true`` and ``$WINDMILL_ADMIN_PASS`` —
        gives operators the documented login.
-    3. POST ``/users/create`` for ``$GITEA_USER_EMAIL`` (only if it
+    3. POST ``/users/create`` for ``$FORGEJO_USER_EMAIL`` (only if it
        differs from $ADMIN_EMAIL) with ``super_admin: false`` and
        the same password — non-admin user identity for workflow
        authorship.
@@ -1261,7 +1261,7 @@ def render_windmill_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     secret_q = shlex.quote(superadmin_secret)
     pw_q = shlex.quote(admin_password)
     admin_q = shlex.quote(admin_email)
-    user_email_q = shlex.quote(env.gitea_user_email or "")
+    user_email_q = shlex.quote(env.forgejo_user_email or "")
     wait = _render_wait_healthy(
         name="windmill",
         url="http://localhost:8200/api/version",
@@ -1284,12 +1284,12 @@ windmill_hook() {{
     printf '%s' "$ADMIN_CREATE_BODY" | curl -s --config "$WM_CFG" \\
         -X POST 'http://localhost:8200/api/users/create' \\
         --max-time 30 --data-binary @- >/dev/null 2>&1 || true
-    # Step 2: optional regular user for GITEA_USER_EMAIL (if set and
+    # Step 2: optional regular user for FORGEJO_USER_EMAIL (if set and
     # differs from ADMIN_EMAIL). Single-address: USER_EMAIL may be a
-    # comma-list, GITEA_USER_EMAIL is the single resolved address.
-    GITEA_UE={user_email_q}
-    if [ -n "$GITEA_UE" ] && [ "$GITEA_UE" != {admin_q} ]; then
-        USER_CREATE_BODY=$(NEXUS_E="$GITEA_UE" NEXUS_P={pw_q} jq -n \\
+    # comma-list, FORGEJO_USER_EMAIL is the single resolved address.
+    FORGEJO_UE={user_email_q}
+    if [ -n "$FORGEJO_UE" ] && [ "$FORGEJO_UE" != {admin_q} ]; then
+        USER_CREATE_BODY=$(NEXUS_E="$FORGEJO_UE" NEXUS_P={pw_q} jq -n \\
             '{{email: env.NEXUS_E, password: env.NEXUS_P, super_admin: false, name: "User"}}')
         printf '%s' "$USER_CREATE_BODY" | curl -s --config "$WM_CFG" \\
             -X POST 'http://localhost:8200/api/users/create' \\

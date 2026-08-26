@@ -7,21 +7,21 @@ still need to escape to bash for the surviving compose-restart +
 Woodpecker .env write logic:
 
 * ``RESTART_SERVICES``  — compose-restart loop reads this
-* ``WOODPECKER_GITEA_CLIENT`` — written into stacks/woodpecker/.env
-* ``WOODPECKER_GITEA_SECRET`` — written into stacks/woodpecker/.env
+* ``WOODPECKER_FORGEJO_CLIENT`` — written into stacks/woodpecker/.env
+* ``WOODPECKER_FORGEJO_SECRET`` — written into stacks/woodpecker/.env
 
-Other state (``GITEA_TOKEN``, ``FORK_NAME``, ``FORK_OWNER``) is
+Other state (``FORGEJO_TOKEN``, ``FORK_NAME``, ``FORK_OWNER``) is
 consumed entirely inside the orchestrator and never exits Python.
 
 Phase order (deterministic):
 
 1. infisical bootstrap            (push all secret folders to Infisical)
 2. services configure             (REST + exec admin-setup hooks)
-3. gitea configure                (admin/user create+sync, repo, token)
+3. forgejo configure                (admin/user create+sync, repo, token)
 4. seed                           (push examples/workspace-seeds/ to repo)
 5. kestra register-system-flows   (system.git-sync + flow-sync)
-6. gitea woodpecker-oauth         (provision OAuth app for Woodpecker CI)
-7. gitea mirror-setup             (per-mirror migrate + fork; if mirrors)
+6. forgejo woodpecker-oauth         (provision OAuth app for Woodpecker CI)
+7. forgejo mirror-setup             (per-mirror migrate + fork; if mirrors)
 8. secret-sync jupyter            (Infisical → Jupyter .infisical.env)
 9. secret-sync marimo             (Infisical → Marimo .infisical.env)
 
@@ -57,7 +57,6 @@ from nexus_deploy import compose_runner as _compose_runner
 from nexus_deploy import firewall as _firewall
 from nexus_deploy import forgejo as _forgejo
 from nexus_deploy import forgejo_runner as _forgejo_runner
-from nexus_deploy import gitea as _gitea
 from nexus_deploy import infisical as _infisical
 from nexus_deploy import kestra as _kestra
 from nexus_deploy import secret_sync as _secret_sync
@@ -87,10 +86,10 @@ class OrchestratorState:
     The ``restart_services`` + ``woodpecker_*`` fields are
     additionally emitted to stdout at the end so the surviving
     shell glue (compose-restart loop + Woodpecker .env writer)
-    can consume them. ``gitea_token`` / ``fork_*`` stay in-process.
+    can consume them. ``forgejo_token`` / ``fork_*`` stay in-process.
     """
 
-    gitea_token: str | None = None
+    forgejo_token: str | None = None
     restart_services: tuple[str, ...] = ()
     woodpecker_client_id: str | None = None
     woodpecker_client_secret: str | None = None
@@ -111,20 +110,20 @@ class OrchestratorState:
     project_id: str | None = None
 
     # workspace-coords slots populated by _phase_workspace_coords —
-    # repo_name / gitea_repo_owner / workspace_branch / Gitea git
+    # repo_name / forgejo_repo_owner / workspace_branch / Forgejo git
     # identity. Same dual-write pattern as infisical_token /
     # project_id: the phase writes to BOTH state.* (for stdout
     # emission) AND self.* on the orchestrator (for downstream
     # phases that gate on the orchestrator fields).
     # _phase_mirror_setup later mutates state.repo_name +
-    # state.gitea_repo_owner to point at the user's fork (so the
+    # state.forgejo_repo_owner to point at the user's fork (so the
     # mirror-seed-rerun + git-restart phases hit the right repo).
     repo_name: str | None = None
-    gitea_repo_owner: str | None = None
-    gitea_repo_url: str | None = None
+    forgejo_repo_owner: str | None = None
+    forgejo_repo_url: str | None = None
     workspace_branch: str = "main"
-    gitea_git_user: str | None = None
-    gitea_git_pass: str | None = None
+    forgejo_git_user: str | None = None
+    forgejo_git_pass: str | None = None
     git_author: str | None = None
     git_email: str | None = None
 
@@ -136,7 +135,7 @@ class OrchestratorState:
 # a secret in a public CI log.
 _SECRET_ASSIGNMENT_RE = re.compile(
     # The affix wildcards matter: `\btoken` does not match inside
-    # `SECRET_GITEA_TOKEN`, because `_` is a word character. Names in
+    # `SECRET_FORGEJO_TOKEN`, because `_` is a word character. Names in
     # these scripts are overwhelmingly of that shape.
     r"([A-Za-z0-9_]*(?:token|secret|password|passwd|apikey|key|credential|auth)[A-Za-z0-9_]*)"
     r"\s*=\s*\S+",
@@ -262,19 +261,19 @@ class Orchestrator:
     config: NexusConfig
     bootstrap_env: BootstrapEnv
     enabled_services: list[str]
-    # repo_name / gitea_repo_owner / workspace_branch are POPULATED
+    # repo_name / forgejo_repo_owner / workspace_branch are POPULATED
     # by _phase_workspace_coords during run_pre_bootstrap. Kept as
     # constructor fields so post-bootstrap-only callers (run_all
     # without run_pre_bootstrap) can still pre-seed them — same
     # back-compat shape as infisical_token / project_id.
     repo_name: str = ""
-    gitea_repo_owner: str = ""
+    forgejo_repo_owner: str = ""
     workspace_branch: str = "main"
     gh_mirror_repos: list[str] = field(default_factory=list)
     gh_mirror_token: str | None = None
-    gitea_user_username: str | None = None
-    gitea_user_email: str | None = None
-    gitea_user_password: str | None = None
+    forgejo_user_username: str | None = None
+    forgejo_user_email: str | None = None
+    forgejo_user_password: str | None = None
     ssh_host: str = "nexus"
     project_id: str | None = None
     infisical_token: str | None = None
@@ -303,7 +302,7 @@ class Orchestrator:
     # missing.
     admin_username: str = ""  # for workspace-coords admin-fallback
     user_email: str = ""  # passed into global-env's stacks/.env
-    gitea_admin_pass: str | None = None  # for workspace-coords git_pass fallback
+    forgejo_admin_pass: str | None = None  # for workspace-coords git_pass fallback
     image_versions_json: str = "{}"  # raw `tofu output -json image_versions` body
     woodpecker_agent_secret: str | None = None  # for woodpecker_apply .env write
 
@@ -327,7 +326,7 @@ class Orchestrator:
         with contextlib.ExitStack() as stack:
             ssh = stack.enter_context(SSHClient(self.ssh_host))
             # Phases interleave to honor state-handoff dependencies:
-            #   - compose-restart consumes state.restart_services from gitea
+            #   - compose-restart consumes state.restart_services from forgejo
             #   - kestra-secret-sync runs BEFORE kestra-register
             #   - woodpecker-apply consumes state.woodpecker_* from oauth
             #   - mirror-seed-rerun consumes state.fork_* from mirror-setup
@@ -337,7 +336,6 @@ class Orchestrator:
                 self._phase_services_configure,
                 self._phase_forgejo_configure,
                 self._phase_forgejo_runner_register,
-                self._phase_gitea_configure,
                 self._phase_compose_restart,
                 self._phase_kestra_secret_sync,
                 self._phase_kestra_register,
@@ -453,122 +451,6 @@ class Orchestrator:
             ),
         )
 
-    def _phase_forgejo_configure(self, ssh: SSHClient) -> PhaseResult:
-        """Create the Forgejo admin + regular accounts.
-
-        Without this the stack is unusable: ``INSTALL_LOCK`` and
-        ``DISABLE_REGISTRATION`` are both on, so a fresh database has
-        no route to a first account and the web UI is locked from the
-        moment it starts — while OpenTofu has generated passwords and
-        pushed them to Infisical for accounts that do not exist.
-
-        Runs BEFORE the runner registration so that an operator who
-        watches the deploy can log in and see the runner appear.
-
-        "partial" rather than "failed" on error. Forgejo is a core
-        service, so this always runs — but nothing on the platform
-        depends on it yet: Gitea still holds the workspace repo, the
-        seeding and Kestra's flow sync. A Forgejo that failed to
-        provision is a real problem, reported as one, and not a reason
-        to abandon the forty other stacks behind it.
-
-        That calculus flips with the role swap. Once Forgejo owns the
-        workspace repo, a failure here means the seeding and flow sync
-        have nothing to work against, and this should become "failed".
-        """
-        if "forgejo" not in self.enabled_services:
-            return PhaseResult(
-                name="forgejo-configure",
-                status="skipped",
-                detail="forgejo not enabled",
-            )
-        admin_password = self.config.forgejo_admin_password or ""
-        if not admin_password:
-            return PhaseResult(
-                name="forgejo-configure",
-                status="partial",
-                detail="FORGEJO_ADMIN_PASS missing — no admin account can be created",
-            )
-        admin_username = self.admin_username or self.config.admin_username or "admin"
-        admin_email = self.bootstrap_env.admin_email or ""
-        if not admin_email:
-            return PhaseResult(
-                name="forgejo-configure",
-                status="partial",
-                detail="admin_email missing — Forgejo requires an address per account",
-            )
-
-        accounts = [
-            _forgejo.Account(
-                username=admin_username,
-                password=admin_password,
-                email=admin_email,
-                admin=True,
-            ),
-        ]
-        # The student-facing account is optional: a stack with no
-        # user_email configured still gets a working admin login.
-        # Same precedence as workspace-coords (line ~980) and the Gitea
-        # phase: the constructor field first, bootstrap_env as the
-        # fallback. Reading only bootstrap_env meant a caller that set
-        # the field — which the pipeline does — silently got no user
-        # account while the phase reported "ok".
-        user_email = self.gitea_user_email or self.bootstrap_env.gitea_user_email or ""
-        user_password = self.config.forgejo_user_password or ""
-        user_username = self.gitea_user_username or (user_email.split("@")[0] if user_email else "")
-        user_note = ""
-        if user_email and user_password and user_username and user_username != admin_username:
-            # Check the username here rather than letting run_configure
-            # reject the batch. The identity derivation allows local
-            # parts Forgejo will not take as usernames — `alice+tag` is
-            # a valid address and an invalid username — and a rejected
-            # batch takes the ADMIN account down with it. With
-            # INSTALL_LOCK on, that leaves an instance nobody can log
-            # into because of one student's mail alias.
-            #
-            # Not sanitising it silently: a username the operator did
-            # not choose is worse than a missing optional account, and
-            # the detail line says exactly what was dropped.
-            if _forgejo.is_valid_username(user_username):
-                accounts.append(
-                    _forgejo.Account(
-                        username=user_username,
-                        password=user_password,
-                        email=user_email,
-                    ),
-                )
-            else:
-                user_note = " (user account skipped — derived username is not Forgejo-safe)"
-
-        try:
-            result = _forgejo.run_configure(
-                ssh,
-                tuple(accounts),
-                # Applied before anything else touches the forge. A
-                # restored database carries the previous generation's
-                # password, and Forgejo cannot become healthy without
-                # this — so it runs ahead of the health poll, not after.
-                db_password=self.config.forgejo_db_password or "",
-            )
-        except Exception as exc:
-            return PhaseResult(
-                name="forgejo-configure",
-                status="partial",
-                detail=f"unexpected ({type(exc).__name__})",
-            )
-        if result.status == "configured":
-            # A skipped user account is reported as "partial": the stack
-            # works, but somebody asked for an account that did not get
-            # made, and that should not read as a clean run.
-            return PhaseResult(
-                name="forgejo-configure",
-                status="partial" if user_note else "ok",
-                detail=f"{result.detail}{user_note}",
-            )
-        if result.status == "skipped":
-            return PhaseResult(name="forgejo-configure", status="skipped", detail=result.detail)
-        return PhaseResult(name="forgejo-configure", status="partial", detail=result.detail)
-
     def _phase_forgejo_runner_register(self, ssh: SSHClient) -> PhaseResult:
         """Teach the Forgejo instance the runner's shared secret.
 
@@ -628,61 +510,63 @@ class Orchestrator:
             detail=result.detail,
         )
 
-    def _phase_gitea_configure(self, ssh: SSHClient) -> PhaseResult:
-        """Synchronous Gitea configure via :func:`gitea.run_configure_gitea`.
-        Populates ``state.gitea_token`` + ``state.restart_services``."""
-        if "gitea" not in self.enabled_services:
-            return PhaseResult(name="gitea-configure", status="skipped", detail="gitea not enabled")
-        if not self.config.gitea_admin_password:
+    def _phase_forgejo_configure(self, ssh: SSHClient) -> PhaseResult:
+        """Synchronous Forgejo configure via :func:`forgejo.run_configure_forgejo`.
+        Populates ``state.forgejo_token`` + ``state.restart_services``."""
+        if "forgejo" not in self.enabled_services:
             return PhaseResult(
-                name="gitea-configure",
+                name="forgejo-configure", status="skipped", detail="forgejo not enabled"
+            )
+        if not self.config.forgejo_admin_password:
+            return PhaseResult(
+                name="forgejo-configure",
                 status="partial",
-                detail="GITEA_ADMIN_PASS missing — basic-auth would 401",
+                detail="FORGEJO_ADMIN_PASS missing — basic-auth would 401",
             )
         local_port = _allocate_free_port()
         try:
-            with ssh.port_forward(local_port, "localhost", 3200) as port:
-                result = _gitea.run_configure_gitea(
+            with ssh.port_forward(local_port, "localhost", 3202) as port:
+                result = _forgejo.run_configure_forgejo(
                     self.config,
                     base_url=f"http://localhost:{port}",
                     ssh=ssh,
                     admin_email=self.bootstrap_env.admin_email or "",
-                    gitea_user_email=self.gitea_user_email,
-                    gitea_user_password=self.gitea_user_password,
+                    forgejo_user_email=self.forgejo_user_email,
+                    forgejo_user_password=self.forgejo_user_password,
                     repo_name=self.repo_name,
-                    gitea_repo_owner=self.gitea_repo_owner,
+                    forgejo_repo_owner=self.forgejo_repo_owner,
                     is_mirror_mode=bool(self.gh_mirror_repos),
                     enabled_services=self.enabled_services,
                 )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
             return PhaseResult(
-                name="gitea-configure",
+                name="forgejo-configure",
                 status="failed",
                 detail=_transport_detail(exc),
             )
         except Exception as exc:
             return PhaseResult(
-                name="gitea-configure",
+                name="forgejo-configure",
                 status="failed",
                 detail=f"unexpected ({type(exc).__name__})",
             )
         # Populate state — token may be None on partial mint failure.
-        self.state.gitea_token = result.token
+        self.state.forgejo_token = result.token
         self.state.restart_services = tuple(result.restart_services)
         if not result.is_success:
             return PhaseResult(
-                name="gitea-configure",
+                name="forgejo-configure",
                 status="partial",
                 detail="some sub-step failed (see stderr)",
             )
-        return PhaseResult(name="gitea-configure", status="ok")
+        return PhaseResult(name="forgejo-configure", status="ok")
 
     def _phase_seed(self, ssh: SSHClient) -> PhaseResult:
         """Push examples/workspace-seeds/ to the workspace repo via
-        :func:`seeder.run_seed_for_repo`. Needs ``state.gitea_token``.
+        :func:`seeder.run_seed_for_repo`. Needs ``state.forgejo_token``.
 
         In mirror mode this phase MUST skip — seeding the read-only
-        ``mirror-readonly-<repo>`` returns HTTP 423 (Gitea pull-mirror
+        ``mirror-readonly-<repo>`` returns HTTP 423 (Forgejo pull-mirror
         lock). Re-seeding against the user's fork happens later via
         ``_phase_mirror_seed_rerun``, after ``_phase_mirror_setup``
         populates ``state.fork_*``.
@@ -695,11 +579,11 @@ class Orchestrator:
                 status="skipped",
                 detail="mirror mode — seed deferred to mirror-seed-rerun phase",
             )
-        if not self.state.gitea_token:
+        if not self.state.forgejo_token:
             return PhaseResult(
                 name="seed",
                 status="skipped",
-                detail="no gitea_token (gitea phase did not produce one)",
+                detail="no forgejo_token (forgejo phase did not produce one)",
             )
         seeds_root = Path("examples/workspace-seeds")
         if not seeds_root.is_dir():
@@ -710,10 +594,10 @@ class Orchestrator:
             )
         try:
             result = _seeder.run_seed_for_repo(
-                repo_owner=self.gitea_repo_owner,
+                repo_owner=self.forgejo_repo_owner,
                 repo_name=self.repo_name,
                 root=seeds_root,
-                token=self.state.gitea_token,
+                token=self.state.forgejo_token,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
             return PhaseResult(
@@ -772,7 +656,7 @@ class Orchestrator:
                 result = _kestra.run_register_system_flows(
                     self.config,
                     base_url=f"http://localhost:{port}",
-                    repo_owner=self.gitea_repo_owner,
+                    repo_owner=self.forgejo_repo_owner,
                     repo_name=self.repo_name,
                     branch=self.workspace_branch,
                     admin_email=admin_email,
@@ -803,17 +687,17 @@ class Orchestrator:
 
     def _phase_woodpecker_oauth(self, ssh: SSHClient) -> PhaseResult:
         """Provision Woodpecker OAuth via
-        :func:`gitea.run_woodpecker_oauth_setup`. Populates
+        :func:`forgejo.run_woodpecker_oauth_setup`. Populates
         ``state.woodpecker_client_id`` + ``state.woodpecker_client_secret``."""
         if "woodpecker" not in self.enabled_services:
             return PhaseResult(
                 name="woodpecker-oauth", status="skipped", detail="woodpecker not enabled"
             )
-        if not self.state.gitea_token:
+        if not self.state.forgejo_token:
             return PhaseResult(
                 name="woodpecker-oauth",
                 status="skipped",
-                detail="no gitea_token from prior phase",
+                detail="no forgejo_token from prior phase",
             )
         domain = self.bootstrap_env.domain or ""
         if not domain:
@@ -824,11 +708,11 @@ class Orchestrator:
             )
         local_port = _allocate_free_port()
         try:
-            with ssh.port_forward(local_port, "localhost", 3200) as port:
-                result, error, rotation_started = _gitea.run_woodpecker_oauth_setup(
+            with ssh.port_forward(local_port, "localhost", 3202) as port:
+                result, error, rotation_started = _forgejo.run_woodpecker_oauth_setup(
                     base_url=f"http://localhost:{port}",
                     domain=domain,
-                    gitea_token=self.state.gitea_token,
+                    forgejo_token=self.state.forgejo_token,
                     admin_username=self.config.admin_username or "admin",
                     subdomain_separator=self.bootstrap_env.subdomain_separator,
                 )
@@ -838,7 +722,7 @@ class Orchestrator:
                 status="failed",
                 detail=_transport_detail(exc),
             )
-        except _gitea.GiteaError as exc:
+        except _forgejo.ForgejoError as exc:
             return PhaseResult(
                 name="woodpecker-oauth",
                 status="failed",
@@ -868,18 +752,18 @@ class Orchestrator:
         return PhaseResult(name="woodpecker-oauth", status="ok", detail="created")
 
     def _phase_mirror_setup(self, ssh: SSHClient) -> PhaseResult:
-        """Mirror-mode provisioning via :func:`gitea.run_mirror_setup`.
+        """Mirror-mode provisioning via :func:`forgejo.run_mirror_setup`.
         Populates ``state.fork_name`` + ``state.fork_owner`` if a fork
         was created. Skipped when no GH_MIRROR_REPOS configured."""
         if not self.gh_mirror_repos:
             return PhaseResult(
                 name="mirror-setup", status="skipped", detail="no mirrors configured"
             )
-        if not self.state.gitea_token:
+        if not self.state.forgejo_token:
             return PhaseResult(
                 name="mirror-setup",
                 status="skipped",
-                detail="no gitea_token from prior phase",
+                detail="no forgejo_token from prior phase",
             )
         if not self.gh_mirror_token:
             return PhaseResult(
@@ -887,21 +771,21 @@ class Orchestrator:
                 status="partial",
                 detail="GH_MIRROR_TOKEN missing",
             )
-        if self.gitea_user_username and not self.config.gitea_admin_password:
+        if self.forgejo_user_username and not self.config.forgejo_admin_password:
             return PhaseResult(
                 name="mirror-setup",
                 status="partial",
-                detail="GITEA_ADMIN_PASS required for fork-mode mirror",
+                detail="FORGEJO_ADMIN_PASS required for fork-mode mirror",
             )
         local_port = _allocate_free_port()
         try:
-            with ssh.port_forward(local_port, "localhost", 3200) as port:
-                result = _gitea.run_mirror_setup(
+            with ssh.port_forward(local_port, "localhost", 3202) as port:
+                result = _forgejo.run_mirror_setup(
                     base_url=f"http://localhost:{port}",
                     admin_username=self.config.admin_username or "admin",
-                    admin_password=self.config.gitea_admin_password or "",
-                    gitea_token=self.state.gitea_token,
-                    gitea_user_username=self.gitea_user_username,
+                    admin_password=self.config.forgejo_admin_password or "",
+                    forgejo_token=self.state.forgejo_token,
+                    forgejo_user_username=self.forgejo_user_username,
                     gh_mirror_repos=self.gh_mirror_repos,
                     gh_mirror_token=self.gh_mirror_token,
                     workspace_branch=self.workspace_branch,
@@ -912,7 +796,7 @@ class Orchestrator:
                 status="failed",
                 detail=_transport_detail(exc),
             )
-        except _gitea.GiteaError as exc:
+        except _forgejo.ForgejoError as exc:
             return PhaseResult(name="mirror-setup", status="failed", detail=str(exc))
         except Exception as exc:
             return PhaseResult(
@@ -958,7 +842,7 @@ class Orchestrator:
                 project_id=self.project_id,
                 infisical_token=self.infisical_token,
                 infisical_env=self.infisical_env,
-                gitea_token=self.state.gitea_token or "",
+                forgejo_token=self.state.forgejo_token or "",
                 host=self.ssh_host,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
@@ -1034,8 +918,8 @@ class Orchestrator:
 
     def _phase_service_env(self) -> PhaseResult:
         """Render per-service ``stacks/<svc>/.env`` files locally + (when
-        Gitea is enabled) append the Gitea workspace block to the
-        Gitea-integrated stacks.
+        Forgejo is enabled) append the Forgejo workspace block to the
+        Forgejo-integrated stacks.
 
         Local-only — no SSH context needed. Pre-bootstrap phases drop
         the ``ssh`` arg from their signature (caught in PR #532 R1 #2:
@@ -1071,55 +955,55 @@ class Orchestrator:
                 detail=f"unexpected ({type(exc).__name__})",
             )
 
-        # Optionally append the Gitea workspace block. Mirrors the CLI
+        # Optionally append the Forgejo workspace block. Mirrors the CLI
         # handler's `workspace_coords_complete` check exactly — the 5
-        # input coords (repo_owner, repo_name, gitea_user_username,
-        # gitea_user_password, gitea_user_email) must all be non-empty.
-        # The remaining GiteaWorkspaceConfig fields (gitea_repo_url,
+        # input coords (repo_owner, repo_name, forgejo_user_username,
+        # forgejo_user_password, forgejo_user_email) must all be non-empty.
+        # The remaining ForgejoWorkspaceConfig fields (forgejo_repo_url,
         # git_author_name) are derived from these inputs, so they don't
-        # need a separate guard. Otherwise we'd write a broken Gitea
+        # need a separate guard. Otherwise we'd write a broken Forgejo
         # block (empty PASSWORD/AUTHOR fields) that's harder to diagnose
         # than a missing block. Caught in PR #532 R1 #3, comment
         # corrected in R4 #2.
-        gitea_appended_count = 0
-        gitea_user_email_value = self.gitea_user_email or self.bootstrap_env.gitea_user_email
-        # Single source of truth: self.gitea_repo_owner (required
+        forgejo_appended_count = 0
+        forgejo_user_email_value = self.forgejo_user_email or self.bootstrap_env.forgejo_user_email
+        # Single source of truth: self.forgejo_repo_owner (required
         # constructor field). The bootstrap_env mirror exists for the
         # in-script seeder/secret-sync path but should NOT diverge from
         # the orchestrator's own field. Caught in PR #532 R3 #1.
         workspace_coords_complete = all(
             (
-                self.gitea_repo_owner,
+                self.forgejo_repo_owner,
                 self.repo_name,
-                self.gitea_user_username,
-                self.gitea_user_password,
-                gitea_user_email_value,
+                self.forgejo_user_username,
+                self.forgejo_user_password,
+                forgejo_user_email_value,
             ),
         )
-        if "gitea" in self.enabled_services and workspace_coords_complete:
-            gitea_repo_url = f"http://gitea:3000/{self.gitea_repo_owner}/{self.repo_name}.git"
+        if "forgejo" in self.enabled_services and workspace_coords_complete:
+            forgejo_repo_url = f"http://forgejo:3000/{self.forgejo_repo_owner}/{self.repo_name}.git"
             try:
-                cfg = _service_env.GiteaWorkspaceConfig(
-                    gitea_repo_url=gitea_repo_url,
-                    gitea_username=self.gitea_user_username or "",
-                    gitea_password=self.gitea_user_password or "",
-                    git_author_name=self.gitea_user_username or "",
-                    git_author_email=gitea_user_email_value or "",
+                cfg = _service_env.ForgejoWorkspaceConfig(
+                    forgejo_repo_url=forgejo_repo_url,
+                    forgejo_username=self.forgejo_user_username or "",
+                    forgejo_password=self.forgejo_user_password or "",
+                    git_author_name=self.forgejo_user_username or "",
+                    git_author_email=forgejo_user_email_value or "",
                     repo_name=self.repo_name,
                     workspace_branch=self.workspace_branch,
                 )
-                appended = _service_env.append_gitea_workspace_block(
+                appended = _service_env.append_forgejo_workspace_block(
                     cfg,
                     self.enabled_services,
                     stacks_dir=self.project_root / "stacks",
                 )
-                gitea_appended_count = len(appended)
+                forgejo_appended_count = len(appended)
             except OSError as exc:
                 return PhaseResult(
                     name="service-env",
                     status="partial",
                     detail=(
-                        f"rendered={result.rendered} but gitea-block append "
+                        f"rendered={result.rendered} but forgejo-block append "
                         f"failed: {type(exc).__name__}"
                     ),
                 )
@@ -1136,7 +1020,7 @@ class Orchestrator:
                 status="partial",
                 detail=(
                     f"rendered={result.rendered} skipped={result.skipped} "
-                    f"failed={result.failed} gitea_appended={gitea_appended_count}"
+                    f"failed={result.failed} forgejo_appended={forgejo_appended_count}"
                 ),
             )
         return PhaseResult(
@@ -1144,7 +1028,7 @@ class Orchestrator:
             status="ok",
             detail=(
                 f"rendered={result.rendered} skipped={result.skipped} "
-                f"gitea_appended={gitea_appended_count}"
+                f"forgejo_appended={forgejo_appended_count}"
             ),
         )
 
@@ -1398,7 +1282,7 @@ class Orchestrator:
     #
     # Three phases run during ``run_pre_bootstrap``:
     #
-    # 1. _phase_workspace_coords — derives REPO_NAME / GITEA_REPO_OWNER
+    # 1. _phase_workspace_coords — derives REPO_NAME / FORGEJO_REPO_OWNER
     #    / WORKSPACE_BRANCH etc. from raw env via workspace_coords.derive,
     #    dual-writes to state + self.field + bootstrap_env (same pattern
     #    as _phase_infisical_provision).
@@ -1418,8 +1302,8 @@ class Orchestrator:
 
         - ``self.state.*``  — for the CLI's stdout emission
         - ``self.field``    — for downstream phases that gate on the
-          orchestrator field (gitea / seed / kestra / woodpecker / etc.)
-        - ``self.bootstrap_env.gitea_user_email`` — synced so the
+          orchestrator field (forgejo / seed / kestra / woodpecker / etc.)
+        - ``self.bootstrap_env.forgejo_user_email`` — synced so the
           downstream Infisical-bootstrap secret push uses the same
           user-email value the workspace block was rendered against.
 
@@ -1437,9 +1321,9 @@ class Orchestrator:
                 domain=self.domain or self.bootstrap_env.domain or "",
                 admin_username=self.admin_username or self.config.admin_username or "",
                 admin_email=self.bootstrap_env.admin_email or "",
-                gitea_admin_pass=self.gitea_admin_pass or self.config.gitea_admin_password,
-                gitea_user_email=self.gitea_user_email,
-                gitea_user_pass=self.gitea_user_password,
+                forgejo_admin_pass=self.forgejo_admin_pass or self.config.forgejo_admin_password,
+                forgejo_user_email=self.forgejo_user_email,
+                forgejo_user_pass=self.forgejo_user_password,
                 gh_mirror_repos=",".join(self.gh_mirror_repos) if self.gh_mirror_repos else None,
                 gh_mirror_token=self.gh_mirror_token,
             )
@@ -1453,30 +1337,30 @@ class Orchestrator:
 
         # Dual-write: state mirrors (for stdout emission to surviving
         # bash) AND orchestrator constructor fields (for downstream
-        # phases that gate on self.repo_name / self.gitea_repo_owner /
-        # self.workspace_branch / self.gitea_user_*).
+        # phases that gate on self.repo_name / self.forgejo_repo_owner /
+        # self.workspace_branch / self.forgejo_user_*).
         self.state.repo_name = coords.repo_name
-        self.state.gitea_repo_owner = coords.gitea_repo_owner
-        self.state.gitea_repo_url = coords.gitea_repo_url
+        self.state.forgejo_repo_owner = coords.forgejo_repo_owner
+        self.state.forgejo_repo_url = coords.forgejo_repo_url
         self.state.workspace_branch = coords.workspace_branch
-        self.state.gitea_git_user = coords.gitea_git_user
-        self.state.gitea_git_pass = coords.gitea_git_pass
+        self.state.forgejo_git_user = coords.forgejo_git_user
+        self.state.forgejo_git_pass = coords.forgejo_git_pass
         self.state.git_author = coords.git_author
         self.state.git_email = coords.git_email
         self.repo_name = coords.repo_name
-        self.gitea_repo_owner = coords.gitea_repo_owner
+        self.forgejo_repo_owner = coords.forgejo_repo_owner
         self.workspace_branch = coords.workspace_branch
         # PR #533 R1 #3: also dual-write the user-identity constructor
         # fields, since _phase_service_env's workspace-block-append
-        # guard reads self.gitea_user_username / _password / _email.
-        # In admin-fallback mode (no GITEA_USER_EMAIL / _PASS env), the
+        # guard reads self.forgejo_user_username / _password / _email.
+        # In admin-fallback mode (no FORGEJO_USER_EMAIL / _PASS env), the
         # legacy bash filled these from admin coords; the orchestrator
         # must replicate that behavior so the workspace block IS
         # appended. Existing constructor values win — tests can
         # pre-seed alternative identities.
-        self.gitea_user_username = self.gitea_user_username or coords.gitea_git_user or None
-        self.gitea_user_password = self.gitea_user_password or coords.gitea_git_pass or None
-        self.gitea_user_email = self.gitea_user_email or coords.git_email or None
+        self.forgejo_user_username = self.forgejo_user_username or coords.forgejo_git_user or None
+        self.forgejo_user_password = self.forgejo_user_password or coords.forgejo_git_pass or None
+        self.forgejo_user_email = self.forgejo_user_email or coords.git_email or None
         # bootstrap_env mirrors — synced so the downstream Infisical-
         # bootstrap secret push uses the same user identity the
         # workspace block was rendered against. BootstrapEnv is frozen
@@ -1489,12 +1373,12 @@ class Orchestrator:
 
         self.bootstrap_env = _dc_replace(
             self.bootstrap_env,
-            gitea_user_email=self.bootstrap_env.gitea_user_email or coords.git_email or None,
-            gitea_user_username=(
-                self.bootstrap_env.gitea_user_username or coords.gitea_git_user or None
+            forgejo_user_email=self.bootstrap_env.forgejo_user_email or coords.git_email or None,
+            forgejo_user_username=(
+                self.bootstrap_env.forgejo_user_username or coords.forgejo_git_user or None
             ),
-            gitea_repo_owner=(
-                self.bootstrap_env.gitea_repo_owner or coords.gitea_repo_owner or None
+            forgejo_repo_owner=(
+                self.bootstrap_env.forgejo_repo_owner or coords.forgejo_repo_owner or None
             ),
             repo_name=self.bootstrap_env.repo_name or coords.repo_name or None,
         )
@@ -1503,7 +1387,7 @@ class Orchestrator:
             name="workspace-coords",
             status="ok",
             detail=(
-                f"repo={coords.gitea_repo_owner}/{coords.repo_name} "
+                f"repo={coords.forgejo_repo_owner}/{coords.repo_name} "
                 f"branch={coords.workspace_branch}"
             ),
         )
@@ -1860,9 +1744,9 @@ class Orchestrator:
     def _phase_compose_restart(self, ssh: SSHClient) -> PhaseResult:
         """Restart services in ``state.restart_services``.
 
-        Populated by ``_phase_gitea_configure`` after the DB-password sync —
-        services that integrate with Gitea need a restart to pick up the
-        new GITEA_TOKEN they couldn't see at first compose-up.
+        Populated by ``_phase_forgejo_configure`` after the DB-password sync —
+        services that integrate with Forgejo need a restart to pick up the
+        new FORGEJO_TOKEN they couldn't see at first compose-up.
 
         Skipped on empty list (no integrators enabled). Best-effort
         per-service: a single failed restart doesn't abort the deploy
@@ -1903,7 +1787,7 @@ class Orchestrator:
         )
 
     def _phase_kestra_secret_sync(self, ssh: SSHClient) -> PhaseResult:
-        """Sync Infisical secrets + GITEA_TOKEN into Kestra's env.
+        """Sync Infisical secrets + FORGEJO_TOKEN into Kestra's env.
 
         Three steps:
 
@@ -1987,8 +1871,8 @@ class Orchestrator:
                 #     branch entirely — kestra has no migration
                 #     concern.)
                 #   - key_prefix="SECRET_" (Kestra's
-                #     ``{{ secret('GITEA_TOKEN') }}`` looks up env var
-                #     ``SECRET_GITEA_TOKEN``)
+                #     ``{{ secret('FORGEJO_TOKEN') }}`` looks up env var
+                #     ``SECRET_FORGEJO_TOKEN``)
                 #   - use_base64_values=True (Kestra's
                 #     EnvVarSecretProvider expects base64-encoded
                 #     values for the SECRET_<key> form)
@@ -2009,7 +1893,7 @@ class Orchestrator:
                     project_id=self.project_id,
                     infisical_token=self.infisical_token,
                     infisical_env=self.infisical_env,
-                    gitea_token=self.state.gitea_token or "",
+                    forgejo_token=self.state.forgejo_token or "",
                     host=self.ssh_host,
                 )
 
@@ -2101,8 +1985,8 @@ class Orchestrator:
             f"DOMAIN={self.domain or self.bootstrap_env.domain or ''}\n"
             f"WOODPECKER_AGENT_SECRET={self.woodpecker_agent_secret}\n"
             f"WOODPECKER_ADMIN={self.admin_username or self.config.admin_username or 'admin'}\n"
-            f"WOODPECKER_GITEA_CLIENT={client_id}\n"
-            f"WOODPECKER_GITEA_SECRET={client_secret}\n"
+            f"WOODPECKER_FORGEJO_CLIENT={client_id}\n"
+            f"WOODPECKER_FORGEJO_SECRET={client_secret}\n"
         )
         # PR #533 R7 #2: split rsync from docker-compose so the two
         # error paths produce actionable distinct details. Previously
@@ -2160,7 +2044,7 @@ class Orchestrator:
             # compose's own error messages (e.g. when a service env
             # block references a value that fails interpolation).
             # Aligned with the other CalledProcessError handlers in this
-            # file (infisical-bootstrap, gitea-configure, kestra-register,
+            # file (infisical-bootstrap, forgejo-configure, kestra-register,
             # …) which all surface only `type(exc).__name__` + rc and
             # leave the full output to `docker logs woodpecker` on the
             # server.
@@ -2187,7 +2071,7 @@ class Orchestrator:
         return PhaseResult(
             name="woodpecker-apply",
             status="ok",
-            detail="started with Gitea forge",
+            detail="started with Forgejo forge",
         )
 
     def _phase_mirror_seed_rerun(self, ssh: SSHClient) -> PhaseResult:
@@ -2215,11 +2099,11 @@ class Orchestrator:
                 status="skipped",
                 detail="no fork populated by _phase_mirror_setup",
             )
-        if not self.state.gitea_token:
+        if not self.state.forgejo_token:
             return PhaseResult(
                 name="mirror-seed-rerun",
                 status="skipped",
-                detail="no gitea_token",
+                detail="no forgejo_token",
             )
         seeds_root = Path("examples/workspace-seeds")
         if not seeds_root.is_dir():
@@ -2233,7 +2117,7 @@ class Orchestrator:
                 repo_owner=fork_owner,
                 repo_name=fork_name,
                 root=seeds_root,
-                token=self.state.gitea_token,
+                token=self.state.forgejo_token,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
             return PhaseResult(
@@ -2264,11 +2148,11 @@ class Orchestrator:
         # In mirror mode the fork inherited many files from upstream;
         # POST returns 422 for those (existing-already), counted as
         # "skipped" — that's the expected steady-state.
-        # Mutate state.repo_name + state.gitea_repo_owner here so the
+        # Mutate state.repo_name + state.forgejo_repo_owner here so the
         # downstream mirror-finalize phase (and any later observer)
         # sees the user's fork as the canonical workspace target.
         self.state.repo_name = fork_name
-        self.state.gitea_repo_owner = fork_owner
+        self.state.forgejo_repo_owner = fork_owner
         return PhaseResult(
             name="mirror-seed-rerun",
             status="ok",
@@ -2402,7 +2286,7 @@ class Orchestrator:
         rc=1 stdout emission (state) nor into a downstream call to
         :meth:`run_all` whose post-bootstrap phases gate on the fields.
         Caught in PR #532 R1 #4 (state) and R2 #3 (fields). Other state
-        slots (gitea_token / woodpecker_* / fork_*) stay because they're
+        slots (forgejo_token / woodpecker_* / fork_*) stay because they're
         populated by post-bootstrap phases and a re-run would naturally
         re-set them.
 
@@ -2432,25 +2316,25 @@ class Orchestrator:
         # workspace-coords slots: clear BOTH state.* AND self.* so a
         # re-run on the same instance can't carry stale values into
         # the second run's stdout emission. Other state slots
-        # (gitea_token / woodpecker_* / fork_*) reset themselves
+        # (forgejo_token / woodpecker_* / fork_*) reset themselves
         # naturally in run_all.
         self.state.repo_name = None
-        self.state.gitea_repo_owner = None
-        self.state.gitea_repo_url = None
+        self.state.forgejo_repo_owner = None
+        self.state.forgejo_repo_url = None
         self.state.workspace_branch = "main"
-        self.state.gitea_git_user = None
-        self.state.gitea_git_pass = None
+        self.state.forgejo_git_user = None
+        self.state.forgejo_git_pass = None
         self.state.git_author = None
         self.state.git_email = None
         self.repo_name = ""
-        self.gitea_repo_owner = ""
+        self.forgejo_repo_owner = ""
         self.workspace_branch = "main"
         # Phase ordering (order matters; downstream phases gate on
         # state populated by upstream ones):
         #   workspace-coords — derive REPO_NAME etc. (other phases gate
         #                      on these; must run FIRST)
         #   service-env      — writes per-stack .env files locally
-        #                      (consumes workspace-coords for gitea
+        #                      (consumes workspace-coords for forgejo
         #                      block append)
         #   firewall-configure — writes per-stack
         #                        docker-compose.firewall.yml overrides

@@ -3,7 +3,7 @@
 Class-based wrapper around the system ``ssh`` binary that adds
 **port-forwarding** on top of the ``ssh nexus <cmd>`` and
 ``rsync … nexus:…`` patterns. The port-forward capability lets REST
-client modules (Filestash, Gitea, Kestra) talk to services on the
+client modules (Filestash, Forgejo, Kestra) talk to services on the
 nexus server via local ``http://localhost:<port>`` calls instead of
 rendering a server-side bash curl loop — Python ``requests`` calls
 run locally, exceptions surface as exceptions, no token ever crosses

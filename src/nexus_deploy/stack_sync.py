@@ -54,7 +54,7 @@ _REMOTE_STACKS_DIR = "/opt/docker-server/stacks"
 # Path-safety regex (R5 invariant): every service name must match
 # this before we interpolate it into a shell command, an rsync remote
 # spec, or a server-side bash loop. ``[A-Za-z0-9._-]`` is the same
-# allow-list seeder.py uses for repo-path segments and gitea.py uses
+# allow-list seeder.py uses for repo-path segments and forgejo.py uses
 # for URL segments — broad enough for every existing stack name in
 # the repo (jupyter, marimo, seaweedfs-filer, …) but tight enough
 # that no shell metachar, newline, or whitespace can sneak through.

@@ -1,8 +1,8 @@
 """Workspace-repo coordinate derivation.
 
-Derives REPO_NAME / GITEA_REPO_OWNER / GITEA_REPO_URL /
-WORKSPACE_BRANCH / GITEA_GIT_USER / GITEA_GIT_PASS / GIT_AUTHOR /
-GIT_EMAIL from raw inputs (DOMAIN, ADMIN_USERNAME, GITEA_USER_EMAIL,
+Derives REPO_NAME / FORGEJO_REPO_OWNER / FORGEJO_REPO_URL /
+WORKSPACE_BRANCH / FORGEJO_GIT_USER / FORGEJO_GIT_PASS / GIT_AUTHOR /
+GIT_EMAIL from raw inputs (DOMAIN, ADMIN_USERNAME, FORGEJO_USER_EMAIL,
 GH_MIRROR_REPOS, ...).
 
 Three repo-derivation branches:
@@ -12,10 +12,10 @@ Three repo-derivation branches:
 2. **mirror + no_user_email** — admin gets the mirror as
    ``mirror-readonly-<repo>``. Owner = admin.
 3. **no mirror** — admin gets a default repo named
-   ``nexus-<domain-dashed>-gitea``. Owner = admin.
+   ``nexus-<domain-dashed>-workspace``. Owner = admin.
 
 In all three cases the GIT_AUTHOR identity defaults to the user when
-both ``gitea_user_email`` AND ``gitea_user_pass`` are set, otherwise
+both ``forgejo_user_email`` AND ``forgejo_user_pass`` are set, otherwise
 falls back to admin.
 
 In mirror mode (when ``gh_mirror_token`` is also set), the upstream
@@ -64,9 +64,9 @@ class WorkspaceInputs:
     domain: str
     admin_username: str
     admin_email: str
-    gitea_admin_pass: str | None = None
-    gitea_user_email: str | None = None
-    gitea_user_pass: str | None = None
+    forgejo_admin_pass: str | None = None
+    forgejo_user_email: str | None = None
+    forgejo_user_pass: str | None = None
     gh_mirror_repos: str | None = None
     gh_mirror_token: str | None = None
 
@@ -76,9 +76,9 @@ class WorkspaceCoords:
     """Output of :func:`derive` — the 8 derived workspace fields.
 
     These feed both:
-    1. The pre-bootstrap pipeline (service_env's optional Gitea
+    1. The pre-bootstrap pipeline (service_env's optional Forgejo
        workspace block append; firewall-sync is independent).
-    2. The post-bootstrap pipeline (gitea-configure / seed /
+    2. The post-bootstrap pipeline (forgejo-configure / seed /
        kestra-register / woodpecker-oauth / mirror-setup).
 
     Mutable mirrors live on ``OrchestratorState`` so later phases
@@ -88,11 +88,11 @@ class WorkspaceCoords:
     """
 
     repo_name: str
-    gitea_repo_owner: str
-    gitea_repo_url: str
+    forgejo_repo_owner: str
+    forgejo_repo_url: str
     workspace_branch: str
-    gitea_git_user: str
-    gitea_git_pass: str
+    forgejo_git_user: str
+    forgejo_git_pass: str
     git_author: str
     git_email: str
 
@@ -107,7 +107,7 @@ HttpRunner = Callable[[str, str], str]
 def _sanitize_username(username: str) -> str:
     """Replace any non-alphanumeric character with ``_``.
 
-    Used when constructing the per-user fork name from a Gitea
+    Used when constructing the per-user fork name from a Forgejo
     username that may contain dots / hyphens.
     """
     return re.sub(r"[^a-zA-Z0-9]", "_", username)
@@ -223,12 +223,12 @@ def _resolve_default_branch(
 
 def _resolve_workspace_username(inputs: WorkspaceInputs) -> str:
     """User-side username derivation, used both in the per-user fork
-    name and in the GIT_AUTHOR identity. When ``GITEA_USER_EMAIL`` is
+    name and in the GIT_AUTHOR identity. When ``FORGEJO_USER_EMAIL`` is
     set, the username = local-part of the email (``foo@bar`` → ``foo``).
     Otherwise falls back to ``ADMIN_USERNAME``.
     """
-    if inputs.gitea_user_email:
-        return inputs.gitea_user_email.split("@", 1)[0]
+    if inputs.forgejo_user_email:
+        return inputs.forgejo_user_email.split("@", 1)[0]
     return inputs.admin_username
 
 
@@ -237,14 +237,14 @@ def _resolve_repo_coords(
     *,
     workspace_username: str,
 ) -> tuple[str, str, str]:
-    """Return ``(repo_name, gitea_repo_owner, gitea_repo_url)`` for
+    """Return ``(repo_name, forgejo_repo_owner, forgejo_repo_url)`` for
     the current input combination. Three branches:
 
     1. mirror + user_email      → fork in user's namespace
     2. mirror + no_user_email   → admin's read-only mirror
     3. no mirror                → admin's default empty repo
     """
-    if inputs.gh_mirror_repos and inputs.gitea_user_email:
+    if inputs.gh_mirror_repos and inputs.forgejo_user_email:
         # Branch 1: mirror + user → fork
         first_mirror = _parse_first_mirror(inputs.gh_mirror_repos)
         upstream_repo = _basename(first_mirror)
@@ -259,9 +259,9 @@ def _resolve_repo_coords(
         owner = inputs.admin_username
     else:
         # Branch 3: no mirror → default workspace name
-        repo_name = f"nexus-{inputs.domain.replace('.', '-')}-gitea"
+        repo_name = f"nexus-{inputs.domain.replace('.', '-')}-workspace"
         owner = inputs.admin_username
-    repo_url = f"http://gitea:3000/{owner}/{repo_name}.git"
+    repo_url = f"http://forgejo:3000/{owner}/{repo_name}.git"
     return repo_name, owner, repo_url
 
 
@@ -270,28 +270,28 @@ def _resolve_git_identity(
     *,
     workspace_username: str,
 ) -> tuple[str, str, str, str]:
-    """Return ``(gitea_git_user, gitea_git_pass, git_author, git_email)``.
+    """Return ``(forgejo_git_user, forgejo_git_pass, git_author, git_email)``.
 
-    User identity wins when BOTH ``gitea_user_email`` AND
-    ``gitea_user_pass`` are set; otherwise the admin identity. This
-    matches the legacy bash gate: ``[ -n "$GITEA_USER_EMAIL" ] &&
-    [ -n "$GITEA_USER_PASS" ]``.
+    User identity wins when BOTH ``forgejo_user_email`` AND
+    ``forgejo_user_pass`` are set; otherwise the admin identity. This
+    matches the legacy bash gate: ``[ -n "$FORGEJO_USER_EMAIL" ] &&
+    [ -n "$FORGEJO_USER_PASS" ]``.
 
-    On the admin-fallback branch, ``gitea_admin_pass`` may be None —
-    the orchestrator's ``_phase_gitea_configure`` skips with
+    On the admin-fallback branch, ``forgejo_admin_pass`` may be None —
+    the orchestrator's ``_phase_forgejo_configure`` skips with
     ``status='partial'`` in that case (basic-auth would 401), so
     returning an empty string here is fine.
     """
-    if inputs.gitea_user_email and inputs.gitea_user_pass:
+    if inputs.forgejo_user_email and inputs.forgejo_user_pass:
         return (
             workspace_username,
-            inputs.gitea_user_pass,
+            inputs.forgejo_user_pass,
             workspace_username,
-            inputs.gitea_user_email,
+            inputs.forgejo_user_email,
         )
     return (
         inputs.admin_username,
-        inputs.gitea_admin_pass or "",
+        inputs.forgejo_admin_pass or "",
         inputs.admin_username,
         inputs.admin_email,
     )
@@ -327,11 +327,11 @@ def derive(
     )
     return WorkspaceCoords(
         repo_name=repo_name,
-        gitea_repo_owner=repo_owner,
-        gitea_repo_url=repo_url,
+        forgejo_repo_owner=repo_owner,
+        forgejo_repo_url=repo_url,
         workspace_branch=branch,
-        gitea_git_user=git_user,
-        gitea_git_pass=git_pass,
+        forgejo_git_user=git_user,
+        forgejo_git_pass=git_pass,
         git_author=git_author,
         git_email=git_email,
     )

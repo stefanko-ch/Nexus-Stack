@@ -1,6 +1,6 @@
 """Workspace-repo seed-loop.
 
-Walks ``examples/workspace-seeds/`` and POSTs each file to the Gitea
+Walks ``examples/workspace-seeds/`` and POSTs each file to the Forgejo
 Contents API under the ``nexus_seeds/<path>`` prefix in the user's
 workspace repo. Two callers (non-mirror mode → admin-owned repo,
 mirror+user mode → user's fork) hit one CLI invocation parameterised
@@ -8,7 +8,7 @@ by ``--repo <owner>/<name>``.
 
 Server-side curl loop (consistent with :mod:`infisical` +
 :mod:`secret_sync`): the rendered bash runs over rsync'd JSON
-payloads, so the Gitea token transits via a remote ``--config``
+payloads, so the Forgejo token transits via a remote ``--config``
 tmpfile (NOT argv) and never reaches ``ps`` / CI logs / exception
 messages.
 
@@ -43,11 +43,11 @@ from urllib.parse import quote
 
 from nexus_deploy import _remote
 
-# Server-side Gitea endpoint (port 3200, NOT 3000 — Gitea's
+# Server-side Forgejo endpoint (port 3202, NOT 3000 — Forgejo's
 # docker-compose maps the host port to 3200). Hardcoded: this is the
-# convention enforced by the gitea stack's compose file, not a
+# convention enforced by the forgejo stack's compose file, not a
 # per-environment knob.
-_GITEA_BASE_URL = "http://localhost:3200"
+_FORGEJO_BASE_URL = "http://localhost:3202"
 
 # Server-side path where rsync uploads the payload tree and the curl
 # loop reads from. Transient — removed by the EXIT trap. Mirrors
@@ -79,11 +79,11 @@ class SeedFile:
 
     ``repo_path`` is the unencoded path under the prefix
     (``nexus_seeds/kestra/flows/sample.yaml``). ``url_path`` is the
-    per-segment URL-encoded form for the Gitea Contents API URL
+    per-segment URL-encoded form for the Forgejo Contents API URL
     (``nexus_seeds/kestra/flows/sample.yaml`` — no actual encoding
     needed for these chars, but special chars in segment names get
     properly escaped). ``content_b64`` is the file bytes base64-encoded
-    in one line (no MIME-style 76-char wrapping — Gitea's API expects
+    in one line (no MIME-style 76-char wrapping — Forgejo's API expects
     raw base64).
     """
 
@@ -98,7 +98,7 @@ class SeedResult:
     """Counters parsed from the remote ``RESULT`` line.
 
     Mirrors the bash counters one-to-one. ``created`` includes both
-    HTTP 201 (new file) and HTTP 200 (some Gitea versions). ``skipped``
+    HTTP 201 (new file) and HTTP 200 (some Forgejo versions). ``skipped``
     is HTTP 422 (file already exists; user edits persist — #501
     contract). ``failed`` is anything the remote loop saw and could
     not classify as 200/201/422 — transport failures, 401/403 (bad
@@ -212,7 +212,7 @@ def encode_payloads(files: list[SeedFile]) -> dict[str, str]:
 
     JSON shape per file: ``{"url_path", "content", "message"}``. The
     ``url_path`` field is metadata for the curl-loop (it builds the
-    Gitea URL from it); the actual POST body sent to Gitea is just
+    Forgejo URL from it); the actual POST body sent to Forgejo is just
     ``{"content", "message"}`` — extracted via ``jq`` in the rendered
     bash so we don't need to write two files per seed.
     """
@@ -237,7 +237,7 @@ def encode_payloads(files: list[SeedFile]) -> dict[str, str]:
 
 
 def render_remote_loop(*, token: str, repo_owner: str, repo_name: str) -> str:
-    """Render the remote bash that POSTs each seed-NNNN.json to Gitea.
+    """Render the remote bash that POSTs each seed-NNNN.json to Forgejo.
 
     All inputs are shlex-quoted; token reaches the server only via the
     rendered bash (sent via ssh stdin) and lands in a remote
@@ -256,7 +256,7 @@ def render_remote_loop(*, token: str, repo_owner: str, repo_name: str) -> str:
     token_q = shlex.quote(token)
     owner_q = shlex.quote(repo_owner)
     repo_q = shlex.quote(repo_name)
-    base_url_q = shlex.quote(_GITEA_BASE_URL)
+    base_url_q = shlex.quote(_FORGEJO_BASE_URL)
     push_dir_q = shlex.quote(_REMOTE_PUSH_DIR)
 
     # The rendered bash uses curl --config + per-file POST + a

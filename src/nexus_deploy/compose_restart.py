@@ -4,8 +4,8 @@ Server-side ssh-loop ``cd $REMOTE_STACKS_DIR/$SVC && docker compose
 restart`` over a list of service names. Used by two orchestrator
 phases:
 
-* ``_phase_compose_restart`` — post-gitea git-restart of services
-  that integrate with Gitea (consumes ``state.restart_services``)
+* ``_phase_compose_restart`` — post-forgejo git-restart of services
+  that integrate with Forgejo (consumes ``state.restart_services``)
 * ``_phase_mirror_finalize`` — mirror-mode git-restart loop that
   picks up the latest fork content for jupyter / marimo /
   code-server / meltano / prefect

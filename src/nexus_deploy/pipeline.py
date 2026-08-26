@@ -6,7 +6,7 @@ sits above and around them:
 
 1. R2 credentials load + ``os.environ`` injection
 2. ``tofu state list`` pre-flight
-3. config.tfvars parse + Gitea identity derivation
+3. config.tfvars parse + Forgejo identity derivation
 4. Read 6 tofu outputs (secrets, image_versions, enabled_services,
    firewall_rules, ssh_service_token, server_ip)
 5. SSH known_hosts cleanup (``ssh-keygen -R``)
@@ -21,7 +21,7 @@ sits above and around them:
 7. ``s3_restore.restore_from_s3(phase="filesystem")`` — rclone-syncs
    the FS bind-mount trees onto local SSD; fresh-start exits 0
 8. ``setup.ensure_data_dirs`` — chowns the rsync'd trees to
-   container UIDs (1000:1000 for gitea, 70:70 for postgres,
+   container UIDs (1000:1000 for forgejo, 70:70 for postgres,
    999:999 for redis); runs BEFORE compose-up
 9. Docker Hub login (when creds set)
 10. ``setup.setup_wetty_ssh_agent`` (when wetty enabled)
@@ -29,8 +29,8 @@ sits above and around them:
     ``_phase_compose_up``, so containers come up reading the
     seeded bind-mounts
 12. ``s3_restore.restore_from_s3(phase="postgres")`` — ``docker
-    exec pg_restore`` against the now-running gitea-db + dify-db
-13. ``Orchestrator.run_all`` — gitea-configure et al. see the
+    exec pg_restore`` against the now-running forgejo-db + dify-db
+13. ``Orchestrator.run_all`` — forgejo-configure et al. see the
     restored database
 14. Display service URLs from ``tofu output service_urls``
 
@@ -281,7 +281,7 @@ def run_pipeline(
         raise PipelineError(
             f"{tfvars_path} is missing a non-empty 'domain' value",
         )
-    identity = _tfvars.derive_gitea_identity(tfvars_config)
+    identity = _tfvars.derive_forgejo_identity(tfvars_config)
 
     # 4. Read tofu outputs. Required ones use no default → raise on
     #    missing. Optional ones default to safe empty values.
@@ -367,18 +367,18 @@ def run_pipeline(
         _setup.ensure_rclone(ssh)
 
         # RFC 0001 cutover wire-up — split into two halves because
-        # pg_restore needs the gitea-db / dify-db containers running
+        # pg_restore needs the forgejo-db / dify-db containers running
         # (``docker exec`` target), while the filesystem rsync MUST
         # land BEFORE compose-up (the containers come up reading
         # the seeded bind-mounts).
         #
         # Halve 1 (here, pre-compose): pull only the filesystem
-        # trees (gitea repos/lfs, dify storage/weaviate/plugins).
+        # trees (forgejo repos/lfs, dify storage/weaviate/plugins).
         # On a fresh-start the script short-circuits with rc=0; on
         # an existing snapshot rclone-syncs the trees onto local SSD.
         s3_fs_result = _s3_restore.restore_from_s3(ssh, phase="filesystem")
         # rclone writes restored files as the SSH user (root), but
-        # gitea + postgres containers expect their container UIDs
+        # forgejo + postgres containers expect their container UIDs
         # on the bind-mount sources. Idempotent — fine to run on
         # an empty fresh-start tree too. Must run AFTER the
         # filesystem rsync (so chown -R sees the rsync'd files) and
@@ -410,13 +410,13 @@ def run_pipeline(
             _setup.setup_wetty_ssh_agent(ssh)
 
         # Build the BootstrapEnv + Orchestrator. workspace-coords
-        # phase fills repo_name / gitea_repo_owner / etc. inside
+        # phase fills repo_name / forgejo_repo_owner / etc. inside
         # run_pre_bootstrap; here we pre-populate the inputs it needs.
         bootstrap_env = BootstrapEnv(
             domain=tfvars_config.domain,
             admin_email=identity.admin_email,
-            gitea_user_email=identity.gitea_user_email or None,
-            gitea_user_username=identity.gitea_user_username or None,
+            forgejo_user_email=identity.forgejo_user_email or None,
+            forgejo_user_username=identity.forgejo_user_username or None,
             om_principal_domain=identity.om_principal_domain or None,
             ssh_private_key_base64=_b64_encode_ssh_key(options.ssh_private_key_content),
             subdomain_separator=tfvars_config.subdomain_separator,
@@ -436,11 +436,11 @@ def run_pipeline(
             domain=tfvars_config.domain,
             admin_username=config.admin_username or "",
             user_email=tfvars_config.user_email_raw,
-            gitea_admin_pass=config.gitea_admin_password,
+            forgejo_admin_pass=config.forgejo_admin_password,
             admin_password_infisical=config.infisical_admin_password,
-            gitea_user_email=identity.gitea_user_email or None,
-            gitea_user_username=identity.gitea_user_username or None,
-            gitea_user_password=config.gitea_user_password,
+            forgejo_user_email=identity.forgejo_user_email or None,
+            forgejo_user_username=identity.forgejo_user_username or None,
+            forgejo_user_password=config.forgejo_user_password,
             firewall_json=json.dumps(firewall_rules),
             image_versions_json=json.dumps(image_versions),
             gh_mirror_token=options.gh_mirror_token,
@@ -459,11 +459,11 @@ def run_pipeline(
 
         # Halve 2 of RFC 0001 restore: pg_restore now that
         # compose-up has run (last phase of run_pre_bootstrap),
-        # so gitea-db and dify-db containers are up + accepting
+        # so forgejo-db and dify-db containers are up + accepting
         # ``docker exec``. Must run BEFORE ``run_all`` because
-        # the gitea-configure phase later inspects/mutates the
-        # gitea database — restored snapshot has to be in place
-        # first or gitea-configure would write into a soon-to-be-
+        # the forgejo-configure phase later inspects/mutates the
+        # forgejo database — restored snapshot has to be in place
+        # first or forgejo-configure would write into a soon-to-be-
         # clobbered database. Fresh-start short-circuits at rc=0.
         s3_pg_result = _s3_restore.restore_from_s3(ssh, phase="postgres")
         if isinstance(s3_pg_result, _s3_restore.S3RestoreApplied):

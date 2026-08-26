@@ -23,7 +23,7 @@ R4. ``docker ps`` verification — a container that ``compose up``
 R5. Virtual-service deduplication: a parent stack started for one
     virtual service is NOT started a second time when another
     virtual service from the same parent appears.
-R6. Deferred services skipped (woodpecker — depends on Gitea OAuth
+R6. Deferred services skipped (woodpecker — depends on Forgejo OAuth
     credentials, started by the post-bootstrap pipeline).
 R7. ``set -a`` + ``source /opt/docker-server/stacks/.env`` exports
     image-version pins to the compose-up environment.

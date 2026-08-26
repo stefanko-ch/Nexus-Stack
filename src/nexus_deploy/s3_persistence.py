@@ -77,7 +77,7 @@ Design choices for v1.0 (see RFC 0001 in
 * **Bucket per stack** — one R2 bucket per ``<class>-<user>``
   slug. Easier blast-radius isolation than ``<bucket>/<stack>/...``
   prefixes.
-* **rsync (rclone) for everything in v1.0** — Gitea LFS and Dify
+* **rsync (rclone) for everything in v1.0** — Forgejo LFS and Dify
   storage have native S3 backends but that's deferred to v1.1.
   v1.0 keeps the docker-compose layout untouched and drives
   persistence purely via rclone sync of the bind-mount directory.
@@ -136,7 +136,7 @@ _SECRET_KEY = re.compile(r"^[A-Za-z0-9+/=_-]+$")
 # time, not handled with quoting acrobatics.
 #
 # Note: this charset **includes hyphens** because real role names in
-# the project use them (``nexus-gitea`` in stacks/gitea/docker-
+# the project use them (``nexus-forgejo`` in stacks/forgejo/docker-
 # compose.yml, ``nexus-dify`` in stacks/dify/docker-compose.yml).
 # Hyphens are valid inside double-quoted SQL identifiers but invalid
 # unquoted, so :func:`_quote_sql_ident` below double-quotes the
@@ -260,7 +260,7 @@ class SnapshotManifest:
     without breaking forward-compat — the restore-side reads
     ``version`` and dispatches accordingly. For v1.0 we keep one
     flat shape covering the four components we care about today
-    (Gitea repos+lfs+postgres, Dify storage+postgres+weaviate).
+    (Forgejo repos+lfs+postgres, Dify storage+postgres+weaviate).
     """
 
     version: int = 1
@@ -373,7 +373,7 @@ RCLONE_PROFILE = "cloudflare-r2"
 def _quote_sql_ident(name: str) -> str:
     """Double-quote a Postgres identifier for safe SQL interpolation.
 
-    Real role names in the project use hyphens (``nexus-gitea``,
+    Real role names in the project use hyphens (``nexus-forgejo``,
     ``nexus-dify``) — hyphens are illegal inside *unquoted* SQL
     identifiers but valid inside double-quoted ones. Always
     emitting the quoted form means the rendered SQL works for
@@ -424,7 +424,7 @@ class PostgresDumpTarget:
     """One Postgres database to dump on teardown / restore on spinup.
 
     ``container`` is the docker-compose service name (e.g.
-    ``gitea-db``); ``database`` is the PG database name (often the
+    ``forgejo-db``); ``database`` is the PG database name (often the
     same as ``user``); ``user`` is the role used for pg_dump and
     pg_restore. We pass these in (rather than infer them) so the
     same module supports any new stateful stack — the caller in
@@ -916,7 +916,7 @@ def render_restore_script(
        "<user>";`` → ``gunzip -c <db>.dump.gz | pg_restore -U
        <user> -d <db> --no-owner --no-acl``. SQL identifiers are
        always double-quoted (real role names use hyphens, e.g.
-       ``nexus-gitea``, which are invalid as unquoted PG idents).
+       ``nexus-forgejo``, which are invalid as unquoted PG idents).
        The container is assumed to already be running
        (compose-up ran first).
 
@@ -930,7 +930,7 @@ def render_restore_script(
 
     The ``phase`` parameter splits the restore for callers that
     can't run both halves in one shot (the spinup pipeline can't —
-    ``docker exec pg_restore`` needs the gitea-db / dify-db
+    ``docker exec pg_restore`` needs the forgejo-db / dify-db
     containers running, which only happens after compose-up,
     while the filesystem rsync MUST happen before compose-up so
     the containers come up with the right bind-mount data):
@@ -1078,7 +1078,7 @@ def render_restore_script(
             db_cli = shlex.quote(pg.database)
             user_cli = shlex.quote(pg.user)
             # SQL identifiers — must be DOUBLE-QUOTED in the rendered
-            # SQL because real role names use hyphens (``nexus-gitea``,
+            # SQL because real role names use hyphens (``nexus-forgejo``,
             # ``nexus-dify``) which are invalid as unquoted PG
             # identifiers. ``_quote_sql_ident`` handles the doubling
             # of any literal ``"`` in the value (defensive — values
@@ -1104,7 +1104,7 @@ def render_restore_script(
             #     guard, ``docker exec dify-db psql`` fails with
             #     "No such container" rc=1 and aborts restore.
             # Either case → skip with an explicit log line; the
-            # gitea-only restore path still proceeds normally.
+            # forgejo-only restore path still proceeds normally.
             lines.append(f"if [ ! -f {dump_file} ]; then")
             lines.append(
                 f'  echo "  (skip: no dump for {pg.database} — stack not snapshotted)"',
