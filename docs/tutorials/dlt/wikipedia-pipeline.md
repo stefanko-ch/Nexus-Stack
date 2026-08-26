@@ -11,7 +11,7 @@ This tutorial builds a complete dlt pipeline from scratch. You'll fetch monthly 
 ## Prerequisites
 
 - [Setup complete](./setup.md) — virtual environment active, dlt installed, Postgres credentials in `.dlt/secrets.toml`
-- `code-server` terminal open, working directory `~/nexus-<your-domain>-gitea/dlt`
+- `code-server` terminal open, working directory `~/nexus-<your-domain>-workspace/dlt`
 
 ## psql availability
 

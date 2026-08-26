@@ -6,13 +6,13 @@ Sample code that ships with Nexus-Stack and lands automatically in every freshly
 
 | Subtree | Purpose | Auto-seeded? |
 |---|---|---|
-| [`workspace-seeds/`](./workspace-seeds/) | Files that get committed into the user's Gitea workspace repo on every spin-up | **Yes** — copied 1:1 by `scripts/deploy.sh` after the workspace repo is created |
+| [`workspace-seeds/`](./workspace-seeds/) | Files that get committed into the user's Forgejo workspace repo on every spin-up | **Yes** — copied 1:1 by `scripts/deploy.sh` after the workspace repo is created |
 
 For now there is only `workspace-seeds/`. If we ever ship reference material that is *not* meant to land in the workspace repo (e.g. contributor recipes for adding a new stack), it gets a sibling directory like `examples/contributing/` and an explicit "**not** auto-seeded" note.
 
 ## How `workspace-seeds/` maps to the workspace repo
 
-The directory layout under `workspace-seeds/` mirrors the **`nexus_seeds/`** subtree of the workspace Gitea repo. Every path you have under `workspace-seeds/<...>` lands at `nexus_seeds/<...>` in the workspace repo (the prefix added in #501 to keep Nexus-Stack-managed files visually separated from user-managed content at the repo root):
+The directory layout under `workspace-seeds/` mirrors the **`nexus_seeds/`** subtree of the workspace Forgejo repo. Every path you have under `workspace-seeds/<...>` lands at `nexus_seeds/<...>` in the workspace repo (the prefix added in #501 to keep Nexus-Stack-managed files visually separated from user-managed content at the repo root):
 
 Source tree under `examples/workspace-seeds/`:
 
@@ -40,10 +40,10 @@ examples/workspace-seeds/
 └── sql/                            (when added — DuckDB, Trino, ClickHouse)
 ```
 
-Mapping: every file `examples/workspace-seeds/<path>` is seeded to `nexus_seeds/<path>` in the workspace Gitea repo (`nexus-<slug>-gitea/nexus_seeds/<path>`). For example:
+Mapping: every file `examples/workspace-seeds/<path>` is seeded to `nexus_seeds/<path>` in the workspace Forgejo repo (`nexus-<slug>-workspace/nexus_seeds/<path>`). For example:
 
-- `examples/workspace-seeds/kestra/flows/r2-taxi-pipeline.yaml` → `nexus-<slug>-gitea/nexus_seeds/kestra/flows/r2-taxi-pipeline.yaml`
-- `examples/workspace-seeds/notebooks/foo.ipynb` → `nexus-<slug>-gitea/nexus_seeds/notebooks/foo.ipynb`
+- `examples/workspace-seeds/kestra/flows/r2-taxi-pipeline.yaml` → `nexus-<slug>-workspace/nexus_seeds/kestra/flows/r2-taxi-pipeline.yaml`
+- `examples/workspace-seeds/notebooks/foo.ipynb` → `nexus-<slug>-workspace/nexus_seeds/notebooks/foo.ipynb`
 
 The `nexus_seeds/` prefix keeps Nexus-Stack-managed files visually separated from the user's own course material at the workspace-repo root (introduced in #501; pre-existing repos that still have files at the root level continue to work but those files are orphaned — see migration notes below).
 
@@ -53,7 +53,7 @@ This means any file you drop under `workspace-seeds/<dir>/<name>` will appear in
 
 ### Migration note for pre-#501 workspace repos
 
-Workspace repos created before #501 was merged have seed files at the repo root (`kestra/`, `marimo/`). Those root-level files are NOT auto-deleted on upgrade — `build_folder` (the Gitea seed pusher) is create-only and the migration would risk overwriting user edits. After the upgrade:
+Workspace repos created before #501 was merged have seed files at the repo root (`kestra/`, `marimo/`). Those root-level files are NOT auto-deleted on upgrade — `build_folder` (the Forgejo seed pusher) is create-only and the migration would risk overwriting user edits. After the upgrade:
 
 - The new seeds appear at `nexus_seeds/<dir>/<file>` (e.g. `nexus_seeds/kestra/flows/r2-taxi-pipeline.yaml`).
 - The old root-level copies become orphaned: Kestra's `system.flow-sync` only scans `nexus_seeds/kestra/flows/` now, and notebook stacks should be updated to look under `nexus_seeds/marimo/` etc.
@@ -83,7 +83,7 @@ If a new stack needs its own per-stack folder, add it under `workspace-seeds/<st
 
 ## How seeding works
 
-`scripts/deploy.sh`, after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Gitea API (`http://localhost:3200/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Gitea admin in the default workspace-repo case, or the user's Gitea username in the GH_MIRROR_REPOS+user-fork case (deploy.sh resolves this via `$GITEA_REPO_OWNER`, set per-mode at the top of the script).
+`scripts/deploy.sh`, after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3200/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (deploy.sh resolves this via `$FORGEJO_REPO_OWNER`, set per-mode at the top of the script).
 
 - HTTP **201/200** → file created. Counted as `SEEDED`.
 - HTTP **422** → file already exists. Counted as `SKIPPED`. **Existing files are never overwritten** — user edits persist across re-deploys.
@@ -110,7 +110,7 @@ If you genuinely need a system-level scheduled flow (e.g. a periodic data refres
 
 ### 2. Reference Infisical-managed secrets only via `{{ secret('NAME') }}`
 
-`scripts/deploy.sh` syncs every Infisical secret into Kestra on each spin-up: the values are base64-encoded and written as `SECRET_<NAME>=<base64>` env-var entries into a delimited block in `stacks/kestra/.env` (search the script for `BEGIN nexus-secret-sync`), then Kestra is `--force-recreate`d so its `EnvVarSecretProvider` picks them up at startup. Reference them in flows as `{{ secret('R2_ACCESS_KEY') }}`, `{{ secret('GITEA_TOKEN') }}`, etc. Never hardcode credentials in seed files — this directory is public on GitHub.
+`scripts/deploy.sh` syncs every Infisical secret into Kestra on each spin-up: the values are base64-encoded and written as `SECRET_<NAME>=<base64>` env-var entries into a delimited block in `stacks/kestra/.env` (search the script for `BEGIN nexus-secret-sync`), then Kestra is `--force-recreate`d so its `EnvVarSecretProvider` picks them up at startup. Reference them in flows as `{{ secret('R2_ACCESS_KEY') }}`, `{{ secret('FORGEJO_TOKEN') }}`, etc. Never hardcode credentials in seed files — this directory is public on GitHub.
 
 ### 3. Idempotent if executed multiple times
 
@@ -130,6 +130,6 @@ Use kebab-case file names that convey what the example does at a glance: `r2-tax
 
 ## What this directory is *not*
 
-- **Not a place for one-off experiments.** Anything here ships to every user forever (until they delete it). Use a personal branch or your own Gitea repo for throwaway experiments.
+- **Not a place for one-off experiments.** Anything here ships to every user forever (until they delete it). Use a personal branch or your own Forgejo repo for throwaway experiments.
 - **Not a substitute for documentation.** The companion docs at `docs/tutorials/` explain *why* and *how*; the examples are *what* you actually run. Keep both in sync when you add either.
 - **Not a place for production-style infrastructure flows.** Those live in `deploy.sh` (registered directly) or in a future `stacks/` extension.

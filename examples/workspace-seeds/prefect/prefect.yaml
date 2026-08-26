@@ -1,7 +1,7 @@
 # Prefect deployment manifest — seeded by Nexus-Stack.
 #
 # After seeding this file lands at `nexus_seeds/prefect/prefect.yaml`
-# in the user's Gitea workspace repo (the `nexus_seeds/` prefix
+# in the user's Forgejo workspace repo (the `nexus_seeds/` prefix
 # segregates Nexus-managed files from user-authored content; see
 # examples/README.md). To deploy this manifest:
 #   - From a local checkout of the workspace repo (recommended):
@@ -22,7 +22,7 @@
 # already-registered deployment.
 #
 # `pull:` runs at flow-RUN time (not deploy time) and is what gives us
-# the "edit in Gitea, hit Run, done" loop without needing a stack
+# the "edit in Forgejo, hit Run, done" loop without needing a stack
 # re-spin. Two steps:
 #   1. git_clone — re-clones the workspace repo into a fresh tmpdir on
 #      every run so the worker always has the latest code. After the
@@ -48,7 +48,7 @@ prefect-version: "3"
 
 pull:
   - prefect.deployments.steps.git_clone:
-      repository: "{{ $GITEA_REPO_URL }}"
+      repository: "{{ $FORGEJO_REPO_URL }}"
       # Branch name comes from the WORKSPACE_BRANCH env var that
       # deploy.sh injects into stacks/prefect/.env (resolved from the
       # mirrored upstream's default branch — see scripts/deploy.sh's
@@ -58,7 +58,7 @@ pull:
       # a non-existent ref. The Pebble `default('main')` keeps the
       # legacy behavior on stacks where the var isn't yet set.
       branch: "{{ $WORKSPACE_BRANCH | default('main') }}"
-      access_token: "{{ $GITEA_PASSWORD }}"
+      access_token: "{{ $FORGEJO_PASSWORD }}"
   - prefect.deployments.steps.pip_install_requirements:
       # Path is relative to the cloned repo root, NOT to this
       # prefect.yaml's location. Seeds land under nexus_seeds/.
@@ -80,9 +80,9 @@ deployments:
       side-by-side without overwriting each other's R2 output).
 
       Edit nexus_seeds/prefect/flows/nyc_green_taxi_pipeline.py in
-      your Gitea workspace repo (it's seeded under the nexus_seeds/
+      your Forgejo workspace repo (it's seeded under the nexus_seeds/
       prefix, not at the repo root), push, and re-run the deployment
-      — the worker re-clones from Gitea via the `pull:` step above
+      — the worker re-clones from Forgejo via the `pull:` step above
       on every run.
 
       UPGRADE NOTE for existing workspaces (two distinct clones to

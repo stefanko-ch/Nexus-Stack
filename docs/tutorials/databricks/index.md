@@ -17,4 +17,4 @@ Setup steps that belong on the Nexus side (saving the workspace host + token, sy
 ## What's not in this category
 
 - **Spark Structured Streaming from Redpanda → Delta** — lives in [Spark Structured Streaming](/docs/tutorials/spark/), because those tutorials are Spark-mechanics-first with Databricks as the execution environment. Come here for Databricks-specific connections; go there for Spark query patterns.
-- **Git access to Nexus Gitea from Databricks Repos** — see [stacks/git-proxy](/docs/stacks/git-proxy/) for the HTTPS proxy setup.
+- **Git access to Nexus Forgejo from Databricks Repos** — see [stacks/git-proxy](/docs/stacks/git-proxy/) for the HTTPS proxy setup.

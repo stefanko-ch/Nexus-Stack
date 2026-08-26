@@ -37,11 +37,11 @@ Dozzle is a tiny web UI that streams `docker logs` for every running container l
 
 - **"Why did metabase just restart?"** Old: `ssh nexus && docker logs metabase --tail 200`. New: open Dozzle, click `metabase`, scroll to the most recent stack trace.
 - **"Is the spin-up workflow done?"** Old: `ssh nexus && docker ps -a` and scan for restart-loops. New: open Dozzle, scan the container sidebar — restarting containers are highlighted.
-- **Multi-container debugging during a deploy:** open Dozzle in two browser tabs, one tailing `gitea`, one tailing `kestra-postgres`, watch them come up in order during a spin-up.
+- **Multi-container debugging during a deploy:** open Dozzle in two browser tabs, one tailing `forgejo`, one tailing `kestra-postgres`, watch them come up in order during a spin-up.
 
 ### Auth model
 
-Dozzle has its own basic-auth and OIDC modes, but we disable them (`DOZZLE_NO_AUTH=true`) and rely on **Cloudflare Access (email OTP)** at the edge — same model as Grafana, Gitea, Infisical, every other admin UI in Nexus-Stack. CF Access in front + no second-layer auth in the container avoids double-prompting and a redundant password to manage in Infisical.
+Dozzle has its own basic-auth and OIDC modes, but we disable them (`DOZZLE_NO_AUTH=true`) and rely on **Cloudflare Access (email OTP)** at the edge — same model as Grafana, Forgejo, Infisical, every other admin UI in Nexus-Stack. CF Access in front + no second-layer auth in the container avoids double-prompting and a redundant password to manage in Infisical.
 
 ### Security note
 

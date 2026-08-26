@@ -1,5 +1,5 @@
 # Placeholder so the `kestra/workflows/` directory exists in every
-# user's workspace Gitea repo from the first deploy.
+# user's workspace Forgejo repo from the first deploy.
 #
 # Why this file is here:
 # `system.git-sync` (the Kestra flow registered by deploy.sh) pulls

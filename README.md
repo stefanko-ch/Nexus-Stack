@@ -202,7 +202,7 @@ After deployment you'll have:
 | **pg_ducklake** | PostgreSQL with DuckLake extension - SQL-native lakehouse with S3 storage | [pgducklake.select](https://pgducklake.select) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
 | **Planka** | Open-source kanban board (Trello alternative) with real-time multi-user collaboration | [planka.app](https://planka.app) |
-| **Portainer** | Always-on Docker dashboard — first stop for inspecting a misbehaving container (logs, state, restart). Auto-deployed alongside Gitea/Grafana/Infisical | [portainer.io](https://www.portainer.io) |
+| **Portainer** | Always-on Docker dashboard — first stop for inspecting a misbehaving container (logs, state, restart). Auto-deployed alongside Forgejo/Grafana/Infisical | [portainer.io](https://www.portainer.io) |
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included | [postgrest.org](https://postgrest.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
@@ -252,7 +252,7 @@ Manage your Nexus-Stack infrastructure via web interface at `https://control.YOU
 
 **Pre-select services during Initial Setup:**
 ```bash
-# Core services (Forgejo, Gitea, Grafana, Infisical, Portainer) are always enabled —
+# Core services (Forgejo, Grafana, Infisical, Portainer) are always enabled —
 # pass any additional services you want active on the first spin-up.
 gh workflow run initial-setup.yaml -f enabled_services="n8n,kestra"
 ```

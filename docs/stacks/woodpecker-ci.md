@@ -13,7 +13,7 @@ Woodpecker CI is a simple, container-native continuous integration engine forked
 **Features:**
 - **Pipeline-as-code** - Define CI/CD pipelines in `.woodpecker.yml` files alongside your code
 - **Docker-native** - Each pipeline step runs in its own container
-- **Multi-forge support** - Integrates with GitHub, Gitea, GitLab, Bitbucket, and Forgejo
+- **Multi-forge support** - Integrates with GitHub, Forgejo, GitLab, Bitbucket, and Forgejo
 - **Lightweight** - Minimal resource usage compared to Jenkins or GitLab CI
 - **Matrix builds** - Run pipeline variants across multiple configurations
 - **Secrets management** - Built-in secret storage for pipeline credentials
@@ -34,10 +34,10 @@ Woodpecker CI is a simple, container-native continuous integration engine forked
 | `woodpecker-server` | `woodpeckerci/woodpecker-server:v3.13.0` | Web UI, API, and pipeline coordination |
 | `woodpecker-agent` | `woodpeckerci/woodpecker-agent:v3.13.0` | Pipeline executor (runs Docker containers) |
 
-**Authentication (auto-configured via Gitea):**
-Woodpecker uses OAuth from Gitea for authentication. There is no built-in user/password system. The deploy script automatically creates a Gitea OAuth application and configures Woodpecker with the credentials. Log in via your Gitea account.
+**Authentication (auto-configured via Forgejo):**
+Woodpecker uses OAuth from Forgejo for authentication. There is no built-in user/password system. The deploy script automatically creates a Forgejo OAuth application and configures Woodpecker with the credentials. Log in via your Forgejo account.
 
-> **Dependency:** Woodpecker requires Gitea. If Woodpecker is enabled without Gitea, Gitea is auto-enabled during deployment.
+> **Dependency:** Woodpecker requires Forgejo. If Woodpecker is enabled without Forgejo, Forgejo is auto-enabled during deployment.
 
 **Data persistence:**
 Woodpecker uses SQLite by default. The database is stored in the `woodpecker-server-data` Docker volume on the Hetzner persistent volume, ensuring data survives teardown and spin-up.

@@ -26,9 +26,9 @@ CloudFront — same source the Kestra ``r2-taxi-pipeline`` and Prefect
 ``nyc-green-taxi-pipeline`` seeds use, but DuckDB streams the parquet
 columns it needs over HTTP without ever materializing a local file.
 
-This file was seeded into your Gitea workspace repo from
+This file was seeded into your Forgejo workspace repo from
 ``nexus-stack/examples/workspace-seeds/marimo/Getting_Started_DuckDB.py``.
-Edit it in Gitea or directly in Marimo — your changes persist across
+Edit it in Forgejo or directly in Marimo — your changes persist across
 spin-ups (seeding only adds new files, never overwrites).
 """
 

@@ -12,10 +12,10 @@ description: |
        endpoint — no compute cluster, no Spark, no warehouse needed.
     3. Log aggregate stats from the result.
 
-  This file was seeded into your Gitea workspace repo at
+  This file was seeded into your Forgejo workspace repo at
   `nexus_seeds/kestra/flows/r2-taxi-pipeline.yaml` (from the
   Nexus-Stack source `examples/workspace-seeds/kestra/flows/`)
-  during Initial Setup. Edit the file in Gitea — Kestra picks up the
+  during Initial Setup. Edit the file in Forgejo — Kestra picks up the
   change within 15 minutes via `system.flow-sync` (which scans
   `nexus_seeds/kestra/flows/`). Subsequent spin-ups will leave your
   edits untouched (seeding only adds new files, it never overwrites).

@@ -105,7 +105,7 @@ Do not add AI-tool advertising or "Generated with …" footers to commit message
 
 ## 9. Seeded code examples — no schedule / cron triggers
 
-Files under `examples/workspace-seeds/` are auto-seeded into every user's Gitea workspace repo on spin-up. **Flows in `examples/workspace-seeds/kestra/flows/` (and any other Kestra YAML elsewhere under `workspace-seeds/kestra/`) must not declare schedule / cron triggers.**
+Files under `examples/workspace-seeds/` are auto-seeded into every user's Forgejo workspace repo on spin-up. **Flows in `examples/workspace-seeds/kestra/flows/` (and any other Kestra YAML elsewhere under `workspace-seeds/kestra/`) must not declare schedule / cron triggers.**
 
 A `triggers:` block of type `io.kestra.plugin.core.trigger.Schedule` (or the legacy `io.kestra.core.models.triggers.types.Schedule`) inside a seeded flow file is a hard issue — flag it. Reason: a seed file lands on every user stack, so a cron trigger fires N times in parallel for an N-user cohort, multiplying load on external APIs (CloudFront, Databricks Free-Edition quota), R2 egress, and Kestra container CPU. Examples are teaching artifacts to be triggered manually; cron belongs to platform-internal flows registered directly by `scripts/deploy.sh` via the Kestra API (e.g. `system.flow-sync`), which live outside `workspace-seeds/`.
 

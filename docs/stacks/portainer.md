@@ -8,7 +8,7 @@ title: "Portainer"
 
 **Always-on Docker dashboard — first stop for diagnosing a misbehaving container**
 
-Portainer is a **core service** in Nexus-Stack: it's auto-deployed alongside Gitea, Grafana, and Infisical, and the Control Plane Stacks page does not let you disable it. The reason: when something goes wrong on a deployed stack — container in restart-loop, OOM-killed, image pull failure, port collision — Portainer is the operator's first stop. Requiring an opt-in step before you can see *why* a container won't start would be the wrong design.
+Portainer is a **core service** in Nexus-Stack: it's auto-deployed alongside Forgejo, Grafana, and Infisical, and the Control Plane Stacks page does not let you disable it. The reason: when something goes wrong on a deployed stack — container in restart-loop, OOM-killed, image pull failure, port collision — Portainer is the operator's first stop. Requiring an opt-in step before you can see *why* a container won't start would be the wrong design.
 
 What you get out of the box:
 - Container view (state, restart, logs, exec into a shell, resource usage)

@@ -26,9 +26,9 @@ who reaches the API.
 No extra pip installs needed. The notebook uses `urllib.request` +
 `json` from the stdlib so it works on the un-augmented Marimo image.
 
-This file was seeded into your Gitea workspace repo from
+This file was seeded into your Forgejo workspace repo from
 ``nexus-stack/examples/workspace-seeds/marimo/Getting_Started_PostgREST.py``.
-Edit it in Gitea or directly in Marimo — your changes persist across
+Edit it in Forgejo or directly in Marimo — your changes persist across
 spin-ups (seeding only adds new files, never overwrites).
 """
 
@@ -287,7 +287,7 @@ def _(mo):
           deployments. See the [PostgREST stack docs](https://nexus-stack.ch/docs/stacks/postgrest/#production-hardening--replace-the-superuser-anon-role)
           for the SQL recipe to switch to a least-privilege `web_anon` role.
           (This link points at the published Nexus-Stack docs site, not the
-          workspace repo — the seeded notebook lives in your Gitea workspace
+          workspace repo — the seeded notebook lives in your Forgejo workspace
           but the `docs/` tree only exists in the upstream Nexus-Stack repo.)
         - **Mint JWTs for write paths.** Once you have separate roles, elevate
           past anon by sending `Authorization: Bearer <token>` where the JWT's

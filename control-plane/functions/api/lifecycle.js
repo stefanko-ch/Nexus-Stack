@@ -7,7 +7,7 @@
 //             spin-up. Fresh OS and freshly pulled images every time, so
 //             nothing drifts and `:latest` stacks stay current. Costs a
 //             few minutes per spin-up, and anything not covered by the
-//             R2 persistence layer is gone — that layer protects Gitea,
+//             R2 persistence layer is gone — that layer protects Forgejo,
 //             Dify, HedgeDoc, Planka and Metabase by name, so a stack's
 //             own Postgres tables, Grafana dashboards, Kestra run
 //             history and uncommitted notebooks are not included.
@@ -49,7 +49,7 @@ const MODE_INFO = {
   rebuild: {
     label: 'Rebuild',
     summary: 'Destroy and rebuild from a clean Ubuntu image every time.',
-    keeps: 'Only what the R2 layer backs up: Gitea, Dify, HedgeDoc, Planka, Metabase.',
+    keeps: 'Only what the R2 layer backs up: Forgejo, Dify, HedgeDoc, Planka, Metabase.',
     loses: 'Everything else — your own Postgres tables, Grafana dashboards, Kestra run history, uncommitted notebooks.',
     images: 'Always freshly pulled, so `:latest` stacks stay current.',
   },

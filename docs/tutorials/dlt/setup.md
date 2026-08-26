@@ -18,11 +18,11 @@ Before writing any pipeline, you need a working Python environment inside code-s
 All dlt tutorials live inside your workspace repo so your scripts survive container restarts and teardowns. Open a terminal in code-server and run:
 
 ```bash
-cd ~/nexus-<your-domain>-gitea
+cd ~/nexus-<your-domain>-workspace
 mkdir dlt && cd dlt
 ```
 
-Replace `nexus-<your-domain>-gitea` with your actual repo name — it follows the pattern `nexus-<domain-with-hyphens>-gitea`. For a domain `odeslab.com` it would be `nexus-odeslab-com-gitea`.
+Replace `nexus-<your-domain>-workspace` with your actual repo name — it follows the pattern `nexus-<domain-with-hyphens>-workspace`. For a domain `odeslab.com` it would be `nexus-odeslab-com-workspace`.
 
 ## 2. Create a virtual environment
 

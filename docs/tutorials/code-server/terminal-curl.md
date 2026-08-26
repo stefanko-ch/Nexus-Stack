@@ -52,7 +52,7 @@ That's it — you've just hit a service by its **Docker service name** (`redpand
 | `redpanda` | `9644` | Redpanda admin API | Cluster config, topic metadata |
 | `redpanda-connect` | `4195` | Redpanda Connect REST API | Stream lifecycle (deploy, list, delete) |
 | `flink-jobmanager` | `8081` | Flink JobManager REST API | Register in Dinky, query job state |
-| `gitea` | `3000` | Gitea Git server | Git operations when Gitea stack is enabled |
+| `forgejo` | `3000` | Forgejo Git server | Git operations when Forgejo stack is enabled |
 | `infisical` | `8080` | Infisical API | Secrets read/write from code |
 
 These hostnames **only resolve inside the Docker network**. They will not work from your laptop. They will work from code-server, and from any Docker container running alongside the services.

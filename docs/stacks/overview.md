@@ -218,7 +218,7 @@ A relational database, a BI tool to query it, observability for the host, and a 
 **Streaming pipeline** — `redpanda` · `redpanda-console` · `debezium` · `clickhouse` · `grafana`
 Source-of-truth in PostgreSQL, change data capture into Redpanda via Debezium, materialized in ClickHouse, dashboards in Grafana. Around 4 GB RAM.
 
-**Self-hosted dev environment** — `gitea` · `code-server` · `woodpecker-ci` · `mailpit` · `portainer`
+**Self-hosted dev environment** — `forgejo` · `forgejo-runner` · `code-server` · `woodpecker-ci` · `mailpit` · `portainer`
 A full Git + CI + remote-IDE setup with email testing. Around 3 GB RAM.
 
 **LLM playground** — `ollama` · `dify` · `postgres` · `portainer`

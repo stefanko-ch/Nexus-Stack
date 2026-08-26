@@ -43,7 +43,7 @@ Two reasons, and the second is the stronger one.
 
 A restore skips both: cloud-init takes a light path, and the Docker images are already on the disk. Roughly **3 minutes on a small service set**, scaling with the number of images. The cost lands on the teardown (~2 min → ~2.5 min), which runs unattended at 21:00.
 
-**Data coverage.** The R2 persistence layer covers a hard-coded five-stack subset — Postgres dumps for gitea, dify, hedgedoc and planka, plus filesystem trees for those and metabase. Everything else is discarded on teardown. `s3_restore.standard_targets()` says so directly:
+**Data coverage.** The R2 persistence layer covers a hard-coded five-stack subset — Postgres dumps for forgejo, dify, hedgedoc and planka, plus filesystem trees for those and metabase. Everything else is discarded on teardown. `s3_restore.standard_targets()` says so directly:
 
 > Skipping this step means the stack's bind-mount under `/mnt/nexus-data/<stack>/` is purely ephemeral — present across container restarts on the same VM, gone the moment `tofu destroy` re-creates the host.
 

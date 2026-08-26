@@ -8,7 +8,7 @@ title: "Git Proxy"
 
 **Public HTTPS Git access for external tools (Databricks, CI/CD)**
 
-Nginx reverse proxy that forwards Git HTTPS requests to Gitea. Provides public Git clone/push/pull access for external tools without exposing the Gitea Web UI.
+Nginx reverse proxy that forwards Git HTTPS requests to Forgejo. Provides public Git clone/push/pull access for external tools without exposing the Forgejo Web UI.
 
 | Setting | Value |
 |---------|-------|
@@ -23,15 +23,15 @@ External tools ──HTTPS──> git.<domain> (PUBLIC)
                                │ (Cloudflare Tunnel)
                          Nginx (:3201)
                                │ (proxy_pass)
-                         Gitea (:3000) (PRIVATE)
+                         Forgejo (:3000) (PRIVATE)
 ```
 
-- External tools (Databricks) use `https://git.<domain>/<user>/<repo>.git` with Gitea PAT
-- Internal services (Jupyter, etc.) use `http://gitea:3000` directly via Docker network
-- Gitea Web UI at `https://gitea.<domain>` remains private (Cloudflare Access OTP)
+- External tools (Databricks) use `https://git.<domain>/<user>/<repo>.git` with Forgejo PAT
+- Internal services (Jupyter, etc.) use `http://forgejo:3000` directly via Docker network
+- Forgejo Web UI at `https://forgejo.<domain>` remains private (Cloudflare Access OTP)
 
 ### Usage with Databricks
 
-1. Create a Personal Access Token (PAT) in Gitea
-2. In Databricks, add Git Credentials: select "GitHub" provider, use Gitea username + PAT
+1. Create a Personal Access Token (PAT) in Forgejo
+2. In Databricks, add Git Credentials: select "GitHub" provider, use Forgejo username + PAT
 3. Clone repos via: `https://git.<domain>/<user>/<repo>.git`

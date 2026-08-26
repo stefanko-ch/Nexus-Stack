@@ -22,7 +22,7 @@ This guide explains how to change the Hetzner server type on an existing Nexus-S
 
 The decision tree is about how much state you want to preserve:
 
-- **Path A + B preserve state via two different mechanisms.** R2 snapshots hold the per-stack data — Postgres dumps, Gitea repos, dbt state, code-server volume; spin-up restores those onto the new server. D1 (the Control Plane database with your enabled-stack toggles and scheduled-teardown config) is preserved separately because teardown only destroys Hetzner-side infrastructure and leaves the Control Plane (Pages + Worker + D1) running untouched.
+- **Path A + B preserve state via two different mechanisms.** R2 snapshots hold the per-stack data — Postgres dumps, Forgejo repos, dbt state, code-server volume; spin-up restores those onto the new server. D1 (the Control Plane database with your enabled-stack toggles and scheduled-teardown config) is preserved separately because teardown only destroys Hetzner-side infrastructure and leaves the Control Plane (Pages + Worker + D1) running untouched.
 - **Path C wipes** the Hetzner server + Cloudflare resources + Control Plane (D1 + Pages + Worker). R2 buckets (Tofu state + snapshots + data) are **preserved by default** — pass `-f delete_data=DESTROY` if you also want those gone (see "About R2 buckets after destroy-all" below).
 
 ---
@@ -84,7 +84,7 @@ gh variable set SERVER_TYPE --body "cpx42"
 gh workflow run spin-up.yml && sleep 3 && gh run watch
 ```
 
-**What's preserved:** Gitea repos, Postgres data (Metabase dashboards, Kestra flows, CloudBeaver connections, etc.), dbt state, code-server volume — anything that's in the R2 snapshot.
+**What's preserved:** Forgejo repos, Postgres data (Metabase dashboards, Kestra flows, CloudBeaver connections, etc.), dbt state, code-server volume — anything that's in the R2 snapshot.
 
 **What's NOT preserved:** in-memory state from the moment of teardown (e.g. an in-flight Kestra execution gets cancelled). Plan resize windows accordingly.
 
@@ -133,7 +133,7 @@ Duration: ~10-15 minutes (D1 database re-created + OpenTofu apply on new server 
 | Cloudflare Tunnel + DNS + Access | – |
 | Control Plane (Pages + Worker + D1) — re-created fresh | – |
 | Infisical (with **newly generated** secrets) | If you had **external** secrets (Databricks tokens, GitHub mirror tokens etc.), re-add them in Infisical |
-| Core stacks: forgejo, gitea, grafana, infisical, portainer | Click "Spin Up" once you've toggled additional stacks |
+| Core stacks: forgejo, forgejo, grafana, infisical, portainer | Click "Spin Up" once you've toggled additional stacks |
 
 ### About R2 buckets after destroy-all
 

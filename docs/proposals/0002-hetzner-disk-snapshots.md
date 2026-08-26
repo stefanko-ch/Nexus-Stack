@@ -1,5 +1,10 @@
 # RFC 0002 — Hetzner Disk Snapshots as a Second Lifecycle
 
+> **Naming note (superseded):** this RFC was written while Gitea held the
+> internal forge role. Forgejo took that role over later; wherever this
+> document says `gitea`/`gitea-db`, the running system now uses
+> `forgejo`/`forgejo-db`, and the workspace repo is
+> `nexus-<slug>-workspace`. The design itself is unchanged.
 **Status:** implemented (#649, #651, #653), not yet exercised end to end
 **Supersedes:** nothing. Complements [RFC 0001](./0001-s3-persistence.md).
 

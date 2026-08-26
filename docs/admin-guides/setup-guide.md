@@ -476,28 +476,28 @@ Documentation in `docs/` can be synced to [nexus-stack.ch](https://nexus-stack.c
 
 See [Website Sync Guide](docs-website-sync.md) for setup instructions. Sync requires a Cloudflare Deploy Hook URL stored as `WEBSITE_DEPLOY_HOOK` secret and the `WEBSITE_SYNC_ENABLED` repository variable set to `true`.
 
-## Kestra ↔ Gitea bi-directional flow sync
+## Kestra ↔ Forgejo bi-directional flow sync
 
-When the `kestra` service is enabled the orchestrator registers three system-namespace flows that sync flow definitions between Kestra and the user's Gitea workspace fork.
+When the `kestra` service is enabled the orchestrator registers three system-namespace flows that sync flow definitions between Kestra and the user's Forgejo workspace fork.
 
 ### Two-namespace model
 
-Flows live in two distinct Kestra namespaces, each tied to a separate path in the Gitea fork:
+Flows live in two distinct Kestra namespaces, each tied to a separate path in the Forgejo fork:
 
-| Kestra namespace | Gitea path in fork | Meaning |
+| Kestra namespace | Forgejo path in fork | Meaning |
 |---|---|---|
 | `nexus-tutorials.*` | `nexus_seeds/kestra/flows/` | **Seeded reference flows** shipped by Nexus-Stack. Read-mostly from the student's perspective. NEVER pushed back from the UI (would corrupt the upstream tutorial baseline). |
 | `my-flows.*` | `kestra/flows/` | **Student's own work** — clones of seeded flows, new flows. UI-edits in this namespace auto-push to Git every 10 min. |
 
-The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-authored flows live at the repo root under `kestra/flows/` to make the ownership distinction visible at a glance in the Gitea fork tree.
+The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-authored flows live at the repo root under `kestra/flows/` to make the ownership distinction visible at a glance in the Forgejo fork tree.
 
 ### The three system flows
 
 | Flow | Direction | Trigger | Purpose |
 |---|---|---|---|
-| `system.git-sync` | Gitea → Kestra | once at spin-up | Pulls namespace files (SQL, scripts, queries) from `nexus_seeds/kestra/workflows/` into Kestra's namespace storage |
-| `system.flow-sync` | Gitea → Kestra | once at spin-up | Two tasks in one flow: `sync-seeds` pulls `nexus_seeds/kestra/flows/` → `nexus-tutorials.*`; `sync-user` pulls `kestra/flows/` → `my-flows.*`. Both `delete: true`, separate namespaces ensure no interference. |
-| `system.flow-export` | Kestra → Gitea | every 10 minutes | Pushes `my-flows.*` only to `kestra/flows/`. Excludes `nexus-tutorials.*` (protects seeds) and `system.*` (echo-prevention). |
+| `system.git-sync` | Forgejo → Kestra | once at spin-up | Pulls namespace files (SQL, scripts, queries) from `nexus_seeds/kestra/workflows/` into Kestra's namespace storage |
+| `system.flow-sync` | Forgejo → Kestra | once at spin-up | Two tasks in one flow: `sync-seeds` pulls `nexus_seeds/kestra/flows/` → `nexus-tutorials.*`; `sync-user` pulls `kestra/flows/` → `my-flows.*`. Both `delete: true`, separate namespaces ensure no interference. |
+| `system.flow-export` | Kestra → Forgejo | every 10 minutes | Pushes `my-flows.*` only to `kestra/flows/`. Excludes `nexus-tutorials.*` (protects seeds) and `system.*` (echo-prevention). |
 
 ### Design rationale
 
@@ -507,8 +507,8 @@ The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-auth
 2. **Ping-pong with the export direction.** A pull running on a 15-min schedule combined with a push running on any schedule would chase each other's commits.
 
 **Steady-state source of truth:**
-- For *in-session edits in `my-flows.*`* → the Kestra UI (auto-pushed to Gitea via `flow-export`).
-- For *cross-stack restore* → Gitea (the persistence-bucket snapshot covers Kestra's Postgres DB; `flow-sync` re-hydrates Kestra at the next spin-up from Gitea as canonical source).
+- For *in-session edits in `my-flows.*`* → the Kestra UI (auto-pushed to Forgejo via `flow-export`).
+- For *cross-stack restore* → Forgejo (the persistence-bucket snapshot covers Kestra's Postgres DB; `flow-sync` re-hydrates Kestra at the next spin-up from Forgejo as canonical source).
 - For *seeded tutorial flows in `nexus-tutorials.*`* → Git is canonical (the upstream Nexus-Stack repo seeded them). UI-edits there are preserved via DB-snapshot but **not** via Git, and `flow-sync` at the next spin-up will reconcile them away. The copy-before-edit workflow exists to avoid this.
 
 ### Loop diagram
@@ -521,7 +521,7 @@ The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-auth
                                    │
                                    ▼  (POSTed by _phase_seed at first deploy)
                   ┌─────────────────────────────────────────┐
-                  │  Gitea fork                             │
+                  │  Forgejo fork                             │
                   │  ├── nexus_seeds/kestra/flows/  (seeds) │◀──┐
                   │  └── kestra/flows/             (user)   │   │
                   └────────────────┬───────────────┬────────┘   │
@@ -542,11 +542,11 @@ The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-auth
 
 - **Cadence:** `cron: "*/10 * * * *"` (every 10 minutes). A stack crash loses at most ~10 minutes of student work in `my-flows.*`. Faster (every 5 min) would multiply commits + R2 egress for marginal recovery; slower (hourly) would lose unacceptable amounts.
 - **Source namespace:** `my-flows` only. The PushFlows plugin has no exclude-list, so positive-only namespace scoping is the only way to (a) prevent the exporter from pushing itself (`system.*` echo-loop) AND (b) protect `nexus-tutorials.*` seeds from getting overwritten with student edits.
-- **`delete: false`:** a UI-side delete does *not* propagate to Git. To permanently delete a `my-flows.*` flow, the operator commits the removal directly in the Gitea fork; the next `flow-sync` (at next spin-up) drops it from Kestra.
-- **Commit identity:** `Kestra Auto-Export <kestra@nexus-stack.local>` (synthetic, never a real user). The Gitea push log still attributes the push to whoever owns the admin token, but Git blame stays clean.
+- **`delete: false`:** a UI-side delete does *not* propagate to Git. To permanently delete a `my-flows.*` flow, the operator commits the removal directly in the Forgejo fork; the next `flow-sync` (at next spin-up) drops it from Kestra.
+- **Commit identity:** `Kestra Auto-Export <kestra@nexus-stack.local>` (synthetic, never a real user). The Forgejo push log still attributes the push to whoever owns the admin token, but Git blame stays clean.
 - **Conflict behaviour:** `REJECTED_NONFASTFORWARD` is fail-loud — visible as an execution failure in the Kestra UI, manually resolvable by an operator. Happens when someone commits directly to the fork between two export ticks.
 
-### What students see in the Gitea fork
+### What students see in the Forgejo fork
 
 Two directories under the fork:
 

@@ -38,9 +38,9 @@ description: |
   duplicates, dedupe it upstream (the task that emits `urls`) or
   add a leading dedup task before this loop.
 
-  This file was seeded into your Gitea workspace repo from
+  This file was seeded into your Forgejo workspace repo from
   `nexus-stack/examples/workspace-seeds/kestra/flows/parallel-http-fetch-to-r2.yaml`.
-  Edit the file in Gitea — Kestra picks up the change within 15 minutes
+  Edit the file in Forgejo — Kestra picks up the change within 15 minutes
   via `system.flow-sync`. Subsequent spin-ups leave your edits
   untouched (seeding only adds new files, never overwrites).
 
@@ -85,7 +85,7 @@ tasks:
   #    fails YAML deserialisation with
   #    ``Cannot deserialize value of type java.lang.Integer from String``.
   #    To change the parallelism, edit this number in the flow source
-  #    (Gitea workspace repo) and Kestra picks it up via system.flow-sync.
+  #    (Forgejo workspace repo) and Kestra picks it up via system.flow-sync.
   # ---------------------------------------------------------------------
   - id: fetch_all
     type: io.kestra.plugin.core.flow.ForEach

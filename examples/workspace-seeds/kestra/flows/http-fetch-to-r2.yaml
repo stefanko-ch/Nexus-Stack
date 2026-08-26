@@ -22,9 +22,9 @@ description: |
   Replace `source_url` and `r2_prefix` with whatever you want — any
   HTTP(S) endpoint that returns text or binary will work.
 
-  This file was seeded into your Gitea workspace repo from
+  This file was seeded into your Forgejo workspace repo from
   `nexus-stack/examples/workspace-seeds/kestra/flows/http-fetch-to-r2.yaml`.
-  Edit the file in Gitea — Kestra picks up the change within 15 minutes
+  Edit the file in Forgejo — Kestra picks up the change within 15 minutes
   via `system.flow-sync`. Subsequent spin-ups leave your edits
   untouched (seeding only adds new files, never overwrites).
 

@@ -1,5 +1,10 @@
 # RFC 0001 — S3-Backed Persistence (Cloudflare R2)
 
+> **Naming note (superseded):** this RFC was written while Gitea held the
+> internal forge role. Forgejo took that role over later; wherever this
+> document says `gitea`/`gitea-db`, the running system now uses
+> `forgejo`/`forgejo-db`, and the workspace repo is
+> `nexus-<slug>-workspace`. The design itself is unchanged.
 **Status:** Draft
 **Author:** sk@stefanko.ch
 **Date:** 2026-05-10 (rev. 2026-05-11 — storage provider switched from Hetzner Object Storage to Cloudflare R2)

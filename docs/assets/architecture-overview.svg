@@ -77,7 +77,7 @@
   <rect x="437" y="490" width="50" height="24" rx="4" fill="#1a1a2e" stroke="#2a2a3e" stroke-width="0.5"/>
   <text x="462" y="506" fill="#999" font-size="8" text-anchor="middle">n8n</text>
   <rect x="495" y="490" width="50" height="24" rx="4" fill="#1a1a2e" stroke="#2a2a3e" stroke-width="0.5"/>
-  <text x="520" y="506" fill="#999" font-size="8" text-anchor="middle">Gitea</text>
+  <text x="520" y="506" fill="#999" font-size="8" text-anchor="middle">Forgejo</text>
 
   <text x="440" y="545" fill="#556" font-size="9" text-anchor="middle">+ 57 more services (61 total, 18 categories)</text>
 
@@ -86,7 +86,7 @@
 
   <!-- Persistent Volume -->
   <rect x="270" y="595" width="180" height="30" rx="5" fill="#1a1a2e" stroke="#2a2a3e" stroke-width="1"/>
-  <text x="360" y="615" fill="#999" font-size="9" text-anchor="middle">Persistent Volume (Gitea)</text>
+  <text x="360" y="615" fill="#999" font-size="9" text-anchor="middle">Persistent Volume (Forgejo)</text>
 
   <!-- Hetzner Cloud border -->
   <rect x="260" y="320" width="360" height="320" rx="8" fill="none" stroke="#d63939" stroke-width="1" stroke-opacity="0.3"/>

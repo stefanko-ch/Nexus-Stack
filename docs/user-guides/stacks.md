@@ -42,7 +42,7 @@ Press `/` (or click the search box) and type. Matches on stack name, description
 
 A small set of services are marked **core** and cannot be disabled:
 
-- **Gitea** — Git server used by several integrations
+- **Forgejo** — Git server used by several integrations
 - **Grafana** — monitoring and observability
 - **Infisical** — secrets store
 

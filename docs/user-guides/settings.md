@@ -51,7 +51,7 @@ little under 30 cents a month. Small against a server, but not zero.
 
 - **Rebuild** — Destroy everything and rebuild from a clean Ubuntu image each
   time. Container images are pulled fresh, so stacks tracking `:latest` stay
-  current. What survives is only what the R2 backup covers: Gitea, Dify,
+  current. What survives is only what the R2 backup covers: Forgejo, Dify,
   HedgeDoc, Planka and Metabase. Anything else — tables you created in
   Postgres, dashboards you built in Grafana, Kestra run history, notebooks you
   have not committed — is gone the next morning.
@@ -72,7 +72,7 @@ read the setting even when you cannot change it.
 > password, and existing snapshots can no longer be restored after that.
 
 Committing your work to the workspace repository is worth doing either way. The
-repository lives in Gitea, which is backed up under both options — it is the
+repository lives in Forgejo, which is backed up under both options — it is the
 one place your work is safe regardless of which mode the stack is on.
 
 ## Email Notifications

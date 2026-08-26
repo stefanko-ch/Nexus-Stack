@@ -24,7 +24,7 @@ This stack ships the Evidence `devenv` runtime preloaded with a sample project t
 
 ### Why Evidence
 
-Most BI tools assume a GUI workflow: drag dimensions onto a canvas, save the chart as a binary artifact, hope the underlying SQL stays in sync. Evidence inverts that: SQL is the source of truth, charts are derived, the whole project diffs as plain text. That makes it a natural fit alongside the existing **code-server**, **gitea**, and **woodpecker-ci** stacks — you edit pages like you edit any other code, push to a feature branch, and review the rendered diff before merging to main.
+Most BI tools assume a GUI workflow: drag dimensions onto a canvas, save the chart as a binary artifact, hope the underlying SQL stays in sync. Evidence inverts that: SQL is the source of truth, charts are derived, the whole project diffs as plain text. That makes it a natural fit alongside the existing **code-server**, **forgejo**, and **woodpecker-ci** stacks — you edit pages like you edit any other code, push to a feature branch, and review the rendered diff before merging to main.
 
 Compared to the other BI tools in this stack:
 

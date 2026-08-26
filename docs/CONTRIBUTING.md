@@ -119,4 +119,4 @@ git push origin feat/add-airflow
 
 ## Adding code examples
 
-Sample Kestra flows, notebooks, dbt models, and other starter material that ships with Nexus-Stack lives under [`examples/workspace-seeds/`](https://github.com/stefanko-ch/Nexus-Stack/tree/main/examples/workspace-seeds) and gets auto-seeded into every student's Gitea workspace repo on spin-up. Conventions, the path-mapping rules, and the **no-schedule-triggers in seeded flows** rule are documented in [`examples/README.md`](https://github.com/stefanko-ch/Nexus-Stack/blob/main/examples/README.md). Read that before adding a new sample.
+Sample Kestra flows, notebooks, dbt models, and other starter material that ships with Nexus-Stack lives under [`examples/workspace-seeds/`](https://github.com/stefanko-ch/Nexus-Stack/tree/main/examples/workspace-seeds) and gets auto-seeded into every student's Forgejo workspace repo on spin-up. Conventions, the path-mapping rules, and the **no-schedule-triggers in seeded flows** rule are documented in [`examples/README.md`](https://github.com/stefanko-ch/Nexus-Stack/blob/main/examples/README.md). Read that before adding a new sample.

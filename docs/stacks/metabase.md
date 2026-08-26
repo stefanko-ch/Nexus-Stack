@@ -30,7 +30,7 @@ Metabase is an easy-to-use, open-source business intelligence tool that lets you
 
 Metabase's internal H2/DB and all user-created artefacts (dashboards, questions, collections, pulses, alerts, user settings) live under `/metabase-data` inside the container, bind-mounted onto `/mnt/nexus-data/metabase/` on the host.
 
-`/mnt/nexus-data/` itself is **ephemeral host storage** — it's NOT a persistent Hetzner Volume anymore (RFC 0001 cutover replaced the block volume with **R2 snapshot/restore**). For Metabase artefacts to actually survive a teardown + spin-up cycle, the path is registered in `src/nexus_deploy/s3_restore.py::standard_targets` as an rsync target alongside Gitea and Dify:
+`/mnt/nexus-data/` itself is **ephemeral host storage** — it's NOT a persistent Hetzner Volume anymore (RFC 0001 cutover replaced the block volume with **R2 snapshot/restore**). For Metabase artefacts to actually survive a teardown + spin-up cycle, the path is registered in `src/nexus_deploy/s3_restore.py::standard_targets` as an rsync target alongside Forgejo and Dify:
 
 1. **Teardown** rsyncs `/mnt/nexus-data/metabase/` → `snapshots/<timestamp>/metabase/data/` on R2 before `tofu destroy` runs.
 2. **Spin-up** rsyncs the latest snapshot back into `/mnt/nexus-data/metabase/` BEFORE the metabase container starts.

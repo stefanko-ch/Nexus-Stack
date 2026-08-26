@@ -40,7 +40,7 @@ def _(mo):
 def _():
     # Import the cached SparkSession factory shipped with the workspace
     # repo (examples/workspace-seeds/marimo/_nexus_spark.py — gets seeded
-    # to your Gitea workspace on every spin-up).
+    # to your Forgejo workspace on every spin-up).
     from _nexus_spark import get_spark
 
     spark = get_spark()

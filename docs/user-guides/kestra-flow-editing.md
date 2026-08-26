@@ -6,12 +6,12 @@ order: 9
 
 # Editing Kestra flows
 
-Nexus-Stack syncs your Kestra flows bi-directionally with your Gitea workspace fork. Two distinct namespaces live in Kestra, each tied to a separate directory in your fork:
+Nexus-Stack syncs your Kestra flows bi-directionally with your Forgejo workspace fork. Two distinct namespaces live in Kestra, each tied to a separate directory in your fork:
 
-| Kestra namespace | Gitea path in your fork | Meaning |
+| Kestra namespace | Forgejo path in your fork | Meaning |
 |---|---|---|
 | `nexus-tutorials.*` | `nexus_seeds/kestra/flows/` | **Seeded tutorial flows.** Shipped by Nexus-Stack as reference material. Read-mostly — your UI edits here are **not** auto-saved to Git. |
-| `my-flows.*` | `kestra/flows/` | **Your own work.** Edits in this namespace auto-export to your Gitea fork every 10 minutes. |
+| `my-flows.*` | `kestra/flows/` | **Your own work.** Edits in this namespace auto-export to your Forgejo fork every 10 minutes. |
 
 ## The golden rule: copy seeded flows into `my-flows` before editing
 
@@ -32,7 +32,7 @@ The seeded `nexus-tutorials.*` flows are the same for every student who deploys 
    - `namespace: my-flows` (the only auto-exported namespace)
 4. Paste the body, save.
 
-Your flow is now `my-flows.r2-taxi-experiment-v1`. The next `system.flow-export` run (within 10 min) commits it to `kestra/flows/my-flows/r2-taxi-experiment-v1.yml` in your Gitea fork.
+Your flow is now `my-flows.r2-taxi-experiment-v1`. The next `system.flow-export` run (within 10 min) commits it to `kestra/flows/my-flows/r2-taxi-experiment-v1.yml` in your Forgejo fork.
 
 ### Why "copy" instead of just "edit in place"?
 
@@ -50,7 +50,7 @@ Your flow is now `my-flows.r2-taxi-experiment-v1`. The next `system.flow-export`
 [10:03] Edit my-flows.r2-taxi-experiment-v1 in Kestra UI
             │
             ▼ (next */10 tick: 10:10)
-[10:10] flow-export pushes kestra/flows/my-flows/r2-taxi-experiment-v1.yml to Gitea
+[10:10] flow-export pushes kestra/flows/my-flows/r2-taxi-experiment-v1.yml to Forgejo
             │
             ▼  (at some point: stack teardown)
 [Teardown] R2 snapshot captures the fork incl. your flow file
@@ -69,7 +69,7 @@ The `flow-export` task uses `delete: false`, meaning a UI-side delete does **not
 To permanently delete a `my-flows.*` flow:
 
 1. Delete it in the Kestra UI (immediate effect, but only until next spin-up).
-2. Open your Gitea fork, navigate to `kestra/flows/my-flows/<flow-id>.yml`, click **Delete file**, commit the deletion.
+2. Open your Forgejo fork, navigate to `kestra/flows/my-flows/<flow-id>.yml`, click **Delete file**, commit the deletion.
 3. At the next spin-up, `flow-sync`'s `sync-user` task with `delete: true` will reconcile the deletion: Kestra removes the flow.
 
 To "reset to upstream" a seeded flow you accidentally edited in `nexus-tutorials.*`: just trigger `system.flow-sync` manually from the UI. The seeded original wins (Git is canonical for that namespace).
@@ -82,16 +82,16 @@ Three flows live in the `system` namespace:
 - `system.flow-sync` (pulls both seed + user flows at spin-up — two tasks in one flow)
 - `system.flow-export` (pushes `my-flows.*` to Git every 10 min)
 
-These are **infrastructure** — regenerated per deploy by Nexus-Stack itself. They are **never** pushed to your Gitea fork (echo-prevention). Don't edit them in the UI — your edits would be silently overwritten on the next spin-up. They're not part of your workspace.
+These are **infrastructure** — regenerated per deploy by Nexus-Stack itself. They are **never** pushed to your Forgejo fork (echo-prevention). Don't edit them in the UI — your edits would be silently overwritten on the next spin-up. They're not part of your workspace.
 
-## When your `my-flows.*` edits aren't appearing in the Gitea fork
+## When your `my-flows.*` edits aren't appearing in the Forgejo fork
 
 If you don't see a recent UI edit in the fork:
 
 1. **Check the cadence.** `flow-export` runs every 10 min on the `:00`, `:10`, `:20`... ticks. If you edited at `:08`, wait until `:10`, or trigger `system.flow-export` from the Kestra UI manually for an immediate push.
 2. **Check the namespace.** Only flows in `my-flows.*` get exported. A flow in `nexus-tutorials.*` (the seeded namespace) or any other custom namespace won't be pushed. Move the flow to `my-flows.*` to make it persistent.
-3. **Check the execution log.** Open `system.flow-export` in the Kestra UI → Executions tab. A `FAILED` execution with `REJECTED_NONFASTFORWARD` means someone (or you, via the Gitea web UI) committed to the fork between two export ticks and the export couldn't fast-forward. Resolve by pulling the conflicting commit into your local edit and re-running the export.
+3. **Check the execution log.** Open `system.flow-export` in the Kestra UI → Executions tab. A `FAILED` execution with `REJECTED_NONFASTFORWARD` means someone (or you, via the Forgejo web UI) committed to the fork between two export ticks and the export couldn't fast-forward. Resolve by pulling the conflicting commit into your local edit and re-running the export.
 
 ## See also
 
-- [admin-guides/setup-guide.md](../admin-guides/setup-guide.md#kestra--gitea-bi-directional-flow-sync) — the bi-directional sync design + cadence rationale + loop diagram
+- [admin-guides/setup-guide.md](../admin-guides/setup-guide.md#kestra--forgejo-bi-directional-flow-sync) — the bi-directional sync design + cadence rationale + loop diagram

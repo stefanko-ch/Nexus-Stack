@@ -13,7 +13,7 @@ JupyterLab with PySpark pre-configured to connect to the Apache Spark cluster. S
 - Spark SQL magic cells (`%%sparksql`) auto-loaded on startup
 - JupyterLab interface with file browser and terminal
 - Hetzner Object Storage (S3) integration for data access
-- Gitea integration with `jupyterlab-git` (auto-clones workspace repo)
+- Forgejo integration with `jupyterlab-git` (auto-clones workspace repo)
 - Markdown and LaTeX rendering
 
 | Setting | Value |

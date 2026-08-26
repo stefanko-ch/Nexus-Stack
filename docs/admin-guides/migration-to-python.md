@@ -26,7 +26,7 @@ The Python package grew alongside the existing `scripts/deploy.sh`. Each migrati
 |---|---|---|
 | 0 | Setup: `pyproject.toml`, ruff/mypy/pytest, CI quality gates | **Done** |
 | 1 | Migrate highest-pain modules: `infisical.py`, `secret_sync.py`, `config.py` | **Done** |
-| 2 | `seeder.py`, `services.py`, `kestra.py`, `compose_runner.py`, `gitea.py` | **Done** |
+| 2 | `seeder.py`, `services.py`, `kestra.py`, `compose_runner.py`, `forgejo.py` | **Done** |
 | 3 | `ssh.py`, `tofu.py`, `stack_sync.py`, `setup.py`, `service_env.py`, `firewall.py` | **Done** |
 | 4a | Orchestrator class with `run_pre_bootstrap` + `run_all` | **Done** (#532) |
 | 4b | Wire deploy.sh to invoke the orchestrator's two CLIs (1525 → 469 LoC) | **Done** (#533) |

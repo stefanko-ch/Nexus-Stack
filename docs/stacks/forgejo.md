@@ -58,6 +58,68 @@ docker-in-docker container: the forge is core and runs everywhere,
 while the container that executes untrusted workflow code should only
 exist where somebody actually uses it.
 
+### Shared Workspace Repo
+
+During deployment, a shared workspace repo named `nexus-<domain>-workspace` is automatically created. This repo is auto-cloned into the following services:
+
+| Service | Clone Location | Method |
+|---------|---------------|--------|
+| Jupyter | `/home/jovyan/work/<repo>` | Entrypoint + jupyterlab-git |
+| Marimo | `/app/notebooks/<repo>` | Entrypoint clone |
+| code-server | `/home/coder/<repo>` | Entrypoint clone (opens as workspace) |
+| Meltano | `/project/<repo>` | Entrypoint clone |
+| Prefect | `/flows/<repo>` (worker) | Entrypoint clone |
+| Kestra | Git sync flow | `plugin-git` SyncNamespaceFiles (every 15 min) |
+
+### GitHub Repository Mirroring (Optional)
+
+You can automatically mirror one or more private GitHub repositories into Forgejo.
+This is useful for distributing course material or read-only code to students.
+
+**Setup:** Add the following two secrets to your GitHub repository
+(Settings → Secrets and variables → Actions → Secrets):
+
+| Secret | Description |
+|--------|-------------|
+| `GH_MIRROR_TOKEN` | GitHub Fine-grained Personal Access Token with `Contents: Read-only` permission |
+| `GH_MIRROR_REPOS` | Comma-separated list of GitHub HTTPS repo URLs to mirror |
+
+**Example value for `GH_MIRROR_REPOS`:**
+```
+https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
+```
+
+> ⚠️ If either secret is not set, the mirroring step is skipped entirely.
+
+**How it works:**
+- During each spin-up, deploy.sh creates a pull mirror in Forgejo for each configured URL
+- The mirrored repo is named `mirror-<repo>` (e.g. GitHub `course-2025` → Forgejo `mirror-course-2025`)
+- Forgejo syncs from GitHub **every 10 minutes** (delta fetch — only new commits are transferred)
+- Mirrored repos are **private** in Forgejo (accessible only via Cloudflare Access)
+- The student user (derived from `TF_VAR_user_email`) is automatically added as a **read-only** collaborator
+- The operation is **idempotent**: re-running spin-up skips mirrors that already exist
+
+**GitHub rate limits:** 10-minute intervals = 6 git fetches/hour per repo — well within the 5,000/hour PAT limit.
+
+**Triggering an immediate sync:** Log into Forgejo as admin → open the mirrored repo → Settings → Mirror sync. This is a built-in Forgejo feature, no additional setup required.
+
+#### Creating a Fine-grained PAT
+
+1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens**
+2. Click "Generate new token"
+3. Set **Resource owner** to the org or user that owns the repo to mirror
+4. Under **Repository access** → "Only select repositories" → select the repo(s) to mirror
+5. Under **Permissions** → Repository permissions → set **Contents: Read-only**
+   (all other permissions can remain "No access")
+6. If the org enforces SAML SSO: after creating the token, go to
+   Settings → Personal access tokens → "Configure SSO" → authorize the org
+
+> The token must belong to a GitHub account that has read access to the target repo.
+> It does not need to be in the same organization as your Nexus-Stack repository.
+>
+> `Contents: Read-only` is the only permission required — Forgejo uses it solely for
+> HTTPS git fetch operations, which only need read access to repository contents.
+
 ### Persistent Storage
 
 | Path | Contents | Owner |
