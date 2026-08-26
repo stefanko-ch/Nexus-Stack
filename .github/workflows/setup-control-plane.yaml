@@ -121,7 +121,7 @@ jobs:
               # Note: We only save the Private Key as a secret.
               # The Public Key is passed as an output and not stored as a secret to avoid
               # "Skip output... contains secret" warnings in GitHub Actions.
-              if gh secret set SSH_PRIVATE_KEY -b "$SSH_PRIVATE_KEY" 2>/dev/null; then
+              if printf '%s' "$SSH_PRIVATE_KEY" | gh secret set SSH_PRIVATE_KEY 2>/dev/null; then
                 echo "✅ SSH Private Key saved to GitHub Secrets"
                 echo "ssh_key_created=true" >> $GITHUB_OUTPUT
               else
@@ -257,8 +257,9 @@ jobs:
 
           # The file existing is not the same as the values being usable.
           # `source` on a truncated or partially written file leaves either
-          # variable empty, `gh secret set -b ""` stores an empty secret
-          # happily, SAVE_FAILED stays 0, and the step reports success for a
+          # variable empty, `gh secret set` stores an empty secret happily
+          # whether the value arrives on stdin or via --body,
+          # SAVE_FAILED stays 0, and the step reports success for a
           # credential nothing downstream can use. The export step already
           # makes this check; by then the secrets have been written.
           if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
@@ -277,14 +278,20 @@ jobs:
           # flag stays empty, the second write runs, and the step reports
           # success for a credential it never stored. Which is precisely the
           # bug class this workflow is being hardened against.
+          # Piped rather than `--body "$VALUE"`: gh reads the secret from
+          # standard input when --body is omitted, keeping it out of the
+          # process argument list where anything on the runner could read it
+          # via /proc or ps. Same rule the service hooks in services.py
+          # follow. A pipeline reports its last command's exit status, so the
+          # `if !` check and SAVE_FAILED below are unaffected.
           SAVE_FAILED=0
           SAVE_ERROR=""
-          if ! OUTPUT=$(gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1); then
+          if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | gh secret set R2_ACCESS_KEY_ID 2>&1); then
             SAVE_FAILED=1
             SAVE_ERROR="$OUTPUT"
           fi
           if [ "$SAVE_FAILED" -eq 0 ]; then
-            if ! OUTPUT=$(gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1); then
+            if ! OUTPUT=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | gh secret set R2_SECRET_ACCESS_KEY 2>&1); then
               SAVE_FAILED=1
               SAVE_ERROR="$OUTPUT"
             fi
@@ -440,8 +447,9 @@ jobs:
 
           # The file existing is not the same as the values being usable.
           # `source` on a truncated or partially written file leaves either
-          # variable empty, `gh secret set -b ""` stores an empty secret
-          # happily, SAVE_FAILED stays 0, and the step reports success for a
+          # variable empty, `gh secret set` stores an empty secret happily
+          # whether the value arrives on stdin or via --body,
+          # SAVE_FAILED stays 0, and the step reports success for a
           # credential nothing downstream can use. The export step already
           # makes this check; by then the secrets have been written.
           if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
@@ -462,12 +470,12 @@ jobs:
           # credential it never stored.
           SAVE_FAILED=0
           SAVE_ERROR=""
-          if ! OUTPUT=$(gh secret set R2_ACCESS_KEY_ID -b "$R2_ACCESS_KEY_ID" 2>&1); then
+          if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | gh secret set R2_ACCESS_KEY_ID 2>&1); then
             SAVE_FAILED=1
             SAVE_ERROR="$OUTPUT"
           fi
           if [ "$SAVE_FAILED" -eq 0 ]; then
-            if ! OUTPUT=$(gh secret set R2_SECRET_ACCESS_KEY -b "$R2_SECRET_ACCESS_KEY" 2>&1); then
+            if ! OUTPUT=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | gh secret set R2_SECRET_ACCESS_KEY 2>&1); then
               SAVE_FAILED=1
               SAVE_ERROR="$OUTPUT"
             fi
