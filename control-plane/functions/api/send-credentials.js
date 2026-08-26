@@ -9,6 +9,7 @@ import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { logApiCall, logError } from './_utils/logger.js';
 import { safeHttpsUrl } from './_utils/url.js';
 import { getAccessUserEmail } from './_utils/cf-access-email.js';
+import { requireSameOrigin } from './_utils/require-same-origin.js';
 
 // Resend-accepted email formats. Hoisted to module scope so the regex
 // objects are created once per Worker boot instead of once per request.
@@ -20,6 +21,11 @@ const isValidResendEmail = (e) => PLAIN_EMAIL_RE.test(e) || BRACKETED_EMAIL_RE.t
 
 export async function onRequestPost(context) {
   const { env, request } = context;
+
+  // Origin before identity: a cross-site submission carries a perfectly
+  // valid Access session, so authenticating it first proves nothing.
+  const crossSite = requireSameOrigin(request);
+  if (crossSite) return crossSite;
 
   // Validate environment variables
   const requiredEnv = ['RESEND_API_KEY', 'ADMIN_EMAIL', 'DOMAIN'];

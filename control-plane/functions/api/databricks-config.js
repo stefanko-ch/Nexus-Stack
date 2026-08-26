@@ -9,6 +9,7 @@
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { requireAdmin } from './_utils/require-admin.js';
+import { requireSameOrigin } from './_utils/require-same-origin.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
@@ -44,6 +45,10 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { env, request } = context;
+  // Origin before identity: a cross-site submission carries a perfectly
+  // valid Access session, so authenticating it first proves nothing.
+  const crossSite = requireSameOrigin(request);
+  if (crossSite) return crossSite;
   const denial = requireAdmin(env, request);
   if (denial) return denial;
 

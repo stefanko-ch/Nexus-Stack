@@ -23,6 +23,7 @@ import { safeHttpsUrl } from './_utils/url.js';
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchAllInfisicalSecrets } from './_utils/infisical.js';
 import { requireAdmin } from './_utils/require-admin.js';
+import { requireSameOrigin } from './_utils/require-same-origin.js';
 
 const SCOPE_NAME = 'nexus';
 const UPSERT_BATCH = 10;
@@ -137,6 +138,10 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { env, request } = context;
+  // Origin before identity: a cross-site submission carries a perfectly
+  // valid Access session, so authenticating it first proves nothing.
+  const crossSite = requireSameOrigin(request);
+  if (crossSite) return crossSite;
   const denial = requireAdmin(env, request);
   if (denial) return denial;
 

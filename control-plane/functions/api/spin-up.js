@@ -10,6 +10,7 @@
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { resolveLifecycle } from './_utils/workflow-selection.js';
+import { requireSameOrigin } from './_utils/require-same-origin.js';
 
 /**
  * Get enabled services from D1
@@ -27,7 +28,12 @@ async function getEnabledServicesFromD1(db) {
 }
 
 export async function onRequestPost(context) {
-  const { env } = context;
+  const { env, request } = context;
+
+  // Origin before identity: a cross-site submission carries a perfectly
+  // valid Access session, so authenticating it first proves nothing.
+  const crossSite = requireSameOrigin(request);
+  if (crossSite) return crossSite;
 
   // Validate environment variables
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {

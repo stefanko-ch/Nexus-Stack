@@ -1,3 +1,5 @@
+import { requireSameOrigin } from './_utils/require-same-origin.js';
+
 /**
  * Logs API
  * GET /api/logs - Get logs (with optional filters)
@@ -120,6 +122,11 @@ export async function onRequestGet(context) {
  */
 export async function onRequestPost(context) {
   const { env, request } = context;
+
+  // Origin before identity: a cross-site submission carries a perfectly
+  // valid Access session, so authenticating it first proves nothing.
+  const crossSite = requireSameOrigin(request);
+  if (crossSite) return crossSite;
   
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
