@@ -195,7 +195,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "🪣 Creating R2 bucket and credentials..."
-          r2_saved=false
 
           # Run the init script
           chmod +x scripts/init-r2-state.sh
@@ -237,41 +236,62 @@ jobs:
                 echo "✅ R2 credentials saved to GitHub Secrets automatically!"
                 echo ""
                 echo "Future deployments will use these credentials."
-                r2_saved=true
               else
-                echo "⚠️  Failed to auto-save secrets: $SECRET_ERROR"
+                # NEVER print the credentials here. This repository is public,
+                # so Actions logs are world-readable, and these keys grant read
+                # access to the OpenTofu state bucket — which holds every
+                # generated service credential in plaintext.
+                #
+                # There is no safe channel for handing them to the operator
+                # from a public workflow run: artifacts are downloadable by
+                # anyone with repository read access, which for a public repo
+                # is everyone. So the only correct outcome is to fail and let
+                # the operator re-run once the token can write secrets.
+                echo "❌ Could not save the R2 credentials to GitHub Secrets."
                 echo ""
-                echo "  Please save these credentials manually as GitHub Secrets:"
+                echo "   gh secret set reported:"
+                echo "     $SECRET_ERROR"
                 echo ""
-                echo "  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
-                echo "  R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY"
+                echo "   The credentials are NOT printed here on purpose — this"
+                echo "   repository is public and its Actions logs are readable"
+                echo "   by anyone. They grant read access to the OpenTofu state"
+                echo "   bucket, which contains every service credential."
                 echo ""
-                echo "  To enable auto-saving, configure GH_SECRETS_TOKEN:"
-                echo "  Fine-grained PAT with Secrets (Read and Write) permission"
+                echo "   Most likely cause: GH_SECRETS_TOKEN lacks the"
+                echo "   'Secrets: Read and write' repository permission."
+                echo ""
+                echo "   Fix the token permission, then re-run this workflow."
+                echo "   It will mint a fresh R2 token and retire this one, so"
+                echo "   nothing is left dangling."
+                exit 1
               fi
             else
+              # Same reasoning as above: without a token that can write repo
+              # secrets there is nowhere safe to put these, and printing them
+              # is what this branch used to do.
+              echo "❌ GH_SECRETS_TOKEN is not configured."
               echo ""
-              echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-              echo "║  ⚠️  GH_SECRETS_TOKEN not configured - manual setup required                ║"
-              echo "╠══════════════════════════════════════════════════════════════════════════════╣"
-              echo "║                                                                              ║"
-              echo "║  Please save these credentials manually in GitHub Secrets:                  ║"
-              echo "║  R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID"
-              echo "║  R2_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY"
-              echo "║                                                                              ║"
-              echo "║  To enable auto-saving, create a Personal Access Token:                     ║"
-              echo "║  GitHub → Settings → Developer settings → Personal access tokens            ║"
-              echo "║  Required scope: 'repo' (or fine-grained with 'Secrets' permission)         ║"
-              echo "║  Save as: GH_SECRETS_TOKEN                                                  ║"
-              echo "║                                                                              ║"
-              echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+              echo "   It is required for first-time setup: R2 credentials are"
+              echo "   generated once and must be stored as repository secrets"
+              echo "   for any later spin-up to reach the state bucket."
+              echo ""
+              echo "   They are deliberately not printed to this log — the"
+              echo "   repository is public, so anyone could read them, and they"
+              echo "   grant read access to every service credential in the"
+              echo "   OpenTofu state."
+              echo ""
+              echo "   Create a fine-grained Personal Access Token:"
+              echo "     GitHub → Settings → Developer settings"
+              echo "              → Personal access tokens → Fine-grained tokens"
+              echo "     Repository permissions:"
+              echo "       Secrets → Read and write"
+              echo "       Actions → Read and write"
+              echo "     Save it as the GH_SECRETS_TOKEN repository secret."
+              echo ""
+              echo "   Then re-run this workflow."
+              exit 1
             fi
 
-            echo "r2_saved=$r2_saved" >> $GITHUB_OUTPUT
-
-            # Export for this run
-            echo "r2_access_key=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
-            echo "r2_secret_key=$R2_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
           else
             echo "❌ Failed to create R2 credentials"
             exit 1
@@ -378,9 +398,19 @@ jobs:
             exit 1
           fi
 
-          # Note: Don't mask credentials here - masking prevents them from being
-          # passed as workflow outputs (GitHub blocks outputs containing masked values)
-          # The credentials will be masked by the receiving workflow when used
+          # Deliberately NOT masked here, and this is load-bearing rather
+          # than an oversight: GitHub redacts masked values in job outputs,
+          # so `::add-mask::` at this point would deliver an empty
+          # r2_secret_access_key to the calling workflow and the first
+          # spin-up would fall back to secrets that do not exist yet.
+          #
+          # The masking happens at the consumer instead, which is the only
+          # place it can: spin-up.yml masks both pairs on receipt
+          # (`Mask R2 data credentials from inputs`, and again in
+          # `Create R2 credentials from secrets`). Writing to $GITHUB_OUTPUT
+          # does not itself print anything, so nothing is exposed in between.
+          #
+          # If you add a consumer of these outputs, mask on arrival there too.
           # Export as outputs for the calling workflow
           echo "r2_access_key_id=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
           echo "r2_secret_access_key=$R2_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
