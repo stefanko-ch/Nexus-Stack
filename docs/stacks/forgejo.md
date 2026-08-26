@@ -92,7 +92,7 @@ https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 > ⚠️ If either secret is not set, the mirroring step is skipped entirely.
 
 **How it works:**
-- During each spin-up, deploy.sh creates a pull mirror in Forgejo for each configured URL
+- During each spin-up, the orchestrator's mirror-setup phase creates a pull mirror in Forgejo for each configured URL
 - The mirrored repo is named `mirror-<repo>` (e.g. GitHub `course-2025` → Forgejo `mirror-course-2025`)
 - Forgejo syncs from GitHub **every 10 minutes** (delta fetch — only new commits are transferred)
 - Mirrored repos are **private** in Forgejo (accessible only via Cloudflare Access)

@@ -47,9 +47,9 @@ Mapping: every file `examples/workspace-seeds/<path>` is seeded to `nexus_seeds/
 
 The `nexus_seeds/` prefix keeps Nexus-Stack-managed files visually separated from the user's own course material at the workspace-repo root (introduced in #501; pre-existing repos that still have files at the root level continue to work but those files are orphaned — see migration notes below).
 
-`system.flow-sync` (registered by `deploy.sh`) then syncs `nexus_seeds/kestra/flows/` into Kestra under target namespace `nexus-tutorials` with `includeChildNamespaces: true` — so `nexus_seeds/kestra/flows/r2-taxi-pipeline.yaml` lands at `nexus-tutorials.r2-taxi-pipeline`, and any future subdir like `nexus_seeds/kestra/flows/sub1/foo.yaml` extends to `nexus-tutorials.sub1.foo`.
+`system.flow-sync` (registered by the orchestrator's kestra-register phase) then syncs `nexus_seeds/kestra/flows/` into Kestra under target namespace `nexus-tutorials` with `includeChildNamespaces: true` — so `nexus_seeds/kestra/flows/r2-taxi-pipeline.yaml` lands at `nexus-tutorials.r2-taxi-pipeline`, and any future subdir like `nexus_seeds/kestra/flows/sub1/foo.yaml` extends to `nexus-tutorials.sub1.foo`.
 
-This means any file you drop under `workspace-seeds/<dir>/<name>` will appear in every user's workspace at `nexus_seeds/<dir>/<name>` after the next Initial Setup. No `deploy.sh` edit, no new code path.
+This means any file you drop under `workspace-seeds/<dir>/<name>` will appear in every user's workspace at `nexus_seeds/<dir>/<name>` after the next Initial Setup. No code change, no new path.
 
 ### Migration note for pre-#501 workspace repos
 
@@ -70,8 +70,8 @@ Stick to these names so the various services pick the files up correctly:
 
 | Folder | Consumed by | What goes here |
 |---|---|---|
-| `kestra/flows/` | Kestra (via `system.flow-sync`, registered by `deploy.sh`) | Flow definitions in YAML. Files at `nexus_seeds/kestra/flows/<id>.yaml` register under namespace `nexus-tutorials`; subdirectories extend the namespace (`nexus_seeds/kestra/flows/sub1/<id>.yaml` → `nexus-tutorials.sub1`). |
-| `kestra/workflows/` | Kestra (via `system.git-sync`, registered by `deploy.sh`) | Helper files referenced by flows: Python scripts, SQL templates, configs. **Not** flow definitions. |
+| `kestra/flows/` | Kestra (via `system.flow-sync`, registered by the orchestrator) | Flow definitions in YAML. Files at `nexus_seeds/kestra/flows/<id>.yaml` register under namespace `nexus-tutorials`; subdirectories extend the namespace (`nexus_seeds/kestra/flows/sub1/<id>.yaml` → `nexus-tutorials.sub1`). |
+| `kestra/workflows/` | Kestra (via `system.git-sync`, registered by the orchestrator) | Helper files referenced by flows: Python scripts, SQL templates, configs. **Not** flow definitions. |
 | `marimo/` | Marimo (cloned from the workspace repo into `/app/notebooks/<repo>/nexus_seeds/marimo/`) | Marimo notebooks (plain `.py` files using `marimo.App` + `@app.cell`) plus the `_nexus_spark.py` helper that wires `SparkSession.builder.remote("sc://spark-connect:15002")`. Per-stack folder because Marimo's `.py` notebook format is incompatible with Jupyter `.ipynb` and the helper module is Marimo-specific. |
 | `prefect/` | Prefect worker — TWO distinct clones: (a) the worker container's STARTUP `git clone` in `stacks/prefect/docker-compose.yml:88-89` populates `/flows/$REPO_NAME/` (only on first launch when the dir is absent — this is what the operator's `prefect deploy` reads); (b) the `pull:` step inside the seeded `prefect.yaml` reclones into a fresh tmpdir at flow-RUN time, but only for ALREADY-REGISTERED deployments. | Per-stack folder with the deployment manifest at `nexus_seeds/prefect/prefect.yaml` (operator runs `cd nexus_seeds/prefect && prefect deploy` to register the seeded deployments), `requirements.txt` (installed at run-time by `pip_install_requirements`), and `flows/<flow_name>.py` (the entrypoint files referenced from `prefect.yaml`'s `deployments:` block). |
 | `notebooks/` | Jupyter, code-server (cloned from the workspace repo) | `.ipynb` notebooks (Jupyter) or `.py` scripts (code-server). NOT for Marimo notebooks — those go in `marimo/`. |
@@ -83,7 +83,7 @@ If a new stack needs its own per-stack folder, add it under `workspace-seeds/<st
 
 ## How seeding works
 
-The orchestrator's `_phase_seed` (`src/nexus_deploy/seeder.py`), after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3200/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (deploy.sh resolves this via `$FORGEJO_REPO_OWNER`, set per-mode at the top of the script).
+The orchestrator's `_phase_seed` (`src/nexus_deploy/seeder.py`), after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3202/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (`workspace_coords.py` resolves this and the pipeline passes it as `FORGEJO_REPO_OWNER`).
 
 - HTTP **201/200** → file created. Counted as `SEEDED`.
 - HTTP **422** → file already exists. Counted as `SKIPPED`. **Existing files are never overwritten** — user edits persist across re-deploys.
@@ -106,11 +106,11 @@ What's allowed instead:
 - A `Webhook` trigger that requires explicit invocation. Fine.
 - No `triggers:` block at all. Run manually from the UI.
 
-If you genuinely need a system-level scheduled flow (e.g. a periodic data refresh that the platform itself depends on), don't put it under `workspace-seeds/`. Register it directly in `deploy.sh` via the Kestra API the way `system.flow-sync` is registered today — that's infrastructure, not a learning sample, and lives outside this directory.
+If you genuinely need a system-level scheduled flow (e.g. a periodic data refresh that the platform itself depends on), don't put it under `workspace-seeds/`. Register it directly in `src/nexus_deploy/kestra.py` the way `system.flow-sync` is registered today — that's infrastructure, not a learning sample, and lives outside this directory.
 
 ### 2. Reference Infisical-managed secrets only via `{{ secret('NAME') }}`
 
-`scripts/deploy.sh` syncs every Infisical secret into Kestra on each spin-up: the values are base64-encoded and written as `SECRET_<NAME>=<base64>` env-var entries into a delimited block in `stacks/kestra/.env` (search the script for `BEGIN nexus-secret-sync`), then Kestra is `--force-recreate`d so its `EnvVarSecretProvider` picks them up at startup. Reference them in flows as `{{ secret('R2_ACCESS_KEY') }}`, `{{ secret('FORGEJO_TOKEN') }}`, etc. Never hardcode credentials in seed files — this directory is public on GitHub.
+The orchestrator's kestra-secret-sync phase (`src/nexus_deploy/secret_sync.py`) syncs every Infisical secret into Kestra on each spin-up: the values are base64-encoded and written as `SECRET_<NAME>=<base64>` env-var entries into a delimited block in `stacks/kestra/.env` (look for `BEGIN nexus-secret-sync` in the rendered remote script), then Kestra is `--force-recreate`d so its `EnvVarSecretProvider` picks them up at startup. Reference them in flows as `{{ secret('R2_ACCESS_KEY') }}`, `{{ secret('FORGEJO_TOKEN') }}`, etc. Never hardcode credentials in seed files — this directory is public on GitHub.
 
 ### 3. Idempotent if executed multiple times
 
@@ -132,4 +132,4 @@ Use kebab-case file names that convey what the example does at a glance: `r2-tax
 
 - **Not a place for one-off experiments.** Anything here ships to every user forever (until they delete it). Use a personal branch or your own Forgejo repo for throwaway experiments.
 - **Not a substitute for documentation.** The companion docs at `docs/tutorials/` explain *why* and *how*; the examples are *what* you actually run. Keep both in sync when you add either.
-- **Not a place for production-style infrastructure flows.** Those live in `deploy.sh` (registered directly) or in a future `stacks/` extension.
+- **Not a place for production-style infrastructure flows.** Those live in `src/nexus_deploy/kestra.py` (registered directly) or in a future `stacks/` extension.

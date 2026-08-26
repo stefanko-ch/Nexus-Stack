@@ -50,9 +50,9 @@ pull:
   - prefect.deployments.steps.git_clone:
       repository: "{{ $FORGEJO_REPO_URL }}"
       # Branch name comes from the WORKSPACE_BRANCH env var that
-      # deploy.sh injects into stacks/prefect/.env (resolved from the
-      # mirrored upstream's default branch — see scripts/deploy.sh's
-      # WORKSPACE_BRANCH derivation around line 326-357). Hardcoding
+      # the deploy pipeline injects into stacks/prefect/.env (resolved
+      # from the mirrored upstream's default branch — see
+      # src/nexus_deploy/workspace_coords.py). Hardcoding
       # `main` would break mirrored workspaces whose default is
       # `master` or anything else: every flow run would try to clone
       # a non-existent ref. The Pebble `default('main')` keeps the

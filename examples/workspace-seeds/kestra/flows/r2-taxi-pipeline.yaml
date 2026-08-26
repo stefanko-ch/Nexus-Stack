@@ -43,7 +43,7 @@ labels:
 #
 # Per Nexus-Stack convention (see `examples/README.md`), seeded example
 # flows MUST NEVER ship with schedule / cron triggers. Reason: a seeded
-# flow lands on EVERY student stack via the deploy.sh seed loop. A cron
+# flow lands on EVERY student stack via the seedh seed loop. A cron
 # trigger would then fire on N student stacks, multiplying load on
 # external APIs (CloudFront, Databricks Free Edition quota), R2 egress
 # costs, and Kestra container CPU by the cohort size.

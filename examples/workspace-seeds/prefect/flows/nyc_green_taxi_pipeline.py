@@ -78,7 +78,7 @@ def upload_month(month: str, body: bytes) -> str:
 
     Returns the resulting object key so downstream tasks can chain on it
     deterministically. R2 credentials come from the prefect-worker
-    container's env vars (deploy.sh writes R2_* into stacks/prefect/.env).
+    container's env vars (the deploy pipeline writes R2_* into stacks/prefect/.env).
     """
     # `addressing_style="path"` is required for Cloudflare R2: without
     # it, botocore can fall back to virtual-host-style URLs

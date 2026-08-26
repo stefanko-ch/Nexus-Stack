@@ -82,7 +82,7 @@ def _(mo):
         ## 1. Verify Hetzner S3 credentials
 
         Pulled from Infisical via the `.infisical.env` env_file (see
-        `scripts/deploy.sh` Marimo secret-sync block). If any are
+        Marimo secret-sync block). If any are
         missing, fix them in Infisical and re-run a spin-up to
         repopulate the container env.
         """
