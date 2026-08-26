@@ -35,7 +35,7 @@ Woodpecker CI is a simple, container-native continuous integration engine forked
 | `woodpecker-agent` | `woodpeckerci/woodpecker-agent:v3.13.0` | Pipeline executor (runs Docker containers) |
 
 **Authentication (auto-configured via Forgejo):**
-Woodpecker uses OAuth from Forgejo for authentication. There is no built-in user/password system. The deploy script automatically creates a Forgejo OAuth application and configures Woodpecker with the credentials. Log in via your Forgejo account.
+Woodpecker uses OAuth from Forgejo for authentication. There is no built-in user/password system. The orchestrator's woodpecker-oauth phase automatically creates a Forgejo OAuth application and configures Woodpecker with the credentials. Log in via your Forgejo account.
 
 > **Dependency:** Woodpecker requires Forgejo. If Woodpecker is enabled without Forgejo, Forgejo is auto-enabled during deployment.
 

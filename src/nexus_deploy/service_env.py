@@ -1786,7 +1786,11 @@ def _strip_forgejo_block(content: str) -> str:
         rf"\n?{re.escape(_FORGEJO_BLOCK_BEGIN)}.*?{re.escape(_FORGEJO_BLOCK_END)}\n?",
         re.DOTALL,
     )
-    return pattern.sub("\n", content).rstrip() + "\n" if content else ""
+    stripped = pattern.sub("\n", content).rstrip()
+    # Not `content` — an .env that held nothing but the block strips to
+    # the empty string, and appending a newline to that leaves a lone
+    # "\n" for the caller to write a blank first line onto.
+    return stripped + "\n" if stripped else ""
 
 
 def _render_forgejo_workspace_block(cfg: ForgejoWorkspaceConfig) -> str:

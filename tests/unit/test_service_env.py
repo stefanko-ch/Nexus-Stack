@@ -1258,6 +1258,24 @@ def test_strip_forgejo_block_on_clean_content_is_noop() -> None:
     assert _strip_forgejo_block(content) == content
 
 
+def test_strip_forgejo_block_of_an_all_block_file_is_empty() -> None:
+    """A file that held nothing but the block must strip to nothing.
+
+    The helper used to append a newline unconditionally, so this case
+    came back as a lone "\n" and the caller wrote the fresh block onto a
+    blank first line. It stabilised there rather than accumulating, so
+    the symptom was cosmetic — but the .env is generated output and a
+    stray leading blank line is noise nobody chose.
+    """
+    content = (
+        "\n"
+        "# >>> Forgejo workspace repo (auto-generated, do not edit)\n"
+        "FORGEJO_URL=http://forgejo:3000\n"
+        "# <<< Forgejo workspace repo\n"
+    )
+    assert _strip_forgejo_block(content) == ""
+
+
 def test_strip_forgejo_block_removes_existing_block() -> None:
     content = (
         "FOO=bar\n"
