@@ -264,42 +264,97 @@ extract_error() {
 # error wording the delete-existing branch wouldn't trigger at all and
 # orphans would leak. Doing this BEFORE create is idempotent and handles
 # every edge case uniformly. Uses ?per_page=100 (Cloudflare's max) to
-# tolerate accounts up to the 50-token hard cap. Treats the listing
-# as best-effort: a transient list failure leaves the create call to
-# discover the conflict on its own, falling back to the legacy path.
+# tolerate accounts up to the 50-token hard cap.
+#
+# The listing used to be best-effort, on the reasoning that a create
+# against a surviving token fails with "already exists" and the legacy
+# delete-and-retry path recovers. That holds only while Cloudflare
+# rejects a duplicate name — and the comment below acknowledges that
+# tokens CAN share one. So a transient list failure plus an accepted
+# duplicate meant the script created a second token, exited 0, and left
+# the previous one live with R2 write access. Nothing downstream could
+# notice, because from the caller's side the run had succeeded.
+#
+# The listing is therefore retried and, once the deletes are done,
+# verified. If we cannot establish that no token with this name
+# survives, we stop instead of minting another one.
+
+# List every API token, retrying transient failures. Echoes the raw
+# response on success; returns 1 when no attempt produced a usable one.
+list_api_tokens() {
+    local attempt response
+    for attempt in 1 2 3; do
+        response=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens?per_page=100" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" 2>/dev/null || echo "")
+        if echo "$response" | jq -e '.success == true and (.result | type == "array")' >/dev/null 2>&1; then
+            printf '%s' "$response"
+            return 0
+        fi
+        [ "$attempt" -lt 3 ] && sleep $((attempt * 2))
+    done
+    return 1
+}
+
+# IDs of every token named $TOKEN_NAME in a listing response. ALL of
+# them, not just the first: the account can end up with several sharing
+# a name (an earlier Cloudflare API behaviour change, or a race during a
+# parallel re-setup), and leaving one behind is the case this guards.
+stale_token_ids() {
+    printf '%s' "$1" | jq -r --arg name "$TOKEN_NAME" '.result[] | select(.name == $name) | .id'
+}
+
 echo -e "  ${CYAN}→${NC} Pre-cleanup: looking for stale '${TOKEN_NAME}' tokens..."
-STALE_TOKEN_LIST=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens?per_page=100" \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" 2>/dev/null || echo "")
-if echo "$STALE_TOKEN_LIST" | jq -e '.success == true and (.result | type == "array")' >/dev/null 2>&1; then
-    # ALL tokens whose .name == $TOKEN_NAME, NOT just the first one. If the
-    # account somehow ended up with multiple tokens sharing the name (e.g.
-    # from an earlier Cloudflare API behavior change or a race during a
-    # parallel re-setup), we want to remove all of them.
-    STALE_IDS=$(echo "$STALE_TOKEN_LIST" | jq -r --arg name "$TOKEN_NAME" \
-        '.result[] | select(.name == $name) | .id')
-    if [ -n "$STALE_IDS" ]; then
-        STALE_COUNT=$(printf '%s\n' "$STALE_IDS" | wc -l | tr -d ' ')
-        echo -e "  ${YELLOW}⚠${NC}  Found ${STALE_COUNT} stale token(s) with name '${TOKEN_NAME}' — deleting before re-create..."
-        while IFS= read -r STALE_ID; do
-            [ -z "$STALE_ID" ] && continue
-            STALE_DEL=$(curl -s -X DELETE \
-                "https://api.cloudflare.com/client/v4/user/tokens/${STALE_ID}" \
-                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" 2>/dev/null || echo "")
-            if echo "$STALE_DEL" | grep -q '"success":true'; then
-                echo -e "  ${GREEN}✓${NC} Deleted stale token ${STALE_ID}"
-            else
-                STALE_ERR=$(extract_error "$STALE_DEL")
-                echo -e "  ${YELLOW}⚠${NC}  Could not delete stale token ${STALE_ID}: ${STALE_ERR:-no error message}"
-                # Non-fatal: the create call below will still try; if the
-                # token couldn't be deleted, the create will fail with
-                # "already exists" and the legacy path runs as a fallback.
-            fi
-        done <<< "$STALE_IDS"
-    else
-        echo -e "  ${GREEN}✓${NC} No stale tokens found"
+if ! STALE_TOKEN_LIST=$(list_api_tokens); then
+    echo -e "  ${RED}✗${NC} Could not list API tokens after 3 attempts."
+    echo -e "     Aborting rather than creating another '${TOKEN_NAME}' token:"
+    echo -e "     if a previous one is still live, a second would leave it"
+    echo -e "     active with R2 write access and nothing would report it."
+    echo -e "     Check the Cloudflare API status and re-run."
+    exit 1
+fi
+
+STALE_IDS=$(stale_token_ids "$STALE_TOKEN_LIST")
+if [ -n "$STALE_IDS" ]; then
+    STALE_COUNT=$(printf '%s\n' "$STALE_IDS" | wc -l | tr -d ' ')
+    echo -e "  ${YELLOW}⚠${NC}  Found ${STALE_COUNT} stale token(s) with name '${TOKEN_NAME}' — deleting before re-create..."
+    while IFS= read -r STALE_ID; do
+        [ -z "$STALE_ID" ] && continue
+        STALE_DEL=$(curl -s -X DELETE \
+            "https://api.cloudflare.com/client/v4/user/tokens/${STALE_ID}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" 2>/dev/null || echo "")
+        if echo "$STALE_DEL" | grep -q '"success":true'; then
+            echo -e "  ${GREEN}✓${NC} Deleted stale token ${STALE_ID}"
+        else
+            STALE_ERR=$(extract_error "$STALE_DEL")
+            echo -e "  ${YELLOW}⚠${NC}  Could not delete stale token ${STALE_ID}: ${STALE_ERR:-no error message}"
+            # Not fatal on its own — the verification below decides. A
+            # delete can report failure and still have taken effect, so
+            # re-reading the truth beats trusting this response.
+        fi
+    done <<< "$STALE_IDS"
+
+    # Verify. This is the assertion the whole block exists for: after
+    # this point no token named $TOKEN_NAME may remain, because the very
+    # next thing we do is create one.
+    if ! VERIFY_LIST=$(list_api_tokens); then
+        echo -e "  ${RED}✗${NC} Deleted stale token(s) but could not verify the result."
+        echo -e "     Aborting rather than creating another '${TOKEN_NAME}' token."
+        exit 1
     fi
+    SURVIVORS=$(stale_token_ids "$VERIFY_LIST")
+    if [ -n "$SURVIVORS" ]; then
+        SURVIVOR_COUNT=$(printf '%s\n' "$SURVIVORS" | wc -l | tr -d ' ')
+        echo -e "  ${RED}✗${NC} ${SURVIVOR_COUNT} token(s) named '${TOKEN_NAME}' could not be deleted:"
+        printf '%s\n' "$SURVIVORS" | sed 's/^/     /'
+        echo -e "     They still hold R2 write access. Creating another would"
+        echo -e "     leave them live and unaccounted for, so this stops here."
+        echo -e "     Delete them under Cloudflare dashboard → My Profile →"
+        echo -e "     API Tokens, then re-run."
+        exit 1
+    fi
+    echo -e "  ${GREEN}✓${NC} Verified: no '${TOKEN_NAME}' tokens remain"
 else
-    echo -e "  ${YELLOW}⚠${NC}  Could not list tokens for pre-cleanup (non-fatal — create call will still attempt)"
+    echo -e "  ${GREEN}✓${NC} No stale tokens found"
 fi
 
 MAX_RETRIES=3
