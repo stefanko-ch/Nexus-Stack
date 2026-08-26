@@ -793,6 +793,11 @@ jobs:
           HOST_OS=""
           HOST_DISK=""
           HOST_DOCKER=""
+          # The remote script is single-quoted on purpose: $PRETTY_NAME and
+          # the command substitutions must be evaluated by the shell on the
+          # server, not by this one. Double quotes would expand them here,
+          # against the runner's empty environment, and ship three blanks.
+          # shellcheck disable=SC2016
           if HOST_FACTS=$(timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=15 nexus \
                 '. /etc/os-release 2>/dev/null && printf "OS=%s\n" "$PRETTY_NAME";
                  printf "DISK=%s\n" "$(df -BG --output=size / 2>/dev/null | tail -1 | tr -d " G")";
