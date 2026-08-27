@@ -150,6 +150,9 @@ Without it the first run stops with an explanatory error, and Cloudflare-based a
 |-------------|-------------|
 | `TF_VAR_user_email` | User - all services except SSH (also receives notifications) |
 | `TF_VAR_guest_emails` | Comma-separated guests - Access whitelist only, no notifications |
+| `RESEND_API_KEY` | Email notifications via Resend |
+| `DOCKERHUB_USERNAME` | Docker Hub username (higher pull limits) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
 
 #### What each role may do in the Control Plane
 
@@ -180,9 +183,6 @@ Guests are on the Access whitelist to look. Put someone in
 `TF_VAR_user_email` rather than `TF_VAR_guest_emails` if they need to run
 the stack — a guest attempting a state-changing action gets an HTTP 403
 with an explanatory message, not a silent failure.
-| `RESEND_API_KEY` | Email notifications via Resend |
-| `DOCKERHUB_USERNAME` | Docker Hub username (higher pull limits) |
-| `DOCKERHUB_TOKEN` | Docker Hub access token |
 
 ### S3-Persistence Secrets (RFC 0001)
 

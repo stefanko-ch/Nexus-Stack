@@ -16,10 +16,18 @@
 // your own stack is the reason the Control Plane is there; a guest doing
 // it to a stack somebody else is working on is not.
 //
-// Use it where the action is self-service — lifecycle and service
-// toggles. Keep requireAdmin for operator work: destroying
-// infrastructure, rotating the Control Plane's own secrets, opening host
-// firewall ports, mailing out the Infisical master credentials.
+// Use it where the action is self-service. Today that is exactly three
+// endpoints: /api/spin-up, /api/teardown and the POST on /api/services.
+//
+// Keep requireAdmin everywhere else, including two that sound like they
+// belong here and do not. /api/lifecycle changes WHICH teardown and
+// spin-up pair the stack uses, which decides what survives a cycle —
+// a configuration choice with data-loss consequences, not an act of
+// running the stack. /api/scheduled-teardown sets the cost-control
+// timer that users are not meant to switch off. The rest is plainly
+// operator work: destroying infrastructure, redeploying the Control
+// Plane, opening host firewall ports, mailing the Infisical master
+// credentials.
 //
 // Usage at the top of a handler, after the origin check:
 //   const denial = requireOperator(context.env, context.request);
