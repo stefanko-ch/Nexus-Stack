@@ -110,7 +110,7 @@ ssh nexus "docker exec questdb curl -s 'http://localhost:9000/exec?query=SELECT%
 # The PostgreSQL wire listener, for real. Needs a client, and the postgres
 # stack ships psql; both containers are on app-network. Take the password
 # from Infisical.
-ssh nexus "docker exec -e PGPASSWORD='<from-infisical>' postgres \\
+ssh nexus "docker exec -e PGPASSWORD='<from-infisical>' postgres \
   psql -h questdb -p 8812 -U nexus-questdb -d qdb -c 'SELECT 1'"
 
 # Disk: QuestDB memory-maps its column files, so growth is on the volume
