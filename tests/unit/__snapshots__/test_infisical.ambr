@@ -135,6 +135,9 @@
       'OPENMETADATA_PASSWORD': 'openmetadata_admin_password-VALUE',
       'OPENMETADATA_USERNAME': 'admin@snapshot.test',
     }),
+    'opensearch': dict({
+      'OPENSEARCH_ADMIN_PASSWORD': 'opensearch_admin_password-VALUE',
+    }),
     'pg-ducklake': dict({
       'PG_DUCKLAKE_DATABASE': 'ducklake',
       'PG_DUCKLAKE_PASSWORD': 'pgducklake_password-VALUE',

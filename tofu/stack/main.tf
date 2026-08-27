@@ -230,6 +230,23 @@ resource "random_password" "lakekeeper_db_password" {
   special = false
 }
 
+# OpenSearch (standalone stack) admin password
+# Same forced exception as the Marquez one below, and for the same reason:
+# OpenSearch validates OPENSEARCH_INITIAL_ADMIN_PASSWORD on start and
+# refuses a password without a special character. `override_special` keeps
+# the value inert in a shell, a compose .env parser and a YAML scalar, and
+# the min_* floors make all four required classes guaranteed rather than
+# probable — a draw missing one fails the start intermittently.
+resource "random_password" "opensearch_admin" {
+  length           = 24
+  special          = true
+  override_special = "-_."
+  min_upper        = 1
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+}
+
 # Marquez OpenSearch admin password
 # One of only two passwords in this file with `special = true`
 # (openmetadata_admin is the other), and the exception is forced: since

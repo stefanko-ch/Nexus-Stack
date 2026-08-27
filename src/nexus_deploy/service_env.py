@@ -631,6 +631,35 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_opensearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """OpenSearch: standalone search engine + Dashboards. One secret, used
+    twice — the node takes it as OPENSEARCH_INITIAL_ADMIN_PASSWORD and
+    Dashboards uses it to authenticate against the node.
+
+    Distinct from Marquez's own OpenSearch, which lives inside that stack
+    with its own credential. The two never share, so disabling one leaves
+    the other working.
+
+    Fail-fast guard: OpenSearch refuses to start without the password and
+    Dashboards then waits on a container that never becomes healthy, with
+    the real cause two logs away.
+    """
+    if _empty(c.opensearch_admin_password):
+        raise ServiceEnvError(
+            "OpenSearch enabled but OPENSEARCH_ADMIN_PASSWORD is empty — "
+            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
+            "as does initial-setup) to generate "
+            "random_password.opensearch_admin and push it to Infisical, "
+            "then re-run. Aborting: the node refuses to start without "
+            "OPENSEARCH_INITIAL_ADMIN_PASSWORD.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "OPENSEARCH_ADMIN_PASSWORD": c.opensearch_admin_password or "",
+        },
+    )
+
+
 def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Marquez: OpenLineage backend. Two secrets — the lineage database
     password and the OpenSearch admin password backing fuzzy search.
@@ -1568,6 +1597,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("opensearch", _is_enabled("opensearch"), _render_opensearch),
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),
     EnvSpec("mage", _is_enabled("mage"), _render_mage),

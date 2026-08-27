@@ -78,6 +78,7 @@ def full_config() -> NexusConfig:
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
+        opensearch_admin_password="opensearch-admin-pw",
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
         mage_admin_password="mage-pw",
@@ -940,6 +941,38 @@ def test_lakekeeper_raises_on_empty_db_password(
     config = full_config.model_copy(update={"lakekeeper_db_password": ""})
     with pytest.raises(ServiceEnvError, match="LAKEKEEPER_DB_PASSWORD"):
         _render_lakekeeper(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# OpenSearch — fail-fast guard + one secret used by two containers
+# ---------------------------------------------------------------------------
+
+
+def test_opensearch_raises_on_empty_admin_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """OpenSearch refuses to start without OPENSEARCH_INITIAL_ADMIN_PASSWORD,
+    and Dashboards waits on it via service_healthy — so an empty value
+    deadlocks the stack on a container that never becomes healthy."""
+    from nexus_deploy.service_env import _render_opensearch
+
+    config = full_config.model_copy(update={"opensearch_admin_password": ""})
+    with pytest.raises(ServiceEnvError, match="OPENSEARCH_ADMIN_PASSWORD"):
+        _render_opensearch(config, full_env)
+
+
+def test_opensearch_renders_exactly_one_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """One password, used by both containers: the node takes it as its
+    initial admin password, Dashboards uses it to authenticate against the
+    node. Pinning the key set guards against Marquez's separate OpenSearch
+    credential being wired in here by mistake — the two stacks deliberately
+    do not share one."""
+    from nexus_deploy.service_env import _render_opensearch
+
+    rendered = _render_opensearch(full_config, full_env)
+    assert rendered.env_vars == {"OPENSEARCH_ADMIN_PASSWORD": "opensearch-admin-pw"}
 
 
 # ---------------------------------------------------------------------------

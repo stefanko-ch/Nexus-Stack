@@ -719,6 +719,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "opensearch",
+            _filter_empty(
+                {
+                    "OPENSEARCH_ADMIN_PASSWORD": config.opensearch_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "marquez",
             _filter_empty(
                 {

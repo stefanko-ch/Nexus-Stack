@@ -180,6 +180,9 @@ output "secrets" {
     # Lakekeeper (Iceberg REST Catalog)
     lakekeeper_db_password = random_password.lakekeeper_db_password.result
 
+    # OpenSearch (standalone search + Dashboards)
+    opensearch_admin_password = random_password.opensearch_admin.result
+
     # Marquez (OpenLineage backend)
     marquez_db_password = random_password.marquez_db_password.result
     marquez_opensearch_password = random_password.marquez_opensearch_admin.result

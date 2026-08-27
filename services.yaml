@@ -496,6 +496,18 @@ services:
       marquez-db: "postgres:16-alpine"
       marquez-opensearch: "opensearchproject/opensearch:2.19.6"
 
+  opensearch:
+    subdomain: "opensearch"
+    port: 5601
+    public: false
+    category: "analytics"
+    website: "https://opensearch.org"
+    description: "Apache-2.0 search and analytics engine with Dashboards — speaks the Elasticsearch API."
+    long_description: "OpenSearch is the Apache-2.0 fork of Elasticsearch 7.10, shipped here with its Dashboards UI. It speaks the Elasticsearch REST API, so anything written against that API works unchanged — the opensearch-py and elasticsearch-py clients, Logstash, Fluent Bit. Build an index from a notebook, query it with the DSL, then explore and visualise it in Dashboards without leaving the stack. Runs standalone: Marquez ships its own OpenSearch inside its own stack and does not use this one, so disabling either leaves the other working."
+    image: "opensearchproject/opensearch:2.19.6"
+    support_images:
+      opensearch-dashboards: "opensearchproject/opensearch-dashboards:2.19.6"
+
   kestra:
     subdomain: "kestra"
     port: 8085

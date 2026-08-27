@@ -66,6 +66,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Gitea DB) | `postgres` | `16-alpine` | Major |
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
 | Mage | `mageai/mageai` | `0.9.79` | Exact ¹ |
+| OpenSearch | `opensearchproject/opensearch` | `2.19.6` | Exact ¹ |
+| OpenSearch Dashboards | `opensearchproject/opensearch-dashboards` | `2.19.6` | Exact ¹ |
 | Marquez | `marquezproject/marquez` | `0.51.1` | Exact ¹ |
 | Marquez Web | `marquezproject/marquez-web` | `0.51.1` | Exact ¹ |
 | PostgreSQL (Marquez DB) | `postgres` | `16-alpine` | Major |
@@ -192,6 +194,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |
 | **Marimo** | Reactive Python notebook | [marimo.md](marimo.md) |
 | **Marquez** | OpenLineage backend — data lineage across the orchestrators | [marquez.md](marquez.md) |
+| **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
