@@ -33,10 +33,13 @@ of the last Spin Up run. It looks at every container on the server — running
 or not — and tells you which one is the problem, often before you notice
 anything is wrong.
 
-It probes each published port with HTTP but does not assume every port speaks
-it. A refused connection and a healthy database that simply is not a web
-server both look identical in an HTTP status code, so the check reads curl's
-exit status as well: only "connection refused" counts as a fault.
+It probes every published host port with HTTP — all of them, not just the
+first, since a stack like RisingWave puts its Postgres wire protocol on one
+port and its dashboard on another. It does not assume any of them speaks
+HTTP, though: a port nothing is listening on and a healthy database that
+simply is not a web server look identical in an HTTP status code. So the
+check reads curl's exit status too, and only a failure to connect at all
+counts as a fault.
 
 ```
   ok    forgejo                    :3202   200

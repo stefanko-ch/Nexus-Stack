@@ -1078,6 +1078,19 @@ jobs:
           # `[::]:` and, where a compose file says so, on `127.0.0.1:`.
           # Matching one address form silently skipped the others.
           #
+          # Every published host port is probed, not just the first. Three
+          # stacks publish several — garage, risingwave, seaweedfs — and
+          # RisingWave shows why it matters: its first port is the Postgres
+          # wire protocol and its dashboard is on the second, so stopping at
+          # the first would have left the dashboard permanently unchecked.
+          # Ports are deduplicated because Docker lists the same one twice
+          # when it binds both 0.0.0.0 and [::].
+          #
+          # docker's stderr is deliberately NOT suppressed: if the daemon is
+          # down, that message travels back over the ssh channel and lands in
+          # the captured stderr, which is the difference between reporting
+          # "docker failed" and inventing "no containers".
+          #
           # curl's exit status is kept alongside the HTTP code, because the
           # code alone cannot tell a dead port from a healthy non-HTTP one:
           # both report 000. Measured: nothing listening exits 7, a listener
@@ -1094,7 +1107,7 @@ jobs:
           # `done` belongs to the parent and would not wait for anything,
           # leaving the probes orphaned and their output lost.
           # shellcheck disable=SC2016
-          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; pt=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | head -1 | tr -cd "0-9"); if [ -z "$pt" ]; then printf "%s\t-\tNOPORT\n" "$n"; else ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); rc=$?; if [ "$rc" = "0" ]; then printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}"; elif [ "$rc" = "7" ]; then printf "%s\t%s\tDEAD\n" "$n" "$pt"; else printf "%s\t%s\tNOHTTP:%s\n" "$n" "$pt" "$rc"; fi ) & fi; done; wait; }'
+          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; plist=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | sed "s/[^0-9]//g" | sort -un); if [ -z "$plist" ]; then printf "%s\t-\tNOPORT\n" "$n"; else for pt in $plist; do ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); rc=$?; if [ "$rc" = "0" ]; then printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}"; elif [ "$rc" = "7" ]; then printf "%s\t%s\tDEAD\n" "$n" "$pt"; else printf "%s\t%s\tNOHTTP:%s\n" "$n" "$pt" "$rc"; fi ) & done; fi; done; wait; }'
         run: |
           set -uo pipefail
 
@@ -1128,7 +1141,11 @@ jobs:
           fi
 
           if [ -z "$REPORT" ]; then
-            echo "::warning title=smoke-check::The server was reachable but Docker listed no containers at all."
+            # ssh succeeded but nothing came back. `docker ps` keeps its
+            # stderr now, so if the daemon is down its message is in the
+            # captured file — quote it rather than assert an empty list.
+            EMPTY_ERR=$(tr '\n\r' '  ' < /tmp/smoke-ssh.err 2>/dev/null | head -c 300)
+            echo "::warning title=smoke-check::The server was reachable but the probe returned nothing. Docker reported: ${EMPTY_ERR:-(nothing on stderr, so it genuinely listed no containers)}"
             exit 0
           fi
 
