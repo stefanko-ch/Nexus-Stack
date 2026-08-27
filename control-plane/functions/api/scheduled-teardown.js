@@ -2,7 +2,7 @@
  * Scheduled Teardown Configuration API
  * GET /api/scheduled-teardown - Get current configuration
  * POST /api/scheduled-teardown - Update configuration
- * 
+ *
  * Configuration stored in Cloudflare D1 database
  */
 
@@ -106,33 +106,55 @@ async function logExtension(db, userEmail, delayHours, delayUntil) {
  */
 function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
   const [hours, minutes] = timeStr.split(':').map(Number);
-  
-  // Get the date string in the target timezone
-  const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  
-  // Create a date assuming the time is in UTC
-  const utcDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`);
-  
-  // Now format this UTC date in the target timezone to see what time it represents there
-  const tzFormatter = new Intl.DateTimeFormat('en', {
+
+  // The local calendar date in the target zone, e.g. "2026-08-27".
+  const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone });
+
+  // The wanted wall-clock moment, read as if it were UTC. This is not the
+  // answer — it is off by exactly the zone's offset, which the next step
+  // measures.
+  const naive = new Date(
+    `${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`
+  );
+
+  // Measure the offset by formatting a known instant in the zone and reading
+  // the FULL local date back, not just hours and minutes.
+  //
+  // Reading only hh:mm is what made this wrong: for a late local time the
+  // probe instant lands on the next day in the zone (22:00Z is 00:00 in
+  // Europe/Zurich), so 22:00 versus 00:00 measured +1320 minutes instead of
+  // -120, and "next teardown" showed tomorrow while today's had not happened
+  // yet. Folding that modulo a day fixes Zurich but stays ambiguous near
+  // ±12h — UTC+14 and UTC+10 produce the same remainder. Including the date
+  // removes the ambiguity entirely.
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-  });
-  
-  const tzTimeStr = tzFormatter.format(utcDate);
-  const [tzHours, tzMinutes] = tzTimeStr.split(':').map(Number);
-  
-  // Calculate the difference between desired time and actual time in timezone
-  const desiredMinutes = hours * 60 + minutes;
-  const actualMinutes = tzHours * 60 + tzMinutes;
-  const diffMinutes = desiredMinutes - actualMinutes;
-  
-  // Adjust UTC date by the difference
-  const adjustedDate = new Date(utcDate.getTime() + diffMinutes * 60 * 1000);
-  
-  return adjustedDate;
+    second: '2-digit',
+  }).formatToParts(naive);
+
+  const f = {};
+  for (const p of parts) {
+    if (p.type !== 'literal') f[p.type] = p.value;
+  }
+
+  // hour comes back as "24" rather than "00" at midnight in some runtimes.
+  const localAsUTC = Date.UTC(
+    Number(f.year),
+    Number(f.month) - 1,
+    Number(f.day),
+    Number(f.hour) % 24,
+    Number(f.minute),
+    Number(f.second)
+  );
+
+  const offsetMs = localAsUTC - naive.getTime();
+  return new Date(naive.getTime() - offsetMs);
 }
 
 export async function onRequestGet(context) {
@@ -140,7 +162,7 @@ export async function onRequestGet(context) {
   const userEmail = getAccessUserEmail(request) || '';
   const maxExtensionsPerDay = parsePositiveInt(env.MAX_EXTENSIONS_PER_DAY, 3);
   const maxDelayHours = parsePositiveInt(env.MAX_DELAY_HOURS, 4);
-  
+
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
@@ -157,7 +179,7 @@ export async function onRequestGet(context) {
     const teardownTime = await getConfig(env.NEXUS_DB, 'teardown_time', '22:00');
     const notificationTime = await getConfig(env.NEXUS_DB, 'notification_time', '21:45');
     const delayUntil = await getConfig(env.NEXUS_DB, 'delay_until', null);
-    
+
     // Calculate next teardown time
     let nextTeardown = null;
     let timeRemaining = null;
@@ -169,10 +191,10 @@ export async function onRequestGet(context) {
       }
 
       const now = new Date();
-      
+
       // Convert configured time in timezone to UTC
       let nextTeardownDate = timeInTimezoneToUTC(teardownTime, timezone);
-      
+
       // If the time has already passed today, move to tomorrow
       if (nextTeardownDate <= now) {
         const tomorrow = new Date(nextTeardownDate);
@@ -202,7 +224,7 @@ export async function onRequestGet(context) {
         totalMinutes: Math.floor(remaining / (1000 * 60)),
       };
     }
-    
+
     const extensionsUsed = await getExtensionsUsedToday(env.NEXUS_DB, userEmail);
 
     return new Response(JSON.stringify({
