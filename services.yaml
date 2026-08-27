@@ -476,6 +476,19 @@ services:
     support_images:
       postgres: "postgres:16-alpine"
 
+  marquez:
+    subdomain: "marquez"
+    port: 3210
+    public: false
+    category: "observability"
+    website: "https://marquezproject.ai"
+    description: "OpenLineage reference backend — shows which job produced which dataset, and what breaks when one changes."
+    long_description: "Marquez is the reference implementation of the OpenLineage standard. It collects lineage events from the orchestrators already in this stack and builds a queryable graph of jobs, datasets and runs: this Kestra flow wrote that table, which fed this dbt model, which backs that Superset dashboard. Dagster emits OpenLineage natively, Spark through a listener, dbt through the dbt-ol wrapper, and anything else can POST to the API directly. A dedicated PostgreSQL holds the graph; the web container serves the UI and proxies the API, so only it is exposed."
+    image: "marquezproject/marquez:0.51.1"
+    support_images:
+      web: "marquezproject/marquez-web:0.51.1"
+      postgres: "postgres:16-alpine"
+
   kestra:
     subdomain: "kestra"
     port: 8085

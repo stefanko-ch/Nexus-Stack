@@ -631,6 +631,36 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Marquez: OpenLineage backend. One secret only — the lineage
+    database password. Marquez ships no user management, so there is no
+    admin credential to render; Cloudflare Access at the edge is the
+    gate, same model as Lakekeeper.
+
+    Fail-fast guard for the same reason as Lakekeeper and HedgeDoc: an
+    empty password leaves the Postgres init with no auth and the API
+    restart-looping behind a cryptic log line. Better to abort at deploy
+    time pointing at the missing Tofu apply.
+
+    No *_DOMAIN variable: unlike Lakekeeper, Marquez generates no
+    absolute URLs that clients follow, and the web container reaches the
+    API over the Docker network rather than through the public host.
+    """
+    if _empty(c.marquez_db_password):
+        raise ServiceEnvError(
+            "Marquez enabled but MARQUEZ_DB_PASSWORD is empty — "
+            "run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.marquez_db_password + push to Infisical, "
+            "then re-run spin-up. Aborting to avoid a restart-looping "
+            "Postgres container with no auth.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "MARQUEZ_DB_PASSWORD": c.marquez_db_password or "",
+        },
+    )
+
+
 def _render_evidence(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Evidence: SQL+markdown BI runtime. The bundled sample project
     queries the in-stack Postgres via env-var interpolation, so we
@@ -1526,6 +1556,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),
     EnvSpec("mage", _is_enabled("mage"), _render_mage),
     EnvSpec("minio", _is_enabled("minio"), _render_minio),

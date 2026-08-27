@@ -102,6 +102,8 @@
       'MAGE_PASSWORD': 'mage_admin_password-VALUE',
       'MAGE_USERNAME': 'user@snapshot.test',
     }),
+    'marquez': dict({
+    }),
     'meilisearch': dict({
       'MEILISEARCH_MASTER_KEY': 'meilisearch_master_key-VALUE',
     }),

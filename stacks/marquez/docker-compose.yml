@@ -1,0 +1,148 @@
+# =============================================================================
+# Marquez - OpenLineage reference backend (data lineage)
+# =============================================================================
+# Collects OpenLineage events from the orchestrators already in this stack
+# and turns them into a queryable graph: which job read which dataset, what
+# it produced, and which run did it. Answers "where did this table come
+# from, and what breaks if I change it?" — the one thing no other stack here
+# can answer today.
+#
+# Architecture:
+#   - marquez:     Dropwizard API on :5000 (+ admin :5001). Internal only —
+#                  producers reach it at http://marquez:5000 over
+#                  app-network. Flyway migrations run on boot.
+#   - marquez-web: Node process that serves the built React UI AND proxies
+#                  /api to the backend (upstream's docker/entrypoint.sh runs
+#                  `node setupProxy.js`). This is why only the web container
+#                  needs a published port: the browser never talks to the
+#                  API directly, so the API needs no subdomain of its own.
+#   - marquez-db:  dedicated Postgres 16, NOT shared with any other stack
+#                  (per project convention for stateful services).
+#
+# Config: config/marquez.yml is bind-mounted and selected via MARQUEZ_CONFIG.
+# The image's bundled marquez.dev.yml hardcodes user/password as
+# `marquez`/`marquez` and enables an OpenSearch-backed search that this
+# stack does not run — see the header of that file for the full reasoning.
+#
+# Auth: none in Marquez itself. Cloudflare Access at the edge is the gate,
+# same model as Lakekeeper. Marquez ships no user management at all, so
+# there is no admin credential to generate.
+#
+# Sending lineage from inside the stack:
+#   Dagster    — OpenLineage is built in; point it at http://marquez:5000
+#   Spark      — io.openlineage:openlineage-spark listener
+#   dbt        — `dbt-ol run` wrapper from the openlineage-dbt package
+#   Kestra     — POST to http://marquez:5000/api/v1/lineage
+#
+# Arch note: marquezproject/marquez publishes linux/amd64 only. The servers
+# have run x86 (cx43) since 2026-05, so this is not a constraint in
+# practice; it does mean the image needs emulation on an Apple Silicon
+# laptop, which only matters for hand-poking an image locally.
+#
+# Access: https://marquez.YOUR_DOMAIN
+# Docs:   https://marquezproject.ai
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Marquez API - OpenLineage ingest + metadata store
+  # ---------------------------------------------------------------------------
+  marquez:
+    image: ${IMAGE_MARQUEZ:-marquezproject/marquez:0.51.1}
+    container_name: marquez
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      # Selects our config over the image's marquez.dev.yml. Without it the
+      # entrypoint logs "WARNING 'MARQUEZ_CONFIG' not set" and silently uses
+      # the development file with its hardcoded credentials.
+      MARQUEZ_CONFIG: /opt/marquez/config/marquez.yml
+      MARQUEZ_PORT: 5000
+      MARQUEZ_ADMIN_PORT: 5001
+      POSTGRES_HOST: marquez-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: marquez
+      POSTGRES_USER: nexus-marquez
+      POSTGRES_PASSWORD: ${MARQUEZ_DB_PASSWORD}
+    volumes:
+      - ./config/marquez.yml:/opt/marquez/config/marquez.yml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    depends_on:
+      marquez-db:
+        condition: service_healthy
+    networks:
+      - app-network
+      - marquez-internal
+    healthcheck:
+      # The admin connector serves /healthcheck; the application port does
+      # not. Probing :5000 would report failure on a healthy server.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5001/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Marquez Web - React UI + API proxy
+  # ---------------------------------------------------------------------------
+  marquez-web:
+    image: ${IMAGE_MARQUEZ_WEB:-marquezproject/marquez-web:0.51.1}
+    container_name: marquez-web
+    restart: unless-stopped
+    environment:
+      # Consumed by setupProxy.js to reach the backend over the Docker
+      # network. The browser only ever talks to this container.
+      MARQUEZ_HOST: marquez
+      MARQUEZ_PORT: 5000
+      WEB_PORT: 3000
+    ports:
+      # Host 3210 → container 3000. Ports 3200-3202 are taken by other
+      # stacks; the container port stays at upstream's default.
+      - "3210:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    depends_on:
+      - marquez
+    networks:
+      - app-network
+      - marquez-internal
+
+  # ---------------------------------------------------------------------------
+  # Marquez - Dedicated PostgreSQL (lineage graph)
+  # ---------------------------------------------------------------------------
+  marquez-db:
+    image: ${IMAGE_MARQUEZ_DB:-postgres:16-alpine}
+    container_name: marquez-db
+    restart: unless-stopped
+    environment:
+      # Creating the role and database directly through POSTGRES_USER /
+      # POSTGRES_DB avoids upstream's docker/init-db.sh, which exists only
+      # because their compose connects as the postgres superuser and then
+      # provisions a second account.
+      POSTGRES_USER: nexus-marquez
+      POSTGRES_PASSWORD: ${MARQUEZ_DB_PASSWORD}
+      POSTGRES_DB: marquez
+    volumes:
+      - marquez-db-data:/var/lib/postgresql/data
+    networks:
+      - marquez-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-marquez -d marquez"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  marquez-db-data:
+
+networks:
+  app-network:
+    external: true
+  marquez-internal:
+    driver: bridge

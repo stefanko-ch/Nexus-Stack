@@ -719,6 +719,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "marquez",
+            _filter_empty(
+                {
+                    "MARQUEZ_DB_PASSWORD": config.marquez_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "mage",
             _filter_empty(
                 {

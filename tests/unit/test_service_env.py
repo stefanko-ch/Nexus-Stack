@@ -78,6 +78,7 @@ def full_config() -> NexusConfig:
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
+        marquez_db_password="marquez-db-pw",
         mage_admin_password="mage-pw",
         minio_root_password="minio-pw",
         sftpgo_admin_password="sftpgo-admin",
@@ -938,6 +939,37 @@ def test_lakekeeper_raises_on_empty_db_password(
     config = full_config.model_copy(update={"lakekeeper_db_password": ""})
     with pytest.raises(ServiceEnvError, match="LAKEKEEPER_DB_PASSWORD"):
         _render_lakekeeper(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# Marquez — fail-fast guard + the deliberate absence of a domain var
+# ---------------------------------------------------------------------------
+
+
+def test_marquez_raises_on_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Empty DB password leaves the dedicated Postgres with no auth,
+    and the API then restart-loops behind a cryptic Flyway failure.
+    Abort at deploy time pointing at the missing Tofu apply."""
+    from nexus_deploy.service_env import _render_marquez
+
+    config = full_config.model_copy(update={"marquez_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="MARQUEZ_DB_PASSWORD"):
+        _render_marquez(config, full_env)
+
+
+def test_marquez_renders_only_the_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Marquez has no user management and generates no absolute URLs
+    that clients follow, so unlike Lakekeeper it needs no *_DOMAIN
+    variable. Pinning the exact key set guards against one being added
+    back on autopilot when copying a neighbouring renderer."""
+    from nexus_deploy.service_env import _render_marquez
+
+    rendered = _render_marquez(full_config, full_env)
+    assert rendered.env_vars == {"MARQUEZ_DB_PASSWORD": "marquez-db-pw"}
 
 
 def test_lakekeeper_renders_domain_from_bootstrap_env(

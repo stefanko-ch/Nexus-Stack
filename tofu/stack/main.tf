@@ -230,6 +230,15 @@ resource "random_password" "lakekeeper_db_password" {
   special = false
 }
 
+# Marquez lineage database password
+# The lineage graph (jobs, datasets, runs, and the edges between them) is
+# the only state Marquez holds — it has no user accounts of its own, so
+# this is the stack's single credential.
+resource "random_password" "marquez_db_password" {
+  length  = 24
+  special = false
+}
+
 # Mage AI admin password
 resource "random_password" "mage_admin" {
   length  = 24

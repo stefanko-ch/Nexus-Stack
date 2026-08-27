@@ -1,0 +1,58 @@
+# =============================================================================
+# Marquez server configuration
+# =============================================================================
+# Shipped by Nexus-Stack rather than using the image's bundled
+# marquez.dev.yml, for two reasons:
+#
+#   1. The bundled config hardcodes `user: marquez` / `password: marquez`.
+#      Only POSTGRES_HOST and POSTGRES_PORT are env-substituted there, so
+#      there is no way to reach the `nexus-` account naming convention or a
+#      Tofu-generated password without replacing the file.
+#   2. Its `search.enabled` defaults to true and points at an OpenSearch
+#      host that this stack does not run. Left at the default, Marquez logs
+#      connection failures on every request.
+#
+# Everything below mirrors upstream's marquez.dev.yml except the db
+# credentials and the search block. Keep it in sync when bumping the image.
+# =============================================================================
+
+server:
+  applicationConnectors:
+    - type: http
+      port: ${MARQUEZ_PORT:-5000}
+      # RFC7230_LEGACY is upstream's setting. OpenLineage clients in the
+      # wild send headers that stricter compliance modes reject.
+      httpCompliance: RFC7230_LEGACY
+  adminConnectors:
+    - type: http
+      port: ${MARQUEZ_ADMIN_PORT:-5001}
+
+db:
+  driverClass: org.postgresql.Driver
+  url: jdbc:postgresql://${POSTGRES_HOST:-marquez-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-marquez}
+  user: ${POSTGRES_USER:-nexus-marquez}
+  password: ${POSTGRES_PASSWORD}
+
+# Flyway migrations run on boot, so no separate bootstrap container is
+# needed — unlike Lakekeeper, whose CLI keeps `migrate` and `serve` apart.
+migrateOnStartup: true
+
+graphql:
+  enabled: true
+
+logging:
+  level: INFO
+  appenders:
+    - type: console
+
+# Disabled deliberately: the advanced-search backend requires an
+# OpenSearch instance. Marquez's own Postgres-backed search still works
+# for names and namespaces; only fuzzy full-text search is unavailable.
+search:
+  enabled: false
+
+tags:
+  - name: PII
+    description: Personally identifiable information
+  - name: SENSITIVE
+    description: Contains sensitive information
