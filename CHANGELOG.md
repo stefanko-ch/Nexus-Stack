@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.72.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.71.0...v0.72.0) (2026-08-27)
+
+
+### 🚀 Features
+
+* **ci:** Check that services answer after a spin-up ([#702](https://github.com/stefanko-ch/Nexus-Stack/issues/702)) ([8ca7f4d](https://github.com/stefanko-ch/Nexus-Stack/commit/8ca7f4da8ec795a39662fa775b6c3f588c0f6548))
+* **control-plane:** Show the actual host in the Infrastructure panel ([#701](https://github.com/stefanko-ch/Nexus-Stack/issues/701)) ([3ec2c99](https://github.com/stefanko-ch/Nexus-Stack/commit/3ec2c9947a88603748f72563874115f4ef661d90))
+* **stacks:** Add Marquez for data lineage, backed by OpenSearch ([#705](https://github.com/stefanko-ch/Nexus-Stack/issues/705)) ([4ade38c](https://github.com/stefanko-ch/Nexus-Stack/commit/4ade38c6c1ea98d6534d6723660f5fb03dbb7a1b))
+* **stacks:** Add OpenSearch as a standalone stack with Dashboards ([#709](https://github.com/stefanko-ch/Nexus-Stack/issues/709)) ([668e2e4](https://github.com/stefanko-ch/Nexus-Stack/commit/668e2e43af71ef1854846c361c844dd0824255a3))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Make orphan cleanup fail when it cannot tell ([#697](https://github.com/stefanko-ch/Nexus-Stack/issues/697)) ([ae77723](https://github.com/stefanko-ch/Nexus-Stack/commit/ae777237b8851318b74c18c6854a27a366e2f90f))
+* **control-plane:** Let users stop the stack they can start ([#708](https://github.com/stefanko-ch/Nexus-Stack/issues/708)) ([61ed6c3](https://github.com/stefanko-ch/Nexus-Stack/commit/61ed6c33f64fd1ccb3b7abcbdf8be25294572d28))
+* **control-plane:** Put the CSRF guard on the remaining POST endpoints ([#698](https://github.com/stefanko-ch/Nexus-Stack/issues/698)) ([aaa95bf](https://github.com/stefanko-ch/Nexus-Stack/commit/aaa95bf60e5f29c1f7c26319e3c6e4a6775b7cad))
+* **deploy:** Push the OpenSearch and Marquez usernames to Infisical ([#710](https://github.com/stefanko-ch/Nexus-Stack/issues/710)) ([dbb8c3f](https://github.com/stefanko-ch/Nexus-Stack/commit/dbb8c3f96fd06f36df4ff644cbb882cafd9d03cb))
+* **deploy:** Stop the Infisical clone URL overriding the internal one ([#696](https://github.com/stefanko-ch/Nexus-Stack/issues/696)) ([204c48b](https://github.com/stefanko-ch/Nexus-Stack/commit/204c48be6a0786c5fce1d464582ad934ea76b287))
+* **stacks:** Pin the stateful stacks and their compose fallbacks ([#699](https://github.com/stefanko-ch/Nexus-Stack/issues/699)) ([4c6ebe7](https://github.com/stefanko-ch/Nexus-Stack/commit/4c6ebe7bbadaf6624aee0a784d47b8d83f4b06dc))
+* **stacks:** Run cAdvisor without privileged: true ([#707](https://github.com/stefanko-ch/Nexus-Stack/issues/707)) ([4f053d1](https://github.com/stefanko-ch/Nexus-Stack/commit/4f053d1a12eb4ac9a44dcecc7bf76a57d4db5569))
+
+
+### 📚 Documentation
+
+* Add the missing redpanda-console entry to the README ([#700](https://github.com/stefanko-ch/Nexus-Stack/issues/700)) ([df21ca1](https://github.com/stefanko-ch/Nexus-Stack/commit/df21ca1fbe919dd83e192b8f0b304d15255a5658))
+* Point the stack docs at what replaced deploy.sh ([#706](https://github.com/stefanko-ch/Nexus-Stack/issues/706)) ([1cdeebf](https://github.com/stefanko-ch/Nexus-Stack/commit/1cdeebfba2699b45b02a83759f25853c907d981d))
+
 ## [0.71.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.70.0...v0.71.0) (2026-08-26)
 
 
