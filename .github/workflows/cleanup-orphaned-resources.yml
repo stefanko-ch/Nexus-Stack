@@ -45,8 +45,14 @@ jobs:
           # into an empty id via `|| echo ""`, so a 401 or a 5xx read as
           # "nothing to do" and the run went green while the orphan kept
           # costing money and holding its name against the next setup.
-          if ! LIST_BODY=$(curl -sS --fail-with-body \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database" \
+          # per_page is set explicitly because the endpoint paginates and the
+          # documented default is 20. Without it, an account holding more than
+          # 20 databases could have the orphan sitting on page 2, and the
+          # unpaginated first page would say "nothing to clean up" — the very
+          # lie this step exists to stop telling. --max-time bounds a stalled
+          # connection, and the listing is safe to retry because it is a read.
+          if ! LIST_BODY=$(curl -sS --fail-with-body --max-time 30 --retry 3 \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database?per_page=1000" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json"); then
             echo "❌ Could not list D1 databases — the API call itself failed."
@@ -62,9 +68,35 @@ jobs:
             exit 1
           fi
 
-          D1_DATABASE_ID=$(echo "$LIST_BODY" \
-            | jq -r --arg name "$D1_DATABASE_NAME" \
-                '.result[] | select(.name == $name) | .uuid')
+          # "I saw everything" has to be established before "I saw nothing
+          # matching" is allowed to mean anything.
+          SEEN=$(echo "$LIST_BODY" | jq -r '.result | length')
+          TOTAL=$(echo "$LIST_BODY" | jq -r '.result_info.total_count // empty')
+          if [ -n "$TOTAL" ] && [ "$TOTAL" -gt "$SEEN" ]; then
+            echo "❌ The listing returned ${SEEN} of ${TOTAL} D1 databases."
+            echo "   An orphan beyond the first page cannot be ruled out, so this"
+            echo "   step will not report 'nothing to clean up'. Delete it from the"
+            echo "   Cloudflare dashboard, or raise per_page in this workflow."
+            exit 1
+          fi
+
+          # .result[]? rather than .result[]: a "result": null response would
+          # abort jq mid-pipeline and surface as a raw iteration error instead
+          # of the diagnostics prepared above.
+          MATCHES=$(echo "$LIST_BODY" \
+            | jq -c --arg name "$D1_DATABASE_NAME" \
+                '[.result[]? | select(.name == $name) | .uuid]')
+          MATCH_COUNT=$(echo "$MATCHES" | jq -r 'length')
+
+          if [ "$MATCH_COUNT" -gt 1 ]; then
+            echo "❌ ${MATCH_COUNT} D1 databases are named '${D1_DATABASE_NAME}':"
+            echo "$MATCHES" | jq -r '.[] | "     " + .'
+            echo "   Deleting by name is ambiguous here, so this step stops rather"
+            echo "   than guessing which one is the orphan."
+            exit 1
+          fi
+
+          D1_DATABASE_ID=$(echo "$MATCHES" | jq -r '.[0] // ""')
 
           if [ -z "$D1_DATABASE_ID" ]; then
             echo "✅ No D1 database named '${D1_DATABASE_NAME}' — nothing to clean up."
@@ -72,7 +104,10 @@ jobs:
           fi
 
           echo "  Found D1 Database ID: $D1_DATABASE_ID"
-          if ! DELETE_BODY=$(curl -sS --fail-with-body -X DELETE \
+          # --max-time but no --retry: a DELETE that timed out may already have
+          # succeeded server-side, and a blind retry would then report a
+          # spurious 404 as a failure.
+          if ! DELETE_BODY=$(curl -sS --fail-with-body --max-time 30 -X DELETE \
             "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${D1_DATABASE_ID}" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json"); then
@@ -100,8 +135,11 @@ jobs:
           echo "🔍 Finding Access Application..."
           ACCESS_APP_DOMAIN="control.${DOMAIN}"
 
-          if ! LIST_BODY=$(curl -sS --fail-with-body \
-            "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/access/apps" \
+          # Paginated like the D1 listing, and for the same reason set
+          # explicitly — a zone with many Access applications would otherwise
+          # hide the orphan behind the first page.
+          if ! LIST_BODY=$(curl -sS --fail-with-body --max-time 30 --retry 3 \
+            "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/access/apps?per_page=1000" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json"); then
             echo "❌ Could not list Access applications — the API call itself failed."
@@ -118,9 +156,30 @@ jobs:
             exit 1
           fi
 
-          ACCESS_APP_ID=$(echo "$LIST_BODY" \
-            | jq -r --arg d "$ACCESS_APP_DOMAIN" \
-                '.result[] | select(.domain == $d) | .id')
+          SEEN=$(echo "$LIST_BODY" | jq -r '.result | length')
+          TOTAL=$(echo "$LIST_BODY" | jq -r '.result_info.total_count // empty')
+          if [ -n "$TOTAL" ] && [ "$TOTAL" -gt "$SEEN" ]; then
+            echo "❌ The listing returned ${SEEN} of ${TOTAL} Access applications."
+            echo "   An orphan beyond the first page cannot be ruled out, so this"
+            echo "   step will not report 'nothing to clean up'. Delete it from the"
+            echo "   Cloudflare dashboard, or raise per_page in this workflow."
+            exit 1
+          fi
+
+          MATCHES=$(echo "$LIST_BODY" \
+            | jq -c --arg d "$ACCESS_APP_DOMAIN" \
+                '[.result[]? | select(.domain == $d) | .id]')
+          MATCH_COUNT=$(echo "$MATCHES" | jq -r 'length')
+
+          if [ "$MATCH_COUNT" -gt 1 ]; then
+            echo "❌ ${MATCH_COUNT} Access applications claim '${ACCESS_APP_DOMAIN}':"
+            echo "$MATCHES" | jq -r '.[] | "     " + .'
+            echo "   Deleting by domain is ambiguous here, so this step stops rather"
+            echo "   than guessing which one is the orphan."
+            exit 1
+          fi
+
+          ACCESS_APP_ID=$(echo "$MATCHES" | jq -r '.[0] // ""')
 
           if [ -z "$ACCESS_APP_ID" ]; then
             echo "✅ No Access application for '${ACCESS_APP_DOMAIN}' — nothing to clean up."
@@ -128,7 +187,10 @@ jobs:
           fi
 
           echo "  Found Access Application ID: $ACCESS_APP_ID"
-          if ! DELETE_BODY=$(curl -sS --fail-with-body -X DELETE \
+          # --max-time but no --retry: a DELETE that timed out may already have
+          # succeeded server-side, and a blind retry would then report a
+          # spurious 404 as a failure.
+          if ! DELETE_BODY=$(curl -sS --fail-with-body --max-time 30 -X DELETE \
             "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/access/apps/${ACCESS_APP_ID}" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json"); then

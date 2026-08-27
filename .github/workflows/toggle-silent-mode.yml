@@ -36,6 +36,20 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Fail closed on anything but the two accepted values. `type: choice`
+          # constrains the input today, so this never fires — but the value is
+          # interpolated into a SQL string literal below, and the declaration
+          # that keeps it safe sits 30 lines away in a different block. Should
+          # the input ever widen to a free-form string, this line refuses
+          # instead of letting a quote rewrite the statement.
+          case "$SILENT_MODE" in
+            true|false) ;;
+            *)
+              echo "❌ Refusing to run: enabled must be 'true' or 'false', got '${SILENT_MODE}'."
+              exit 1
+              ;;
+          esac
+
           D1_DB_NAME="nexus-${DOMAIN//./-}-db"
           npx wrangler@4 d1 execute "$D1_DB_NAME" --remote \
             --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', '${SILENT_MODE}', datetime('now'))"
