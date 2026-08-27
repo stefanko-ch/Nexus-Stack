@@ -185,7 +185,16 @@ services:
       # argument list, which the project forbids for secrets. A wrong
       # password then surfaces on Marquez's side with a clear message
       # rather than as an opaque unhealthy container.
-      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:9200/ | grep -qE '^(200|401)$$'"]
+      #
+      # The probe deliberately contains no dollar sign. An anchored regex
+      # would need one, and that stacks two under-specified behaviours:
+      # docker compose's `$$` escaping, and how a given grep treats a `$`
+      # that is not the final character. `grep -qxF` matches the whole
+      # line against fixed strings and needs neither, while still
+      # rejecting a stray 2001. Getting this wrong is expensive here —
+      # marquez waits on `condition: service_healthy`, so a probe that can
+      # never pass deadlocks the stack rather than degrading it.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:9200/ | grep -qxF -e 200 -e 401"]
       interval: 15s
       timeout: 10s
       retries: 10
