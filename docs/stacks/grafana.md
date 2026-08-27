@@ -73,9 +73,12 @@ neither applies here:
 - **RHEL and CentOS**, which confine containers more tightly. The servers
   run Ubuntu 26.04.
 
-`/dev/kmsg` is passed through explicitly as a device. cAdvisor reads it to
-detect OOM kills, and that is the one thing the privileged flag was
-providing without saying so.
+`/dev/kmsg` is passed through explicitly as a device, and read-only:
+`- /dev/kmsg:/dev/kmsg:r`. cAdvisor reads it to detect OOM kills, and that
+is the one thing the privileged flag was providing without saying so. The
+`:r` matters — Docker defaults a device entry to `rwm`, which would grant
+write access to the host kernel log and give back part of what dropping
+`privileged` removed.
 
 The reason to care: a privileged container holds every Linux capability, an
 unconfined seccomp profile and access to host devices. This stack also

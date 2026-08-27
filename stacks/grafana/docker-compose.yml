@@ -133,7 +133,12 @@ services:
     # silently providing. See docs/stacks/grafana.md for what to check if a
     # panel goes blank after this change.
     devices:
-      - /dev/kmsg
+      # `:r` — read only. Docker's default for a device entry is `rwm`
+      # (read, write, mknod), which would let a compromised cAdvisor write
+      # arbitrary lines into the host kernel log. cAdvisor only reads
+      # /dev/kmsg, so granting more would undo part of what dropping
+      # `privileged` bought.
+      - /dev/kmsg:/dev/kmsg:r
     # Cardinality defuse (Conductor #23 highest-priority):
     # --docker_only=true        ignore non-Docker cgroups (k8s/systemd noise)
     # --store_container_labels=false
