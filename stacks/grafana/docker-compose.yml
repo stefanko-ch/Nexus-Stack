@@ -20,7 +20,7 @@ services:
   # Grafana - Dashboards & Visualization
   # ---------------------------------------------------------------------------
   grafana:
-    image: ${IMAGE_GRAFANA:-grafana/grafana:latest}
+    image: ${IMAGE_GRAFANA:-grafana/grafana:11.6}
     container_name: grafana
     env_file:
       - .env
@@ -59,7 +59,7 @@ services:
   # Prometheus - Metrics Collection
   # ---------------------------------------------------------------------------
   prometheus:
-    image: ${IMAGE_PROMETHEUS:-prom/prometheus:latest}
+    image: ${IMAGE_PROMETHEUS:-prom/prometheus:v3.9.1}
     container_name: grafana-prometheus
     restart: unless-stopped
     command:
@@ -78,7 +78,7 @@ services:
   # Loki - Log Aggregation
   # ---------------------------------------------------------------------------
   loki:
-    image: ${IMAGE_LOKI:-grafana/loki:latest}
+    image: ${IMAGE_LOKI:-grafana/loki:3}
     container_name: grafana-loki
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yml
@@ -92,7 +92,7 @@ services:
   # Promtail - Log Collector (ships Docker logs to Loki)
   # ---------------------------------------------------------------------------
   promtail:
-    image: ${IMAGE_PROMTAIL:-grafana/promtail:latest}
+    image: ${IMAGE_PROMTAIL:-grafana/promtail:3}
     container_name: grafana-promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/promtail-config.yml
@@ -109,7 +109,7 @@ services:
   # cAdvisor - Container Metrics
   # ---------------------------------------------------------------------------
   cadvisor:
-    image: ${IMAGE_CADVISOR:-gcr.io/cadvisor/cadvisor:latest}
+    image: ${IMAGE_CADVISOR:-ghcr.io/google/cadvisor:0.56}
     container_name: grafana-cadvisor
     restart: unless-stopped
     privileged: true
@@ -140,7 +140,7 @@ services:
   # Node Exporter - Host Metrics (CPU, RAM, Disk, Network)
   # ---------------------------------------------------------------------------
   node-exporter:
-    image: ${IMAGE_NODE_EXPORTER:-prom/node-exporter:latest}
+    image: ${IMAGE_NODE_EXPORTER:-prom/node-exporter:v1.10.2}
     container_name: grafana-node-exporter
     restart: unless-stopped
     command:

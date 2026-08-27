@@ -40,7 +40,7 @@ image: ${IMAGE_GRAFANA:-grafana/grafana:11.6}
 
 The tag shown in each table below is the value Nexus Stack ships with **right now** on `main`. Tags fall into three buckets:
 
-- **Pinned exact version** (e.g. `clickhouse/clickhouse-server:25.8.16.34`, `redpandadata/redpanda:v24.3.1`) — reproducible, deterministic, what you want in production.
+- **Pinned exact version** (e.g. `clickhouse/clickhouse-server:25.8.16.34`, `redpandadata/redpanda:v24.3`) — reproducible, deterministic, what you want in production.
 - **Pinned major (or major/minor)** (e.g. `gitea/gitea:1.23`, `dpage/pgadmin4:9`) — gets patch updates on next `docker pull`, locked against major version surprises.
 - **`:latest`** (e.g. `adminer:latest`, `corentinth/it-tools:latest`) — tracks upstream bleeding edge. Reserved for presentation-layer and dev tools that hold no persistent state, and for viewers over somebody else's state such as Kafka-UI and S3 Manager. No stateful stack is left on it.
 
@@ -88,7 +88,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | **[Debezium](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/debezium.md)** | `quay.io/debezium/connect:3.5.0` | Change data capture via Kafka Connect. Tails the PostgreSQL WAL (and MySQL/Mongo/SQL Server binlogs) and streams row-level changes into Redpanda topics — the standard way to get an event stream out of a boring OLTP database. |
 | **[Kafdrop](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/kafdrop.md)** | `obsidiandynamics/kafdrop:4.2.0` | Minimalist read-only Kafka topic/consumer group viewer. Runs on ~100 MB RAM — the lightest option when you just need to peek at messages. |
 | **[Kafka-UI](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/kafka-ui.md)** | `provectuslabs/kafka-ui:latest` | Provectus' open-source web UI for Kafka. Similar feature set to Redpanda Console and AKHQ — pick the one that matches your taste. |
-| **[Redpanda](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/redpanda.md)** | `redpandadata/redpanda:v24.3.1` | Kafka API-compatible streaming platform written in C++ and Raft-based — same protocol as Kafka, no JVM, no ZooKeeper, lower tail latency. The data plane for every CDC and streaming pipeline in Nexus Stack. |
+| **[Redpanda](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/redpanda.md)** | `redpandadata/redpanda:v24.3` | Kafka API-compatible streaming platform written in C++ and Raft-based — same protocol as Kafka, no JVM, no ZooKeeper, lower tail latency. The data plane for every CDC and streaming pipeline in Nexus Stack. |
 | **[Redpanda Connect](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/redpanda-connect.md)** | `redpandadata/connect:4.43.0` | Declarative stream-processing framework (formerly Benthos). YAML-defined pipelines with 200+ inputs/outputs/processors for real-time ETL, enrichment, and routing. |
 | **[Redpanda Console](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/redpanda-console.md)** | `redpandadata/console:v2.8.0` | Modern web UI for browsing topics, consumer groups, schema registry, and ACLs. The recommended first-stop GUI if you're running Redpanda. |
 | **[Redpanda Datagen](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/redpanda-datagen.md)** | `redpandadata/connect:4.43.0` | Synthetic test data generator for Redpanda topics. Handy for reproducing pipeline issues or load-testing downstream consumers without hitting production sources. |

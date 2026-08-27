@@ -30,11 +30,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `11.6` | Minor |
 | Hoppscotch | `hoppscotch/hoppscotch` | `2025.12.1` | Exact ¹ |
-| Prometheus | `prom/prometheus` | `v3` | Major |
+| Prometheus | `prom/prometheus` | `v3.9.1` | Exact ¹ |
 | Loki | `grafana/loki` | `3` | Major |
 | Promtail | `grafana/promtail` | `3` | Major |
-| cAdvisor | `gcr.io/cadvisor/cadvisor` | `v0.56` | Minor |
-| Node Exporter | `prom/node-exporter` | `v1` | Major |
+| cAdvisor | `ghcr.io/google/cadvisor` | `0.56` | Minor |
+| Node Exporter | `prom/node-exporter` | `v1.10.2` | Exact ¹ |
 | Portainer | `portainer/portainer-ce` | `2.40.0` | Exact ¹ |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
 | n8n | `n8nio/n8n` | `1.123.75` | Exact ⁴ |
@@ -127,6 +127,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 ² Only `latest` tags published, no semantic versions available.
 ³ Custom build (ARM64 support or additional connectors/dependencies).
 ⁴ Held on the 1.x line deliberately: upstream is at 2.x, and moving a stack that stores workflow definitions, credentials and execution history across a major needs its own migration.
+⚠️ **Rolling** — the tag moves, and upstream publishes nothing narrower to pin to. Accepted only where no alternative exists, and only for stacks whose data survives an image change. Each of these needs a compatibility check before a deliberate refresh, because a rolling tag can cross a major without the name changing.
+
 ⁵ No version tags published at all — only `latest`, `lowa`, `trial` and commit SHAs, and the SHA tags are single-arch. Pinned to the digest of the multi-arch manifest list, which keeps amd64 and arm64. Holds state in a volume, so `latest` was not an option.
 
 **Strategies:**
