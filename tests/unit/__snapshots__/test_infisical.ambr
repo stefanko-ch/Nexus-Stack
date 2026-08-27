@@ -103,6 +103,8 @@
       'MAGE_USERNAME': 'user@snapshot.test',
     }),
     'marquez': dict({
+      'MARQUEZ_DB_PASSWORD': 'marquez_db_password-VALUE',
+      'MARQUEZ_OPENSEARCH_PASSWORD': 'marquez_opensearch_password-VALUE',
     }),
     'meilisearch': dict({
       'MEILISEARCH_MASTER_KEY': 'meilisearch_master_key-VALUE',

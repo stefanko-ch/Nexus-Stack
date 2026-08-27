@@ -230,6 +230,28 @@ resource "random_password" "lakekeeper_db_password" {
   special = false
 }
 
+# Marquez OpenSearch admin password
+# The only password in this file with `special = true`, and the exception is
+# forced: since 2.12 OpenSearch validates OPENSEARCH_INITIAL_ADMIN_PASSWORD
+# against `(?=.*[A-Z])(?=.*[^a-zA-Z\d])(?=.*[0-9])(?=.*[a-z]).{8,}` plus a
+# zxcvbn strength check, and refuses to start without a special character.
+#
+# `override_special` keeps the reason the rest of the file avoids them: only
+# `-`, `_` and `.` are drawn, none of which mean anything to a shell, a
+# docker-compose .env parser, or a YAML scalar. The min_* floors make all
+# four required character classes guaranteed rather than probable — a random
+# draw missing one would fail the container's start intermittently, which is
+# the worst kind of failure to debug.
+resource "random_password" "marquez_opensearch_admin" {
+  length           = 24
+  special          = true
+  override_special = "-_."
+  min_upper        = 1
+  min_lower        = 1
+  min_numeric      = 1
+  min_special      = 1
+}
+
 # Marquez lineage database password
 # The lineage graph (jobs, datasets, runs, and the edges between them) is
 # the only state Marquez holds — it has no user accounts of its own, so

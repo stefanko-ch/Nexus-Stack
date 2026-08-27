@@ -632,10 +632,10 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Marquez: OpenLineage backend. One secret only — the lineage
-    database password. Marquez ships no user management, so there is no
-    admin credential to render; Cloudflare Access at the edge is the
-    gate, same model as Lakekeeper.
+    """Marquez: OpenLineage backend. Two secrets — the lineage database
+    password and the OpenSearch admin password backing fuzzy search.
+    Neither is a user login: Marquez ships no user management, and
+    Cloudflare Access at the edge is the gate, same model as Lakekeeper.
 
     Fail-fast guard for the same reason as Lakekeeper and HedgeDoc: an
     empty password leaves the Postgres init with no auth and the API
@@ -654,9 +654,19 @@ def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "then re-run spin-up. Aborting to avoid a restart-looping "
             "Postgres container with no auth.",
         )
+    if _empty(c.marquez_opensearch_password):
+        raise ServiceEnvError(
+            "Marquez enabled but MARQUEZ_OPENSEARCH_PASSWORD is empty — "
+            "run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.marquez_opensearch_admin + push to Infisical, "
+            "then re-run spin-up. OpenSearch refuses to start without "
+            "OPENSEARCH_INITIAL_ADMIN_PASSWORD and Marquez then waits on a "
+            "container that never becomes healthy.",
+        )
     return RenderedEnv(
         env_vars={
             "MARQUEZ_DB_PASSWORD": c.marquez_db_password or "",
+            "MARQUEZ_OPENSEARCH_PASSWORD": c.marquez_opensearch_password or "",
         },
     )
 

@@ -79,6 +79,7 @@ def full_config() -> NexusConfig:
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
         marquez_db_password="marquez-db-pw",
+        marquez_opensearch_password="marquez-os-pw",
         mage_admin_password="mage-pw",
         minio_root_password="minio-pw",
         sftpgo_admin_password="sftpgo-admin",
@@ -959,17 +960,35 @@ def test_marquez_raises_on_empty_db_password(
         _render_marquez(config, full_env)
 
 
-def test_marquez_renders_only_the_db_password(
+def test_marquez_raises_on_empty_opensearch_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """OpenSearch refuses to start without OPENSEARCH_INITIAL_ADMIN_PASSWORD,
+    and Marquez depends on it via service_healthy — so an empty value
+    deadlocks the stack on a container that never becomes healthy, with
+    the cause three logs away. Fail at deploy time instead."""
+    from nexus_deploy.service_env import _render_marquez
+
+    config = full_config.model_copy(update={"marquez_opensearch_password": ""})
+    with pytest.raises(ServiceEnvError, match="MARQUEZ_OPENSEARCH_PASSWORD"):
+        _render_marquez(config, full_env)
+
+
+def test_marquez_renders_exactly_two_secrets(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
     """Marquez has no user management and generates no absolute URLs
     that clients follow, so unlike Lakekeeper it needs no *_DOMAIN
     variable. Pinning the exact key set guards against one being added
-    back on autopilot when copying a neighbouring renderer."""
+    back on autopilot when copying a neighbouring renderer, and against
+    a third secret arriving without a fail-fast guard beside it."""
     from nexus_deploy.service_env import _render_marquez
 
     rendered = _render_marquez(full_config, full_env)
-    assert rendered.env_vars == {"MARQUEZ_DB_PASSWORD": "marquez-db-pw"}
+    assert rendered.env_vars == {
+        "MARQUEZ_DB_PASSWORD": "marquez-db-pw",
+        "MARQUEZ_OPENSEARCH_PASSWORD": "marquez-os-pw",
+    }
 
 
 def test_lakekeeper_renders_domain_from_bootstrap_env(

@@ -236,7 +236,7 @@ def test_compute_folders_public_repo_url_falls_back_to_default_repo_name() -> No
 def test_compute_folders_full_snapshot(snapshot: SnapshotAssertion) -> None:
     """Lock the entire folder list + ordering + per-folder keys.
 
-    Uses the ``secrets_full.json`` fixture (88 fields populated) so any
+    Uses the ``secrets_full.json`` fixture (94 fields populated) so any
     accidental reordering or skipped key surfaces as a snapshot diff.
     """
     raw = (FIXTURES / "secrets_full.json").read_text()

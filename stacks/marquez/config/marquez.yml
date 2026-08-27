@@ -45,11 +45,17 @@ logging:
   appenders:
     - type: console
 
-# Disabled deliberately: the advanced-search backend requires an
-# OpenSearch instance. Marquez's own Postgres-backed search still works
-# for names and namespaces; only fuzzy full-text search is unavailable.
+# Backed by the opensearch container in this stack. `scheme: http` is
+# correct: TLS on the OpenSearch HTTP layer is off because the traffic
+# never leaves marquez-internal, and Marquez's client would otherwise need
+# the demo certificate chain installed to trust it.
 search:
-  enabled: false
+  enabled: ${SEARCH_ENABLED:-true}
+  scheme: http
+  host: ${SEARCH_HOST:-marquez-opensearch}
+  port: ${SEARCH_PORT:-9200}
+  username: ${SEARCH_USERNAME:-admin}
+  password: ${SEARCH_PASSWORD}
 
 tags:
   - name: PII

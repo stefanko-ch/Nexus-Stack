@@ -29,6 +29,7 @@ It is the answer to two questions nothing else in this stack can answer:
 | Admin port | `5001` — internal only, serves `/healthcheck` |
 | Public | No — Cloudflare Access (email OTP) |
 | Database | Dedicated PostgreSQL 16, not shared with any other stack |
+| Search | Dedicated OpenSearch 2.19, internal only |
 
 ### Containers
 
@@ -37,6 +38,7 @@ It is the answer to two questions nothing else in this stack can answer:
 | `marquez` | Dropwizard API. Ingests OpenLineage events, runs Flyway migrations on boot. |
 | `marquez-web` | Serves the React UI **and** proxies `/api` to the backend, so the browser never contacts the API directly. |
 | `marquez-db` | PostgreSQL holding the lineage graph. |
+| `marquez-opensearch` | Backs fuzzy full-text search. Name and namespace search work without it, against PostgreSQL. |
 
 Only `marquez-web` publishes a host port. The API stays on the internal
 network because the producers that write to it — Kestra, Dagster, Spark —
@@ -44,12 +46,25 @@ all run in the same stack.
 
 ## Credentials
 
-There are none. Marquez ships no user management; the Cloudflare Access
-gate in front of the subdomain is the only authentication layer, the same
-model [Lakekeeper](./lakekeeper.md) uses.
+There is no user login. Marquez ships no user management; the Cloudflare
+Access gate in front of the subdomain is the only authentication layer, the
+same model [Lakekeeper](./lakekeeper.md) uses.
 
-The single generated secret is `MARQUEZ_DB_PASSWORD`, available in Infisical
-under the `marquez` folder. It is the database password, not a login.
+Two secrets are generated, both in Infisical under the `marquez` folder,
+and neither is an account you sign in with:
+
+| Secret | Used by |
+|---|---|
+| `MARQUEZ_DB_PASSWORD` | the lineage PostgreSQL |
+| `MARQUEZ_OPENSEARCH_PASSWORD` | the OpenSearch admin user |
+
+The OpenSearch password is the only one in this project generated with
+special characters. OpenSearch has validated `OPENSEARCH_INITIAL_ADMIN_PASSWORD`
+since 2.12 and refuses to start without at least one uppercase letter, one
+lowercase letter, one digit and one special character. The generator is
+restricted to `-`, `_` and `.` so the value still means nothing to a shell,
+a compose `.env` parser or a YAML scalar — which is why every other password
+here avoids special characters in the first place.
 
 ## Sending lineage
 
@@ -108,11 +123,6 @@ A dataset appears in the UI as soon as one event names it. You do not
 register anything in advance.
 
 ## Deliberate limitations
-
-**Advanced search is off.** Marquez's fuzzy full-text search needs an
-OpenSearch instance, which this stack does not run. Left at its default the
-server logs a connection failure on every request. Name and namespace search
-still work — they run against PostgreSQL.
 
 **The shipped config replaces the image's own.** `config/marquez.yml` is
 bind-mounted and selected through `MARQUEZ_CONFIG`. The image's bundled

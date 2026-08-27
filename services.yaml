@@ -488,6 +488,7 @@ services:
     support_images:
       web: "marquezproject/marquez-web:0.51.1"
       postgres: "postgres:16-alpine"
+      opensearch: "opensearchproject/opensearch:2.19.6"
 
   kestra:
     subdomain: "kestra"

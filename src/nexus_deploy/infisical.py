@@ -723,6 +723,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             _filter_empty(
                 {
                     "MARQUEZ_DB_PASSWORD": config.marquez_db_password,
+                    "MARQUEZ_OPENSEARCH_PASSWORD": config.marquez_opensearch_password,
                 }
             ),
         )

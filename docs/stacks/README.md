@@ -69,6 +69,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Marquez | `marquezproject/marquez` | `0.51.1` | Exact ¹ |
 | Marquez Web | `marquezproject/marquez-web` | `0.51.1` | Exact ¹ |
 | PostgreSQL (Marquez DB) | `postgres` | `16-alpine` | Major |
+| OpenSearch (Marquez) | `opensearchproject/opensearch` | `2.19.6` | Exact ¹ |
 | MinIO | `quay.io/minio/minio` | `RELEASE.2025-09-07T16-13-09Z` | Exact ¹ |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
