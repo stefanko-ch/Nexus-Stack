@@ -1,0 +1,124 @@
+# =============================================================================
+# Unity Catalog - open-source catalog for tables, volumes and AI assets
+# =============================================================================
+# The OSS Unity Catalog from unitycatalog/unitycatalog — not Databricks'
+# managed one. A REST catalog covering Delta and Iceberg tables, unstructured
+# volumes, functions and models. Upstream documents integrations for Spark,
+# Trino, DuckDB, Daft and others, and ships Java and Python clients under
+# clients/ — see docs/stacks/unity-catalog.md for what has actually been
+# tried against THIS stack, which so far is nothing.
+#
+# Overlaps with Lakekeeper, deliberately and only partly: Lakekeeper
+# implements the Iceberg REST Catalog spec and nothing else, while Unity
+# Catalog also covers Delta, volumes and AI assets under one namespace. Run
+# whichever matches the lesson; they share nothing and neither notices the
+# other.
+#
+# Architecture:
+#   - unitycatalog:    the server, REST API on :8080. Metastore is an H2
+#                      file in the data volume — no Postgres needed.
+#   - unitycatalog-ui: React UI on :3000, the only published port.
+#
+# ⚠️ Version skew between the two images, and it is upstream's, not ours.
+# The server is actively released (v0.6.0, 2026-08-20) while the published
+# UI image was last built 2025-05-23 — v0.4, v0.5, v0.5.1 and v0.6 have
+# landed since. The UI may lag or break against this server; the API is the
+# part to rely on. Upstream publishes no versioned UI tag at all, only
+# rolling `main-*`, which is why it is pinned by digest here.
+#
+# The UI is also a Create-React-App DEV server (`react-scripts start` via
+# `bun run start` in its Dockerfile), not a production build. That is what
+# upstream ships.
+#
+# Auth: none in Unity Catalog — `server.authorization=disable` in
+# conf/server.properties. Cloudflare Access at the edge is the gate, the
+# same model Lakekeeper and Marquez use. UC's own auth expects an external
+# OIDC provider this stack does not run.
+#
+# Reaching the API from inside the stack (Spark, Trino, notebooks):
+#   http://unitycatalog:8080/api/2.1/unity-catalog/catalogs
+#
+# Access: https://unity-catalog.YOUR_DOMAIN
+# Docs:   https://docs.unitycatalog.io
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Unity Catalog - REST API server
+  # ---------------------------------------------------------------------------
+  unitycatalog:
+    image: ${IMAGE_UNITY_CATALOG:-unitycatalog/unitycatalog:v0.6.0}
+    container_name: unitycatalog
+    restart: unless-stopped
+    volumes:
+      # Individual files rather than the whole conf directory: the image
+      # also carries log4j2 configs there, and mounting over the directory
+      # would hide them.
+      - ./conf/server.properties:/opt/unitycatalog/etc/conf/server.properties:ro
+      - ./conf/hibernate.properties:/opt/unitycatalog/etc/conf/hibernate.properties:ro
+      - unitycatalog-data:/opt/unitycatalog/etc/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    networks:
+      app-network:
+      unitycatalog-internal:
+        aliases:
+          # The UI image bakes its proxy target in at BUILD time — its
+          # Dockerfile takes `ARG PROXY_HOST=server` and rewrites
+          # package.json's `proxy` field to http://server:8080. The
+          # published image therefore only ever looks for a host called
+          # `server`, so the container keeps its own descriptive name and
+          # answers to that alias as well.
+          - server
+    healthcheck:
+      # No dollar sign in the probe: an anchored regex would need one, and
+      # that stacks docker compose's `$$` escaping on top of how a given
+      # grep treats a non-final `$`. A 401 counts as healthy for the same
+      # reason it does elsewhere — the server answered.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/2.1/unity-catalog/catalogs | grep -qxF -e 200 -e 401"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Unity Catalog UI
+  # ---------------------------------------------------------------------------
+  # Pinned by digest because upstream publishes no version tag for this
+  # image — only a rolling `main`. Same reasoning as Filestash. The digest
+  # below is `main-aadc6fc`, built 2025-05-23; see the version-skew warning
+  # in the header.
+  unitycatalog-ui:
+    image: ${IMAGE_UNITY_CATALOG_UI:-unitycatalog/unitycatalog-ui@sha256:3a688197b218a4328a7fc0b8f1b65fcd2f9229b0e3999ae12e284304b85d84f1}
+    container_name: unitycatalog-ui
+    restart: unless-stopped
+    ports:
+      # Host 3211 → container 3000. 3200-3202 and 3210 are taken by other
+      # stacks; the container port stays at upstream's default.
+      #
+      # ⚠️ Do not add a `tcp_ports` entry for this. Unity Catalog has no
+      # login of its own, so an open port would be an unauthenticated
+      # catalog on the public internet. The Hetzner firewall ships with no
+      # inbound rules, which is what keeps that true today.
+      - "3211:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    depends_on:
+      unitycatalog:
+        condition: service_healthy
+    networks:
+      - app-network
+      - unitycatalog-internal
+
+volumes:
+  unitycatalog-data:
+
+networks:
+  app-network:
+    external: true
+  unitycatalog-internal:
+    driver: bridge

@@ -230,6 +230,16 @@ resource "random_password" "lakekeeper_db_password" {
   special = false
 }
 
+# QuestDB PostgreSQL-wire password
+# QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
+# The port is not published, but it is on app-network where every other
+# stack can reach it, so both are overridden. No special characters needed
+# here — QuestDB validates nothing on start, unlike OpenSearch below.
+resource "random_password" "questdb_pg" {
+  length  = 24
+  special = false
+}
+
 # OpenSearch (standalone stack) admin password
 # Same forced exception as the Marquez one below, and the note there
 # explains why counting these is the wrong thing to remember. The reason:

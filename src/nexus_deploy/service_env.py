@@ -631,6 +631,35 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """QuestDB: time-series database. One secret — the PostgreSQL-wire
+    password, replacing QuestDB's documented default of ``quest`` for the
+    equally documented user ``admin``. The compose file also overrides the
+    username to ``nexus-questdb``.
+
+    The port is not published, but it is reachable at ``questdb:8812``
+    from every other stack on app-network, which is why the default is
+    replaced rather than tolerated.
+
+    Fail-fast guard: an empty value would leave QuestDB accepting the
+    empty string as its password, which is worse than the default it
+    replaces because nothing about it looks wrong in a config dump.
+    """
+    if _empty(c.questdb_pg_password):
+        raise ServiceEnvError(
+            "QuestDB enabled but QUESTDB_PG_PASSWORD is empty — "
+            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
+            "as does initial-setup) to generate random_password.questdb_pg "
+            "and push it to Infisical, then re-run. Aborting rather than "
+            "starting the PostgreSQL-wire listener with an empty password.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "QUESTDB_PG_PASSWORD": c.questdb_pg_password or "",
+        },
+    )
+
+
 def _render_opensearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """OpenSearch: standalone search engine + Dashboards. One secret, used
     twice — the node takes it as OPENSEARCH_INITIAL_ADMIN_PASSWORD and
@@ -1597,6 +1626,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),
     EnvSpec("opensearch", _is_enabled("opensearch"), _render_opensearch),
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),
