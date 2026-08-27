@@ -63,7 +63,8 @@ How to read it:
 | `--` / `no published port` | Internal-only container (databases, sidecars). Nothing to probe — not an error. |
 | `--` / `ran once and exited cleanly` | A one-shot job that finished, such as `lakekeeper-bootstrap` or `openmetadata-migrate`. Expected. |
 | `--` / `listening, not an HTTP service` | The port accepted the connection but answered something other than HTTP. Databases, brokers and SFTP land here — Postgres on 5432, Redpanda on 9092, ClickHouse on 9004. Healthy by every measure this check can take. |
-| `FAIL` / `nothing listening` | Nothing accepted the connection at all. The container runs but the process inside never started listening. |
+| `FAIL` / `nothing listening` | No TCP connection was established at all. The container runs but the process inside never started listening. |
+| `FAIL` / `accepted, then silent` | The port accepted the connection and then sent nothing for four seconds. Something is listening but not responding — distinct from a database that simply is not a web server, which answers or closes immediately. |
 | `FAIL` with `5xx` | The service answered, so it is up and erroring — usually a bad config or an unreachable dependency. A different problem from silence. |
 | `FAIL` with `EXITED:<n>` | The container stopped with a non-zero status. It crashed rather than started. |
 | `FAIL` with `restart loop` | The container starts, fails, and Docker restarts it, over and over. Its logs hold the crash reason. |

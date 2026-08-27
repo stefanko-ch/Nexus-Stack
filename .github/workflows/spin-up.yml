@@ -1091,11 +1091,20 @@ jobs:
           # the captured stderr, which is the difference between reporting
           # "docker failed" and inventing "no containers".
           #
-          # curl's exit status is kept alongside the HTTP code, because the
-          # code alone cannot tell a dead port from a healthy non-HTTP one:
-          # both report 000. Measured: nothing listening exits 7, a listener
-          # that speaks something other than HTTP exits 1 or 52. Only 7 means
-          # nothing accepted the connection. This matters because the
+          # The HTTP code alone cannot tell a dead port from a healthy
+          # non-HTTP one: both report 000. The decisive signal is
+          # %{time_connect}, which is exactly zero when no TCP handshake
+          # completed — stripping "." and "0" from it leaves an empty string
+          # in precisely that case. Measured:
+          #
+          #   nothing listening       rc=7   time_connect=0.000000
+          #   listening, non-HTTP     rc=1   time_connect=0.000535
+          #   listening, then silent  rc=52  time_connect=0.000542
+          #   unroutable, hangs       rc=28  time_connect=0.000000
+          #
+          # The exit code alone would misfile the last row, because 28 occurs
+          # both when the handshake never completed and when a connected peer
+          # goes quiet. This matters because the
           # generated docker-compose.firewall.yml publishes the tcp_ports from
           # services.yaml — Postgres 5432, Redpanda 9092, ClickHouse 9004,
           # SFTP 2022 and more — so without this a dozen healthy databases
@@ -1107,7 +1116,7 @@ jobs:
           # `done` belongs to the parent and would not wait for anything,
           # leaving the probes orphaned and their output lost.
           # shellcheck disable=SC2016
-          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; plist=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | sed "s/[^0-9]//g" | sort -un); if [ -z "$plist" ]; then printf "%s\t-\tNOPORT\n" "$n"; else for pt in $plist; do ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); rc=$?; if [ "$rc" = "0" ]; then printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}"; elif [ "$rc" = "7" ]; then printf "%s\t%s\tDEAD\n" "$n" "$pt"; else printf "%s\t%s\tNOHTTP:%s\n" "$n" "$pt" "$rc"; fi ) & done; fi; done; wait; }'
+          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; plist=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | sed "s/[^0-9]//g" | sort -un); if [ -z "$plist" ]; then printf "%s\t-\tNOPORT\n" "$n"; else for pt in $plist; do ( o=$(curl -s -o /dev/null -w "%{http_code} %{time_connect}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); rc=$?; c=${o%% *}; tc=$(printf "%s" "${o##* }" | tr -d ".0"); if [ "$rc" = "0" ]; then printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}"; elif [ -z "$tc" ]; then printf "%s\t%s\tDEAD\n" "$n" "$pt"; elif [ "$rc" = "28" ]; then printf "%s\t%s\tHUNG\n" "$n" "$pt"; else printf "%s\t%s\tNOHTTP:%s\n" "$n" "$pt" "$rc"; fi ) & done; fi; done; wait; }'
         run: |
           set -uo pipefail
 
@@ -1187,6 +1196,15 @@ jobs:
               NOHTTP:*)
                 quiet=$((quiet + 1))
                 printf '  --    %-26s :%-6s listening, not an HTTP service\n' "$name" "$port"
+                ;;
+              # Connected, then nothing for the whole timeout. Every non-HTTP
+              # service on this box answers or closes immediately, so a peer
+              # that accepts and goes quiet is anomalous rather than exotic.
+              # Reported as what was observed, without naming a cause.
+              HUNG)
+                faulty=$((faulty + 1))
+                printf '  FAIL  %-26s :%-6s accepted, then silent\n' "$name" "$port"
+                echo "::warning title=smoke-check: $name::Port $port accepted the connection and then sent nothing for 4s. Something is listening but not responding."
                 ;;
               # Nothing accepted the connection (curl exit 7). The container
               # runs but the process inside never started listening.
