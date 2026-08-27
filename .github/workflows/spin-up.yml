@@ -507,7 +507,7 @@ jobs:
               echo "✅ SSH ready + host provisioned (attempt $i)"
               break
             fi
-            if [ $i -eq 72 ]; then
+            if [ "$i" -eq 72 ]; then
               echo "❌ cloud-init did not complete after 6 minutes"
               echo "   Last attempt to surface diagnostic:"
               ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \
@@ -595,7 +595,7 @@ jobs:
               echo "✅ Cloudflare Tunnel installed on attempt $attempt"
               break
             fi
-            if [ $attempt -eq 6 ]; then
+            if [ "$attempt" -eq 6 ]; then
               echo "❌ Tunnel install failed after 6 attempts — server unreachable or sshd misbehaving"
               exit 1
             fi

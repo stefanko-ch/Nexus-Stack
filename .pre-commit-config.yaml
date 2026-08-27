@@ -118,3 +118,31 @@ repos:
           # SC2001: prefer parameter expansion — too noisy, sed/regex
           # readability often trumps perf savings here.
           - --exclude=SC1091,SC2001
+
+  # ---------------------------------------------------------------------------
+  # actionlint — the workflow YAMLs
+  # ---------------------------------------------------------------------------
+  # Added because the absence already cost something, and the evidence is a
+  # comment further up this file: a pytest step without `shell: bash` ran
+  # under GitHub's default `bash -e {0}`, which sets -e but NOT pipefail, so
+  # a failure inside a pipeline reported success and the workflow stayed
+  # green over it.
+  #
+  # actionlint also runs shellcheck over every `run:` block, which is where
+  # most of this repo's logic lives — the deploy path is Python, but the
+  # workflows around it are several thousand lines of bash.
+  #
+  # `files` is restricted to .github/workflows/ on purpose. actionlint is a
+  # workflow linter and does not understand composite actions: pointed at
+  # .github/actions/*/action.yml it reports `"jobs" section is missing`
+  # for every one of them.
+  #
+  # No --ignore flags: the repo is at zero findings as of this commit, which
+  # is the right state to add a gate in. Deliberate exceptions live inline as
+  # `# shellcheck disable=...` with a reason next to them — spin-up.yml has
+  # one for a single-quoted remote script that must not be expanded locally.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        files: ^\.github/workflows/.*\.ya?ml$

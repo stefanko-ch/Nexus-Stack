@@ -60,7 +60,7 @@ jobs:
           # Remove duplicates and empty values, sort
           SERVICES=$(echo "$SERVICES" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
 
-          echo "enabled_services=$SERVICES" >> $GITHUB_OUTPUT
+          echo "enabled_services=$SERVICES" >> "$GITHUB_OUTPUT"
           echo "📋 Enabled services: $SERVICES"
 
       - name: Update D1 with selected services
