@@ -1078,13 +1078,23 @@ jobs:
           # `[::]:` and, where a compose file says so, on `127.0.0.1:`.
           # Matching one address form silently skipped the others.
           #
+          # curl's exit status is kept alongside the HTTP code, because the
+          # code alone cannot tell a dead port from a healthy non-HTTP one:
+          # both report 000. Measured: nothing listening exits 7, a listener
+          # that speaks something other than HTTP exits 1 or 52. Only 7 means
+          # nothing accepted the connection. This matters because the
+          # generated docker-compose.firewall.yml publishes the tcp_ports from
+          # services.yaml — Postgres 5432, Redpanda 9092, ClickHouse 9004,
+          # SFTP 2022 and more — so without this a dozen healthy databases
+          # would be reported as broken on every run.
+          #
           # The whole loop is inside `{ ...; wait; }` so that `wait` runs
           # in the same subshell that spawned the probes. A pipeline's
           # right-hand side is its own subshell; a `wait` placed after
           # `done` belongs to the parent and would not wait for anything,
           # leaving the probes orphaned and their output lost.
           # shellcheck disable=SC2016
-          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; pt=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | head -1 | tr -cd "0-9"); if [ -z "$pt" ]; then printf "%s\t-\tNOPORT\n" "$n"; else ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}" ) & fi; done; wait; }'
+          REMOTE_PROBE: 'docker ps -a --format "{{.Names}}\t{{.State}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | { while IFS="$(printf "\t")" read -r n st stat pts; do case "$st" in running) ;; restarting) printf "%s\t-\tRESTARTING\n" "$n"; continue ;; exited) printf "%s\t-\tEXITED:%s\n" "$n" "$(printf "%s" "$stat" | grep -oE "\([0-9]+\)" | tr -cd "0-9")"; continue ;; *) printf "%s\t-\tSTATE:%s\n" "$n" "$st"; continue ;; esac; pt=$(printf "%s" "$pts" | grep -oE ":[0-9]+->" | head -1 | tr -cd "0-9"); if [ -z "$pt" ]; then printf "%s\t-\tNOPORT\n" "$n"; else ( c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 4 "http://localhost:$pt/" 2>/dev/null); rc=$?; if [ "$rc" = "0" ]; then printf "%s\t%s\t%s\n" "$n" "$pt" "${c:-000}"; elif [ "$rc" = "7" ]; then printf "%s\t%s\tDEAD\n" "$n" "$pt"; else printf "%s\t%s\tNOHTTP:%s\n" "$n" "$pt" "$rc"; fi ) & fi; done; wait; }'
         run: |
           set -uo pipefail
 
@@ -1107,7 +1117,13 @@ jobs:
           fi
 
           if [ "$SSH_FAILED" -ne 0 ]; then
-            echo "::warning title=smoke-check::Could not reach the server over ssh, so no service check ran. $(head -c 300 /tmp/smoke-ssh.err 2>/dev/null || echo '(no stderr)')"
+            # ssh exits non-zero both when the connection fails and when the
+            # remote command does, and this step cannot tell which. Saying
+            # "could not reach the server" would be a guess. Newlines are
+            # folded out because a multi-line ::warning payload silently
+            # truncates at the first one.
+            SSH_ERR=$(tr '\n\r' '  ' < /tmp/smoke-ssh.err 2>/dev/null | head -c 300)
+            echo "::warning title=smoke-check::No service check ran: ssh exited non-zero, which means either the server was unreachable or the probe itself failed on it. stderr: ${SSH_ERR:-(empty)}"
             exit 0
           fi
 
@@ -1148,6 +1164,27 @@ jobs:
                 printf '  FAIL  %-26s %-7s restart loop\n' "$name" ""
                 echo "::warning title=smoke-check: $name::Container is in a restart loop — it starts, fails, and is restarted. Check its logs for the crash reason."
                 ;;
+              # A listener that answered something other than HTTP. Healthy
+              # by every measure this step can take: the port accepted the
+              # connection. Databases, brokers and SFTP land here.
+              NOHTTP:*)
+                quiet=$((quiet + 1))
+                printf '  --    %-26s :%-6s listening, not an HTTP service\n' "$name" "$port"
+                ;;
+              # Nothing accepted the connection (curl exit 7). The container
+              # runs but the process inside never started listening.
+              DEAD)
+                faulty=$((faulty + 1))
+                printf '  FAIL  %-26s :%-6s nothing listening\n' "$name" "$port"
+                echo "::warning title=smoke-check: $name::Container is running but nothing is listening on port $port. The deploy finished; this service did not come up."
+                ;;
+              # The service answered — it is up, and it is erroring. A
+              # different problem from silence, so a different message.
+              5??)
+                faulty=$((faulty + 1))
+                printf '  FAIL  %-26s :%-6s %s\n' "$name" "$port" "$code"
+                echo "::warning title=smoke-check: $name::Answered with HTTP $code on port $port, so the process is up but failing — usually a bad config or an unreachable dependency."
+                ;;
               # created / paused / dead. Never normal after a deploy, but
               # the state is all this step knows — it must not claim a
               # port was probed when none was.
@@ -1156,16 +1193,19 @@ jobs:
                 printf '  FAIL  %-26s %-7s %s\n' "$name" "" "$code"
                 echo "::warning title=smoke-check: $name::Container is in Docker state '${code#STATE:}', neither running nor cleanly exited. No port was probed."
                 ;;
+              # Everything above is accounted for, so this is a result the
+              # probe did not anticipate. Report it as unclassified rather
+              # than assert a cause.
               *)
                 faulty=$((faulty + 1))
                 printf '  FAIL  %-26s :%-6s %s\n' "$name" "$port" "$code"
-                echo "::warning title=smoke-check: $name::Container is running but nothing answered on port $port (curl reported $code). The deploy finished; this service did not come up."
+                echo "::warning title=smoke-check: $name::Unclassified probe result '$code' on port $port. This is a gap in the check rather than a diagnosis — please report it."
                 ;;
             esac
           done <<< "$REPORT"
 
           echo ""
-          echo "[smoke] $healthy answering, $faulty faulty, $quiet with nothing to probe"
+          echo "[smoke] $healthy answering HTTP, $faulty faulty, $quiet with no HTTP endpoint to check"
 
       - name: Show spin-up info
         run: |

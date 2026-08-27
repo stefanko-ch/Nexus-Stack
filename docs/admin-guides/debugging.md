@@ -33,16 +33,23 @@ of the last Spin Up run. It looks at every container on the server — running
 or not — and tells you which one is the problem, often before you notice
 anything is wrong.
 
+It probes each published port with HTTP but does not assume every port speaks
+it. A refused connection and a healthy database that simply is not a web
+server both look identical in an HTTP status code, so the check reads curl's
+exit status as well: only "connection refused" counts as a fault.
+
 ```
   ok    forgejo                    :3202   200
   ok    portainer                  :9090   401
+  --    postgres                   :5432   listening, not an HTTP service
   --    kestra-postgres                    no published port (internal-only)
   --    lakekeeper-bootstrap               ran once and exited cleanly
-  FAIL  metabase                   :3000   000
+  FAIL  metabase                   :3000   nothing listening
+  FAIL  superset                   :8088   503
   FAIL  openmetadata                       EXITED:1
   FAIL  woodpecker-agent                   restart loop
 
-[smoke] 42 answering, 3 faulty, 13 with nothing to probe
+[smoke] 42 answering HTTP, 4 faulty, 13 with no HTTP endpoint to check
 ```
 
 How to read it:
@@ -52,8 +59,9 @@ How to read it:
 | `ok` with any 2xx/3xx/4xx | The application answered. `401` / `403` is a healthy service asking for a login, not a fault. |
 | `--` / `no published port` | Internal-only container (databases, sidecars). Nothing to probe — not an error. |
 | `--` / `ran once and exited cleanly` | A one-shot job that finished, such as `lakekeeper-bootstrap` or `openmetadata-migrate`. Expected. |
-| `FAIL` with `000` | Nothing accepted the connection. The container runs but the process inside never started listening. |
-| `FAIL` with `5xx` | The process listens but is erroring — usually a bad config or an unreachable dependency. |
+| `--` / `listening, not an HTTP service` | The port accepted the connection but answered something other than HTTP. Databases, brokers and SFTP land here — Postgres on 5432, Redpanda on 9092, ClickHouse on 9004. Healthy by every measure this check can take. |
+| `FAIL` / `nothing listening` | Nothing accepted the connection at all. The container runs but the process inside never started listening. |
+| `FAIL` with `5xx` | The service answered, so it is up and erroring — usually a bad config or an unreachable dependency. A different problem from silence. |
 | `FAIL` with `EXITED:<n>` | The container stopped with a non-zero status. It crashed rather than started. |
 | `FAIL` with `restart loop` | The container starts, fails, and Docker restarts it, over and over. Its logs hold the crash reason. |
 
