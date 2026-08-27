@@ -38,8 +38,9 @@ first, since a stack like RisingWave puts its Postgres wire protocol on one
 port and its dashboard on another. It does not assume any of them speaks
 HTTP, though: a port nothing is listening on and a healthy database that
 simply is not a web server look identical in an HTTP status code. So the
-check reads curl's exit status too, and only a failure to connect at all
-counts as a fault.
+check measures whether the TCP connection was established at all, which
+keeps a non-HTTP listener out of the fault column. What does count as a
+fault is listed in the table below.
 
 ```
   ok    forgejo                    :3202   200
@@ -68,6 +69,8 @@ How to read it:
 | `FAIL` with `5xx` | The service answered, so it is up and erroring — usually a bad config or an unreachable dependency. A different problem from silence. |
 | `FAIL` with `EXITED:<n>` | The container stopped with a non-zero status. It crashed rather than started. |
 | `FAIL` with `restart loop` | The container starts, fails, and Docker restarts it, over and over. Its logs hold the crash reason. |
+| `FAIL` with `STATE:<x>` | The container is in a Docker state that is neither running nor cleanly exited — `created`, `paused` or `dead`. No port was probed. |
+| `FAIL` with anything else | A result the check did not anticipate. That is a gap in the check rather than a diagnosis of the service; worth reporting as a bug. |
 
 A `FAIL` never fails the workflow. The step runs *after* the deploy, so it
 reports "the deploy finished and this one service is silent" — the server
