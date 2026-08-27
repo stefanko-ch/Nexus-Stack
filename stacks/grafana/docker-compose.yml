@@ -112,7 +112,28 @@ services:
     image: ${IMAGE_CADVISOR:-ghcr.io/google/cadvisor:0.56}
     container_name: grafana-cadvisor
     restart: unless-stopped
-    privileged: true
+    # Deliberately NOT privileged. cAdvisor's own docs name two cases that
+    # require it, and neither applies here:
+    #
+    #   - process metrics (`--enable_metrics=process`), which also need
+    #     `--pid=host`. Not enabled; the dashboards in
+    #     provisioning/dashboards/json/ read container_cpu_usage_seconds_total,
+    #     container_memory_usage_bytes, container_last_seen and the network
+    #     counters, all of which come from the read-only /sys cgroup mount.
+    #   - RHEL and CentOS, which lock containers down further. The servers
+    #     run Ubuntu 26.04.
+    #
+    # A privileged container gets every capability, an unconfined seccomp
+    # profile and host device access. That matters more here than elsewhere:
+    # this is the one stack wired to observe all the others, and it mounts
+    # the Docker socket, so a compromise of it is a compromise of the host.
+    #
+    # /dev/kmsg is passed explicitly instead — cAdvisor reads it to detect
+    # OOM kills, which is the one capability the privileged flag was
+    # silently providing. See docs/stacks/grafana.md for what to check if a
+    # panel goes blank after this change.
+    devices:
+      - /dev/kmsg
     # Cardinality defuse (Conductor #23 highest-priority):
     # --docker_only=true        ignore non-Docker cgroups (k8s/systemd noise)
     # --store_container_labels=false
