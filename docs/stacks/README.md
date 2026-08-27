@@ -124,7 +124,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Windmill DB) | `postgres` | `16-alpine` | Major |
 
 ¹ No major version tags available, requires manual updates.
-² Only `latest` tags published, no semantic versions available.
+² Allow-listed for `latest`: presentation-layer and dev tools that keep nothing beyond a cache, plus viewers over another system's state such as Kafka-UI and S3 Manager. The reason is what the image holds, not what upstream tags — several of these do publish versions, and pinning them would still buy nothing a re-pull cannot undo.
 ³ Custom build (ARM64 support or additional connectors/dependencies).
 ⁴ Held on the 1.x line deliberately: upstream is at 2.x, and moving a stack that stores workflow definitions, credentials and execution history across a major needs its own migration.
 ⚠️ **Rolling** — the tag moves, and upstream publishes nothing narrower to pin to. Accepted only where no alternative exists, and only for stacks whose data survives an image change. Each of these needs a compatibility check before a deliberate refresh, because a rolling tag can cross a major without the name changing.

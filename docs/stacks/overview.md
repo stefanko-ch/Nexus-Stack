@@ -40,8 +40,8 @@ image: ${IMAGE_GRAFANA:-grafana/grafana:11.6}
 
 The tag shown in each table below is the value Nexus Stack ships with **right now** on `main`. Tags fall into three buckets:
 
-- **Pinned exact version** (e.g. `clickhouse/clickhouse-server:25.8.16.34`, `redpandadata/redpanda:v24.3`) — reproducible, deterministic, what you want in production.
-- **Pinned major (or major/minor)** (e.g. `gitea/gitea:1.23`, `dpage/pgadmin4:9`) — gets patch updates on next `docker pull`, locked against major version surprises.
+- **Pinned exact version** (e.g. `clickhouse/clickhouse-server:25.8.16.34`, `treeverse/lakefs:1.73.0`) — reproducible, deterministic, what you want in production.
+- **Pinned major (or major/minor)** (e.g. `gitea/gitea:1.23`, `redpandadata/redpanda:v24.3`) — gets patch updates on next `docker pull`, locked against major version surprises.
 - **`:latest`** (e.g. `adminer:latest`, `corentinth/it-tools:latest`) — tracks upstream bleeding edge. Reserved for presentation-layer and dev tools that hold no persistent state, and for viewers over somebody else's state such as Kafka-UI and S3 Manager. No stateful stack is left on it.
 
 You override any image via the matching `IMAGE_*` environment variable in your deployment — useful for pinning `:latest` stacks to a specific version, or for testing a pre-release tag.
