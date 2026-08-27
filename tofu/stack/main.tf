@@ -231,8 +231,9 @@ resource "random_password" "lakekeeper_db_password" {
 }
 
 # Marquez OpenSearch admin password
-# The only password in this file with `special = true`, and the exception is
-# forced: since 2.12 OpenSearch validates OPENSEARCH_INITIAL_ADMIN_PASSWORD
+# One of only two passwords in this file with `special = true`
+# (openmetadata_admin is the other), and the exception is forced: since
+# 2.12 OpenSearch validates OPENSEARCH_INITIAL_ADMIN_PASSWORD
 # against `(?=.*[A-Z])(?=.*[^a-zA-Z\d])(?=.*[0-9])(?=.*[a-z]).{8,}` plus a
 # zxcvbn strength check, and refuses to start without a special character.
 #

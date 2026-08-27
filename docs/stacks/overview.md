@@ -168,6 +168,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | Stack | Image | Description |
 |-------|-------|-------------|
 | **[OpenMetadata](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/openmetadata.md)** | `docker.getcollate.io/openmetadata/server:1.6.6` | Open-source metadata platform covering discovery, lineage, glossary, and data quality. Heavy — requires Elasticsearch + MySQL — but the right pick if you need a real data catalog. |
+| **[Marquez](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/marquez.md)** | `marquezproject/marquez:0.51.1` | Reference backend for the OpenLineage standard. Collects lineage events from Dagster, Spark, dbt and Kestra and builds a graph of jobs, datasets and runs — where a table came from, and what breaks if it changes. Lighter than OpenMetadata and focused on lineage rather than cataloguing. |
 | **[Soda](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/soda.md)** | `soda-core:3.3.7` | Data quality testing framework. Write checks in SodaCL (a YAML DSL), run them from CI, break pipelines on failed quality thresholds. Local build via `python:3.11-slim` + pip (multi-arch). CLI-only. |
 
 ## AI / LLM
