@@ -194,7 +194,6 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |
 | **Marimo** | Reactive Python notebook | [marimo.md](marimo.md) |
 | **Marquez** | OpenLineage backend — data lineage across the orchestrators | [marquez.md](marquez.md) |
-| **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
@@ -203,6 +202,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
+| **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
 | **Planka** | Kanban board for project management | [planka.md](planka.md) |

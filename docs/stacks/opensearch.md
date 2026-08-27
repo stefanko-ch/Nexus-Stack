@@ -137,8 +137,12 @@ says so in its log; bump the two together.
 # plugin is loaded and asking for credentials.
 ssh nexus "docker exec opensearch curl -s -o /dev/null -w '%{http_code}\n' http://localhost:9200/"
 
-# Cluster health (yellow is normal on a single node)
-ssh nexus "docker exec opensearch curl -s -u admin:\$OPENSEARCH_ADMIN_PASSWORD http://localhost:9200/_cluster/health?pretty"
+# Cluster health (yellow is normal on a single node).
+# The password is expanded INSIDE the container by `sh -c`. It lives in
+# that container's environment, not in the host shell, so expanding it on
+# the ssh line would send an empty one. Note the container's variable is
+# OPENSEARCH_INITIAL_ADMIN_PASSWORD, not OPENSEARCH_ADMIN_PASSWORD.
+ssh nexus "docker exec opensearch sh -c 'curl -s -u admin:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD http://localhost:9200/_cluster/health?pretty'"
 
 # Did Dashboards reach the node?
 ssh nexus "docker logs opensearch-dashboards 2>&1 | grep -iE 'unable to connect|license|Server running'"

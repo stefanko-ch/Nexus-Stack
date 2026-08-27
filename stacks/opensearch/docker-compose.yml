@@ -148,6 +148,20 @@ services:
       - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
       - SERVER_HOST=0.0.0.0
     ports:
+      # Bound to 0.0.0.0 like every other stack here, and that is safe for
+      # the same reason: hcloud_firewall.main ships with no inbound rules
+      # at all ("Zero Entry — all traffic via Cloudflare Tunnel"), and it
+      # is a cloud firewall outside the host, so Docker's iptables rules
+      # cannot punch through it the way they bypass a host-local UFW.
+      # Binding 127.0.0.1 instead would also silently break a future
+      # `tcp_ports` entry, which needs 0.0.0.0 to be reachable at all.
+      #
+      # ⚠️ Do NOT add a `tcp_ports` entry for 5601. That opens the Hetzner
+      # firewall, and Dashboards has no login of its own — its security
+      # plugin is off because Cloudflare Access is the gate, so an open
+      # 5601 is an unauthenticated UI on the public internet. If something
+      # external needs this stack, expose 9200 instead: the API keeps its
+      # authentication.
       - "5601:5601"
     deploy:
       resources:
