@@ -10,6 +10,7 @@ import { logApiCall, logError } from './_utils/logger.js';
 import { safeHttpsUrl } from './_utils/url.js';
 import { getAccessUserEmail } from './_utils/cf-access-email.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { requireAdmin } from './_utils/require-admin.js';
 
 // Resend-accepted email formats. Hoisted to module scope so the regex
 // objects are created once per Worker boot instead of once per request.
@@ -26,6 +27,15 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
+
+  // Admin-only, because the mail carries the Infisical *admin* login and
+  // Infisical holds every other service credential in the stack. The
+  // recipient is the caller (`userEmail` below), so without this guard any
+  // address on the Access whitelist — user_email, guest_emails — could have
+  // the master credentials delivered to itself. Spin-up and service toggles
+  // stay open to non-admins on purpose; this one cannot.
+  const denial = requireAdmin(env, request);
+  if (denial) return denial;
 
   // Validate environment variables
   const requiredEnv = ['RESEND_API_KEY', 'ADMIN_EMAIL', 'DOMAIN'];
