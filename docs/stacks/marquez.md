@@ -58,9 +58,9 @@ and neither is an account you sign in with:
 | `MARQUEZ_DB_PASSWORD` | the lineage PostgreSQL |
 | `MARQUEZ_OPENSEARCH_PASSWORD` | the OpenSearch admin user |
 
-The OpenSearch password is one of only two in this project generated with
-special characters (OpenMetadata's admin password is the other), and the
-only one restricted to a three-character set. OpenSearch has validated `OPENSEARCH_INITIAL_ADMIN_PASSWORD`
+The OpenSearch password is one of the few in this project generated with
+special characters at all, and it is restricted to the three-character set
+`-_.`. OpenSearch has validated `OPENSEARCH_INITIAL_ADMIN_PASSWORD`
 since 2.12 and refuses to start without at least one uppercase letter, one
 lowercase letter, one digit and one special character. The generator is
 restricted to `-`, `_` and `.` so the value still means nothing to a shell,

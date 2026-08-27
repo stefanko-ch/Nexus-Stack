@@ -126,6 +126,19 @@ services:
       # `opensearch.hosts` is OPENSEARCH_HOSTS and `opensearch.username`
       # is OPENSEARCH_USERNAME. The value is a JSON array, not a bare URL.
       - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      # `admin`, not `nexus-opensearch`, and this is a documented exception
+      # to the project's service-account naming rule. The name is a compiled
+      # constant in the security plugin's demo configurator
+      # (SecuritySettingsConfigurer: `static String ADMIN_USERNAME = "admin"`)
+      # with no environment override — OPENSEARCH_INITIAL_ADMIN_PASSWORD
+      # replaces the password inside internal_users.yml and nothing else.
+      # Renaming it means shipping our own internal_users.yml with a bcrypt
+      # hash generated at deploy time plus a securityadmin.sh run.
+      #
+      # The rule exists to stop default-username guessing, which needs a
+      # reachable endpoint. This one has no published port and no tcp_ports
+      # entry, so it is only reachable from inside app-network, and the
+      # password is 24 random characters. See docs/stacks/opensearch.md.
       - OPENSEARCH_USERNAME=admin
       - OPENSEARCH_PASSWORD=${OPENSEARCH_ADMIN_PASSWORD}
       # Removes the Dashboards login screen, because Cloudflare Access

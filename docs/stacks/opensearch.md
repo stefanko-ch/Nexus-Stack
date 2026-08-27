@@ -55,12 +55,35 @@ because notebooks and pipelines inside the stack reach it directly and a
 credential-free index stops being sensible the moment more than one person
 uses it.
 
-This is one of only two passwords in the project generated with special
-characters (Marquez's OpenSearch admin is the other). OpenSearch has
+This is one of the few passwords in the project generated with special
+characters at all. OpenSearch has
 validated `OPENSEARCH_INITIAL_ADMIN_PASSWORD` since 2.12 and refuses to
 start without one. The generator is restricted to `-`, `_` and `.` so the
 value stays inert in a shell, a compose `.env` parser and a YAML scalar —
 which is why every other password in the project avoids specials entirely.
+
+### Why the username is `admin` and not `nexus-opensearch`
+
+This is a deliberate exception to the project's rule that service accounts
+carry a `nexus-` prefix, and it is worth stating rather than leaving to be
+noticed.
+
+The name is a compiled constant in OpenSearch's security plugin — its demo
+configurator declares `static String ADMIN_USERNAME = "admin"` and offers
+no environment override. `OPENSEARCH_INITIAL_ADMIN_PASSWORD` replaces the
+*password* inside `internal_users.yml` and nothing else. Renaming the
+account means shipping our own `internal_users.yml` containing a bcrypt
+hash generated at deploy time, then running `securityadmin.sh` to load it.
+
+The rule exists to stop default-username guessing, and that threat needs a
+reachable endpoint. This one has no published host port and no `tcp_ports`
+entry, so it answers only inside `app-network`, and the password is 24
+random characters. The same exception applies to the OpenSearch inside the
+[Marquez](./marquez.md) stack.
+
+If the prefixed account is wanted anyway, the work is a custom security
+configuration and a `services-configure` hook to apply it — a change worth
+its own issue rather than a footnote here.
 
 ## Using it from the stack
 

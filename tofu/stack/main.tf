@@ -231,7 +231,8 @@ resource "random_password" "lakekeeper_db_password" {
 }
 
 # OpenSearch (standalone stack) admin password
-# Same forced exception as the Marquez one below, and for the same reason:
+# Same forced exception as the Marquez one below, and the note there
+# explains why counting these is the wrong thing to remember. The reason:
 # OpenSearch validates OPENSEARCH_INITIAL_ADMIN_PASSWORD on start and
 # refuses a password without a special character. `override_special` keeps
 # the value inert in a shell, a compose .env parser and a YAML scalar, and
@@ -248,8 +249,12 @@ resource "random_password" "opensearch_admin" {
 }
 
 # Marquez OpenSearch admin password
-# One of only two passwords in this file with `special = true`
-# (openmetadata_admin is the other), and the exception is forced: since
+# `special = true` here is an exception, and the rule is what to remember
+# rather than the count: passwords in this file avoid special characters
+# because string-form entrypoints interpolate credentials into shell text
+# (#695). The exceptions are the services that validate the password on
+# start and refuse one without a special character — grep `special *= *true`
+# for the current set. This is forced: since
 # 2.12 OpenSearch validates OPENSEARCH_INITIAL_ADMIN_PASSWORD
 # against `(?=.*[A-Z])(?=.*[^a-zA-Z\d])(?=.*[0-9])(?=.*[a-z]).{8,}` plus a
 # zxcvbn strength check, and refuses to start without a special character.
