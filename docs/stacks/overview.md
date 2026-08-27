@@ -35,14 +35,14 @@ Disabling a stack reverses every one of those steps. Nothing is left behind on C
 Every stack Docker Compose file uses an environment variable default pattern:
 
 ```yaml
-image: ${IMAGE_GRAFANA:-grafana/grafana:latest}
+image: ${IMAGE_GRAFANA:-grafana/grafana:11.6}
 ```
 
 The tag shown in each table below is the value Nexus Stack ships with **right now** on `main`. Tags fall into three buckets:
 
 - **Pinned exact version** (e.g. `clickhouse/clickhouse-server:25.8.16.34`, `redpandadata/redpanda:v24.3.1`) — reproducible, deterministic, what you want in production.
 - **Pinned major (or major/minor)** (e.g. `gitea/gitea:1.23`, `dpage/pgadmin4:9`) — gets patch updates on next `docker pull`, locked against major version surprises.
-- **`:latest`** (e.g. `grafana/grafana:latest`, `n8nio/n8n:latest`) — tracks upstream bleeding edge. Fine for personal use, risky for production.
+- **`:latest`** (e.g. `adminer:latest`, `corentinth/it-tools:latest`) — tracks upstream bleeding edge. Reserved for presentation-layer and dev tools that hold no persistent state, and for viewers over somebody else's state such as Kafka-UI and S3 Manager. No stateful stack is left on it.
 
 You override any image via the matching `IMAGE_*` environment variable in your deployment — useful for pinning `:latest` stacks to a specific version, or for testing a pre-release tag.
 
@@ -109,7 +109,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 
 | Stack | Image | Description |
 |-------|-------|-------------|
-| **[Filestash](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/filestash.md)** | `machines/filestash:latest` | Web file manager with pluggable backends: S3, SFTP, FTP, WebDAV, Dropbox, Google Drive. Think "Google Drive UI for whichever storage you already own". |
+| **[Filestash](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/filestash.md)** | `machines/filestash@sha256:68171bf3…` | Web file manager with pluggable backends: S3, SFTP, FTP, WebDAV, Dropbox, Google Drive. Think "Google Drive UI for whichever storage you already own". |
 | **[Garage](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/garage.md)** | `dxflrs/garage:v2.2.0` | Lightweight geo-distributed S3-compatible storage from the Deuxfleurs collective. Designed to run on heterogeneous nodes, e.g. a laptop + a VPS + a Raspberry Pi as one cluster. |
 | **[LakeFS](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/lakefs.md)** | `treeverse/lakefs:1.73.0` | Git-like branches, commits, and merges for an S3 bucket. Enables "reproduce Tuesday's report" workflows by snapshotting the data lake state at each dbt run. Configured to use Hetzner Object Storage as the backing bucket. |
 | **[MinIO](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/minio.md)** | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | The reference open-source S3-compatible object store. Battle-tested, widely supported by every SDK that speaks S3, picked by default when in doubt. |
@@ -124,8 +124,8 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 |-------|-------|-------------|
 | **[Dagster](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/dagster.md)** | `nexus-dagster:1.12.21` | Python orchestrator built around Software-Defined Assets and data lineage. Great fit for dbt + Python analytics stacks. Uses a Nexus-built image that layers your dependencies on top of the official base. |
 | **[Kestra](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/kestra.md)** | `kestra/kestra:v1.0` | YAML-defined declarative workflow orchestration. Event-driven, plugin-rich, and language-agnostic. Pinned to the Kestra LTS track — the default image already bundles every official plugin (Databricks JDBC, Snowflake, Trino, Postgres, ~15 more). Always protected by Cloudflare Access — it touches every downstream system. |
-| **[Mage](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/mage.md)** | `mageai/mageai:latest` | Notebook-style data pipeline builder. A good middle ground if Dagster feels too abstract and Jupyter feels too loose. |
-| **[n8n](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/n8n.md)** | `n8nio/n8n:latest` | Fair-code workflow automation — Zapier/Make alternative with 400+ integrations and self-hostable license. The go-to tool for "when X happens, do Y" glue work. |
+| **[Mage](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/mage.md)** | `mageai/mageai:0.9.79` | Notebook-style data pipeline builder. A good middle ground if Dagster feels too abstract and Jupyter feels too loose. |
+| **[n8n](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/n8n.md)** | `n8nio/n8n:1.123.75` | Fair-code workflow automation — Zapier/Make alternative with 400+ integrations and self-hostable license. The go-to tool for "when X happens, do Y" glue work. |
 | **[Prefect](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/prefect.md)** | `prefecthq/prefect:3-latest` | Python-native orchestrator — flows are plain Python decorated with `@flow`. Deploys a Prefect Server, worker, and UI as separate containers. |
 | **[Windmill](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/windmill.md)** | `ghcr.io/windmill-labs/windmill:1.624.0` | Developer-focused workflow and internal-tools platform. Write scripts in TypeScript/Python/Go/Bash, auto-generate forms, compose flows. Ships with an LSP container for in-browser autocomplete. |
 | **[Woodpecker CI](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/woodpecker-ci.md)** | `woodpeckerci/woodpecker-server:v3.13.0` | Lightweight Docker-native CI/CD. Reads a `.woodpecker.yaml` and runs each step in a disposable container. Ships with a sibling **`woodpeckerci/woodpecker-agent:v3.13.0`** runner. Pairs naturally with Gitea for a fully self-hosted Git + CI setup. |
@@ -145,7 +145,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | Stack | Image | Description |
 |-------|-------|-------------|
 | **[Apache Superset](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/superset.md)** | `apache/superset:6.0.0` | Power-user BI and data exploration with SQL Lab, 40+ chart types, and Jinja-templated dashboards. Fits the "data team wants real tooling" use case. |
-| **[Budibase](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/budibase.md)** | `budibase/budibase:latest` | Low-code internal-tools builder. Drag-and-drop forms, tables, and auto-generated CRUD apps on top of your existing databases or APIs. |
+| **[Budibase](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/budibase.md)** | `budibase/budibase:v3.43.0` | Low-code internal-tools builder. Drag-and-drop forms, tables, and auto-generated CRUD apps on top of your existing databases or APIs. |
 | **[Jupyter](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/jupyter.md)** | `quay.io/jupyter/pyspark-notebook:python-3.13` | JupyterLab with PySpark preinstalled and pre-connected to the Spark cluster stack. The interactive data-exploration workhorse. |
 | **[Marimo](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/marimo.md)** | `ghcr.io/marimo-team/marimo:latest-sql` | Modern Python notebook with reactive execution (change a cell and dependents re-run automatically) and built-in SQL cells. Notebooks are stored as plain `.py` files — git-friendly. |
 | **[Metabase](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/metabase.md)** | `metabase/metabase:v0.60.6.2` | Friendly self-service BI — point at a database, get an ask-a-question-in-plain-English UI, build dashboards in minutes. Best fit for non-technical stakeholders. |
@@ -157,10 +157,10 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | Stack | Image | Description |
 |-------|-------|-------------|
 | **[Dozzle](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/dozzle.md)** | `amir20/dozzle:v10.5.3` | Realtime Docker logs in the browser. The "no-SSH `docker logs -f`" — pick a container in the sidebar, stream its logs live, search/filter, open multiple in tabs. Subscribes to the Docker socket read-only. Stateless, ~30 MB image. |
-| **[Grafana](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/grafana.md)** | `grafana/grafana:latest` | The observability stack, bundled: Grafana + Prometheus + Loki + Promtail + cAdvisor + Node Exporter. Ships with pre-provisioned dashboards for Docker containers, Loki logs, and host metrics — working observability out of the box. Always protected. |
+| **[Grafana](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/grafana.md)** | `grafana/grafana:11.6` | The observability stack, bundled: Grafana + Prometheus + Loki + Promtail + cAdvisor + Node Exporter. Ships with pre-provisioned dashboards for Docker containers, Loki logs, and host metrics — working observability out of the box. Always protected. |
 | **[Quickwit](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/quickwit.md)** | `quickwit/quickwit:0.8.1` | Rust-based log search engine, designed to store indexes on cheap object storage (S3/MinIO) instead of expensive SSD. Elasticsearch alternative when you have terabytes of logs you rarely query. |
 | **[Telegraf](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/telegraf.md)** | `telegraf:1.38.2` | InfluxData's metrics agent with 300+ input plugins. CLI-only — runs in the background, no web UI. Complements the Grafana stack when you need something Node Exporter doesn't cover. |
-| **[Uptime Kuma](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/uptime-kuma.md)** | `louislam/uptime-kuma:latest` | A fancy self-hosted uptime monitor. Beautiful dashboards, Telegram/Slack/Discord alerts, public status pages. The reference "I need monitoring tonight" pick. |
+| **[Uptime Kuma](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/uptime-kuma.md)** | `louislam/uptime-kuma:2` | A fancy self-hosted uptime monitor. Beautiful dashboards, Telegram/Slack/Discord alerts, public status pages. The reference "I need monitoring tonight" pick. |
 | **[Vector](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/vector.md)** | `timberio/vector:0.54.0-alpine` | Ultra-fast observability pipeline in Rust — collect, transform, and route logs/metrics/traces. Think "unified Logstash + Fluentd + Telegraf at 10× the throughput". |
 
 ## Data quality & metadata
@@ -188,8 +188,8 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | **[Gitea](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/gitea.md)** | `gitea/gitea:1.23` | Self-hosted Git with pull requests, code review, releases, and a built-in Actions runner. The GitHub-at-home experience. PostgreSQL is included as a sibling container. |
 | **[Hoppscotch](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/hoppscotch.md)** | `hoppscotch/hoppscotch:2025.12.1` | Open-source API testing client. REST, GraphQL, WebSocket, SSE, MQTT. Postman alternative with collections, environments, and history. |
 | **[IT-Tools](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/it-tools.md)** | `corentinth/it-tools:latest` | Collection of ~80 daily-dev utilities: JSON/YAML formatters, hash generators, JWT decoder, base64, regex tester, cron parser, and friends. |
-| **[Mailpit](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/mailpit.md)** | `axllent/mailpit:latest` | SMTP sink + web UI for intercepting test emails. Point any app's SMTP at Mailpit and inspect every email it would have sent — indispensable for developing email flows. |
-| **[Portainer](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/portainer.md)** | `portainer/portainer-ce:latest` | Docker container management UI. Browse images, inspect volumes, tail logs, exec into containers. Always protected — it controls the entire Docker daemon. |
+| **[Mailpit](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/mailpit.md)** | `axllent/mailpit:v1.28` | SMTP sink + web UI for intercepting test emails. Point any app's SMTP at Mailpit and inspect every email it would have sent — indispensable for developing email flows. |
+| **[Portainer](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/portainer.md)** | `portainer/portainer-ce:2.40.0` | Docker container management UI. Browse images, inspect volumes, tail logs, exec into containers. Always protected — it controls the entire Docker daemon. |
 | **[Wetty](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/wetty.md)** | `wettyoss/wetty:latest` | SSH terminal in the browser. Always protected — it literally gives you a shell on the host. The emergency break-glass access path when something is wrong and you can't ssh from your laptop. |
 | **[Wiki.js](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/wikijs.md)** | `requarks/wiki:2.5.306` | Modern wiki and knowledge base with Markdown, WYSIWYG, Git sync, and fine-grained ACLs. Run it privately for team docs or `public = true` for a real public wiki. |
 
@@ -204,7 +204,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 
 | Stack | Image | Description |
 |-------|-------|-------------|
-| **[Infisical](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/infisical.md)** | `infisical/infisical:latest` | Open-source secret management platform — the secrets store Nexus Stack uses *for itself*. Every other stack fetches its credentials from here at container startup. Always protected. |
+| **[Infisical](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/infisical.md)** | `infisical/infisical:v0.155.5` | Open-source secret management platform — the secrets store Nexus Stack uses *for itself*. Every other stack fetches its credentials from here at container startup. Always protected. |
 
 ---
 

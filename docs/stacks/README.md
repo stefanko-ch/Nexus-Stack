@@ -4,7 +4,11 @@ This document provides an overview of all available Docker stacks in Nexus-Stack
 
 ## Docker Image Versions
 
-Images are pinned to **major versions** where supported for automatic security patches while avoiding breaking changes. Anything holding persistent state is pinned to an exact version or a digest instead — a surprise major on the next spin-up would meet data written by the previous one. Versions are defined in [`services.yaml`](../../services.yaml).
+**No stack that holds persistent state is left on `:latest`.** A tag that moved between two spin-ups would meet data written by the previous one, so `latest` is reserved for presentation-layer and dev tools that keep nothing beyond a cache, and for viewers over somebody else's state such as Kafka-UI and S3 Manager.
+
+How tightly a stateful stack is pinned below that depends on what upstream's tags actually promise. A PostgreSQL major is an on-disk-format boundary, so `16-alpine` is a safe pin that still collects security patches. An application whose tags carry no such guarantee gets an exact version, or a digest where upstream publishes no version tags at all.
+
+Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) and Prefect (`3-latest`) — because upstream publishes nothing narrower. They are marked in the table rather than hidden. `services.yaml` is the source of truth for every value below; where this table and that file disagree, the file is right.
 
 | Service | Image | Tag | Strategy |
 |---------|-------|-----|----------|
@@ -24,14 +28,14 @@ Images are pinned to **major versions** where supported for automatic security p
 | Dinky | `dinkydocker/dinky-standalone-server` | `1.2.5-flink1.20` | Exact ¹ |
 | Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
-| Grafana | `grafana/grafana` | `12` | Major |
-| Hoppscotch | `hoppscotch/hoppscotch` | `latest` | Latest ² |
+| Grafana | `grafana/grafana` | `11.6` | Minor |
+| Hoppscotch | `hoppscotch/hoppscotch` | `2025.12.1` | Exact ¹ |
 | Prometheus | `prom/prometheus` | `v3` | Major |
 | Loki | `grafana/loki` | `3` | Major |
 | Promtail | `grafana/promtail` | `3` | Major |
 | cAdvisor | `gcr.io/cadvisor/cadvisor` | `v0.56` | Minor |
 | Node Exporter | `prom/node-exporter` | `v1` | Major |
-| Portainer | `portainer/portainer-ce` | `2` | Major |
+| Portainer | `portainer/portainer-ce` | `2.40.0` | Exact ¹ |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
 | n8n | `n8nio/n8n` | `1.123.75` | Exact ⁴ |
 | OpenMetadata Server | `docker.getcollate.io/openmetadata/server` | `1.6.6` | Exact ¹ |
@@ -43,7 +47,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | Kestra | `kestra/kestra` | `v1.0` | Minor |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
-| Mailpit | `axllent/mailpit` | `v1` | Major |
+| Mailpit | `axllent/mailpit` | `v1.28` | Minor |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `python-3.13` | Minor |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
@@ -62,14 +66,14 @@ Images are pinned to **major versions** where supported for automatic security p
 | PostgreSQL (Gitea DB) | `postgres` | `16-alpine` | Major |
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
 | Mage | `mageai/mageai` | `0.9.79` | Exact ¹ |
-| MinIO | `minio/minio` | `latest` | Latest ² |
+| MinIO | `quay.io/minio/minio` | `RELEASE.2025-09-07T16-13-09Z` | Exact ¹ |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | Ollama | `ollama/ollama` | `0.15.1` | Exact ¹ |
 | Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.8.3` | Exact ¹ |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
-| Marimo | `ghcr.io/marimo-team/marimo` | `latest-sql` | Latest ² |
+| Marimo | `nexus-marimo` (custom build) | `latest-sql-spark` | Latest ² |
 | Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
 | HedgeDoc | `quay.io/hedgedoc/hedgedoc` | `1.10.3` | Exact ¹ |
 | PostgreSQL (HedgeDoc DB) | `postgres` | `16-alpine` | Major |
@@ -85,7 +89,7 @@ Images are pinned to **major versions** where supported for automatic security p
 | PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
 | pg_ducklake | `pgducklake/pgducklake` | `18-main` | Rolling ⚠️ |
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
-| Prefect | `prefecthq/prefect` | `3-latest` | Major |
+| Prefect | `prefecthq/prefect` | `3-latest` | Rolling ⚠️ |
 | PostgreSQL (Prefect DB) | `postgres` | `16-alpine` | Major |
 | Dify API | `langgenius/dify-api` | `1.13.0` | Exact ¹ |
 | Dify Web | `langgenius/dify-web` | `1.13.0` | Exact ¹ |
@@ -99,8 +103,8 @@ Images are pinned to **major versions** where supported for automatic security p
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
-| Redpanda Connect | `redpandadata/connect` | `latest` | Latest ² |
-| Redpanda Datagen | `redpandadata/connect` | `latest` | Latest ² |
+| Redpanda Connect | `redpandadata/connect` | `4.43.0` | Exact ¹ |
+| Redpanda Datagen | `redpandadata/connect` | `4.43.0` | Exact ¹ |
 | RisingWave | `risingwavelabs/risingwave` | `v2.8.1` | Exact ¹ |
 | SFTPGo | `drakkan/sftpgo` | `v2.7.1` | Exact ¹ |
 | Sling | `nexus-sling` (custom build) | `1.5.13` | Exact ³ |
