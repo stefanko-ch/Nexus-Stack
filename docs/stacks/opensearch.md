@@ -45,8 +45,8 @@ can be switched off without touching the other.
 
 ## Credentials
 
-`OPENSEARCH_ADMIN_PASSWORD` is in Infisical under the `opensearch` folder.
-The username is `admin`.
+Both values are in Infisical under the `opensearch` folder:
+`OPENSEARCH_USERNAME` (which is `admin`) and `OPENSEARCH_ADMIN_PASSWORD`.
 
 You do not need it for Dashboards — Cloudflare Access already
 authenticated whoever reached the page, so the Dashboards login screen is

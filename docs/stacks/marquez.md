@@ -55,8 +55,13 @@ and neither is an account you sign in with:
 
 | Secret | Used by |
 |---|---|
-| `MARQUEZ_DB_PASSWORD` | the lineage PostgreSQL |
-| `MARQUEZ_OPENSEARCH_PASSWORD` | the OpenSearch admin user |
+| `MARQUEZ_DB_USERNAME` / `MARQUEZ_DB_PASSWORD` | the lineage PostgreSQL |
+| `MARQUEZ_OPENSEARCH_USERNAME` / `MARQUEZ_OPENSEARCH_PASSWORD` | this stack's own OpenSearch |
+
+The OpenSearch username is `admin` rather than a `nexus-` name, because
+OpenSearch compiles that account name in and offers no way to change it
+through configuration — the reasoning is in
+[the OpenSearch stack doc](./opensearch.md#why-the-username-is-admin-and-not-nexus-opensearch).
 
 The OpenSearch password is one of the few in this project generated with
 special characters at all, and it is restricted to the three-character set

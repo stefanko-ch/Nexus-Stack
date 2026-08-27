@@ -104,7 +104,9 @@
     }),
     'marquez': dict({
       'MARQUEZ_DB_PASSWORD': 'marquez_db_password-VALUE',
+      'MARQUEZ_DB_USERNAME': 'nexus-marquez',
       'MARQUEZ_OPENSEARCH_PASSWORD': 'marquez_opensearch_password-VALUE',
+      'MARQUEZ_OPENSEARCH_USERNAME': 'admin',
     }),
     'meilisearch': dict({
       'MEILISEARCH_MASTER_KEY': 'meilisearch_master_key-VALUE',
@@ -137,6 +139,7 @@
     }),
     'opensearch': dict({
       'OPENSEARCH_ADMIN_PASSWORD': 'opensearch_admin_password-VALUE',
+      'OPENSEARCH_USERNAME': 'admin',
     }),
     'pg-ducklake': dict({
       'PG_DUCKLAKE_DATABASE': 'ducklake',

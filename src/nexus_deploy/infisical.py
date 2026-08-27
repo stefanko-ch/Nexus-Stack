@@ -722,6 +722,14 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "opensearch",
             _filter_empty(
                 {
+                    # The username is pushed alongside the password, as every
+                    # other folder does, and here it earns its place twice
+                    # over: OpenSearch's account is `admin`, not the `nexus-`
+                    # name every other stack would lead a reader to expect.
+                    # The name is a compiled constant in the security
+                    # plugin's demo configurator and cannot be changed
+                    # through configuration — see docs/stacks/opensearch.md.
+                    "OPENSEARCH_USERNAME": "admin",
                     "OPENSEARCH_ADMIN_PASSWORD": config.opensearch_admin_password,
                 }
             ),
@@ -732,7 +740,14 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "marquez",
             _filter_empty(
                 {
+                    # Marquez itself has no user management — Cloudflare
+                    # Access is its only gate — so these two name the
+                    # accounts behind it rather than a login. The Postgres
+                    # role follows the nexus- convention; the OpenSearch one
+                    # cannot, for the reason in the opensearch folder above.
+                    "MARQUEZ_DB_USERNAME": "nexus-marquez",
                     "MARQUEZ_DB_PASSWORD": config.marquez_db_password,
+                    "MARQUEZ_OPENSEARCH_USERNAME": "admin",
                     "MARQUEZ_OPENSEARCH_PASSWORD": config.marquez_opensearch_password,
                 }
             ),
