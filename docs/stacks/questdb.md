@@ -103,8 +103,15 @@ PostgreSQL stack.
 # query engine, so a busy database does not report itself unhealthy.
 ssh nexus "docker exec questdb curl -s -o /dev/null -w '%{http_code}\n' http://localhost:9003/status"
 
-# Does the PostgreSQL wire listener accept the configured account?
+# Does the query engine answer? This hits the HTTP endpoint on 9000, not
+# the PostgreSQL wire protocol — it proves the engine runs, nothing about 8812.
 ssh nexus "docker exec questdb curl -s 'http://localhost:9000/exec?query=SELECT%201'"
+
+# The PostgreSQL wire listener, for real. Needs a client, and the postgres
+# stack ships psql; both containers are on app-network. Take the password
+# from Infisical.
+ssh nexus "docker exec -e PGPASSWORD='<from-infisical>' postgres \\
+  psql -h questdb -p 8812 -U nexus-questdb -d qdb -c 'SELECT 1'"
 
 # Disk: QuestDB memory-maps its column files, so growth is on the volume
 ssh nexus "docker exec questdb du -sh /var/lib/questdb"

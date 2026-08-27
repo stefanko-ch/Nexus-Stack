@@ -10,9 +10,13 @@
 #
 # Overlaps with Lakekeeper, deliberately and only partly: Lakekeeper
 # implements the Iceberg REST Catalog spec and nothing else, while Unity
-# Catalog also covers Delta, volumes and AI assets under one namespace. Run
-# whichever matches the lesson; they share nothing and neither notices the
-# other.
+# Catalog also covers Delta, volumes and AI assets under one namespace.
+#
+# They are independent in the way that matters: separate databases,
+# separate volumes, separate internal networks, and neither reads the
+# other's config. Both join app-network, as every stack here does, so
+# their containers CAN reach each other — nothing in either makes use of
+# that. Disable one and the other is untouched.
 #
 # Architecture:
 #   - unitycatalog:    the server, REST API on :8080. Metastore is an H2

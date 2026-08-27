@@ -36,9 +36,14 @@ clients for Spark, Trino, DuckDB and Python.
 in part: Lakekeeper implements the Iceberg REST Catalog specification and
 nothing else, while Unity Catalog also covers Delta, volumes and AI assets.
 
-They share **no database, volume or network**. Enable either alone, both, or
-neither — neither notices the other. Lakekeeper keeps its own PostgreSQL;
-Unity Catalog keeps an H2 file in its own volume.
+They share **no database, no volume and no internal network**, and neither
+reads the other's configuration. Lakekeeper keeps its own PostgreSQL; Unity
+Catalog keeps an H2 file in its own volume. Enable either alone, both, or
+neither.
+
+Both do join `app-network`, as every stack here does, so their containers
+can reach each other over it — nothing in either makes use of that, and it
+is what lets Spark or a notebook talk to both.
 
 Which to pick depends on the lesson rather than on merit. If the exercise is
 "query the same Iceberg table from Spark, Trino and DuckDB", Lakekeeper is

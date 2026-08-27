@@ -979,7 +979,7 @@ services:
     category: "analytics"
     website: "https://www.unitycatalog.io"
     description: "Open-source catalog for Delta and Iceberg tables, volumes and AI assets."
-    long_description: "The OSS Unity Catalog — not Databricks' managed one. A REST catalog covering Delta and Iceberg tables, unstructured volumes, functions and models under one namespace, with clients for Spark, Trino, DuckDB and Python. Runs entirely independently of Lakekeeper, which implements the Iceberg REST Catalog spec and nothing else; the two share no database, volume or network, so either can be enabled alone. The metastore is an H2 file in this stack's own volume, so no PostgreSQL is required."
+    long_description: "The OSS Unity Catalog — not Databricks' managed one. A REST catalog covering Delta and Iceberg tables, unstructured volumes, functions and models under one namespace, Upstream documents integrations for Spark, Trino, DuckDB and others, and ships Java and Python clients. Runs independently of Lakekeeper, which implements the Iceberg REST Catalog spec and nothing else: the two share no database, volume or internal network, so either can be enabled alone. Both join app-network like every stack here, which is how a notebook reaches either. The metastore is an H2 file in this stack's own volume, so no PostgreSQL is required."
     image: "unitycatalog/unitycatalog:v0.6.0"
     support_images:
       unity-catalog-ui: "unitycatalog/unitycatalog-ui@sha256:3a688197b218a4328a7fc0b8f1b65fcd2f9229b0e3999ae12e284304b85d84f1"
