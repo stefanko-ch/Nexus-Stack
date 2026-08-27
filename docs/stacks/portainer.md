@@ -14,7 +14,7 @@ What you get out of the box:
 - Container view (state, restart, logs, exec into a shell, resource usage)
 - Image inspection (layers, env, entrypoint)
 - Volume + network management
-- Stack deployment with Docker Compose (rarely needed in this project — `scripts/deploy.sh` handles stack lifecycle — but useful for ad-hoc experiments)
+- Stack deployment with Docker Compose (rarely needed in this project — the deploy pipeline handles stack lifecycle via `run_compose_up` in `src/nexus_deploy/compose_runner.py` — but useful for ad-hoc experiments)
 
 | Setting | Value |
 |---------|-------|

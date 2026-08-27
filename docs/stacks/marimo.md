@@ -111,7 +111,7 @@ import os
 access_key = os.environ["R2_ACCESS_KEY"]
 ```
 
-The sync writes to a dedicated `.infisical.env` file (not `.env`) so secret keys can't accidentally collide with Compose's `${VAR}` interpolation. Multi-line values (e.g. PEM keys) are skipped with a warning — they need a different transport mechanism (mount-as-file). See `scripts/deploy.sh` "Sync Infisical secrets into Marimo" block for the full mechanism.
+The sync writes to a dedicated `.infisical.env` file (not `.env`) so secret keys can't accidentally collide with Compose's `${VAR}` interpolation. Multi-line values (e.g. PEM keys) are skipped with a warning — they need a different transport mechanism (mount-as-file). The mechanism lives in `src/nexus_deploy/secret_sync.py`, run by the orchestrator's `secret-sync marimo` phase.
 
 ## Memory limits
 

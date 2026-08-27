@@ -56,7 +56,7 @@ Connect via pgAdmin (or any PostgreSQL client) and create a DuckLake table:
 -- Verify the extension is loaded
 SELECT * FROM pg_extension WHERE extname LIKE '%duck%';
 
--- Check current default storage path (configured by deploy.sh)
+-- Check current default storage path (configured by the service-env phase)
 SHOW ducklake.default_table_path;
 
 -- Create a DuckLake table - data is automatically stored as Parquet in S3
@@ -76,7 +76,7 @@ SELECT event_type, COUNT(*) FROM events GROUP BY event_type;
 
 ### Storage Configuration
 
-When the spin-up workflow runs, deploy.sh generates `/docker-entrypoint-initdb.d/00-ducklake-bootstrap.sql` and applies it on first init. After every spin-up the same script is also re-applied via `docker exec` to handle credential rotation on existing data volumes.
+When the spin-up workflow runs, the `service-env` phase (`_render_pg_ducklake` in `src/nexus_deploy/service_env.py`) writes `stacks/pg-ducklake/init/00-ducklake-bootstrap.sql`, which Postgres applies on first init as `/docker-entrypoint-initdb.d/00-ducklake-bootstrap.sql`. After every spin-up the `services-configure` phase (`render_pg_ducklake_hook` in `src/nexus_deploy/services.py`) re-applies the same file via `docker exec`, so credential rotation reaches existing data volumes.
 
 **With Hetzner Object Storage** (default when configured):
 - Bucket: `nexus-<domain>-pgducklake` (created by OpenTofu, persists through teardown)
