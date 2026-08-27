@@ -9,7 +9,7 @@
 
 import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
-import { requireAdmin } from './_utils/require-admin.js';
+import { requireOperator } from './_utils/require-operator.js';
 import { resolveLifecycle } from './_utils/workflow-selection.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 
@@ -19,7 +19,12 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(env, request);
+  // Operator-level, not admin-only. Users must be able to stop the stack
+  // they can start — the asymmetry this replaces let a student begin
+  // paying for a server and then wait for somebody else to release it.
+  // Guests still cannot: tearing down a stack somebody is working on is
+  // not a spectator's call.
+  const denial = requireOperator(env, request);
   if (denial) return denial;
 
   // Validate environment variables

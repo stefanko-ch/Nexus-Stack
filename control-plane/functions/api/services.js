@@ -15,6 +15,7 @@
 
 import { logApiCall, logError } from './_utils/logger.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { requireOperator } from './_utils/require-operator.js';
 
 /**
  * Validate service name to prevent injection attacks
@@ -151,6 +152,12 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
+
+  // Enabling and disabling services is self-service and stays open to
+  // users. It is a POST that changes desired state for everyone on the
+  // stack, though, so a guest does not get it.
+  const denial = requireOperator(env, request);
+  if (denial) return denial;
 
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({

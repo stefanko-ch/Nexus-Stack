@@ -11,6 +11,7 @@ import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { resolveLifecycle } from './_utils/workflow-selection.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { requireOperator } from './_utils/require-operator.js';
 
 /**
  * Get enabled services from D1
@@ -34,6 +35,13 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
+
+  // Was previously open to every address on the Access whitelist,
+  // guests included. Users keep it — starting your own stack is the
+  // point of the Control Plane — but a guest is on the list to look,
+  // not to provision a server that costs money.
+  const denial = requireOperator(env, request);
+  if (denial) return denial;
 
   // Validate environment variables
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
