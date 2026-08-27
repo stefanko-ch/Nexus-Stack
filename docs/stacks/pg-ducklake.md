@@ -76,7 +76,7 @@ SELECT event_type, COUNT(*) FROM events GROUP BY event_type;
 
 ### Storage Configuration
 
-When the spin-up workflow runs, the `service-env` phase (`_render_pg_ducklake` in `src/nexus_deploy/service_env.py`) writes `stacks/pg-ducklake/init/00-ducklake-bootstrap.sql`, which Postgres applies on first init as `/docker-entrypoint-initdb.d/00-ducklake-bootstrap.sql`. After every spin-up the `services-configure` phase (`render_pg_ducklake_hook` in `src/nexus_deploy/services.py`) re-applies the same file via `docker exec`, so credential rotation reaches existing data volumes.
+When the spin-up workflow runs, the `service-env` phase (`_render_pg_ducklake` in `src/nexus_deploy/service_env.py`) writes `stacks/pg-ducklake/init/00-ducklake-bootstrap.sql`, which Postgres applies on first init as `/docker-entrypoint-initdb.d/00-ducklake-bootstrap.sql`. On every later spin-up the `services-configure` phase (`render_pg_ducklake_hook` in `src/nexus_deploy/services.py`) attempts to re-apply the same file via `docker exec`, which is how credential rotation reaches an existing data volume. The hook first waits up to 30 seconds for `pg_isready`; if the container is not accepting connections by then it reports `skipped-not-ready` and returns **without** running `psql`. That is visible in the spin-up log as a phase result, and the remedy is to re-run the spin-up once the container is up — rotated credentials do not reach the volume until a run gets past that wait.
 
 **With Hetzner Object Storage** (default when configured):
 - Bucket: `nexus-<domain>-pgducklake` (created by OpenTofu, persists through teardown)

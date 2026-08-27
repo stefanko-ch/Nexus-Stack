@@ -25,7 +25,7 @@ SFTPGo is a fully-featured SFTP/SCP/WebDAV/FTPS server with a web admin UI, per-
 | Website | [sftpgo.com](https://sftpgo.com) |
 | Source | [GitHub](https://github.com/drakkan/sftpgo) |
 
-> ✅ **Auto-configured:** The web admin user `nexus-sftpgo` is always bootstrapped on container start (via `SFTPGO_DEFAULT_ADMIN_*` env vars in the compose). The default SFTP user `nexus-default` with its R2-backed virtual filesystem is created by the `services-configure` phase (`render_sftpgo_hook` in `src/nexus_deploy/services.py`) only when the R2 datalake credentials (`R2_DATA_BUCKET` / `R2_DATA_ENDPOINT` / `R2_DATA_ACCESS_KEY` / `R2_DATA_SECRET_KEY`) are present in `SECRETS_JSON` — if any of them are missing, deploy logs a yellow warning and the user must be created manually in the SFTPGo admin UI. Credentials are available in Infisical under folder `sftpgo`, keys `SFTPGO_ADMIN_PASSWORD` and `SFTPGO_USER_PASSWORD`.
+> ✅ **Auto-configured:** The web admin user `nexus-sftpgo` is always bootstrapped on container start (via `SFTPGO_DEFAULT_ADMIN_*` env vars in the compose). The default SFTP user `nexus-default` with its R2-backed virtual filesystem is created by the `services-configure` phase (`render_sftpgo_hook` in `src/nexus_deploy/services.py`) only when the R2 datalake credentials (`R2_DATA_BUCKET` / `R2_DATA_ENDPOINT` / `R2_DATA_ACCESS_KEY` / `R2_DATA_SECRET_KEY`) are present in `SECRETS_JSON` — if any of them are missing, the hook logs a warning to stderr and the user must be created manually in the SFTPGo admin UI. Credentials are available in Infisical under folder `sftpgo`, keys `SFTPGO_ADMIN_PASSWORD` and `SFTPGO_USER_PASSWORD`.
 
 ### How to access
 
