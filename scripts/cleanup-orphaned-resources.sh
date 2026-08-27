@@ -110,6 +110,15 @@ if ! D1_DATABASES_RESPONSE=$(curl -sS --fail-with-body --max-time 30 --retry 3 \
     echo "    Not treating that as 'nothing to clean up': an orphan may still"
     echo "    exist. Check the token's D1 permission and re-run."
     FAILED=1
+elif ! echo "$D1_DATABASES_RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
+    # --fail-with-body catches an HTTP error status, but Cloudflare also
+    # reports failures as HTTP 200 with "success": false. Without this the
+    # next line would read a null .result as zero databases and the script
+    # would say "nothing to clean up" — the false all-clear this file exists
+    # to stop producing.
+    echo -e "${RED}  ✗ Cloudflare rejected the D1 listing:${NC}"
+    echo "    $(echo "$D1_DATABASES_RESPONSE" | jq -r '.errors[]?.message // "no error message"' 2>/dev/null || echo "(response was not JSON)")"
+    FAILED=1
 else
     D1_SEEN=$(echo "$D1_DATABASES_RESPONSE" | jq -r '.result | length')
     D1_TOTAL=$(echo "$D1_DATABASES_RESPONSE" | jq -r '.result_info.total_count // empty')
@@ -165,6 +174,10 @@ if ! ACCESS_APPS_RESPONSE=$(curl -sS --fail-with-body --max-time 30 --retry 3 \
     echo -e "${RED}  ✗ Could not list Access applications — the API call itself failed.${NC}"
     echo "    An orphaned app would keep gating $ACCESS_APP_DOMAIN. Check the"
     echo "    token's Access permission and re-run."
+    FAILED=1
+elif ! echo "$ACCESS_APPS_RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
+    echo -e "${RED}  ✗ Cloudflare rejected the Access listing:${NC}"
+    echo "    $(echo "$ACCESS_APPS_RESPONSE" | jq -r '.errors[]?.message // "no error message"' 2>/dev/null || echo "(response was not JSON)")"
     FAILED=1
 else
     AC_SEEN=$(echo "$ACCESS_APPS_RESPONSE" | jq -r '.result | length')
