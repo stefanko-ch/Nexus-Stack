@@ -89,13 +89,44 @@ Two consequences worth knowing:
   server, not a production build. That is what upstream's Dockerfile does
   (`FROM node:18`, `CMD ["yarn", "start"]`).
 
-  Two consequences worth knowing. It recompiles TypeScript and antd through
-  webpack on every container start, so the UI does not answer immediately
-  after a spin-up even when the container is running. And it needs real
-  memory to do that: the container is given **2g**, because at 512m the
-  compile never finishes and nothing binds :3000. That failure is
-  deceptive — the published port still accepts TCP, since docker-proxy
-  does, so the port looks alive while speaking no HTTP at all.
+  Three consequences worth knowing, all of them observed rather than
+  predicted.
+
+  It recompiles TypeScript and antd through webpack on every container
+  start, so the UI does not answer immediately after a spin-up even when
+  the container is running.
+
+  It needs real memory to do that: the container is given **2g**, because
+  at 512m the compile is killed and nothing ever binds :3000. Two things
+  disguise that failure. The published port still accepts TCP, since
+  docker-proxy does, so the port looks alive while speaking no HTTP. And
+  the container exits **1**, not 137 — the cgroup kills the webpack child,
+  `react-scripts` catches it and exits on its own, so from outside it does
+  not look like an OOM at all. The give-away is in the container log:
+
+  ```
+  The build failed because the process exited too early. This probably
+  means the system ran out of memory or someone called `kill -9`…
+  ```
+
+  And it runs a host check, which is why the stack sets
+  `DANGEROUSLY_DISABLE_HOST_CHECK=true`. react-scripts 5.0.1 disables that
+  check only when no `proxy` is configured, and this image's `package.json`
+  has one — so it admits the bind host alone and answers **`Invalid Host
+  header`** to Cloudflare's `Host: unity-catalog.<domain>`. This one hides
+  from local probing entirely: `curl http://localhost:3211/` on the server
+  returns 200 while the browser sees only the error. Reproduce it with the
+  header the tunnel actually sends:
+
+  ```bash
+  ssh nexus "curl -s -H 'Host: unity-catalog.<your-domain>' http://localhost:3211/"
+  ```
+
+  The flag's name deserves the scrutiny it invites. The check exists to stop
+  DNS-rebinding against a development server; here the route sits behind
+  Cloudflare Access and the port is deliberately absent from `tcp_ports`,
+  so the firewall refuses any direct connection and :3000 is reachable only
+  from cloudflared on the same host.
 
 The UI also has its proxy target compiled in at build time
 (`ARG PROXY_HOST=server` rewrites `package.json`), so it only ever looks
