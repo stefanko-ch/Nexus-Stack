@@ -28,6 +28,7 @@ thirteenth open port should require editing this file and saying why.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -120,7 +121,56 @@ DOC_NAME_OVERRIDES = {
 # IMAGE_POSTGRES / IMAGE_REDIS. Listed here so the test passes today while
 # still failing for any NEW collision — removing an entry is how #715 gets
 # closed.
-KNOWN_SUPPORT_IMAGE_COLLISIONS = {"postgres", "redis"}
+# Keyed by (key, owner), not by key alone. Exempting the key would let a
+# NEW stack adopt `postgres` and pass — the opposite of what the comment
+# above promises. Adding one now fails until it is listed here, which is a
+# decision someone has to make deliberately.
+KNOWN_SUPPORT_IMAGE_COLLISIONS: set[tuple[str, str]] = {
+    (key, owner)
+    for key, owners in {
+        "postgres": (
+            "dagster",
+            "gitea",
+            "hedgedoc",
+            "hoppscotch",
+            "infisical",
+            "lakefs",
+            "lakekeeper",
+            "kestra",
+            "litellm",
+            "mage",
+            "meltano",
+            "metabase",
+            "superset",
+            "n8n",
+            "nocodb",
+            "openmetadata",
+            "prefect",
+            "soda",
+            "windmill",
+        ),
+        "redis": ("infisical", "superset"),
+    }.items()
+    for owner in owners
+}
+
+COLLIDING_KEYS = {key for key, _ in KNOWN_SUPPORT_IMAGE_COLLISIONS}
+
+# A tag is floating when any dash- or dot-separated component is a moving
+# label. `:latest` is the obvious one; `3-latest` and `latest-sql-spark`
+# are not caught by a suffix check and were passing as pinned, and `18-main`
+# tracks a branch. A major pin like `17-alpine` or `v24.3` is deliberate
+# policy and not floating.
+FLOATING_COMPONENTS = {"latest", "main", "nightly", "edge", "dev"}
+
+# Stateful stacks that track a moving tag because upstream publishes nothing
+# narrower. Already marked `Rolling ⚠️` in docs/stacks/README.md; listed here
+# so the test agrees with the table rather than contradicting it.
+ROLLING_ALLOWED = {
+    "marimo",  # nexus-marimo:latest-sql-spark — locally built, no version tags
+    "pg-ducklake",  # pgducklake/pgducklake:18-main
+    "prefect",  # prefecthq/prefect:3-latest
+}
 
 # Image keys whose IMAGE_* variable no compose file reads, so a version bump
 # in services.yaml never reaches the container. Same defect as #715 and
@@ -151,6 +201,11 @@ KNOWN_UNREAD_IMAGE_VARS = {
     ("wikijs", "wikijs-postgres"),
     ("windmill", "lsp"),
     ("woodpecker", "woodpecker"),
+    # Both declare their own image in services.yaml, so the deploy emits
+    # IMAGE_SEAWEEDFS_FILER and IMAGE_SEAWEEDFS_MANAGER — but the shared
+    # stacks/seaweedfs/docker-compose.yml reads only ${IMAGE_SEAWEEDFS}.
+    ("seaweedfs-filer", "seaweedfs-filer"),
+    ("seaweedfs-manager", "seaweedfs-manager"),
 }
 
 # Support images still on :latest. Each is a UI or sidecar rather than a
@@ -181,6 +236,22 @@ STACK_DIRS: list[str] = sorted(p.parent.name for p in STACKS_DIR.glob("*/docker-
 @pytest.fixture(scope="module")
 def services() -> dict[str, Any]:
     return SERVICES
+
+
+def _is_floating(image: str) -> bool:
+    """A tag whose components include a moving label.
+
+    Checked component-wise rather than by suffix: `endswith(":latest")`
+    misses `3-latest` and `latest-sql-spark`, both of which move. A digest
+    reference is never floating; a major pin like `17-alpine` is deliberate
+    policy and not a moving tag.
+    """
+    if "@" in image:  # digest-pinned
+        return False
+    _, _, tag = image.rpartition(":")
+    if not tag or tag == image:  # no tag at all
+        return False
+    return any(part in FLOATING_COMPONENTS for part in re.split(r"[-.]", tag))
 
 
 def _image_env_var(key: str) -> str:
@@ -237,10 +308,11 @@ def test_image_tag_is_pinned(name: str, services: dict[str, Any]) -> None:
     image = str(services[name].get("image", ""))
     if not image:
         pytest.skip(f"{name} declares no image")
-    if image.endswith(":latest"):
-        assert name in LATEST_ALLOWED, (
-            f"{name} tracks :latest but is not in LATEST_ALLOWED. Pin it, or add "
-            f"it to the list with a comment explaining what it keeps."
+    if _is_floating(image):
+        assert name in LATEST_ALLOWED or name in ROLLING_ALLOWED, (
+            f"{name} tracks the floating tag {image!r}. Pin it, or add it to "
+            f"LATEST_ALLOWED (holds no state) or ROLLING_ALLOWED (upstream "
+            f"publishes nothing narrower) with a comment saying which."
         )
 
 
@@ -255,9 +327,9 @@ def test_support_images_are_pinned(name: str, services: dict[str, Any]) -> None:
     for key, image in (services[name].get("support_images") or {}).items():
         if (name, key) in KNOWN_UNPINNED_SUPPORT_IMAGES:
             continue
-        assert not str(image).endswith(":latest"), (
-            f"{name}.support_images.{key} tracks :latest — pin it. Support images "
-            f"are usually the stateful half of a stack."
+        assert not _is_floating(str(image)), (
+            f"{name}.support_images.{key} tracks the floating tag {image!r} — pin "
+            f"it. Support images are usually the stateful half of a stack."
         )
 
 
@@ -329,13 +401,24 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
     keys += list(entry.get("support_images") or {})
 
     for key in keys:
-        if key in KNOWN_SUPPORT_IMAGE_COLLISIONS or (stack, key) in KNOWN_UNREAD_IMAGE_VARS:
+        if key in COLLIDING_KEYS or (stack, key) in KNOWN_UNREAD_IMAGE_VARS:
             continue  # tracked in #715
         var = _image_env_var(key)
-        assert f"${{{var}:-" in compose, (
+
+        # Any valid reference form counts as reading it — ${VAR}, ${VAR:-x},
+        # ${VAR:?x}, ${VAR-x}. The question this test asks is whether the
+        # compose reads the variable, not which interpolation syntax it uses.
+        assert re.search(rf"\$\{{{var}[}}:?-]", compose), (
             f"stacks/{stack}/docker-compose.yml does not read ${{{var}}}, which is "
             f"what the deploy emits for the '{key}' image. A version bump in "
             f"services.yaml would silently not reach the container."
+        )
+
+        # Separately: the fallback must exist, so the compose still starts
+        # standalone when the deploy has not rendered a value.
+        assert f"${{{var}:-" in compose, (
+            f"stacks/{stack}/docker-compose.yml reads ${{{var}}} without a default. "
+            f"Use ${{{var}:-<image>}} so the stack starts outside the deploy."
         )
 
 
@@ -356,10 +439,11 @@ def test_support_image_keys_are_unique(services: dict[str, Any]) -> None:
             seen.setdefault(key, []).append(name)
 
     collisions = {
-        key: owners
+        key: sorted(o for o in owners if (key, o) not in KNOWN_SUPPORT_IMAGE_COLLISIONS)
         for key, owners in seen.items()
-        if len(owners) > 1 and key not in KNOWN_SUPPORT_IMAGE_COLLISIONS
+        if len(owners) > 1
     }
+    collisions = {k: v for k, v in collisions.items() if v}
     assert not collisions, (
         f"support_images keys claimed by more than one stack: {collisions}. "
         f"Prefix them with the stack name, as dify-postgres and forgejo-postgres do."
