@@ -209,10 +209,6 @@ KNOWN_UNREAD_IMAGE_VARS = {
     ("seaweedfs-manager", "seaweedfs-manager"),
 }
 
-# Support images still on :latest. Each is a UI or sidecar rather than a
-# store, which is why they were left — but unlike the primary-image
-# allow-list these were never a stated decision, so they are recorded as
-# debt rather than blessed.
 # Stacks with no container named exactly like their services.yaml key.
 # compose_runner verifies a stack started with
 # `docker ps --format '{{.Names}}' | grep -qFx -- "$svc"`, which is
@@ -220,6 +216,31 @@ KNOWN_UNREAD_IMAGE_VARS = {
 # failed while running perfectly. Tracked in #726.
 KNOWN_CONTAINER_NAME_MISMATCH = {"woodpecker"}
 
+# support_images keys that shadow a service's own primary image. The
+# merge in tofu/stack/outputs.tf puts support_images LAST, and Terraform's
+# merge() lets the later argument win, so these keys do not merely collide
+# — they override the service's own image in IMAGE_*.
+#
+# Both current entries were measured, not assumed:
+#
+#   postgres: 19 stacks declare it; the lexically last (windmill) wins, so
+#             IMAGE_POSTGRES = postgres:16-alpine while the postgres
+#             service's own image is postgres:17-alpine. The shared stack
+#             reads ${IMAGE_POSTGRES:-postgres:17-alpine}, so it runs 16
+#             while services.yaml and the docs say 17. A live drift.
+#   ollama:   benign by accident — the overriding value
+#             (ollama/ollama:0.15.1) happens to be exactly what the compose
+#             wants for that container. The ollama service's own image
+#             names open-webui, whose IMAGE_OPEN_WEBUI is never emitted at
+#             all, so that container falls back to its compose default.
+#
+# Both belong to #715. Removing an entry is how that gets closed.
+KNOWN_PRIMARY_IMAGE_SHADOWING = {"ollama", "postgres"}
+
+# Support images still on :latest. Each is a UI or sidecar rather than a
+# store, which is why they were left — but unlike the primary-image
+# allow-list these were never a stated decision, so they are recorded as
+# debt rather than blessed.
 KNOWN_UNPINNED_SUPPORT_IMAGES = {
     ("dify", "dify-ssrf-proxy"),
     ("garage", "webui"),
@@ -550,6 +571,42 @@ def test_support_image_keys_are_unique(services: dict[str, Any]) -> None:
     assert not collisions, (
         f"support_images keys claimed by more than one stack: {collisions}. "
         f"Prefix them with the stack name, as dify-postgres and forgejo-postgres do."
+    )
+
+
+def test_support_image_keys_do_not_shadow_a_service(services: dict[str, Any]) -> None:
+    """A support_images key must not be the name of a service.
+
+    Two stacks sharing a support key is one failure mode; this is the
+    other, and it is worse, because the two maps are not merged as peers.
+    `tofu/stack/outputs.tf` builds image_versions as
+
+        merge(
+          { for name, svc in var.services : name => svc.image ... },   # primary
+          merge([for name, svc in var.services : svc.support_images]...)  # support
+        )
+
+    with support LAST, and Terraform's merge() gives precedence to the
+    later argument. So a support key equal to a service name does not
+    collide — it *overrides* that service's own image in IMAGE_<NAME>,
+    silently, in whichever direction the lexical ordering happens to land.
+
+    A stack could adopt `support_images: {grafana: ...}` today and quietly
+    change which image the grafana stack pulls, with nothing failing.
+    """
+    service_names = set(services)
+    shadowing: dict[str, list[str]] = {}
+    for name, entry in services.items():
+        for key in entry.get("support_images") or {}:
+            if key in service_names and key not in KNOWN_PRIMARY_IMAGE_SHADOWING:
+                shadowing.setdefault(key, []).append(name)
+
+    assert not shadowing, (
+        f"support_images keys that shadow a service's own image: {shadowing}. "
+        f"support_images is merged after the primary images, so IMAGE_<KEY> "
+        f"would carry the support value and the service's own image would "
+        f"never reach its container. Prefix the key with the stack name, as "
+        f"dify-postgres and forgejo-postgres do."
     )
 
 
