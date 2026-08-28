@@ -142,6 +142,19 @@ repos:
   # `# shellcheck disable=...` with a reason next to them — spin-up.yml has
   # one for a single-quoted remote script that must not be expanded locally.
   #
+  # First run is expensive and there is no warning before it. Upstream's
+  # `actionlint` id is `language: golang`, so pre-commit builds the binary
+  # from source — and when no `go` is on PATH it downloads a full Go
+  # toolchain first rather than failing. Measured on a machine without Go:
+  # 318 MB under ~/.cache/pre-commit/<repo>/golangenv-default, of which the
+  # toolchain in `.go/` is nearly all of it. Every run after that is ~0.2 s.
+  # Nothing needs installing by hand; budget the download once per clone.
+  #
+  # Two alternatives exist upstream if that trade is wrong for you:
+  # `actionlint-docker` (pulls rhysd/actionlint:1.7.7, needs a daemon) and
+  # `actionlint-system` (uses a `brew install actionlint` binary, no Go, but
+  # then the version is whatever brew has rather than the pinned rev).
+  #
   # ⚠️ This hook is fast local feedback, NOT the gate. actionlint inspects
   # `run:` blocks only when a `shellcheck` binary is on PATH, and it SILENTLY
   # reports success when there is none — measured: the same workflow that

@@ -453,9 +453,9 @@ which tofu cloudflared docker
 ### Pre-commit hooks (REQUIRED before Python edits)
 
 The repo ships a `.pre-commit-config.yaml` that runs `ruff format`,
-`ruff check`, `mypy`, and `shellcheck` on every commit. **The hook is
-not active until installed locally** — fresh clones don't get it
-automatically. Without it, formatter drift (e.g. long f-strings, set
+`ruff check`, `mypy`, `shellcheck`, and `actionlint` on every commit.
+**The hook is not active until installed locally** — fresh clones don't
+get it automatically. Without it, formatter drift (e.g. long f-strings, set
 comprehensions) lands on the branch, then CI fails on the `ruff format
 --check` step with a "would reformat N files" error.
 
@@ -469,6 +469,17 @@ uv run pre-commit install
 Verify it's wired up:
 ```bash
 ls -la .git/hooks/pre-commit  # should exist and be executable
+```
+
+**The first run after installing takes minutes and looks like a hang.**
+`actionlint` is a `language: golang` hook, so pre-commit builds it from
+source, and when no `go` is on PATH it downloads a whole Go toolchain
+first instead of failing — measured at 318 MB under `~/.cache/pre-commit/`.
+Nothing needs installing by hand and every later run is ~0.2 s; just don't
+interrupt the first one. Warm the cache deliberately if you'd rather not
+meet it mid-commit:
+```bash
+uv run pre-commit run actionlint --all-files
 ```
 
 **Don't rely on memory** — `ruff check` (which catches lint rules) and
