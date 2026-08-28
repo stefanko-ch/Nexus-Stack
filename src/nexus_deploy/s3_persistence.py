@@ -1125,12 +1125,28 @@ def render_restore_script(
             #
             # ``-c '<SQL>'`` (single-quoted bash arg) so the inner
             # double-quoted SQL identifiers don't need escaping.
+            #
+            # The DROP/CREATE pair needs a session on some OTHER database
+            # than the one being replaced: PostgreSQL refuses to drop the
+            # database the session is connected to. `postgres` is the
+            # natural maintenance database and works for every target
+            # whose own database is something else — but the shared
+            # PostgreSQL stack's database IS `postgres`, and pointing both
+            # at it fails hard. Measured against a live container:
+            #
+            #   psql -d postgres -c 'DROP DATABASE IF EXISTS "postgres" …'
+            #   ERROR:  cannot drop the currently open database
+            #
+            # `template1` is the fallback, and always exists. Verified on
+            # the same container that a CREATE issued from a template1
+            # session succeeds, so no TEMPLATE clause is needed.
+            maint_db = "template1" if pg.database == "postgres" else "postgres"
             lines.append(
-                f"  docker exec {container} psql -U {user_cli} -d postgres "
+                f"  docker exec {container} psql -U {user_cli} -d {maint_db} "
                 f"-c 'DROP DATABASE IF EXISTS {db_sql} WITH (FORCE);'",
             )
             lines.append(
-                f"  docker exec {container} psql -U {user_cli} -d postgres "
+                f"  docker exec {container} psql -U {user_cli} -d {maint_db} "
                 f"-c 'CREATE DATABASE {db_sql} OWNER {user_sql};'",
             )
             lines.append(

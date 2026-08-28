@@ -177,10 +177,13 @@ def test_build_endpoint_from_env_charset_error_bubbles_up() -> None:
 
 
 def test_standard_targets_returns_canonical_pair() -> None:
-    """Smoke + locks the v1.0 fixture. If the
-    ``stacks/{gitea,dify}/docker-compose.yml`` files change the
-    POSTGRES_USER or POSTGRES_DB values, this test starts failing
-    and a future maintainer knows to align the fixture."""
+    """Smoke + locks the fixture against the compose files.
+
+    Covers gitea, dify, hedgedoc and the shared postgres stack. If any
+    of those ``stacks/*/docker-compose.yml`` files changes its
+    POSTGRES_USER or POSTGRES_DB, this test starts failing and a future
+    maintainer knows to align the fixture rather than discovering it
+    when a restore writes to the wrong database."""
     postgres, rsync = standard_targets()
     pg_by_container = {p.container: p for p in postgres}
 
@@ -195,6 +198,11 @@ def test_standard_targets_returns_canonical_pair() -> None:
     # without persistence would discard every note + upload.
     assert pg_by_container["hedgedoc-db"].database == "hedgedoc"
     assert pg_by_container["hedgedoc-db"].user == "nexus-hedgedoc"
+    # The shared PostgreSQL stack — matches stacks/postgres/docker-compose.yml.
+    # The odd-looking pair is upstream's: POSTGRES_DB is `postgres` while
+    # POSTGRES_USER is `nexus-postgres`, per the naming convention.
+    assert pg_by_container["postgres"].database == "postgres"
+    assert pg_by_container["postgres"].user == "nexus-postgres"
 
     rsync_by_name = {r.name: r for r in rsync}
     # All seven rsync targets returned by standard_targets() — gitea x2

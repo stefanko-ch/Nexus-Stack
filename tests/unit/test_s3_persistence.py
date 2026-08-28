@@ -854,6 +854,50 @@ def test_restore_script_skips_pg_restore_when_dump_missing_or_container_absent()
     assert "docker inspect --format='{{.State.Running}}' gitea-db" in script
 
 
+def test_restore_drops_from_a_database_it_is_not_connected_to() -> None:
+    """A target whose database IS `postgres` needs another maintenance DB.
+
+    The DROP/CREATE pair runs over a session on some other database,
+    because PostgreSQL refuses to drop the one the session is connected
+    to. `postgres` is that other database for every target whose own
+    database is something else — but the shared PostgreSQL stack's
+    database is `postgres`, and pointing both at it fails hard. Measured
+    against a live container:
+
+        psql -d postgres -c 'DROP DATABASE IF EXISTS "postgres" …'
+        ERROR:  cannot drop the currently open database
+
+    Without this the restore aborts partway: the earlier targets are
+    already restored, so the failure is both late and partial.
+    """
+    script = render_restore_script(
+        endpoint=_endpoint(),
+        postgres_targets=(
+            PostgresDumpTarget(container="gitea-db", database="gitea", user="nexus-gitea"),
+            PostgresDumpTarget(container="postgres", database="postgres", user="nexus-postgres"),
+        ),
+        rsync_targets=(),
+    )
+
+    # The ordinary target is untouched — `postgres` is still the right
+    # maintenance database for it.
+    assert (
+        "docker exec gitea-db psql -U nexus-gitea -d postgres "
+        "-c 'DROP DATABASE IF EXISTS \"gitea\" WITH (FORCE);'" in script
+    )
+    # The self-referential one is issued from template1 instead.
+    assert (
+        "docker exec postgres psql -U nexus-postgres -d template1 "
+        "-c 'DROP DATABASE IF EXISTS \"postgres\" WITH (FORCE);'" in script
+    )
+    assert (
+        "docker exec postgres psql -U nexus-postgres -d template1 "
+        '-c \'CREATE DATABASE "postgres" OWNER "nexus-postgres";\'' in script
+    )
+    # The exact shape that fails must not appear anywhere.
+    assert '-d postgres -c \'DROP DATABASE IF EXISTS "postgres"' not in script
+
+
 def test_restore_script_pulls_filesystem_trees_before_postgres() -> None:
     """Order matters: restore the FS first (in case any postgres
     init script reads a config file from the FS), THEN pg_restore.
