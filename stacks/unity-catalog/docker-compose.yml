@@ -58,7 +58,12 @@ services:
   # ---------------------------------------------------------------------------
   unitycatalog:
     image: ${IMAGE_UNITY_CATALOG:-unitycatalog/unitycatalog:v0.6.0}
-    container_name: unitycatalog
+    # Must match the services.yaml key exactly. compose_runner verifies a
+    # stack started by grepping `docker ps --format '{{.Names}}'` for the
+    # service name, line-exact — a container named `unitycatalog` would
+    # never match `unity-catalog`, and the stack would report as failed
+    # while running perfectly.
+    container_name: unity-catalog
     restart: unless-stopped
     volumes:
       # Individual files rather than the whole conf directory: the image
@@ -102,7 +107,7 @@ services:
   # in the header.
   unitycatalog-ui:
     image: ${IMAGE_UNITY_CATALOG_UI:-unitycatalog/unitycatalog-ui@sha256:3a688197b218a4328a7fc0b8f1b65fcd2f9229b0e3999ae12e284304b85d84f1}
-    container_name: unitycatalog-ui
+    container_name: unity-catalog-ui
     restart: unless-stopped
     ports:
       # Host 3211 → container 3000. 3200-3202 and 3210 are taken by other

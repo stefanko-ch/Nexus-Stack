@@ -164,16 +164,16 @@ work without any of it.
 
 ```bash
 # Is the server answering? A 401 would also count as up.
-ssh nexus "docker exec unitycatalog curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/api/2.1/unity-catalog/catalogs"
+ssh nexus "docker exec unity-catalog curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/api/2.1/unity-catalog/catalogs"
 
 # What is registered?
-ssh nexus "docker exec unitycatalog curl -s http://localhost:8080/api/2.1/unity-catalog/catalogs"
+ssh nexus "docker exec unity-catalog curl -s http://localhost:8080/api/2.1/unity-catalog/catalogs"
 
 # Did the UI reach the server? It looks for the host `server`, via alias.
 ssh nexus "docker logs unitycatalog-ui 2>&1 | tail -30"
 
 # Is the metastore in the volume, where it survives a recreate?
-ssh nexus "docker exec unitycatalog ls -la /opt/unitycatalog/etc/data"
+ssh nexus "docker exec unity-catalog ls -la /opt/unitycatalog/etc/data"
 ```
 
 That last one is worth knowing about. Upstream's `hibernate.properties`
