@@ -27,8 +27,23 @@ clients for Spark, Trino, DuckDB and Python.
 
 | Container | Role |
 |---|---|
-| `unitycatalog` | The server. REST API on 8080, Hibernate metastore, no published port. |
-| `unitycatalog-ui` | React UI on 3000 — the only published port. |
+| `unity-catalog` | The server. REST API on 8080, Hibernate metastore, no published port. |
+| `unity-catalog-ui` | React UI on 3000 — the only published port. |
+
+The container names differ from the hostnames used elsewhere on this page,
+and that is deliberate rather than an inconsistency:
+
+| Name | Where it applies |
+|---|---|
+| `unity-catalog` | `docker exec`, `docker logs` — the Docker container name |
+| `unitycatalog` | `http://unitycatalog:8080` — the DNS name on `app-network` |
+| `server` | the extra alias the UI resolves, baked into its image at build time |
+
+The container name has to equal the `services.yaml` key, because the deploy
+proves a stack started by grepping `docker ps` for exactly that string. The
+compose service key stays `unitycatalog` so the hostname other stacks
+already point at keeps resolving. Both are correct; use the one the command
+in front of you needs.
 
 ## Independent of Lakekeeper
 
@@ -170,7 +185,7 @@ ssh nexus "docker exec unity-catalog curl -s -o /dev/null -w '%{http_code}\n' ht
 ssh nexus "docker exec unity-catalog curl -s http://localhost:8080/api/2.1/unity-catalog/catalogs"
 
 # Did the UI reach the server? It looks for the host `server`, via alias.
-ssh nexus "docker logs unitycatalog-ui 2>&1 | tail -30"
+ssh nexus "docker logs unity-catalog-ui 2>&1 | tail -30"
 
 # Is the metastore in the volume, where it survives a recreate?
 ssh nexus "docker exec unity-catalog ls -la /opt/unitycatalog/etc/data"
