@@ -783,6 +783,16 @@ services:
     long_description: "Quickwit is a cloud-native search engine optimized for log management and analytics. Indexes data directly on object storage (S3) for cost-effective log retention. Supports full-text search, aggregations, and OpenTelemetry-native trace search. Sub-second query latency with schemaless ingestion."
     image: "quickwit/quickwit:0.8.1"
 
+  questdb:
+    subdomain: "questdb"
+    port: 9013
+    public: false
+    category: "databases"
+    website: "https://questdb.com"
+    description: "Time-series database with a built-in web console — speaks the PostgreSQL wire and InfluxDB line protocols."
+    long_description: "QuestDB is a column-oriented time-series database with SQL on top and a web console built in. It fills the one gap the other databases leave: ClickHouse is OLAP, PostgreSQL and pg_ducklake are relational, RisingWave is streaming, and none of them is a time-series engine. It speaks the PostgreSQL wire protocol on 8812, so psycopg2 and JDBC clients reach it unchanged, and the InfluxDB line protocol on 9009, so Telegraf writes to it without a new plugin. One container, no companion database."
+    image: "questdb/questdb:10.0.1"
+
   redpanda:
     subdomain: "redpanda"
     port: 9644
@@ -961,6 +971,18 @@ services:
     description: "A fancy self-hosted monitoring tool for tracking service uptime and status."
     long_description: "Uptime Kuma is a self-hosted monitoring tool. Monitor HTTP(s), TCP, DNS, Docker containers, and more. Features include a beautiful status page, multi-language notifications (Slack, Telegram, Email, Discord), certificate expiry monitoring, and response time tracking with graphs."
     image: "louislam/uptime-kuma:2"
+
+  unity-catalog:
+    subdomain: "unity-catalog"
+    port: 3211
+    public: false
+    category: "analytics"
+    website: "https://www.unitycatalog.io"
+    description: "Open-source catalog for Delta and Iceberg tables, volumes and AI assets."
+    long_description: "The OSS Unity Catalog — not Databricks' managed one. A REST catalog covering Delta and Iceberg tables, unstructured volumes, functions and models under one namespace. Upstream documents integrations for Spark, Trino, DuckDB and others, and ships Java and Python clients. Runs independently of Lakekeeper, which implements the Iceberg REST Catalog spec and nothing else: the two share no database, volume or internal network, so either can be enabled alone. Both join app-network like every stack here, which is how a notebook reaches either. The metastore is an H2 file in this stack's own volume, so no PostgreSQL is required."
+    image: "unitycatalog/unitycatalog:v0.6.0"
+    support_images:
+      unity-catalog-ui: "unitycatalog/unitycatalog-ui@sha256:3a688197b218a4328a7fc0b8f1b65fcd2f9229b0e3999ae12e284304b85d84f1"
 
   vector:
     port: 8686

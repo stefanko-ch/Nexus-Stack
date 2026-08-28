@@ -78,6 +78,7 @@ def full_config() -> NexusConfig:
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
+        questdb_pg_password="questdb-pg-pw",
         opensearch_admin_password="opensearch-admin-pw",
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
@@ -941,6 +942,36 @@ def test_lakekeeper_raises_on_empty_db_password(
     config = full_config.model_copy(update={"lakekeeper_db_password": ""})
     with pytest.raises(ServiceEnvError, match="LAKEKEEPER_DB_PASSWORD"):
         _render_lakekeeper(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# QuestDB — fail-fast guard on the PostgreSQL-wire password
+# ---------------------------------------------------------------------------
+
+
+def test_questdb_raises_on_empty_pg_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """An empty value would have QuestDB accept the empty string as its
+    PostgreSQL-wire password — worse than the `quest` default it replaces,
+    because nothing about it looks wrong in a config dump."""
+    from nexus_deploy.service_env import _render_questdb
+
+    config = full_config.model_copy(update={"questdb_pg_password": ""})
+    with pytest.raises(ServiceEnvError, match="QUESTDB_PG_PASSWORD"):
+        _render_questdb(config, full_env)
+
+
+def test_questdb_renders_only_the_pg_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The username is set in the compose file, not rendered here, so the
+    key set stays at one. Pinned so a second secret cannot arrive without
+    a fail-fast guard beside it."""
+    from nexus_deploy.service_env import _render_questdb
+
+    rendered = _render_questdb(full_config, full_env)
+    assert rendered.env_vars == {"QUESTDB_PG_PASSWORD": "questdb-pg-pw"}
 
 
 # ---------------------------------------------------------------------------

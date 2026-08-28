@@ -180,6 +180,9 @@ output "secrets" {
     # Lakekeeper (Iceberg REST Catalog)
     lakekeeper_db_password = random_password.lakekeeper_db_password.result
 
+    # QuestDB (time-series)
+    questdb_pg_password = random_password.questdb_pg.result
+
     # OpenSearch (standalone search + Dashboards)
     opensearch_admin_password = random_password.opensearch_admin.result
 

@@ -617,16 +617,47 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _empty(c.lakekeeper_db_password):
         raise ServiceEnvError(
             "Lakekeeper enabled but LAKEKEEPER_DB_PASSWORD is empty — "
-            "run `tofu apply` (initial-setup workflow) to generate "
-            "random_password.lakekeeper_db_password + push to Infisical, "
-            "then re-run spin-up. Aborting to avoid a restart-looping "
-            "Postgres container with no auth.",
+            "`tofu apply` in tofu/stack generates "
+            "random_password.lakekeeper_db_password and the same run pushes "
+            "it to Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log. Aborting to "
+            "avoid a restart-looping Postgres container with no auth.",
         )
     domain_host = service_host("lakekeeper", e.domain or "", e.subdomain_separator)
     return RenderedEnv(
         env_vars={
             "LAKEKEEPER_DB_PASSWORD": c.lakekeeper_db_password or "",
             "LAKEKEEPER_DOMAIN": domain_host,
+        },
+    )
+
+
+def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """QuestDB: time-series database. One secret — the PostgreSQL-wire
+    password, replacing QuestDB's documented default of ``quest`` for the
+    equally documented user ``admin``. The compose file also overrides the
+    username to ``nexus-questdb``.
+
+    The port is not published, but it is reachable at ``questdb:8812``
+    from every other stack on app-network, which is why the default is
+    replaced rather than tolerated.
+
+    Fail-fast guard: an empty value would leave QuestDB accepting the
+    empty string as its password, which is worse than the default it
+    replaces because nothing about it looks wrong in a config dump.
+    """
+    if _empty(c.questdb_pg_password):
+        raise ServiceEnvError(
+            "QuestDB enabled but QUESTDB_PG_PASSWORD is empty — "
+            "`tofu apply` in tofu/stack generates random_password.questdb_pg "
+            "and the same run pushes it to Infisical; an empty value here "
+            "means one of those did not complete, so check both steps in "
+            "this run's log. Aborting rather than starting the "
+            "PostgreSQL-wire listener with an empty password.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "QUESTDB_PG_PASSWORD": c.questdb_pg_password or "",
         },
     )
 
@@ -647,10 +678,11 @@ def _render_opensearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _empty(c.opensearch_admin_password):
         raise ServiceEnvError(
             "OpenSearch enabled but OPENSEARCH_ADMIN_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate "
-            "random_password.opensearch_admin and push it to Infisical, "
-            "then re-run. Aborting: the node refuses to start without "
+            "`tofu apply` in tofu/stack generates "
+            "random_password.opensearch_admin and the same run pushes it to "
+            "Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log. Aborting: the "
+            "node refuses to start without "
             "OPENSEARCH_INITIAL_ADMIN_PASSWORD.",
         )
     return RenderedEnv(
@@ -663,8 +695,15 @@ def _render_opensearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Marquez: OpenLineage backend. Two secrets — the lineage database
     password and the OpenSearch admin password backing fuzzy search.
-    Neither is a user login: Marquez ships no user management, and
-    Cloudflare Access at the edge is the gate, same model as Lakekeeper.
+    Neither is a *Marquez* credential: Marquez ships no user management at
+    all, so there is nothing to log into. Each secret authenticates one
+    backing service (the OpenSearch one is that node's admin account).
+
+    Cloudflare Access gates the published browser route and nothing else.
+    The API sits on app-network with no published port, so any other
+    container reaches it without credentials or an Access session — the
+    boundary is the Docker network, not Access. Same model and same caveat
+    as Lakekeeper.
 
     Fail-fast guard for the same reason as Lakekeeper and HedgeDoc: an
     empty password leaves the Postgres init with no auth and the API
@@ -678,19 +717,20 @@ def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _empty(c.marquez_db_password):
         raise ServiceEnvError(
             "Marquez enabled but MARQUEZ_DB_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate "
-            "random_password.marquez_db_password and push it to Infisical, "
-            "then re-run. Aborting to avoid a restart-looping Postgres "
-            "container with no auth.",
+            "`tofu apply` in tofu/stack generates "
+            "random_password.marquez_db_password and the same run pushes it "
+            "to Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log. Aborting to "
+            "avoid a restart-looping Postgres container with no auth.",
         )
     if _empty(c.marquez_opensearch_password):
         raise ServiceEnvError(
             "Marquez enabled but MARQUEZ_OPENSEARCH_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate "
-            "random_password.marquez_opensearch_admin and push it to "
-            "Infisical, then re-run. OpenSearch refuses to start without "
+            "`tofu apply` in tofu/stack generates "
+            "random_password.marquez_opensearch_admin and the same run "
+            "pushes it to Infisical; an empty value here means one of those "
+            "did not complete, so check both steps in this run's log. "
+            "OpenSearch refuses to start without "
             "OPENSEARCH_INITIAL_ADMIN_PASSWORD and Marquez then waits on a "
             "container that never becomes healthy.",
         )
@@ -1597,6 +1637,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),
     EnvSpec("opensearch", _is_enabled("opensearch"), _render_opensearch),
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),

@@ -106,6 +106,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Redis (Dify) | `redis` | `6-alpine` | Major |
 | SSRF Proxy (Dify) | `ubuntu/squid` | `latest` | Latest ² |
 | Quickwit | `quickwit/quickwit` | `0.8.1` | Exact ¹ |
+| QuestDB | `questdb/questdb` | `10.0.1` | Exact ¹ |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -120,6 +121,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |
 | Trino | `trinodb/trino` | `479` | Exact ¹ |
+| Unity Catalog | `unitycatalog/unitycatalog` | `v0.6.0` | Exact ¹ |
+| Unity Catalog UI | `unitycatalog/unitycatalog-ui` | `@sha256:3a688197…` | Digest ⁵ |
 | Vector | `timberio/vector` | `0.54.0-alpine` | Exact ¹ |
 | Wiki.js | `requarks/wiki` | `2.5.306` | Exact ¹ |
 | PostgreSQL (Wiki.js DB) | `postgres` | `16-alpine` | Major |
@@ -211,6 +214,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **PostgREST** | Auto-generated REST API for any Postgres schema | [postgrest.md](postgrest.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
+| **QuestDB** | Time-series database with web console | [questdb.md](questdb.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |
 | **Redpanda Console** | Redpanda web UI | [redpanda-console.md](redpanda-console.md) |
 | **Redpanda Connect** | Stream processing framework | [redpanda-connect.md](redpanda-connect.md) |
@@ -225,6 +229,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |
 | **Trino** | Distributed SQL query engine | [trino.md](trino.md) |
+| **Unity Catalog** | Catalog for Delta & Iceberg tables, volumes and AI assets | [unity-catalog.md](unity-catalog.md) |
 | **Uptime Kuma** | Self-hosted monitoring tool | [uptime-kuma.md](uptime-kuma.md) |
 | **Vector** | Observability data pipeline | [vector.md](vector.md) |
 | **Wetty** | Web-based SSH terminal | [wetty.md](wetty.md) |

@@ -719,6 +719,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "questdb",
+            _filter_empty(
+                {
+                    # Username alongside the password, as every other folder
+                    # does. It matters here: QuestDB's documented default is
+                    # `admin`, so a reader holding only the password would
+                    # try the wrong account.
+                    "QUESTDB_PG_USERNAME": "nexus-questdb",
+                    "QUESTDB_PG_PASSWORD": config.questdb_pg_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "opensearch",
             _filter_empty(
                 {

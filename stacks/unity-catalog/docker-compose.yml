@@ -1,0 +1,198 @@
+# =============================================================================
+# Unity Catalog - open-source catalog for tables, volumes and AI assets
+# =============================================================================
+# The OSS Unity Catalog from unitycatalog/unitycatalog — not Databricks'
+# managed one. A REST catalog covering Delta and Iceberg tables, unstructured
+# volumes, functions and models. Upstream documents integrations for Spark,
+# Trino, DuckDB, Daft and others, and ships Java and Python clients under
+# clients/ — see docs/stacks/unity-catalog.md for what has actually been
+# tried against THIS stack, which so far is nothing.
+#
+# Overlaps with Lakekeeper, deliberately and only partly: Lakekeeper
+# implements the Iceberg REST Catalog spec and nothing else, while Unity
+# Catalog also covers Delta, volumes and AI assets under one namespace.
+#
+# They are independent in the way that matters: separate databases,
+# separate volumes, separate internal networks, and neither reads the
+# other's config. Both join app-network, as every stack here does, so
+# their containers CAN reach each other — nothing in either makes use of
+# that. Disable one and the other is untouched.
+#
+# Architecture:
+#   - unitycatalog:    the server, REST API on :8080. Metastore is an H2
+#                      file in the data volume, mounted at the path H2
+#                      already writes to — no Postgres needed.
+#   - unitycatalog-ui: React UI on :3000, the only published port.
+#
+# ⚠️ Version skew between the two images, and it is upstream's, not ours.
+# The server is actively released (v0.6.0, 2026-08-20) while the published
+# UI image was last built 2025-05-23 — v0.4, v0.5, v0.5.1 and v0.6 have
+# landed since. The UI may lag or break against this server; the API is the
+# part to rely on. Upstream publishes no versioned UI tag at all, only
+# rolling `main-*`, which is why it is pinned by digest here.
+#
+# The UI is also a Create-React-App DEV server, not a production build:
+# the image's own Dockerfile is `FROM node:18` with `CMD ["yarn", "start"]`,
+# and package.json maps `start` to `react-scripts start` (5.0.1). It
+# therefore recompiles TypeScript and antd through webpack on every
+# container start, which is why it is given 2g below and takes a while to
+# answer after a spin-up. That is what upstream ships.
+#
+# Auth: none in Unity Catalog — `server.authorization=disable` in
+# conf/server.properties. UC's own auth expects an external OIDC provider
+# this stack does not run.
+#
+# Cloudflare Access gates the published UI route and nothing else. The API
+# is on app-network with no published port, so every other container can
+# call http://unitycatalog:8080 without credentials or an Access session —
+# deliberately, since that is how Spark and the notebooks reach it. The
+# boundary here is the Docker network, not Access. Same model as
+# Lakekeeper and Marquez, and the same caveat applies to all three.
+#
+# Reaching the API from inside the stack (Spark, Trino, notebooks):
+#   http://unitycatalog:8080/api/2.1/unity-catalog/catalogs
+#
+# Access: https://unity-catalog.YOUR_DOMAIN
+# Docs:   https://docs.unitycatalog.io
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Unity Catalog - REST API server
+  # ---------------------------------------------------------------------------
+  unitycatalog:
+    image: ${IMAGE_UNITY_CATALOG:-unitycatalog/unitycatalog:v0.6.0}
+    # Must match the services.yaml key exactly. compose_runner verifies a
+    # stack started by grepping `docker ps --format '{{.Names}}'` for the
+    # service name, line-exact — a container named `unitycatalog` would
+    # never match `unity-catalog`, and the stack would report as failed
+    # while running perfectly.
+    container_name: unity-catalog
+    restart: unless-stopped
+    volumes:
+      # Paths are /home/unitycatalog, NOT /opt. The image's Dockerfile sets
+      # ARG HOME="/home/unitycatalog", copies `bin/ etc/` there and makes it
+      # WORKDIR. An earlier version of this file mounted under /opt, so both
+      # config files landed somewhere the server never looks: they were
+      # silently ignored, and the volume below persisted an empty directory
+      # while H2 wrote into the image layer.
+      #
+      # A single file rather than the whole conf directory: the image also
+      # carries log4j2 configs there, and mounting over the directory would
+      # hide them.
+      - ./conf/server.properties:/home/unitycatalog/etc/conf/server.properties:ro
+      # Mounted where H2 already writes, rather than pointing H2 somewhere
+      # else. Upstream's hibernate.properties uses
+      # `jdbc:h2:file:./etc/db/h2db` relative to WORKDIR, so this volume IS
+      # the metastore — no config override to keep in sync with upstream.
+      - unitycatalog-data:/home/unitycatalog/etc/db
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    networks:
+      app-network:
+      unitycatalog-internal:
+        aliases:
+          # The UI image bakes its proxy target in at BUILD time — its
+          # Dockerfile takes `ARG PROXY_HOST=server` and rewrites
+          # package.json's `proxy` field to http://server:8080. The
+          # published image therefore only ever looks for a host called
+          # `server`, so the container keeps its own descriptive name and
+          # answers to that alias as well.
+          - server
+    healthcheck:
+      # wget, not curl. The runtime stage of upstream's Dockerfile is bare
+      # `alpine:3.20` plus `apk add bash` and a copied JRE -- there is no
+      # curl in the image, so a curl probe exits 127 on every run. That is
+      # what kept this container permanently unhealthy: the UI waits on
+      # `condition: service_healthy` and never started, and the tunnel
+      # answered 502 for a stack whose server was fine.
+      #
+      # Busybox wget exits 0 only on a 2xx, which is the right assertion
+      # here: `server.authorization` defaults to `disable` and is set
+      # explicitly in conf/server.properties, so an authenticated 401 is
+      # not an expected state for this stack.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/2.1/unity-catalog/catalogs"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Unity Catalog UI
+  # ---------------------------------------------------------------------------
+  # Pinned by digest because upstream publishes no version tag for this
+  # image — only a rolling `main`. Same reasoning as Filestash. The digest
+  # below is `main-aadc6fc`, built 2025-05-23; see the version-skew warning
+  # in the header.
+  unitycatalog-ui:
+    image: ${IMAGE_UNITY_CATALOG_UI:-unitycatalog/unitycatalog-ui@sha256:3a688197b218a4328a7fc0b8f1b65fcd2f9229b0e3999ae12e284304b85d84f1}
+    container_name: unity-catalog-ui
+    restart: unless-stopped
+    environment:
+      # Without this the UI answers `Invalid Host header` to every request
+      # arriving through the tunnel, while curl against localhost gets a
+      # clean 200 — which is what makes it awkward to diagnose.
+      #
+      # react-scripts 5.0.1 decides it in
+      # config/webpackDevServer.config.js:
+      #
+      #   const disableFirewall =
+      #     !proxy || process.env.DANGEROUSLY_DISABLE_HOST_CHECK === 'true';
+      #   allowedHosts: disableFirewall ? 'all' : [allowedHost];
+      #
+      # This image's package.json carries `proxy` (its build rewrites the
+      # field to http://server:8080), so `!proxy` is false and the check
+      # stays on, admitting only the bind host. Cloudflare sends
+      # `Host: unity-catalog.<domain>`, which is refused. The env var is the
+      # only lever upstream offers short of forking the image.
+      #
+      # The name is alarming and the check is worth understanding rather
+      # than waving through: it defends a DEV server against DNS-rebinding,
+      # where a hostile page points its own domain at 127.0.0.1 to reach a
+      # dev server it should not. Two things already prevent that here — the
+      # route is behind Cloudflare Access, and the port is deliberately
+      # absent from `tcp_ports`, so the Hetzner firewall (no inbound rules)
+      # refuses any direct connection. Requests reach :3000 only from
+      # cloudflared, on this host.
+      DANGEROUSLY_DISABLE_HOST_CHECK: "true"
+    ports:
+      # Host 3211 → container 3000. 3200-3202 and 3210 are taken by other
+      # stacks; the container port stays at upstream's default.
+      #
+      # ⚠️ Do not add a `tcp_ports` entry for this. Unity Catalog has no
+      # login of its own, so an open port would be an unauthenticated
+      # catalog on the public internet. The Hetzner firewall ships with no
+      # inbound rules, which is what keeps that true today.
+      - "3211:3000"
+    deploy:
+      resources:
+        limits:
+          # 2g, not the 512m this started at. `yarn start` runs
+          # react-scripts 5.0.1 -- a webpack 5 DEV server that compiles
+          # TypeScript and antd on every container start, not a static
+          # bundle behind nginx. 512m is not enough for that compile, and
+          # the symptom is indirect: nothing ever binds :3000, the
+          # published port still accepts TCP because docker-proxy does,
+          # and probes report a port that listens but speaks no HTTP.
+          #
+          # This is the price of upstream shipping a dev server. Building
+          # a production bundle would mean maintaining our own Dockerfile
+          # for this image, which this stack deliberately does not do.
+          memory: 2g
+    depends_on:
+      unitycatalog:
+        condition: service_healthy
+    networks:
+      - app-network
+      - unitycatalog-internal
+
+volumes:
+  unitycatalog-data:
+
+networks:
+  app-network:
+    external: true
+  unitycatalog-internal:
+    driver: bridge

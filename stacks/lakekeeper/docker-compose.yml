@@ -15,10 +15,14 @@
 #                           any other stack (per project convention
 #                           for stateful services)
 #
-# Auth: `LAKEKEEPER__AUTHZ_BACKEND=allow-all` — Cloudflare Access at
-# the edge is the auth gate (email OTP). Lakekeeper has its own
-# OIDC layer for fine-grained per-team table permissions; that's
-# out of scope for the baseline "one team per stack" model.
+# Auth: `LAKEKEEPER__AUTHZ_BACKEND=allow-all`. Cloudflare Access
+# (email OTP) gates the published browser route and nothing else —
+# the catalog's REST API is on app-network, so any other container
+# reaches it without credentials or an Access session. That is how
+# Spark, Trino and DuckDB use it, but it means the boundary is the
+# Docker network rather than Access. Lakekeeper has its own OIDC
+# layer for fine-grained per-team table permissions; that's out of
+# scope for the baseline "one team per stack" model.
 #
 # Access: https://lakekeeper.YOUR_DOMAIN
 # Spec: https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml

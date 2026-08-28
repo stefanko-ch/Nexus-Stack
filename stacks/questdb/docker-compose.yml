@@ -1,0 +1,103 @@
+# =============================================================================
+# QuestDB - time-series database with a built-in web console
+# =============================================================================
+# Column-oriented store built for time-series, with SQL over it. Fills the
+# one gap the four existing databases leave: ClickHouse is OLAP,
+# PostgreSQL and pg_ducklake are relational, RisingWave is streaming — none
+# of them is a time-series engine.
+#
+# Speaks three protocols on three ports, which is most of why it earns its
+# place: an existing psycopg2 or JDBC client reaches it unchanged, and
+# Telegraf can write to it without a new plugin.
+#
+#   9000  REST API + web console   (published; this is the UI)
+#   8812  PostgreSQL wire protocol (internal — any Postgres client works)
+#   9009  InfluxDB line protocol   (internal — Telegraf, Fluent Bit)
+#   9003  min health server        (internal; used by the healthcheck)
+#
+# Single container, no companion database, no build step.
+#
+# Auth: the open-source web console has none, so Cloudflare Access at the
+# edge is the gate — same model as Lakekeeper, Marquez and Unity Catalog.
+# The PostgreSQL wire protocol DOES authenticate, and its defaults are
+# `admin` / `quest`; both are overridden below, since shipping a documented
+# default credential on a shared network is the thing the project's
+# service-account rule exists to prevent.
+#
+# Reaching it from inside the stack:
+#   import psycopg2
+#   psycopg2.connect(host="questdb", port=8812, user="nexus-questdb",
+#                    password=os.environ["QUESTDB_PG_PASSWORD"],
+#                    dbname="qdb")
+#
+# Access: https://questdb.YOUR_DOMAIN
+# Docs:   https://questdb.com/docs/
+# =============================================================================
+
+services:
+  questdb:
+    image: ${IMAGE_QUESTDB:-questdb/questdb:10.0.1}
+    container_name: questdb
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      # QuestDB maps a config key to an env var as
+      # `"QDB_" + key.replace('.', '_').toUpperCase()` — verified in
+      # ServerMain.propertyPathToEnvVarName rather than assumed. So
+      # `pg.user` is QDB_PG_USER and `pg.password` is QDB_PG_PASSWORD.
+      #
+      # The shipped defaults are `admin` / `quest`, published in QuestDB's
+      # own server.conf. Both are replaced here: the port is not exposed
+      # to the internet, but it IS on app-network, where every other stack
+      # can reach it.
+      QDB_PG_USER: nexus-questdb
+      # `:?` rather than a bare reference: Compose substitutes an empty
+      # string for an unset variable, and QuestDB would then accept that
+      # empty string as the wire password. The renderer in service_env
+      # already aborts on an empty value, but only on the deploy path —
+      # this guard also covers a `docker compose up` run by hand on the
+      # server. Same form as grafana, infisical and hoppscotch.
+      QDB_PG_PASSWORD: ${QUESTDB_PG_PASSWORD:?must be set in .env (rendered by service_env._render_questdb)}
+    ports:
+      # Host 9013 → container 9000. MinIO already binds host 9000 for its
+      # S3 API, so the console has to publish elsewhere; the container port
+      # stays at upstream's default so the docs still apply.
+      #
+      # 8812 and 9009 are deliberately NOT published. They are reachable at
+      # questdb:8812 / questdb:9009 over app-network, which is where the
+      # notebooks and Telegraf live. An external client would need a
+      # `tcp_ports` entry so the firewall rule is managed and reset on
+      # teardown.
+      - "9013:9000"
+    volumes:
+      - questdb-data:/var/lib/questdb
+    deploy:
+      resources:
+        limits:
+          # QuestDB memory-maps its column files, so resident size tracks
+          # the working set rather than a configured heap. 2g matches the
+          # other database stacks here.
+          memory: 2g
+    networks:
+      - app-network
+    healthcheck:
+      # The min health server on 9003 exists for exactly this and answers
+      # without touching the query engine, so a busy database does not
+      # report itself unhealthy.
+      #
+      # No dollar sign in the probe: an anchored regex would need one, and
+      # that stacks docker compose's `$$` escaping on top of how a given
+      # grep treats a `$` that is not final.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:9003/status | grep -qxF -e 200"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  questdb-data:
+
+networks:
+  app-network:
+    external: true

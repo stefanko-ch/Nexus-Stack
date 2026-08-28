@@ -168,6 +168,10 @@
     'prefect': dict({
       'PREFECT_DB_PASSWORD': 'prefect_db_password-VALUE',
     }),
+    'questdb': dict({
+      'QUESTDB_PG_PASSWORD': 'questdb_pg_password-VALUE',
+      'QUESTDB_PG_USERNAME': 'nexus-questdb',
+    }),
     'r2-datalake': dict({
       'R2_ACCESS_KEY': 'r2_data_access_key-VALUE',
       'R2_BUCKET': 'r2_data_bucket-VALUE',
