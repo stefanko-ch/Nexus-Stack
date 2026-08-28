@@ -735,7 +735,7 @@ services:
     website: "https://www.postgresql.org"
     description: "PostgreSQL database server - accessible only internally or via pgAdmin/Adminer."
     long_description: "PostgreSQL is a powerful, open-source relational database system. Used as the shared database server for Nexus Stack services. Accessible internally by other containers or externally via pgAdmin, Adminer, or CloudBeaver. Supports JSON, full-text search, and advanced SQL features."
-    image: "postgres:17-alpine"
+    image: "postgres:18-alpine"
     tcp_ports:
       postgres: 5432
 

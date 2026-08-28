@@ -23,37 +23,46 @@ PostgreSQL is a powerful, open-source object-relational database system with ove
 
 ### Version
 
-`postgres:17-alpine`, as `services.yaml` has always declared.
+`postgres:18-alpine` — the current stable major, supported until
+November 2030.
 
-⚠️ **It did not always run that.** Until [#715](https://github.com/stefanko-ch/Nexus-Stack/issues/715), nineteen stacks
-declared an unprefixed `postgres` support-image key. `tofu output
+⚠️ **This stack previously ran 16-alpine, and not on purpose.** Until
+[#715](https://github.com/stefanko-ch/Nexus-Stack/issues/715), nineteen
+stacks declared an unprefixed `postgres` support-image key. `tofu output
 image_versions` merges every stack's `support_images` into one flat map
 with support images **last**, and Terraform's `merge()` gives the later
 argument precedence — so `IMAGE_POSTGRES` resolved to whichever of the
 nineteen the merge landed on (`postgres:16-alpine`, from windmill) and
-overrode this stack's own image. This compose reads
-`${IMAGE_POSTGRES:-postgres:17-alpine}`, so it ran **16-alpine** while
-every declaration said 17.
+overrode this stack's own image. The compose reads
+`${IMAGE_POSTGRES:-postgres:18-alpine}`, so the declaration never reached
+the container.
 
-With the keys prefixed, `IMAGE_POSTGRES` is this service's own image again
-and the stack runs 17. **If your volume was initialised under 16, the
-container will refuse to start** — PostgreSQL does not read a data
-directory from an older major version, and logs:
+With the keys prefixed, `IMAGE_POSTGRES` is this service's own image
+again. It went to 18 rather than the 17 it had been declaring, because
+the fix forces one migration either way and 17 would have meant a second
+one later.
+
+**If your volume was initialised under an older major, the container will
+refuse to start.** PostgreSQL does not read a data directory written by a
+previous major version:
 
 ```text
 FATAL:  database files are incompatible with server
 DETAIL: The data directory was initialized by PostgreSQL version 16,
-        which is not compatible with this version 17.
+        which is not compatible with this version 18.
 ```
 
 Two ways out, both deliberate rather than automatic:
 
-- **Dump and restore** — `pg_dump` from a 16 container, start 17, restore.
-  The only option that keeps the data.
+- **Dump and restore** — `pg_dump` from a container on the old major,
+  start 18, restore. The only option that keeps the data.
 - **Start fresh** — remove the volume if the contents are disposable.
 
 Stacks that bring their own database are unaffected: each now has its own
-`IMAGE_<STACK>_POSTGRES` and keeps the version it already ran.
+`IMAGE_<STACK>_POSTGRES` and keeps the version it already ran. Those
+versions are spread across 14 through 17 and are a separate question from
+this stack — notably Infisical, still on **14**, which reaches end of life
+on 2026-11-12.
 
 ### Access Methods
 
