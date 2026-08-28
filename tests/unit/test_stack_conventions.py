@@ -154,7 +154,6 @@ KNOWN_SUPPORT_IMAGE_COLLISIONS: set[tuple[str, str]] = {
     for owner in owners
 }
 
-COLLIDING_KEYS = {key for key, _ in KNOWN_SUPPORT_IMAGE_COLLISIONS}
 
 # A tag is floating when any dash- or dot-separated component is a moving
 # label. `:latest` is the obvious one; `3-latest` and `latest-sql-spark`
@@ -426,8 +425,16 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
         keys += [(owner, k) for k in (entry.get("support_images") or {})]
 
     for owner, key in keys:
-        if key in COLLIDING_KEYS or (owner, key) in KNOWN_UNREAD_IMAGE_VARS:
-            continue  # tracked in #715
+        # Skip on the (key, owner) pair, never on the key alone. Exempting
+        # every `postgres` also exempted the postgres stack's own primary
+        # image -- which does read ${IMAGE_POSTGRES:-...} correctly today,
+        # so the skip was hiding working code from its own regression test.
+        # It would equally have exempted a NEW stack adopting the key, the
+        # opposite of what the collision list promises.
+        if (key, owner) in KNOWN_SUPPORT_IMAGE_COLLISIONS:
+            continue  # collapsed into one IMAGE_* var, tracked in #715
+        if (owner, key) in KNOWN_UNREAD_IMAGE_VARS:
+            continue
         var = _image_env_var(key)
 
         # Any valid reference form counts as reading it — ${VAR}, ${VAR:-x},
