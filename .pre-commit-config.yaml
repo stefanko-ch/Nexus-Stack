@@ -141,6 +141,18 @@ repos:
   # is the right state to add a gate in. Deliberate exceptions live inline as
   # `# shellcheck disable=...` with a reason next to them — spin-up.yml has
   # one for a single-quoted remote script that must not be expanded locally.
+  #
+  # ⚠️ This hook is fast local feedback, NOT the gate. actionlint inspects
+  # `run:` blocks only when a `shellcheck` binary is on PATH, and it SILENTLY
+  # reports success when there is none — measured: the same workflow that
+  # yields an SC2086 finding with shellcheck present produces no output and
+  # exit 0 without it. On a machine without shellcheck this hook still checks
+  # workflow syntax, expressions and contexts, but not the shell inside.
+  #
+  # The guarantee lives in `.github/workflows/validate-workflows.yaml`, which
+  # runs actionlint on every push and PR touching .github/workflows/ on a
+  # runner that has shellcheck preinstalled. Install shellcheck locally
+  # (`brew install shellcheck`) to get the full check before pushing.
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.7
     hooks:
