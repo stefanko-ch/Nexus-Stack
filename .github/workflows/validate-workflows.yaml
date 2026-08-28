@@ -19,10 +19,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # No -ignore flags. SC2086 and SC2129 were suppressed here until every
+      # occurrence was fixed; the justifications ("noisy", "safe in workflow
+      # scripts") no longer describe anything present, and leaving them would
+      # let the class come back unseen.
+      #
+      # This job, not the pre-commit hook, is the real gate: actionlint only
+      # inspects `run:` blocks when a shellcheck binary is on PATH, and
+      # SILENTLY reports success when it is not. A contributor whose machine
+      # lacks it gets a green hook and no findings. The runner has shellcheck
+      # preinstalled, so this is where the guarantee lives.
       - name: Validate workflow files
         uses: raven-actions/actionlint@v2
         with:
           matcher: true
-          flags: "-ignore SC2086 -ignore SC2129"
-          # SC2086: Double quote warnings - noisy in GHA where unquoted expressions are common
-          # SC2129: Multiple redirections - safe in workflow scripts

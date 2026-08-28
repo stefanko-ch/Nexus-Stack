@@ -104,7 +104,7 @@ jobs:
             echo "${{ secrets.SSH_PUBLIC_KEY }}" > ~/.ssh/id_ed25519.pub
             chmod 600 ~/.ssh/id_ed25519
             chmod 644 ~/.ssh/id_ed25519.pub
-            echo "ssh_key_created=false" >> $GITHUB_OUTPUT
+            echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
           else
             echo "🔑 Generating new SSH key..."
             mkdir -p ~/.ssh
@@ -123,19 +123,19 @@ jobs:
               # "Skip output... contains secret" warnings in GitHub Actions.
               if printf '%s' "$SSH_PRIVATE_KEY" | gh secret set SSH_PRIVATE_KEY 2>/dev/null; then
                 echo "✅ SSH Private Key saved to GitHub Secrets"
-                echo "ssh_key_created=true" >> $GITHUB_OUTPUT
+                echo "ssh_key_created=true" >> "$GITHUB_OUTPUT"
               else
                 echo "⚠️  Failed to save SSH keys - GH_SECRETS_TOKEN may need 'repo' scope"
-                echo "ssh_key_created=false" >> $GITHUB_OUTPUT
+                echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
               fi
             else
               echo "⚠️  GH_SECRETS_TOKEN not set - SSH keys not saved"
-              echo "ssh_key_created=false" >> $GITHUB_OUTPUT
+              echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
             fi
           fi
 
           # Export public key for output (named ssh_pubkey to avoid GitHub Actions secret warning)
-          echo "ssh_pubkey=$(cat ~/.ssh/id_ed25519.pub)" >> $GITHUB_OUTPUT
+          echo "ssh_pubkey=$(cat ~/.ssh/id_ed25519.pub)" >> "$GITHUB_OUTPUT"
 
           # Export private key for output (for initial-setup passthrough to spin-up)
           # Note: Don't mask private key here - masking prevents it from being
@@ -146,7 +146,7 @@ jobs:
             echo "ssh_private_key<<SSHEOF"
             cat ~/.ssh/id_ed25519
             echo "SSHEOF"
-          } >> $GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
 
       - name: Compute resource prefix
         id: prefix
@@ -155,8 +155,8 @@ jobs:
           DOMAIN="${{ secrets.DOMAIN }}"
           RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
           PROJECT_NAME="${RESOURCE_PREFIX}-control"
-          echo "resource_prefix=$RESOURCE_PREFIX" >> $GITHUB_OUTPUT
-          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+          echo "resource_prefix=$RESOURCE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "project_name=$PROJECT_NAME" >> "$GITHUB_OUTPUT"
           echo "Resource prefix: $RESOURCE_PREFIX"
           echo "Project name: $PROJECT_NAME"
 
@@ -181,10 +181,10 @@ jobs:
         id: check_r2
         run: |
           if [ -n "${{ secrets.R2_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.R2_SECRET_ACCESS_KEY }}" ]; then
-            echo "r2_exists=true" >> $GITHUB_OUTPUT
+            echo "r2_exists=true" >> "$GITHUB_OUTPUT"
             echo "✅ R2 credentials found in secrets"
           else
-            echo "r2_exists=false" >> $GITHUB_OUTPUT
+            echo "r2_exists=false" >> "$GITHUB_OUTPUT"
             echo "📦 No R2 credentials - will create new ones"
           fi
 
@@ -390,12 +390,12 @@ jobs:
           # Use if-else to prevent set -e from killing the script on aws failure
           if VALIDATION=$(aws s3api list-buckets --endpoint-url="$R2_ENDPOINT" --region auto 2>&1); then
             echo "✅ R2 credentials are valid"
-            echo "r2_valid=true" >> $GITHUB_OUTPUT
+            echo "r2_valid=true" >> "$GITHUB_OUTPUT"
           else
             VALIDATION_STATUS=$?
             echo "❌ R2 credentials are invalid (exit code $VALIDATION_STATUS)"
             echo "$VALIDATION"
-            echo "r2_valid=false" >> $GITHUB_OUTPUT
+            echo "r2_valid=false" >> "$GITHUB_OUTPUT"
 
             # Delete stale GitHub Secrets so init-r2-state.sh can recreate them
             if [ -n "$GH_TOKEN" ]; then
@@ -551,8 +551,8 @@ jobs:
           #
           # If you add a consumer of these outputs, mask on arrival there too.
           # Export as outputs for the calling workflow
-          echo "r2_access_key_id=$R2_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
-          echo "r2_secret_access_key=$R2_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
+          echo "r2_access_key_id=$R2_ACCESS_KEY_ID" >> "$GITHUB_OUTPUT"
+          echo "r2_secret_access_key=$R2_SECRET_ACCESS_KEY" >> "$GITHUB_OUTPUT"
           echo "✅ R2 credentials exported for spin-up workflow"
 
       - name: Ensure R2 state bucket exists
@@ -1018,10 +1018,15 @@ jobs:
             exit 1
           fi
 
-          # Output unified credentials for downstream workflows
-          echo "r2_data_access_key=$R2_ACCESS_KEY_ID" >> "$GITHUB_OUTPUT"
-          echo "r2_data_secret_key=$R2_SECRET_ACCESS_KEY" >> "$GITHUB_OUTPUT"
-          echo "r2_data_bucket=$BUCKET_NAME" >> "$GITHUB_OUTPUT"
+          # Output unified credentials for downstream workflows.
+          # Grouped rather than three separate redirects: one open of the
+          # file instead of three, which is what shellcheck's SC2129 asks
+          # for.
+          {
+            echo "r2_data_access_key=$R2_ACCESS_KEY_ID"
+            echo "r2_data_secret_key=$R2_SECRET_ACCESS_KEY"
+            echo "r2_data_bucket=$BUCKET_NAME"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set Scheduled Teardown Worker secrets
         env:
