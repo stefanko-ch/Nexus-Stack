@@ -110,51 +110,59 @@ function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
   // The local calendar date in the target zone, e.g. "2026-08-27".
   const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone });
 
-  // The wanted wall-clock moment, read as if it were UTC. This is not the
-  // answer — it is off by exactly the zone's offset, which the next step
-  // measures.
+  // The wanted wall-clock moment, read as if it were UTC. Not the answer —
+  // it is off by exactly the zone's offset, which the passes below measure.
   const naive = new Date(
     `${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`
-  );
+  ).getTime();
 
-  // Measure the offset by formatting a known instant in the zone and reading
-  // the FULL local date back, not just hours and minutes.
+  // Measure the offset by formatting an instant in the zone and reading the
+  // FULL local date back, not just hours and minutes.
   //
-  // Reading only hh:mm is what made this wrong: for a late local time the
-  // probe instant lands on the next day in the zone (22:00Z is 00:00 in
-  // Europe/Zurich), so 22:00 versus 00:00 measured +1320 minutes instead of
-  // -120, and "next teardown" showed tomorrow while today's had not happened
-  // yet. Folding that modulo a day fixes Zurich but stays ambiguous near
-  // ±12h — UTC+14 and UTC+10 produce the same remainder. Including the date
-  // removes the ambiguity entirely.
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(naive);
+  // Reading only hh:mm is what made "next teardown" show tomorrow: for a
+  // late local time the probe lands on the next day in the zone (22:00Z is
+  // 00:00 in Europe/Zurich), so 22:00 versus 00:00 measured +1320 minutes
+  // instead of -120. Folding that modulo a day fixes Zurich but stays
+  // ambiguous near ±12h, where UTC+14 and UTC+10 give the same remainder.
+  const offsetMsAt = (instant) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(instant);
 
-  const f = {};
-  for (const p of parts) {
-    if (p.type !== 'literal') f[p.type] = p.value;
-  }
+    const f = {};
+    for (const p of parts) {
+      if (p.type !== 'literal') f[p.type] = p.value;
+    }
 
-  // hour comes back as "24" rather than "00" at midnight in some runtimes.
-  const localAsUTC = Date.UTC(
-    Number(f.year),
-    Number(f.month) - 1,
-    Number(f.day),
-    Number(f.hour) % 24,
-    Number(f.minute),
-    Number(f.second)
-  );
+    // hour comes back as "24" rather than "00" at midnight in some runtimes.
+    const localAsUTC = Date.UTC(
+      Number(f.year),
+      Number(f.month) - 1,
+      Number(f.day),
+      Number(f.hour) % 24,
+      Number(f.minute),
+      Number(f.second)
+    );
+    return localAsUTC - instant.getTime();
+  };
 
-  const offsetMs = localAsUTC - naive.getTime();
-  return new Date(naive.getTime() - offsetMs);
+  // Two passes, because the offset has to be the one in force at the ANSWER,
+  // not at the probe. They differ across a daylight-saving transition: on
+  // 2026-03-29 in Europe/Zurich, 01:30Z is already 03:30 local, so a single
+  // pass measures +2h and returns 00:30 local for a requested 01:30.
+  //
+  // The second pass re-measures at the candidate instant and converges. A
+  // clock time that does not exist — 02:30 on a spring-forward day — maps
+  // forward to 03:30, which is what zoneinfo and the JDK also do.
+  const firstPass = naive - offsetMsAt(new Date(naive));
+  return new Date(naive - offsetMsAt(new Date(firstPass)));
 }
 
 export async function onRequestGet(context) {
