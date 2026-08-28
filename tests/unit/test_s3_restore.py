@@ -177,10 +177,13 @@ def test_build_endpoint_from_env_charset_error_bubbles_up() -> None:
 
 
 def test_standard_targets_returns_canonical_pair() -> None:
-    """Smoke + locks the v1.0 fixture. If the
-    ``stacks/{gitea,dify}/docker-compose.yml`` files change the
-    POSTGRES_USER or POSTGRES_DB values, this test starts failing
-    and a future maintainer knows to align the fixture."""
+    """Smoke + locks the fixture against the compose files.
+
+    Covers gitea, dify, hedgedoc and the shared postgres stack. If any
+    of those ``stacks/*/docker-compose.yml`` files changes its
+    POSTGRES_USER or POSTGRES_DB, this test starts failing and a future
+    maintainer knows to align the fixture rather than discovering it
+    when a restore writes to the wrong database."""
     postgres, rsync = standard_targets()
     pg_by_container = {p.container: p for p in postgres}
 
