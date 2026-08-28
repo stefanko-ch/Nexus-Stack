@@ -59,10 +59,15 @@ Two ways out, both deliberate rather than automatic:
 - **Start fresh** — remove the volume if the contents are disposable.
 
 Stacks that bring their own database are unaffected: each now has its own
-`IMAGE_<STACK>_POSTGRES` and keeps the version it already ran. Those
-versions are spread across 14 through 17 and are a separate question from
-this stack — notably Infisical, still on **14**, which reaches end of life
-on 2026-11-12.
+`IMAGE_*` variable, derived from its `support_images` key, and keeps the
+version it already ran. The suffix follows the key rather than a fixed
+pattern — `IMAGE_KESTRA_POSTGRES` for the key `kestra-postgres`,
+`IMAGE_LAKEKEEPER_DB` for `lakekeeper-db` — because the orchestrator
+renders `IMAGE_<KEY>` with hyphens as underscores, uppercased.
+
+Those versions are spread across 14 through 17 and are a separate question
+from this stack — notably Infisical, still on **14**, which reaches end of
+life on 2026-11-12 (#731).
 
 ### Access Methods
 

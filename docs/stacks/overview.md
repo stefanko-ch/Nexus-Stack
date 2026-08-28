@@ -68,7 +68,7 @@ A handful of stacks are marked **"always protected"** in their reference docs �
 
 Some stacks have no web UI and exist purely to support other services. They are reachable from inside the Docker network only and don't even appear in the Control Plane service list as "open me":
 
-- **PostgreSQL** — used as the storage backend by Wiki.js, Gitea, Metabase, Superset, Dagster, OpenMetadata, Soda, and several others
+- **PostgreSQL** — a shared database for stacks that do not bring their own, and for your own tables. Its consumers today are Evidence, PostgREST and Trino (via its `postgresql` catalog). Wiki.js, Gitea, Superset, Dagster, OpenMetadata and Soda each ship their own PostgreSQL container instead, at their own version
 - **Telegraf** — metrics agent shipping data to Prometheus
 - **Soda** / **Meltano** / **Sling** — CLI-only data tools without a web UI
 
@@ -103,7 +103,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | **[CloudBeaver](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/cloudbeaver.md)** | `dbeaver/cloudbeaver:24` | DBeaver's web UI — full universal database IDE with ER diagrams, data editor, and SQL completion. The power-user choice for multi-engine work. |
 | **[pgAdmin](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/pgadmin.md)** | `dpage/pgadmin4:9` | The PostgreSQL admin and query client, browser-based. Use this if you live in PostgreSQL; use Adminer or CloudBeaver if you need multi-engine access. |
 | **[pg-ducklake](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/pg-ducklake.md)** | `postgres:17-alpine` + DuckDB extension | PostgreSQL with the DuckDB extension for analytical queries. Stores Parquet files on Hetzner Object Storage (S3) for columnar analytics alongside transactional workloads. Internal-only. |
-| **[PostgreSQL](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/postgres.md)** | `postgres:18-alpine` | A shared relational database for stacks that do not bring their own, and for your own tables. Used today by Evidence and PostgREST; every other stack listed here ships its own PostgreSQL container at its own version. Internal-only — no public endpoint. |
+| **[PostgreSQL](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/postgres.md)** | `postgres:18-alpine` | A shared relational database for stacks that do not bring their own, and for your own tables. Used today by Evidence, PostgREST and Trino (through its `postgresql` catalog); every other stack listed here ships its own PostgreSQL container at its own version. Internal-only — no public endpoint. |
 | **[RisingWave](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/risingwave.md)** | `risingwavelabs/risingwave:v2.8.1` | PostgreSQL-wire-compatible streaming database. Write SQL `CREATE MATERIALIZED VIEW … FROM kafka_source`, get real-time results. Think "Flink SQL but you query it like Postgres". |
 
 ## Object storage

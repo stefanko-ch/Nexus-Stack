@@ -375,21 +375,29 @@ When adding a new Docker stack, **all locations must be updated**:
    - Use matching port number from docker-compose.yml
    - Use pinned image version from step 3
    - No `enabled` field needed - D1 manages runtime state
-   - **Every `support_images` key must be prefixed with the stack name**
-     — `myservice-postgres`, never `postgres`. `tofu output image_versions`
-     merges *every* stack's `support_images` into one flat map, and the
-     orchestrator renders each key as `IMAGE_<KEY>`. An unprefixed key
-     therefore retags every other stack that uses the same name. Worse,
-     support images are merged **after** the primary images and Terraform's
-     `merge()` lets the later argument win, so a key equal to a service
-     name silently overrides that service's own image.
+   - **Every `support_images` key must be globally unique, and must never
+     equal a service name.** `tofu output image_versions` merges *every*
+     stack's `support_images` into one flat map, and the orchestrator
+     renders each key as `IMAGE_<KEY>` (hyphens to underscores,
+     uppercased). Two stacks sharing a key therefore retag each other.
+     And because support images are merged **after** the primary images,
+     and Terraform's `merge()` lets the later argument win, a key equal to
+     a service name silently overrides that service's own image.
+
+     **Prefixing with the stack name is how you guarantee both**, and is
+     what to reach for by default: `myservice-postgres`, never `postgres`.
+     Some existing keys are unprefixed but unique — `grafana` owns
+     `prometheus` and `loki`, `openmetadata` owns `ingestion` — which is
+     fine and not worth churning. A generic word for a component that other
+     stacks might also want (`postgres`, `redis`, `web`, `worker`) is not.
 
      This is not hypothetical: nineteen stacks shared the key `postgres`,
      so `IMAGE_POSTGRES` resolved to whichever the merge landed on last
      and the shared `postgres` stack ran 16-alpine while its own entry
-     said 17-alpine. Fixed in #715; `tests/unit/test_stack_conventions.py`
-     now fails on a new collision, so this is enforced rather than merely
-     documented.
+     said 17-alpine. Fixed in #715. `tests/unit/test_stack_conventions.py`
+     enforces exactly the two rules above — uniqueness and no shadowing —
+     rather than the prefix itself, so it fails on a new collision without
+     flagging the unprefixed-but-unique keys that already exist.
 
 6. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section
