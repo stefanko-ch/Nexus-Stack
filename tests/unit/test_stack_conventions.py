@@ -407,7 +407,17 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
     if stack not in services:
         pytest.skip(f"{stack} has no services.yaml entry")
 
-    compose = (STACKS_DIR / stack / "docker-compose.yml").read_text()
+    # Only the `image:` values, never the whole file. Searching the raw text
+    # let a mention in a comment satisfy the assertion, so a stack could
+    # hardcode its tag, leave `# ${IMAGE_FOO:-...}` in a note above it, and
+    # pass. Compose interpolation is not YAML, so safe_load hands the
+    # `${VAR:-default}` string back untouched and it can be matched directly.
+    parsed = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
+    images = "\n".join(
+        svc["image"]
+        for svc in (parsed.get("services") or {}).values()
+        if isinstance(svc, dict) and isinstance(svc.get("image"), str)
+    )
 
     # Services that share this directory count too. seaweedfs-filer and
     # seaweedfs-manager declare their own image, so the deploy emits
@@ -440,7 +450,7 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
         # Any valid reference form counts as reading it — ${VAR}, ${VAR:-x},
         # ${VAR:?x}, ${VAR-x}. The question this test asks is whether the
         # compose reads the variable, not which interpolation syntax it uses.
-        assert re.search(rf"\$\{{{var}[}}:?-]", compose), (
+        assert re.search(rf"\$\{{{var}[}}:?-]", images), (
             f"stacks/{stack}/docker-compose.yml does not read ${{{var}}}, which is "
             f"what the deploy emits for the '{key}' image. A version bump in "
             f"services.yaml would silently not reach the container."
@@ -448,7 +458,7 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
 
         # Separately: the fallback must exist, so the compose still starts
         # standalone when the deploy has not rendered a value.
-        assert f"${{{var}:-" in compose, (
+        assert f"${{{var}:-" in images, (
             f"stacks/{stack}/docker-compose.yml reads ${{{var}}} without a default. "
             f"Use ${{{var}:-<image>}} so the stack starts outside the deploy."
         )
