@@ -2,7 +2,7 @@
  * Scheduled Teardown Configuration API
  * GET /api/scheduled-teardown - Get current configuration
  * POST /api/scheduled-teardown - Update configuration
- * 
+ *
  * Configuration stored in Cloudflare D1 database
  */
 
@@ -10,6 +10,7 @@ import { logApiCall, logError } from './_utils/logger.js';
 import { getAccessUserEmail } from './_utils/cf-access-email.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { timeInTimezoneToUTC } from './_utils/timezone.js';
 
 // D1 Helper Functions
 async function getConfig(db, key, defaultValue = null) {
@@ -97,50 +98,12 @@ async function logExtension(db, userEmail, delayHours, delayUntil) {
   }
 }
 
-/**
- * Convert a time in a specific timezone to UTC Date
- * @param {string} timeStr - Time in HH:MM format
- * @param {string} timezone - IANA timezone (e.g., 'Europe/Zurich')
- * @param {Date} baseDate - Base date to use (defaults to today)
- * @returns {Date} - Date object representing the time in UTC
- */
-function timeInTimezoneToUTC(timeStr, timezone, baseDate = new Date()) {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  
-  // Get the date string in the target timezone
-  const dateStr = baseDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  
-  // Create a date assuming the time is in UTC
-  const utcDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00Z`);
-  
-  // Now format this UTC date in the target timezone to see what time it represents there
-  const tzFormatter = new Intl.DateTimeFormat('en', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  
-  const tzTimeStr = tzFormatter.format(utcDate);
-  const [tzHours, tzMinutes] = tzTimeStr.split(':').map(Number);
-  
-  // Calculate the difference between desired time and actual time in timezone
-  const desiredMinutes = hours * 60 + minutes;
-  const actualMinutes = tzHours * 60 + tzMinutes;
-  const diffMinutes = desiredMinutes - actualMinutes;
-  
-  // Adjust UTC date by the difference
-  const adjustedDate = new Date(utcDate.getTime() + diffMinutes * 60 * 1000);
-  
-  return adjustedDate;
-}
-
 export async function onRequestGet(context) {
   const { env, request } = context;
   const userEmail = getAccessUserEmail(request) || '';
   const maxExtensionsPerDay = parsePositiveInt(env.MAX_EXTENSIONS_PER_DAY, 3);
   const maxDelayHours = parsePositiveInt(env.MAX_DELAY_HOURS, 4);
-  
+
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
@@ -157,7 +120,7 @@ export async function onRequestGet(context) {
     const teardownTime = await getConfig(env.NEXUS_DB, 'teardown_time', '22:00');
     const notificationTime = await getConfig(env.NEXUS_DB, 'notification_time', '21:45');
     const delayUntil = await getConfig(env.NEXUS_DB, 'delay_until', null);
-    
+
     // Calculate next teardown time
     let nextTeardown = null;
     let timeRemaining = null;
@@ -169,10 +132,10 @@ export async function onRequestGet(context) {
       }
 
       const now = new Date();
-      
+
       // Convert configured time in timezone to UTC
       let nextTeardownDate = timeInTimezoneToUTC(teardownTime, timezone);
-      
+
       // If the time has already passed today, move to tomorrow
       if (nextTeardownDate <= now) {
         const tomorrow = new Date(nextTeardownDate);
@@ -202,7 +165,7 @@ export async function onRequestGet(context) {
         totalMinutes: Math.floor(remaining / (1000 * 60)),
       };
     }
-    
+
     const extensionsUsed = await getExtensionsUsedToday(env.NEXUS_DB, userEmail);
 
     return new Response(JSON.stringify({
