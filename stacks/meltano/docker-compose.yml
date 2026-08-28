@@ -52,7 +52,7 @@ services:
         condition: service_healthy
 
   meltano-db:
-    image: postgres:16-alpine
+    image: ${IMAGE_MELTANO_POSTGRES:-postgres:16-alpine}
     container_name: meltano-db
     restart: unless-stopped
     deploy:

@@ -48,7 +48,7 @@ services:
       - infisical-internal
 
   infisical-db:
-    image: postgres:14-alpine
+    image: ${IMAGE_INFISICAL_POSTGRES:-postgres:14-alpine}
     container_name: infisical-db
     restart: unless-stopped
     environment:
@@ -66,7 +66,7 @@ services:
       retries: 10
 
   infisical-redis:
-    image: redis:7-alpine
+    image: ${IMAGE_INFISICAL_REDIS:-redis:7-alpine}
     container_name: infisical-redis
     restart: unless-stopped
     volumes:

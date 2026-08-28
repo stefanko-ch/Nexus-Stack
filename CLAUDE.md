@@ -375,6 +375,21 @@ When adding a new Docker stack, **all locations must be updated**:
    - Use matching port number from docker-compose.yml
    - Use pinned image version from step 3
    - No `enabled` field needed - D1 manages runtime state
+   - **Every `support_images` key must be prefixed with the stack name**
+     — `myservice-postgres`, never `postgres`. `tofu output image_versions`
+     merges *every* stack's `support_images` into one flat map, and the
+     orchestrator renders each key as `IMAGE_<KEY>`. An unprefixed key
+     therefore retags every other stack that uses the same name. Worse,
+     support images are merged **after** the primary images and Terraform's
+     `merge()` lets the later argument win, so a key equal to a service
+     name silently overrides that service's own image.
+
+     This is not hypothetical: nineteen stacks shared the key `postgres`,
+     so `IMAGE_POSTGRES` resolved to whichever the merge landed on last
+     and the shared `postgres` stack ran 16-alpine while its own entry
+     said 17-alpine. Fixed in #715; `tests/unit/test_stack_conventions.py`
+     now fails on a new collision, so this is enforced rather than merely
+     documented.
 
 6. **Update README.md:**
    - Add stack badge in the "Available Stacks" badges section

@@ -40,7 +40,7 @@ services:
       start_period: 30s
 
   lakefs-db:
-    image: ${IMAGE_POSTGRES:-postgres:16-alpine}
+    image: ${IMAGE_LAKEFS_POSTGRES:-postgres:16-alpine}
     container_name: lakefs-db
     restart: unless-stopped
     env_file: .env

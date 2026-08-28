@@ -173,7 +173,7 @@ services:
     long_description: "Dagster is a data orchestrator for the whole development lifecycle. Define data assets and pipelines in Python, test locally, and deploy with confidence. Features include asset-based scheduling, built-in data lineage, observability, and integration with dbt, Spark, and more."
     image: "nexus-dagster:1.12.21"
     support_images:
-      postgres: "postgres:16-alpine"
+      dagster-postgres: "postgres:16-alpine"
 
   debezium:
     port: 8097
@@ -288,10 +288,14 @@ services:
     long_description: "Forgejo is a community-governed Git forge, hard-forked from Gitea and developed under a non-profit. It provides repository hosting, pull requests, code review, issue tracking, wikis, and Forgejo Actions — a CI system whose workflow syntax is familiar to anyone who has used GitHub Actions. Ships with its own Actions runner, so pipelines run on your own server with no external CI service."
     image: "codeberg.org/forgejo/forgejo:15.0.7"
     support_images:
-      # Deliberately NOT the shared `postgres` key. That key is used by
-      # 19 services and collapses to a single IMAGE_POSTGRES value, so
-      # claiming it here would silently retag every one of them —
-      # including Infisical, which is still on 14-alpine.
+      # Prefixed, like every other database support image. Nineteen
+      # stacks once shared the bare key `postgres`, collapsing into a
+      # single IMAGE_POSTGRES; that is fixed (#715), and this convention
+      # is what keeps it fixed. `tofu output image_versions` merges every
+      # stack's support_images into one flat map, so an unprefixed key
+      # retags every other stack that uses it — and, because support
+      # images are merged last, also overrides the image of any service
+      # with the same name.
       forgejo-postgres: "postgres:17-alpine"
 
   forgejo-runner:
@@ -352,7 +356,7 @@ services:
     long_description: "Gitea is a painless self-hosted Git service. It provides repository hosting, pull requests, code review, issue tracking, wikis, and CI/CD integration. Lightweight and fast, written in Go, with a familiar GitHub-like interface."
     image: "gitea/gitea:1.23"
     support_images:
-      postgres: "postgres:16-alpine"
+      gitea-postgres: "postgres:16-alpine"
 
   grafana:
     subdomain: "grafana"
@@ -381,7 +385,7 @@ services:
     long_description: "HedgeDoc is a self-hosted collaborative Markdown editor — real-time multi-user editing, MathJax / Mermaid / KaTeX / PlantUML rendering, slide-mode (revealjs), version history. In Nexus-Stack: classroom workshops where students take joint notes (one URL, many cursors), or collaborate on Markdown documentation for a project. Dedicated PostgreSQL backend, sign-up disabled — access controlled by Cloudflare Access (email OTP) at the edge with anonymous URL-sharing enabled inside."
     image: "quay.io/hedgedoc/hedgedoc:1.10.3"
     support_images:
-      postgres: "postgres:16-alpine"
+      hedgedoc-db: "postgres:16-alpine"
 
   hoppscotch:
     subdomain: "hoppscotch"
@@ -393,7 +397,7 @@ services:
     long_description: "Hoppscotch is an open-source API development ecosystem. Test REST, GraphQL, WebSocket, SSE, and MQTT APIs with a fast, lightweight interface. Features include request collections, environments, pre-request scripts, team collaboration, and API documentation generation."
     image: "hoppscotch/hoppscotch:2025.12.1"
     support_images:
-      postgres: "postgres:15-alpine"
+      hoppscotch-postgres: "postgres:15-alpine"
 
 
   infisical:
@@ -407,8 +411,8 @@ services:
     long_description: "Infisical is an open-source secret management platform. Centralize secrets, environment variables, and API keys across your entire infrastructure. Features include versioning, audit logs, access controls, secret rotation, and integrations with Docker, Kubernetes, and CI/CD systems."
     image: "infisical/infisical:v0.155.5"
     support_images:
-      postgres: "postgres:14-alpine"
-      redis: "redis:7-alpine"
+      infisical-postgres: "postgres:14-alpine"
+      infisical-redis: "redis:7-alpine"
 
   it-tools:
     subdomain: "it-tools"
@@ -460,7 +464,7 @@ services:
     long_description: "lakeFS provides Git-like version control for data lakes. Branch, commit, merge, and revert your data like code. Creates an S3-compatible gateway in front of your object storage, enabling isolated dev/test environments, reproducible data pipelines, and atomic data operations."
     image: "treeverse/lakefs:1.73.0"
     support_images:
-      postgres: "postgres:16-alpine"
+      lakefs-postgres: "postgres:16-alpine"
     tcp_ports:
       s3-gateway: 8000
 
@@ -474,7 +478,7 @@ services:
     long_description: "Lakekeeper is an open-source implementation of the Apache Iceberg REST Catalog specification, written in Rust. It provides the catalog layer that turns the existing object storage (Garage / MinIO / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from Spark, Trino, DuckDB, PyIceberg, or any other Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication. Dedicated PostgreSQL stores the catalog metadata; the actual Parquet data goes to whichever S3-compatible bucket the operator configures per warehouse."
     image: "quay.io/lakekeeper/catalog:v0.12.2"
     support_images:
-      postgres: "postgres:16-alpine"
+      lakekeeper-db: "postgres:16-alpine"
 
   marquez:
     subdomain: "marquez"
@@ -518,7 +522,7 @@ services:
     long_description: "Kestra is an orchestration platform for scheduling and managing complex workflows. Define pipelines in YAML, use 500+ plugins for integrations, and orchestrate data pipelines, microservices, and business processes. Features a visual flow editor, real-time monitoring, and built-in secret management."
     image: "kestra/kestra:v1.0"
     support_images:
-      postgres: "postgres:16-alpine"
+      kestra-postgres: "postgres:16-alpine"
 
   litellm:
     subdomain: "litellm"
@@ -530,7 +534,7 @@ services:
     long_description: "LiteLLM is a drop-in OpenAI-compatible proxy that forwards requests to any LLM provider — local Ollama (free, in-stack), OpenAI, Anthropic, Mistral, Groq, Cohere, Together, and 100+ others — based on the `model` parameter. Killer features for a teaching stack: per-key budget limits (give a student a $5/mo cap), cost tracking per user/project (UI at /ui), and a single API surface so students learn one SDK and access every model. Dedicated Postgres for cost tracking; joins ollama-internal so it can reach the local Ollama directly at `ollama:11434`."
     image: "litellm/litellm-database:v1.85.1"
     support_images:
-      postgres: "postgres:16-alpine"
+      litellm-db: "postgres:16-alpine"
 
   mage:
     subdomain: "mage"
@@ -541,8 +545,6 @@ services:
     description: "Modern data pipeline tool - build, run, and manage pipelines for ETL/ELT workflows."
     long_description: "Mage AI is a modern data pipeline tool for transforming and integrating data. Build ETL/ELT pipelines with a hybrid notebook-style interface, test with built-in unit tests, and deploy to production. Supports Python, SQL, and R with native integration for dbt, Spark, and major data warehouses."
     image: "mageai/mageai:0.9.79"
-    support_images:
-      postgres: "postgres:14-alpine"
 
   mailpit:
     subdomain: "mailpit"
@@ -585,7 +587,7 @@ services:
     long_description: "Meltano is a CLI-first platform for data integration (EL) and transformation (T). Use Singer taps and targets for 500+ data sources, dbt for transformations, and Airflow/Dagster for orchestration. Manage everything as code in version-controlled YAML configuration."
     image: "meltano/meltano:v4.0"
     support_images:
-      postgres: "postgres:16-alpine"
+      meltano-postgres: "postgres:16-alpine"
 
   metabase:
     subdomain: "metabase"
@@ -596,8 +598,6 @@ services:
     description: "Open-source business intelligence and analytics tool for data visualization."
     long_description: "Metabase is a business intelligence tool that lets anyone in your organization ask questions about data. Create dashboards with drag-and-drop, write SQL queries with an interactive editor, and share insights. Connects to PostgreSQL, ClickHouse, and 20+ databases with automatic schema discovery."
     image: "metabase/metabase:v0.60.6.2"
-    support_images:
-      postgres: "postgres:16-alpine"
 
   superset:
     subdomain: "superset"
@@ -609,8 +609,8 @@ services:
     long_description: "Apache Superset is a modern data exploration and visualization platform. Create interactive dashboards, explore datasets with SQL Lab, build rich visualizations with 40+ chart types, and share insights. Supports PostgreSQL, ClickHouse, Trino, and 30+ database engines with a no-code chart builder and role-based access control."
     image: "apache/superset:6.0.0"
     support_images:
-      postgres: "postgres:16-alpine"
-      redis: "redis:7-alpine"
+      superset-postgres: "postgres:16-alpine"
+      superset-redis: "redis:7-alpine"
 
   minio:
     subdomain: "minio"
@@ -633,8 +633,6 @@ services:
     description: "Workflow automation tool with 400+ integrations for connecting apps and services."
     long_description: "n8n is a workflow automation platform with 400+ integrations. Connect apps, automate tasks, and build complex workflows with a visual editor. Supports webhooks, scheduled triggers, conditional logic, and custom JavaScript/Python code nodes. Self-hosted for full data control."
     image: "n8nio/n8n:1.123.75"
-    support_images:
-      postgres: "postgres:16-alpine"
 
   nocodb:
     subdomain: "nocodb"
@@ -646,7 +644,7 @@ services:
     long_description: "NocoDB turns any database into a smart spreadsheet interface. Create forms, kanban boards, galleries, and grid views on top of PostgreSQL, MySQL, or SQLite. Features include REST API generation, role-based access control, webhooks, and audit trails. Collaborate on data without writing SQL."
     image: "nocodb/nocodb:0.301.2"
     support_images:
-      postgres: "postgres:16-alpine"
+      nocodb-postgres: "postgres:16-alpine"
 
   ollama:
     subdomain: "ollama"
@@ -672,7 +670,7 @@ services:
     support_images:
       ingestion: "docker.getcollate.io/openmetadata/ingestion:1.6.6"
       elasticsearch: "docker.elastic.co/elasticsearch/elasticsearch:8.11.4"
-      postgres: "postgres:16-alpine"
+      openmetadata-postgres: "postgres:16-alpine"
 
   rustfs:
     subdomain: "rustfs"
@@ -771,7 +769,7 @@ services:
     long_description: "Prefect is a workflow orchestration framework for Python. Build, schedule, and monitor data pipelines with pure Python code. Features include automatic retries, caching, concurrency control, real-time monitoring, and a modern dashboard. Integrates with dbt, Spark, and cloud services."
     image: "prefecthq/prefect:3-latest"
     support_images:
-      postgres: "postgres:16-alpine"
+      prefect-postgres: "postgres:16-alpine"
 
   quickwit:
     subdomain: "quickwit"
@@ -928,7 +926,7 @@ services:
     long_description: "Soda Core is a data quality testing framework. Write checks in SodaCL (Soda Checks Language) to validate row counts, null percentages, uniqueness, referential integrity, and custom SQL conditions. Run checks against PostgreSQL, ClickHouse, and other databases to catch data issues early."
     image: "soda-core:3.3.7"
     support_images:
-      postgres: "postgres:16-alpine"
+      soda-postgres: "postgres:16-alpine"
 
   spark:
     subdomain: "spark"
@@ -1040,4 +1038,4 @@ services:
     image: "ghcr.io/windmill-labs/windmill:1.624.0"
     support_images:
       lsp: "ghcr.io/windmill-labs/windmill-lsp:latest"
-      postgres: "postgres:16-alpine"
+      windmill-postgres: "postgres:16-alpine"

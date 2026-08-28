@@ -118,43 +118,14 @@ DOC_NAME_OVERRIDES = {
     "seaweedfs-manager": "seaweedfs",
 }
 
-# Pre-existing collisions, tracked in #715. Nineteen stacks use the key
-# `postgres` and two use `redis`, so all of them collapse into a single
-# IMAGE_POSTGRES / IMAGE_REDIS. Listed here so the test passes today while
-# still failing for any NEW collision — removing an entry is how #715 gets
-# closed.
-# Keyed by (key, owner), not by key alone. Exempting the key would let a
-# NEW stack adopt `postgres` and pass — the opposite of what the comment
-# above promises. Adding one now fails until it is listed here, which is a
-# decision someone has to make deliberately.
-KNOWN_SUPPORT_IMAGE_COLLISIONS: set[tuple[str, str]] = {
-    (key, owner)
-    for key, owners in {
-        "postgres": (
-            "dagster",
-            "gitea",
-            "hedgedoc",
-            "hoppscotch",
-            "infisical",
-            "lakefs",
-            "lakekeeper",
-            "kestra",
-            "litellm",
-            "mage",
-            "meltano",
-            "metabase",
-            "superset",
-            "n8n",
-            "nocodb",
-            "openmetadata",
-            "prefect",
-            "soda",
-            "windmill",
-        ),
-        "redis": ("infisical", "superset"),
-    }.items()
-    for owner in owners
-}
+# Support-image keys claimed by more than one stack. Empty since #715:
+# nineteen stacks shared the key `postgres` and two shared `redis`, all of
+# them collapsing into a single IMAGE_POSTGRES / IMAGE_REDIS. Each now
+# carries its own prefixed key, so there is nothing left to exempt.
+#
+# Keyed by (key, owner) rather than by key alone, so that re-introducing
+# the pattern for one stack cannot be waved through for all of them.
+KNOWN_SUPPORT_IMAGE_COLLISIONS: set[tuple[str, str]] = set()
 
 
 # A tag is floating when any dash- or dot-separated component is a moving
@@ -218,24 +189,20 @@ KNOWN_CONTAINER_NAME_MISMATCH = {"woodpecker"}
 
 # support_images keys that shadow a service's own primary image. The
 # merge in tofu/stack/outputs.tf puts support_images LAST, and Terraform's
-# merge() lets the later argument win, so these keys do not merely collide
-# — they override the service's own image in IMAGE_*.
+# merge() lets the later argument win, so such a key does not merely
+# collide — it overrides the service's own image in IMAGE_*.
 #
-# Both current entries were measured, not assumed:
+# `postgres` was the second entry here and is fixed by #715: nineteen
+# stacks claimed it, the lexically last (windmill) won, and the shared
+# database stack therefore ran postgres:16-alpine while its own
+# declaration said 17-alpine.
 #
-#   postgres: 19 stacks declare it; the lexically last (windmill) wins, so
-#             IMAGE_POSTGRES = postgres:16-alpine while the postgres
-#             service's own image is postgres:17-alpine. The shared stack
-#             reads ${IMAGE_POSTGRES:-postgres:17-alpine}, so it runs 16
-#             while services.yaml and the docs say 17. A live drift.
-#   ollama:   benign by accident — the overriding value
-#             (ollama/ollama:0.15.1) happens to be exactly what the compose
-#             wants for that container. The ollama service's own image
-#             names open-webui, whose IMAGE_OPEN_WEBUI is never emitted at
-#             all, so that container falls back to its compose default.
-#
-# Both belong to #715. Removing an entry is how that gets closed.
-KNOWN_PRIMARY_IMAGE_SHADOWING = {"ollama", "postgres"}
+# `ollama` remains, and is benign only by accident: the overriding value
+# (ollama/ollama:0.15.1) happens to be exactly what that container wants.
+# The ollama service's own image names open-webui, whose IMAGE_OPEN_WEBUI
+# is never emitted at all, so that container falls back to its compose
+# default. Fixing it means splitting the two into separate keys.
+KNOWN_PRIMARY_IMAGE_SHADOWING = {"ollama"}
 
 # Support images still on :latest. Each is a UI or sidecar rather than a
 # store, which is why they were left — but unlike the primary-image

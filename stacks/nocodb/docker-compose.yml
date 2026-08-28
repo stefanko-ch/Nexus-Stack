@@ -34,7 +34,7 @@ services:
         condition: service_healthy
 
   nocodb-db:
-    image: postgres:16-alpine
+    image: ${IMAGE_NOCODB_POSTGRES:-postgres:16-alpine}
     container_name: nocodb-db
     restart: unless-stopped
     environment:
