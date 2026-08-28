@@ -117,15 +117,15 @@ jobs:
             SSH_PRIVATE_KEY=$(cat ~/.ssh/id_ed25519)
 
             if [ -n "$GH_TOKEN" ]; then
-              echo "🔐 Saving SSH keys to GitHub Secrets..."
+              echo "🔐 Saving SSH private key as a repository secret..."
               # Note: We only save the Private Key as a secret.
               # The Public Key is passed as an output and not stored as a secret to avoid
               # "Skip output... contains secret" warnings in GitHub Actions.
-              if printf '%s' "$SSH_PRIVATE_KEY" | gh secret set SSH_PRIVATE_KEY 2>/dev/null; then
-                echo "✅ SSH Private Key saved to GitHub Secrets"
+              if printf '%s' "$SSH_PRIVATE_KEY" | bash scripts/repo-secret.sh set SSH_PRIVATE_KEY 2>/dev/null; then
+                echo "✅ SSH Private Key saved as a repository secret"
                 echo "ssh_key_created=true" >> "$GITHUB_OUTPUT"
               else
-                echo "⚠️  Failed to save SSH keys - GH_SECRETS_TOKEN may need 'repo' scope"
+                echo "⚠️  Failed to save SSH keys - GH_SECRETS_TOKEN cannot write this repository's secrets"
                 echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
               fi
             else
@@ -195,9 +195,9 @@ jobs:
           # No `|| secrets.GITHUB_TOKEN` fallback. The default token cannot
           # write repository secrets, so falling back to it only guaranteed
           # that `[ -n "$GH_TOKEN" ]` was true and turned a missing
-          # prerequisite into a generic "gh secret set failed" further down.
+          # prerequisite into a generic "repo-secret.sh failed" further down.
           # init-r2-state.sh does not use this token at all — the only
-          # consumer in this step is `gh secret set`.
+          # consumer in this step is `repo-secret.sh` (gh, or the forge API).
           GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
           # Check the prerequisite BEFORE minting anything. The old shape ran
@@ -220,15 +220,25 @@ jobs:
             echo "   grant read access to every service credential in the"
             echo "   OpenTofu state."
             echo ""
-            echo "   Create a fine-grained Personal Access Token:"
-            echo "     GitHub → Settings → Developer settings"
-            echo "              → Personal access tokens → Fine-grained tokens"
-            echo "     Repository permissions:"
-            echo "       Secrets → Read and write  (to store the R2 keys)"
-            echo "       Actions → Read and write  (this same token becomes the"
-            echo "                 Cloudflare worker's GITHUB_TOKEN, which"
-            echo "                 dispatches the scheduled teardown workflow)"
-            echo "     Save it as the GH_SECRETS_TOKEN repository secret."
+            if [ "${GITHUB_SERVER_URL:-https://github.com}" = "https://github.com" ]; then
+              echo "   Create a fine-grained Personal Access Token:"
+              echo "     GitHub → Settings → Developer settings"
+              echo "              → Personal access tokens → Fine-grained tokens"
+              echo "     Repository permissions:"
+              echo "       Secrets → Read and write  (to store the R2 keys)"
+              echo "       Actions → Read and write  (this same token becomes the"
+              echo "                 Cloudflare worker's GITHUB_TOKEN, which"
+              echo "                 dispatches the scheduled teardown workflow)"
+              echo "     Save it as the GH_SECRETS_TOKEN repository secret."
+            else
+              echo "   This workflow is running on ${GITHUB_SERVER_URL}, so the"
+              echo "   secrets are written through that forge's Actions API"
+              echo "   (PUT /repos/{owner}/{repo}/actions/secrets/{name})."
+              echo "   Create an access token there (Settings → Applications)"
+              echo "   for an account that administers this repository, with"
+              echo "   the write:repository scope, and save it as the"
+              echo "   GH_SECRETS_TOKEN repository secret."
+            fi
             echo ""
             echo "   Then re-run this workflow."
             exit 1
@@ -257,7 +267,7 @@ jobs:
 
           # The file existing is not the same as the values being usable.
           # `source` on a truncated or partially written file leaves either
-          # variable empty, `gh secret set` stores an empty secret happily
+          # variable empty, `repo-secret.sh` (gh or the forge API) stores an empty secret happily
           # whether the value arrives on stdin or via --body,
           # SAVE_FAILED stays 0, and the step reports success for a
           # credential nothing downstream can use. The export step already
@@ -270,7 +280,7 @@ jobs:
             exit 1
           fi
 
-          echo "🔐 Auto-saving R2 credentials as GitHub Secrets..."
+          echo "🔐 Auto-saving R2 credentials as repository secrets..."
 
           # SAVE_FAILED carries the exit status; SAVE_ERROR only carries the
           # message. Using the message as the flag — as this did — silently
@@ -287,7 +297,7 @@ jobs:
           # The `if !` check and SAVE_FAILED below are unaffected, under
           # either shell setting. This workflow declares no `shell:`, so
           # Actions runs `bash -e {0}` — no pipefail — and the pipeline
-          # reports `gh secret set`'s status, which is the one that
+          # reports `repo-secret.sh`'s status, which is the one that
           # matters. (python-tests.yml sets `shell: bash` precisely
           # because pipefail is NOT the default; without it a `pytest |
           # tee` once hid three failing tests.) Were pipefail switched on
@@ -296,12 +306,12 @@ jobs:
           # breaks that way when gh has already exited.
           SAVE_FAILED=0
           SAVE_ERROR=""
-          if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | gh secret set R2_ACCESS_KEY_ID 2>&1); then
+          if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | bash scripts/repo-secret.sh set R2_ACCESS_KEY_ID 2>&1); then
             SAVE_FAILED=1
             SAVE_ERROR="$OUTPUT"
           fi
           if [ "$SAVE_FAILED" -eq 0 ]; then
-            if ! OUTPUT=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | gh secret set R2_SECRET_ACCESS_KEY 2>&1); then
+            if ! OUTPUT=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | bash scripts/repo-secret.sh set R2_SECRET_ACCESS_KEY 2>&1); then
               SAVE_FAILED=1
               SAVE_ERROR="$OUTPUT"
             fi
@@ -318,9 +328,9 @@ jobs:
             # anyone with repository read access, which for a public repo
             # is everyone. So the only correct outcome is to fail and let
             # the operator re-run once the token can write secrets.
-            echo "❌ Could not save the R2 credentials to GitHub Secrets."
+            echo "❌ Could not save the R2 credentials as repository secrets."
             echo ""
-            echo "   gh secret set reported:"
+            echo "   repo-secret.sh reported:"
             echo "     ${SAVE_ERROR:-(no output)}"
             echo ""
             echo "   The credentials are NOT printed here on purpose — this"
@@ -328,8 +338,9 @@ jobs:
             echo "   by anyone. They grant read access to the OpenTofu state"
             echo "   bucket, which contains every service credential."
             echo ""
-            echo "   Most likely cause: GH_SECRETS_TOKEN lacks the"
-            echo "   'Secrets: Read and write' repository permission."
+            echo "   Most likely cause: GH_SECRETS_TOKEN cannot write this"
+            echo "   repository's secrets (GitHub: 'Secrets: Read and write';"
+            echo "   Forgejo: write:repository on a repo-admin account)."
             echo ""
             echo "   A live R2 token now exists that nothing can use, because"
             echo "   its secret was only ever held on this runner. Fix the"
@@ -339,7 +350,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ R2 credentials saved to GitHub Secrets automatically!"
+          echo "✅ R2 credentials saved as repository secrets automatically!"
           echo ""
           echo "Future deployments will use these credentials."
 
@@ -397,10 +408,10 @@ jobs:
             echo "$VALIDATION"
             echo "r2_valid=false" >> "$GITHUB_OUTPUT"
 
-            # Delete stale GitHub Secrets so init-r2-state.sh can recreate them
+            # Delete stale repository secrets so init-r2-state.sh can recreate them
             if [ -n "$GH_TOKEN" ]; then
-              gh secret delete R2_ACCESS_KEY_ID 2>/dev/null || true
-              gh secret delete R2_SECRET_ACCESS_KEY 2>/dev/null || true
+              bash scripts/repo-secret.sh delete R2_ACCESS_KEY_ID 2>/dev/null || true
+              bash scripts/repo-secret.sh delete R2_SECRET_ACCESS_KEY 2>/dev/null || true
               echo "🗑️  Stale R2 secrets deleted from GitHub"
             fi
           fi
@@ -435,8 +446,10 @@ jobs:
             echo "   leave the replacement unsaveable, so this stops before"
             echo "   touching anything."
             echo ""
-            echo "   Add GH_SECRETS_TOKEN with the 'Secrets: Read and write'"
-            echo "   repository permission, then re-run this workflow."
+            echo "   Add GH_SECRETS_TOKEN — a token that can write this"
+            echo "   repository's secrets (GitHub: 'Secrets: Read and write';"
+            echo "   Forgejo: write:repository on a repo-admin account) — then"
+            echo "   re-run this workflow."
             exit 1
           fi
 
@@ -457,7 +470,7 @@ jobs:
 
           # The file existing is not the same as the values being usable.
           # `source` on a truncated or partially written file leaves either
-          # variable empty, `gh secret set` stores an empty secret happily
+          # variable empty, `repo-secret.sh` (gh or the forge API) stores an empty secret happily
           # whether the value arrives on stdin or via --body,
           # SAVE_FAILED stays 0, and the step reports success for a
           # credential nothing downstream can use. The export step already
@@ -480,28 +493,29 @@ jobs:
           # credential it never stored.
           SAVE_FAILED=0
           SAVE_ERROR=""
-          if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | gh secret set R2_ACCESS_KEY_ID 2>&1); then
+          if ! OUTPUT=$(printf '%s' "$R2_ACCESS_KEY_ID" | bash scripts/repo-secret.sh set R2_ACCESS_KEY_ID 2>&1); then
             SAVE_FAILED=1
             SAVE_ERROR="$OUTPUT"
           fi
           if [ "$SAVE_FAILED" -eq 0 ]; then
-            if ! OUTPUT=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | gh secret set R2_SECRET_ACCESS_KEY 2>&1); then
+            if ! OUTPUT=$(printf '%s' "$R2_SECRET_ACCESS_KEY" | bash scripts/repo-secret.sh set R2_SECRET_ACCESS_KEY 2>&1); then
               SAVE_FAILED=1
               SAVE_ERROR="$OUTPUT"
             fi
           fi
 
           if [ "$SAVE_FAILED" -ne 0 ]; then
-            echo "❌ Could not save the R2 credentials to GitHub Secrets."
+            echo "❌ Could not save the R2 credentials as repository secrets."
             echo ""
-            echo "   gh secret set reported:"
+            echo "   repo-secret.sh reported:"
             echo "     ${SAVE_ERROR:-(no output)}"
             echo ""
             echo "   The values are NOT printed here — this repository is"
             echo "   public and they grant read access to the OpenTofu state."
             echo ""
-            echo "   Most likely cause: GH_SECRETS_TOKEN lacks the"
-            echo "   'Secrets: Read and write' repository permission."
+            echo "   Most likely cause: GH_SECRETS_TOKEN cannot write this"
+            echo "   repository's secrets (GitHub: 'Secrets: Read and write';"
+            echo "   Forgejo: write:repository on a repo-admin account)."
             echo ""
             echo "   State right now: a live R2 token exists whose secret was"
             echo "   held only on this runner, so nothing can use it. The"
@@ -517,7 +531,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ New R2 credentials saved to GitHub Secrets"
+          echo "✅ New R2 credentials saved as repository secrets"
 
       - name: Export R2 credentials for spin-up workflow
         id: r2_credentials
@@ -561,7 +575,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           # After a destroy-all the R2 state bucket may have been deleted while
-          # credentials still exist in GitHub Secrets. Ensure the bucket is present
+          # credentials still exist as repository secrets. Ensure the bucket is present
           # before tofu init attempts to use it.
           BUCKET_NAME=$(echo "${{ secrets.DOMAIN }}" | tr '.' '-')-terraform-state
           R2_API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}"
@@ -980,15 +994,15 @@ jobs:
 
           # Save data bucket name as GitHub Secret
           if [ -n "$GH_TOKEN" ]; then
-            if gh secret set R2_DATA_BUCKET -b "$BUCKET_NAME"; then
-              echo "  ✅ R2_DATA_BUCKET saved to GitHub Secrets"
+            if printf '%s' "$BUCKET_NAME" | bash scripts/repo-secret.sh set R2_DATA_BUCKET; then
+              echo "  ✅ R2_DATA_BUCKET saved as a repository secret"
             else
               echo "  ⚠️  Failed to save R2_DATA_BUCKET (non-fatal)"
             fi
 
             # Clean up old separate data token secrets (migration from 2-token to 1-token)
-            gh secret delete R2_DATA_ACCESS_KEY_ID 2>/dev/null || true
-            gh secret delete R2_DATA_SECRET_ACCESS_KEY 2>/dev/null || true
+            bash scripts/repo-secret.sh delete R2_DATA_ACCESS_KEY_ID 2>/dev/null || true
+            bash scripts/repo-secret.sh delete R2_DATA_SECRET_ACCESS_KEY 2>/dev/null || true
           fi
 
           # RFC 0001 persistence bucket — idempotent create. Naming
