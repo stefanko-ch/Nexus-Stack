@@ -195,6 +195,11 @@ def test_standard_targets_returns_canonical_pair() -> None:
     # without persistence would discard every note + upload.
     assert pg_by_container["hedgedoc-db"].database == "hedgedoc"
     assert pg_by_container["hedgedoc-db"].user == "nexus-hedgedoc"
+    # The shared PostgreSQL stack — matches stacks/postgres/docker-compose.yml.
+    # The odd-looking pair is upstream's: POSTGRES_DB is `postgres` while
+    # POSTGRES_USER is `nexus-postgres`, per the naming convention.
+    assert pg_by_container["postgres"].database == "postgres"
+    assert pg_by_container["postgres"].user == "nexus-postgres"
 
     rsync_by_name = {r.name: r for r in rsync}
     # All seven rsync targets returned by standard_targets() — gitea x2

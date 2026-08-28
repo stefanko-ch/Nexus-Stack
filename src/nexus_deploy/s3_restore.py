@@ -354,6 +354,20 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
         # the server. A git forge that silently loses its repositories
         # on a scheduled teardown is not a git forge.
         _s3.PostgresDumpTarget(container="forgejo-db", database="forgejo", user="nexus-forgejo"),
+        # The shared PostgreSQL stack. Unlike every other entry here this
+        # one holds no service's own state -- it is the instance users
+        # reach directly, and the only Postgres on `app-network`: notebooks,
+        # Adminer, CloudBeaver, pgAdmin, Evidence and PostgREST all connect
+        # to it, and `nexus-postgres` owns it, so anything created there is
+        # a person's own work rather than an application's.
+        #
+        # That is exactly why it belongs in this list. The other twenty-one
+        # databases are recreated from their application's migrations on
+        # every spin-up; a table someone wrote by hand is not. Without this
+        # target, a scheduled teardown silently discarded it -- the failure
+        # mode being that nothing reports an error, the stack comes back,
+        # and the data is simply gone.
+        _s3.PostgresDumpTarget(container="postgres", database="postgres", user="nexus-postgres"),
     )
     rsync = (
         _s3.RsyncTarget(
