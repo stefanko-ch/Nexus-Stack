@@ -86,7 +86,16 @@ Two consequences worth knowing:
   `main`. It is therefore pinned by digest here, the same approach
   [Filestash](./filestash.md) uses.
 - The UI runs `react-scripts start` — a Create-React-App **development**
-  server, not a production build. That is what upstream's Dockerfile does.
+  server, not a production build. That is what upstream's Dockerfile does
+  (`FROM node:18`, `CMD ["yarn", "start"]`).
+
+  Two consequences worth knowing. It recompiles TypeScript and antd through
+  webpack on every container start, so the UI does not answer immediately
+  after a spin-up even when the container is running. And it needs real
+  memory to do that: the container is given **2g**, because at 512m the
+  compile never finishes and nothing binds :3000. That failure is
+  deceptive — the published port still accepts TCP, since docker-proxy
+  does, so the port looks alive while speaking no HTTP at all.
 
 The UI also has its proxy target compiled in at build time
 (`ARG PROXY_HOST=server` rewrites `package.json`), so it only ever looks

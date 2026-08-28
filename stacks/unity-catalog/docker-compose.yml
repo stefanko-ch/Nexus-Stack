@@ -31,9 +31,12 @@
 # part to rely on. Upstream publishes no versioned UI tag at all, only
 # rolling `main-*`, which is why it is pinned by digest here.
 #
-# The UI is also a Create-React-App DEV server (`react-scripts start` via
-# `bun run start` in its Dockerfile), not a production build. That is what
-# upstream ships.
+# The UI is also a Create-React-App DEV server, not a production build:
+# the image's own Dockerfile is `FROM node:18` with `CMD ["yarn", "start"]`,
+# and package.json maps `start` to `react-scripts start` (5.0.1). It
+# therefore recompiles TypeScript and antd through webpack on every
+# container start, which is why it is given 2g below and takes a while to
+# answer after a spin-up. That is what upstream ships.
 #
 # Auth: none in Unity Catalog — `server.authorization=disable` in
 # conf/server.properties. UC's own auth expects an external OIDC provider
@@ -139,7 +142,18 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          # 2g, not the 512m this started at. `yarn start` runs
+          # react-scripts 5.0.1 -- a webpack 5 DEV server that compiles
+          # TypeScript and antd on every container start, not a static
+          # bundle behind nginx. 512m is not enough for that compile, and
+          # the symptom is indirect: nothing ever binds :3000, the
+          # published port still accepts TCP because docker-proxy does,
+          # and probes report a port that listens but speaks no HTTP.
+          #
+          # This is the price of upstream shipping a dev server. Building
+          # a production bundle would mean maintaining our own Dockerfile
+          # for this image, which this stack deliberately does not do.
+          memory: 2g
     depends_on:
       unitycatalog:
         condition: service_healthy
