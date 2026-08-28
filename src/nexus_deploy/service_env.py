@@ -648,10 +648,10 @@ def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _empty(c.questdb_pg_password):
         raise ServiceEnvError(
             "QuestDB enabled but QUESTDB_PG_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate random_password.questdb_pg "
-            "and push it to Infisical, then re-run. Aborting rather than "
-            "starting the PostgreSQL-wire listener with an empty password.",
+            "run a spin-up, which generates random_password.questdb_pg in "
+            "tofu/stack and pushes it to Infisical, then re-run. Aborting "
+            "rather than starting the PostgreSQL-wire listener with an "
+            "empty password.",
         )
     return RenderedEnv(
         env_vars={
@@ -676,10 +676,9 @@ def _render_opensearch(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _empty(c.opensearch_admin_password):
         raise ServiceEnvError(
             "OpenSearch enabled but OPENSEARCH_ADMIN_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate "
-            "random_password.opensearch_admin and push it to Infisical, "
-            "then re-run. Aborting: the node refuses to start without "
+            "run a spin-up, which generates random_password.opensearch_admin "
+            "in tofu/stack and pushes it to Infisical, then re-run. Aborting: "
+            "the node refuses to start without "
             "OPENSEARCH_INITIAL_ADMIN_PASSWORD.",
         )
     return RenderedEnv(
@@ -707,19 +706,16 @@ def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _empty(c.marquez_db_password):
         raise ServiceEnvError(
             "Marquez enabled but MARQUEZ_DB_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate "
-            "random_password.marquez_db_password and push it to Infisical, "
-            "then re-run. Aborting to avoid a restart-looping Postgres "
-            "container with no auth.",
+            "run a spin-up, which generates random_password.marquez_db_password "
+            "in tofu/stack and pushes it to Infisical, then re-run. Aborting "
+            "to avoid a restart-looping Postgres container with no auth.",
         )
     if _empty(c.marquez_opensearch_password):
         raise ServiceEnvError(
             "Marquez enabled but MARQUEZ_OPENSEARCH_PASSWORD is empty — "
-            "run any `tofu apply` of tofu/stack (spin-up does one itself, "
-            "as does initial-setup) to generate "
-            "random_password.marquez_opensearch_admin and push it to "
-            "Infisical, then re-run. OpenSearch refuses to start without "
+            "run a spin-up, which generates "
+            "random_password.marquez_opensearch_admin in tofu/stack and pushes "
+            "it to Infisical, then re-run. OpenSearch refuses to start without "
             "OPENSEARCH_INITIAL_ADMIN_PASSWORD and Marquez then waits on a "
             "container that never becomes healthy.",
         )
