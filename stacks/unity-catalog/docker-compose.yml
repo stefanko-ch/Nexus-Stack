@@ -20,7 +20,8 @@
 #
 # Architecture:
 #   - unitycatalog:    the server, REST API on :8080. Metastore is an H2
-#                      file in the data volume — no Postgres needed.
+#                      file in the data volume, mounted at the path H2
+#                      already writes to — no Postgres needed.
 #   - unitycatalog-ui: React UI on :3000, the only published port.
 #
 # ⚠️ Version skew between the two images, and it is upstream's, not ours.
@@ -66,12 +67,22 @@ services:
     container_name: unity-catalog
     restart: unless-stopped
     volumes:
-      # Individual files rather than the whole conf directory: the image
-      # also carries log4j2 configs there, and mounting over the directory
-      # would hide them.
-      - ./conf/server.properties:/opt/unitycatalog/etc/conf/server.properties:ro
-      - ./conf/hibernate.properties:/opt/unitycatalog/etc/conf/hibernate.properties:ro
-      - unitycatalog-data:/opt/unitycatalog/etc/data
+      # Paths are /home/unitycatalog, NOT /opt. The image's Dockerfile sets
+      # ARG HOME="/home/unitycatalog", copies `bin/ etc/` there and makes it
+      # WORKDIR. An earlier version of this file mounted under /opt, so both
+      # config files landed somewhere the server never looks: they were
+      # silently ignored, and the volume below persisted an empty directory
+      # while H2 wrote into the image layer.
+      #
+      # A single file rather than the whole conf directory: the image also
+      # carries log4j2 configs there, and mounting over the directory would
+      # hide them.
+      - ./conf/server.properties:/home/unitycatalog/etc/conf/server.properties:ro
+      # Mounted where H2 already writes, rather than pointing H2 somewhere
+      # else. Upstream's hibernate.properties uses
+      # `jdbc:h2:file:./etc/db/h2db` relative to WORKDIR, so this volume IS
+      # the metastore — no config override to keep in sync with upstream.
+      - unitycatalog-data:/home/unitycatalog/etc/db
     deploy:
       resources:
         limits:
@@ -88,11 +99,18 @@ services:
           # answers to that alias as well.
           - server
     healthcheck:
-      # No dollar sign in the probe: an anchored regex would need one, and
-      # that stacks docker compose's `$$` escaping on top of how a given
-      # grep treats a non-final `$`. A 401 counts as healthy for the same
-      # reason it does elsewhere — the server answered.
-      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/2.1/unity-catalog/catalogs | grep -qxF -e 200 -e 401"]
+      # wget, not curl. The runtime stage of upstream's Dockerfile is bare
+      # `alpine:3.20` plus `apk add bash` and a copied JRE -- there is no
+      # curl in the image, so a curl probe exits 127 on every run. That is
+      # what kept this container permanently unhealthy: the UI waits on
+      # `condition: service_healthy` and never started, and the tunnel
+      # answered 502 for a stack whose server was fine.
+      #
+      # Busybox wget exits 0 only on a 2xx, which is the right assertion
+      # here: `server.authorization` defaults to `disable` and is set
+      # explicitly in conf/server.properties, so an authenticated 401 is
+      # not an expected state for this stack.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/api/2.1/unity-catalog/catalogs"]
       interval: 30s
       timeout: 10s
       retries: 5

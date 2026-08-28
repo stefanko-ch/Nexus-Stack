@@ -21,7 +21,7 @@ clients for Spark, Trino, DuckDB and Python.
 | Host port | `3211` → container `3000` |
 | API | `http://unitycatalog:8080` — internal only, on `app-network` |
 | Public | No — Cloudflare Access (email OTP) |
-| Metastore | H2 file in the `unitycatalog-data` volume — no PostgreSQL needed |
+| Metastore | H2 file in the `unitycatalog-data` volume, mounted at `/home/unitycatalog/etc/db` — no PostgreSQL needed |
 
 ### Containers
 
@@ -178,25 +178,47 @@ work without any of it.
 ## Debugging
 
 ```bash
-# Is the server answering? A 401 would also count as up.
-ssh nexus "docker exec unity-catalog curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/api/2.1/unity-catalog/catalogs"
+# Is the server answering? This is the healthcheck, run by hand.
+# Only -q and -O are used: busybox wget is not GNU wget and its flag set
+# is narrower. Exit 0 means a 2xx.
+ssh nexus "docker exec unity-catalog wget -q -O /dev/null http://localhost:8080/api/2.1/unity-catalog/catalogs && echo UP || echo DOWN"
 
 # What is registered?
-ssh nexus "docker exec unity-catalog curl -s http://localhost:8080/api/2.1/unity-catalog/catalogs"
+ssh nexus "docker exec unity-catalog wget -qO- http://localhost:8080/api/2.1/unity-catalog/catalogs"
 
 # Did the UI reach the server? It looks for the host `server`, via alias.
 ssh nexus "docker logs unity-catalog-ui 2>&1 | tail -30"
 
 # Is the metastore in the volume, where it survives a recreate?
-ssh nexus "docker exec unity-catalog ls -la /opt/unitycatalog/etc/data"
+ssh nexus "docker exec unity-catalog ls -la /home/unitycatalog/etc/db"
 ```
 
-That last one is worth knowing about. Upstream's `hibernate.properties`
-points H2 at `./etc/db/h2db`, a path **outside** the persisted volume — so
-every catalog registration would vanish on the next `--force-recreate`,
-which this project does on every spin-up. The shipped config points it into
-`/opt/unitycatalog/etc/data` instead. If you see an `h2db` file appear
-somewhere else after an image bump, that change was lost.
+Two things about this image are worth knowing before debugging it, because
+both produced a stack that looked broken from outside while the server
+itself was fine.
+
+**There is no `curl` in the image.** The runtime stage of upstream's
+Dockerfile is bare `alpine:3.20` plus `apk add bash` and a copied JRE. A
+`curl` probe exits 127 every time, so a curl-based healthcheck can never
+pass — and because the UI waits on `condition: service_healthy`, it never
+starts and the tunnel answers **502 Bad Gateway** for a stack whose API is
+running normally. Use `wget`, which busybox provides.
+
+**Paths are under `/home/unitycatalog`, not `/opt`.** The Dockerfile sets
+`ARG HOME="/home/unitycatalog"`, copies `bin/` and `etc/` there and makes
+it `WORKDIR`. Anything bind-mounted under `/opt/unitycatalog` is not an
+error — it simply lands where nothing reads it, so a config file mounted
+there is ignored in silence and a volume mounted there persists an empty
+directory.
+
+That second point is why this stack no longer overrides
+`hibernate.properties`. Upstream points H2 at `jdbc:h2:file:./etc/db/h2db`,
+relative to `WORKDIR`, so the metastore lives at
+`/home/unitycatalog/etc/db`. The volume is mounted there directly rather
+than redirecting H2 elsewhere — one less file to keep in sync with
+upstream, and it persists exactly what upstream writes. If an image bump
+ever moves that path, the symptom is catalog registrations disappearing on
+the next `--force-recreate`, which this project does on every spin-up.
 
 ## Related
 
