@@ -35,6 +35,8 @@ from typing import Any
 import pytest
 import yaml
 
+from nexus_deploy.compose_runner import _STACK_PARENTS
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STACKS_DIR = REPO_ROOT / "stacks"
 DOCS_DIR = REPO_ROOT / "docs" / "stacks"
@@ -489,6 +491,37 @@ def test_a_container_is_named_after_the_service(stack: str, services: dict[str, 
         f"stacks/{stack}/ has no container named '{stack}'. Found: {sorted(names)}. "
         f"compose_runner greps `docker ps` for the services.yaml key line-exact, "
         f"so this stack would report as failed on every deploy while running."
+    )
+
+
+@pytest.mark.parametrize("name", sorted(SHARED_DIRECTORY))
+def test_directory_sharing_services_are_declared_virtual(name: str) -> None:
+    """A service without its own directory must be expanded to a parent.
+
+    seaweedfs-filer and seaweedfs-manager are registered in services.yaml
+    but have no `stacks/<name>/` of their own, so they cannot be started
+    or looked up under their own name. `compose_runner` handles that by
+    mapping them to a parent in `_STACK_PARENTS`: the parent is what gets
+    started, and the parent's key is what goes into the `docker ps` check.
+
+    That mapping is the *only* reason those names are exempt from
+    `test_a_container_is_named_after_the_service`. Registering another
+    directory-sharing service without adding it there gives it neither a
+    compose file nor a parent, and the deploy fails on the file check with
+    "docker-compose.yml missing for <name>" — before the container-name
+    check it would otherwise fail. Asserting against the deploy's own
+    table rather than restating it keeps the two from drifting apart.
+    """
+    assert name in _STACK_PARENTS, (
+        f"'{name}' shares another stack's directory but is not in "
+        f"compose_runner._STACK_PARENTS, so the deploy would try to start "
+        f"stacks/{name}/docker-compose.yml, which does not exist."
+    )
+    parent = _STACK_PARENTS[name]
+    assert parent == SHARED_DIRECTORY[name], (
+        f"'{name}' is expanded to parent '{parent}' by the deploy but this "
+        f"test file records its directory as '{SHARED_DIRECTORY[name]}'. One "
+        f"of the two is wrong."
     )
 
 
