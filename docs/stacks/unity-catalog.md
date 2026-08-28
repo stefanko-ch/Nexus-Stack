@@ -81,13 +81,21 @@ alias; renaming it would break the UI silently.
 ## Credentials
 
 There are none. `server.authorization=disable` in
-`conf/server.properties`, so Cloudflare Access at the edge is the only
-authentication layer — the same model [Lakekeeper](./lakekeeper.md) and
-[Marquez](./marquez.md) use.
+`conf/server.properties`, because Unity Catalog's own authorization expects
+an external OIDC provider (Google, Okta or Keycloak) that this stack does
+not run. Same model as [Lakekeeper](./lakekeeper.md) and
+[Marquez](./marquez.md).
 
-Unity Catalog's own authorization expects an external OIDC provider
-(Google, Okta or Keycloak) that this stack does not run. Anyone who reaches
-the API has already passed Access.
+**Be precise about what Cloudflare Access protects here.** It gates the
+browser route to `unity-catalog.<your-domain>`. It does **not** gate the
+API: that sits on `app-network` with no published port, so every other
+container in the deployment can call `http://unitycatalog:8080` with no
+credentials and no Access session.
+
+That is deliberate — it is how Spark, Trino and the notebooks reach the
+catalog — but it means the real boundary is the Docker network rather than
+Access. Anything with a foothold inside the stack has full read and write
+on this catalog, including the ability to drop a table registration.
 
 ## Using it
 

@@ -35,9 +35,15 @@
 # upstream ships.
 #
 # Auth: none in Unity Catalog — `server.authorization=disable` in
-# conf/server.properties. Cloudflare Access at the edge is the gate, the
-# same model Lakekeeper and Marquez use. UC's own auth expects an external
-# OIDC provider this stack does not run.
+# conf/server.properties. UC's own auth expects an external OIDC provider
+# this stack does not run.
+#
+# Cloudflare Access gates the published UI route and nothing else. The API
+# is on app-network with no published port, so every other container can
+# call http://unitycatalog:8080 without credentials or an Access session —
+# deliberately, since that is how Spark and the notebooks reach it. The
+# boundary here is the Docker network, not Access. Same model as
+# Lakekeeper and Marquez, and the same caveat applies to all three.
 #
 # Reaching the API from inside the stack (Spark, Trino, notebooks):
 #   http://unitycatalog:8080/api/2.1/unity-catalog/catalogs
