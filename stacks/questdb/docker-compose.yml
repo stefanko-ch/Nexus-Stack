@@ -52,7 +52,13 @@ services:
       # to the internet, but it IS on app-network, where every other stack
       # can reach it.
       QDB_PG_USER: nexus-questdb
-      QDB_PG_PASSWORD: ${QUESTDB_PG_PASSWORD}
+      # `:?` rather than a bare reference: Compose substitutes an empty
+      # string for an unset variable, and QuestDB would then accept that
+      # empty string as the wire password. The renderer in service_env
+      # already aborts on an empty value, but only on the deploy path —
+      # this guard also covers a `docker compose up` run by hand on the
+      # server. Same form as grafana, infisical and hoppscotch.
+      QDB_PG_PASSWORD: ${QUESTDB_PG_PASSWORD:?must be set in .env (rendered by service_env._render_questdb)}
     ports:
       # Host 9013 → container 9000. MinIO already binds host 9000 for its
       # S3 API, so the console has to publish elsewhere; the container port

@@ -33,7 +33,9 @@
 # without credentials. Deliberate, since that is how the orchestrators
 # report, but the boundary is the Docker network rather than Access. Same
 # model and same caveat as Lakekeeper. The two generated secrets are the
-# Postgres password and the OpenSearch admin password; neither is a login.
+# Postgres password and the OpenSearch admin password; neither is a
+# *Marquez* credential — each authenticates one backing service, and the
+# OpenSearch one is that node's admin account.
 #
 # Sending lineage from inside the stack:
 #   Dagster    — OpenLineage is built in; point it at http://marquez:5000
