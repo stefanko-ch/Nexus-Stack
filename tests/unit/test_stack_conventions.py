@@ -212,6 +212,13 @@ KNOWN_UNREAD_IMAGE_VARS = {
 # store, which is why they were left — but unlike the primary-image
 # allow-list these were never a stated decision, so they are recorded as
 # debt rather than blessed.
+# Stacks with no container named exactly like their services.yaml key.
+# compose_runner verifies a stack started with
+# `docker ps --format '{{.Names}}' | grep -qFx -- "$svc"`, which is
+# fixed-string and line-exact, so a mismatch makes the stack report as
+# failed while running perfectly. Tracked in #726.
+KNOWN_CONTAINER_NAME_MISMATCH = {"woodpecker"}
+
 KNOWN_UNPINNED_SUPPORT_IMAGES = {
     ("dify", "dify-ssrf-proxy"),
     ("garage", "webui"),
@@ -248,9 +255,16 @@ def _is_floating(image: str) -> bool:
     """
     if "@" in image:  # digest-pinned
         return False
-    _, _, tag = image.rpartition(":")
-    if not tag or tag == image:  # no tag at all
-        return False
+
+    # No tag at all is NOT pinned: Docker resolves a bare reference as
+    # `:latest`, so `redis` and `redis:latest` pull the same moving image.
+    # Splitting on the last path segment avoids reading the colon in a
+    # registry host with a port (`registry:5000/img`) as a tag separator.
+    tail = image.rsplit("/", 1)[-1]
+    if ":" not in tail:
+        return True
+
+    tag = tail.rsplit(":", 1)[-1]
     return any(part in FLOATING_COMPONENTS for part in re.split(r"[-.]", tag))
 
 
@@ -395,13 +409,24 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
         pytest.skip(f"{stack} has no services.yaml entry")
 
     compose = (STACKS_DIR / stack / "docker-compose.yml").read_text()
-    entry = services[stack]
 
-    keys = [stack] if entry.get("image") else []
-    keys += list(entry.get("support_images") or {})
+    # Services that share this directory count too. seaweedfs-filer and
+    # seaweedfs-manager declare their own image, so the deploy emits
+    # IMAGE_SEAWEEDFS_FILER and IMAGE_SEAWEEDFS_MANAGER — but they have no
+    # directory of their own, so parametrising over directories alone would
+    # never reach them and their KNOWN_UNREAD_IMAGE_VARS entries would sit
+    # there unverified.
+    owners = [stack] + [n for n, shared in SHARED_DIRECTORY.items() if shared == stack]
 
-    for key in keys:
-        if key in COLLIDING_KEYS or (stack, key) in KNOWN_UNREAD_IMAGE_VARS:
+    keys: list[tuple[str, str]] = []
+    for owner in owners:
+        entry = services.get(owner, {})
+        if entry.get("image"):
+            keys.append((owner, owner))
+        keys += [(owner, k) for k in (entry.get("support_images") or {})]
+
+    for owner, key in keys:
+        if key in COLLIDING_KEYS or (owner, key) in KNOWN_UNREAD_IMAGE_VARS:
             continue  # tracked in #715
         var = _image_env_var(key)
 
@@ -420,6 +445,34 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
             f"stacks/{stack}/docker-compose.yml reads ${{{var}}} without a default. "
             f"Use ${{{var}:-<image>}} so the stack starts outside the deploy."
         )
+
+
+@pytest.mark.parametrize("stack", STACK_DIRS)
+def test_a_container_is_named_after_the_service(stack: str, services: dict[str, Any]) -> None:
+    """The deploy proves a stack started by looking for this exact name.
+
+    `compose_runner` collects the services.yaml key and checks it against
+    `docker ps --format '{{.Names}}'` with `grep -qFx` — fixed-string and
+    line-exact. A stack whose containers are all named something else
+    reports "compose up succeeded but container not in 'docker ps'" on
+    every deploy, while running perfectly. The failure is loud in the log
+    and completely misleading, which is why it needs a test rather than a
+    convention.
+    """
+    if stack in KNOWN_CONTAINER_NAME_MISMATCH:
+        pytest.skip(f"{stack} is a known mismatch, tracked in #726")
+
+    compose = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
+    names = {
+        svc.get("container_name")
+        for svc in (compose.get("services") or {}).values()
+        if svc.get("container_name")
+    }
+    assert stack in names, (
+        f"stacks/{stack}/ has no container named '{stack}'. Found: {sorted(names)}. "
+        f"compose_runner greps `docker ps` for the services.yaml key line-exact, "
+        f"so this stack would report as failed on every deploy while running."
+    )
 
 
 # ---------------------------------------------------------------------------
