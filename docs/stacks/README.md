@@ -22,7 +22,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Chroma | `chromadb/chroma` | `1.5.9` | Exact ¹ |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
-| code-server | `codercom/code-server` | `latest` | Latest ² |
+| code-server | `nexus-code-server` (custom build) | `latest` | Latest ² |
 | Crawl4AI | `unclecode/crawl4ai` | `0.8.6` | Exact ¹ |
 | CyberChef | `mpepping/cyberchef` | `v10.24.0` | Exact ¹ |
 | Dagster | dagster (custom build) | `1.12.21` | Exact ³ |

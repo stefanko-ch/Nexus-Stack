@@ -141,7 +141,14 @@ services:
     website: "https://coder.com"
     description: "VS Code in the browser for remote development."
     long_description: "Code Server runs VS Code on a remote server, accessible through your browser. Full VS Code experience including extensions, terminal, Git integration, and IntelliSense. Access your development environment from any device with a consistent setup."
-    image: "codercom/code-server:latest"
+    # The built image, not its base. `stacks/code-server/Dockerfile` starts
+    # FROM codercom/code-server:latest and adds the nexus-venv, so the
+    # container never runs the upstream image. Declaring the base would put
+    # a name into IMAGE_CODE_SERVER that Compose then tags the local build
+    # with — masquerading, and it made services.yaml describe an image that
+    # is never pulled. Matches dagster, dinky, flink, marimo, sling and
+    # spark, which all declare their `nexus-` build.
+    image: "nexus-code-server:latest"
 
   crawl4ai:
     subdomain: "crawl4ai"

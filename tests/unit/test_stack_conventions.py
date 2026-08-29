@@ -509,6 +509,46 @@ def test_every_image_variable_a_compose_reads_is_declared(
 
 
 @pytest.mark.parametrize("stack", STACK_DIRS)
+def test_compose_fallbacks_match_the_declared_version(stack: str, services: dict[str, Any]) -> None:
+    """The `:-default` must be the same image services.yaml declares.
+
+    The two checks above ask whether the variable is emitted and whether
+    the compose reads it. This asks whether the two agree on the value.
+
+    At deploy time the emitted variable wins, so a mismatch breaks
+    nothing — which is exactly why it survives. It shows up when the
+    variable is *not* set: a `docker compose up` run by hand on the server
+    while investigating one container, or a stack started outside the
+    pipeline. `mailpit` fell back to `:latest` while services.yaml pinned
+    `v1.28`, so a pin that reads as deliberate held on one code path only.
+
+    `code-server` was the sharper case. Its compose has `build: .` beside
+    the `image:` key, so Compose tags the local build with whatever that
+    resolves to — and services.yaml named the upstream base image, which
+    the container never runs.
+    """
+    compose = (STACKS_DIR / stack / "docker-compose.yml").read_text()
+
+    declared: dict[str, str] = {}
+    for name, entry in services.items():
+        if entry.get("image"):
+            declared["IMAGE_" + name.replace("-", "_").upper()] = str(entry["image"])
+        for key, value in (entry.get("support_images") or {}).items():
+            declared["IMAGE_" + key.replace("-", "_").upper()] = str(value)
+
+    for match in re.finditer(r"\$\{(IMAGE_[A-Z0-9_]+):-([^}]*)\}", compose):
+        var, fallback = match.group(1), match.group(2)
+        if var not in declared:
+            continue  # covered by test_every_image_variable_a_compose_reads_is_declared
+        assert fallback == declared[var], (
+            f"stacks/{stack}/docker-compose.yml falls back to {fallback!r} while "
+            f"services.yaml declares {declared[var]!r} for {var}. The deploy "
+            f"overrides it, so this only shows when the variable is unset — a "
+            f"hand-run `docker compose up` on the server gets the wrong image."
+        )
+
+
+@pytest.mark.parametrize("stack", STACK_DIRS)
 def test_a_container_is_named_after_the_service(stack: str, services: dict[str, Any]) -> None:
     """The deploy proves a stack started by looking for this exact name.
 
