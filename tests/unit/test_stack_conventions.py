@@ -184,18 +184,22 @@ KNOWN_UNREAD_IMAGE_VARS = {
     ("seaweedfs-manager", "seaweedfs-manager"),
 }
 
-# Stacks the compose-up verification never looks at, so the exact-name
-# rule cannot apply to them. Derived from the deploy's own table rather
-# than restated: `expand_targets` skips deferred services outright, so
-# they never enter NAMES and never reach the `docker ps` grep. Woodpecker
-# is deferred because it needs Forgejo OAuth credentials that only exist
-# after the bootstrap pipeline has run; `_phase_woodpecker_apply` starts
-# it later with a plain `docker compose up -d` and no name check.
+# Stacks the compose-up verification never looks at, so the exact-name rule
+# cannot apply to them. Named for what it is — an exemption from a check —
+# rather than for a defect: these stacks may well have a container named
+# something other than their key, and for them that is simply not a problem.
+#
+# Derived from the deploy's own table rather than restated. `expand_targets`
+# skips deferred services outright, so they never enter NAMES and never
+# reach the `docker ps` grep. Woodpecker is deferred because it needs
+# Forgejo OAuth credentials that exist only after the bootstrap pipeline
+# has run; `_phase_woodpecker_apply` starts it afterwards with a plain
+# `docker compose up -d` and no name check.
 #
 # Importing the set means the exemption disappears the moment a service
 # stops being deferred — which is exactly when the rule starts to matter
 # for it again.
-KNOWN_CONTAINER_NAME_MISMATCH = set(_DEFERRED_SERVICES)
+NAME_CHECK_EXEMPT = set(_DEFERRED_SERVICES)
 
 # support_images keys that shadow a service's own primary image. The
 # merge in tofu/stack/outputs.tf puts support_images LAST, and Terraform's
@@ -476,7 +480,7 @@ def test_a_container_is_named_after_the_service(stack: str, services: dict[str, 
     and completely misleading, which is why it needs a test rather than a
     convention.
     """
-    if stack in KNOWN_CONTAINER_NAME_MISMATCH:
+    if stack in NAME_CHECK_EXEMPT:
         pytest.skip(f"{stack} is deferred, so compose_runner never name-checks it")
 
     compose = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
