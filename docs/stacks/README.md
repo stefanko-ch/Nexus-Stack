@@ -89,7 +89,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Marimo | `nexus-marimo` (custom build) | `latest-sql-spark` | Latest ² |
 | Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
 | HedgeDoc | `quay.io/hedgedoc/hedgedoc` | `1.10.3` | Exact ¹ |
-| PostgreSQL (HedgeDoc DB) | `postgres` | `16-alpine` | Major |
+| PostgreSQL (HedgeDoc DB) | `postgres` | `18-alpine` | Major |
 | Planka | `ghcr.io/plankanban/planka` | `2.1.1` | Exact ¹ |
 | PostgreSQL (Planka DB) | `postgres` | `16-alpine` | Major |
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |

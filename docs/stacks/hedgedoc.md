@@ -18,7 +18,7 @@ HedgeDoc is a self-hosted collaborative Markdown editor. Real-time multi-user ed
 | Website | [hedgedoc.org](https://hedgedoc.org) |
 | Source | [GitHub](https://github.com/hedgedoc/hedgedoc) |
 | Docker image | [`quay.io/hedgedoc/hedgedoc`](https://quay.io/repository/hedgedoc/hedgedoc) |
-| Backing DB | Dedicated Postgres 16 (`hedgedoc-db` container, separate from any shared Postgres) |
+| Backing DB | Dedicated Postgres 18 (`hedgedoc-db` container, separate from any shared Postgres) |
 
 ### Usage
 
@@ -65,3 +65,42 @@ The uploads bind-mount path is mkdir+chowned to `10000:10000` (the in-container 
 - **"This site can't be reached"**: CF Access cookie expired — refresh, do OTP again
 - **Real-time sync stuck (cursors don't move for other users)**: HedgeDoc uses a WebSocket connection on `/socket.io/` for the live-cursor sync. Cloudflare Tunnel allows WebSockets by default for the ingress rules nexus-stack provisions in `tofu/stack/main.tf`. If sync breaks, check `docker logs hedgedoc | grep -i socket` on the server — it usually means the client browser failed the WS upgrade (network filter, ad-blocker). Plain document edits still save via HTTPS POST and are visible on page reload
 - **Image uploads fail**: check `docker logs hedgedoc | grep upload` — usually the `hedgedoc-uploads` volume is full (no resize logic; bump the host disk and restart the container)
+
+## PostgreSQL 18
+
+HedgeDoc's database runs `postgres:18-alpine`, matching what upstream ships
+in its own compose file — where the image line carries the comment
+`# You need to migrate the Database to the new PostgreSQL version`.
+
+**This is one of the six databases the S3 layer persists**, so unlike most
+stacks the data does survive a teardown. That path crosses majors cleanly:
+`pg_dump` produces a logical dump, and `pg_restore` loads it into the fresh
+18 cluster the next spin-up creates. No manual step.
+
+⚠️ **Under the `snapshot` lifecycle an existing data directory carries
+over physically — and the container will refuse to start, deliberately.**
+
+PostgreSQL 18's entrypoint scans for a cluster left in a pre-18 location and
+exits rather than ignoring it:
+
+```text
+Error: in 18+, these Docker images are configured to store database data in a
+       format which is compatible with "pg_ctlcluster" …
+       Counter to that, there appears to be PostgreSQL data in:
+         /var/lib/postgresql
+```
+
+That check runs only when `PGDATA` is left at its default, which is why this
+stack mounts at `/var/lib/postgresql` and sets no `PGDATA` — the layout
+docker-library/postgres recommends for 18+. Pointing `PGDATA` at a
+subdirectory of the old mount would also keep the data in the volume, but it
+silences the scan: the server would never look at the old cluster and would
+start an empty one instead. Loud beats quiet.
+
+The way out is a `pg_dump` from a container on the old major and a restore
+into the new one; [postgres.md](./postgres.md#version) has the detail.
+
+The volume is mounted at `/var/lib/postgresql`, one level above the pre-18
+location, and no `PGDATA` is set. PostgreSQL 18 moved the image default to
+`/var/lib/postgresql/18/docker`, so a mount at the old path would leave the
+cluster outside the volume entirely — see the comment in the compose file.
