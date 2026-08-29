@@ -11,7 +11,7 @@
 #   - lakekeeper-bootstrap: one-shot `migrate` job that initialises
 #     the Postgres schema on first start, then exits
 #   - lakekeeper:           long-running `serve` process on :8181
-#   - lakekeeper-db:        dedicated Postgres 16, NOT shared with
+#   - lakekeeper-db:        dedicated Postgres 17, NOT shared with
 #                           any other stack (per project convention
 #                           for stateful services)
 #
