@@ -18,7 +18,7 @@ Lakekeeper is an open-source implementation of the [Apache Iceberg REST Catalog 
 | Website | [lakekeeper.io](https://lakekeeper.io) |
 | Source | [GitHub](https://github.com/lakekeeper/lakekeeper) |
 | Docker image | [`quay.io/lakekeeper/catalog`](https://quay.io/repository/lakekeeper/catalog) |
-| Backing DB | Dedicated Postgres 16 (`lakekeeper-db` container, separate from any shared Postgres) |
+| Backing DB | Dedicated Postgres 17 (`lakekeeper-db` container, separate from any shared Postgres) |
 
 ### Why this matters for the existing stack
 

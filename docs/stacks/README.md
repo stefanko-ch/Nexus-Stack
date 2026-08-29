@@ -26,12 +26,14 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Crawl4AI | `unclecode/crawl4ai` | `0.8.6` | Exact ¹ |
 | CyberChef | `mpepping/cyberchef` | `v10.24.0` | Exact ¹ |
 | Dagster | dagster (custom build) | `1.12.21` | Exact ³ |
+| PostgreSQL (Dagster DB) | `postgres` | `16-alpine` | Major |
 | Debezium | `quay.io/debezium/connect` | `3.5.0` | Exact ¹ |
 | Dinky | `dinkydocker/dinky-standalone-server` | `1.2.5-flink1.20` | Exact ¹ |
 | Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `11.6` | Minor |
 | Hoppscotch | `hoppscotch/hoppscotch` | `2025.12.1` | Exact ¹ |
+| PostgreSQL (Hoppscotch DB) | `postgres` | `15-alpine` | Major |
 | Prometheus | `prom/prometheus` | `v3.9.1` | Exact ¹ |
 | Loki | `grafana/loki` | `3` | Major |
 | Promtail | `grafana/promtail` | `3` | Major |
@@ -49,6 +51,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Kestra | `kestra/kestra` | `v1.0` | Minor |
 | PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
+| PostgreSQL (Infisical DB) | `postgres` | `14-alpine` | Major |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
 | Mailpit | `axllent/mailpit` | `v1.28` | Minor |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
@@ -68,6 +71,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Gitea | `gitea/gitea` | `1.23` | Major |
 | PostgreSQL (Gitea DB) | `postgres` | `16-alpine` | Major |
 | LakeFS | `treeverse/lakefs` | `1.73.0` | Exact ¹ |
+| PostgreSQL (LakeFS DB) | `postgres` | `16-alpine` | Major |
 | Mage | `mageai/mageai` | `0.9.79` | Exact ¹ |
 | OpenSearch | `opensearchproject/opensearch` | `2.19.6` | Exact ¹ |
 | OpenSearch Dashboards | `opensearchproject/opensearch-dashboards` | `2.19.6` | Exact ¹ |
@@ -90,7 +94,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Planka DB) | `postgres` | `16-alpine` | Major |
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.12.2` | Exact ¹ |
-| PostgreSQL (Lakekeeper DB) | `postgres` | `16-alpine` | Major |
+| PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
@@ -119,9 +123,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | SFTPGo | `drakkan/sftpgo` | `v2.7.1` | Exact ¹ |
 | Sling | `nexus-sling` (custom build) | `1.5.13` | Exact ³ |
 | Soda Core | `soda-core` | `3.3.7` | Exact ³ |
+| PostgreSQL (Soda DB) | `postgres` | `16-alpine` | Major |
 | Spark Master | `nexus-spark` | `4.1.1-python3.13` | Exact ³ |
 | Spark Worker | `nexus-spark` | `4.1.1-python3.13` | Exact ³ |
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
+| PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |
 | Trino | `trinodb/trino` | `479` | Exact ¹ |
 | Unity Catalog | `unitycatalog/unitycatalog` | `v0.6.0` | Exact ¹ |
