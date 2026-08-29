@@ -558,6 +558,78 @@ def test_deferred_services_never_reach_the_name_check(name: str) -> None:
     )
 
 
+@pytest.mark.parametrize("stack", STACK_DIRS)
+def test_postgres_containers_keep_their_data_inside_the_volume(stack: str) -> None:
+    """A PostgreSQL container must write where its volume is mounted.
+
+    The image default moved in PostgreSQL 18, and the change is easy to
+    miss because nothing fails:
+
+        postgres:16-alpine   PGDATA=/var/lib/postgresql/data
+                             VOLUME=/var/lib/postgresql/data
+        postgres:18-alpine   PGDATA=/var/lib/postgresql/18/docker
+                             VOLUME=/var/lib/postgresql
+
+    Bump the tag while mounting at `/var/lib/postgresql/data` and the
+    server writes somewhere the volume does not cover. The cluster lands in
+    the container's writable layer, the container reports healthy, and
+    every `--force-recreate` -- which this project does on each spin-up --
+    discards it. An empty database is the only symptom.
+
+    So the check is on the EFFECTIVE path: an explicit PGDATA if the
+    service sets one, otherwise the default for that image's major. A
+    stack on 16 mounting /var/lib/postgresql/data is correct and stays
+    correct; the same mount on 18 is not.
+
+    Relevant to #733: every remaining stage walks into this.
+    """
+    compose = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
+    for name, svc in (compose.get("services") or {}).items():
+        image = str(svc.get("image", ""))
+        if "postgres" not in image or "postgrest" in image or "ducklake" in image:
+            continue
+
+        mounts = [
+            str(v).rsplit(":", 1)[-1] if ":" in str(v) else str(v)
+            for v in (svc.get("volumes") or [])
+        ]
+        pg_mounts = [m for m in mounts if m.startswith("/var/lib/postgresql")]
+        if not pg_mounts:
+            continue  # no persistence declared at all; not this check's business
+
+        env = svc.get("environment") or {}
+        if isinstance(env, dict):
+            pgdata = env.get("PGDATA")
+        else:
+            pgdata = next(
+                (str(e).split("=", 1)[1] for e in env if str(e).startswith("PGDATA=")), None
+            )
+
+        if pgdata is None:
+            major_match = re.search(r"postgres:(\d+)", image)
+            assert major_match, (
+                f"{stack}/{name} sets no PGDATA and its image {image!r} carries "
+                f"no readable major, so the effective data directory cannot be "
+                f"determined. Set PGDATA explicitly."
+            )
+            major = int(major_match.group(1))
+            pgdata = (
+                "/var/lib/postgresql/data" if major < 18 else f"/var/lib/postgresql/{major}/docker"
+            )
+
+        inside = any(
+            str(pgdata) == m or str(pgdata).startswith(m.rstrip("/") + "/") for m in pg_mounts
+        )
+        assert inside, (
+            f"{stack}/{name} writes to {pgdata}, which is outside its mounts "
+            f"{pg_mounts}. PostgreSQL 18 moved the image default to "
+            f"/var/lib/postgresql/<major>/docker; set PGDATA explicitly to a "
+            f"path inside the mount, as stacks/postgres does. Otherwise the "
+            f"data lives in the container's writable layer and is discarded "
+            f"on the next --force-recreate, with no error."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Repo-wide checks
 # ---------------------------------------------------------------------------

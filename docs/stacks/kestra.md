@@ -39,3 +39,11 @@ The stack includes:
 | **Cloudflare Access** (edge) | Email OTP. No unauthenticated request ever reaches the container. Audit log of who authenticated lives in the CF dashboard. |
 | **Kestra Basic-Auth** | **Disabled** by default — see `stacks/kestra/docker-compose.yml` for the rationale comment. Re-enable only if you want the single shared `KESTRA_ADMIN_USER` name to appear in Kestra's audit log (instead of `anon/system`), or once you've moved to Kestra Enterprise with SSO/OIDC. Basic-Auth in OSS Kestra is a single shared admin — **it does NOT give per-user attribution**; every student would log in as the same admin. Real per-user attribution requires EE + SSO. |
 | **Kestra namespaces** | Flow-level access boundaries (`my-flows.*`, `nexus-tutorials.*`). Independent of who's logged in — used for organizing flows, not gating them. |
+
+## PostgreSQL 18
+
+Kestra's database runs `postgres:18-alpine`, matching what upstream ships in its own compose file.
+
+Under the default `rebuild` lifecycle this needs no action: the database is not in the S3 persistence set, so it is recreated from Kestra's own migrations on every spin-up.
+
+⚠️ **Under the `snapshot` lifecycle the data directory carries over physically**, and PostgreSQL refuses to start against one written by an earlier major. The exact error and the two ways out — dump/restore, or discarding the volume — are in [postgres.md](./postgres.md#version).

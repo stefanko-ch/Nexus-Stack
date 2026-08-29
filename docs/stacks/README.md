@@ -6,7 +6,9 @@ This document provides an overview of all available Docker stacks in Nexus-Stack
 
 **No stack that holds persistent state is left on `:latest`.** A tag that moved between two spin-ups would meet data written by the previous one, so `latest` is reserved for presentation-layer and dev tools that keep nothing beyond a cache, and for viewers over somebody else's state such as Kafka-UI and S3 Manager.
 
-How tightly a stateful stack is pinned below that depends on what upstream's tags actually promise. A PostgreSQL major is an on-disk-format boundary, so `16-alpine` is a safe pin that still collects security patches. An application whose tags carry no such guarantee gets an exact version, or a digest where upstream publishes no version tags at all.
+How tightly a stateful stack is pinned below that depends on what upstream's tags actually promise. A PostgreSQL major is an on-disk-format boundary, so a major-only pin like `18-alpine` is safe and still collects security patches.
+
+> ⚠️ **Moving a PostgreSQL stack to 18 or later is not just a tag change.** The official image moved its data directory: `postgres:17-alpine` and older default to `PGDATA=/var/lib/postgresql/data`, while `postgres:18-alpine` defaults to `/var/lib/postgresql/18/docker` and declares its volume one level up. A stack that mounts `/var/lib/postgresql/data` and relies on the default therefore writes outside its own volume after the bump — the container comes up healthy and empty, and every `--force-recreate` discards the cluster. Set `PGDATA` explicitly to a path inside the mount, as `stacks/postgres` does; `tests/unit/test_stack_conventions.py` enforces it. An application whose tags carry no such guarantee gets an exact version, or a digest where upstream publishes no version tags at all.
 
 Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) and Prefect (`3-latest`) — because upstream publishes nothing narrower. They are marked in the table rather than hidden. `services.yaml` is the source of truth for every value below; where this table and that file disagree, the file is right.
 

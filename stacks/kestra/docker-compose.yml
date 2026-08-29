@@ -118,6 +118,19 @@ services:
       POSTGRES_DB: kestra
       POSTGRES_USER: nexus-kestra
       POSTGRES_PASSWORD: ${KESTRA_DB_PASSWORD}
+      # PGDATA inside the mounted volume, explicitly. The image default
+      # moved in PostgreSQL 18: `postgres:16-alpine` ships
+      # PGDATA=/var/lib/postgresql/data with VOLUME on that same path, while
+      # `postgres:18-alpine` ships PGDATA=/var/lib/postgresql/18/docker with
+      # VOLUME on /var/lib/postgresql. Bumping the tag without this line
+      # leaves the mount pointing at a directory the server no longer writes
+      # to, so the cluster lands in the container's writable layer and every
+      # --force-recreate discards it -- silently, because the container comes
+      # up healthy and empty.
+      #
+      # Setting it explicitly makes the stack independent of that default,
+      # and matches what stacks/postgres has always done.
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - kestra-postgres-data:/var/lib/postgresql/data
     healthcheck:

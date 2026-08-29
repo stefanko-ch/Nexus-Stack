@@ -45,3 +45,11 @@ Windmill is a developer platform that turns scripts into production-grade workfl
 
 **Internal connection (from other services):**
 - PostgreSQL: `windmill-db:5432` (user: `nexus-windmill`, database: `windmill`)
+
+## PostgreSQL 18
+
+Windmill's database runs `postgres:18-alpine`, matching what upstream ships in its own compose file.
+
+Under the default `rebuild` lifecycle this needs no action: the database is not in the S3 persistence set, so it is recreated from Windmill's own migrations on every spin-up.
+
+⚠️ **Under the `snapshot` lifecycle the data directory carries over physically**, and PostgreSQL refuses to start against one written by an earlier major. The exact error and the two ways out — dump/restore, or discarding the volume — are in [postgres.md](./postgres.md#version).
