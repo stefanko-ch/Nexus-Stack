@@ -150,16 +150,21 @@ ROLLING_ALLOWED = {
 
 # Image keys whose IMAGE_* variable no compose file reads, so a version bump
 # in services.yaml never reaches the container. Same defect as #715 and
-# tracked there, but a wider set than the shared `postgres` key, with three
-# distinct causes:
+# tracked there, but a wider set than the shared `postgres` key. Two causes
+# remain, the third having been cleared:
 #
 #   - reversed naming: the compose reads ${CLOUDBEAVER_IMAGE} while the
 #     deploy emits IMAGE_CLOUDBEAVER (cloudbeaver, redpanda,
 #     redpanda-console)
-#   - a differently-named variable: woodpecker's compose reads
-#     IMAGE_WOODPECKER_SERVER, the services.yaml key is `woodpecker`
 #   - support images the compose simply hardcodes (flink-taskmanager,
-#     ingestion, elasticsearch, wikijs-postgres, lsp)
+#     wikijs-postgres)
+#
+# The third cause -- a compose reading a variable name the deploy never
+# emits -- is gone. A sweep of every ${IMAGE_*} reference against
+# services.yaml found five: woodpecker, planka, ollama and openmetadata
+# twice. All are fixed, and the sweep now returns nothing, so a new one
+# would show up as a missing entry here rather than as a version that
+# quietly fails to apply.
 #
 # Two of these have already diverged in practice, which is what the defect
 # looks like when it bites: services.yaml says redpanda v24.3 and
@@ -170,12 +175,9 @@ ROLLING_ALLOWED = {
 KNOWN_UNREAD_IMAGE_VARS = {
     ("cloudbeaver", "cloudbeaver"),
     ("flink", "flink-taskmanager"),
-    ("openmetadata", "ingestion"),
-    ("openmetadata", "elasticsearch"),
     ("redpanda", "redpanda"),
     ("redpanda-console", "redpanda-console"),
     ("wikijs", "wikijs-postgres"),
-    ("woodpecker", "woodpecker"),
     # Both declare their own image in services.yaml, so the deploy emits
     # IMAGE_SEAWEEDFS_FILER and IMAGE_SEAWEEDFS_MANAGER — but the shared
     # stacks/seaweedfs/docker-compose.yml reads only ${IMAGE_SEAWEEDFS}.
@@ -200,22 +202,18 @@ KNOWN_UNREAD_IMAGE_VARS = {
 # for it again.
 NAME_CHECK_EXEMPT = set(_DEFERRED_SERVICES)
 
-# support_images keys that shadow a service's own primary image. The
-# merge in tofu/stack/outputs.tf puts support_images LAST, and Terraform's
-# merge() lets the later argument win, so such a key does not merely
-# collide — it overrides the service's own image in IMAGE_*.
+# support_images keys that shadow a service's own primary image. The merge
+# in tofu/stack/outputs.tf puts support_images LAST, and Terraform's merge()
+# lets the later argument win, so such a key does not merely collide -- it
+# overrides the service's own image in IMAGE_*.
 #
-# `postgres` was the second entry here and is fixed by #715: nineteen
-# stacks claimed it, the lexically last (windmill) won, and the shared
-# database stack therefore ran postgres:16-alpine while its own
-# declaration said 17-alpine.
-#
-# `ollama` remains, and is benign only by accident: the overriding value
-# (ollama/ollama:0.15.1) happens to be exactly what that container wants.
-# The ollama service's own image names open-webui, whose IMAGE_OPEN_WEBUI
-# is never emitted at all, so that container falls back to its compose
-# default. Fixing it means splitting the two into separate keys.
-KNOWN_PRIMARY_IMAGE_SHADOWING = {"ollama"}
+# Empty. `postgres` was fixed by #715; `ollama` was the last one and is
+# fixed by giving that stack the primary image its own name implies. The
+# services.yaml entry declared open-webui as the `ollama` service's image
+# while a support key `ollama` carried the actual Ollama server, so
+# IMAGE_OLLAMA resolved to the support value -- correct by accident, and
+# IMAGE_OPEN_WEBUI was never emitted at all.
+KNOWN_PRIMARY_IMAGE_SHADOWING: set[str] = set()
 
 # Support images still on :latest. Each is a UI or sidecar rather than a
 # store, which is why they were left — but unlike the primary-image

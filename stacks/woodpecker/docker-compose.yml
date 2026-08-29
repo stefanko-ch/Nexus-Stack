@@ -14,7 +14,7 @@
 
 services:
   woodpecker-server:
-    image: ${IMAGE_WOODPECKER_SERVER:-woodpeckerci/woodpecker-server:v3.13.0}
+    image: ${IMAGE_WOODPECKER:-woodpeckerci/woodpecker-server:v3.13.0}
     container_name: woodpecker-server
     restart: unless-stopped
     environment:
