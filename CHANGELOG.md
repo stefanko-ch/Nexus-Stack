@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.73.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.72.0...v0.73.0) (2026-08-29)
+
+
+### 🚀 Features
+
+* **ci:** Add actionlint as a pre-commit hook ([#723](https://github.com/stefanko-ch/Nexus-Stack/issues/723)) ([4f7a62e](https://github.com/stefanko-ch/Nexus-Stack/commit/4f7a62efcd09805863466ad367ecdcf94808fd6c))
+* **stacks:** Add Unity Catalog and QuestDB ([#713](https://github.com/stefanko-ch/Nexus-Stack/issues/713)) ([e5d3c7a](https://github.com/stefanko-ch/Nexus-Stack/commit/e5d3c7a0b56b5cf87d7f7a7d9db549313cc8da01))
+* **tests:** Add convention tests parametrised over every stack ([#724](https://github.com/stefanko-ch/Nexus-Stack/issues/724)) ([17ed123](https://github.com/stefanko-ch/Nexus-Stack/commit/17ed123ed23b865925e7695c5952915086bfbad0))
+
+
+### 🐛 Bug Fixes
+
+* **control-plane:** Show the next teardown on the right day ([#714](https://github.com/stefanko-ch/Nexus-Stack/issues/714)) ([c57e382](https://github.com/stefanko-ch/Nexus-Stack/commit/c57e382aea202ea07bbebe356561d82832ec3f85))
+* **deploy:** Give every database support image its own IMAGE_ variable ([#730](https://github.com/stefanko-ch/Nexus-Stack/issues/730)) ([23baf00](https://github.com/stefanko-ch/Nexus-Stack/commit/23baf00644211b00406232f8a4e9e4b0b5aeb1fc))
+* **deploy:** Persist the shared PostgreSQL database across teardown ([#732](https://github.com/stefanko-ch/Nexus-Stack/issues/732)) ([9953935](https://github.com/stefanko-ch/Nexus-Stack/commit/9953935876ec80e895c8c2ce2a21f27af30474c3))
+
 ## [0.72.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.71.0...v0.72.0) (2026-08-27)
 
 
