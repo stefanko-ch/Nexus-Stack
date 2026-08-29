@@ -35,7 +35,7 @@ Windmill is a developer platform that turns scripts into production-grade workfl
 | `windmill-worker` | `ghcr.io/windmill-labs/windmill:1.624.0` | Default job executor |
 | `windmill-worker-native` | `ghcr.io/windmill-labs/windmill:1.624.0` | Native lightweight workers (8 workers) |
 | `windmill-lsp` | `ghcr.io/windmill-labs/windmill-lsp:latest` | LSP code intelligence for editor |
-| `windmill-db` | `postgres:16-alpine` | Dedicated PostgreSQL database |
+| `windmill-db` | `postgres:18-alpine` | Dedicated PostgreSQL database |
 
 **Credentials:**
 - Email: Your configured admin email (`$ADMIN_EMAIL`)

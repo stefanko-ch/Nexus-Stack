@@ -45,6 +45,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Kafdrop | `obsidiandynamics/kafdrop` | `4.2.0` | Exact ¹ |
 | Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
 | Kestra | `kestra/kestra` | `v1.0` | Minor |
+| PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
 | Mailpit | `axllent/mailpit` | `v1.28` | Minor |
@@ -92,7 +93,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
-| PostgreSQL (Standalone) | `postgres` | `17-alpine` | Major |
+| PostgreSQL (Standalone) | `postgres` | `18-alpine` | Major |
 | pg_ducklake | `pgducklake/pgducklake` | `18-main` | Rolling ⚠️ |
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
 | Prefect | `prefecthq/prefect` | `3-latest` | Rolling ⚠️ |
@@ -130,7 +131,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Woodpecker Agent | `woodpeckerci/woodpecker-agent` | `v3.13.0` | Exact ¹ |
 | Windmill | `ghcr.io/windmill-labs/windmill` | `1.624.0` | Exact ¹ |
 | Windmill LSP | `ghcr.io/windmill-labs/windmill-lsp` | `latest` | Latest ² |
-| PostgreSQL (Windmill DB) | `postgres` | `16-alpine` | Major |
+| PostgreSQL (Windmill DB) | `postgres` | `18-alpine` | Major |
 
 ¹ No major version tags available, requires manual updates.
 ² Allow-listed for `latest`: presentation-layer and dev tools that keep nothing beyond a cache, plus viewers over another system's state such as Kafka-UI and S3 Manager. The reason is what the image holds, not what upstream tags — several of these do publish versions, and pinning them would still buy nothing a re-pull cannot undo.
