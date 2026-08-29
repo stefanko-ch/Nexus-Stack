@@ -78,19 +78,29 @@ stacks the data does survive a teardown. That path crosses majors cleanly:
 18 cluster the next spin-up creates. No manual step.
 
 ⚠️ **Under the `snapshot` lifecycle an existing data directory carries
-over physically, and the outcome is quieter than it looks.** This bump
-introduced an explicit `PGDATA` at the same time, which relocates the data
-directory. PostgreSQL 18 therefore does **not** find the old cluster and does
-**not** refuse to start: it initialises a fresh, empty one at the new path and
-comes up healthy, leaving the previous cluster in the volume untouched and
-unused.
+over physically — and the container will refuse to start, deliberately.**
 
-That is *not* the classic `database files are incompatible with server`
-refusal described in [postgres.md](./postgres.md#version) — that one only
-happens when the path is unchanged across the bump. Here it cannot, because
-the path is part of what changed. [#734](https://github.com/stefanko-ch/Nexus-Stack/issues/734)
-proposes the preflight that would make this loud.
+PostgreSQL 18's entrypoint scans for a cluster left in a pre-18 location and
+exits rather than ignoring it:
 
-The container also sets `PGDATA` explicitly. PostgreSQL 18 moved the image
-default to `/var/lib/postgresql/18/docker`, outside the mounted volume — see
-the comment in the compose file for what that would otherwise cost.
+```text
+Error: in 18+, these Docker images are configured to store database data in a
+       format which is compatible with "pg_ctlcluster" …
+       Counter to that, there appears to be PostgreSQL data in:
+         /var/lib/postgresql
+```
+
+That check runs only when `PGDATA` is left at its default, which is why this
+stack mounts at `/var/lib/postgresql` and sets no `PGDATA` — the layout
+docker-library/postgres recommends for 18+. Pointing `PGDATA` at a
+subdirectory of the old mount would also keep the data in the volume, but it
+silences the scan: the server would never look at the old cluster and would
+start an empty one instead. Loud beats quiet.
+
+The way out is a `pg_dump` from a container on the old major and a restore
+into the new one; [postgres.md](./postgres.md#version) has the detail.
+
+The volume is mounted at `/var/lib/postgresql`, one level above the pre-18
+location, and no `PGDATA` is set. PostgreSQL 18 moved the image default to
+`/var/lib/postgresql/18/docker`, so a mount at the old path would leave the
+cluster outside the volume entirely — see the comment in the compose file.

@@ -58,19 +58,23 @@ Two ways out, both deliberate rather than automatic:
   start 18, restore. The only option that keeps the data.
 - **Start fresh** — remove the volume if the contents are disposable.
 
-That refusal depends on one thing worth stating, because it does not hold
-everywhere: **the data directory must be at the same path before and after
-the bump.** This stack has always set
-`PGDATA=/var/lib/postgresql/data/pgdata` explicitly, so the old cluster and
-the new server look at the same place and the mismatch is caught.
+That refusal is not automatic — it depends on where the cluster sits.
+This stack has always set `PGDATA=/var/lib/postgresql/data/pgdata`
+explicitly, so the old cluster and the new server look at the same place and
+the mismatch is caught.
 
-A stack that gains an explicit `PGDATA` *as part of* moving to 18 — which is
-required there, since the image default moved outside the mount — relocates
-the directory in the same step. The new server never sees the old cluster,
-so it does not refuse: it initialises an empty one and comes up healthy,
-with the previous data sitting unused beside it. Quieter, and worse.
-[#734](https://github.com/stefanko-ch/Nexus-Stack/issues/734) proposes the
-preflight that would catch that case too.
+The stacks that moved to 18 later use the other safe layout, which
+docker-library/postgres recommends for 18+: mount at `/var/lib/postgresql`
+and leave `PGDATA` at its default. That earns a second check — the 18
+entrypoint scans `/var/lib/postgresql`, `/var/lib/postgresql/data` and
+`/var/lib/postgresql/*/docker` for a stray `PG_VERSION` and `exit 1`s with an
+explanation if it finds one, but **only when `PGDATA` is the default**.
+
+The layout to avoid is the one in between: an explicit `PGDATA` pointing at a
+subdirectory of the old mount. It keeps the data in the volume, but the
+relocation means the server never sees the old cluster *and* the entrypoint
+scan is skipped, so it starts empty and healthy with the previous data
+sitting unused beside it. Quieter, and worse.
 
 Stacks that bring their own database are unaffected: each now has its own
 `IMAGE_*` variable, derived from its `support_images` key, and keeps the

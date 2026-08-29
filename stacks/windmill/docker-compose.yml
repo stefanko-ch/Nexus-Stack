@@ -120,21 +120,23 @@ services:
       POSTGRES_DB: windmill
       POSTGRES_USER: nexus-windmill
       POSTGRES_PASSWORD: ${WINDMILL_DB_PASSWORD}
-      # PGDATA inside the mounted volume, explicitly. The image default
-      # moved in PostgreSQL 18: `postgres:16-alpine` ships
-      # PGDATA=/var/lib/postgresql/data with VOLUME on that same path, while
-      # `postgres:18-alpine` ships PGDATA=/var/lib/postgresql/18/docker with
-      # VOLUME on /var/lib/postgresql. Bumping the tag without this line
-      # leaves the mount pointing at a directory the server no longer writes
-      # to, so the cluster lands in the container's writable layer and every
-      # --force-recreate discards it -- silently, because the container comes
-      # up healthy and empty.
+      # No explicit PGDATA, and the mount is one level up from the
+      # pre-18 location. This is what docker-library/postgres recommends
+      # for 18+, and it buys something an explicit PGDATA does not.
       #
-      # Setting it explicitly makes the stack independent of that default,
-      # and matches what stacks/postgres has always done.
-      PGDATA: /var/lib/postgresql/data/pgdata
+      # The 18 entrypoint scans for a legacy cluster ONLY when PGDATA is
+      # its default (`docker-entrypoint.sh`: `elif [ "$$PGDATA" =
+      # "/var/lib/postgresql/$$PG_MAJOR/docker" ]`). It then looks for
+      # PG_VERSION in /var/lib/postgresql, /var/lib/postgresql/data and
+      # /var/lib/postgresql/*/docker, and `exit 1`s with an explanation
+      # if it finds one.
+      #
+      # Setting PGDATA to a subdirectory of the old mount also keeps the
+      # data inside the volume, but silences that check: the server never
+      # looks at the old cluster and simply starts an empty one. Loud
+      # beats quiet, so the mount moves instead.
     volumes:
-      - windmill-postgres-data:/var/lib/postgresql/data
+      - windmill-postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nexus-windmill -d windmill"]
       interval: 10s

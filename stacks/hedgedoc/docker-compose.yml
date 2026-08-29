@@ -92,15 +92,21 @@ services:
       POSTGRES_USER: nexus-hedgedoc
       POSTGRES_PASSWORD: ${HEDGEDOC_DB_PASSWORD}
       POSTGRES_DB: hedgedoc
-      # PGDATA inside the mounted volume, explicitly. PostgreSQL 18
-      # moved the image default: 16-alpine ships
-      # PGDATA=/var/lib/postgresql/data with VOLUME on the same path,
-      # 18-alpine ships PGDATA=/var/lib/postgresql/18/docker with VOLUME
-      # one level up. Without this line the cluster would land in the
-      # container's writable layer -- healthy, empty, and discarded on the
-      # next --force-recreate. Same reasoning as kestra and windmill (#737),
-      # and what stacks/postgres has always done.
-      PGDATA: /var/lib/postgresql/data/pgdata
+      # No explicit PGDATA, and the mount is one level up from the
+      # pre-18 location. This is what docker-library/postgres recommends
+      # for 18+, and it buys something an explicit PGDATA does not.
+      #
+      # The 18 entrypoint scans for a legacy cluster ONLY when PGDATA is
+      # its default (`docker-entrypoint.sh`: `elif [ "$$PGDATA" =
+      # "/var/lib/postgresql/$$PG_MAJOR/docker" ]`). It then looks for
+      # PG_VERSION in /var/lib/postgresql, /var/lib/postgresql/data and
+      # /var/lib/postgresql/*/docker, and `exit 1`s with an explanation
+      # if it finds one.
+      #
+      # Setting PGDATA to a subdirectory of the old mount also keeps the
+      # data inside the volume, but silences that check: the server never
+      # looks at the old cluster and simply starts an empty one. Loud
+      # beats quiet, so the mount moves instead.
     deploy:
       resources:
         limits:
@@ -110,7 +116,7 @@ services:
           # all. The fleet-wide gap is #741.
           memory: 512m
     volumes:
-      - hedgedoc-db-data:/var/lib/postgresql/data
+      - hedgedoc-db-data:/var/lib/postgresql
     networks:
       - hedgedoc-internal
     healthcheck:

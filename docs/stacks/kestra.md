@@ -47,15 +47,24 @@ Kestra's database runs `postgres:18-alpine`, matching what upstream ships in its
 Under the default `rebuild` lifecycle this needs no action: the database is not in the S3 persistence set, so it is recreated from Kestra's own migrations on every spin-up.
 
 ⚠️ **Under the `snapshot` lifecycle an existing data directory carries
-over physically, and the outcome is quieter than it looks.** This bump
-introduced an explicit `PGDATA` at the same time, which relocates the data
-directory. PostgreSQL 18 therefore does **not** find the old cluster and does
-**not** refuse to start: it initialises a fresh, empty one at the new path and
-comes up healthy, leaving the previous cluster in the volume untouched and
-unused.
+over physically — and the container will refuse to start, deliberately.**
 
-That is *not* the classic `database files are incompatible with server`
-refusal described in [postgres.md](./postgres.md#version) — that one only
-happens when the path is unchanged across the bump. Here it cannot, because
-the path is part of what changed. [#734](https://github.com/stefanko-ch/Nexus-Stack/issues/734)
-proposes the preflight that would make this loud.
+PostgreSQL 18's entrypoint scans for a cluster left in a pre-18 location and
+exits rather than ignoring it:
+
+```text
+Error: in 18+, these Docker images are configured to store database data in a
+       format which is compatible with "pg_ctlcluster" …
+       Counter to that, there appears to be PostgreSQL data in:
+         /var/lib/postgresql
+```
+
+That check runs only when `PGDATA` is left at its default, which is why this
+stack mounts at `/var/lib/postgresql` and sets no `PGDATA` — the layout
+docker-library/postgres recommends for 18+. Pointing `PGDATA` at a
+subdirectory of the old mount would also keep the data in the volume, but it
+silences the scan: the server would never look at the old cluster and would
+start an empty one instead. Loud beats quiet.
+
+The way out is a `pg_dump` from a container on the old major and a restore
+into the new one; [postgres.md](./postgres.md#version) has the detail.
