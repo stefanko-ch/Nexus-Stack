@@ -14,6 +14,8 @@ Covers, per stack directory under ``stacks/``:
 - ``public: true`` only where deliberately public
 - ``tcp_ports`` only where an external TCP client genuinely needs it
 - a service with no authentication of its own never has ``tcp_ports``
+- every ``${IMAGE_*}`` the compose reads is one the deploy actually emits
+- a PostgreSQL container writes where its volume is mounted
 
 Plus two repo-wide checks that are not per-stack:
 
@@ -162,9 +164,10 @@ ROLLING_ALLOWED = {
 # The third cause -- a compose reading a variable name the deploy never
 # emits -- is gone. A sweep of every ${IMAGE_*} reference against
 # services.yaml found five: woodpecker, planka, ollama and openmetadata
-# twice. All are fixed, and the sweep now returns nothing, so a new one
-# would show up as a missing entry here rather than as a version that
-# quietly fails to apply.
+# twice, all fixed in #738. That direction is now covered by
+# test_every_image_variable_a_compose_reads_is_declared rather than by a
+# sweep run once by hand, so a new case fails the suite instead of
+# quietly using its fallback.
 #
 # Two of these have already diverged in practice, which is what the defect
 # looks like when it bites: services.yaml says redpanda v24.3 and
@@ -462,6 +465,46 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
         assert f"${{{var}:-" in images, (
             f"stacks/{stack}/docker-compose.yml reads ${{{var}}} without a default. "
             f"Use ${{{var}:-<image>}} so the stack starts outside the deploy."
+        )
+
+
+@pytest.mark.parametrize("stack", STACK_DIRS)
+def test_every_image_variable_a_compose_reads_is_declared(
+    stack: str, services: dict[str, Any]
+) -> None:
+    """The other direction: a compose must not read a variable nobody emits.
+
+    The test above walks services.yaml and checks each declared key is read.
+    That leaves the reverse open, and it is the half that bites more
+    quietly: a compose referencing `${IMAGE_SOMETHING}` that the deploy
+    never emits always falls back to its hardcoded default, so the version
+    in services.yaml cannot reach the container and nothing reports it.
+
+    Five such cases existed before #738 -- planka, woodpecker, ollama and
+    openmetadata twice. The comment above KNOWN_UNREAD_IMAGE_VARS used to
+    claim a sweep would surface a new one; it would not have, because the
+    sweep was run by hand. This makes the claim true.
+    """
+    emitted = {
+        "IMAGE_" + name.replace("-", "_").upper()
+        for name, entry in services.items()
+        if entry.get("image")
+    } | {
+        "IMAGE_" + key.replace("-", "_").upper()
+        for entry in services.values()
+        for key in (entry.get("support_images") or {})
+    }
+
+    compose = (STACKS_DIR / stack / "docker-compose.yml").read_text()
+    for match in re.finditer(r"\$\{(IMAGE_[A-Z0-9_]+)[}:]", compose):
+        var = match.group(1)
+        assert var in emitted, (
+            f"stacks/{stack}/docker-compose.yml reads ${{{var}}}, which no "
+            f"services.yaml entry produces. The compose will always use its "
+            f"fallback, so the declared version never reaches the container. "
+            f"Add the key, or rename it to match what the deploy emits — the "
+            f"variable is `IMAGE_` plus the key, hyphens as underscores, "
+            f"uppercased."
         )
 
 
