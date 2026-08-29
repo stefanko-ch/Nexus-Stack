@@ -59,7 +59,7 @@ services:
       start_period: 30s
 
   gitea-db:
-    image: ${IMAGE_POSTGRES:-postgres:16-alpine}
+    image: ${IMAGE_GITEA_POSTGRES:-postgres:16-alpine}
     container_name: gitea-db
     restart: unless-stopped
     env_file: .env

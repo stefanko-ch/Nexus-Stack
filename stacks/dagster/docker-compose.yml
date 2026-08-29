@@ -85,7 +85,7 @@ services:
   # PostgreSQL - Dagster Database
   # ---------------------------------------------------------------------------
   dagster-postgres:
-    image: postgres:16-alpine
+    image: ${IMAGE_DAGSTER_POSTGRES:-postgres:16-alpine}
     container_name: dagster-postgres
     restart: unless-stopped
     deploy:

@@ -109,7 +109,7 @@ services:
   # PostgreSQL - Kestra Database
   # ---------------------------------------------------------------------------
   kestra-postgres:
-    image: postgres:16-alpine
+    image: ${IMAGE_KESTRA_POSTGRES:-postgres:16-alpine}
     container_name: kestra-postgres
     restart: unless-stopped
     env_file:

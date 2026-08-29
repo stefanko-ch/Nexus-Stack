@@ -108,7 +108,7 @@ services:
       - prefect-internal
 
   prefect-db:
-    image: postgres:16-alpine
+    image: ${IMAGE_PREFECT_POSTGRES:-postgres:16-alpine}
     container_name: prefect-db
     restart: unless-stopped
     env_file:
