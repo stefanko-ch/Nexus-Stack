@@ -1037,5 +1037,5 @@ services:
     long_description: "Windmill is an open-source workflow engine and developer platform. Build scripts in Python, TypeScript, Go, or SQL, chain them into workflows, and create UIs - all from a web-based IDE. Features include scheduling, webhooks, approval flows, and a marketplace of community scripts."
     image: "ghcr.io/windmill-labs/windmill:1.624.0"
     support_images:
-      lsp: "ghcr.io/windmill-labs/windmill-lsp:latest"
+      windmill-lsp: "ghcr.io/windmill-labs/windmill-lsp:latest"
       windmill-postgres: "postgres:18-alpine"

@@ -175,7 +175,6 @@ KNOWN_UNREAD_IMAGE_VARS = {
     ("redpanda", "redpanda"),
     ("redpanda-console", "redpanda-console"),
     ("wikijs", "wikijs-postgres"),
-    ("windmill", "lsp"),
     ("woodpecker", "woodpecker"),
     # Both declare their own image in services.yaml, so the deploy emits
     # IMAGE_SEAWEEDFS_FILER and IMAGE_SEAWEEDFS_MANAGER — but the shared
@@ -225,7 +224,7 @@ KNOWN_PRIMARY_IMAGE_SHADOWING = {"ollama"}
 KNOWN_UNPINNED_SUPPORT_IMAGES = {
     ("dify", "dify-ssrf-proxy"),
     ("garage", "webui"),
-    ("windmill", "lsp"),
+    ("windmill", "windmill-lsp"),
 }
 
 
