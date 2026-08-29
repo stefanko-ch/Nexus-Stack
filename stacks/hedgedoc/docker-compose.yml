@@ -107,14 +107,18 @@ services:
       # data inside the volume, but silences that check: the server never
       # looks at the old cluster and simply starts an empty one. Loud
       # beats quiet, so the mount moves instead.
-    deploy:
-      resources:
-        limits:
-          # Bounded, matching forgejo-db. Two databases of the same kind,
-          # both holding data the S3 layer persists, were treated
-          # differently for no recorded reason; this one had no limit at
-          # all. The fleet-wide gap is #741.
-          memory: 512m
+    # `mem_limit`, not `deploy.resources.limits`, matching forgejo-db --
+    # both the value and the mechanism. The reason is written out in
+    # stacks/forgejo/docker-compose.yml: `deploy.resources` began as a
+    # Swarm-only setting honoured under `--compatibility`, some Compose v2
+    # releases apply it directly, and this project installs Docker from an
+    # unpinned get.docker.com, so the Compose version on any given server
+    # is not known in advance. `mem_limit` is applied by every version.
+    #
+    # That argument is at its strongest here: this database is one of the
+    # six the S3 layer persists, so a limit that may or may not bind is
+    # worse than none -- it reads as protection.
+    mem_limit: 512m
     volumes:
       - hedgedoc-db-data:/var/lib/postgresql
     networks:
