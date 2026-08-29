@@ -35,7 +35,11 @@ from typing import Any
 import pytest
 import yaml
 
-from nexus_deploy.compose_runner import _STACK_PARENTS
+from nexus_deploy.compose_runner import (
+    _DEFERRED_SERVICES,
+    _STACK_PARENTS,
+    expand_targets,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STACKS_DIR = REPO_ROOT / "stacks"
@@ -180,12 +184,18 @@ KNOWN_UNREAD_IMAGE_VARS = {
     ("seaweedfs-manager", "seaweedfs-manager"),
 }
 
-# Stacks with no container named exactly like their services.yaml key.
-# compose_runner verifies a stack started with
-# `docker ps --format '{{.Names}}' | grep -qFx -- "$svc"`, which is
-# fixed-string and line-exact, so a mismatch makes the stack report as
-# failed while running perfectly. Tracked in #726.
-KNOWN_CONTAINER_NAME_MISMATCH = {"woodpecker"}
+# Stacks the compose-up verification never looks at, so the exact-name
+# rule cannot apply to them. Derived from the deploy's own table rather
+# than restated: `expand_targets` skips deferred services outright, so
+# they never enter NAMES and never reach the `docker ps` grep. Woodpecker
+# is deferred because it needs Forgejo OAuth credentials that only exist
+# after the bootstrap pipeline has run; `_phase_woodpecker_apply` starts
+# it later with a plain `docker compose up -d` and no name check.
+#
+# Importing the set means the exemption disappears the moment a service
+# stops being deferred — which is exactly when the rule starts to matter
+# for it again.
+KNOWN_CONTAINER_NAME_MISMATCH = set(_DEFERRED_SERVICES)
 
 # support_images keys that shadow a service's own primary image. The
 # merge in tofu/stack/outputs.tf puts support_images LAST, and Terraform's
@@ -467,7 +477,7 @@ def test_a_container_is_named_after_the_service(stack: str, services: dict[str, 
     convention.
     """
     if stack in KNOWN_CONTAINER_NAME_MISMATCH:
-        pytest.skip(f"{stack} is a known mismatch, tracked in #726")
+        pytest.skip(f"{stack} is deferred, so compose_runner never name-checks it")
 
     compose = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
     names = {
@@ -510,6 +520,37 @@ def test_directory_sharing_services_are_declared_virtual(name: str) -> None:
         f"'{name}' is expanded to parent '{parent}' by the deploy but this "
         f"test file records its directory as '{SHARED_DIRECTORY[name]}'. One "
         f"of the two is wrong."
+    )
+
+
+@pytest.mark.parametrize("name", sorted(_DEFERRED_SERVICES))
+def test_deferred_services_never_reach_the_name_check(name: str) -> None:
+    """The exemption above rests on this, so assert it rather than trust it.
+
+    `test_a_container_is_named_after_the_service` skips deferred services
+    because `expand_targets` drops them before they reach NAMES, so the
+    `docker ps --format '{{.Names}}' | grep -qFx` verification never runs
+    against their key. Woodpecker is the only one today: it needs Forgejo
+    OAuth credentials that exist only after the bootstrap pipeline, so
+    `_phase_woodpecker_apply` starts it afterwards with a plain
+    `docker compose up -d` and no name check.
+
+    If a service stops being deferred, this test does not fail — it
+    disappears, and the exact-name rule starts applying to it instead.
+    That is the intended handover. What this guards is the opposite
+    direction: a service still listed as deferred that `expand_targets`
+    has quietly started returning again, which would exempt it from a
+    check it is now subject to.
+    """
+    parents, leaves = expand_targets([name])
+    returned = set(parents) | set(leaves)
+    assert name not in returned, (
+        f"'{name}' is in _DEFERRED_SERVICES but expand_targets still returns "
+        f"it, so compose_runner WILL grep `docker ps` for that exact name. "
+        f"Either it is no longer deferred — in which case remove it from "
+        f"_DEFERRED_SERVICES — or the skip in "
+        f"test_a_container_is_named_after_the_service is now hiding a real "
+        f"defect."
     )
 
 
