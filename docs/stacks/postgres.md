@@ -58,6 +58,20 @@ Two ways out, both deliberate rather than automatic:
   start 18, restore. The only option that keeps the data.
 - **Start fresh** — remove the volume if the contents are disposable.
 
+That refusal depends on one thing worth stating, because it does not hold
+everywhere: **the data directory must be at the same path before and after
+the bump.** This stack has always set
+`PGDATA=/var/lib/postgresql/data/pgdata` explicitly, so the old cluster and
+the new server look at the same place and the mismatch is caught.
+
+A stack that gains an explicit `PGDATA` *as part of* moving to 18 — which is
+required there, since the image default moved outside the mount — relocates
+the directory in the same step. The new server never sees the old cluster,
+so it does not refuse: it initialises an empty one and comes up healthy,
+with the previous data sitting unused beside it. Quieter, and worse.
+[#734](https://github.com/stefanko-ch/Nexus-Stack/issues/734) proposes the
+preflight that would catch that case too.
+
 Stacks that bring their own database are unaffected: each now has its own
 `IMAGE_*` variable, derived from its `support_images` key, and keeps the
 version it already ran. The suffix follows the key rather than a fixed

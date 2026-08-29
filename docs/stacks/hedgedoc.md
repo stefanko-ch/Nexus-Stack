@@ -77,10 +77,19 @@ stacks the data does survive a teardown. That path crosses majors cleanly:
 `pg_dump` produces a logical dump, and `pg_restore` loads it into the fresh
 18 cluster the next spin-up creates. No manual step.
 
-⚠️ **Under the `snapshot` lifecycle the data directory carries over
-physically**, and PostgreSQL refuses to start against one written by an
-earlier major. The exact error and the two ways out are in
-[postgres.md](./postgres.md#version).
+⚠️ **Under the `snapshot` lifecycle an existing data directory carries
+over physically, and the outcome is quieter than it looks.** This bump
+introduced an explicit `PGDATA` at the same time, which relocates the data
+directory. PostgreSQL 18 therefore does **not** find the old cluster and does
+**not** refuse to start: it initialises a fresh, empty one at the new path and
+comes up healthy, leaving the previous cluster in the volume untouched and
+unused.
+
+That is *not* the classic `database files are incompatible with server`
+refusal described in [postgres.md](./postgres.md#version) — that one only
+happens when the path is unchanged across the bump. Here it cannot, because
+the path is part of what changed. [#734](https://github.com/stefanko-ch/Nexus-Stack/issues/734)
+proposes the preflight that would make this loud.
 
 The container also sets `PGDATA` explicitly. PostgreSQL 18 moved the image
 default to `/var/lib/postgresql/18/docker`, outside the mounted volume — see

@@ -101,6 +101,14 @@ services:
       # next --force-recreate. Same reasoning as kestra and windmill (#737),
       # and what stacks/postgres has always done.
       PGDATA: /var/lib/postgresql/data/pgdata
+    deploy:
+      resources:
+        limits:
+          # Bounded, matching forgejo-db. Two databases of the same kind,
+          # both holding data the S3 layer persists, were treated
+          # differently for no recorded reason; this one had no limit at
+          # all. The fleet-wide gap is #741.
+          memory: 512m
     volumes:
       - hedgedoc-db-data:/var/lib/postgresql/data
     networks:
