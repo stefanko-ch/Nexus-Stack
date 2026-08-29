@@ -45,7 +45,7 @@ services:
   # Open WebUI - Chat Interface
   # ---------------------------------------------------------------------------
   open-webui:
-    image: ${IMAGE_OPEN_WEBUI:-ghcr.io/open-webui/open-webui:v0.8.3}
+    image: ${IMAGE_OLLAMA_OPEN_WEBUI:-ghcr.io/open-webui/open-webui:v0.8.3}
     container_name: open-webui
     restart: unless-stopped
     ports:

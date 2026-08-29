@@ -654,9 +654,9 @@ services:
     website: "https://ollama.com"
     description: "Local LLM inference with Open WebUI chat interface (Ollama backend)."
     long_description: "Run large language models locally with Ollama and interact through Open WebUI's ChatGPT-like interface. Supports Llama, Mistral, Gemma, and many other models. Features include conversation history, model switching, RAG with document upload, and API compatibility with OpenAI format."
-    image: "ghcr.io/open-webui/open-webui:v0.8.3"
+    image: "ollama/ollama:0.15.1"
     support_images:
-      ollama: "ollama/ollama:0.15.1"
+      ollama-open-webui: "ghcr.io/open-webui/open-webui:v0.8.3"
 
   openmetadata:
     subdomain: "openmetadata"
@@ -668,8 +668,8 @@ services:
     long_description: "OpenMetadata is a unified metadata platform for data discovery, observability, and governance. Catalog all your data assets, track data lineage, define data quality tests, set up classification and tagging, and enable team collaboration around data. Connects to databases, dashboards, pipelines, and messaging systems."
     image: "docker.getcollate.io/openmetadata/server:1.6.6"
     support_images:
-      ingestion: "docker.getcollate.io/openmetadata/ingestion:1.6.6"
-      elasticsearch: "docker.elastic.co/elasticsearch/elasticsearch:8.11.4"
+      openmetadata-ingestion: "docker.getcollate.io/openmetadata/ingestion:1.6.6"
+      openmetadata-elasticsearch: "docker.elastic.co/elasticsearch/elasticsearch:8.11.4"
       openmetadata-postgres: "postgres:16-alpine"
 
   rustfs:
@@ -758,6 +758,8 @@ services:
     description: "Open-source kanban board (Trello alternative) with real-time multi-user collaboration."
     long_description: "Planka is an open-source kanban board for project and task management — a self-hosted Trello alternative. Organize work into boards, lists, and cards with labels, due dates, checklists, attachments, and Markdown descriptions. Real-time multi-user collaboration, comments, and activity tracking. Backed by a dedicated PostgreSQL database; one admin account is seeded on first boot, with further access gated by Cloudflare Access at the edge."
     image: "ghcr.io/plankanban/planka:2.1.1"
+    support_images:
+      planka-db: "postgres:16-alpine"
 
   prefect:
     subdomain: "prefect"

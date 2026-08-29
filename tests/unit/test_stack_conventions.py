@@ -14,6 +14,8 @@ Covers, per stack directory under ``stacks/``:
 - ``public: true`` only where deliberately public
 - ``tcp_ports`` only where an external TCP client genuinely needs it
 - a service with no authentication of its own never has ``tcp_ports``
+- every ``${IMAGE_*}`` the compose reads is one the deploy actually emits
+- a PostgreSQL container writes where its volume is mounted
 
 Plus two repo-wide checks that are not per-stack:
 
@@ -150,16 +152,22 @@ ROLLING_ALLOWED = {
 
 # Image keys whose IMAGE_* variable no compose file reads, so a version bump
 # in services.yaml never reaches the container. Same defect as #715 and
-# tracked there, but a wider set than the shared `postgres` key, with three
-# distinct causes:
+# tracked there, but a wider set than the shared `postgres` key. Two causes
+# remain, the third having been cleared:
 #
 #   - reversed naming: the compose reads ${CLOUDBEAVER_IMAGE} while the
 #     deploy emits IMAGE_CLOUDBEAVER (cloudbeaver, redpanda,
 #     redpanda-console)
-#   - a differently-named variable: woodpecker's compose reads
-#     IMAGE_WOODPECKER_SERVER, the services.yaml key is `woodpecker`
 #   - support images the compose simply hardcodes (flink-taskmanager,
-#     ingestion, elasticsearch, wikijs-postgres, lsp)
+#     wikijs-postgres)
+#
+# The third cause -- a compose reading a variable name the deploy never
+# emits -- is gone. A sweep of every ${IMAGE_*} reference against
+# services.yaml found five: woodpecker, planka, ollama and openmetadata
+# twice, all fixed in #738. That direction is now covered by
+# test_every_image_variable_a_compose_reads_is_declared rather than by a
+# sweep run once by hand, so a new case fails the suite instead of
+# quietly using its fallback.
 #
 # Two of these have already diverged in practice, which is what the defect
 # looks like when it bites: services.yaml says redpanda v24.3 and
@@ -170,12 +178,9 @@ ROLLING_ALLOWED = {
 KNOWN_UNREAD_IMAGE_VARS = {
     ("cloudbeaver", "cloudbeaver"),
     ("flink", "flink-taskmanager"),
-    ("openmetadata", "ingestion"),
-    ("openmetadata", "elasticsearch"),
     ("redpanda", "redpanda"),
     ("redpanda-console", "redpanda-console"),
     ("wikijs", "wikijs-postgres"),
-    ("woodpecker", "woodpecker"),
     # Both declare their own image in services.yaml, so the deploy emits
     # IMAGE_SEAWEEDFS_FILER and IMAGE_SEAWEEDFS_MANAGER — but the shared
     # stacks/seaweedfs/docker-compose.yml reads only ${IMAGE_SEAWEEDFS}.
@@ -200,22 +205,18 @@ KNOWN_UNREAD_IMAGE_VARS = {
 # for it again.
 NAME_CHECK_EXEMPT = set(_DEFERRED_SERVICES)
 
-# support_images keys that shadow a service's own primary image. The
-# merge in tofu/stack/outputs.tf puts support_images LAST, and Terraform's
-# merge() lets the later argument win, so such a key does not merely
-# collide — it overrides the service's own image in IMAGE_*.
+# support_images keys that shadow a service's own primary image. The merge
+# in tofu/stack/outputs.tf puts support_images LAST, and Terraform's merge()
+# lets the later argument win, so such a key does not merely collide -- it
+# overrides the service's own image in IMAGE_*.
 #
-# `postgres` was the second entry here and is fixed by #715: nineteen
-# stacks claimed it, the lexically last (windmill) won, and the shared
-# database stack therefore ran postgres:16-alpine while its own
-# declaration said 17-alpine.
-#
-# `ollama` remains, and is benign only by accident: the overriding value
-# (ollama/ollama:0.15.1) happens to be exactly what that container wants.
-# The ollama service's own image names open-webui, whose IMAGE_OPEN_WEBUI
-# is never emitted at all, so that container falls back to its compose
-# default. Fixing it means splitting the two into separate keys.
-KNOWN_PRIMARY_IMAGE_SHADOWING = {"ollama"}
+# Empty. `postgres` was fixed by #715; `ollama` was the last one and is
+# fixed by giving that stack the primary image its own name implies. The
+# services.yaml entry declared open-webui as the `ollama` service's image
+# while a support key `ollama` carried the actual Ollama server, so
+# IMAGE_OLLAMA resolved to the support value -- correct by accident, and
+# IMAGE_OPEN_WEBUI was never emitted at all.
+KNOWN_PRIMARY_IMAGE_SHADOWING: set[str] = set()
 
 # Support images still on :latest. Each is a UI or sidecar rather than a
 # store, which is why they were left — but unlike the primary-image
@@ -464,6 +465,46 @@ def test_compose_reads_the_image_variables_the_deploy_emits(
         assert f"${{{var}:-" in images, (
             f"stacks/{stack}/docker-compose.yml reads ${{{var}}} without a default. "
             f"Use ${{{var}:-<image>}} so the stack starts outside the deploy."
+        )
+
+
+@pytest.mark.parametrize("stack", STACK_DIRS)
+def test_every_image_variable_a_compose_reads_is_declared(
+    stack: str, services: dict[str, Any]
+) -> None:
+    """The other direction: a compose must not read a variable nobody emits.
+
+    The test above walks services.yaml and checks each declared key is read.
+    That leaves the reverse open, and it is the half that bites more
+    quietly: a compose referencing `${IMAGE_SOMETHING}` that the deploy
+    never emits always falls back to its hardcoded default, so the version
+    in services.yaml cannot reach the container and nothing reports it.
+
+    Five such cases existed before #738 -- planka, woodpecker, ollama and
+    openmetadata twice. The comment above KNOWN_UNREAD_IMAGE_VARS used to
+    claim a sweep would surface a new one; it would not have, because the
+    sweep was run by hand. This makes the claim true.
+    """
+    emitted = {
+        "IMAGE_" + name.replace("-", "_").upper()
+        for name, entry in services.items()
+        if entry.get("image")
+    } | {
+        "IMAGE_" + key.replace("-", "_").upper()
+        for entry in services.values()
+        for key in (entry.get("support_images") or {})
+    }
+
+    compose = (STACKS_DIR / stack / "docker-compose.yml").read_text()
+    for match in re.finditer(r"\$\{(IMAGE_[A-Z0-9_]+)[}:]", compose):
+        var = match.group(1)
+        assert var in emitted, (
+            f"stacks/{stack}/docker-compose.yml reads ${{{var}}}, which no "
+            f"services.yaml entry produces. The compose will always use its "
+            f"fallback, so the declared version never reaches the container. "
+            f"Add the key, or rename it to match what the deploy emits — the "
+            f"variable is `IMAGE_` plus the key, hyphens as underscores, "
+            f"uppercased."
         )
 
 
