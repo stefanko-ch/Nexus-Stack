@@ -46,7 +46,7 @@ services:
       - superset-internal
 
   superset-db:
-    image: ${IMAGE_SUPERSET_POSTGRES:-postgres:16-alpine}
+    image: ${IMAGE_SUPERSET_POSTGRES:-postgres:17-alpine}
     container_name: superset-db
     restart: unless-stopped
     environment:

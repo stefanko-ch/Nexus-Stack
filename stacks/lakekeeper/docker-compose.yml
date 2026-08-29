@@ -102,7 +102,7 @@ services:
   # Lakekeeper - Dedicated PostgreSQL (catalog metadata)
   # ---------------------------------------------------------------------------
   lakekeeper-db:
-    image: ${IMAGE_LAKEKEEPER_DB:-postgres:16-alpine}
+    image: ${IMAGE_LAKEKEEPER_DB:-postgres:17-alpine}
     container_name: lakekeeper-db
     restart: unless-stopped
     environment:

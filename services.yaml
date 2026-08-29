@@ -478,7 +478,7 @@ services:
     long_description: "Lakekeeper is an open-source implementation of the Apache Iceberg REST Catalog specification, written in Rust. It provides the catalog layer that turns the existing object storage (Garage / MinIO / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from Spark, Trino, DuckDB, PyIceberg, or any other Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication. Dedicated PostgreSQL stores the catalog metadata; the actual Parquet data goes to whichever S3-compatible bucket the operator configures per warehouse."
     image: "quay.io/lakekeeper/catalog:v0.12.2"
     support_images:
-      lakekeeper-db: "postgres:16-alpine"
+      lakekeeper-db: "postgres:17-alpine"
 
   marquez:
     subdomain: "marquez"
@@ -609,7 +609,7 @@ services:
     long_description: "Apache Superset is a modern data exploration and visualization platform. Create interactive dashboards, explore datasets with SQL Lab, build rich visualizations with 40+ chart types, and share insights. Supports PostgreSQL, ClickHouse, Trino, and 30+ database engines with a no-code chart builder and role-based access control."
     image: "apache/superset:6.0.0"
     support_images:
-      superset-postgres: "postgres:16-alpine"
+      superset-postgres: "postgres:17-alpine"
       superset-redis: "redis:7-alpine"
 
   minio:
