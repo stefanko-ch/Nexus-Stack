@@ -78,7 +78,18 @@ services:
       # in-place via code-server / a Git checkout.
       - ./project:/evidence-workspace
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      # `/@vite/client`, not `/`. The root page runs the bundled source
+      # query, and a query returning zero rows currently crashes the
+      # server (#725 defect 7) -- so probing `/` marks the container
+      # unhealthy on a fresh database, which is precisely the state a
+      # new stack starts in. The healthcheck would have been reporting
+      # the user's empty database as a broken container.
+      #
+      # `/@vite/client` is served by vite's dev middleware and renders
+      # no Evidence page, so it answers whenever the dev server is up
+      # and never executes a query. The wget invocation is unchanged,
+      # so no new assumption about the image's tooling.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/@vite/client >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
