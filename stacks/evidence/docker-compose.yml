@@ -33,11 +33,14 @@ services:
     image: ${IMAGE_EVIDENCE:-evidencedev/devenv:latest}
     container_name: evidence
     # env_file picks up the renderer-populated POSTGRES_PASSWORD /
-    # EVIDENCE_BASE_URL AND any operator-added variables in
-    # stacks/evidence/.env — Evidence sources/<name>/connection.yaml
-    # supports ${VAR} interpolation, so additional data-source
-    # credentials reach the container without having to extend the
-    # explicit `environment:` list below.
+    # EVIDENCE_BASE_URL and any operator-added variables in
+    # stacks/evidence/.env.
+    #
+    # Those variables do NOT reach sources/<name>/connection.yaml by
+    # interpolation — Evidence reads that file literally, which is the
+    # defect this stack shipped with (#725). A second data source needs
+    # its credential passed as EVIDENCE_SOURCE__<source>__<field> in the
+    # `environment:` block below, which Evidence merges over the file.
     env_file:
       - .env
     restart: unless-stopped
