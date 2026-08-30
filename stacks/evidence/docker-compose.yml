@@ -47,21 +47,25 @@ services:
       # hoppscotch/dagster/wikijs/big-agi.
       - "3007:3000"
     environment:
-      # Bind the dev server to all interfaces so the published port
-      # is reachable from the host's network namespace (and through
-      # the Cloudflare Tunnel).
+      # Belt and braces for the bind address. The image entrypoint
+      # already appends `--host 0.0.0.0` to `npm run dev`, which is why
+      # the same flag was removed from package.json's `dev` script --
+      # passing it twice made vite reject the duplicate and exit, taking
+      # the container with it through the entrypoint's `&&` chain.
       HOST: 0.0.0.0
       PORT: "3000"
       # EVIDENCE_BASE_URL (used by Evidence for absolute links + OG tags)
       # is provided by env_file above — no explicit entry needed.
-      # Point the user-supplied sources/*/connection.yaml files at
-      # the in-stack Postgres for the bundled sample query. Operators
-      # extend the sources/ folder with additional connections.
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DATABASE: postgres
-      POSTGRES_USER: nexus-postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Only the password travels through the environment. The rest of
+      # the connection lives literally in
+      # sources/nexus_postgres/connection.yaml, because Evidence does not
+      # interpolate ${VAR} inside that file -- the previous POSTGRES_HOST
+      # and friends were read verbatim by the driver and never resolved.
+      #
+      # `EVIDENCE_SOURCE__<source>__<field>` is the documented override:
+      # Evidence merges it over connection.yaml, so the secret stays out
+      # of the repository while the rest stays readable.
+      EVIDENCE_SOURCE__nexus_postgres__password: ${POSTGRES_PASSWORD}
     volumes:
       # The sample project shipped under stacks/evidence/project/ is
       # synced to /opt/docker-server/stacks/evidence/project/ by the

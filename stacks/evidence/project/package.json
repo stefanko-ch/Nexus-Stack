@@ -5,13 +5,16 @@
   "scripts": {
     "build": "evidence build",
     "build:strict": "evidence build:strict",
-    "dev": "evidence dev --host 0.0.0.0 --port 3000",
+    "dev": "evidence dev --port 3000",
     "sources": "evidence sources"
   },
   "dependencies": {
     "@evidence-dev/core-components": "^5.0.0",
     "@evidence-dev/evidence": "^40.1.8",
-    "@evidence-dev/postgres": "^2.0.0"
+    "@evidence-dev/postgres": "^1.0.10"
+  },
+  "devDependencies": {
+    "typescript": "5.4.2"
   },
   "type": "module",
   "engines": {
