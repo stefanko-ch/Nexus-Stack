@@ -13,11 +13,13 @@
 # and serve the `build/` output from any of the file-store stacks.
 #
 # Data sources are configured per-project in `project/sources/`.
-# Connection strings reference env vars (Evidence supports
-# ${VAR} interpolation in sources/*/connection.yaml), so the
-# operator points them at the Infisical-managed Postgres /
-# ClickHouse / Trino / DuckDB credentials that already exist
-# elsewhere in the stack.
+# Write the connection literally: Evidence reads connection.yaml as
+# YAML and does NOT expand ${VAR} in it (#725 — this header claimed
+# the opposite, and the shipped source was written to that claim).
+# Credentials travel separately, as
+# `EVIDENCE_SOURCE__<source>__<field>` in the `environment:` block,
+# which Evidence merges over the file — so an Infisical-managed
+# Postgres / ClickHouse / Trino password still never enters the repo.
 #
 # Access: https://evidence.YOUR_DOMAIN  (behind Cloudflare Access
 # unless you flip `public: true` in services.yaml).
@@ -33,11 +35,14 @@ services:
     image: ${IMAGE_EVIDENCE:-evidencedev/devenv:latest}
     container_name: evidence
     # env_file picks up the renderer-populated POSTGRES_PASSWORD /
-    # EVIDENCE_BASE_URL AND any operator-added variables in
-    # stacks/evidence/.env — Evidence sources/<name>/connection.yaml
-    # supports ${VAR} interpolation, so additional data-source
-    # credentials reach the container without having to extend the
-    # explicit `environment:` list below.
+    # EVIDENCE_BASE_URL and any operator-added variables in
+    # stacks/evidence/.env.
+    #
+    # Those variables do NOT reach sources/<name>/connection.yaml by
+    # interpolation — Evidence reads that file literally, which is the
+    # defect this stack shipped with (#725). A second data source needs
+    # its credential passed as EVIDENCE_SOURCE__<source>__<field> in the
+    # `environment:` block below, which Evidence merges over the file.
     env_file:
       - .env
     restart: unless-stopped
@@ -47,21 +52,25 @@ services:
       # hoppscotch/dagster/wikijs/big-agi.
       - "3007:3000"
     environment:
-      # Bind the dev server to all interfaces so the published port
-      # is reachable from the host's network namespace (and through
-      # the Cloudflare Tunnel).
+      # Belt and braces for the bind address. The image entrypoint
+      # already appends `--host 0.0.0.0` to `npm run dev`, which is why
+      # the same flag was removed from package.json's `dev` script --
+      # passing it twice made vite reject the duplicate and exit, taking
+      # the container with it through the entrypoint's `&&` chain.
       HOST: 0.0.0.0
       PORT: "3000"
       # EVIDENCE_BASE_URL (used by Evidence for absolute links + OG tags)
       # is provided by env_file above — no explicit entry needed.
-      # Point the user-supplied sources/*/connection.yaml files at
-      # the in-stack Postgres for the bundled sample query. Operators
-      # extend the sources/ folder with additional connections.
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DATABASE: postgres
-      POSTGRES_USER: nexus-postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Only the password travels through the environment. The rest of
+      # the connection lives literally in
+      # sources/nexus_postgres/connection.yaml, because Evidence does not
+      # interpolate ${VAR} inside that file -- the previous POSTGRES_HOST
+      # and friends were read verbatim by the driver and never resolved.
+      #
+      # `EVIDENCE_SOURCE__<source>__<field>` is the documented override:
+      # Evidence merges it over connection.yaml, so the secret stays out
+      # of the repository while the rest stays readable.
+      EVIDENCE_SOURCE__nexus_postgres__password: ${POSTGRES_PASSWORD}
     volumes:
       # The sample project shipped under stacks/evidence/project/ is
       # synced to /opt/docker-server/stacks/evidence/project/ by the
@@ -69,7 +78,18 @@ services:
       # in-place via code-server / a Git checkout.
       - ./project:/evidence-workspace
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      # `/@vite/client`, not `/`. The root page runs the bundled source
+      # query, and a query returning zero rows currently crashes the
+      # server (#725 defect 7) -- so probing `/` marks the container
+      # unhealthy on a fresh database, which is precisely the state a
+      # new stack starts in. The healthcheck would have been reporting
+      # the user's empty database as a broken container.
+      #
+      # `/@vite/client` is served by vite's dev middleware and renders
+      # no Evidence page, so it answers whenever the dev server is up
+      # and never executes a query. The wget invocation is unchanged,
+      # so no new assumption about the image's tooling.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/@vite/client >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

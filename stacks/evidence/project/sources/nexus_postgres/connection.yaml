@@ -1,18 +1,34 @@
 # Nexus-Stack default Postgres source.
-# Credentials come from environment variables that the
-# docker-compose env_file populates from Infisical.
+#
+# Literal values, not ${VAR}. Evidence does not interpolate environment
+# variables inside connection.yaml -- it reads the file as-is, so a
+# `${POSTGRES_HOST}` here reaches the driver verbatim and the connection
+# fails on a hostname that does not exist. Credentials are the exception,
+# and they arrive by a different route: Evidence reads
+# `EVIDENCE_SOURCE__<source>__<field>` from the environment and merges it
+# over this file, which is how the password stays out of the repository.
+#
 # Add more sources by creating sibling directories under
-# stacks/evidence/project/sources/<name>/ with their own
-# connection.yaml that uses ${VAR} interpolation for any
-# credentials. Place .sql query files alongside it; Evidence
-# discovers both automatically on `npm run sources`.
+# stacks/evidence/project/sources/<name>/ with their own connection.yaml.
+# Place .sql query files alongside; Evidence discovers both on
+# `npm run sources`.
 name: nexus_postgres
 type: postgres
 options:
-  host: ${POSTGRES_HOST}
-  port: ${POSTGRES_PORT}
-  database: ${POSTGRES_DATABASE}
-  user: ${POSTGRES_USER}
-  password: ${POSTGRES_PASSWORD}
+  host: postgres
+  port: 5432
+  database: postgres
+  user: nexus-postgres
   schema: public
+  # No TLS, deliberately, and the compensating controls are the reason.
+  # The shared PostgreSQL runs the stock image with no certificate, so
+  # `verify-full` here would fail to connect rather than encrypt
+  # anything. Both containers sit on the internal `app-network` bridge,
+  # which never leaves the host -- and an attacker who has a container
+  # on it already holds this password from stacks/evidence/.env, the
+  # Evidence container's own environment, or Infisical. TLS would raise
+  # the cost of an attack that has already succeeded more cheaply.
+  #
+  # Revisit if the shared PostgreSQL ever gains a server certificate,
+  # or if it moves off the host.
   ssl: false

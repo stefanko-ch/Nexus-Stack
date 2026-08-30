@@ -744,10 +744,17 @@ def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 def _render_evidence(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Evidence: SQL+markdown BI runtime. The bundled sample project
-    queries the in-stack Postgres via env-var interpolation, so we
-    pipe through the existing ``postgres_password`` field (no
-    dedicated Evidence secret to manage) plus the absolute public
-    URL Evidence uses for OG tags + canonical links.
+    queries the in-stack Postgres, so we pipe through the existing
+    ``postgres_password`` field (no dedicated Evidence secret to
+    manage) plus the absolute public URL Evidence uses for OG tags +
+    canonical links.
+
+    Not "via env-var interpolation", which this docstring said until
+    #725: Evidence reads ``sources/*/connection.yaml`` literally and
+    does not expand ``${VAR}`` in it. The compose turns this value into
+    ``EVIDENCE_SOURCE__nexus_postgres__password``, which Evidence merges
+    over that file — the documented override, and the only part of the
+    connection that travels through the environment.
 
     No fail-fast guard: Evidence renders pages even without a working
     data source (it just shows query errors inline), and the operator

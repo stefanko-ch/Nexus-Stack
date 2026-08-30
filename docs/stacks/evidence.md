@@ -45,21 +45,34 @@ Compared to the other BI tools in this stack:
 
 Each source lives in its own directory under `project/sources/<name>/`:
 
-```
+```text
 project/sources/
 ├── nexus_postgres/         # shipped with the stack
-│   ├── connection.yaml     # connection config (env-var interpolated)
+│   ├── connection.yaml     # connection config (literal values)
 │   └── database_overview.sql
 └── my_clickhouse/          # operator adds this
     ├── connection.yaml
     └── ...
 ```
 
-`connection.yaml` supports `${VAR}` interpolation against the container's environment, so the recommended pattern is:
+⚠️ **`connection.yaml` does not interpolate `${VAR}`.** Evidence reads the
+file as written, so a `${POSTGRES_HOST}` there reaches the driver verbatim
+and the connection fails on a hostname that does not exist. This page said
+otherwise until [#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725);
+the shipped source was written to that advice and never connected.
 
-1. Add the credentials to Infisical under a folder of your choice.
-2. Reference them from `stacks/evidence/.env` (the deploy pipeline renders this from Infisical on every spin-up).
-3. Use `${VAR}` in `connection.yaml` to reference them.
+Secrets have their own route. Evidence reads
+`EVIDENCE_SOURCE__<source>__<field>` from the environment and merges it over
+`connection.yaml`, which keeps the credential out of the repository while the
+rest of the connection stays readable:
+
+1. Add the credential to Infisical under a folder of your choice.
+2. Reference it from `stacks/evidence/.env` (the deploy pipeline renders this
+   from Infisical on every spin-up).
+3. Pass it as `EVIDENCE_SOURCE__<source>__password` in the stack's
+   `environment:` block — see how `nexus_postgres` does it.
+4. Write everything else — host, port, database, user — literally in
+   `connection.yaml`.
 
 For ClickHouse, Trino, MySQL, BigQuery, Snowflake, and others, see the [Evidence connector docs](https://docs.evidence.dev/core-concepts/data-sources/). Add the matching `@evidence-dev/<driver>` package to `stacks/evidence/project/package.json` and run `docker compose restart evidence` to pull it in.
 

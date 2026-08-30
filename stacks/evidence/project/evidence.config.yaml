@@ -1,3 +1,13 @@
+# `plugins` is required, not optional: `evidence sources` reads it to
+# learn which datasource packages to load. Without it the command exits
+# before it reaches a connection, and the entrypoint's `&&` chain takes
+# the container down with it.
+plugins:
+  components:
+    "@evidence-dev/core-components": {}
+  datasources:
+    "@evidence-dev/postgres": {}
+
 deployment:
   basePath: ""
 

@@ -8,11 +8,18 @@ Welcome to Evidence. This file is `pages/index.md` in the project mounted at
 
 ## Postgres source
 
-The bundled `sources/nexus_postgres/` reads the in-stack Postgres credentials
-through the env vars that `docker-compose` populates from Infisical. The
-sample query below lists the largest tables in the `public` schema — if you
-have not yet loaded data, the result will be empty, which is also a healthy
-signal that the connection is wired up.
+The bundled `sources/nexus_postgres/` connects to the in-stack Postgres. Host,
+port, database and user are written literally in its `connection.yaml`; only
+the password comes from the environment, as
+`EVIDENCE_SOURCE__nexus_postgres__password`. The
+sample query below lists the largest tables in the `public` schema.
+
+⚠️ **If you have not loaded any data yet, this page will not render.** A
+source query returning zero rows currently crashes the Evidence server —
+defect 7 of [#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725),
+still open. Create a table with at least one row in the `public` schema
+before expecting this page to work. An empty result is not a healthy
+signal; it is the known failure.
 
 ```sql database_overview
 select * from nexus_postgres.database_overview
@@ -24,10 +31,14 @@ select * from nexus_postgres.database_overview
 
 Drop a sibling directory under `project/sources/` with its own
 `connection.yaml` and Evidence will pick it up on the next `npm run sources`.
-Connection strings can reference environment variables via `${VAR}` syntax,
-so the recommended pattern is to add the relevant credentials to the
-`stacks/evidence/.env` file (which the deploy pipeline renders from
-Infisical) and reference them here.
+
+Write the connection literally — `connection.yaml` is **not** interpolated,
+so a `${VAR}` in it reaches the driver verbatim, as those literal
+characters. For the
+credential, add it to `stacks/evidence/.env` (the deploy pipeline renders
+that from Infisical) and pass it as
+`EVIDENCE_SOURCE__<source>__password` in the stack's `environment:` block.
+Evidence merges that over the file.
 
 For ClickHouse, Trino, DuckDB, Iceberg/Lakekeeper and other backends, see
 the Evidence connector docs and add the matching `@evidence-dev/<driver>`
