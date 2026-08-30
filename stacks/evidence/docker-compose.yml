@@ -13,11 +13,13 @@
 # and serve the `build/` output from any of the file-store stacks.
 #
 # Data sources are configured per-project in `project/sources/`.
-# Connection strings reference env vars (Evidence supports
-# ${VAR} interpolation in sources/*/connection.yaml), so the
-# operator points them at the Infisical-managed Postgres /
-# ClickHouse / Trino / DuckDB credentials that already exist
-# elsewhere in the stack.
+# Write the connection literally: Evidence reads connection.yaml as
+# YAML and does NOT expand ${VAR} in it (#725 — this header claimed
+# the opposite, and the shipped source was written to that claim).
+# Credentials travel separately, as
+# `EVIDENCE_SOURCE__<source>__<field>` in the `environment:` block,
+# which Evidence merges over the file — so an Infisical-managed
+# Postgres / ClickHouse / Trino password still never enters the repo.
 #
 # Access: https://evidence.YOUR_DOMAIN  (behind Cloudflare Access
 # unless you flip `public: true` in services.yaml).
