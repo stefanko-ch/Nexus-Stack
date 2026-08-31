@@ -350,6 +350,12 @@ resource "random_password" "soda_db" {
   special = false
 }
 
+# Evidence database password
+resource "random_password" "evidence_db" {
+  length  = 24
+  special = false
+}
+
 # PostgreSQL password
 resource "random_password" "postgres" {
   length  = 24

@@ -826,3 +826,46 @@ def test_core_services_are_the_documented_four(services: dict[str, Any]) -> None
         f"core services changed to {sorted(core)}. That is a deliberate decision; "
         f"update this test and the docs together."
     )
+
+
+def test_evidence_sources_only_name_hosts_its_own_compose_defines(
+    services: dict[str, Any],
+) -> None:
+    """Evidence's shipped data sources must resolve inside the stack.
+
+    The stack originally pointed its bundled source at the shared
+    `postgres` stack, which is not core and so is off unless the operator
+    enables it. Evidence's entrypoint runs `npm run sources` before the
+    dev server and treats an unreachable source as fatal, so a stack that
+    enabled Evidence alone crash-looped on `getaddrinfo EAI_AGAIN
+    postgres` with ExitCode=1 rather than serving a page with one broken
+    query.
+
+    Scope note, so this docstring does not overclaim: there is no
+    repo-wide check that a stack never depends on a non-core stack's
+    container name, and this test does not add one. It pins the one place
+    the defect actually shipped -- the connection files this repo ships
+    for Evidence. A user-added source under the same directory on a live
+    server is outside what the repo can see, which is why pages/index.md
+    warns about the same failure mode in prose.
+    """
+    stack_dir = STACKS_DIR / "evidence"
+    compose = yaml.safe_load((stack_dir / "docker-compose.yml").read_text())
+    own_services = set(compose.get("services", {}))
+
+    connections = sorted((stack_dir / "project" / "sources").glob("*/connection.yaml"))
+    assert connections, "Evidence ships no data source; this test would pass vacuously"
+
+    offenders = {}
+    for path in connections:
+        host = (yaml.safe_load(path.read_text()).get("options") or {}).get("host")
+        if host in services and host not in own_services:
+            offenders[path.relative_to(REPO_ROOT).as_posix()] = host
+
+    assert not offenders, (
+        f"Evidence source points at another stack's container: {offenders}. "
+        f"That stack is not guaranteed to be running, and an unreachable source "
+        f"stops Evidence from starting at all. Define the host in "
+        f"stacks/evidence/docker-compose.yml, or document it as an opt-in extra "
+        f"source rather than shipping it as the bundled one."
+    )

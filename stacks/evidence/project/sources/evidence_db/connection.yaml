@@ -1,0 +1,43 @@
+# Nexus-Stack default Postgres source — the stack's own `evidence-db`.
+#
+# Not the shared `postgres` stack. That one is not `core`, so it is off
+# unless the operator enables it, and Evidence treats an unreachable
+# source as fatal: the entrypoint runs `npm run sources` before the dev
+# server, so a missing host meant a restart loop rather than a page with
+# an error on it. Point a second source at the shared instance if you
+# want it — see pages/index.md — but the bundled one has to work on a
+# stack where Evidence is the only thing enabled.
+#
+# Literal values, not ${VAR}. Evidence does not interpolate environment
+# variables inside connection.yaml -- it reads the file as-is, so a
+# `${POSTGRES_HOST}` here reaches the driver verbatim and the connection
+# fails on a hostname that does not exist. Credentials are the exception,
+# and they arrive by a different route: Evidence reads
+# `EVIDENCE_SOURCE__<source>__<field>` from the environment and merges it
+# over this file, which is how the password stays out of the repository.
+#
+# Add more sources by creating sibling directories under
+# stacks/evidence/project/sources/<name>/ with their own connection.yaml.
+# Place .sql query files alongside; Evidence discovers both on
+# `npm run sources`.
+name: evidence_db
+type: postgres
+options:
+  host: evidence-db
+  port: 5432
+  database: evidence
+  user: nexus-evidence
+  schema: public
+  # No TLS, deliberately, and the compensating controls are the reason.
+  # The database runs the stock image with no certificate, so
+  # `verify-full` here would fail to connect rather than encrypt
+  # anything. Both containers sit on `evidence-internal`, a bridge this
+  # stack owns that no other stack joins and that never leaves the host
+  # -- and an attacker who has a container on it already holds this
+  # password from stacks/evidence/.env, the Evidence container's own
+  # environment, or Infisical. TLS would raise the cost of an attack that
+  # has already succeeded more cheaply.
+  #
+  # Revisit if this database ever gains a server certificate, or if it
+  # moves off the host.
+  ssl: false

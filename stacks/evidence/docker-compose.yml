@@ -12,6 +12,16 @@
 #     docker exec evidence npm run sources && docker exec evidence npm run build
 # and serve the `build/` output from any of the file-store stacks.
 #
+# The stack brings its own Postgres (`evidence-db`) rather than pointing
+# at the shared `postgres` stack. That stack is not `core`, so it is off
+# unless the operator enables it — and Evidence's entrypoint runs
+# `npm run sources` before the dev server, treating an unreachable source
+# as fatal. Pointing at it produced `getaddrinfo EAI_AGAIN postgres`,
+# `ExitCode=1`, and a restart loop on any stack that enabled Evidence
+# alone. A dedicated database also follows the CLAUDE.md rule that each
+# stack owns its resources, and it seeds sample rows so the bundled page
+# renders on a fresh stack.
+#
 # Data sources are configured per-project in `project/sources/`.
 # Write the connection literally: Evidence reads connection.yaml as
 # YAML and does NOT expand ${VAR} in it (#725 — this header claimed
@@ -34,7 +44,7 @@ services:
     # versioned devenv tags.
     image: ${IMAGE_EVIDENCE:-evidencedev/devenv:latest}
     container_name: evidence
-    # env_file picks up the renderer-populated POSTGRES_PASSWORD /
+    # env_file picks up the renderer-populated EVIDENCE_DB_PASSWORD /
     # EVIDENCE_BASE_URL and any operator-added variables in
     # stacks/evidence/.env.
     #
@@ -46,6 +56,9 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    depends_on:
+      evidence-db:
+        condition: service_healthy
     ports:
       # Host 3007 → container 3000 (Evidence's SvelteKit dev port).
       # 3000-3006 are already taken by metabase/uptime-kuma/wetty/
@@ -63,14 +76,14 @@ services:
       # is provided by env_file above — no explicit entry needed.
       # Only the password travels through the environment. The rest of
       # the connection lives literally in
-      # sources/nexus_postgres/connection.yaml, because Evidence does not
+      # sources/evidence_db/connection.yaml, because Evidence does not
       # interpolate ${VAR} inside that file -- the previous POSTGRES_HOST
       # and friends were read verbatim by the driver and never resolved.
       #
       # `EVIDENCE_SOURCE__<source>__<field>` is the documented override:
       # Evidence merges it over connection.yaml, so the secret stays out
       # of the repository while the rest stays readable.
-      EVIDENCE_SOURCE__nexus_postgres__password: ${POSTGRES_PASSWORD}
+      EVIDENCE_SOURCE__evidence_db__password: ${EVIDENCE_DB_PASSWORD}
     volumes:
       # The sample project shipped under stacks/evidence/project/ is
       # synced to /opt/docker-server/stacks/evidence/project/ by the
@@ -81,9 +94,10 @@ services:
       # `/@vite/client`, not `/`. The root page runs the bundled source
       # query, and a query returning zero rows currently crashes the
       # server (#725 defect 7) -- so probing `/` marks the container
-      # unhealthy on a fresh database, which is precisely the state a
-      # new stack starts in. The healthcheck would have been reporting
-      # the user's empty database as a broken container.
+      # unhealthy on an empty database. The seeded sample table means the
+      # default project no longer reaches that state, but a user who
+      # replaces the query still can, and the probe should not depend on
+      # what the page happens to select.
       #
       # `/@vite/client` is served by vite's dev middleware and renders
       # no Evidence page, so it answers whenever the dev server is up
@@ -96,7 +110,46 @@ services:
       start_period: 90s
     networks:
       - app-network
+      - evidence-internal
+
+  evidence-db:
+    image: ${IMAGE_EVIDENCE_DB:-postgres:18-alpine}
+    container_name: evidence-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-evidence
+      POSTGRES_PASSWORD: ${EVIDENCE_DB_PASSWORD}
+      POSTGRES_DB: evidence
+      # No explicit PGDATA, and the mount is one level up from the
+      # pre-18 location — the layout docker-library/postgres recommends
+      # for 18+. Setting PGDATA to a subdirectory of the old mount also
+      # keeps the data inside the volume, but silences the entrypoint's
+      # legacy-cluster check, which runs ONLY when PGDATA is its default.
+      # The server would then start an empty cluster without a word.
+      # Loud beats quiet, so the mount moves instead.
+    volumes:
+      - evidence-db-data:/var/lib/postgresql
+      # Seed data for the bundled page. `docker-entrypoint-initdb.d` runs
+      # exactly once, on an empty data directory, so operator edits to the
+      # tables survive every later restart.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    networks:
+      - evidence-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-evidence -d evidence"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  evidence-db-data:
 
 networks:
   app-network:
     external: true
+  evidence-internal:
+    driver: bridge
