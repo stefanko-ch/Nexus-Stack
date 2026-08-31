@@ -730,8 +730,10 @@ jobs:
             echo "    to start empty instead."
           else
             echo "🧹 S3 persistence is off for this run: no snapshot will be restored."
-            echo "    Anything in R2 is left untouched, and the next teardown still"
-            echo "    snapshots — that side reads the repository secret, not this flag."
+            echo "    Anything already in R2 is left untouched. This flag does not"
+            echo "    reach teardown: that side reads the NEXUS_S3_PERSISTENCE"
+            echo "    repository secret, so whether it snapshots is unchanged by"
+            echo "    this run — not necessarily yes."
           fi
 
           # Derive PERSISTENCE_S3_BUCKET inline — YAML expressions

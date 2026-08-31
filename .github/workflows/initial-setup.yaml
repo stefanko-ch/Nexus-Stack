@@ -37,7 +37,7 @@ on:
         # teardown workflows read the repository secret rather than this
         # input, so a fresh start here does not stop the next teardown from
         # snapshotting.
-        description: 'Start with an empty stack, ignoring any snapshot in R2. Leave unchecked to restore the latest snapshot, as a normal spin-up would.'
+        description: 'Start with an empty stack, ignoring any snapshot in R2. Leave unchecked to let the stack decide as it would on any spin-up — which restores the latest snapshot only if persistence is switched on for it.'
         required: false
         default: false
         type: boolean
@@ -83,6 +83,14 @@ jobs:
 
       - name: Build enabled services list
         id: build-list
+        env:
+          # Through the environment, never `${{ }}` inside the script body.
+          # Actions substitutes those textually before bash sees the line, so
+          # a dispatch value carrying shell syntax runs on the runner with
+          # this job's credentials. The value is operator-supplied, but "only
+          # someone with write access can dispatch" is an argument for a
+          # smaller blast radius, not for none.
+          ENABLED_INPUT: ${{ inputs.enabled_services }}
         run: |
           # No hardcoded core list. There used to be one — "infisical,mailpit"
           # — and it was wrong in both directions: the core set is forgejo,
@@ -96,18 +104,53 @@ jobs:
           # services regardless of D1 (`should_enable = is_core or name in
           # enabled_set`), so the single source of truth for "core" stays
           # services.yaml rather than a copy that drifts here.
-          SERVICES="${{ inputs.enabled_services }}"
-
           # Remove duplicates and empty values, sort
-          SERVICES=$(echo "$SERVICES" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+          SERVICES=$(echo "$ENABLED_INPUT" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+
+          # Every name must look like a service name and be one. The format
+          # check is what makes the rest safe: it admits no quote, semicolon,
+          # backtick, space or $, so nothing downstream can be talked out of
+          # its context -- neither this shell nor the SQL built from these
+          # names two steps below, which interpolates them into a string
+          # literal.
+          #
+          # The existence check is not security, it is honesty: a typo used to
+          # produce an UPDATE matching no row, and a silent no-op looks exactly
+          # like success. Now it stops before anything is written.
+          IFS=',' read -ra REQUESTED <<< "$SERVICES"
+          INVALID=""
+          UNKNOWN=""
+          for svc in "${REQUESTED[@]}"; do
+            [ -n "$svc" ] || continue
+            if ! printf '%s' "$svc" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+              INVALID="$INVALID $svc"
+            elif ! grep -qE "^  ${svc}:\s*$" services.yaml; then
+              UNKNOWN="$UNKNOWN $svc"
+            fi
+          done
+          if [ -n "$INVALID" ]; then
+            echo "❌ Not valid service names:$INVALID"
+            echo "   Allowed: lowercase letters, digits and hyphens."
+            exit 1
+          fi
+          if [ -n "$UNKNOWN" ]; then
+            echo "❌ Not defined in services.yaml:$UNKNOWN"
+            echo "   Check the spelling against the Available Stacks table."
+            exit 1
+          fi
 
           echo "enabled_services=$SERVICES" >> "$GITHUB_OUTPUT"
-          echo "📋 Enabled services: $SERVICES"
+          echo "📋 Enabled services: ${SERVICES:-(none — core only)}"
 
       - name: Update D1 with selected services
+        env:
+          # Same rule as the step above. These names are already validated,
+          # so this is defence in depth rather than the load-bearing check --
+          # but a second `${{ }}` in a shell body is a second thing to get
+          # right later, and there is no reason to keep one.
+          ENABLED_SERVICES: ${{ steps.build-list.outputs.enabled_services }}
         run: |
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES="${{ steps.build-list.outputs.enabled_services }}"
 
           echo "📝 Updating D1 database: $D1_DATABASE_NAME"
           echo "   Services to enable: $ENABLED_SERVICES"
