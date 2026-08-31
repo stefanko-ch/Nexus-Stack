@@ -90,8 +90,13 @@ def test_forgejo_set_puts_json_data_to_the_actions_secrets_endpoint(tmp_path: Pa
         "https://forgejo.example/api/v1/repos/nexus-conductor/nexus-alice/actions/secrets/SSH_PRIVATE_KEY"
     )
     assert "PUT" in args
-    assert "Authorization: token tok-1" in args
     assert "@-" in args, "the body must arrive on stdin, never in argv"
+    assert "--config" in args, "the token must travel in a curl config file"
+    assert not any("tok-1" in a for a in args), (
+        "GH_TOKEN must never reach argv — process arguments are readable "
+        "through /proc by any user on a shared runner, and this token can "
+        "write every repository secret"
+    )
     assert json.loads((shims / "curl.stdin").read_text()) == {"data": ssh_key}
     assert not (shims / "gh.args").exists()
 
@@ -234,3 +239,59 @@ def test_error_path_is_identical_when_the_forge_sends_no_body(tmp_path: Path) ->
 
     assert "HTTP 422" in proc.stderr
     assert proc.stderr.count("repo-secret.sh:") == 2
+
+
+@pytest.mark.parametrize(
+    "api_url",
+    [
+        "https://forgejo.example/api/v1",
+        "http://localhost:3000/api/v1",
+        "http://127.0.0.1:3000/api/v1",
+        "http://[::1]:3000/api/v1",
+    ],
+)
+def test_https_and_loopback_urls_are_accepted(tmp_path: Path, api_url: str) -> None:
+    """Loopback over http is allowed on purpose: there is no wire to listen
+    on. Whether a Forgejo job container reaches its own forge at all is
+    #679, and an http URL on the same host is one plausible answer."""
+    proc, _ = _run(
+        tmp_path, ["delete", "X"], env={**FORGEJO, "GITHUB_API_URL": api_url}, http_code="204"
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_remote_cleartext_url_is_refused_before_the_token_is_sent(tmp_path: Path) -> None:
+    """GH_TOKEN can write every repository secret. Sending it unencrypted to
+    a remote host is refused rather than attempted, and refused *before* any
+    call — so the shim must never have run."""
+    proc, shims = _run(
+        tmp_path,
+        ["set", "X"],
+        stdin="v",
+        env={**FORGEJO, "GITHUB_API_URL": "http://forgejo.example/api/v1"},
+    )
+    assert proc.returncode == 2
+    assert "refusing to send GH_TOKEN in cleartext" in proc.stderr
+    assert not (shims / "curl.args").exists()
+
+
+def test_transport_failure_still_names_action_and_endpoint(tmp_path: Path) -> None:
+    """A curl that dies before producing a status (DNS, connect, TLS) used to
+    abort the script through `set -e`, leaving the operator curl's bare
+    one-liner with no action, name or endpoint attached — for precisely the
+    "forge unreachable" case this script exists to make legible."""
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    (shim_dir / "curl").write_text("#!/bin/bash\ncat > /dev/null\nexit 6\n")
+    (shim_dir / "curl").chmod(0o755)
+    proc = subprocess.run(
+        ["bash", str(SCRIPT), "delete", "R2_ACCESS_KEY_ID"],
+        capture_output=True,
+        text=True,
+        env={"PATH": f"{shim_dir}:{os.environ['PATH']}", "GH_TOKEN": "tok-1", **FORGEJO},
+        check=False,
+    )
+    assert proc.returncode == 1
+    assert "failed before any HTTP status (exit 6)" in proc.stderr
+    assert "/actions/secrets/R2_ACCESS_KEY_ID" in proc.stderr
+    assert "may be unreachable" in proc.stderr

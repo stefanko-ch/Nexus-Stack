@@ -132,11 +132,37 @@ jobs:
                 echo "✅ SSH Private Key saved as a repository secret"
                 echo "ssh_key_created=true" >> "$GITHUB_OUTPUT"
               else
-                # Deliberately does not name a cause. This step cannot tell
-                # a token-scope problem from an unreachable forge, and the
-                # line above already printed what the forge actually said.
-                echo "⚠️  Failed to save the SSH private key — see the error above"
+                # Fail the workflow rather than record the failure and move
+                # on. Recording achieved nothing: `ssh_key_created` is
+                # written in four places and read in none, so the run
+                # continued and reported success.
+                #
+                # It looked survivable because the key is also exported as
+                # the `ssh_private_key` output, so initial-setup's own
+                # spin-up does get it. The breakage lands later, on the
+                # first standalone `spin-up.yml`, which reads
+                # secrets.SSH_PRIVATE_KEY and finds nothing — far from the
+                # step that caused it.
+                #
+                # The R2 save two steps down already exits 1 on the same
+                # class of failure, with the same token. Two policies for
+                # one prerequisite was the actual bug.
+                #
+                # The message deliberately does not name a cause: this step
+                # cannot tell a token-scope problem from an unreachable
+                # forge, and repo-secret.sh already printed the status and
+                # the endpoint above.
+                echo "❌ Could not save the SSH private key as a repository secret."
+                echo "   The status and endpoint are in the error above."
+                echo ""
+                echo "   Without it, this run would still work — the key is"
+                echo "   passed to spin-up as a workflow output — but the next"
+                echo "   standalone spin-up would find no SSH_PRIVATE_KEY and"
+                echo "   fail with no trace back to here."
+                echo ""
+                echo "   Fix the token's permissions and re-run this workflow."
                 echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
+                exit 1
               fi
             else
               echo "⚠️  GH_SECRETS_TOKEN not set - SSH keys not saved"

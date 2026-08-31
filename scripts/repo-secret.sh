@@ -20,9 +20,11 @@
 #   GITHUB_API_URL      https://api.github.com, or <forge>/api/v1
 #   GITHUB_REPOSITORY   owner/repo
 #
-# The value travels on stdin end to end (never argv, never echoed), so it
-# does not show up in `ps` or in the workflow log. Exit status is the
-# forge call's; diagnostics go to stderr.
+# The secret value travels on stdin end to end and GH_TOKEN goes in a
+# curl config file, so neither appears in argv -- process arguments are
+# world-readable through /proc on a shared runner. Neither is echoed, so
+# neither reaches the workflow log. Diagnostics go to stderr and name the
+# status and the endpoint, never the response body.
 # =============================================================================
 
 set -euo pipefail
@@ -62,30 +64,69 @@ fi
 
 : "${GITHUB_API_URL:?repo-secret.sh: GITHUB_API_URL is not set}"
 : "${GITHUB_REPOSITORY:?repo-secret.sh: GITHUB_REPOSITORY is not set}"
+
+# Refuse to put a write-capable token on the wire in cleartext.
+#
+# The exception is loopback, where there is no wire to listen on. That is
+# not a hypothetical shape here: whether a Forgejo job container can reach
+# its own forge at all is #679, and one plausible answer is an http URL on
+# the same host.
+case "$GITHUB_API_URL" in
+  https://*) ;;
+  http://localhost|http://localhost[:/]*) ;;
+  http://127.0.0.1|http://127.0.0.1[:/]*) ;;
+  'http://[::1]'|'http://[::1]'[:/]*) ;;
+  *)
+    echo "repo-secret.sh: refusing to send GH_TOKEN in cleartext to ${GITHUB_API_URL}" >&2
+    echo "repo-secret.sh: use https, or point GITHUB_API_URL at loopback if the forge runs on this host" >&2
+    exit 2
+    ;;
+esac
+
 URL="${GITHUB_API_URL%/}/repos/${GITHUB_REPOSITORY}/actions/secrets/${NAME}"
 
 RESPONSE=$(mktemp)
-trap 'rm -f "$RESPONSE"' EXIT
 
+# The token travels in a curl config file, not in `-H` on the command
+# line. Process arguments are readable through /proc by any user on a
+# shared runner, and this token can write every repository secret --
+# the same reason the secret VALUE already goes on stdin rather than argv.
+CURL_CFG=$(mktemp)
+chmod 600 "$CURL_CFG"
+printf 'header = "Authorization: token %s"\n' "$GH_TOKEN" > "$CURL_CFG"
+
+trap 'rm -f "$RESPONSE" "$CURL_CFG"' EXIT
+
+TRANSPORT=0
 if [ "$ACTION" = "set" ]; then
   # JSON-encode stdin with node rather than jq. On GitHub the workflows
   # already run actions/setup-node, so node is present.
   #
   # On Forgejo this is a requirement on the runner rather than an observed
-  # fact: no Forgejo runner exists in this repository yet — it arrives with
+  # fact: no Forgejo runner exists in this repository yet -- it arrives with
   # the migration, whose job images must therefore carry node. Stated as a
   # constraint on purpose, because the alternative reading ("the runner
   # image happens to have node") is something nobody can check today.
   # jq is the weaker bet either way: it is absent from more base images
   # than node is.
   CODE=$(node -e 'process.stdout.write(JSON.stringify({ data: require("fs").readFileSync(0, "utf8") }))' \
-    | curl -sS -o "$RESPONSE" -w '%{http_code}' -X PUT \
-        -H "Authorization: token ${GH_TOKEN}" \
+    | curl -sS --config "$CURL_CFG" -o "$RESPONSE" -w '%{http_code}' -X PUT \
         -H "Content-Type: application/json" \
-        --data-binary @- "$URL")
+        --data-binary @- "$URL") || TRANSPORT=$?
 else
-  CODE=$(curl -sS -o "$RESPONSE" -w '%{http_code}' -X DELETE \
-        -H "Authorization: token ${GH_TOKEN}" "$URL")
+  CODE=$(curl -sS --config "$CURL_CFG" -o "$RESPONSE" -w '%{http_code}' -X DELETE "$URL") || TRANSPORT=$?
+fi
+
+# No HTTP status was ever produced -- DNS, connect timeout, TLS, or node
+# failing to encode. Without this branch `set -e` would abort right here on
+# curl's exit code, and the operator would get curl's bare one-liner with
+# no action, name or endpoint attached. That is the "forge unreachable"
+# case this script exists to make legible, so it gets the same two-line
+# shape as an HTTP failure.
+if [ "$TRANSPORT" -ne 0 ]; then
+  echo "repo-secret.sh: ${ACTION} ${NAME} failed before any HTTP status (exit ${TRANSPORT})" >&2
+  echo "repo-secret.sh: endpoint was ${URL} -- the forge may be unreachable" >&2
+  exit 1
 fi
 
 case "$CODE" in
