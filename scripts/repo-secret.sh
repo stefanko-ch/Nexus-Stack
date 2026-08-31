@@ -92,22 +92,27 @@ case "$CODE" in
   200|201|204) exit 0 ;;
 esac
 
-# The status code is the diagnosis and is always safe to print: 404 wrong
-# API path, 403 token cannot write secrets, 422 payload rejected.
+# The status code is the diagnosis and is safe to print: 404 wrong API
+# path, 403 token cannot write secrets, 422 payload rejected. So is the
+# endpoint, which carries the secret's NAME but never its value.
 echo "repo-secret.sh: ${ACTION} ${NAME} failed — ${GITHUB_SERVER_URL} returned HTTP ${CODE}" >&2
+echo "repo-secret.sh: endpoint was ${URL}" >&2
 
-# The body is a different matter. This request's payload IS the secret,
-# and callers in setup-control-plane.yaml capture this stream with
-# `OUTPUT=$(... 2>&1)` and print it into the workflow log — which for this
-# repository is world-readable. Whether a forge echoes the request back in
-# an error response is not something this script can know, and the answer
-# may differ per forge and per version, so the body is bounded rather than
-# trusted: 500 bytes is enough for a `{"message": "..."}` and short enough
-# that a mirrored payload cannot leave in full. Per CLAUDE.md — never
-# print API responses that may contain credentials.
-if [ -s "$RESPONSE" ]; then
-  echo "repo-secret.sh: first 500 bytes of the response follow" >&2
-  head -c 500 "$RESPONSE" >&2
-  echo >&2
-fi
+# The response body is never printed. This request's payload IS the
+# secret, and callers in setup-control-plane.yaml capture this stream with
+# `OUTPUT=$(... 2>&1)` and print it as SAVE_ERROR into the workflow log —
+# world-readable for this repository. Whether a forge or an intermediate
+# proxy echoes the rejected request back is not knowable from here and may
+# differ per version.
+#
+# Truncating instead of dropping was tried and does not work, which is
+# recorded here so it is not reintroduced as a compromise: every secret
+# this workflow stores is short. An ed25519 private key is 387 bytes, an
+# R2 access key 32, its secret 64 — all of them fit inside any cap large
+# enough to still show a `{"message": ...}`. A bound that admits the
+# useful case admits these too.
+#
+# Per CLAUDE.md: never print API responses that may contain credentials.
+# `curl -o` still writes the body to a temp file, so the two branches above
+# keep one shape; the trap removes it.
 exit 1

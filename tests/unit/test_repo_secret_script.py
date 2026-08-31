@@ -156,6 +156,12 @@ def test_missing_token_is_rejected_before_any_call(tmp_path: Path) -> None:
 # shared shim does not. Needed to exercise what the script prints from the
 # forge's error response.
 BODY_SHIM = """#!/bin/bash
+# Drain stdin first. The script pipes `node ... | curl ...`, so a shim that
+# exits without reading closes the pipe under node and it dies with EPIPE
+# instead of the script reaching its error path. That is a race — a small
+# payload often lands before the shim exits — which passed locally and
+# failed in CI. The shared SHIM above drains for the same reason.
+cat > /dev/null
 prev=""
 for a in "$@"; do
   if [ "$prev" = "-o" ]; then printf '%s' "$RESPONSE_BODY" > "$a"; fi
@@ -185,36 +191,46 @@ def _run_with_body(tmp_path: Path, body: str) -> subprocess.CompletedProcess[str
     )
 
 
-def test_error_response_body_is_truncated(tmp_path: Path) -> None:
+def test_error_response_body_is_never_printed(tmp_path: Path) -> None:
     """The PUT payload of this request IS a secret.
 
     setup-control-plane.yaml captures this script's stderr with
-    `OUTPUT=$(... 2>&1)` and prints it into the workflow log, which for a
-    public repository is world-readable. Whether a given forge mirrors the
-    request back inside an error response is not knowable from here and may
-    change between versions, so the body is bounded rather than trusted.
+    `OUTPUT=$(... 2>&1)` and prints it as SAVE_ERROR into the workflow log,
+    which for a public repository is world-readable. Whether a forge or a
+    proxy in front of it echoes the rejected request back is not knowable
+    from here.
 
-    The status code carries the diagnosis and is printed in full.
+    Truncating was tried first and is not sufficient, which is why this
+    test asserts absence rather than a bound: every secret this workflow
+    stores is short enough to survive any useful cap -- an ed25519 private
+    key is 387 bytes, an R2 access key 32, its secret 64.
     """
-    proc = _run_with_body(tmp_path, "X" * 5000)
+    secret = "s3cr3t-value"
+    proc = _run_with_body(tmp_path, f'{{"message":"rejected","request":{{"data":"{secret}"}}}}')
 
     assert proc.returncode == 1
+    assert secret not in proc.stderr
+    assert "rejected" not in proc.stderr
+
+
+def test_error_path_names_the_status_and_the_endpoint(tmp_path: Path) -> None:
+    """Dropping the body must not leave the operator without a diagnosis.
+
+    The status code distinguishes the three cases that matter on Forgejo --
+    404 wrong API path, 403 token lacks write:repository, 422 rejected
+    payload -- and the endpoint carries the secret's name, never its value.
+    """
+    proc = _run_with_body(tmp_path, '{"message":"whatever"}')
+
     assert "HTTP 422" in proc.stderr
-    assert proc.stderr.count("X") == 500, "response body must be capped at 500 bytes"
+    assert "SOME_SECRET" in proc.stderr
+    assert "/repos/nexus-conductor/nexus-alice/actions/secrets/SOME_SECRET" in proc.stderr
 
 
-def test_error_path_still_shows_a_short_body_in_full(tmp_path: Path) -> None:
-    """Truncation must not cost the ordinary case its diagnosis: a normal
-    `{"message": ...}` is well under the cap and has to survive intact."""
-    proc = _run_with_body(tmp_path, '{"message":"token does not have write:repository"}')
-
-    assert "token does not have write:repository" in proc.stderr
-
-
-def test_empty_error_response_prints_no_body_header(tmp_path: Path) -> None:
-    """A forge that answers with a status and nothing else should not
-    produce a dangling "response follows" line with nothing after it."""
+def test_error_path_is_identical_when_the_forge_sends_no_body(tmp_path: Path) -> None:
+    """A forge answering with a status and nothing else produces the same
+    two lines -- no dangling header, no branch that only runs sometimes."""
     proc = _run_with_body(tmp_path, "")
 
     assert "HTTP 422" in proc.stderr
-    assert "response follows" not in proc.stderr
+    assert proc.stderr.count("repo-secret.sh:") == 2

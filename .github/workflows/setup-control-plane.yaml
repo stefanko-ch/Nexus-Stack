@@ -418,11 +418,34 @@ jobs:
             echo "$VALIDATION"
             echo "r2_valid=false" >> "$GITHUB_OUTPUT"
 
-            # Delete stale repository secrets so init-r2-state.sh can recreate them
+            # Delete stale repository secrets so init-r2-state.sh can recreate them.
+            #
+            # The success line used to sit outside the success branch: both
+            # deletes discarded their status with `|| true` and the message
+            # claimed they were gone regardless. On Forgejo, where these calls
+            # can fail for reasons GitHub never had (wrong API path, a token
+            # without write:repository), that told the operator the opposite of
+            # what happened. It also said "from GitHub" while the deletion may
+            # target any forge.
             if [ -n "$GH_TOKEN" ]; then
-              bash scripts/repo-secret.sh delete R2_ACCESS_KEY_ID 2>/dev/null || true
-              bash scripts/repo-secret.sh delete R2_SECRET_ACCESS_KEY 2>/dev/null || true
-              echo "🗑️  Stale R2 secrets deleted from GitHub"
+              STALE_FAILED=""
+              for STALE_NAME in R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+                if ! bash scripts/repo-secret.sh delete "$STALE_NAME"; then
+                  STALE_FAILED="$STALE_FAILED $STALE_NAME"
+                fi
+              done
+              if [ -z "$STALE_FAILED" ]; then
+                echo "🗑️  Stale R2 secrets removed"
+              else
+                # Not fatal, and not necessarily wrong: a secret that was never
+                # written answers 404. This step cannot tell that apart from a
+                # token that may not delete, so it states what it knows and
+                # leaves the conclusion open.
+                echo "⚠️  Could not remove:$STALE_FAILED"
+                echo "    They may already be absent, or the token may not be"
+                echo "    allowed to delete secrets — the status above says which."
+                echo "    The next step overwrites them either way."
+              fi
             fi
           fi
 
@@ -1002,7 +1025,7 @@ jobs:
             fi
           fi
 
-          # Save data bucket name as GitHub Secret
+          # Save data bucket name as a repository secret (GitHub or Forgejo)
           if [ -n "$GH_TOKEN" ]; then
             if printf '%s' "$BUCKET_NAME" | bash scripts/repo-secret.sh set R2_DATA_BUCKET; then
               echo "  ✅ R2_DATA_BUCKET saved as a repository secret"
@@ -1010,7 +1033,12 @@ jobs:
               echo "  ⚠️  Failed to save R2_DATA_BUCKET (non-fatal)"
             fi
 
-            # Clean up old separate data token secrets (migration from 2-token to 1-token)
+            # Clean up old separate data token secrets (migration from
+            # 2-token to 1-token). Silence is deliberate here, unlike the
+            # stale-secret cleanup above: on every stack set up after that
+            # migration these secrets have never existed, so a 404 is the
+            # normal outcome rather than a symptom. Reporting it would
+            # print a warning on every run for a condition that is correct.
             bash scripts/repo-secret.sh delete R2_DATA_ACCESS_KEY_ID 2>/dev/null || true
             bash scripts/repo-secret.sh delete R2_DATA_SECRET_ACCESS_KEY 2>/dev/null || true
           fi
