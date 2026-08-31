@@ -126,18 +126,26 @@ which answers most access questions before they are asked.
 |---|---|---|
 | **Where** | The repository that runs the workflows — GitHub, or a Forgejo instance | The `infisical` core stack, on the deployed server |
 | **What** | Credentials that *build* infrastructure: Hetzner, Cloudflare, R2, the generated SSH key | Credentials that *services* use: database passwords, admin logins, one folder per stack (~50) |
-| **Who sets them** | The operator, before the first run | OpenTofu, on every spin-up |
+| **Who sets them** | The operator, before the first run | OpenTofu generates them on every spin-up; operators may add their own directly in Infisical |
 | **Who reads them** | Only the workflows | Anyone who can reach the Control Plane or the stacks on that server |
 
-Nothing crosses. **No Hetzner or Cloudflare token is ever written to Infisical
-or to the server**, and no service password is ever written back to the
-repository. The workflow stores exactly four values back as repository secrets
-— `SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
+**No Hetzner or Cloudflare API token is ever written to Infisical or reachable
+from the application stacks**, and no service password is ever written back to
+the repository. The workflow stores exactly four values back as repository
+secrets — `SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
 `R2_DATA_BUCKET` — and those are infrastructure credentials, not service ones.
 
+"API token" is the precise word, and the imprecise version would have been worth
+distrusting the rest of the page over. The server *does* hold one Cloudflare
+credential: `cloudflared service install` writes the **tunnel token** into the
+connector's systemd unit, because a tunnel cannot connect without one. It
+authorises that one tunnel and nothing else — it cannot read the account, create
+DNS records or reach any other zone — and it is not in Infisical, so the
+Control Plane never shows it.
+
 This matters most for teaching setups, where people work on a stack without
-being meant to hold the account credentials behind it. They cannot: the tokens
-are not on the machine they are using.
+being meant to hold the account credentials behind it. They do not: the tokens
+that could manage the Cloudflare or Hetzner account are not on that machine.
 
 #### What actually controls access
 
@@ -151,13 +159,20 @@ may push to the repository holding these secrets, not who may look at a
 settings page.
 
 Infisical is deliberately the opposite. Its secrets are *meant* to be read by
-the people using that stack — the Control Plane shows them, and
-`secret-sync` writes every one of them into **Kestra**, **Jupyter**,
-**Marimo** and **code-server** as environment variables so notebooks and flows
-can use them without copy-pasting. Anyone who can run code in those four stacks
-can read every credential of that stack. On a stack belonging to the person
-using it, that is the point. It also means Infisical is not a way to keep
-something from that person.
+the people using that stack — the Control Plane shows them, and `secret-sync`
+writes them into **Kestra**, **Jupyter**, **Marimo** and **code-server** as
+environment variables so notebooks and flows can use them without copy-pasting.
+
+Not quite all of them, and the exceptions are worth knowing before relying on a
+key being present. A name that is not a valid POSIX shell identifier is skipped
+on every target. A multi-line value — a PEM, a certificate — is skipped for
+Jupyter, Marimo and code-server, which receive plain env files; Kestra takes it,
+because its values transit base64-encoded and are decoded server-side. Skipped
+keys are logged by name, never by value.
+
+What does arrive is readable by anything running in those four stacks. On a
+stack belonging to the person using it, that is the point. It also means
+Infisical is not a way to keep something from that person.
 
 ### Required Secrets
 

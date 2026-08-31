@@ -19,19 +19,28 @@ admin logins, API keys the stacks generate for themselves. One folder per
 service.
 
 It is not everything that exists. The credentials used to *build* the server —
-the Hetzner and Cloudflare API tokens — live in the repository that runs the
-deployment workflows and are never written to your stack. You will not find
-them here because they are not on this machine at all. If you are looking for
-them to do something with the underlying account, this is the wrong place and
-the answer is to ask whoever operates the deployment.
+the Hetzner and Cloudflare **API** tokens — live in the repository that runs the
+deployment workflows, never in Infisical, and nothing on this stack can reach
+them. If you are looking for them to do something with the underlying account,
+this is the wrong place; ask whoever operates the deployment.
+
+One Cloudflare credential does live on the server: the **tunnel token**, held by
+the `cloudflared` service so the tunnel can connect at all. It authorises that
+one tunnel and nothing else — no account access, no DNS, no other zone — and it
+is not in Infisical, which is why it does not appear on this page.
 
 The other direction is worth knowing too: these secrets are **not** hidden from
-you. Besides this page, every one of them is written into **Kestra**,
-**Jupyter**, **Marimo** and **code-server** as environment variables, so flows
-and notebooks can use them without copy-pasting — see
+you. Besides this page, they are written into **Kestra**, **Jupyter**,
+**Marimo** and **code-server** as environment variables, so flows and notebooks
+can use them without copy-pasting — see
 [Kestra flow editing](./kestra-flow-editing.md). Anything you can run in those
-stacks can read any credential on this page. That is intended: they are your
-stack's own services.
+stacks can read them. That is intended: they are your stack's own services.
+
+Two kinds do not make it across, so check before depending on one. A secret
+whose *name* is not a valid environment-variable name is skipped everywhere. A
+secret whose *value* spans several lines — a certificate, a private key — is
+skipped for Jupyter, Marimo and code-server; Kestra still receives it. Both
+cases are logged by name during the deploy.
 
 ## How it's organised
 
