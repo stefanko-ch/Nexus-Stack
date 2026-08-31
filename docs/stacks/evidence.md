@@ -30,7 +30,7 @@ Evidence serves through vite's dev server. Since the 5.4.12 DNS-rebinding fix,
 vite rejects any request whose `Host` header is not listed in
 `server.allowedHosts`, answering:
 
-```
+```text
 Blocked request. This host ("evidence.YOUR_DOMAIN") is not allowed.
 To allow this host, add "evidence.YOUR_DOMAIN" to `server.allowedHosts` in vite.config.js.
 ```
@@ -48,6 +48,16 @@ loads. Cloudflare Access is unaffected — it runs at the edge, before the tunne
 
 This does not change Evidence's own links: canonical URLs and OG tags come from
 `EVIDENCE_BASE_URL`, which is set from the public domain.
+
+It does give up what vite's check was there for. That check is DNS-rebinding
+protection: it stops a browser that has been tricked into resolving an attacker's
+hostname to `127.0.0.1` from reaching a dev server bound to loopback. That threat
+needs a path to the origin which does not exist here — the server has no open
+ports, every request arrives through the Cloudflare Tunnel, and Cloudflare Access
+authenticates before the tunnel forwards anything. The check is redundant against
+this deployment's only reachable path, which is why disabling it costs nothing.
+It would matter again the moment the port were published directly, so a
+`tcp_ports` entry for a stack carrying this flag deserves a second look.
 
 Set the same flag on any other stack whose dev server refuses foreign Host
 headers. It has no effect on an `internal_only` service, which gets no ingress
