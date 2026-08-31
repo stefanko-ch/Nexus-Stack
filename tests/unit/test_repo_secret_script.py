@@ -365,3 +365,37 @@ def test_github_delete_failure_that_is_not_a_404_still_fails(tmp_path: Path) -> 
     assert proc.returncode == 1
     assert "403" in proc.stderr
     assert "already absent" not in proc.stderr
+
+
+@pytest.mark.parametrize(
+    ("stderr", "exit_code", "label"),
+    [
+        ("gh: command not found", 127, "a missing gh binary"),
+        ("error: could not find secret SECRET_404 in this repository", 1, "a name containing 404"),
+        ("dial tcp: lookup api.github.com: no such host", 1, "a DNS failure"),
+    ],
+)
+def test_only_ghs_http_404_counts_as_absent(
+    tmp_path: Path, stderr: str, exit_code: int, label: str
+) -> None:
+    """The absent-secret shortcut matches gh's HTTP-404 diagnostic and
+    nothing else.
+
+    An earlier version also matched `*"not found"*`, which the shell's own
+    `gh: command not found` satisfies — so a runner without gh would have
+    exited 0 having sent no request, reporting a deletion that never
+    happened. The other two cases are the same trap from different angles.
+    """
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    (shim_dir / "gh").write_text(f'#!/bin/bash\necho "{stderr}" >&2\nexit {exit_code}\n')
+    (shim_dir / "gh").chmod(0o755)
+    proc = subprocess.run(
+        ["bash", str(SCRIPT), "delete", "R2_DATA_ACCESS_KEY_ID"],
+        capture_output=True,
+        text=True,
+        env={"PATH": f"{shim_dir}:{os.environ['PATH']}", "GH_TOKEN": "tok-1", **GITHUB},
+        check=False,
+    )
+    assert proc.returncode == 1, f"{label} must not be read as an absent secret"
+    assert "already absent" not in proc.stderr

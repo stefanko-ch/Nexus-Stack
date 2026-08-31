@@ -1115,11 +1115,28 @@ jobs:
             # a delete finds nothing. Blanket suppression hid the cases
             # that are not fine, a token that may not delete and a forge
             # that did not answer, behind the one that is.
+            # Warn rather than exit, unlike every other failure in this
+            # workflow. The difference is what the failure costs. Everywhere
+            # else a failed write leaves a later run without something it
+            # needs; here nothing reads these secrets at all — the 1-token
+            # layout replaced them. Aborting a control-plane setup that has
+            # otherwise completed, over a cleanup remnant, trades a working
+            # stack for tidiness.
+            #
+            # It is not free either, which is why the message says what is
+            # left behind: these held R2 credentials under the old layout,
+            # and a copy nobody rotates is a standing exposure. Removing
+            # them by hand is the follow-up, not a re-run — a token that
+            # may not delete will not start being allowed to.
             for OBSOLETE in R2_DATA_ACCESS_KEY_ID R2_DATA_SECRET_ACCESS_KEY; do
               if ! bash scripts/repo-secret.sh delete "$OBSOLETE"; then
                 echo "  ⚠️  Could not remove the obsolete secret $OBSOLETE"
-                echo "     It is not needed by anything, so this is not fatal —"
-                echo "     but the failure above was a real one, not an absence."
+                echo "     The status above is a real failure, not an absence —"
+                echo "     repo-secret.sh exits 0 when a delete finds nothing."
+                echo "     Nothing reads this secret, so setup continues, but it"
+                echo "     holds an R2 credential from the previous two-token"
+                echo "     layout. Delete it by hand in the repository's secret"
+                echo "     settings, and revoke the token behind it."
               fi
             done
           fi

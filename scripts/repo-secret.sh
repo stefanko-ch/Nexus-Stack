@@ -70,8 +70,13 @@ if [ "${GITHUB_SERVER_URL:-https://github.com}" = "https://github.com" ]; then
   if DELETE_OUTPUT=$(gh secret delete "$NAME" 2>&1); then
     exit 0
   fi
+  # Only gh's HTTP-404 diagnostic counts as "absent". The first version of
+  # this matched *"not found"* as well, which also matches the shell's
+  # `gh: command not found` -- so a missing gh binary would have exited 0
+  # having sent no request at all, reporting a deletion that never
+  # happened. Narrow beats forgiving here: an unrecognised failure fails.
   case "$DELETE_OUTPUT" in
-    *404*|*"not found"*|*"Not Found"*)
+    *"HTTP 404"*)
       echo "repo-secret.sh: ${NAME} was already absent" >&2
       exit 0
       ;;
