@@ -127,7 +127,7 @@ Add these secrets to your GitHub repository:
 | `HCLOUD_TOKEN` | Hetzner console | API token |
 | `DOMAIN` | Your domain | e.g. `example.com` |
 | `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
-| `GH_SECRETS_TOKEN` | GitHub PAT | Stores the generated R2 credentials ([how to create](#gh_secrets_token)) |
+| `GH_SECRETS_TOKEN` | GitHub PAT, or a Forgejo access token | Stores the generated R2 credentials ([how to create](#gh_secrets_token)) |
 
 #### GH_SECRETS_TOKEN
 
