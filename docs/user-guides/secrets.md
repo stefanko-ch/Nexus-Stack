@@ -12,6 +12,27 @@ The Secrets page shows every secret managed by your stack, pulled live from **In
 
 ![Secrets page overview listing folders grouped by service name, with each folder collapsible to reveal its keys](./assets/secrets-overview.png)
 
+## What is here, and what is not
+
+This page shows the credentials **your services** use: database passwords,
+admin logins, API keys the stacks generate for themselves. One folder per
+service.
+
+It is not everything that exists. The credentials used to *build* the server —
+the Hetzner and Cloudflare API tokens — live in the repository that runs the
+deployment workflows and are never written to your stack. You will not find
+them here because they are not on this machine at all. If you are looking for
+them to do something with the underlying account, this is the wrong place and
+the answer is to ask whoever operates the deployment.
+
+The other direction is worth knowing too: these secrets are **not** hidden from
+you. Besides this page, every one of them is written into **Kestra**,
+**Jupyter**, **Marimo** and **code-server** as environment variables, so flows
+and notebooks can use them without copy-pasting — see
+[Kestra flow editing](./kestra-flow-editing.md). Anything you can run in those
+stacks can read any credential on this page. That is intended: they are your
+stack's own services.
+
 ## How it's organised
 
 Secrets are grouped by service name (e.g. `clickhouse`, `appsmith`, `redpanda`). Click a folder row to expand it and reveal the keys it contains.

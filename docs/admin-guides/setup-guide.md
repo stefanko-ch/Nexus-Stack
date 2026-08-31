@@ -117,6 +117,48 @@ Add these secrets to your GitHub repository:
 
 **Settings → Secrets and variables → Actions → New repository secret**
 
+### Two separate secret stores
+
+Nexus-Stack keeps credentials in two places that never mix. Knowing which is
+which answers most access questions before they are asked.
+
+| | Repository secrets (this section) | Infisical (on the server) |
+|---|---|---|
+| **Where** | The repository that runs the workflows — GitHub, or a Forgejo instance | The `infisical` core stack, on the deployed server |
+| **What** | Credentials that *build* infrastructure: Hetzner, Cloudflare, R2, the generated SSH key | Credentials that *services* use: database passwords, admin logins, one folder per stack (~50) |
+| **Who sets them** | The operator, before the first run | OpenTofu, on every spin-up |
+| **Who reads them** | Only the workflows | Anyone who can reach the Control Plane or the stacks on that server |
+
+Nothing crosses. **No Hetzner or Cloudflare token is ever written to Infisical
+or to the server**, and no service password is ever written back to the
+repository. The workflow stores exactly four values back as repository secrets
+— `SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
+`R2_DATA_BUCKET` — and those are infrastructure credentials, not service ones.
+
+This matters most for teaching setups, where people work on a stack without
+being meant to hold the account credentials behind it. They cannot: the tokens
+are not on the machine they are using.
+
+#### What actually controls access
+
+Not the storage — the push rights.
+
+Repository secrets cannot be read back through the UI or the API, and the
+runner masks them in logs. That protects against accidents, not against intent:
+**anyone who can push a workflow to the repository can print its secrets**, by
+encoding or splitting them past the mask. So the boundary that matters is who
+may push to the repository holding these secrets, not who may look at a
+settings page.
+
+Infisical is deliberately the opposite. Its secrets are *meant* to be read by
+the people using that stack — the Control Plane shows them, and
+`secret-sync` writes every one of them into **Kestra**, **Jupyter**,
+**Marimo** and **code-server** as environment variables so notebooks and flows
+can use them without copy-pasting. Anyone who can run code in those four stacks
+can read every credential of that stack. On a stack belonging to the person
+using it, that is the point. It also means Infisical is not a way to keep
+something from that person.
+
 ### Required Secrets
 
 | Secret Name | Source | Description |
