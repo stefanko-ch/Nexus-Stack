@@ -964,6 +964,23 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "main" {
       content {
         hostname = "${ingress_rule.value.subdomain}.${var.domain}"
         service  = "http://localhost:${ingress_rule.value.port}"
+
+        # Some dev servers refuse a Host header that is not their own
+        # origin — vite does since the 5.4.12 DNS-rebinding fix, and it
+        # answers with "Blocked request. This host is not allowed."
+        # rather than the page. Evidence is the case that surfaced it:
+        # its vite is 5.4.21, which supports `server.allowedHosts`, but
+        # Evidence regenerates .evidence/template/vite.config.js on every
+        # start and exposes no hook to inject into it, and that vite build
+        # carries no environment escape (__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+        # is Vite 6+). Rewriting the header upstream is the only fix that
+        # does not depend on the internals of an unpinned image.
+        dynamic "origin_request" {
+          for_each = try(ingress_rule.value.strict_host_check, false) ? [1] : []
+          content {
+            http_host_header = "localhost:${ingress_rule.value.port}"
+          }
+        }
       }
     }
 

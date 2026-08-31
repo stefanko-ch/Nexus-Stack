@@ -177,6 +177,12 @@ variable "services" {
     core           = optional(bool, false)
     image          = optional(string, "")
     support_images = optional(map(string), {})
+    # Origins that reject a Host header naming anything but themselves.
+    # Sets the tunnel to present "localhost:<port>" instead of the public
+    # hostname. Boolean rather than a free-form header so it cannot drift
+    # from `port` above; if a service ever needs a different value, this
+    # becomes a string then.
+    strict_host_check = optional(bool, false)
   }))
   default = {}
 }

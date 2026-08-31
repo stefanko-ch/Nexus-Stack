@@ -884,3 +884,29 @@ def test_evidence_sources_only_name_hosts_its_own_compose_defines(
         f"stacks/evidence/docker-compose.yml, or -- if it really is external and "
         f"always reachable -- add it to EVIDENCE_EXTERNAL_SOURCE_HOSTS with a reason."
     )
+
+
+def test_strict_host_check_only_where_a_tunnel_rule_exists(services: dict[str, Any]) -> None:
+    """`strict_host_check` rewrites the Host header on a tunnel ingress
+    rule, so it needs a rule to act on.
+
+    An `internal_only` service has no subdomain and therefore gets no
+    ingress rule (main.tf iterates `enabled_services_with_subdomain`), so
+    the flag would sit in services.yaml doing nothing -- the failure mode
+    where someone sets it, sees no change, and looks for the cause
+    elsewhere.
+
+    .github/scripts/generate-services-tfvars.py rejects the same
+    combination, but only when a deploy runs it. This catches it on the
+    commit instead.
+    """
+    offenders = sorted(
+        name
+        for name, entry in services.items()
+        if entry.get("strict_host_check")
+        and (entry.get("internal_only") or not entry.get("subdomain"))
+    )
+    assert not offenders, (
+        f"strict_host_check set on services with no tunnel ingress rule: {offenders}. "
+        f"The flag only has an effect on a service with a subdomain."
+    )

@@ -21,7 +21,38 @@ This stack ships the Evidence `devenv` runtime preloaded with a sample project, 
 | Source | [GitHub](https://github.com/evidence-dev/evidence) |
 | Docker image | [`evidencedev/devenv`](https://hub.docker.com/r/evidencedev/devenv) |
 | Database | `postgres:18-alpine` as `evidence-db`, on the stack-private `evidence-internal` bridge |
+| Host header | Rewritten by the tunnel to `localhost:3007` — see below |
 | Project root | `/opt/docker-server/stacks/evidence/project/` on the server (mounted at `/evidence-workspace` inside the container) |
+
+### Why the tunnel rewrites the Host header
+
+Evidence serves through vite's dev server. Since the 5.4.12 DNS-rebinding fix,
+vite rejects any request whose `Host` header is not listed in
+`server.allowedHosts`, answering:
+
+```
+Blocked request. This host ("evidence.YOUR_DOMAIN") is not allowed.
+To allow this host, add "evidence.YOUR_DOMAIN" to `server.allowedHosts` in vite.config.js.
+```
+
+Following that advice is not possible here. Evidence regenerates
+`.evidence/template/vite.config.js` on every start and exposes no hook to inject
+into it, and the vite it pins (5.4.21) has no environment escape — the
+`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` variable is Vite 6 and later.
+
+So `services.yaml` marks the service `strict_host_check: true`, and
+`tofu/stack/main.tf` gives its tunnel ingress rule an `origin_request` block
+setting `http_host_header` to `localhost:<port>`. Cloudflare rewrites the header
+before the request reaches the origin; vite allows localhost, and the page
+loads. Cloudflare Access is unaffected — it runs at the edge, before the tunnel.
+
+This does not change Evidence's own links: canonical URLs and OG tags come from
+`EVIDENCE_BASE_URL`, which is set from the public domain.
+
+Set the same flag on any other stack whose dev server refuses foreign Host
+headers. It has no effect on an `internal_only` service, which gets no ingress
+rule at all, and both the tfvars generator and the unit tests reject that
+combination rather than letting it sit there silently.
 
 ### Why Evidence
 

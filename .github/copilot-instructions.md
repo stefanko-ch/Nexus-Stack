@@ -126,6 +126,7 @@ Convention background: [examples/README.md](../examples/README.md) carries the f
 - Absolute URLs for tutorial cross-links (see §6)
 - Missing screenshots in tutorials — deliberate, text is the primary medium, images are added later in separate PRs
 - The light-mode toggle on nexus-stack.ch being broken — this is a separate-repo issue tracked there, not relevant for PRs in this repo
+- `strict_host_check: true` in `services.yaml` (currently only `evidence`). It is a real field, consumed by `.github/scripts/generate-services-tfvars.py` and `tofu/stack/variables.tf`, and it makes the tunnel rewrite the `Host` header to `localhost:<port>` for origins that reject foreign hostnames. Don't suggest removing it or setting `server.allowedHosts` instead — Evidence regenerates its vite config on every start.
 - `services.yaml` not having an `enabled` field per service — `enabled` lives in Cloudflare D1 and is managed via the Control Plane, not the YAML. Don't suggest adding it.
 
 ## Verification commands reviewers should actually run

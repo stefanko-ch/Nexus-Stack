@@ -260,6 +260,14 @@ services:
     description: "SQL + markdown BI framework — write queries inside Markdown, render charts inline."
     long_description: "Evidence is an open-source 'BI as code' framework: each page is a Markdown file containing SQL blocks that render into charts, tables, and value components. Projects live in plain text — version them in Git, edit with your normal tools, and reload on save. This stack ships the devenv runtime preloaded with a sample project, plus its own Postgres seeded with demo data so the sample page renders immediately; extend the sources/ directory to connect the shared Postgres, ClickHouse, Trino, DuckDB, Iceberg/Lakekeeper, and more."
     image: "evidencedev/devenv:latest"
+    # Evidence serves through vite's dev server, which since the 5.4.12
+    # DNS-rebinding fix rejects any Host header not in
+    # `server.allowedHosts` -- answering "Blocked request. This host is
+    # not allowed." instead of the page. Evidence regenerates
+    # .evidence/template/vite.config.js on every start and offers no hook
+    # to set that option, and its pinned vite (5.4.21) has no environment
+    # escape either, so the header is rewritten at the tunnel instead.
+    strict_host_check: true
     support_images:
       evidence-db: "postgres:18-alpine"
 
