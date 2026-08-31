@@ -105,7 +105,12 @@ jobs:
           # enabled_set`), so the single source of truth for "core" stays
           # services.yaml rather than a copy that drifts here.
           # Remove duplicates and empty values, sort
-          SERVICES=$(echo "$ENABLED_INPUT" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+          # printf, not echo. bash's builtin echo eats a leading -n/-e as an
+          # option, so an input of "-n" would print nothing, leave SERVICES
+          # empty and quietly deploy core-only instead of failing on a value
+          # nobody meant. This runs before the validation below, so it has to
+          # pass the string through unchanged.
+          SERVICES=$(printf '%s' "$ENABLED_INPUT" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
 
           # Every name must look like a service name and be one. The format
           # check is what makes the rest safe: it admits no quote, semicolon,

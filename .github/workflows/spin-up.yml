@@ -729,7 +729,15 @@ jobs:
             echo "    Pass fresh_start (initial-setup) or s3_persistence=false (spin-up)"
             echo "    to start empty instead."
           else
-            echo "🧹 S3 persistence is off for this run: no snapshot will be restored."
+            # "R2 snapshot", not "snapshot". spin-up-snapshot.yml calls this
+            # same workflow with a Hetzner disk image as server_image and
+            # s3_persistence=false, because the disk carries newer data than
+            # R2 does. An unqualified "no snapshot will be restored" would
+            # print in the middle of a run that is restoring one.
+            echo "🧹 S3 persistence is off for this run: no R2 snapshot will be restored."
+            echo "    This says nothing about a Hetzner disk image — a snapshot"
+            echo "    spin-up restores that separately, and switches this off on"
+            echo "    purpose because the disk is the newer copy."
             echo "    Anything already in R2 is left untouched. This flag does not"
             echo "    reach teardown: that side reads the NEXUS_S3_PERSISTENCE"
             echo "    repository secret, so whether it snapshots is unchanged by"
