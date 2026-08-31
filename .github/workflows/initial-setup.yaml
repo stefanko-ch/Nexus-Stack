@@ -13,6 +13,34 @@ on:
         required: false
         default: false
         type: boolean
+      fresh_start:
+        # "First-Time Deploy" names what this workflow sets up -- the
+        # Control Plane, then a spin-up -- and says nothing about the data
+        # it starts from. It delegates to spin-up.yml, whose restore phase
+        # is gated only on the persistence feature flag and on
+        # `snapshots/latest.txt` existing in R2. There is no notion of a
+        # first run: an existing snapshot is applied here exactly as on any
+        # other spin-up.
+        #
+        # That is deliberate -- RFC 0001 decision #6, quoted above the
+        # `delete_data` input in destroy-all.yml: the snapshot history
+        # survives a destroy so a later setup reattaches to it. It is also
+        # reliably surprising, because every teardown writes a fresh
+        # snapshot. A stack torn down after a `destroy-all` has snapshot
+        # history again within a day, so the operator who wiped R2 on
+        # Friday does not expect Sunday's setup to restore Saturday's data.
+        #
+        # This forwards spin-up.yml's existing `s3_persistence` input
+        # rather than adding a second flag. For a spin-up that input does
+        # exactly one thing: skip the two restore_from_s3 calls in
+        # pipeline.py. Nothing else in run_pipeline consults it, and the
+        # teardown workflows read the repository secret rather than this
+        # input, so a fresh start here does not stop the next teardown from
+        # snapshotting.
+        description: 'Start with an empty stack, ignoring any snapshot in R2. Leave unchecked to restore the latest snapshot, as a normal spin-up would.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -111,4 +139,10 @@ jobs:
       # Pass enabled services (if configured, otherwise spin-up reads from D1)
       enabled_services: ${{ needs.configure-initial-services.outputs.enabled_services || '' }}
       silent_mode: ${{ inputs.silent_mode }}
+      # spin-up.yml feeds this into NEXUS_S3_PERSISTENCE, which
+      # s3_restore.is_enabled() compares against the exact literal "true".
+      # Empty means "not overridden", leaving the repository secret and the
+      # workflow's own default to decide -- which is why the unchecked case
+      # passes '' and not 'true'.
+      s3_persistence: ${{ inputs.fresh_start && 'false' || '' }}
     secrets: inherit
