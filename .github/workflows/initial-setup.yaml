@@ -59,7 +59,17 @@ jobs:
   configure-initial-services:
     name: Configure Initial Services
     needs: setup-control-plane
-    if: ${{ inputs.enabled_services != '' }}
+    # Deliberately unconditional. The `enabled_services` input documents
+    # "empty = core services only", but the reset that makes that true —
+    # `UPDATE services SET enabled = 0 WHERE core = 0` in the step below —
+    # used to live behind `if: inputs.enabled_services != ''`. So it was a
+    # side effect of configuring services rather than a property of setting
+    # the stack up, and an empty field left whatever D1 already held.
+    #
+    # That is the distinction between the two entry points: teardown and
+    # spin-up preserve the selection, a first-time setup starts from core.
+    # Running this job with an empty list does exactly the reset and
+    # nothing else.
     runs-on: ubuntu-latest
     outputs:
       enabled_services: ${{ steps.build-list.outputs.enabled_services }}
@@ -74,16 +84,19 @@ jobs:
       - name: Build enabled services list
         id: build-list
         run: |
-          # Start with core services (always enabled)
-          CORE_SERVICES="infisical,mailpit"
-          USER_SERVICES="${{ inputs.enabled_services }}"
-
-          # Combine core + user-selected services
-          if [ -n "$USER_SERVICES" ]; then
-            SERVICES="$CORE_SERVICES,$USER_SERVICES"
-          else
-            SERVICES="$CORE_SERVICES"
-          fi
+          # No hardcoded core list. There used to be one — "infisical,mailpit"
+          # — and it was wrong in both directions: the core set is forgejo,
+          # grafana, infisical and portainer, so it named one of four and
+          # added mailpit, which is not core at all. Enabling mailpit on
+          # every setup was invisible only because this job was skipped
+          # whenever the field was empty; making the job unconditional would
+          # have turned that into a real behaviour change.
+          #
+          # It is also unnecessary. generate-services-tfvars.py enables core
+          # services regardless of D1 (`should_enable = is_core or name in
+          # enabled_set`), so the single source of truth for "core" stays
+          # services.yaml rather than a copy that drifts here.
+          SERVICES="${{ inputs.enabled_services }}"
 
           # Remove duplicates and empty values, sort
           SERVICES=$(echo "$SERVICES" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
