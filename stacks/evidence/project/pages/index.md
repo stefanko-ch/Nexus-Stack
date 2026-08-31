@@ -20,7 +20,13 @@ Evidence enabled on its own would restart-loop instead of showing a page.
 
 The database is seeded with a synthetic `demo_sales` table (72 rows, twelve
 months across three regions and two categories) so this page renders on a fresh
-stack. Drop the table once your own data is loaded.
+stack.
+
+⚠️ **Replace the queries before dropping the table.** `monthly_revenue.sql`
+and the SQL blocks below read `demo_sales`, and a query against a missing table
+fails `npm run sources` — which runs before the dev server, so Evidence would
+stop starting at all rather than showing a broken chart. Retire the demo by
+editing `sources/evidence_db/` and this page first, then drop the table.
 
 ```sql monthly_revenue
 select * from evidence_db.monthly_revenue

@@ -133,10 +133,20 @@ services:
       # exactly once, on an empty data directory, so operator edits to the
       # tables survive every later restart.
       - ./initdb:/docker-entrypoint-initdb.d:ro
-    deploy:
-      resources:
-        limits:
-          memory: 512m
+    # `mem_limit`, not `deploy.resources.limits`, matching hedgedoc-db and
+    # forgejo-db. The reason is written out in
+    # stacks/forgejo/docker-compose.yml: `deploy.resources` began as a
+    # Swarm-only setting honoured under `--compatibility`, some Compose v2
+    # releases apply it directly, and this project installs Docker from an
+    # unpinned get.docker.com, so the Compose version on any given server
+    # is not known in advance. `mem_limit` is applied by every version.
+    #
+    # Weaker here than at hedgedoc-db, whose rationale leans on being one
+    # of the six databases the S3 layer persists -- this one is not. The
+    # base argument still holds: a limit that may or may not bind reads as
+    # protection without being any. Which mechanism the other 78 stacks
+    # should standardise on is #741.
+    mem_limit: 512m
     networks:
       - evidence-internal
     healthcheck:

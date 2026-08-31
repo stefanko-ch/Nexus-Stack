@@ -828,6 +828,15 @@ def test_core_services_are_the_documented_four(services: dict[str, Any]) -> None
     )
 
 
+# Hosts a shipped Evidence source may name without being defined in
+# stacks/evidence/docker-compose.yml. Empty on purpose: everything this
+# repo ships points at the stack's own database. An entry here is a
+# promise that the host is reachable from every deployment, which is a
+# claim no in-stack hostname needs and no other stack's container can
+# make -- so adding one wants a reason next to it.
+EVIDENCE_EXTERNAL_SOURCE_HOSTS: set[str] = set()
+
+
 def test_evidence_sources_only_name_hosts_its_own_compose_defines(
     services: dict[str, Any],
 ) -> None:
@@ -840,6 +849,11 @@ def test_evidence_sources_only_name_hosts_its_own_compose_defines(
     enabled Evidence alone crash-looped on `getaddrinfo EAI_AGAIN
     postgres` with ExitCode=1 rather than serving a page with one broken
     query.
+
+    The check is "host is defined by Evidence's own compose", not "host
+    is some other stack's service". The narrower form let a typo through
+    -- `evidenc-db` is in no services.yaml, so it would have passed while
+    failing at runtime exactly like the defect this guards.
 
     Scope note, so this docstring does not overclaim: there is no
     repo-wide check that a stack never depends on a non-core stack's
@@ -859,13 +873,14 @@ def test_evidence_sources_only_name_hosts_its_own_compose_defines(
     offenders = {}
     for path in connections:
         host = (yaml.safe_load(path.read_text()).get("options") or {}).get("host")
-        if host in services and host not in own_services:
+        if host not in own_services and host not in EVIDENCE_EXTERNAL_SOURCE_HOSTS:
             offenders[path.relative_to(REPO_ROOT).as_posix()] = host
 
     assert not offenders, (
-        f"Evidence source points at another stack's container: {offenders}. "
-        f"That stack is not guaranteed to be running, and an unreachable source "
-        f"stops Evidence from starting at all. Define the host in "
-        f"stacks/evidence/docker-compose.yml, or document it as an opt-in extra "
-        f"source rather than shipping it as the bundled one."
+        f"Evidence source names a host its own compose does not define: {offenders}. "
+        f"An unreachable source stops Evidence from starting at all, so this covers "
+        f"three cases at once: another stack's container (not guaranteed to be "
+        f"running), a typo, and an external host nobody vetted. Define the host in "
+        f"stacks/evidence/docker-compose.yml, or -- if it really is external and "
+        f"always reachable -- add it to EVIDENCE_EXTERNAL_SOURCE_HOSTS with a reason."
     )

@@ -10,8 +10,16 @@
 -- starts in, so without a seed the default page fails on first visit and
 -- looks like a broken stack rather than an empty one.
 --
--- Drop this table once you have loaded your own data; nothing in the
--- stack depends on it beyond pages/index.md.
+-- Do NOT drop this table on its own. `monthly_revenue.sql` selects from
+-- it and `pages/index.md` renders that query, and a source query against
+-- a missing table fails `npm run sources` -- which the entrypoint runs
+-- before the dev server, so Evidence stops starting at all. That is the
+-- same class of failure this stack's dedicated database exists to
+-- prevent, reached from the other direction.
+--
+-- To retire the demo: replace the queries under
+-- project/sources/evidence_db/ and the blocks in project/pages/index.md
+-- that read them first, then drop the table.
 
 CREATE TABLE demo_sales (
     sale_month  date           NOT NULL,
