@@ -127,7 +127,7 @@ Add these secrets to your GitHub repository:
 | `HCLOUD_TOKEN` | Hetzner console | API token |
 | `DOMAIN` | Your domain | e.g. `example.com` |
 | `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
-| `GH_SECRETS_TOKEN` | GitHub PAT | Stores the generated R2 credentials ([how to create](#gh_secrets_token)) |
+| `GH_SECRETS_TOKEN` | GitHub PAT, or a Forgejo access token | Stores the generated R2 credentials ([how to create](#gh_secrets_token)) |
 
 #### GH_SECRETS_TOKEN
 
@@ -143,6 +143,8 @@ Without it the first run stops with an explanatory error, and Cloudflare-based a
    - **Secrets** → **Read and write**
    - **Actions** → **Read and write** (required so Cloudflare workers can dispatch workflows)
 5. Copy the token and save it as `GH_SECRETS_TOKEN` in your repository secrets
+
+**Running the workflows under Forgejo Actions** (for example when the repository is a fork hosted on a Forgejo instance, as Nexus-Conductor does): the same secret is still called `GH_SECRETS_TOKEN`, but its value is a **Forgejo access token** — *Settings → Applications* on that forge, for an account that administers the repository, with the `write:repository` scope. The workflows detect the forge from `GITHUB_SERVER_URL` and store secrets through the forge's Actions API (`PUT /repos/{owner}/{repo}/actions/secrets/{name}`, see [`scripts/repo-secret.sh`](https://github.com/stefanko-ch/Nexus-Stack/blob/main/scripts/repo-secret.sh)) instead of the GitHub CLI. The Control Plane's own buttons (spin-up / teardown / status) still call the GitHub API and are not available on a Forgejo-hosted fork — Nexus-Conductor drives the lifecycle from its panel in that setup.
 
 ### Optional Secrets
 
