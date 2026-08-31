@@ -92,7 +92,13 @@ jobs:
       - name: Generate SSH key for server access
         id: ssh_key
         env:
-          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
+          # No `|| secrets.GITHUB_TOKEN` fallback, matching the two R2
+          # steps below. The default token cannot write repository
+          # secrets, so the fallback only guaranteed that
+          # `[ -n "$GH_TOKEN" ]` was true: the not-set branch became
+          # unreachable, and a missing prerequisite turned into a save
+          # attempt with an underprivileged token failing further down.
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
           # Ensure .ssh directory exists
           mkdir -p ~/.ssh
@@ -165,8 +171,26 @@ jobs:
                 exit 1
               fi
             else
-              echo "⚠️  GH_SECRETS_TOKEN not set - SSH keys not saved"
+              # Reachable again now that the `|| secrets.GITHUB_TOKEN`
+              # fallback is gone. It exits for the same reason the save
+              # failure above does: the key would live only for this run.
+              #
+              # The step below with the full token-creation walkthrough
+              # only runs when the R2 secrets do NOT yet exist. On a re-run
+              # where they do, it is skipped — so this cannot rely on a
+              # later step to report the missing prerequisite, and points
+              # at the guide rather than duplicating its instructions.
+              echo "❌ GH_SECRETS_TOKEN is not set, so the generated SSH key"
+              echo "   cannot be stored as a repository secret."
+              echo ""
+              echo "   The key would exist only for this run. The next"
+              echo "   standalone spin-up reads SSH_PRIVATE_KEY and would"
+              echo "   find nothing, with no trace back to here."
+              echo ""
+              echo "   docs/admin-guides/setup-guide.md covers creating this"
+              echo "   token on GitHub and on a Forgejo instance."
               echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
+              exit 1
             fi
           fi
 
@@ -425,7 +449,13 @@ jobs:
         if: steps.check_r2.outputs.r2_exists == 'true'
         id: validate_r2
         env:
-          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN || secrets.GITHUB_TOKEN }}
+          # No `|| secrets.GITHUB_TOKEN` fallback, matching the two R2
+          # steps below. The default token cannot write repository
+          # secrets, so the fallback only guaranteed that
+          # `[ -n "$GH_TOKEN" ]` was true: the not-set branch became
+          # unreachable, and a missing prerequisite turned into a save
+          # attempt with an underprivileged token failing further down.
+          GH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
         run: |
           source tofu/.r2-credentials
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"

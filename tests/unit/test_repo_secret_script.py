@@ -294,4 +294,8 @@ def test_transport_failure_still_names_action_and_endpoint(tmp_path: Path) -> No
     assert proc.returncode == 1
     assert "failed before any HTTP status (exit 6)" in proc.stderr
     assert "/actions/secrets/R2_ACCESS_KEY_ID" in proc.stderr
-    assert "may be unreachable" in proc.stderr
+    # Names both sides: the pipeline is `node | curl`, so this branch fires
+    # for an unreachable forge and for node failing to encode. On Forgejo
+    # node is a requirement on the runner, so blaming the network alone
+    # would send the operator looking in the wrong place.
+    assert "either the forge did not answer, or the request could not be built" in proc.stderr

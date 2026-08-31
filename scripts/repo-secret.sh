@@ -117,15 +117,22 @@ else
   CODE=$(curl -sS --config "$CURL_CFG" -o "$RESPONSE" -w '%{http_code}' -X DELETE "$URL") || TRANSPORT=$?
 fi
 
-# No HTTP status was ever produced -- DNS, connect timeout, TLS, or node
-# failing to encode. Without this branch `set -e` would abort right here on
-# curl's exit code, and the operator would get curl's bare one-liner with
-# no action, name or endpoint attached. That is the "forge unreachable"
-# case this script exists to make legible, so it gets the same two-line
-# shape as an HTTP failure.
+# No HTTP status was ever produced. Without this branch `set -e` would
+# abort right here on the pipeline's exit code, and the operator would get
+# curl's bare one-liner with no action, name or endpoint attached -- the
+# "forge unreachable" case this script exists to make legible.
+#
+# The message names both possible sides rather than picking one. The
+# pipeline is `node | curl`, so this fires for an unreachable or
+# unresponsive forge (DNS, connect timeout, TLS) AND for node being absent
+# or failing to encode -- and on Forgejo node is a stated requirement on
+# the runner, which makes it a live possibility rather than a theoretical
+# one. Naming only the network would send the operator looking in the
+# wrong place.
 if [ "$TRANSPORT" -ne 0 ]; then
   echo "repo-secret.sh: ${ACTION} ${NAME} failed before any HTTP status (exit ${TRANSPORT})" >&2
-  echo "repo-secret.sh: endpoint was ${URL} -- the forge may be unreachable" >&2
+  echo "repo-secret.sh: endpoint was ${URL}" >&2
+  echo "repo-secret.sh: either the forge did not answer, or the request could not be built (node)" >&2
   exit 1
 fi
 
