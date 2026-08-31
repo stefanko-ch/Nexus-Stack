@@ -110,7 +110,17 @@ jobs:
           # empty and quietly deploy core-only instead of failing on a value
           # nobody meant. This runs before the validation below, so it has to
           # pass the string through unchanged.
-          SERVICES=$(printf '%s' "$ENABLED_INPUT" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+          # `sed '/^$/d'` rather than `grep -v '^$'` to drop blank entries.
+          # grep exits 1 when it matches nothing, which an empty input
+          # guarantees — and an empty input is the documented "core services
+          # only" case, not an error. That is survivable today only because
+          # this workflow declares no `shell:`, so Actions runs `bash -e {0}`
+          # without pipefail and the substitution takes sed's status. Adding
+          # `shell: bash` here — as python-tests.yml does elsewhere, on
+          # purpose, to get pipefail — would turn the most ordinary invocation
+          # into a silent abort. sed exits 0 on empty input, so the trap goes
+          # away instead of being documented.
+          SERVICES=$(printf '%s' "$ENABLED_INPUT" | tr ',' '\n' | sort -u | sed '/^$/d' | tr '\n' ',' | sed 's/,$//')
 
           # Every name must look like a service name and be one. The format
           # check is what makes the rest safe: it admits no quote, semicolon,
@@ -129,7 +139,7 @@ jobs:
             [ -n "$svc" ] || continue
             if ! printf '%s' "$svc" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
               INVALID="$INVALID $svc"
-            elif ! grep -qE "^  ${svc}:\s*$" services.yaml; then
+            elif ! grep -qE "^  ${svc}:[[:space:]]*$" services.yaml; then
               UNKNOWN="$UNKNOWN $svc"
             fi
           done
