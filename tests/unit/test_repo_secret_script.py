@@ -150,3 +150,71 @@ def test_missing_token_is_rejected_before_any_call(tmp_path: Path) -> None:
     assert proc.returncode == 2
     assert "GH_TOKEN" in proc.stderr
     assert not (shims / "gh.args").exists()
+
+
+# A curl shim that actually writes a body to curl's `-o` target, which the
+# shared shim does not. Needed to exercise what the script prints from the
+# forge's error response.
+BODY_SHIM = """#!/bin/bash
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then printf '%s' "$RESPONSE_BODY" > "$a"; fi
+  prev="$a"
+done
+printf '%s' "422"
+"""
+
+
+def _run_with_body(tmp_path: Path, body: str) -> subprocess.CompletedProcess[str]:
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    (shim_dir / "curl").write_text(BODY_SHIM)
+    (shim_dir / "curl").chmod(0o755)
+    return subprocess.run(
+        ["bash", str(SCRIPT), "set", "SOME_SECRET"],
+        input="s3cr3t-value",
+        capture_output=True,
+        text=True,
+        env={
+            "PATH": f"{shim_dir}:{os.environ['PATH']}",
+            "GH_TOKEN": "tok-1",
+            "RESPONSE_BODY": body,
+            **FORGEJO,
+        },
+        check=False,
+    )
+
+
+def test_error_response_body_is_truncated(tmp_path: Path) -> None:
+    """The PUT payload of this request IS a secret.
+
+    setup-control-plane.yaml captures this script's stderr with
+    `OUTPUT=$(... 2>&1)` and prints it into the workflow log, which for a
+    public repository is world-readable. Whether a given forge mirrors the
+    request back inside an error response is not knowable from here and may
+    change between versions, so the body is bounded rather than trusted.
+
+    The status code carries the diagnosis and is printed in full.
+    """
+    proc = _run_with_body(tmp_path, "X" * 5000)
+
+    assert proc.returncode == 1
+    assert "HTTP 422" in proc.stderr
+    assert proc.stderr.count("X") == 500, "response body must be capped at 500 bytes"
+
+
+def test_error_path_still_shows_a_short_body_in_full(tmp_path: Path) -> None:
+    """Truncation must not cost the ordinary case its diagnosis: a normal
+    `{"message": ...}` is well under the cap and has to survive intact."""
+    proc = _run_with_body(tmp_path, '{"message":"token does not have write:repository"}')
+
+    assert "token does not have write:repository" in proc.stderr
+
+
+def test_empty_error_response_prints_no_body_header(tmp_path: Path) -> None:
+    """A forge that answers with a status and nothing else should not
+    produce a dangling "response follows" line with nothing after it."""
+    proc = _run_with_body(tmp_path, "")
+
+    assert "HTTP 422" in proc.stderr
+    assert "response follows" not in proc.stderr

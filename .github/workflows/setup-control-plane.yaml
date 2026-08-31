@@ -121,11 +121,21 @@ jobs:
               # Note: We only save the Private Key as a secret.
               # The Public Key is passed as an output and not stored as a secret to avoid
               # "Skip output... contains secret" warnings in GitHub Actions.
-              if printf '%s' "$SSH_PRIVATE_KEY" | bash scripts/repo-secret.sh set SSH_PRIVATE_KEY 2>/dev/null; then
+              # No `2>/dev/null`. It used to be here, back when the failing
+              # command was `gh secret set` and its stderr added nothing to
+              # the message below. repo-secret.sh reports the forge's HTTP
+              # status, and on Forgejo that status is the whole diagnosis:
+              # 404 means the API path is wrong, 403 means the token lacks
+              # write:repository, 422 means the forge rejected the payload.
+              # Discarding it would leave the three indistinguishable.
+              if printf '%s' "$SSH_PRIVATE_KEY" | bash scripts/repo-secret.sh set SSH_PRIVATE_KEY; then
                 echo "✅ SSH Private Key saved as a repository secret"
                 echo "ssh_key_created=true" >> "$GITHUB_OUTPUT"
               else
-                echo "⚠️  Failed to save SSH keys - GH_SECRETS_TOKEN cannot write this repository's secrets"
+                # Deliberately does not name a cause. This step cannot tell
+                # a token-scope problem from an unreachable forge, and the
+                # line above already printed what the forge actually said.
+                echo "⚠️  Failed to save the SSH private key — see the error above"
                 echo "ssh_key_created=false" >> "$GITHUB_OUTPUT"
               fi
             else

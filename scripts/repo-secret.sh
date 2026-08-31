@@ -45,6 +45,14 @@ if [ -z "${GH_TOKEN:-}" ]; then
   exit 2
 fi
 
+# github.com takes the `gh` path; anything else is assumed to be Forgejo.
+# That assumption is deliberate but not universal: GitHub Enterprise Server
+# also has a server URL that is not github.com, and would land in the
+# branch below, which PUTs a plaintext {"data": ...}. GitHub's own secrets
+# API wants a libsodium-encrypted value, so it would fail — loudly, with
+# the forge's own status code, but the message would blame the wrong
+# thing. Nexus-Stack targets github.com and Forgejo; add an explicit GHES
+# branch here rather than widening this condition if that ever changes.
 if [ "${GITHUB_SERVER_URL:-https://github.com}" = "https://github.com" ]; then
   if [ "$ACTION" = "set" ]; then
     exec gh secret set "$NAME"
@@ -60,9 +68,16 @@ RESPONSE=$(mktemp)
 trap 'rm -f "$RESPONSE"' EXIT
 
 if [ "$ACTION" = "set" ]; then
-  # JSON-encode stdin. node is on every runner this repo targets
-  # (actions/setup-node in the workflows; the Forgejo runner image is
-  # node:22-bookworm) — jq is not guaranteed on the latter.
+  # JSON-encode stdin with node rather than jq. On GitHub the workflows
+  # already run actions/setup-node, so node is present.
+  #
+  # On Forgejo this is a requirement on the runner rather than an observed
+  # fact: no Forgejo runner exists in this repository yet — it arrives with
+  # the migration, whose job images must therefore carry node. Stated as a
+  # constraint on purpose, because the alternative reading ("the runner
+  # image happens to have node") is something nobody can check today.
+  # jq is the weaker bet either way: it is absent from more base images
+  # than node is.
   CODE=$(node -e 'process.stdout.write(JSON.stringify({ data: require("fs").readFileSync(0, "utf8") }))' \
     | curl -sS -o "$RESPONSE" -w '%{http_code}' -X PUT \
         -H "Authorization: token ${GH_TOKEN}" \
@@ -76,7 +91,23 @@ fi
 case "$CODE" in
   200|201|204) exit 0 ;;
 esac
+
+# The status code is the diagnosis and is always safe to print: 404 wrong
+# API path, 403 token cannot write secrets, 422 payload rejected.
 echo "repo-secret.sh: ${ACTION} ${NAME} failed — ${GITHUB_SERVER_URL} returned HTTP ${CODE}" >&2
-cat "$RESPONSE" >&2
-echo >&2
+
+# The body is a different matter. This request's payload IS the secret,
+# and callers in setup-control-plane.yaml capture this stream with
+# `OUTPUT=$(... 2>&1)` and print it into the workflow log — which for this
+# repository is world-readable. Whether a forge echoes the request back in
+# an error response is not something this script can know, and the answer
+# may differ per forge and per version, so the body is bounded rather than
+# trusted: 500 bytes is enough for a `{"message": "..."}` and short enough
+# that a mirrored payload cannot leave in full. Per CLAUDE.md — never
+# print API responses that may contain credentials.
+if [ -s "$RESPONSE" ]; then
+  echo "repo-secret.sh: first 500 bytes of the response follow" >&2
+  head -c 500 "$RESPONSE" >&2
+  echo >&2
+fi
 exit 1
