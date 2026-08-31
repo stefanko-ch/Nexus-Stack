@@ -91,6 +91,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("HOPPSCOTCH_ENCRYPTION", "hoppscotch_encryption_key", ""),
     ("MELTANO_DB_PASS", "meltano_db_password", ""),
     ("SODA_DB_PASS", "soda_db_password", ""),
+    ("EVIDENCE_DB_PASS", "evidence_db_password", ""),
     ("REDPANDA_ADMIN_PASS", "redpanda_admin_password", ""),
     ("POSTGRES_PASS", "postgres_password", ""),
     ("PG_DUCKLAKE_PASS", "pgducklake_password", ""),
@@ -219,6 +220,7 @@ class NexusConfig(BaseModel):
     hoppscotch_encryption_key: str | None = None
     meltano_db_password: str | None = None
     soda_db_password: str | None = None
+    evidence_db_password: str | None = None
     redpanda_admin_password: str | None = None
     postgres_password: str | None = None
     pgducklake_password: str | None = None

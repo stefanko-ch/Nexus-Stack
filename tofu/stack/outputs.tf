@@ -215,6 +215,9 @@ output "secrets" {
     # Soda
     soda_db_password = random_password.soda_db.result
 
+    # Evidence
+    evidence_db_password = random_password.evidence_db.result
+
     # Prefect
     prefect_db_password = random_password.prefect_db.result
 

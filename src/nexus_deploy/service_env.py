@@ -744,29 +744,36 @@ def _render_marquez(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 def _render_evidence(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Evidence: SQL+markdown BI runtime. The bundled sample project
-    queries the in-stack Postgres, so we pipe through the existing
-    ``postgres_password`` field (no dedicated Evidence secret to
-    manage) plus the absolute public URL Evidence uses for OG tags +
-    canonical links.
+    queries ``evidence-db``, the Postgres container this stack owns, so
+    we pipe through the dedicated ``evidence_db_password`` field plus the
+    absolute public URL Evidence uses for OG tags + canonical links.
+
+    It used to pipe through ``postgres_password``, pointing the bundled
+    source at the shared ``postgres`` stack. That stack is not ``core``,
+    so it is off unless the operator enables it, and Evidence's
+    entrypoint runs ``npm run sources`` before the dev server and treats
+    an unreachable source as fatal — enabling Evidence alone produced
+    ``getaddrinfo EAI_AGAIN postgres`` and a restart loop.
 
     Not "via env-var interpolation", which this docstring said until
     #725: Evidence reads ``sources/*/connection.yaml`` literally and
     does not expand ``${VAR}`` in it. The compose turns this value into
-    ``EVIDENCE_SOURCE__nexus_postgres__password``, which Evidence merges
+    ``EVIDENCE_SOURCE__evidence_db__password``, which Evidence merges
     over that file — the documented override, and the only part of the
     connection that travels through the environment.
 
-    No fail-fast guard: Evidence renders pages even without a working
-    data source (it just shows query errors inline), and the operator
-    may legitimately be wiring an external warehouse instead of the
-    in-stack Postgres. Leaving the password empty produces an
-    "auth failed" message on the affected query rather than a crashed
-    container.
+    No fail-fast guard, but the reasoning has narrowed. An empty password
+    no longer means "the operator wired an external warehouse instead":
+    the database is part of the stack, so an empty value here means the
+    tofu output was missing, and the symptom is an auth failure at
+    ``npm run sources`` rather than a working page with one broken query.
+    Raising here would swap a legible container log for a pipeline abort
+    that names no service, so the guard still belongs downstream.
     """
     domain_host = service_host("evidence", e.domain or "", e.subdomain_separator)
     return RenderedEnv(
         env_vars={
-            "POSTGRES_PASSWORD": c.postgres_password or "",
+            "EVIDENCE_DB_PASSWORD": c.evidence_db_password or "",
             "EVIDENCE_BASE_URL": f"https://{domain_host}",
         },
     )

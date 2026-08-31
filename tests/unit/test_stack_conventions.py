@@ -826,3 +826,61 @@ def test_core_services_are_the_documented_four(services: dict[str, Any]) -> None
         f"core services changed to {sorted(core)}. That is a deliberate decision; "
         f"update this test and the docs together."
     )
+
+
+# Hosts a shipped Evidence source may name without being defined in
+# stacks/evidence/docker-compose.yml. Empty on purpose: everything this
+# repo ships points at the stack's own database. An entry here is a
+# promise that the host is reachable from every deployment, which is a
+# claim no in-stack hostname needs and no other stack's container can
+# make -- so adding one wants a reason next to it.
+EVIDENCE_EXTERNAL_SOURCE_HOSTS: set[str] = set()
+
+
+def test_evidence_sources_only_name_hosts_its_own_compose_defines(
+    services: dict[str, Any],
+) -> None:
+    """Evidence's shipped data sources must resolve inside the stack.
+
+    The stack originally pointed its bundled source at the shared
+    `postgres` stack, which is not core and so is off unless the operator
+    enables it. Evidence's entrypoint runs `npm run sources` before the
+    dev server and treats an unreachable source as fatal, so a stack that
+    enabled Evidence alone crash-looped on `getaddrinfo EAI_AGAIN
+    postgres` with ExitCode=1 rather than serving a page with one broken
+    query.
+
+    The check is "host is defined by Evidence's own compose", not "host
+    is some other stack's service". The narrower form let a typo through
+    -- `evidenc-db` is in no services.yaml, so it would have passed while
+    failing at runtime exactly like the defect this guards.
+
+    Scope note, so this docstring does not overclaim: there is no
+    repo-wide check that a stack never depends on a non-core stack's
+    container name, and this test does not add one. It pins the one place
+    the defect actually shipped -- the connection files this repo ships
+    for Evidence. A user-added source under the same directory on a live
+    server is outside what the repo can see, which is why pages/index.md
+    warns about the same failure mode in prose.
+    """
+    stack_dir = STACKS_DIR / "evidence"
+    compose = yaml.safe_load((stack_dir / "docker-compose.yml").read_text())
+    own_services = set(compose.get("services", {}))
+
+    connections = sorted((stack_dir / "project" / "sources").glob("*/connection.yaml"))
+    assert connections, "Evidence ships no data source; this test would pass vacuously"
+
+    offenders = {}
+    for path in connections:
+        host = (yaml.safe_load(path.read_text()).get("options") or {}).get("host")
+        if host not in own_services and host not in EVIDENCE_EXTERNAL_SOURCE_HOSTS:
+            offenders[path.relative_to(REPO_ROOT).as_posix()] = host
+
+    assert not offenders, (
+        f"Evidence source names a host its own compose does not define: {offenders}. "
+        f"An unreachable source stops Evidence from starting at all, so this covers "
+        f"three cases at once: another stack's container (not guaranteed to be "
+        f"running), a typo, and an external host nobody vetted. Define the host in "
+        f"stacks/evidence/docker-compose.yml, or -- if it really is external and "
+        f"always reachable -- add it to EVIDENCE_EXTERNAL_SOURCE_HOSTS with a reason."
+    )

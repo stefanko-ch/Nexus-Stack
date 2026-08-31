@@ -1,6 +1,6 @@
 -- Snapshot of the public schema: table list + estimated row counts.
--- Edit or replace with queries that match the data the operator has
--- loaded into the nexus-postgres instance.
+-- Edit or replace with queries that match the data you have loaded into
+-- this stack's evidence-db.
 SELECT
     relname AS table_name,
     n_live_tup AS estimated_rows

@@ -933,6 +933,22 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     folders.append(
         FolderSpec("meltano", _filter_empty({"MELTANO_DB_PASSWORD": config.meltano_db_password}))
     )
+    # evidence-db sits on the stack-private `evidence-internal` bridge, so
+    # this credential is not reachable from pgAdmin/Adminer the way the
+    # shared Postgres is -- it is for `docker exec evidence-db psql`.
+    # Published anyway, because every generated password belongs in
+    # Infisical rather than only in a rendered .env on the server.
+    folders.append(
+        FolderSpec(
+            "evidence",
+            _filter_empty(
+                {
+                    "EVIDENCE_DB_USERNAME": "nexus-evidence",
+                    "EVIDENCE_DB_PASSWORD": config.evidence_db_password,
+                }
+            ),
+        )
+    )
     folders.append(
         FolderSpec(
             "postgres",

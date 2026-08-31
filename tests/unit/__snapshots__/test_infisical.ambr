@@ -36,6 +36,10 @@
       'DINKY_PASSWORD': 'dinky_admin_password-VALUE',
       'DINKY_USERNAME': 'admin',
     }),
+    'evidence': dict({
+      'EVIDENCE_DB_PASSWORD': 'evidence_db_password-VALUE',
+      'EVIDENCE_DB_USERNAME': 'nexus-evidence',
+    }),
     'external-s3': dict({
       'EXTERNAL_S3_ACCESS_KEY': 'external_s3_access_key-VALUE',
       'EXTERNAL_S3_BUCKET': 'external_s3_bucket-VALUE',

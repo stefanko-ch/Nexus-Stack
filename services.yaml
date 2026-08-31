@@ -258,8 +258,10 @@ services:
     category: "analytics"
     website: "https://evidence.dev"
     description: "SQL + markdown BI framework — write queries inside Markdown, render charts inline."
-    long_description: "Evidence is an open-source 'BI as code' framework: each page is a Markdown file containing SQL blocks that render into charts, tables, and value components. Projects live in plain text — version them in Git, edit with your normal tools, and reload on save. This stack ships the devenv runtime preloaded with a sample project that queries the in-stack Postgres; extend the sources/ directory to connect ClickHouse, Trino, DuckDB, Iceberg/Lakekeeper, and more."
+    long_description: "Evidence is an open-source 'BI as code' framework: each page is a Markdown file containing SQL blocks that render into charts, tables, and value components. Projects live in plain text — version them in Git, edit with your normal tools, and reload on save. This stack ships the devenv runtime preloaded with a sample project, plus its own Postgres seeded with demo data so the sample page renders immediately; extend the sources/ directory to connect the shared Postgres, ClickHouse, Trino, DuckDB, Iceberg/Lakekeeper, and more."
     image: "evidencedev/devenv:latest"
+    support_images:
+      evidence-db: "postgres:18-alpine"
 
   filestash:
     subdomain: "filestash"

@@ -92,6 +92,7 @@ def full_config() -> NexusConfig:
         hoppscotch_encryption_key="hoppscotch-enc",
         meltano_db_password="meltano-pw",
         soda_db_password="soda-pw",
+        evidence_db_password="evidence-pw",
         redpanda_admin_password="redpanda-pw",
         postgres_password="pg-pw",
         pgducklake_password="ducklake-pw",
@@ -1092,23 +1093,42 @@ def test_lakekeeper_domain_respects_subdomain_separator(
 
 
 # ---------------------------------------------------------------------------
-# Evidence — pipes through postgres_password + domain composition
+# Evidence — pipes through evidence_db_password + domain composition
 # ---------------------------------------------------------------------------
 
 
-def test_evidence_renders_postgres_password_and_domain(
+def test_evidence_renders_db_password_and_domain(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Evidence's bundled sample project queries the in-stack Postgres
-    via env-var interpolation, so the renderer pipes through the
-    existing postgres_password (no dedicated Evidence secret) plus the
-    absolute public URL Evidence bakes into OG tags + canonical links.
+    """Evidence's bundled sample project queries evidence-db, the
+    Postgres container the stack owns, so the renderer pipes through the
+    dedicated evidence_db_password plus the absolute public URL Evidence
+    bakes into OG tags + canonical links.
     """
     from nexus_deploy.service_env import _render_evidence
 
     rendered = _render_evidence(full_config, full_env)
-    assert rendered.env_vars["POSTGRES_PASSWORD"] == full_config.postgres_password
+    assert rendered.env_vars["EVIDENCE_DB_PASSWORD"] == full_config.evidence_db_password
     assert rendered.env_vars["EVIDENCE_BASE_URL"] == "https://evidence.example.com"
+
+
+def test_evidence_does_not_reach_for_the_shared_postgres_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The regression this stack shipped with: the bundled source pointed
+    at the shared `postgres` stack, which is not core and therefore off
+    unless the operator enables it. Evidence runs `npm run sources` before
+    the dev server and treats an unreachable source as fatal, so enabling
+    Evidence alone crash-looped on `getaddrinfo EAI_AGAIN postgres`.
+
+    Emitting POSTGRES_PASSWORD is the tell that the shared instance is
+    back in the picture -- the compose reads exactly this name into
+    EVIDENCE_SOURCE__<source>__password.
+    """
+    from nexus_deploy.service_env import _render_evidence
+
+    rendered = _render_evidence(full_config, full_env)
+    assert "POSTGRES_PASSWORD" not in rendered.env_vars
 
 
 def test_evidence_domain_respects_subdomain_separator(
@@ -1130,18 +1150,18 @@ def test_evidence_domain_respects_subdomain_separator(
     assert rendered.env_vars["EVIDENCE_BASE_URL"] == "https://evidence-user1.example.com"
 
 
-def test_evidence_does_not_raise_on_empty_postgres_password(
+def test_evidence_does_not_raise_on_empty_db_password(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Evidence has no fail-fast guard: empty postgres_password
-    surfaces as a per-query auth-failed message inline, not a crashed
-    container. The operator may also be wiring an external warehouse
-    instead of the in-stack Postgres."""
+    """Evidence has no fail-fast guard. The renderer stays silent so the
+    failure surfaces where it is legible -- an auth error in the
+    evidence container's own log -- rather than as a pipeline abort that
+    names no service. Raising here would trade one for the other."""
     from nexus_deploy.service_env import _render_evidence
 
-    config = full_config.model_copy(update={"postgres_password": ""})
+    config = full_config.model_copy(update={"evidence_db_password": ""})
     rendered = _render_evidence(config, full_env)
-    assert rendered.env_vars["POSTGRES_PASSWORD"] == ""
+    assert rendered.env_vars["EVIDENCE_DB_PASSWORD"] == ""
 
 
 # ---------------------------------------------------------------------------
