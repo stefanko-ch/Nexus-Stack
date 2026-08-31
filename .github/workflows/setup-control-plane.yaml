@@ -1086,17 +1086,42 @@ jobs:
             if printf '%s' "$BUCKET_NAME" | bash scripts/repo-secret.sh set R2_DATA_BUCKET; then
               echo "  ✅ R2_DATA_BUCKET saved as a repository secret"
             else
-              echo "  ⚠️  Failed to save R2_DATA_BUCKET (non-fatal)"
+              # Was labelled non-fatal. Half true, and the wrong half was
+              # load-bearing: destroy-all.yml and this workflow both fall
+              # back to `nexus-<domain-slug>-data` when the secret is
+              # absent, but spin-up.yml does not -- it reads
+              # `inputs.r2_data_bucket || secrets.R2_DATA_BUCKET` and
+              # derives nothing. initial-setup passes the input, so this
+              # run is fine; a later standalone spin-up would get an empty
+              # bucket name. The same deferred shape as the SSH key above,
+              # and it gets the same answer.
+              echo "  ❌ Could not save R2_DATA_BUCKET as a repository secret."
+              echo "     The status and endpoint are in the error above."
+              echo ""
+              echo "     This run would still work — the value is passed to"
+              echo "     spin-up as a workflow input — but a later standalone"
+              echo "     spin-up reads secrets.R2_DATA_BUCKET, derives no"
+              echo "     fallback, and would run with an empty bucket name."
+              exit 1
             fi
 
             # Clean up old separate data token secrets (migration from
-            # 2-token to 1-token). Silence is deliberate here, unlike the
-            # stale-secret cleanup above: on every stack set up after that
-            # migration these secrets have never existed, so a 404 is the
-            # normal outcome rather than a symptom. Reporting it would
-            # print a warning on every run for a condition that is correct.
-            bash scripts/repo-secret.sh delete R2_DATA_ACCESS_KEY_ID 2>/dev/null || true
-            bash scripts/repo-secret.sh delete R2_DATA_SECRET_ACCESS_KEY 2>/dev/null || true
+            # 2-token to 1-token).
+            #
+            # No `|| true`. On every stack set up after that migration
+            # these secrets never existed, and that used to be the reason
+            # for suppressing everything here -- but "already absent" is
+            # now expressed where it belongs: repo-secret.sh exits 0 when
+            # a delete finds nothing. Blanket suppression hid the cases
+            # that are not fine, a token that may not delete and a forge
+            # that did not answer, behind the one that is.
+            for OBSOLETE in R2_DATA_ACCESS_KEY_ID R2_DATA_SECRET_ACCESS_KEY; do
+              if ! bash scripts/repo-secret.sh delete "$OBSOLETE"; then
+                echo "  ⚠️  Could not remove the obsolete secret $OBSOLETE"
+                echo "     It is not needed by anything, so this is not fatal —"
+                echo "     but the failure above was a real one, not an absence."
+              fi
+            done
           fi
 
           # RFC 0001 persistence bucket — idempotent create. Naming

@@ -59,7 +59,25 @@ if [ "${GITHUB_SERVER_URL:-https://github.com}" = "https://github.com" ]; then
   if [ "$ACTION" = "set" ]; then
     exec gh secret set "$NAME"
   fi
-  exec gh secret delete "$NAME"
+  # Deleting something that is not there is the outcome the caller wanted,
+  # so it exits 0. Callers clean up secrets from an earlier layout and
+  # would otherwise need `|| true`, which suppresses real failures too --
+  # a token that may not delete, or a forge that did not answer.
+  #
+  # gh offers no exit code that separates "absent" from "refused", so this
+  # matches its message. Fragile by nature, and deliberately narrow: any
+  # output that does not look like a 404 still fails.
+  if DELETE_OUTPUT=$(gh secret delete "$NAME" 2>&1); then
+    exit 0
+  fi
+  case "$DELETE_OUTPUT" in
+    *404*|*"not found"*|*"Not Found"*)
+      echo "repo-secret.sh: ${NAME} was already absent" >&2
+      exit 0
+      ;;
+  esac
+  printf '%s\n' "$DELETE_OUTPUT" >&2
+  exit 1
 fi
 
 : "${GITHUB_API_URL:?repo-secret.sh: GITHUB_API_URL is not set}"
@@ -139,6 +157,12 @@ fi
 case "$CODE" in
   200|201|204) exit 0 ;;
 esac
+
+# Same idempotence on the API path, where the status is unambiguous.
+if [ "$ACTION" = "delete" ] && [ "$CODE" = "404" ]; then
+  echo "repo-secret.sh: ${NAME} was already absent" >&2
+  exit 0
+fi
 
 # The status code is the diagnosis and is safe to print: 404 wrong API
 # path, 403 token cannot write secrets, 422 payload rejected. So is the

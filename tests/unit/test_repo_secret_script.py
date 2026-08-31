@@ -299,3 +299,69 @@ def test_transport_failure_still_names_action_and_endpoint(tmp_path: Path) -> No
     # node is a requirement on the runner, so blaming the network alone
     # would send the operator looking in the wrong place.
     assert "either the forge did not answer, or the request could not be built" in proc.stderr
+
+
+def test_forgejo_delete_of_an_absent_secret_succeeds(tmp_path: Path) -> None:
+    """Deleting something that is not there is the outcome the caller asked
+    for, so it exits 0.
+
+    Expressing that here is what lets the migration cleanup in
+    setup-control-plane.yaml drop its `|| true`. Blanket suppression hid
+    the cases that are not fine — a token that may not delete, a forge that
+    did not answer — behind the one that is.
+    """
+    proc, _ = _run(tmp_path, ["delete", "R2_DATA_ACCESS_KEY_ID"], env=FORGEJO, http_code="404")
+    assert proc.returncode == 0, proc.stderr
+    assert "already absent" in proc.stderr
+
+
+def test_forgejo_404_on_set_is_still_a_failure(tmp_path: Path) -> None:
+    """Idempotence applies to delete only. A 404 on `set` means the endpoint
+    is wrong, which is the single most likely Forgejo misconfiguration and
+    must not be swallowed."""
+    proc, _ = _run(tmp_path, ["set", "X"], stdin="v", env=FORGEJO, http_code="404")
+    assert proc.returncode == 1
+    assert "HTTP 404" in proc.stderr
+
+
+def test_github_delete_of_an_absent_secret_succeeds(tmp_path: Path) -> None:
+    """Same contract on the gh path. gh offers no exit code separating
+    "absent" from "refused", so the script matches its message — narrowly,
+    which is why the next test exists."""
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    (shim_dir / "gh").write_text(
+        '#!/bin/bash\necho "HTTP 404: Not Found (https://api.github.com/...)" >&2\nexit 1\n'
+    )
+    (shim_dir / "gh").chmod(0o755)
+    proc = subprocess.run(
+        ["bash", str(SCRIPT), "delete", "R2_DATA_ACCESS_KEY_ID"],
+        capture_output=True,
+        text=True,
+        env={"PATH": f"{shim_dir}:{os.environ['PATH']}", "GH_TOKEN": "tok-1", **GITHUB},
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "already absent" in proc.stderr
+
+
+def test_github_delete_failure_that_is_not_a_404_still_fails(tmp_path: Path) -> None:
+    """The message match must not turn every gh failure into a success. A
+    permission error is the case that matters: it is exactly what blanket
+    `|| true` used to hide."""
+    shim_dir = tmp_path / "bin"
+    shim_dir.mkdir()
+    (shim_dir / "gh").write_text(
+        '#!/bin/bash\necho "HTTP 403: Resource not accessible by integration" >&2\nexit 1\n'
+    )
+    (shim_dir / "gh").chmod(0o755)
+    proc = subprocess.run(
+        ["bash", str(SCRIPT), "delete", "R2_DATA_ACCESS_KEY_ID"],
+        capture_output=True,
+        text=True,
+        env={"PATH": f"{shim_dir}:{os.environ['PATH']}", "GH_TOKEN": "tok-1", **GITHUB},
+        check=False,
+    )
+    assert proc.returncode == 1
+    assert "403" in proc.stderr
+    assert "already absent" not in proc.stderr
