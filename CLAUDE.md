@@ -425,6 +425,18 @@ When adding a new Docker stack, **all locations must be updated**:
 ```
 Find logos at [simpleicons.org](https://simpleicons.org/)
 
+**Dev servers that check the `Host` header.** A stack served by vite (or
+any origin that validates `Host`) answers `Blocked request. This host is
+not allowed.` through the tunnel, because the header carries the public
+hostname rather than the origin's own. Set `strict_host_check: true` on
+the service in `services.yaml`; `tofu/stack/main.tf` then gives its
+ingress rule an `origin_request` block rewriting the header to
+`localhost:<port>`. Reach for this only when the origin offers no way to
+allow the hostname directly — for Evidence it does not, because it
+regenerates its vite config on every start. The flag is meaningless on an
+`internal_only` service, which gets no ingress rule; the tfvars generator
+and `tests/unit/test_stack_conventions.py` both reject that pairing.
+
 **Example service entry (services.yaml):**
 ```yaml
 portainer:

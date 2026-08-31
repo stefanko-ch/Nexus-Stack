@@ -177,8 +177,31 @@ variable "services" {
     core           = optional(bool, false)
     image          = optional(string, "")
     support_images = optional(map(string), {})
+    # Origins that reject a Host header naming anything but themselves.
+    # Sets the tunnel to present "localhost:<port>" instead of the public
+    # hostname. Boolean rather than a free-form header so it cannot drift
+    # from `port` above; if a service ever needs a different value, this
+    # becomes a string then.
+    strict_host_check = optional(bool, false)
   }))
   default = {}
+
+  # `port` is interpolated into the tunnel origin and, for
+  # strict_host_check services, into http_host_header. HCL's `number`
+  # accepts 0, 65536 and 3000.5 alike, and a bad value there produces an
+  # invalid tunnel configuration rather than an error.
+  #
+  # .github/scripts/generate-services-tfvars.py already rejects the same
+  # values, so on the deploy path this is a second net. It is the only
+  # net on the documented local path, where an operator writes
+  # config.tfvars by hand and runs `tofu plan -var-file=config.tfvars`.
+  validation {
+    condition = alltrue([
+      for name, svc in var.services :
+      svc.port == floor(svc.port) && svc.port >= 1 && svc.port <= 65535
+    ])
+    error_message = "Every service port must be a whole number between 1 and 65535."
+  }
 }
 
 # =============================================================================

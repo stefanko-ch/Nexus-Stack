@@ -93,6 +93,18 @@ def validate_services_yaml(data):
         if 'core' in config and not isinstance(config['core'], bool):
             errors.append(f"Service '{name}': 'core' must be a boolean")
 
+        if 'strict_host_check' in config:
+            if not isinstance(config['strict_host_check'], bool):
+                errors.append(f"Service '{name}': 'strict_host_check' must be a boolean")
+            elif config.get('internal_only', False):
+                # No subdomain means no ingress rule, so there is no Host
+                # header for the tunnel to rewrite. Silently ineffective is
+                # worse than rejected.
+                errors.append(
+                    f"Service '{name}': 'strict_host_check' has no effect on an "
+                    f"internal_only service (it gets no tunnel ingress rule)"
+                )
+
         if 'description' in config and not isinstance(config['description'], str):
             errors.append(f"Service '{name}': 'description' must be a string")
 
@@ -153,6 +165,8 @@ def main():
         output_lines.append(f'    public      = {public}')
         if core:
             output_lines.append(f'    core        = true')
+        if config.get('strict_host_check', False):
+            output_lines.append('    strict_host_check = true')
         output_lines.append(f'    description = "{description}"')
         output_lines.append(f'    image       = "{image}"')
 
