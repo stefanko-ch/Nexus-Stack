@@ -42,7 +42,9 @@ Three kinds do not make it across, so check before depending on one:
   everywhere
 - a secret whose **value** spans several lines, such as a certificate or a
   private key — skipped for Jupyter, Marimo and code-server; Kestra still gets it
-- the **same key in two folders** — the first one wins and the second is dropped
+- the **same key in two folders** — one wins and the other is dropped. The
+  winner is the folder whose name comes first alphabetically, so if this bites
+  you, renaming a folder changes the outcome
 
 The last two are named in the deploy log, so you can search it for the key. An
 invalid name is only counted, not named. If a key is missing and the log says

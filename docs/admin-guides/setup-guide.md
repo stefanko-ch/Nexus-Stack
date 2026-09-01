@@ -177,9 +177,12 @@ Jupyter, Marimo and code-server, which receive plain env files; Kestra takes it,
 because its values transit base64-encoded and are decoded server-side.
 
 A third rule drops values without any of them being malformed: the same key in
-two folders is **first-wins**. The later folder's value is discarded, which
-matters because which folder wins depends on iteration order rather than on
-anything an operator chose.
+two folders is **first-wins**. Folders are processed in `LC_ALL=C` sorted order,
+so "first" means the one whose name sorts earliest by byte value — `clickhouse`
+beats `postgres`, and an uppercase name beats every lowercase one. That is
+deterministic and it is a lever: renaming a folder changes which value survives.
+It is not a precedence mechanism anyone designed, though, so relying on it is
+relying on a sort order rather than on a stated rule.
 
 The three are not equally easy to notice, and that is what counts when a key is
 missing and you are looking for the reason:
