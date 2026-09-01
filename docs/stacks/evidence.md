@@ -93,11 +93,30 @@ node exits. With `restart: unless-stopped` the container then restart-loops. The
 operator sees a container that will not stay up, with the actual error scrolled
 past several restarts back.
 
-The bundled `database_overview.sql` is written so it cannot happen: a
-`UNION ALL` branch guarded by `WHERE NOT EXISTS` over the same source yields a
-placeholder row exactly when the main query yields none. `pg_stat_user_tables` is
-empty until a user table exists, so without the guard the shipped page would kill
-the stack on any database whose tables had all been dropped.
+Both bundled queries are written so it cannot happen. The shape is a CTE holding
+the real query, then a `UNION ALL` placeholder guarded by `WHERE NOT EXISTS`
+against that CTE:
+
+```sql
+WITH q AS ( ...your query... )
+SELECT * FROM q
+UNION ALL
+SELECT ...placeholder columns...
+WHERE NOT EXISTS (SELECT 1 FROM q);
+```
+
+**Guard the CTE, not the source table.** The two look interchangeable and are
+not: `NOT EXISTS (SELECT 1 FROM q)` asks whether the query produced anything,
+while `NOT EXISTS (SELECT 1 FROM your_table)` asks whether the table holds
+anything. A query filtering `status = 'active'` over a table of inactive rows
+returns nothing while the table is non-empty, so a table-level guard never fires
+and the container still dies. Measured, not assumed — the table-level form
+returns 0 rows in that case and the CTE form returns the placeholder.
+
+The two shipped queries cover the two ways an empty result arises:
+`database_overview` when no user table exists at all, `monthly_revenue` when
+`demo_sales` exists but has no rows — the state `DELETE FROM demo_sales` leaves
+behind, which is what someone does while replacing the demo data.
 
 Apply the same shape to queries you add. This is
 [#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7 — arguably
