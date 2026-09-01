@@ -13,6 +13,34 @@ on:
         required: false
         default: false
         type: boolean
+      fresh_start:
+        # "First-Time Deploy" names what this workflow sets up -- the
+        # Control Plane, then a spin-up -- and says nothing about the data
+        # it starts from. It delegates to spin-up.yml, whose restore phase
+        # is gated only on the persistence feature flag and on
+        # `snapshots/latest.txt` existing in R2. There is no notion of a
+        # first run: an existing snapshot is applied here exactly as on any
+        # other spin-up.
+        #
+        # That is deliberate -- RFC 0001 decision #6, quoted above the
+        # `delete_data` input in destroy-all.yml: the snapshot history
+        # survives a destroy so a later setup reattaches to it. It is also
+        # reliably surprising, because every teardown writes a fresh
+        # snapshot. A stack torn down after a `destroy-all` has snapshot
+        # history again within a day, so the operator who wiped R2 on
+        # Friday does not expect Sunday's setup to restore Saturday's data.
+        #
+        # This forwards spin-up.yml's existing `s3_persistence` input
+        # rather than adding a second flag. For a spin-up that input does
+        # exactly one thing: skip the two restore_from_s3 calls in
+        # pipeline.py. Nothing else in run_pipeline consults it, and the
+        # teardown workflows read the repository secret rather than this
+        # input, so a fresh start here does not stop the next teardown from
+        # snapshotting.
+        description: 'Start with an empty stack, ignoring any snapshot in R2. Leave unchecked to let the stack decide as it would on any spin-up — which restores the latest snapshot only if persistence is switched on for it.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -31,7 +59,17 @@ jobs:
   configure-initial-services:
     name: Configure Initial Services
     needs: setup-control-plane
-    if: ${{ inputs.enabled_services != '' }}
+    # Deliberately unconditional. The `enabled_services` input documents
+    # "empty = core services only", but the reset that makes that true —
+    # `UPDATE services SET enabled = 0 WHERE core = 0` in the step below —
+    # used to live behind `if: inputs.enabled_services != ''`. So it was a
+    # side effect of configuring services rather than a property of setting
+    # the stack up, and an empty field left whatever D1 already held.
+    #
+    # That is the distinction between the two entry points: teardown and
+    # spin-up preserve the selection, a first-time setup starts from core.
+    # Running this job with an empty list does exactly the reset and
+    # nothing else.
     runs-on: ubuntu-latest
     outputs:
       enabled_services: ${{ steps.build-list.outputs.enabled_services }}
@@ -45,28 +83,89 @@ jobs:
 
       - name: Build enabled services list
         id: build-list
+        env:
+          # Through the environment, never `${{ }}` inside the script body.
+          # Actions substitutes those textually before bash sees the line, so
+          # a dispatch value carrying shell syntax runs on the runner with
+          # this job's credentials. The value is operator-supplied, but "only
+          # someone with write access can dispatch" is an argument for a
+          # smaller blast radius, not for none.
+          ENABLED_INPUT: ${{ inputs.enabled_services }}
         run: |
-          # Start with core services (always enabled)
-          CORE_SERVICES="infisical,mailpit"
-          USER_SERVICES="${{ inputs.enabled_services }}"
+          # No hardcoded core list. There used to be one — "infisical,mailpit"
+          # — and it was wrong in both directions: the core set is forgejo,
+          # grafana, infisical and portainer, so it named one of four and
+          # added mailpit, which is not core at all. Enabling mailpit on
+          # every setup was invisible only because this job was skipped
+          # whenever the field was empty; making the job unconditional would
+          # have turned that into a real behaviour change.
+          #
+          # It is also unnecessary. generate-services-tfvars.py enables core
+          # services regardless of D1 (`should_enable = is_core or name in
+          # enabled_set`), so the single source of truth for "core" stays
+          # services.yaml rather than a copy that drifts here.
+          # Remove duplicates and empty values, sort
+          # printf, not echo. bash's builtin echo eats a leading -n/-e as an
+          # option, so an input of "-n" would print nothing, leave SERVICES
+          # empty and quietly deploy core-only instead of failing on a value
+          # nobody meant. This runs before the validation below, so it has to
+          # pass the string through unchanged.
+          # `sed '/^$/d'` rather than `grep -v '^$'` to drop blank entries.
+          # grep exits 1 when it matches nothing, which an empty input
+          # guarantees — and an empty input is the documented "core services
+          # only" case, not an error. That is survivable today only because
+          # this workflow declares no `shell:`, so Actions runs `bash -e {0}`
+          # without pipefail and the substitution takes sed's status. Adding
+          # `shell: bash` here — as python-tests.yml does elsewhere, on
+          # purpose, to get pipefail — would turn the most ordinary invocation
+          # into a silent abort. sed exits 0 on empty input, so the trap goes
+          # away instead of being documented.
+          SERVICES=$(printf '%s' "$ENABLED_INPUT" | tr ',' '\n' | sort -u | sed '/^$/d' | tr '\n' ',' | sed 's/,$//')
 
-          # Combine core + user-selected services
-          if [ -n "$USER_SERVICES" ]; then
-            SERVICES="$CORE_SERVICES,$USER_SERVICES"
-          else
-            SERVICES="$CORE_SERVICES"
+          # Every name must look like a service name and be one. The format
+          # check is what makes the rest safe: it admits no quote, semicolon,
+          # backtick, space or $, so nothing downstream can be talked out of
+          # its context -- neither this shell nor the SQL built from these
+          # names two steps below, which interpolates them into a string
+          # literal.
+          #
+          # The existence check is not security, it is honesty: a typo used to
+          # produce an UPDATE matching no row, and a silent no-op looks exactly
+          # like success. Now it stops before anything is written.
+          IFS=',' read -ra REQUESTED <<< "$SERVICES"
+          INVALID=""
+          UNKNOWN=""
+          for svc in "${REQUESTED[@]}"; do
+            [ -n "$svc" ] || continue
+            if ! printf '%s' "$svc" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+              INVALID="$INVALID $svc"
+            elif ! grep -qE "^  ${svc}:[[:space:]]*$" services.yaml; then
+              UNKNOWN="$UNKNOWN $svc"
+            fi
+          done
+          if [ -n "$INVALID" ]; then
+            echo "❌ Not valid service names:$INVALID"
+            echo "   Allowed: lowercase letters, digits and hyphens."
+            exit 1
+          fi
+          if [ -n "$UNKNOWN" ]; then
+            echo "❌ Not defined in services.yaml:$UNKNOWN"
+            echo "   Check the spelling against the Available Stacks table."
+            exit 1
           fi
 
-          # Remove duplicates and empty values, sort
-          SERVICES=$(echo "$SERVICES" | tr ',' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
-
           echo "enabled_services=$SERVICES" >> "$GITHUB_OUTPUT"
-          echo "📋 Enabled services: $SERVICES"
+          echo "📋 Enabled services: ${SERVICES:-(none — core only)}"
 
       - name: Update D1 with selected services
+        env:
+          # Same rule as the step above. These names are already validated,
+          # so this is defence in depth rather than the load-bearing check --
+          # but a second `${{ }}` in a shell body is a second thing to get
+          # right later, and there is no reason to keep one.
+          ENABLED_SERVICES: ${{ steps.build-list.outputs.enabled_services }}
         run: |
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES="${{ steps.build-list.outputs.enabled_services }}"
 
           echo "📝 Updating D1 database: $D1_DATABASE_NAME"
           echo "   Services to enable: $ENABLED_SERVICES"
@@ -111,4 +210,10 @@ jobs:
       # Pass enabled services (if configured, otherwise spin-up reads from D1)
       enabled_services: ${{ needs.configure-initial-services.outputs.enabled_services || '' }}
       silent_mode: ${{ inputs.silent_mode }}
+      # spin-up.yml feeds this into NEXUS_S3_PERSISTENCE, which
+      # s3_restore.is_enabled() compares against the exact literal "true".
+      # Empty means "not overridden", leaving the repository secret and the
+      # workflow's own default to decide -- which is why the unchecked case
+      # passes '' and not 'true'.
+      s3_persistence: ${{ inputs.fresh_start && 'false' || '' }}
     secrets: inherit

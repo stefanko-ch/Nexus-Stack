@@ -149,6 +149,29 @@ gh workflow run destroy-all.yml \
 
 That extra step deletes the persistence, data, and state buckets via the R2 S3 API. Once gone, snapshot history is unrecoverable — only do this if you really mean a fresh start. For a server-type resize you almost never want this; the bucket-preservation default is what lets the next `initial-setup` pick up where the old stack left off (DNS records re-applied, Cloudflare resources re-created, but all R2 buckets — Tofu state + snapshots + datalake — and the separate Hetzner Object Storage buckets retained).
 
+
+**Wiping R2 is not the only way to start empty, and often not the one you
+want.** `delete_data=DESTROY` is permanent — the history is gone for every
+future run. If you only want *this* deployment to ignore what is in R2, run
+the setup with `fresh_start` instead:
+
+```bash
+gh workflow run initial-setup.yaml -f fresh_start=true
+```
+
+That skips the restore for one run and leaves the bucket intact, so a later
+spin-up can still reattach to the history.
+
+**"First-Time Deploy" describes what is set up, not what it starts from.**
+The workflow creates the Control Plane and then spins up, and the spin-up's
+restore phase has no notion of a first run — it applies whatever
+`snapshots/latest.txt` points at. This surprises people because *every*
+teardown writes a fresh snapshot: a stack that keeps running after a
+`destroy-all` has snapshot history again within a day, so wiping R2 on
+Friday does not stop Sunday's setup from restoring Saturday's data. Since
+[#750](https://github.com/stefanko-ch/Nexus-Stack/issues/750) the spin-up
+log states which of the two it is doing before it starts.
+
 ---
 
 ## Variant: SERVER_PREFERENCES instead of SERVER_TYPE

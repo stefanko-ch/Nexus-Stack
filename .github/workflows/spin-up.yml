@@ -709,6 +709,41 @@ jobs:
           MONITORING_TOKEN: ${{ secrets.MONITORING_TOKEN }}
           TENANT_ID: ${{ secrets.TENANT_ID }}
         run: |
+          # Say which data this run starts from, before anything else.
+          #
+          # restore_from_s3 skips silently when the flag is off — by design,
+          # so a stack that never opted into persistence does not print a
+          # line every deploy. That silence is wrong for the opposite case:
+          # an operator who deliberately asked for an empty start gets no
+          # confirmation, and one who did not gets no warning that a
+          # snapshot is about to be applied. Both are the confusion behind
+          # #750, where a "First-Time Deploy" restored a two-day-old
+          # snapshot and the log said nothing about the choice.
+          #
+          # This states the decision without claiming the outcome: whether
+          # a snapshot exists in R2 is not known until the restore phase
+          # looks, and asserting it here would be a claim this step cannot
+          # check.
+          if [ "$NEXUS_S3_PERSISTENCE" = "true" ]; then
+            echo "♻️  S3 persistence is on: if R2 holds a snapshot, this run restores it."
+            echo "    Pass fresh_start (initial-setup) or s3_persistence=false (spin-up)"
+            echo "    to start empty instead."
+          else
+            # "R2 snapshot", not "snapshot". spin-up-snapshot.yml calls this
+            # same workflow with a Hetzner disk image as server_image and
+            # s3_persistence=false, because the disk carries newer data than
+            # R2 does. An unqualified "no snapshot will be restored" would
+            # print in the middle of a run that is restoring one.
+            echo "🧹 S3 persistence is off for this run: no R2 snapshot will be restored."
+            echo "    This says nothing about a Hetzner disk image — a snapshot"
+            echo "    spin-up restores that separately, and switches this off on"
+            echo "    purpose because the disk is the newer copy."
+            echo "    Anything already in R2 is left untouched. This flag does not"
+            echo "    reach teardown: that side reads the NEXUS_S3_PERSISTENCE"
+            echo "    repository secret, so whether it snapshots is unchanged by"
+            echo "    this run — not necessarily yes."
+          fi
+
           # Derive PERSISTENCE_S3_BUCKET inline — YAML expressions
           # can't `tr '.' '-'` but bash can. Same convention as the
           # data bucket (nexus-<domain-slug>-data) → persistence
