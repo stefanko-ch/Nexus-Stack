@@ -117,6 +117,108 @@ Add these secrets to your GitHub repository:
 
 **Settings → Secrets and variables → Actions → New repository secret**
 
+### Where credentials live
+
+Nexus-Stack keeps credentials in two stores, plus one credential that belongs to
+neither. Knowing which is which answers most access questions before they are
+asked.
+
+The two stores are below. Two credentials sit outside both, and both are named
+where they matter rather than left for the reader to discover:
+
+- the Cloudflare **tunnel token**, in the `cloudflared` systemd unit on the
+  server — the reason the table's boundary is about API tokens rather than
+  Cloudflare in general
+- **`GH_SECRETS_TOKEN`**, which the setup also copies into the Cloudflare
+  scheduled-teardown Worker and the Control Plane Pages project, because both
+  need to dispatch workflows
+
+Both are described under *What actually controls access*.
+
+| | Repository secrets (this section) | Infisical (on the server) |
+|---|---|---|
+| **Where** | The repository that runs the workflows — GitHub, or a Forgejo instance | The `infisical` core stack, on the deployed server |
+| **What** | Credentials that *build* infrastructure: Hetzner, Cloudflare, R2, the generated SSH key | Credentials that *services* use: database passwords, admin logins, one folder per stack (~50) |
+| **Who sets them** | The operator, before the first run | OpenTofu generates them on every spin-up; operators may add their own directly in Infisical |
+| **Who reads them** | The workflows — and, for `GH_SECRETS_TOKEN` alone, the Cloudflare Worker and Pages project it is copied into | Anyone who can reach the Control Plane or the stacks on that server |
+
+**No Hetzner or Cloudflare API token is ever written to Infisical or reachable
+from the application stacks**, and no service password is ever written back to
+the repository. The workflow stores exactly four values back as repository
+secrets — `SSH_PRIVATE_KEY`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and
+`R2_DATA_BUCKET` — and those are infrastructure credentials, not service ones.
+
+"API token" is the precise word, and the imprecise version would have been worth
+distrusting the rest of the page over. The server *does* hold one Cloudflare
+credential: `cloudflared service install` writes the **tunnel token** into the
+connector's systemd unit, because a tunnel cannot connect without one. It
+authorises that one tunnel and nothing else — it cannot read the account, create
+DNS records or reach any other zone — and it is not in Infisical, so the
+Control Plane never shows it.
+
+This matters most for teaching setups, where people work on a stack without
+being meant to hold the account credentials behind it. They do not: the tokens
+that could manage the Cloudflare or Hetzner account are not on that machine.
+
+#### What actually controls access
+
+Not the storage — the push rights.
+
+Repository secrets cannot be read back through the UI or the API, and the
+runner masks them in logs. That protects against accidents, not against intent:
+**anyone who can push a workflow to the repository can print its secrets**, by
+encoding or splitting them past the mask. So the boundary that matters is who
+may push to the repository holding these secrets, not who may look at a
+settings page.
+
+Infisical is deliberately the opposite. Its secrets are *meant* to be read by
+the people using that stack — the Control Plane shows them, and `secret-sync`
+writes them into **Kestra**, **Jupyter**, **Marimo** and **code-server** as
+environment variables so notebooks and flows can use them without copy-pasting.
+
+Only into the ones that are enabled, and only when the deploy could reach
+Infisical. Each target has its own phase, and a phase bails out twice: `skipped`
+when its stack is not enabled, and again when `PROJECT_ID` or `INFISICAL_TOKEN`
+is missing — as `partial` for the three plain targets, `skipped` for Kestra.
+Enabling one of the four later does not backfill; the next spin-up is what
+delivers the secrets.
+
+Worth checking the phase summary rather than assuming, then: a `partial`
+secret-sync means the env file was not written, and the stack starts without the
+credentials a notebook expects to find.
+
+Not quite all of them, and the exceptions are worth knowing before relying on a
+key being present. A name that is not a valid POSIX shell identifier is skipped
+on every target. A multi-line value — a PEM, a certificate — is skipped for
+Jupyter, Marimo and code-server, which receive plain env files; Kestra takes it,
+because its values transit base64-encoded and are decoded server-side.
+
+A third rule drops values without any of them being malformed: the same key in
+two folders is **first-wins**. Folders are processed in `LC_ALL=C` sorted order,
+so "first" means the one whose name sorts earliest by byte value — `clickhouse`
+beats `postgres`, and an uppercase name beats every lowercase one. That is
+deterministic and it is a lever: renaming a folder changes which value survives.
+It is not a precedence mechanism anyone designed, though, so relying on it is
+relying on a sort order rather than on a stated rule.
+
+The three are not equally easy to notice, and that is what counts when a key is
+missing and you are looking for the reason:
+
+| Rule | In the deploy log |
+|---|---|
+| Multi-line value | named — `Skipping multi-line secret '<KEY>'` |
+| Key collision | named, with both folders — `Key collision: '<KEY>' in folder '<B>' shadowed by earlier value from '<A>' (first-wins)` |
+| Invalid key name | **not named** — only the `skipped_name=` count on the summary line |
+
+So two of the three can be found by searching the log for the key. For the
+third, the counter tells you *that* something was dropped and you have to
+compare the folder against the env file to learn *what*. None of them ever
+prints a value.
+
+What does arrive is readable by anything running in those four stacks. On a
+stack belonging to the person using it, that is the point. It also means
+Infisical is not a way to keep something from that person.
+
 ### Required Secrets
 
 | Secret Name | Source | Description |
