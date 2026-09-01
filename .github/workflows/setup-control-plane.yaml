@@ -1178,11 +1178,54 @@ jobs:
             echo "r2_data_bucket=$BUCKET_NAME"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Check the Cloudflare token split
+        env:
+          HAS_ACTIONS_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN != '' }}
+        run: |
+          # Not fatal. Splitting the token requires the operator to create a
+          # second one, and failing every existing deployment on upgrade
+          # would be a worse trade than running one more spin-up with the
+          # wider token. But it must not pass silently either: a fallback
+          # nobody is told about is how an over-scoped credential stays in
+          # place for a year.
+          if [ "$HAS_ACTIONS_TOKEN" = "true" ]; then
+            echo "✅ Cloudflare receives GH_ACTIONS_TOKEN — scoped to what it needs"
+          else
+            echo "⚠️  GH_ACTIONS_TOKEN is not set, so Cloudflare receives GH_SECRETS_TOKEN."
+            echo ""
+            echo "   That token carries Secrets: Read and write, which Cloudflare"
+            echo "   never uses — it only dispatches workflows, reads runs, and"
+            echo "   reads the latest release. Whoever can read the Worker's"
+            echo "   binding can therefore rewrite any repository secret,"
+            echo "   including HCLOUD_TOKEN and CLOUDFLARE_API_TOKEN, and the"
+            echo "   next workflow run would use the replacement."
+            echo ""
+            echo "   To split it (see docs/admin-guides/setup-guide.md):"
+            echo "     1. Create a second fine-grained token with"
+            echo "        Actions: Read and write, Contents: Read."
+            echo "     2. Save it as GH_ACTIONS_TOKEN."
+            echo "     3. Reduce GH_SECRETS_TOKEN to Secrets: Read and write."
+            echo "     4. Re-run this workflow."
+          fi
+
       - name: Set Scheduled Teardown Worker secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          # GH_ACTIONS_TOKEN, falling back to GH_SECRETS_TOKEN.
+          #
+          # Cloudflare needs Actions:RW (dispatch + read runs) and, for the
+          # version banner, Contents:Read. It never writes a repository
+          # secret. GH_SECRETS_TOKEN carries Secrets:RW because the setup
+          # workflow needs it — and parking that here means whoever reads
+          # this binding can rewrite HCLOUD_TOKEN or CLOUDFLARE_API_TOKEN,
+          # which the next workflow run would then use. See #757.
+          #
+          # The fallback keeps existing deployments working rather than
+          # breaking every stack on upgrade; the step below says so out
+          # loud, because a silent fallback would leave the wider token in
+          # place with nothing pointing at it.
+          GITHUB_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN || secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
@@ -1217,7 +1260,9 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          WORKER_AUTH_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          # Must match what the Worker received above, since the health
+          # endpoint compares the bearer against its own GITHUB_TOKEN.
+          WORKER_AUTH_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN || secrets.GH_SECRETS_TOKEN }}
         run: |
           echo "🩺 Running Worker diagnostic health check..."
           WORKER_NAME="nexus-${DOMAIN//./-}-worker"
@@ -1318,7 +1363,20 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GITHUB_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
+          # GH_ACTIONS_TOKEN, falling back to GH_SECRETS_TOKEN.
+          #
+          # Cloudflare needs Actions:RW (dispatch + read runs) and, for the
+          # version banner, Contents:Read. It never writes a repository
+          # secret. GH_SECRETS_TOKEN carries Secrets:RW because the setup
+          # workflow needs it — and parking that here means whoever reads
+          # this binding can rewrite HCLOUD_TOKEN or CLOUDFLARE_API_TOKEN,
+          # which the next workflow run would then use. See #757.
+          #
+          # The fallback keeps existing deployments working rather than
+          # breaking every stack on upgrade; the step below says so out
+          # loud, because a silent fallback would leave the wider token in
+          # place with nothing pointing at it.
+          GITHUB_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN || secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DOMAIN: ${{ secrets.DOMAIN }}
           BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}

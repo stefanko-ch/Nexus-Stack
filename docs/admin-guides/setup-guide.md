@@ -129,9 +129,9 @@ where they matter rather than left for the reader to discover:
 - the Cloudflare **tunnel token**, in the `cloudflared` systemd unit on the
   server — the reason the table's boundary is about API tokens rather than
   Cloudflare in general
-- **`GH_SECRETS_TOKEN`**, which the setup also copies into the Cloudflare
-  scheduled-teardown Worker and the Control Plane Pages project, because both
-  need to dispatch workflows
+- the **Cloudflare token** — `GH_ACTIONS_TOKEN`, or `GH_SECRETS_TOKEN` where the
+  two have not been split — which the setup copies into the scheduled-teardown
+  Worker and the Control Plane Pages project, because both dispatch workflows
 
 Both are described under *What actually controls access*.
 
@@ -140,7 +140,7 @@ Both are described under *What actually controls access*.
 | **Where** | The repository that runs the workflows — GitHub, or a Forgejo instance | The `infisical` core stack, on the deployed server |
 | **What** | Credentials that *build* infrastructure: Hetzner, Cloudflare, R2, the generated SSH key | Credentials that *services* use: database passwords, admin logins, one folder per stack (~50) |
 | **Who sets them** | The operator, before the first run | OpenTofu generates them on every spin-up; operators may add their own directly in Infisical |
-| **Who reads them** | The workflows — and, for `GH_SECRETS_TOKEN` alone, the Cloudflare Worker and Pages project it is copied into | Anyone who can reach the Control Plane or the stacks on that server |
+| **Who reads them** | The workflows — and, for the Cloudflare token alone, the Worker and Pages project it is copied into | Anyone who can reach the Control Plane or the stacks on that server |
 
 **No Hetzner or Cloudflare API token is ever written to Infisical or reachable
 from the application stacks**, and no service password is ever written back to
@@ -233,7 +233,7 @@ Infisical is not a way to keep something from that person.
 
 #### GH_SECRETS_TOKEN
 
-This token is what lets the setup workflow store the generated R2 credentials as repository secrets. It is also used as the runtime `GITHUB_TOKEN` in Cloudflare (for the scheduled teardown worker and Control Plane), so it must be able to dispatch workflows.
+This token is what lets the setup workflow store the generated R2 credentials as repository secrets. That is all it needs to do — see `GH_ACTIONS_TOKEN` below for the Cloudflare half, which used to share this token and should not.
 
 Without it the first run stops with an explanatory error, and Cloudflare-based automation that triggers GitHub Actions will not work. The workflow used to print the credentials to the log as a fallback; it no longer does, because Actions logs on a public repository are readable by anyone and these keys open the OpenTofu state bucket.
 
@@ -243,8 +243,37 @@ Without it the first run stops with an explanatory error, and Cloudflare-based a
 3. **Repository access**: Select your Nexus-Stack repository
 4. **Permissions** (Repository permissions):
    - **Secrets** → **Read and write**
-   - **Actions** → **Read and write** (required so Cloudflare workers can dispatch workflows)
 5. Copy the token and save it as `GH_SECRETS_TOKEN` in your repository secrets
+
+This used to also require **Actions → Read and write**, because the same token
+was handed to Cloudflare. Splitting that out is what `GH_ACTIONS_TOKEN` below is
+for; if you have an existing single token, reduce it to Secrets only once the
+second one is in place.
+
+#### GH_ACTIONS_TOKEN
+
+The token the **Cloudflare** side runs on: the scheduled-teardown Worker and the
+Control Plane's spin-up / teardown / status buttons. It never touches secrets.
+
+Optional, and only in the sense that setup still works without it — the workflow
+falls back to `GH_SECRETS_TOKEN` and says so in the log. Setting it is the point,
+though, because the fallback hands Cloudflare a token with `Secrets: Read and
+write` that it has no use for. Anyone who can read that binding can rewrite
+`HCLOUD_TOKEN` or `CLOUDFLARE_API_TOKEN`, and the next workflow run uses the
+replacement — a full takeover of the deployment from a credential parked in an
+edge runtime ([#757](https://github.com/stefanko-ch/Nexus-Stack/issues/757)).
+
+**How to create:** same fine-grained-token flow as above, with:
+
+- **Actions** → **Read and write** — dispatch workflows, read run status
+- **Contents** → **Read** — the Control Plane reads `releases/latest` for its
+  version banner
+
+Save it as `GH_ACTIONS_TOKEN`, then reduce `GH_SECRETS_TOKEN` to `Secrets` only.
+
+There is no narrower option. GitHub's fine-grained tokens scope by permission,
+not by workflow, so "may dispatch this one workflow" is not expressible — which
+is why the answer is a second token rather than a tighter first one.
 
 **Running the workflows under Forgejo Actions** (for example when the repository is a fork hosted on a Forgejo instance, as Nexus-Conductor does): the same secret is still called `GH_SECRETS_TOKEN`, but its value is a **Forgejo access token** — *Settings → Applications* on that forge, for an account that administers the repository, with the `write:repository` scope. The workflows detect the forge from `GITHUB_SERVER_URL` and store secrets through the forge's Actions API (`PUT /repos/{owner}/{repo}/actions/secrets/{name}`, see [`scripts/repo-secret.sh`](https://github.com/stefanko-ch/Nexus-Stack/blob/main/scripts/repo-secret.sh)) instead of the GitHub CLI. The Control Plane's own buttons (spin-up / teardown / status) still call the GitHub API and are not available on a Forgejo-hosted fork — Nexus-Conductor drives the lifecycle from its panel in that setup.
 
