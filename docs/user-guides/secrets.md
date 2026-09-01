@@ -36,14 +36,17 @@ can use them without copy-pasting — see
 [Kestra flow editing](./kestra-flow-editing.md). Anything you can run in those
 stacks can read them. That is intended: they are your stack's own services.
 
-Two kinds do not make it across, so check before depending on one. A secret
-whose *name* is not a valid environment-variable name is skipped everywhere. A
-secret whose *value* spans several lines — a certificate, a private key — is
-skipped for Jupyter, Marimo and code-server; Kestra still receives it.
+Three kinds do not make it across, so check before depending on one:
 
-Only the second is easy to spot: the deploy log names that secret. An invalid
-name is counted but not named, so if a key is missing and the log says nothing
-about it, its name is the first thing to check.
+- a secret whose **name** is not a valid environment-variable name — skipped
+  everywhere
+- a secret whose **value** spans several lines, such as a certificate or a
+  private key — skipped for Jupyter, Marimo and code-server; Kestra still gets it
+- the **same key in two folders** — the first one wins and the second is dropped
+
+The last two are named in the deploy log, so you can search it for the key. An
+invalid name is only counted, not named. If a key is missing and the log says
+nothing about it, its name is the first thing to check.
 
 ## How it's organised
 

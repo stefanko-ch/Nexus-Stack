@@ -117,10 +117,17 @@ Add these secrets to your GitHub repository:
 
 **Settings → Secrets and variables → Actions → New repository secret**
 
-### Two separate secret stores
+### Where credentials live
 
-Nexus-Stack keeps credentials in two places that never mix. Knowing which is
-which answers most access questions before they are asked.
+Nexus-Stack keeps credentials in two stores, plus one credential that belongs to
+neither. Knowing which is which answers most access questions before they are
+asked.
+
+The two stores are below; the exception is the Cloudflare **tunnel token**,
+which lives in the `cloudflared` systemd unit on the server rather than in
+either. It is described under *What actually controls access*, and it is the
+reason the table's boundary is about API tokens rather than about Cloudflare in
+general.
 
 | | Repository secrets (this section) | Infisical (on the server) |
 |---|---|---|
@@ -169,12 +176,24 @@ on every target. A multi-line value — a PEM, a certificate — is skipped for
 Jupyter, Marimo and code-server, which receive plain env files; Kestra takes it,
 because its values transit base64-encoded and are decoded server-side.
 
-The two are not equally easy to notice, which matters when a key is missing and
-you are looking for the reason. A skipped multi-line value is named in the
-deploy log (`Skipping multi-line secret '<KEY>'`). An invalid key name is not:
-it only raises the `skipped_name=` counter on the summary line, so the count
-tells you *that* something was dropped and you have to compare the folder
-against the env file to learn *what*. Neither ever prints a value.
+A third rule drops values without any of them being malformed: the same key in
+two folders is **first-wins**. The later folder's value is discarded, which
+matters because which folder wins depends on iteration order rather than on
+anything an operator chose.
+
+The three are not equally easy to notice, and that is what counts when a key is
+missing and you are looking for the reason:
+
+| Rule | In the deploy log |
+|---|---|
+| Multi-line value | named — `Skipping multi-line secret '<KEY>'` |
+| Key collision | named, with both folders — `Key collision: '<KEY>' in folder '<B>' shadowed by earlier value from '<A>' (first-wins)` |
+| Invalid key name | **not named** — only the `skipped_name=` count on the summary line |
+
+So two of the three can be found by searching the log for the key. For the
+third, the counter tells you *that* something was dropped and you have to
+compare the folder against the env file to learn *what*. None of them ever
+prints a value.
 
 What does arrive is readable by anything running in those four stacks. On a
 stack belonging to the person using it, that is the point. It also means
