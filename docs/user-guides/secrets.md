@@ -36,6 +36,10 @@ can use them without copy-pasting — see
 [Kestra flow editing](./kestra-flow-editing.md). Anything you can run in those
 stacks can read them. That is intended: they are your stack's own services.
 
+Only the ones you have enabled, though. A stack that is switched off receives
+nothing, and switching it on later does not backfill — the secrets arrive with
+the next Spin Up.
+
 Three kinds do not make it across, so check before depending on one:
 
 - a secret whose **name** is not a valid environment-variable name — skipped
