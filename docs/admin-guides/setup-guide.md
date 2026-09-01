@@ -167,8 +167,14 @@ Not quite all of them, and the exceptions are worth knowing before relying on a
 key being present. A name that is not a valid POSIX shell identifier is skipped
 on every target. A multi-line value — a PEM, a certificate — is skipped for
 Jupyter, Marimo and code-server, which receive plain env files; Kestra takes it,
-because its values transit base64-encoded and are decoded server-side. Skipped
-keys are logged by name, never by value.
+because its values transit base64-encoded and are decoded server-side.
+
+The two are not equally easy to notice, which matters when a key is missing and
+you are looking for the reason. A skipped multi-line value is named in the
+deploy log (`Skipping multi-line secret '<KEY>'`). An invalid key name is not:
+it only raises the `skipped_name=` counter on the summary line, so the count
+tells you *that* something was dropped and you have to compare the folder
+against the env file to learn *what*. Neither ever prints a value.
 
 What does arrive is readable by anything running in those four stacks. On a
 stack belonging to the person using it, that is the point. It also means

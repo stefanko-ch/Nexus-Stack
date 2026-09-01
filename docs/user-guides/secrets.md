@@ -39,8 +39,11 @@ stacks can read them. That is intended: they are your stack's own services.
 Two kinds do not make it across, so check before depending on one. A secret
 whose *name* is not a valid environment-variable name is skipped everywhere. A
 secret whose *value* spans several lines — a certificate, a private key — is
-skipped for Jupyter, Marimo and code-server; Kestra still receives it. Both
-cases are logged by name during the deploy.
+skipped for Jupyter, Marimo and code-server; Kestra still receives it.
+
+Only the second is easy to spot: the deploy log names that secret. An invalid
+name is counted but not named, so if a key is missing and the log says nothing
+about it, its name is the first thing to check.
 
 ## How it's organised
 
