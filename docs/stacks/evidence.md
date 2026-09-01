@@ -119,9 +119,23 @@ The two shipped queries cover the two ways an empty result arises:
 behind, which is what someone does while replacing the demo data.
 
 Apply the same shape to queries you add. This is
-[#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7 — arguably
-an upstream bug, since a manifest should not reference a file the writer skipped,
-but reachable from any project that ships a query able to match nothing.
+[#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7.
+
+**Do not expect an upstream fix.** The behaviour is Evidence's — a manifest
+should not reference a parquet file its writer skipped — and it is reported at
+[evidence-dev/evidence#2466](https://github.com/evidence-dev/evidence/issues/2466),
+with the same error text and the same trigger, labelled `bug` by the maintainers
+and independently reproduced by a third party. It was closed on 2026-08-25 not by
+a fix but with *"Closing along with the release of the new Evidence Core … Feel
+free to open a new issue if this is blocking you!"* — a sweep at a product
+boundary.
+
+That matters for how to treat the guard. `@evidence-dev/evidence@40.1.8`, which
+this stack pins, is still `dist-tags.latest` on npm (published 2026-02-06), so
+the version we run is the last of that line and carries the behaviour. The guard
+is not a stopgap until someone fixes this; for this stack it is permanent, and
+worth internalising when writing your own queries rather than working around
+once.
 
 ### Adding data sources
 
