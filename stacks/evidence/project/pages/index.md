@@ -50,6 +50,37 @@ select * from evidence_db.database_overview
 
 <DataTable data={database_overview} rows=25 />
 
+## A query that returns nothing takes the server down
+
+Worth knowing before you write your own, because the symptom points nowhere near
+the cause. When a source query returns zero rows, Evidence writes no parquet file
+but still lists it in the manifest. The page load then builds a DuckDB view over
+the missing file, DuckDB throws, and nothing catches it — the node process exits
+and the container restarts. You see a restart loop, not "no results".
+
+So a query that *can* legitimately match nothing needs a guard. Both bundled
+queries show the shape: wrap the real query in a CTE, then `UNION ALL` a
+placeholder row guarded by `WHERE NOT EXISTS` **against that CTE**.
+
+```sql
+WITH q AS ( ...your query... )
+SELECT * FROM q
+UNION ALL
+SELECT ...placeholder columns...
+WHERE NOT EXISTS (SELECT 1 FROM q);
+```
+
+Guard against the CTE, not against the table it reads. `NOT EXISTS (SELECT 1
+FROM q)` asks *did the query produce anything*; `NOT EXISTS (SELECT 1 FROM
+your_table)` asks *does the table hold anything*, and those answers differ as
+soon as there is a `WHERE` or a `JOIN`. A query filtering `status = 'active'`
+over a table of only inactive rows returns nothing while the table is not
+empty — the table-level guard stays silent and the crash happens anyway.
+
+This is [#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7,
+and arguably an Evidence bug — a manifest should not list a file its writer
+skipped. Until it is fixed upstream, the guard is on the query.
+
 ## Adding more sources
 
 Drop a sibling directory under `project/sources/` with its own

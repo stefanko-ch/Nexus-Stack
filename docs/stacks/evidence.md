@@ -83,6 +83,46 @@ Compared to the other BI tools in this stack:
 3. Edit the sample page at `/opt/docker-server/stacks/evidence/project/pages/index.md` on the server (the project root is bind-mounted into the container at `/evidence-workspace`, so changes apply on save).
 4. Add new pages as `.md` files in `/opt/docker-server/stacks/evidence/project/pages/` — each one renders at `https://evidence.YOUR_DOMAIN/<filename>`.
 
+### Zero-row queries crash the container
+
+A source query that returns no rows is fatal, and the failure looks like
+something else entirely. Evidence writes no parquet file for an empty result but
+still lists it in the manifest; the page load builds a DuckDB view over the
+missing file with `read_parquet()`, DuckDB throws, the exception is uncaught, and
+node exits. With `restart: unless-stopped` the container then restart-loops. The
+operator sees a container that will not stay up, with the actual error scrolled
+past several restarts back.
+
+Both bundled queries are written so it cannot happen. The shape is a CTE holding
+the real query, then a `UNION ALL` placeholder guarded by `WHERE NOT EXISTS`
+against that CTE:
+
+```sql
+WITH q AS ( ...your query... )
+SELECT * FROM q
+UNION ALL
+SELECT ...placeholder columns...
+WHERE NOT EXISTS (SELECT 1 FROM q);
+```
+
+**Guard the CTE, not the source table.** The two look interchangeable and are
+not: `NOT EXISTS (SELECT 1 FROM q)` asks whether the query produced anything,
+while `NOT EXISTS (SELECT 1 FROM your_table)` asks whether the table holds
+anything. A query filtering `status = 'active'` over a table of inactive rows
+returns nothing while the table is non-empty, so a table-level guard never fires
+and the container still dies. Measured, not assumed — the table-level form
+returns 0 rows in that case and the CTE form returns the placeholder.
+
+The two shipped queries cover the two ways an empty result arises:
+`database_overview` when no user table exists at all, `monthly_revenue` when
+`demo_sales` exists but has no rows — the state `DELETE FROM demo_sales` leaves
+behind, which is what someone does while replacing the demo data.
+
+Apply the same shape to queries you add. This is
+[#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7 — arguably
+an upstream bug, since a manifest should not reference a file the writer skipped,
+but reachable from any project that ships a query able to match nothing.
+
 ### Adding data sources
 
 Each source lives in its own directory under `project/sources/<name>/`:
