@@ -25,6 +25,10 @@
 
 ## What This Does
 
+> New here? [**What is Nexus Stack?**](docs/concepts/index.md) explains the project in
+> a couple of minutes — the problem it solves, how the pieces fit, and what it
+> deliberately is not. The list below is the feature summary.
+
 ### Infrastructure
 - **Hetzner Cloud Server** - x86 (default `cx43` in `hel1`, Intel-shared 8 vCPU / 16 GB RAM / 160 GB) running Ubuntu 26.04 LTS — defaults switched permanently from ARM in 2026-05 because (a) Hetzner ARM EU capacity has been unavailable since 2026-01-22, and (b) Hetzner's 2025+ pricing flipped — ARM is now ~40% more expensive than the equivalent x86 spec. Smaller x86 alternatives (`cpx32` AMD 4-vCPU/8-GB, `cx32` Intel 4-vCPU/8-GB) and ARM (`cax*`) variants are supported via the `SERVER_TYPE` / `SERVER_LOCATION` repo variables for users who want to override the default — see [docs/admin-guides/setup-guide.md](docs/admin-guides/setup-guide.md#optional-repository-variables) for the canonical list
 - **Cloudflare Tunnel** - All traffic routed through Cloudflare, zero open ports
@@ -295,6 +299,7 @@ This setup achieves **zero open ports** after deployment:
 
 | Document | Description |
 |----------|-------------|
+| [What is Nexus Stack?](docs/concepts/index.md) | Concepts: what it is, architecture, lifecycle, security model |
 | [Setup Guide](docs/admin-guides/setup-guide.md) | Complete installation and configuration |
 | [Control Plane Guide](docs/user-guides/control-plane.md) | How to use the Control Plane web interface |
 | [Stacks](docs/stacks/README.md) | Available services and how to add new ones |
