@@ -132,6 +132,7 @@ runs:
         CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare_account_id }}
         DOMAIN: ${{ inputs.domain }}
         SERVER_IMAGE: ${{ inputs.server_image }}
+        ENABLE_FORGEJO_SERVICE_TOKEN: ${{ inputs.enable_forgejo_service_token }}
       shell: bash
       run: |
         # Stack config (emails from secrets)
@@ -152,11 +153,17 @@ runs:
         github_repo          = "${{ github.event.repository.name }}"
         EOF
 
+        # Read from the environment, never interpolated into the test.
+        # `${{ }}` is substituted textually before bash parses the line, so
+        # an input containing a quote becomes shell syntax rather than a
+        # value: `" = "" ]; touch /tmp/x; [ "` turns one conditional into
+        # three commands. Through `env:` it arrives as data.
+        #
         # Compared against the literal 'true' rather than passed through:
         # the variable is typed bool in OpenTofu, and an unset repo variable
         # would otherwise write `enable_forgejo_service_token = ""`, which
         # fails the plan instead of meaning "off".
-        if [ "${{ inputs.enable_forgejo_service_token }}" = "true" ]; then
+        if [ "$ENABLE_FORGEJO_SERVICE_TOKEN" = "true" ]; then
           echo 'enable_forgejo_service_token = true' >> tofu/stack/config.tfvars
         else
           echo 'enable_forgejo_service_token = false' >> tofu/stack/config.tfvars
