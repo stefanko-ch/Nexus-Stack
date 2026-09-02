@@ -1086,6 +1086,10 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                     "FORGEJO_USER_PASSWORD": config.forgejo_user_password,
                     "FORGEJO_REPO_URL_PUBLIC": forgejo_repo_url_public,
                     "FORGEJO_DB_PASSWORD": config.forgejo_db_password,
+                    # Only present when enable_forgejo_service_token is on;
+                    # _filter_empty drops the pair otherwise.
+                    "FORGEJO_SERVICE_TOKEN_ID": config.forgejo_service_token_id,
+                    "FORGEJO_SERVICE_TOKEN_SECRET": config.forgejo_service_token_secret,
                 }
             ),
         )

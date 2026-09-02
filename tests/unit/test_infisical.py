@@ -1170,3 +1170,46 @@ def test_the_two_clone_urls_never_share_a_name() -> None:
             f"folder {folder.name!r} publishes the bare name — it would "
             "override the internal URL in every workspace stack"
         )
+
+
+def test_forgejo_service_token_is_published_for_the_operator_to_copy_out() -> None:
+    """Deliberately the opposite call to the runner secret above.
+
+    Both end up in every Kestra flow author's environment, because
+    `secret_sync` copies all of Infisical there. The runner secret stays
+    out because *nothing reads it from Infisical* — the pipeline takes it
+    from the tofu output, so publishing it would be exposure without a
+    consumer.
+
+    This pair has a consumer that is a human: the operator copies it into
+    the management plane's own secret store, and Infisical is where they
+    look. It is also strictly weaker than `FORGEJO_ADMIN_PASSWORD`, which
+    is published from the same folder — the token gets a caller past
+    Cloudflare Access to Forgejo's login, the admin password gets them
+    through it.
+    """
+    config = NexusConfig(
+        admin_username="nexus-admin",
+        forgejo_service_token_id="cid.access",
+        forgejo_service_token_secret="csecret",
+    )
+    folders = compute_folders(config, BootstrapEnv(domain="example.com"))
+    forgejo = next(f for f in folders if f.name == "forgejo")
+
+    assert forgejo.secrets["FORGEJO_SERVICE_TOKEN_ID"] == "cid.access"
+    assert forgejo.secrets["FORGEJO_SERVICE_TOKEN_SECRET"] == "csecret"
+
+
+def test_no_service_token_keys_when_the_feature_is_off() -> None:
+    """`enable_forgejo_service_token = false` leaves the tofu outputs empty.
+
+    Empty values must not reach Infisical as blank secrets: a blank would
+    overwrite whatever an operator had put there by hand, which is the
+    same trap #504 described for the other credentials.
+    """
+    config = NexusConfig(admin_username="nexus-admin", forgejo_db_password="fj-db")
+    folders = compute_folders(config, BootstrapEnv(domain="example.com"))
+    forgejo = next(f for f in folders if f.name == "forgejo")
+
+    assert "FORGEJO_SERVICE_TOKEN_ID" not in forgejo.secrets
+    assert "FORGEJO_SERVICE_TOKEN_SECRET" not in forgejo.secrets

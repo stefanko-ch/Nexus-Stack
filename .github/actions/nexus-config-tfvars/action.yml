@@ -37,6 +37,13 @@ inputs:
     description: Repo variable SERVER_TYPE.
     required: false
     default: ''
+  enable_forgejo_service_token:
+    description: >-
+      Repo variable ENABLE_FORGEJO_SERVICE_TOKEN. When 'true', OpenTofu mints
+      a Cloudflare Access service token for the Forgejo application so an
+      external management plane can reach its API. Anything else leaves it off.
+    required: false
+    default: ''
   server_location:
     description: Repo variable SERVER_LOCATION.
     required: false
@@ -144,6 +151,16 @@ runs:
         github_owner         = "${{ github.repository_owner }}"
         github_repo          = "${{ github.event.repository.name }}"
         EOF
+
+        # Compared against the literal 'true' rather than passed through:
+        # the variable is typed bool in OpenTofu, and an unset repo variable
+        # would otherwise write `enable_forgejo_service_token = ""`, which
+        # fails the plan instead of meaning "off".
+        if [ "${{ inputs.enable_forgejo_service_token }}" = "true" ]; then
+          echo 'enable_forgejo_service_token = true' >> tofu/stack/config.tfvars
+        else
+          echo 'enable_forgejo_service_token = false' >> tofu/stack/config.tfvars
+        fi
         sed -i 's/^          //' tofu/stack/config.tfvars
 
         # Add Docker Hub credentials if provided (optional)

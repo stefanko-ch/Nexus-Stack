@@ -120,6 +120,35 @@ https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 > `Contents: Read-only` is the only permission required — Forgejo uses it solely for
 > HTTPS git fetch operations, which only need read access to repository contents.
 
+### API access for an external management plane
+
+Forgejo sits behind Cloudflare Access with an email policy, which is right
+for a browser and wrong for a machine: a server-to-server call to
+`/api/v1` gets Access's 302 to the login page, not the API.
+
+Setting the repository variable `ENABLE_FORGEJO_SERVICE_TOKEN` to `true`
+adds a second policy to the same Access application — `decision =
+"non_identity"`, matching on a service token that OpenTofu mints as
+`<prefix>-forgejo-token`. The email policy keeps precedence 1, so nothing
+changes for people.
+
+Why this is a variable rather than a manual step: a hand-added policy
+survives `spin-up`, because OpenTofu leaves policies it does not manage
+alone. A `teardown` + `spin-up` recreates the Access application with a
+new ID, and the policy is gone with it — the management plane then gets
+302s until somebody notices and re-adds it. The failure is silent and
+arrives one lifecycle later than the change that caused it.
+
+The credentials are written to Infisical in the `forgejo` folder as
+`FORGEJO_SERVICE_TOKEN_ID` and `FORGEJO_SERVICE_TOKEN_SECRET`, for the
+operator to copy into the management plane's own secret store. They are
+never printed to the workflow log. The caller sends them as the
+`CF-Access-Client-Id` and `CF-Access-Client-Secret` headers.
+
+Leave the variable unset on any stack that nothing manages externally. The
+forge holds every user repository, and the token is a credential that gets
+a caller past the perimeter protecting them.
+
 ### Persistent Storage
 
 | Path | Contents | Owner |

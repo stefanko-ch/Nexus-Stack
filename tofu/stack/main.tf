@@ -1116,6 +1116,44 @@ resource "cloudflare_zero_trust_access_policy" "infisical_service_token" {
   }
 }
 
+# Forgejo Service Token for an external management plane (Nexus-Conductor).
+#
+# Opt-in via var.enable_forgejo_service_token, and gated a second time on
+# the Access application actually existing: `services["forgejo"]` is only
+# present while Forgejo is enabled and non-public, and referencing a
+# missing key fails the plan rather than the apply. The condition lives in
+# a local because the token and its policy must agree — drifting apart
+# would leave a token nothing accepts, or a policy naming nothing.
+locals {
+  forgejo_service_token_count = (
+    var.enable_forgejo_service_token
+    && contains(keys(local.private_services_with_subdomain), "forgejo")
+  ) ? 1 : 0
+}
+
+resource "cloudflare_zero_trust_access_service_token" "forgejo" {
+  count      = local.forgejo_service_token_count
+  account_id = var.cloudflare_account_id
+  name       = "${local.resource_prefix}-forgejo-token"
+  duration   = "forever"
+}
+
+# Allow the service token to reach Forgejo. `non_identity` is what makes
+# this a server-to-server path: the email policy at precedence 1 stays
+# untouched, so browser access is unchanged.
+resource "cloudflare_zero_trust_access_policy" "forgejo_service_token" {
+  count          = local.forgejo_service_token_count
+  zone_id        = var.cloudflare_zone_id
+  application_id = cloudflare_zero_trust_access_application.services["forgejo"].id
+  name           = "Service Token Forgejo Access"
+  precedence     = 2
+  decision       = "non_identity"
+
+  include {
+    service_token = [cloudflare_zero_trust_access_service_token.forgejo[0].id]
+  }
+}
+
 # Dynamic Access Applications for private services only
 # Public services (e.g., git-proxy) are excluded - they handle auth at the application level
 resource "cloudflare_zero_trust_access_application" "services" {

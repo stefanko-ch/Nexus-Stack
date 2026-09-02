@@ -358,6 +358,7 @@ jobs:
           server_type: ${{ vars.SERVER_TYPE }}
           server_location: ${{ vars.SERVER_LOCATION }}
           hetzner_s3_location: ${{ vars.HETZNER_S3_LOCATION }}
+          enable_forgejo_service_token: ${{ vars.ENABLE_FORGEJO_SERVICE_TOKEN }}
           domain: ${{ secrets.DOMAIN }}
           cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

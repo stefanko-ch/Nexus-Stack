@@ -412,3 +412,26 @@ variable "github_repo" {
   type        = string
   default     = ""
 }
+
+# =============================================================================
+# External management plane (Nexus-Conductor)
+# =============================================================================
+
+variable "enable_forgejo_service_token" {
+  description = <<-EOT
+    Mint a Cloudflare Access service token for the Forgejo application and
+    attach a non-identity policy for it, so an external management plane
+    can call /api/v1 on forgejo.<domain> server-to-server instead of being
+    answered with Access's login redirect.
+
+    Off by default. A stack nobody manages externally should not carry a
+    credential that bypasses the email gate on its forge — the forge holds
+    every user repo.
+
+    Has no effect unless Forgejo is enabled and non-public: the policy
+    attaches to an Access application that only exists under those
+    conditions.
+  EOT
+  type        = bool
+  default     = false
+}

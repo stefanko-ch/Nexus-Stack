@@ -278,6 +278,11 @@ output "secrets" {
     # 40 hex chars — the format Forgejo's offline runner registration
     # requires. Shared verbatim by both halves of that handshake.
     forgejo_runner_secret = random_id.forgejo_runner_secret.hex
+    # Cloudflare Access service token for an external management plane.
+    # Empty unless enable_forgejo_service_token is on — `_filter_empty` in
+    # infisical.py then pushes nothing, rather than pushing two blanks.
+    forgejo_service_token_id     = try(cloudflare_zero_trust_access_service_token.forgejo[0].client_id, "")
+    forgejo_service_token_secret = try(cloudflare_zero_trust_access_service_token.forgejo[0].client_secret, "")
 
     # Wiki.js
     wikijs_admin_password = random_password.wikijs_admin.result
