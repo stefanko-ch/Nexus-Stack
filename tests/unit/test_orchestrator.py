@@ -2216,9 +2216,9 @@ def test_run_pre_bootstrap_runs_phases_in_order(
     orchestrator: Orchestrator,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """All 8 pre-bootstrap phases run in deterministic order:
+    """All 9 pre-bootstrap phases run in deterministic order:
     workspace-coords (first), service-env, firewall-configure,
-    stack-sync, firewall-sync, global-env, compose-up,
+    stack-sync, firewall-sync, global-env, pg-preflight, compose-up,
     infisical-provision."""
     invocation_order: list[str] = []
 
@@ -2239,6 +2239,7 @@ def test_run_pre_bootstrap_runs_phases_in_order(
     monkeypatch.setattr(Orchestrator, "_phase_stack_sync", _make_phase("stack-sync"))
     monkeypatch.setattr(Orchestrator, "_phase_firewall_sync", _make_phase("firewall-sync"))
     monkeypatch.setattr(Orchestrator, "_phase_global_env", _make_phase("global-env"))
+    monkeypatch.setattr(Orchestrator, "_phase_pg_preflight", _make_phase("pg-preflight"))
     monkeypatch.setattr(Orchestrator, "_phase_compose_up", _make_phase("compose-up"))
     monkeypatch.setattr(
         Orchestrator,
@@ -2248,7 +2249,11 @@ def test_run_pre_bootstrap_runs_phases_in_order(
     result = orchestrator.run_pre_bootstrap()
     # workspace-coords first (downstream phases gate on REPO_NAME etc.);
     # firewall-configure before stack-sync (rsync picks up overrides);
-    # firewall-sync + global-env after stack-sync (use the synced state).
+    # firewall-sync + global-env after stack-sync (use the synced state);
+    # pg-preflight immediately before compose-up — after stack-sync so it
+    # reads the compose files the run will actually use, and before
+    # compose-up because once a container has started on a mismatched data
+    # directory the failure is a restart loop rather than a diagnosis.
     assert invocation_order == [
         "workspace-coords",
         "service-env",
@@ -2256,6 +2261,7 @@ def test_run_pre_bootstrap_runs_phases_in_order(
         "stack-sync",
         "firewall-sync",
         "global-env",
+        "pg-preflight",
         "compose-up",
         "infisical-provision",
     ]
@@ -3946,3 +3952,131 @@ def test_forgejo_runner_register_skipped_when_only_the_forge_is_enabled() -> Non
 
     assert result.status == "skipped"
     assert "forgejo-runner" in result.detail
+
+
+# ---------------------------------------------------------------------------
+# pg-preflight phase (#734)
+# ---------------------------------------------------------------------------
+
+
+def _preflight(**kw: Any) -> Any:
+    from nexus_deploy.pg_preflight import PreflightResult
+
+    return PreflightResult(
+        checked=kw.get("checked", 0),
+        absent=kw.get("absent", 0),
+        unverified=kw.get("unverified", ()),
+        mismatches=kw.get("mismatches", ()),
+    )
+
+
+def test_pg_preflight_fails_the_run_on_a_mismatch(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch, capsys: Any
+) -> None:
+    """A mismatch stops the deploy before compose-up.
+
+    Letting it through would start a container that cannot start, and the
+    operator would read a restart loop instead of the cause.
+    """
+    from nexus_deploy import pg_preflight
+
+    mismatch = pg_preflight.Mismatch(
+        stack="shared",
+        service="postgres",
+        volume="postgres_postgres-data",
+        found_major="16",
+        expected_major=18,
+    )
+    monkeypatch.setattr(
+        pg_preflight, "run_preflight", lambda *a, **k: _preflight(mismatches=(mismatch,))
+    )
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "failed"
+    assert "1 data directories" in result.detail
+    # The actionable message goes to stderr, not into the phase detail —
+    # the detail is one line in a summary table.
+    assert "PostgreSQL 16" in capsys.readouterr().err
+
+
+def test_pg_preflight_looks_under_the_configured_checkout_root(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A relative "stacks" would resolve against the process cwd instead.
+
+    The failure is silent and points the wrong way: discovery finds no
+    compose files, `run_preflight` returns a clean result with nothing
+    checked, and the phase reports success — so a mismatched data
+    directory reaches compose-up with the guard reporting green. Every
+    neighbouring phase already derives its path from `project_root`.
+    """
+    from nexus_deploy import pg_preflight
+
+    orchestrator.project_root = tmp_path
+    seen: dict[str, object] = {}
+
+    def _capture(services: object, *, stacks_dir: Path, host: str) -> object:
+        seen["stacks_dir"] = stacks_dir
+        return _preflight()
+
+    monkeypatch.setattr(pg_preflight, "run_preflight", _capture)
+
+    orchestrator._phase_pg_preflight()
+
+    assert seen["stacks_dir"] == tmp_path / "stacks"
+
+
+def test_pg_preflight_reports_a_clean_run_with_counts(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nexus_deploy import pg_preflight
+
+    monkeypatch.setattr(
+        pg_preflight, "run_preflight", lambda *a, **k: _preflight(checked=3, absent=2)
+    )
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "ok"
+    assert "3 checked" in result.detail
+    assert "2 not yet initialised" in result.detail
+
+
+def test_pg_preflight_is_partial_when_something_could_not_be_checked(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Partial rather than ok: nothing was found wrong, but neither was
+    everything looked at, and the two must not read alike."""
+    from nexus_deploy import pg_preflight
+
+    monkeypatch.setattr(
+        pg_preflight,
+        "run_preflight",
+        lambda *a, **k: _preflight(checked=1, unverified=("evidence/evidence-db",)),
+    )
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "partial"
+    assert "evidence/evidence-db" in result.detail
+
+
+def test_pg_preflight_survives_the_probe_raising(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A probe that cannot run is not a reason to stop a deploy that would
+    otherwise proceed — and the detail names the exception type, never
+    str(exc), which can carry a credential (CLAUDE.md)."""
+    from nexus_deploy import pg_preflight
+
+    def _raise(*a: Any, **k: Any) -> Any:
+        raise ConnectionResetError("ssh://user:hunter2@host went away")
+
+    monkeypatch.setattr(pg_preflight, "run_preflight", _raise)
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "partial"
+    assert "ConnectionResetError" in result.detail
+    assert "hunter2" not in result.detail

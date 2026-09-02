@@ -46,6 +46,7 @@ import re
 import shlex
 import socket
 import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -59,6 +60,7 @@ from nexus_deploy import forgejo as _forgejo
 from nexus_deploy import forgejo_runner as _forgejo_runner
 from nexus_deploy import infisical as _infisical
 from nexus_deploy import kestra as _kestra
+from nexus_deploy import pg_preflight as _pg_preflight
 from nexus_deploy import secret_sync as _secret_sync
 from nexus_deploy import seeder as _seeder
 from nexus_deploy import service_env as _service_env
@@ -1189,6 +1191,55 @@ class Orchestrator:
             status="ok",
             detail=(f"rendered={len(gen.compiled)} redpanda={'yes' if gen.redpanda else 'no'}"),
         )
+
+    def _phase_pg_preflight(self) -> PhaseResult:
+        """Refuse to start containers whose data directory is a different
+        PostgreSQL major (#734).
+
+        Placed before ``_phase_compose_up`` rather than inside it: once
+        `docker compose up` has run, the failure is already a restart loop
+        and the diagnosis is a log line away. The point is to fail with
+        the cause instead.
+
+        Only reachable under the snapshot lifecycle, where the data
+        directory outlives the image tag. On a rebuild it is destroyed
+        with the server, so this phase finds nothing and says so.
+        """
+        try:
+            result = _pg_preflight.run_preflight(
+                self.enabled_services,
+                stacks_dir=self.project_root / "stacks",
+                host=self.ssh_host,
+            )
+        except Exception as exc:
+            # The probe failing is not a reason to stop a deploy that
+            # would otherwise proceed; it is a reason to say the check did
+            # not happen. type(exc).__name__ per CLAUDE.md — an exception
+            # string can carry a credential.
+            return PhaseResult(
+                name="pg-preflight",
+                status="partial",
+                detail=f"could not run ({type(exc).__name__})",
+            )
+
+        if not result.ok:
+            sys.stderr.write(_pg_preflight.format_failure(result.mismatches) + "\n")
+            return PhaseResult(
+                name="pg-preflight",
+                status="failed",
+                detail=f"{len(result.mismatches)} data directories on a different major",
+            )
+
+        detail = f"{result.checked} checked, {result.absent} not yet initialised"
+        if result.unverified:
+            return PhaseResult(
+                name="pg-preflight",
+                status="partial",
+                detail=detail
+                + f", {len(result.unverified)} unverified: "
+                + ", ".join(result.unverified),
+            )
+        return PhaseResult(name="pg-preflight", status="ok", detail=detail)
 
     def _phase_compose_up(self) -> PhaseResult:
         """Start containers in parallel via
@@ -2423,6 +2474,7 @@ class Orchestrator:
             self._phase_stack_sync,
             self._phase_firewall_sync,  # NEW (4b1)
             self._phase_global_env,  # NEW (4b1)
+            self._phase_pg_preflight,
             self._phase_compose_up,
             self._phase_infisical_provision,
         ]
