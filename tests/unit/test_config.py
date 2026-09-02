@@ -38,7 +38,7 @@ def test_field_count() -> None:
     silent drift between :data:`_FIELDS` and the upstream tofu
     schema.
     """
-    assert len(_FIELDS) == 109
+    assert len(_FIELDS) == 111
 
 
 def test_no_duplicate_bash_var_names() -> None:

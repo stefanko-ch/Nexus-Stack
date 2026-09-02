@@ -137,6 +137,8 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("FORGEJO_USER_PASS", "forgejo_user_password", ""),
     ("FORGEJO_DB_PASS", "forgejo_db_password", ""),
     ("FORGEJO_RUNNER_SECRET", "forgejo_runner_secret", ""),
+    ("FORGEJO_SERVICE_TOKEN_ID", "forgejo_service_token_id", ""),
+    ("FORGEJO_SERVICE_TOKEN_SECRET", "forgejo_service_token_secret", ""),
     ("CLICKHOUSE_ADMIN_PASS", "clickhouse_admin_password", ""),
     ("WIKIJS_ADMIN_PASS", "wikijs_admin_password", ""),
     ("WIKIJS_DB_PASS", "wikijs_db_password", ""),
@@ -266,6 +268,8 @@ class NexusConfig(BaseModel):
     forgejo_user_password: str | None = None
     forgejo_db_password: str | None = None
     forgejo_runner_secret: str | None = None
+    forgejo_service_token_id: str | None = None
+    forgejo_service_token_secret: str | None = None
     clickhouse_admin_password: str | None = None
     wikijs_admin_password: str | None = None
     wikijs_db_password: str | None = None
