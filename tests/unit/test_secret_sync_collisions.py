@@ -31,6 +31,7 @@ import pytest
 
 from nexus_deploy.secret_sync import StackTarget, render_remote_script
 
+
 # jq does real work in the rendered script — JSON to TSV — so it cannot be
 # shimmed the way curl and docker are without reimplementing it. Without it
 # the script takes its intentional missing-jq early exit, writes no env
@@ -41,6 +42,28 @@ from nexus_deploy.secret_sync import StackTarget, render_remote_script
 # without installing it and one installs it explicitly, so "the runner has
 # jq" is a habit here rather than a guarantee. If these ever skip in CI,
 # that is the signal to add an install step rather than to weaken them.
+def test_ci_actually_has_jq() -> None:
+    """In CI a skip is indistinguishable from a pass, and this file is the
+    thing that pins the precedence contract. A green run that silently
+    skipped every test in it would defeat the purpose of having it.
+
+    So the dependency is enforced where it can be: locally jq is a
+    convenience and its absence skips, in CI its absence fails here with a
+    message naming the fix, rather than seven skips nobody reads.
+
+    .github/workflows/python-tests.yml installs it. This test is what
+    notices if that step is ever dropped.
+    """
+    if os.environ.get("CI") != "true":
+        pytest.skip("only enforced in CI; locally jq is optional")
+
+    assert shutil.which("jq") is not None, (
+        "jq is missing in CI, so the secret-sync collision tests would skip "
+        "and the precedence contract would go unchecked. Restore the "
+        "'Install jq' step in .github/workflows/python-tests.yml."
+    )
+
+
 requires_jq = pytest.mark.skipif(
     shutil.which("jq") is None,
     reason="the rendered secret-sync script needs jq; install it to run these",
