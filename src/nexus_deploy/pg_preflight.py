@@ -279,9 +279,18 @@ def render_preflight_script(containers: list[PgContainer]) -> str:
             "  for rel in " + " ".join(shlex.quote(p) for p in _PG_VERSION_CANDIDATES) + "; do"
         )
         lines.append('    for f in "$MP"/$rel; do')
-        lines.append('      if [ -s "$f" ]; then FOUND=$(tr -d "[:space:]" < "$f"); break 2; fi')
+        lines.append(
+            '      if [ -s "$f" ]; then FOUND=$(tr -d "[:space:]" < "$f" 2>/dev/null); break 2; fi'
+        )
         lines.append("    done")
         lines.append("  done")
+        # A PG_VERSION that stat says is non-empty but yields nothing —
+        # unreadable, or whitespace only. Left empty it emits a
+        # four-field PGCHECK line, and `parse_result` drops malformed
+        # lines, so the container reaches `unverified` by way of its own
+        # answer going missing. That works, and it is the shape this repo
+        # calls out: the indicator must be the answer, not a by-product.
+        lines.append('  if [ -z "$FOUND" ]; then FOUND="?"; fi')
         # `-` has to keep meaning "no cluster here", because that is what
         # lets the phase pass. A directory that cannot be listed, or one
         # holding files this probe does not recognise, establishes no such
@@ -405,10 +414,14 @@ def format_failure(mismatches: tuple[Mismatch, ...]) -> str:
     for m in mismatches:
         # `find -mindepth 1 -delete` over `rm -rf <dir>/*`: it takes
         # dotfiles too, and leaves the directory itself in place.
+        # Quoted because the line is meant to be copy-pasted. `shlex.quote`
+        # leaves an ordinary /mnt/nexus-data path untouched, so this costs
+        # nothing in the common case and keeps the odd one executable.
+        target = shlex.quote(m.volume)
         out.append(
-            f"        find {m.volume} -mindepth 1 -delete"
+            f"        find {target} -mindepth 1 -delete"
             if m.is_bind
-            else f"        docker volume rm {m.volume}"
+            else f"        docker volume rm {target}"
         )
     out += [
         "",

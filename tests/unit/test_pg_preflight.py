@@ -14,6 +14,7 @@ its own.
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import textwrap
 from pathlib import Path
@@ -597,3 +598,66 @@ def test_a_bind_mount_is_named_and_discarded_as_a_directory() -> None:
     # The named volume keeps the command that does work for it.
     assert "volume postgres_pg-data" in text
     assert "docker volume rm postgres_pg-data" in text
+
+
+# ---------------------------------------------------------------------------
+# The answer has to be the signal, never a side effect of a broken line
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("content", "mode", "why"),
+    [
+        ("17\n", 0o000, "exists and is non-empty, but cannot be read"),
+        ("   \n", 0o644, "readable, but holds nothing once whitespace is stripped"),
+    ],
+)
+def test_a_pg_version_that_yields_nothing_says_so_itself(
+    tmp_path: Path, content: str, mode: int, why: str
+) -> None:
+    """`[ -s ]` calls stat, which needs no read permission on the file.
+
+    So the guard passes and the read that follows produces an empty
+    string. Emitting that would make a four-field PGCHECK line, and
+    `parse_result` drops malformed lines — the container would still reach
+    `unverified`, but by way of its own answer going missing rather than
+    by giving one. CLAUDE.md names that shape: the indicator must not be a
+    by-product. Assert the field count, since that is what breaks.
+    """
+    (tmp_path / "PG_VERSION").write_text(content)
+    (tmp_path / "PG_VERSION").chmod(mode)
+    containers = [_bind("mute", tmp_path, 18)]
+    try:
+        out = _probe(containers)
+    finally:
+        (tmp_path / "PG_VERSION").chmod(0o644)
+
+    line = next(x for x in out.splitlines() if x.startswith("PGCHECK"))
+    assert len(line.split()) == 5, f"malformed line for: {why}"
+    assert line == "PGCHECK mute mute-db ? 18"
+
+    result = parse_result(out, containers)
+    assert result.absent == 0
+    assert result.unverified == ("mute/mute-db (data directory could not be read)",)
+
+
+def test_the_discard_command_stays_a_valid_shell_command(tmp_path: Path) -> None:
+    """The line exists to be copy-pasted, so it has to survive the paste.
+
+    An unquoted path with a space splits into two arguments: `find` reads
+    the first as its starting point and the second as an expression, and
+    the operator gets an error naming neither. Quoting is free for the
+    ordinary /mnt/nexus-data paths — `shlex.quote` leaves those alone.
+    """
+    odd = tmp_path / "with space"
+    odd.mkdir()
+    text = format_failure((Mismatch("odd", "db", str(odd), "16", 17, is_bind=True),))
+
+    command = next(x for x in text.splitlines() if "find" in x).strip()
+    assert command == f"find {shlex.quote(str(odd))} -mindepth 1 -delete"
+
+    # Executable as printed: run it and confirm it emptied the directory.
+    (odd / "PG_VERSION").write_text("16\n")
+    assert subprocess.run(["bash", "-c", command], check=False).returncode == 0
+    assert list(odd.iterdir()) == []
+    assert odd.is_dir(), "the directory itself must survive, ownership with it"
