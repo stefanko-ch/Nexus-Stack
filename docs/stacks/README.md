@@ -51,7 +51,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Kestra | `kestra/kestra` | `v1.0` | Minor |
 | PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
-| PostgreSQL (Infisical DB) | `postgres` | `14-alpine` | Major |
+| PostgreSQL (Infisical DB) | `postgres` | `18-alpine` | Major |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
 | Mailpit | `axllent/mailpit` | `v1.28` | Minor |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |

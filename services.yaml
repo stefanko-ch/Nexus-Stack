@@ -428,7 +428,7 @@ services:
     long_description: "Infisical is an open-source secret management platform. Centralize secrets, environment variables, and API keys across your entire infrastructure. Features include versioning, audit logs, access controls, secret rotation, and integrations with Docker, Kubernetes, and CI/CD systems."
     image: "infisical/infisical:v0.155.5"
     support_images:
-      infisical-postgres: "postgres:14-alpine"
+      infisical-postgres: "postgres:18-alpine"
       infisical-redis: "redis:7-alpine"
 
   it-tools:
