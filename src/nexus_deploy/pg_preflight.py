@@ -117,12 +117,16 @@ class PreflightResult:
     """Probed, and there is no cluster there yet — a first start."""
 
     unverified: tuple[str, ...]
-    """Containers the probe reported nothing for, as ``stack/service``.
+    """Containers nothing could be established for, as ``stack/service``.
 
-    Kept apart from ``absent`` because they are a different statement:
-    "there is no data directory" is a finding, "the check did not run
-    there" is the lack of one. Folding them together would let a broken
-    probe read as a clean bill of health.
+    Kept apart from ``absent`` because they are different statements:
+    "there is no data directory" is a finding, "the check could not look"
+    is the lack of one. Folding them together would let a broken probe
+    read as a clean bill of health.
+
+    Three ways in: the probe emitted no line at all, the docker daemon was
+    down so a named volume's location was unknowable, or PG_VERSION held
+    something that is not a major.
     """
 
     mismatches: tuple[Mismatch, ...]
@@ -211,8 +215,19 @@ def render_preflight_script(containers: list[PgContainer]) -> str:
     Comparing here rather than in bash keeps the decision, the message and
     its tests in one language.
     """
+    # One `docker info` up front, rather than reading each volume's
+    # inspect failure as an answer. Both a stopped daemon and a
+    # not-yet-created volume make `docker volume inspect` exit 1, and the
+    # second is the normal case on a first deploy — so per-volume failure
+    # cannot distinguish them. Asking once can: with docker up, a missing
+    # volume genuinely means no cluster; with docker down, nothing about
+    # named volumes is knowable and saying "absent" would be a finding
+    # nobody established.
     lines = [
         "set -uo pipefail",
+        "",
+        "if docker info >/dev/null 2>&1; then DOCKER=ok; else DOCKER=unavailable; fi",
+        'echo "PGPROBE docker $DOCKER"',
         "",
     ]
     for c in containers:
@@ -253,16 +268,33 @@ def parse_result(stdout: str, containers: list[PgContainer]) -> PreflightResult:
     checked = 0
     absent = 0
     mismatches: list[Mismatch] = []
+    unreadable: list[str] = []
     seen: set[tuple[str, str]] = set()
+
+    # A stopped daemon makes every named volume unknowable. Bind mounts
+    # are unaffected — those paths are read straight off the filesystem,
+    # so their answers stand on their own.
+    docker_down = "PGPROBE docker unavailable" in stdout
+    blind = {(c.stack, c.service) for c in containers if docker_down and not c.is_bind}
 
     for line in stdout.splitlines():
         parts = line.split()
         if len(parts) != 5 or parts[0] != "PGCHECK":
             continue
         _, stack, service, found, want = parts
+        if (stack, service) in blind:
+            # Leave it out of `seen`, so it lands in `unverified` below.
+            continue
         seen.add((stack, service))
         if found == "-":
             absent += 1
+            continue
+        if not found.isdigit():
+            # A PG_VERSION holding something other than a major is a
+            # damaged directory, not a version. Comparing it would report
+            # a mismatch naming a PostgreSQL release that does not exist,
+            # which sends the operator looking for the wrong problem.
+            unreadable.append(f"{stack}/{service} (PG_VERSION reads {found!r})")
             continue
         checked += 1
         if found != want:
@@ -278,7 +310,8 @@ def parse_result(stdout: str, containers: list[PgContainer]) -> PreflightResult:
             )
 
     unverified = tuple(
-        f"{c.stack}/{c.service}" for c in containers if (c.stack, c.service) not in seen
+        [f"{c.stack}/{c.service}" for c in containers if (c.stack, c.service) not in seen]
+        + unreadable
     )
     return PreflightResult(
         checked=checked, absent=absent, unverified=unverified, mismatches=tuple(mismatches)

@@ -3952,3 +3952,104 @@ def test_forgejo_runner_register_skipped_when_only_the_forge_is_enabled() -> Non
 
     assert result.status == "skipped"
     assert "forgejo-runner" in result.detail
+
+
+# ---------------------------------------------------------------------------
+# pg-preflight phase (#734)
+# ---------------------------------------------------------------------------
+
+
+def _preflight(**kw: Any) -> Any:
+    from nexus_deploy.pg_preflight import PreflightResult
+
+    return PreflightResult(
+        checked=kw.get("checked", 0),
+        absent=kw.get("absent", 0),
+        unverified=kw.get("unverified", ()),
+        mismatches=kw.get("mismatches", ()),
+    )
+
+
+def test_pg_preflight_fails_the_run_on_a_mismatch(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch, capsys: Any
+) -> None:
+    """A mismatch stops the deploy before compose-up.
+
+    Letting it through would start a container that cannot start, and the
+    operator would read a restart loop instead of the cause.
+    """
+    from nexus_deploy import pg_preflight
+
+    mismatch = pg_preflight.Mismatch(
+        stack="shared",
+        service="postgres",
+        volume="postgres_postgres-data",
+        found_major="16",
+        expected_major=18,
+    )
+    monkeypatch.setattr(
+        pg_preflight, "run_preflight", lambda *a, **k: _preflight(mismatches=(mismatch,))
+    )
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "failed"
+    assert "1 data directories" in result.detail
+    # The actionable message goes to stderr, not into the phase detail —
+    # the detail is one line in a summary table.
+    assert "PostgreSQL 16" in capsys.readouterr().err
+
+
+def test_pg_preflight_reports_a_clean_run_with_counts(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nexus_deploy import pg_preflight
+
+    monkeypatch.setattr(
+        pg_preflight, "run_preflight", lambda *a, **k: _preflight(checked=3, absent=2)
+    )
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "ok"
+    assert "3 checked" in result.detail
+    assert "2 not yet initialised" in result.detail
+
+
+def test_pg_preflight_is_partial_when_something_could_not_be_checked(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Partial rather than ok: nothing was found wrong, but neither was
+    everything looked at, and the two must not read alike."""
+    from nexus_deploy import pg_preflight
+
+    monkeypatch.setattr(
+        pg_preflight,
+        "run_preflight",
+        lambda *a, **k: _preflight(checked=1, unverified=("evidence/evidence-db",)),
+    )
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "partial"
+    assert "evidence/evidence-db" in result.detail
+
+
+def test_pg_preflight_survives_the_probe_raising(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A probe that cannot run is not a reason to stop a deploy that would
+    otherwise proceed — and the detail names the exception type, never
+    str(exc), which can carry a credential (CLAUDE.md)."""
+    from nexus_deploy import pg_preflight
+
+    def _raise(*a: Any, **k: Any) -> Any:
+        raise ConnectionResetError("ssh://user:hunter2@host went away")
+
+    monkeypatch.setattr(pg_preflight, "run_preflight", _raise)
+
+    result = orchestrator._phase_pg_preflight()
+
+    assert result.status == "partial"
+    assert "ConnectionResetError" in result.detail
+    assert "hunter2" not in result.detail

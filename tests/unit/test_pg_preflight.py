@@ -345,3 +345,115 @@ def test_module_docstring_names_the_lifecycle_that_can_reach_this() -> None:
     doc = textwrap.dedent(pg_preflight.__doc__)
     assert "snapshot" in doc
     assert "rebuild" in doc
+
+
+# ---------------------------------------------------------------------------
+# When the probe itself cannot answer
+# ---------------------------------------------------------------------------
+
+
+def test_a_stopped_docker_daemon_makes_named_volumes_unverified(tmp_path: Path) -> None:
+    """Not `absent`, which would read as "checked, no cluster there".
+
+    The distinction needs a separate question, because `docker volume
+    inspect` exits 1 both when the daemon is down and when the volume has
+    simply not been created — and the second is the normal case on a first
+    deploy. Reading per-volume failure as "unknowable" would flag every
+    first deploy; reading it as "absent" hides a dead daemon. The script
+    asks `docker info` once instead.
+    """
+    named = PgContainer(
+        stack="evidence", service="evidence-db", source="db-data", is_bind=False, expected_major=18
+    )
+
+    result = parse_result(
+        "PGPROBE docker unavailable\nPGCHECK evidence evidence-db - 18\n", [named]
+    )
+
+    assert result.unverified == ("evidence/evidence-db",)
+    assert result.absent == 0
+    assert result.checked == 0
+
+
+def test_a_stopped_daemon_does_not_taint_bind_mounts(tmp_path: Path) -> None:
+    """Those paths are read off the filesystem, so their answers stand."""
+    (tmp_path / "PG_VERSION").write_text("16\n")
+    containers = [_bind("gitea", tmp_path, 17)]
+
+    result = parse_result("PGPROBE docker unavailable\n" + _probe(containers), containers)
+
+    assert result.unverified == ()
+    assert len(result.mismatches) == 1
+
+
+def test_the_script_reports_the_daemon_state_before_anything_else() -> None:
+    """Verified against a real stopped daemon rather than a stub: with
+    docker down on this machine the line reads `unavailable`, and with it
+    up the same script reads `ok`."""
+    script = render_preflight_script([])
+
+    assert "docker info" in script
+    assert 'echo "PGPROBE docker $DOCKER"' in script
+
+
+def test_a_pg_version_that_is_not_a_number_is_unverified(tmp_path: Path) -> None:
+    """A damaged directory, not a version.
+
+    Comparing it would report a mismatch naming a PostgreSQL release that
+    does not exist, sending the operator after the wrong problem.
+    """
+    containers = [_bind("odd", tmp_path, 18)]
+
+    result = parse_result("PGCHECK odd odd-db garbage 18\n", containers)
+
+    assert result.mismatches == ()
+    assert result.checked == 0
+    assert len(result.unverified) == 1
+    assert "garbage" in result.unverified[0]
+
+
+# ---------------------------------------------------------------------------
+# Malformed compose entries must not take the discovery down
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("volumes", "why"),
+    [
+        (None, "no volumes key at all"),
+        ([], "empty volumes list"),
+        ("postgres-data:/var/lib/postgresql/data", "a string where a list belongs"),
+        ([{"type": "volume", "source": "d"}], "long-form mount syntax"),
+        (["postgres-data"], "an anonymous volume, no colon"),
+        (["./conf:/etc/postgresql/postgresql.conf"], "a mount that is not the data dir"),
+    ],
+)
+def test_a_service_without_a_recognisable_data_mount_is_skipped(
+    tmp_path: Path, volumes: object, why: str
+) -> None:
+    """Discovery walks every stack, so one odd entry must not raise.
+
+    Long-form mount syntax is the interesting one: it is valid Compose and
+    this repo happens not to use it, so the parser would meet it for the
+    first time in production. Skipping is right — a service whose data
+    directory cannot be located cannot be checked — but it has to skip
+    rather than crash the deploy before compose-up.
+    """
+    stack = tmp_path / "odd"
+    stack.mkdir()
+    spec: dict[str, object] = {"image": "postgres:18-alpine"}
+    if volumes is not None:
+        spec["volumes"] = volumes
+    (stack / "docker-compose.yml").write_text(
+        __import__("yaml").safe_dump({"services": {"odd-db": spec}})
+    )
+
+    assert discover_pg_containers(tmp_path) == [], f"should skip: {why}"
+
+
+def test_a_compose_file_with_no_services_is_skipped(tmp_path: Path) -> None:
+    stack = tmp_path / "empty"
+    stack.mkdir()
+    (stack / "docker-compose.yml").write_text("services:\n")
+
+    assert discover_pg_containers(tmp_path) == []

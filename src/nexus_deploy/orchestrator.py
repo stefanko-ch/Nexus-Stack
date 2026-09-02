@@ -1227,7 +1227,7 @@ class Orchestrator:
             return PhaseResult(
                 name="pg-preflight",
                 status="failed",
-                detail=f"{len(result.mismatches)} data directory/ies on a different major",
+                detail=f"{len(result.mismatches)} data directories on a different major",
             )
 
         detail = f"{result.checked} checked, {result.absent} not yet initialised"
