@@ -48,15 +48,21 @@ services:
       - infisical-internal
 
   infisical-db:
-    image: ${IMAGE_INFISICAL_POSTGRES:-postgres:14-alpine}
+    image: ${IMAGE_INFISICAL_POSTGRES:-postgres:18-alpine}
     container_name: infisical-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=nexus-infisical
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?must be set in .env (rendered by service_env._render_infisical)}
       - POSTGRES_DB=infisical
+    # 512m matches every other bundled Postgres in this repo (forgejo-db,
+    # evidence-db, hedgedoc-db, dagster-postgres, meltano-db).
+    mem_limit: 512m
     volumes:
-      - infisical-db-data:/var/lib/postgresql/data
+      # 18+ places the cluster in a major-versioned subdirectory, so the
+      # mount goes one level up. With the pre-18 path the image refuses to
+      # start (exit 1) rather than writing somewhere unexpected.
+      - infisical-db-data:/var/lib/postgresql
     networks:
       - infisical-internal
     healthcheck:
