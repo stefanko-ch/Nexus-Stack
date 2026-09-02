@@ -73,6 +73,7 @@ jobs:
       - name: Check the Cloudflare token split
         env:
           HAS_ACTIONS_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN != '' }}
+          HAS_SECRETS_TOKEN: ${{ secrets.GH_SECRETS_TOKEN != '' }}
         run: |
           # First step of the job on purpose. It used to sit next to the
           # Cloudflare steps near the end, where any earlier failure — tofu,
@@ -89,6 +90,21 @@ jobs:
             echo "GH_ACTIONS_TOKEN is set — Cloudflare will be given that token."
             echo "   Its permissions are not visible from here; the intended"
             echo "   scope is Actions: Read and write plus Contents: Read."
+          elif [ "$HAS_SECRETS_TOKEN" != "true" ]; then
+            # Neither is configured. Announcing the fallback here would be a
+            # false statement on exactly the run this step exists to help:
+            # there is nothing to fall back to. Not fatal here either —
+            # the SSH-key step below is where the missing prerequisite
+            # actually stops the run, with the instructions for fixing it.
+            echo "⚠️  Neither GH_ACTIONS_TOKEN nor GH_SECRETS_TOKEN is set."
+            echo ""
+            echo "   Cloudflare would receive no token at all, so the"
+            echo "   scheduled teardown and the Control Plane buttons could"
+            echo "   not dispatch anything."
+            echo ""
+            echo "   This run will not get that far: the SSH-key step below"
+            echo "   stops on the missing GH_SECRETS_TOKEN and explains how"
+            echo "   to create it. See docs/admin-guides/setup-guide.md."
           else
             echo "⚠️  GH_ACTIONS_TOKEN is not set, so Cloudflare will be given"
             echo "   GH_SECRETS_TOKEN instead."
