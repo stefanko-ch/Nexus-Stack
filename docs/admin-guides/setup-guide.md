@@ -230,7 +230,7 @@ Infisical is not a way to keep something from that person.
 | `DOMAIN` | Your domain | e.g. `example.com` |
 | `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
 | `GH_SECRETS_TOKEN` | GitHub PAT, or a Forgejo access token | Stores the credentials the setup generates ([how to create](#gh_secrets_token)) |
-| `GH_ACTIONS_TOKEN` | GitHub PAT | What Cloudflare runs on. Setup works without it by falling back to `GH_SECRETS_TOKEN` — which hands Cloudflare secret-write rights it never uses, so treat an unset value as a transitional state rather than a choice ([how to create](#gh_actions_token)) |
+| `GH_ACTIONS_TOKEN` | GitHub PAT | **Strongly recommended, GitHub-hosted repositories only.** What Cloudflare runs on. Setup completes without it by falling back to `GH_SECRETS_TOKEN`, which hands Cloudflare secret-write rights it never uses — so an unset value is a transitional state, not a choice. Irrelevant on a Forgejo-hosted fork, where the Cloudflare buttons do not work anyway ([how to create](#gh_actions_token)) |
 
 #### GH_SECRETS_TOKEN
 
@@ -256,8 +256,9 @@ Without it the first run stops with an explanatory error, and Cloudflare-based a
 
 This used to also require **Actions → Read and write**, because the same token
 was handed to Cloudflare. Splitting that out is what `GH_ACTIONS_TOKEN` below is
-for; if you have an existing single token, reduce it to Secrets only once the
-second one is in place.
+for; if you have an existing single token, drop its **Actions** permission once
+the second one is in place — keeping **Secrets → Read and write**, which is what
+this token is for.
 
 #### GH_ACTIONS_TOKEN
 
@@ -278,7 +279,11 @@ edge runtime ([#757](https://github.com/stefanko-ch/Nexus-Stack/issues/757)).
 - **Contents** → **Read** — the Control Plane reads `releases/latest` for its
   version banner
 
-Save it as `GH_ACTIONS_TOKEN`, then reduce `GH_SECRETS_TOKEN` to `Secrets` only.
+Save it as `GH_ACTIONS_TOKEN`. Then narrow `GH_SECRETS_TOKEN` by removing
+**Actions** (and **Contents**, if you granted it) — and leave **Secrets → Read
+and write** in place. "Narrow" means fewer permissions, not a lower level on the
+one it keeps: without write access the setup cannot store anything and stops
+with an explanatory error.
 
 There is no narrower option. GitHub's fine-grained tokens scope by permission,
 not by workflow, so "may dispatch this one workflow" is not expressible — which
