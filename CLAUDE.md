@@ -104,6 +104,12 @@ Nexus-Stack/
 │   # Python entrypoint directly.
 └── docs/                       # Documentation (single source of truth for nexus-stack.ch)
     ├── CONTRIBUTING.md         # Contribution guidelines (GitHub-only, not synced)
+    ├── concepts/               # Explanation layer: what the project is and why
+    │   ├── index.md            # What is Nexus Stack? (start here)
+    │   ├── architecture.md     # Control/execution/data planes, where state lives
+    │   ├── lifecycle.md        # Teardown/spin-up, what survives
+    │   ├── stacks.md           # What a stack is, catalogue vs desired state
+    │   └── security-model.md   # Zero open ports, Access, credential separation
     ├── user-guides/            # End-user guides (students/participants using a Control Plane)
     │   └── control-plane.md    # Control Plane web UI walkthrough
     ├── admin-guides/           # Operator/self-hoster guides
