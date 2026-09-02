@@ -937,16 +937,27 @@ jobs:
 
           # Store CREDENTIALS_JSON for email credentials feature (send-credentials.js)
           if [ "$SECRETS_JSON" != "{}" ]; then
-            # `forgejo_runner_secret` is dropped deliberately. This bundle
-            # is stored as a Pages secret and read by send-credentials.js,
-            # which mails it to the stack's users — so it must carry only
-            # credentials a human logs in with. The runner's registration
-            # secret is machine-to-machine: the deploy pipeline takes it
-            # from the tofu output and the runner container from its
-            # rendered .env, and nobody needs it in an inbox. It is kept
-            # out of Infisical for the same reason; without this line
-            # that exclusion would simply be undone here.
-            CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'del(.forgejo_runner_secret) | to_entries | map(select(.value != null and .value != "")) | from_entries')
+            # Three keys are dropped deliberately. This bundle is stored as a
+            # Pages secret for send-credentials.js, whose subject is credentials
+            # a human logs in with. All three are machine-to-machine and have no
+            # consumer in the bundle:
+            #
+            #   forgejo_runner_secret — the deploy pipeline takes it from the
+            #     tofu output and the runner container from its rendered .env.
+            #     Kept out of Infisical for the same reason; without this line
+            #     that exclusion would simply be undone here.
+            #   forgejo_service_token_{id,secret} — the operator reads them from
+            #     Infisical and copies them into the management plane's secret
+            #     store. Nothing reads them from here.
+            #
+            # On what send-credentials.js does with this bundle: it interpolates
+            # `credentials.infisical_admin_password` and nothing else, then points
+            # at Infisical for the rest. So reaching this bundle is not the same as
+            # being emailed — an earlier version of this comment said it was, and a
+            # reviewer reasonably drew the wrong conclusion from it. The bundle is
+            # still a Pages secret, and a credential nothing reads from it does not
+            # belong in it.
+            CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'del(.forgejo_runner_secret, .forgejo_service_token_id, .forgejo_service_token_secret) | to_entries | map(select(.value != null and .value != "")) | from_entries')
             if echo "$CREDENTIALS" | npx wrangler@4 pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
               echo "  ✅ CREDENTIALS_JSON stored"
             else
