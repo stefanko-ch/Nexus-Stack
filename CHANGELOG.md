@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.75.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.74.0...v0.75.0) (2026-09-02)
+
+
+### 🚀 Features
+
+* Make a Nexus-Stack operable as the Conductor-Stack backend ([#769](https://github.com/stefanko-ch/Nexus-Stack/issues/769)) ([9e016e2](https://github.com/stefanko-ch/Nexus-Stack/commit/9e016e2dfdb98b3bc55d8bcbe03b0d337552b25c))
+* **deploy:** Preflight the PostgreSQL data-directory major ([#765](https://github.com/stefanko-ch/Nexus-Stack/issues/765)) ([6791dd7](https://github.com/stefanko-ch/Nexus-Stack/commit/6791dd7fcd73495517f8fc0967034a944e078678))
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Move Infisical's PostgreSQL from 14 to 18 ([#770](https://github.com/stefanko-ch/Nexus-Stack/issues/770)) ([55b3a62](https://github.com/stefanko-ch/Nexus-Stack/commit/55b3a622d1bcca13f7724e6814ac1b11d7ef74ea))
+
+
+### 📚 Documentation
+
+* **concepts:** Add the explanation layer the docs never had ([#771](https://github.com/stefanko-ch/Nexus-Stack/issues/771)) ([7c7c0c3](https://github.com/stefanko-ch/Nexus-Stack/commit/7c7c0c3b853f4e38b84d4da47ea8cb71504bfd49))
+* Record two verification rules this session established ([#763](https://github.com/stefanko-ch/Nexus-Stack/issues/763)) ([7653b10](https://github.com/stefanko-ch/Nexus-Stack/commit/7653b106842b5edd03b38a9a8ba8dcec3a0b4aff))
+
+
+### 🔧 Maintenance
+
+* Run the Python tests when services.yaml or a stack changes ([#766](https://github.com/stefanko-ch/Nexus-Stack/issues/766)) ([bd3e8e7](https://github.com/stefanko-ch/Nexus-Stack/commit/bd3e8e72a15c4c74fffb17626cd7085bbb3dd722))
+
 ## [0.74.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.73.0...v0.74.0) (2026-09-02)
 
 
