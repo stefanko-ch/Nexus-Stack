@@ -77,8 +77,10 @@ data" — it is "some of your data, depending on the mode".
 
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —
-currently Forgejo, Dify, Metabase, HedgeDoc and Planka, plus a dump of the shared
-Postgres database. Read that function rather than trusting a number in a document:
+currently Forgejo, Gitea, Dify, Metabase, HedgeDoc and Planka, plus a dump of the
+shared Postgres database. Two kinds of target sit in that list: a `pg_dump` of a
+stack's database, and an rsync of the directories it writes — Forgejo and Gitea
+have both, since a forge is repositories as much as it is a database. Read that function rather than trusting a number in a document:
 the list grows when someone extends it, and this page will not notice.
 
 Everything else — a topic you created in Redpanda, a dashboard you built in a stack

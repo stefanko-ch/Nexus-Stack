@@ -6,18 +6,27 @@ order: 3
 
 # Stacks and services
 
-A **stack** is one service you can switch on: Postgres, Redpanda, Kestra, Jupyter,
-Metabase. Nexus Stack ships 80+ of them and you run the handful you actually need.
+A **stack** is one entry in the service catalogue: Postgres, Redpanda, Kestra,
+Jupyter, Metabase. Nexus Stack ships 80+ of them and you run the handful you
+actually need.
 
-Each stack is exactly two things in this repository:
+Most are opt-in — you switch them on in the Control Plane and off again when you
+are done. A few are marked `core` and are always on, because the deployment does
+not work without them; the Control Plane will not let you disable those. Which are
+which is in `services.yaml`, not in this page, so that this page cannot go stale
+about it.
+
+Every stack has at least these two things in this repository:
 
 - **An entry in `services.yaml`** — the metadata: which subdomain and port it uses,
   which category it belongs to, what it is for, which image version is pinned.
 - **A `stacks/<name>/docker-compose.yml`** — the containers themselves, attached to
   the shared external `app-network` so stacks can reach each other by service name.
 
-Nothing else. Adding a service to the catalogue is adding those two files (plus its
-documentation page); there is no plugin system and no registry.
+Many need more than that, and about a third do: a `Dockerfile` where no usable
+upstream image exists, seed SQL, config templates, notebooks. Those live in the same
+`stacks/<name>/` directory. What there is *not* is a plugin system or a registry —
+a stack is files in this repository, and adding one is adding files.
 
 ## Catalogue, state, and reality
 
@@ -109,7 +118,7 @@ including the cases where a secret is deliberately skipped, are in the
 
 Adding a service to the catalogue means: a `services.yaml` entry, a Compose file, a
 documentation page in `docs/stacks/`, and the README table. The exact steps, in
-order, are in the [stacks README](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/README.md)
+order, are in the [stacks README](../stacks/README.md)
 and in `CLAUDE.md`. Two rules are worth stating here because they are easy to get
 wrong: pin the image version rather than tracking `latest`, and if the stack holds
 data anybody would miss, it needs a persistence target — otherwise it is ephemeral
@@ -117,7 +126,7 @@ and nothing will tell you so.
 
 ## Related reading
 
-- [Stack catalogue](/docs/stacks/) — every available service
+- [Stack catalogue](../stacks/README.md) — every available service
 - [Lifecycle](./lifecycle.md) — what happens to a stack's data on teardown
 - [Security model](./security-model.md) — what sits in front of a stack
 - [Control Plane](../user-guides/control-plane.md) — switching stacks on and off

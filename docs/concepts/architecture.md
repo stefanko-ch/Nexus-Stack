@@ -135,10 +135,15 @@ There is no reverse proxy on the server and no public IP that serves HTTP. Inste
 - `cloudflared` runs on the server and opens an **outbound** connection to
   Cloudflare. Traffic only ever flows in over a connection the server itself
   established.
-- Each enabled service gets a DNS `CNAME` pointing at the tunnel, and a tunnel
-  route mapping `service.yourdomain.com` to `localhost:<port>` on the server.
-- Each private service gets a Cloudflare Access application with an email OTP
-  policy in front of it.
+- Each enabled service **that declares a subdomain** gets a DNS `CNAME` pointing at
+  the tunnel, and a tunnel route mapping `service.yourdomain.com` to
+  `localhost:<port>` on the server.
+- Each of those that is not `public` gets a Cloudflare Access application with an
+  email OTP policy in front of it.
+- Services marked `internal_only` — Postgres, Vector, Debezium, Telegraf and the
+  rest — get none of the three. They have no subdomain, so there is nothing to
+  route and nothing to protect from the outside; they exist only on the shared
+  Docker network, reachable by the other containers under their service name.
 
 Which means TLS, DNS, and authentication are all handled before a request reaches
 your server — and a service that is not routed simply does not exist from the
