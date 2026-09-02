@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.74.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.73.0...v0.74.0) (2026-09-02)
+
+
+### 🚀 Features
+
+* **ci:** Store repository secrets via the forge API under Forgejo Actions ([#753](https://github.com/stefanko-ch/Nexus-Stack/issues/753)) ([4eff186](https://github.com/stefanko-ch/Nexus-Stack/commit/4eff1863434d8275dfa96d046a1372a7c13c6d9f))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Let a First-Time Deploy start without restoring a snapshot ([#754](https://github.com/stefanko-ch/Nexus-Stack/issues/754)) ([e20ad28](https://github.com/stefanko-ch/Nexus-Stack/commit/e20ad28c2a9dc94856a2ce578da6e07500b395db))
+* **stacks:** Declare every IMAGE_ variable the compose files actually read ([#746](https://github.com/stefanko-ch/Nexus-Stack/issues/746)) ([65d7981](https://github.com/stefanko-ch/Nexus-Stack/commit/65d7981824cdc573b8dbcae9b5a4c508afa1ea3d))
+* **stacks:** Give Evidence its own Postgres instead of the shared stack ([#751](https://github.com/stefanko-ch/Nexus-Stack/issues/751)) ([0c5c6ef](https://github.com/stefanko-ch/Nexus-Stack/commit/0c5c6efe32dc0085238cb6e0c37ab45dbcf90604))
+* **stacks:** Make every compose fallback match the version services.yaml declares ([#748](https://github.com/stefanko-ch/Nexus-Stack/issues/748)) ([619fab4](https://github.com/stefanko-ch/Nexus-Stack/commit/619fab4abf42c45aa5b39256245486434f765857))
+* **stacks:** Make the bundled Evidence query survive an empty database ([#758](https://github.com/stefanko-ch/Nexus-Stack/issues/758)) ([6a1538f](https://github.com/stefanko-ch/Nexus-Stack/commit/6a1538f1aace00c34660d4e05b70f43bfdbbd4fb))
+* **stacks:** Make the Evidence stack start ([#749](https://github.com/stefanko-ch/Nexus-Stack/issues/749)) ([8b0cc9b](https://github.com/stefanko-ch/Nexus-Stack/commit/8b0cc9b3d058c35af8a9c9357f893ccd925fafe3))
+* **tofu:** Rewrite the tunnel Host header for origins that check it ([#752](https://github.com/stefanko-ch/Nexus-Stack/issues/752)) ([45a6c36](https://github.com/stefanko-ch/Nexus-Stack/commit/45a6c3623a5bd150c6ac87f242c6347d27aecc6b))
+
+
+### ♻️ Refactoring
+
+* **ci:** Give Cloudflare its own token instead of the secrets one ([#760](https://github.com/stefanko-ch/Nexus-Stack/issues/760)) ([82c7a7a](https://github.com/stefanko-ch/Nexus-Stack/commit/82c7a7a1fde26d6944a35f0440605782be9d6828))
+
+
+### 📚 Documentation
+
+* Align the GH_ACTIONS_TOKEN wording and name both tokens ([#762](https://github.com/stefanko-ch/Nexus-Stack/issues/762)) ([91d9205](https://github.com/stefanko-ch/Nexus-Stack/commit/91d92050a726f0ec2c3cdb872ab271f694cd4189))
+* Explain the two secret stores and what actually gates access ([#755](https://github.com/stefanko-ch/Nexus-Stack/issues/755)) ([30d40b2](https://github.com/stefanko-ch/Nexus-Stack/commit/30d40b2d128be5daa6db51b1c834f54558f9a702))
+* Record the upstream status of the Evidence zero-row crash ([#759](https://github.com/stefanko-ch/Nexus-Stack/issues/759)) ([d54636d](https://github.com/stefanko-ch/Nexus-Stack/commit/d54636db69cdcbb98c88bb576199adb17fc91bf6))
+
+
+### 🔧 Maintenance
+
+* **stacks:** Move HedgeDoc's PostgreSQL to 18-alpine ([#745](https://github.com/stefanko-ch/Nexus-Stack/issues/745)) ([5214898](https://github.com/stefanko-ch/Nexus-Stack/commit/5214898020bf2b708acb3c77c9fd2189827ace78))
+* **stacks:** Move Superset's and Lakekeeper's PostgreSQL to 17-alpine ([#744](https://github.com/stefanko-ch/Nexus-Stack/issues/744)) ([3cc2dd7](https://github.com/stefanko-ch/Nexus-Stack/commit/3cc2dd77be3f89424ab14b8d2810ffc2ae2e97ed))
+* **stacks:** Move Windmill's and Kestra's PostgreSQL to 18-alpine ([#737](https://github.com/stefanko-ch/Nexus-Stack/issues/737)) ([9111534](https://github.com/stefanko-ch/Nexus-Stack/commit/9111534d5a559d45e47f4c333d237c1714a52a31))
+
 ## [0.73.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.72.0...v0.73.0) (2026-08-29)
 
 
