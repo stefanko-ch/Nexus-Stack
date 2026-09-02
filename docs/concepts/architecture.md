@@ -118,6 +118,16 @@ list rather than a single fixed type, because Hetzner capacity for any one type 
 any one region regularly runs out. The [Setup Guide](../admin-guides/setup-guide.md)
 has the current defaults.
 
+The default is x86, and it did not start that way. The project began on ARM
+(`cax31`), which was roughly half the price of the equivalent x86 machine at the
+time. Two things changed: Hetzner's ARM capacity in the EU regions became
+unavailable for an extended stretch, and the pricing inverted — ARM is now around
+40% *more* expensive than equivalent x86. The default moved to `cx43` (Intel
+shared, 8 vCPU / 16 GB / 160 GB), sized for the case this project actually gets
+used for: forty-odd stacks at once, several of them JVM services alongside
+Postgres and DuckDB. ARM images are still built and ARM types still selectable, so
+the door back is open if the pricing flips again.
+
 ## Cloudflare is the entire front door
 
 There is no reverse proxy on the server and no public IP that serves HTTP. Instead:

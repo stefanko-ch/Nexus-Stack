@@ -49,9 +49,12 @@ one-time-password policy, created by OpenTofu from the service list. Practically
   reaches the container. The list of allowed emails is deployment-wide.
 - **Sessions are time-boxed** — 24 hours for ordinary services, one hour for Wetty,
   which is a shell in a browser.
-- **Headless access uses service tokens**, not passwords: one for SSH (paired with
-  short-lived certificates) and one for Infisical, so CI and automation can reach
-  what they need without a human at an inbox.
+- **Headless access uses service tokens**, not passwords, so CI and automation can
+  reach what they need without a human at an inbox. One exists for SSH (paired with
+  short-lived certificates), one for Infisical, and one — opt-in, off by default —
+  for Forgejo's API, so an external management plane can call it server-to-server.
+  Each is scoped to a single Access application; there is no general-purpose token
+  that opens everything.
 - **`public: true` opts a service out** of Access entirely, and it then answers to
   the whole internet with only its own authentication. Exactly one shipped stack
   does this, and adding a second one deserves a hard look.

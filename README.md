@@ -25,12 +25,19 @@
 
 ## What This Does
 
-> New here? [**What is Nexus Stack?**](docs/concepts/index.md) explains the project in
-> a couple of minutes — the problem it solves, how the pieces fit, and what it
-> deliberately is not. The list below is the feature summary.
+Nexus-Stack deploys a full self-hosted data and developer stack — 80+ Docker
+services on a single Hetzner server — behind Cloudflare Zero Trust, with no
+inbound ports open and no local tooling required. Tear it down at night, spin it
+back up in the morning, keep the data.
+
+> **New here?** [**What is Nexus Stack?**](docs/concepts/index.md) is the
+> explanation: the problem it solves, [how the pieces fit](docs/concepts/architecture.md),
+> [what survives a teardown](docs/concepts/lifecycle.md), and
+> [why "zero open ports" is a property rather than a slogan](docs/concepts/security-model.md).
+> The list below is the feature summary, not the explanation.
 
 ### Infrastructure
-- **Hetzner Cloud Server** - x86 (default `cx43` in `hel1`, Intel-shared 8 vCPU / 16 GB RAM / 160 GB) running Ubuntu 26.04 LTS — defaults switched permanently from ARM in 2026-05 because (a) Hetzner ARM EU capacity has been unavailable since 2026-01-22, and (b) Hetzner's 2025+ pricing flipped — ARM is now ~40% more expensive than the equivalent x86 spec. Smaller x86 alternatives (`cpx32` AMD 4-vCPU/8-GB, `cx32` Intel 4-vCPU/8-GB) and ARM (`cax*`) variants are supported via the `SERVER_TYPE` / `SERVER_LOCATION` repo variables for users who want to override the default — see [docs/admin-guides/setup-guide.md](docs/admin-guides/setup-guide.md#optional-repository-variables) for the canonical list
+- **Hetzner Cloud Server** - x86 by default (`cx43` in `hel1`) running Ubuntu 26.04 LTS. Type and region are set with the `SERVER_TYPE` / `SERVER_LOCATION` repo variables — [Setup Guide](docs/admin-guides/setup-guide.md#optional-repository-variables) for the canonical list, [Architecture](docs/concepts/architecture.md) for why the default is x86 rather than ARM
 - **Cloudflare Tunnel** - All traffic routed through Cloudflare, zero open ports
 - **Cloudflare Access** - Email OTP authentication for all services
 - **Remote State** - OpenTofu state stored in Cloudflare R2
