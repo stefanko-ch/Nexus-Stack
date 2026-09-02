@@ -661,3 +661,46 @@ def test_the_discard_command_stays_a_valid_shell_command(tmp_path: Path) -> None
     assert subprocess.run(["bash", "-c", command], check=False).returncode == 0
     assert list(odd.iterdir()) == []
     assert odd.is_dir(), "the directory itself must survive, ownership with it"
+
+
+# ---------------------------------------------------------------------------
+# One malformed compose file must cost only itself
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("content", "why"),
+    [
+        ("- eine\n- liste\n", "root parses to a list, not a mapping"),
+        ("just a string\n", "root parses to a scalar"),
+        ("", "empty file — yaml.safe_load returns None"),
+        ("services:\n  - db\n", "`services` is a list, so .items() would raise"),
+        ("services:\n", "`services` present but null"),
+    ],
+)
+def test_a_malformed_compose_file_does_not_disable_the_whole_check(
+    tmp_path: Path, content: str, why: str
+) -> None:
+    """The failure is disproportionate, and it fails in the passing direction.
+
+    `.get` on a list raises, `_phase_pg_preflight` catches it and reports
+    "partial", and the deploy proceeds with *every* stack unchecked — the
+    guard switched off by a file it was not asked about. `sorted()` makes
+    it likelier still: a stack named earlier in the alphabet takes the
+    rest down with it.
+    """
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    (bad / "docker-compose.yml").write_text(content)
+    good = tmp_path / "good"
+    good.mkdir()
+    (good / "docker-compose.yml").write_text(
+        "services:\n"
+        "  good-db:\n"
+        "    image: postgres:18-alpine\n"
+        '    volumes: ["good-data:/var/lib/postgresql"]\n'
+    )
+
+    found = discover_pg_containers(tmp_path)
+
+    assert [c.stack for c in found] == ["good"], f"sibling lost to: {why}"

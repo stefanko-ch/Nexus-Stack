@@ -162,8 +162,19 @@ def discover_pg_containers(stacks_dir: Path) -> list[PgContainer]:
     """
     found: list[PgContainer] = []
     for compose in sorted(stacks_dir.glob("*/docker-compose.yml")):
-        parsed = yaml.safe_load(compose.read_text()) or {}
-        for service, spec in (parsed.get("services") or {}).items():
+        parsed = yaml.safe_load(compose.read_text())
+        # One odd file must cost only itself. Without these two guards a
+        # compose file parsing to a list makes `.get` raise, the phase
+        # catches it and reports "partial", and every *other* stack goes
+        # unchecked — the check disabled by a file it was not asked about.
+        # The per-service guard below already worked this way; these are
+        # the two levels above it.
+        if not isinstance(parsed, dict):
+            continue
+        services = parsed.get("services")
+        if not isinstance(services, dict):
+            continue
+        for service, spec in services.items():
             if not isinstance(spec, dict):
                 continue
             match = _POSTGRES_IMAGE.search(str(spec.get("image", "")))
@@ -446,7 +457,8 @@ def run_preflight(
     deploy over a database nothing is about to start. The check has to
     describe the run that is happening.
     """
-    containers = [c for c in discover_pg_containers(stacks_dir) if c.stack in set(enabled)]
+    wanted = set(enabled)
+    containers = [c for c in discover_pg_containers(stacks_dir) if c.stack in wanted]
     if not containers:
         return PreflightResult(checked=0, absent=0, unverified=(), mismatches=())
 
