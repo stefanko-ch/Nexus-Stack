@@ -26,8 +26,15 @@ export const stackLabel: string = (process.env.STACK_LABEL ?? '').trim();
  * keyword. Anything else is dropped and the panel keeps its own accent —
  * a wrong colour is a cosmetic problem, an unvalidated one is a stylesheet
  * an operator can write into every page.
+ *
+ * The hex lengths are the four CSS actually defines — 3, 4, 6, 8 — not a
+ * 3..8 range. Five or seven digits are not a colour, and letting one
+ * through is worse than rejecting it: a custom property accepts any token
+ * sequence, so `#fffff` would *replace* the `var(--accent)` fallback and
+ * only then turn out to be invalid where it is used, leaving the badge
+ * with no accent at all rather than the panel's own.
  */
-const ACCENT_PATTERN = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{3,20})$/;
+const ACCENT_PATTERN = /^(#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|[a-zA-Z]{3,20})$/;
 
 const rawAccent = (process.env.STACK_ACCENT ?? '').trim();
 export const stackAccent: string = ACCENT_PATTERN.test(rawAccent) ? rawAccent : '';
