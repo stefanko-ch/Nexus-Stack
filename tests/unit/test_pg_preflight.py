@@ -489,7 +489,9 @@ def test_a_compose_file_with_no_services_is_skipped(tmp_path: Path) -> None:
         ),
         (
             {"type": "bind", "source": "./db", "target": "/var/lib/postgresql/data"},
-            "./db",
+            # Resolved against the remote stack dir at discovery time; see
+            # test_a_relative_bind_source_is_resolved_against_the_remote_stack_dir.
+            "/opt/docker-server/stacks/lf/db",
             True,
             "relative bind — only `type` says it is one",
         ),
@@ -704,3 +706,102 @@ def test_a_malformed_compose_file_does_not_disable_the_whole_check(
     found = discover_pg_containers(tmp_path)
 
     assert [c.stack for c in found] == ["good"], f"sibling lost to: {why}"
+
+
+def test_an_unparseable_compose_file_is_named_and_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A *disabled* stack's file can hold this shape and never reach compose-up.
+
+    So "it fails loudly later" is not true of it: nothing else would ever
+    read it, while letting the exception out takes discovery down for
+    every enabled stack. Skipped, but named — the databases it defines go
+    unchecked, and that is a fact about the run.
+    """
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    (bad / "docker-compose.yml").write_text("services:\n  db:\n   image: [unclosed\n")
+    good = tmp_path / "good"
+    good.mkdir()
+    (good / "docker-compose.yml").write_text(
+        "services:\n"
+        "  good-db:\n"
+        "    image: postgres:18-alpine\n"
+        '    volumes: ["good-data:/var/lib/postgresql"]\n'
+    )
+
+    found = discover_pg_containers(tmp_path)
+
+    assert [c.stack for c in found] == ["good"]
+    err = capsys.readouterr().err
+    assert "bad/docker-compose.yml" in err
+    assert "go unchecked" in err
+
+
+def test_an_unreadable_compose_file_is_skipped_not_fatal(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Same contract for an OSError as for a parse error."""
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    locked = bad / "docker-compose.yml"
+    locked.write_text("services: {}\n")
+    locked.chmod(0o000)
+    good = tmp_path / "good"
+    good.mkdir()
+    (good / "docker-compose.yml").write_text(
+        "services:\n"
+        "  good-db:\n"
+        "    image: postgres:18-alpine\n"
+        '    volumes: ["good-data:/var/lib/postgresql"]\n'
+    )
+    try:
+        found = discover_pg_containers(tmp_path)
+    finally:
+        locked.chmod(0o644)
+
+    assert [c.stack for c in found] == ["good"]
+    assert "PermissionError" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# A relative bind source means nothing where the probe runs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("entry", "expected"),
+    [
+        (
+            '["./db:/var/lib/postgresql/data"]',
+            "/opt/docker-server/stacks/rel/db",
+        ),
+        (
+            '[{"type": "bind", "source": "./data/db", "target": "/var/lib/postgresql"}]',
+            "/opt/docker-server/stacks/rel/data/db",
+        ),
+    ],
+)
+def test_a_relative_bind_source_is_resolved_against_the_remote_stack_dir(
+    tmp_path: Path, entry: str, expected: str
+) -> None:
+    """Compose resolves it against the compose file; the probe does not.
+
+    `ssh nexus '...'` starts in the login directory, so an unresolved
+    `./db` names a path that does not exist — the probe reports absent,
+    the phase passes, and it passed on a directory nobody looked at. The
+    printed recovery command would point somewhere else again.
+    """
+    stack = tmp_path / "rel"
+    stack.mkdir()
+    (stack / "docker-compose.yml").write_text(
+        f"services:\n  rel-db:\n    image: postgres:18-alpine\n    volumes: {entry}\n"
+    )
+
+    (found,) = discover_pg_containers(tmp_path)
+
+    assert found.is_bind
+    assert found.source == expected
+    # Both the probe and the operator-facing name follow from `source`.
+    assert found.qualified_volume == expected
+    assert f"MP={expected}" in render_preflight_script([found])

@@ -34,8 +34,10 @@ cluster.
 
 from __future__ import annotations
 
+import posixpath
 import re
 import shlex
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -46,6 +48,12 @@ import yaml
 # the substring "postgres" also catches `postgrest/postgrest:v14.12`,
 # which is an HTTP layer over a database rather than a database, has no
 # data directory, and would be reported as an unparseable major forever.
+# Mirrors compose_runner's constant rather than importing it, the way
+# compose_restart already does. A relative bind source is resolved against
+# the stack's directory here, because Compose resolves it against the
+# directory holding the compose file — which on the server is this.
+_REMOTE_STACKS_DIR = "/opt/docker-server/stacks"
+
 _POSTGRES_IMAGE = re.compile(r"\bpostgres:(\d+)")
 
 # Candidate locations of PG_VERSION inside the mounted volume, relative to
@@ -162,7 +170,19 @@ def discover_pg_containers(stacks_dir: Path) -> list[PgContainer]:
     """
     found: list[PgContainer] = []
     for compose in sorted(stacks_dir.glob("*/docker-compose.yml")):
-        parsed = yaml.safe_load(compose.read_text())
+        try:
+            parsed = yaml.safe_load(compose.read_text())
+        except (OSError, yaml.YAMLError) as exc:
+            # Named, not swallowed. The file may well belong to a stack
+            # this deploy never starts — a *disabled* stack's compose file
+            # is never fed to compose-up, so "it fails loudly later" is
+            # not true of it, and letting the exception out would take the
+            # check down for every enabled stack instead.
+            sys.stderr.write(
+                f"⚠️  pg-preflight: skipping {compose} ({type(exc).__name__}); "
+                "the databases it defines go unchecked\n"
+            )
+            continue
         # One odd file must cost only itself. Without these two guards a
         # compose file parsing to a list makes `.get` raise, the phase
         # catches it and reports "partial", and every *other* stack goes
@@ -184,6 +204,14 @@ def discover_pg_containers(stacks_dir: Path) -> list[PgContainer]:
             if mount is None:
                 continue
             source, is_bind = mount
+            if is_bind and not source.startswith("/"):
+                # Compose resolves "./db" against the compose file's own
+                # directory; the probe runs from the SSH login directory.
+                # Left relative it would name a path that does not exist,
+                # report absent, and pass the phase on a directory nobody
+                # looked at — and the printed recovery command would point
+                # somewhere else again.
+                source = posixpath.normpath(f"{_REMOTE_STACKS_DIR}/{compose.parent.name}/{source}")
             found.append(
                 PgContainer(
                     stack=compose.parent.name,
