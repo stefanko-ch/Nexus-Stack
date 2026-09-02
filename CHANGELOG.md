@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 Features
 
+* Make a Nexus-Stack operable as the Conductor-Stack backend ([#769](https://github.com/stefanko-ch/Nexus-Stack/issues/769)) ([9e016e2](https://github.com/stefanko-ch/Nexus-Stack/commit/9e016e2dfdb98b3bc55d8bcbe03b0d337552b25c))
 * **deploy:** Preflight the PostgreSQL data-directory major ([#765](https://github.com/stefanko-ch/Nexus-Stack/issues/765)) ([6791dd7](https://github.com/stefanko-ch/Nexus-Stack/commit/6791dd7fcd73495517f8fc0967034a944e078678))
 
 
