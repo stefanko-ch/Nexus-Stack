@@ -293,8 +293,8 @@ mutation that silently fails to apply, or that lands on a branch the test never
 executes, looks exactly like a passing test with a gap. Both happened here: one
 replacement string did not match after escaping, and one changed a `docker`
 invocation the rendered script never emits for that target, because
-`force_recreate` is false. Neither was a weak test; both would have been
-reported as one.
+`force_recreate` is false. Neither test was weak, but both would have been
+reported as missing coverage — and the first one was, before it was checked.
 
 **Never report an action as done before its tool call has returned.** Write the
 sentence after the result, not while planning the call — a wrong "I have
