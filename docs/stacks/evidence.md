@@ -119,9 +119,34 @@ The two shipped queries cover the two ways an empty result arises:
 behind, which is what someone does while replacing the demo data.
 
 Apply the same shape to queries you add. This is
-[#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7 — arguably
-an upstream bug, since a manifest should not reference a file the writer skipped,
-but reachable from any project that ships a query able to match nothing.
+[#725](https://github.com/stefanko-ch/Nexus-Stack/issues/725) defect 7.
+
+**No fix is available for the version this stack pins.** The same crash is
+reported upstream at
+[evidence-dev/evidence#2466](https://github.com/evidence-dev/evidence/issues/2466)
+— same error text, same trigger — labelled `bug` by the maintainers and
+independently reproduced by a third party. It was closed on 2026-08-25 not by a
+fix but with *"Closing along with the release of the new Evidence Core … Feel
+free to open a new issue if this is blocking you!"*, a sweep at a product
+boundary.
+
+Two limits on what that establishes, because both invite a wrong conclusion:
+
+- **Which component owns the defect is inferred, not traced.** The failure
+  surfaces in `universal-sql` loading a file the manifest listed, so the natural
+  reading is that the manifest should not list a file its writer skipped — but
+  nobody here has followed that through `universal-sql`, DuckDB, or the
+  interaction between them. It is a bug *reported against* Evidence; treat the
+  component as a starting point for investigation, not a conclusion.
+- **"No fix" applies to the 40.1.8 line only.** `@evidence-dev/evidence@40.1.8`
+  is what this stack pins and is still `dist-tags.latest` on npm (published
+  2026-02-06), so the version we run carries the behaviour. Whether the new
+  Evidence Core fixes it is unknown and untested here, and a later release could
+  address it.
+
+For this stack, then, the guard is what stands between a query and a restart
+loop, and there is no pending change that would remove the need for it. Worth
+internalising when writing your own queries rather than working around once.
 
 ### Adding data sources
 
