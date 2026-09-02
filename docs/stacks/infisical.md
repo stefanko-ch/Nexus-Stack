@@ -75,10 +75,25 @@ versions:
      infisical/infisical-db: data is PostgreSQL 14, image is 18  (volume infisical_infisical-db-data)
 ```
 
-Take a dump first, so the decision stays reversible:
+At that point `infisical-db` is **not running** — the preflight stopped the
+deploy before compose-up — so `docker exec infisical-db pg_dump` has nothing
+to attach to. Start a temporary PostgreSQL 14 against the volume instead. It
+mounts at the *old* path, because that is the layout the volume still has:
 
 ```bash
-ssh nexus "docker exec infisical-db pg_dump -U nexus-infisical -Fc infisical" > infisical-pg14.dump
+ssh nexus "docker run --rm -u postgres \
+  -v infisical_infisical-db-data:/var/lib/postgresql/data \
+  --entrypoint sh postgres:14-alpine -c \
+  'pg_ctl -D /var/lib/postgresql/data -o \"-c listen_addresses=\" -w start >/dev/null \
+   && pg_dump -U nexus-infisical -Fc infisical'" > infisical-pg14.dump
+```
+
+`listen_addresses=` keeps the temporary server on its socket only, so nothing
+can reach it while it runs. Check the result before continuing — the file
+starts with `PGDMP`:
+
+```bash
+head -c 5 infisical-pg14.dump   # PGDMP
 ```
 
 Then discard the volume and deploy again:
@@ -90,8 +105,18 @@ ssh nexus "docker volume rm infisical_infisical-db-data"
 
 Everything Nexus-Stack manages returns on the next spin-up — the admin
 account and all generated service credentials are re-pushed. What does
-**not** return is anything added by hand in the Infisical UI: your own
-secrets, extra projects and users, and the audit log. If the stack holds
-any of that, restore it from the dump into the new cluster yourself before
-letting Infisical migrate the schema; this project does not automate that
-path and does not test it, so treat the dump as the thing you rely on.
+**not** return is anything you added by hand in the Infisical UI: your own
+secrets, extra projects and users, and the audit log.
+
+If the stack holds any of that, restore it once Infisical has started and
+created its schema, so the restore lands on a database that exists:
+
+```bash
+ssh nexus "docker exec -i infisical-db pg_restore -U nexus-infisical \
+  -d infisical --clean --if-exists" < infisical-pg14.dump
+ssh nexus "cd /opt/docker-server/stacks/infisical && docker compose restart infisical"
+```
+
+The `14 -> 18` round trip works — `pg_dump -Fc` is version-independent by
+design and `pg_restore` reads the older format. Restore into a **new**
+cluster, never over one Infisical has since written to.

@@ -55,6 +55,9 @@ services:
       - POSTGRES_USER=nexus-infisical
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?must be set in .env (rendered by service_env._render_infisical)}
       - POSTGRES_DB=infisical
+    # 512m matches every other bundled Postgres in this repo (forgejo-db,
+    # evidence-db, hedgedoc-db, dagster-postgres, meltano-db).
+    mem_limit: 512m
     volumes:
       # 18+ places the cluster in a major-versioned subdirectory, so the
       # mount goes one level up. With the pre-18 path the image refuses to
