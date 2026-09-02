@@ -265,11 +265,12 @@ this token is for.
 The token the **Cloudflare** side runs on: the scheduled-teardown Worker and the
 Control Plane's spin-up / teardown / status buttons. It never touches secrets.
 
-Optional, and only in the sense that setup still works without it — the workflow
-falls back to `GH_SECRETS_TOKEN` and says so in the log. Setting it is the point,
-though, because the fallback hands Cloudflare a token with `Secrets: Read and
-write` that it has no use for. Anyone who can read that binding can rewrite
-`HCLOUD_TOKEN` or `CLOUDFLARE_API_TOKEN`, and the next workflow run uses the
+Strongly recommended, and skippable only in the narrow sense that setup still
+completes without it — the workflow falls back to `GH_SECRETS_TOKEN` and says so
+in the log. Treat that as a transitional state: the fallback hands Cloudflare a
+token with `Secrets: Read and write` that it has no use for. Anyone who can read
+that binding can rewrite `HCLOUD_TOKEN` or `CLOUDFLARE_API_TOKEN`, and the next
+workflow run uses the
 replacement — a full takeover of the deployment from a credential parked in an
 edge runtime ([#757](https://github.com/stefanko-ch/Nexus-Stack/issues/757)).
 
@@ -278,6 +279,17 @@ edge runtime ([#757](https://github.com/stefanko-ch/Nexus-Stack/issues/757)).
 - **Actions** → **Read and write** — dispatch workflows, read run status
 - **Contents** → **Read** — the Control Plane reads `releases/latest` for its
   version banner
+
+Two names are involved and only one of them matters to the code. GitHub's
+**Token name** field is free text — it appears in your token list and nowhere
+else — so pick something that survives a year of not thinking about it, such as
+`nexus-stack-cloudflare-actions`. The **repository secret** must be called
+exactly `GH_ACTIONS_TOKEN`: the workflow reads `secrets.GH_ACTIONS_TOKEN`, and
+any other spelling falls back to `GH_SECRETS_TOKEN`, and the warning it logs
+reads *"GH_ACTIONS_TOKEN is not set"* — which is true, and identical to what you
+would see having never created the token at all. The fallback is not silent; the
+typo is. Check the spelling against this page before concluding the secret is
+missing.
 
 Save it as `GH_ACTIONS_TOKEN`. Then narrow `GH_SECRETS_TOKEN` by removing
 **Actions** (and **Contents**, if you granted it) — and leave **Secrets → Read
