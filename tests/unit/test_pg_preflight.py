@@ -805,3 +805,31 @@ def test_a_relative_bind_source_is_resolved_against_the_remote_stack_dir(
     # Both the probe and the operator-facing name follow from `source`.
     assert found.qualified_volume == expected
     assert f"MP={expected}" in render_preflight_script([found])
+
+
+def test_a_binary_compose_file_is_skipped_like_any_other_bad_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`UnicodeDecodeError` is a ValueError, so OSError does not cover it.
+
+    `read_text` raises it before yaml ever sees the file, which put it
+    outside the guard the previous commit added — the same "one bad file
+    takes the enabled stacks with it" failure, reached by a different
+    exception.
+    """
+    bad = tmp_path / "bad"
+    bad.mkdir()
+    (bad / "docker-compose.yml").write_bytes(b"\xff\xfe\x00\x00binary")
+    good = tmp_path / "good"
+    good.mkdir()
+    (good / "docker-compose.yml").write_text(
+        "services:\n"
+        "  good-db:\n"
+        "    image: postgres:18-alpine\n"
+        '    volumes: ["good-data:/var/lib/postgresql"]\n'
+    )
+
+    found = discover_pg_containers(tmp_path)
+
+    assert [c.stack for c in found] == ["good"]
+    assert "UnicodeDecodeError" in capsys.readouterr().err
