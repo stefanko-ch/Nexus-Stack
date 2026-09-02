@@ -1,4 +1,6 @@
 ---
+import { stackLabel, stackAccent } from '../lib/stack-identity';
+
 interface Props {
   activeNav?: string;
 }
@@ -20,6 +22,14 @@ const navItems = [
   <img src="/nexus-logo-green.png" alt="Nexus Stack" class="logo">
   <h1>NEXUS STACK</h1>
   <p class="tagline">Control Panel &middot; <span id="version-tag" class="version-tag"></span></p>
+  {stackLabel && (
+    <p
+      class="stack-label"
+      style={stackAccent ? `--stack-label-accent: ${stackAccent}` : undefined}
+    >
+      {stackLabel}
+    </p>
+  )}
   <nav class="nav-links">
     {navItems.map(item => (
       <a href={item.href} class={activeNav === item.id ? 'active' : ''}>
@@ -82,6 +92,25 @@ const navItems = [
     color: #00ff88;
     opacity: 0.5;
     letter-spacing: 0.1em;
+  }
+
+  /* Deliberately loud: this is the one element that says which stack the
+     buttons below belong to. Falls back to the panel accent, so an
+     operator who sets STACK_LABEL without STACK_ACCENT still gets a
+     badge rather than an invisible one. */
+  .stack-label {
+    --stack-label-accent: var(--accent);
+    display: inline-block;
+    margin: 0.9rem auto 0;
+    padding: 0.3rem 1.1rem;
+    border: 2px solid var(--stack-label-accent);
+    border-radius: 4px;
+    color: var(--stack-label-accent);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
   }
 
   .nav-links {

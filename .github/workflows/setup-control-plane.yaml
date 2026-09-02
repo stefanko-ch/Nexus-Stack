@@ -1651,6 +1651,12 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Baked into the page by `npm run build` below. Passed as env
+          # rather than interpolated into the command, so the value is
+          # data to bash instead of text substituted before bash reads it.
+          # Unset means the panel looks exactly as it always has.
+          STACK_LABEL: ${{ vars.STACK_LABEL }}
+          STACK_ACCENT: ${{ vars.STACK_ACCENT }}
         run: |
           echo "📦 Deploying Control Plane to Cloudflare Pages..."
 
