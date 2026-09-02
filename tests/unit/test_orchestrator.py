@@ -4000,6 +4000,33 @@ def test_pg_preflight_fails_the_run_on_a_mismatch(
     assert "PostgreSQL 16" in capsys.readouterr().err
 
 
+def test_pg_preflight_looks_under_the_configured_checkout_root(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A relative "stacks" would resolve against the process cwd instead.
+
+    The failure is silent and points the wrong way: discovery finds no
+    compose files, `run_preflight` returns a clean result with nothing
+    checked, and the phase reports success — so a mismatched data
+    directory reaches compose-up with the guard reporting green. Every
+    neighbouring phase already derives its path from `project_root`.
+    """
+    from nexus_deploy import pg_preflight
+
+    orchestrator.project_root = tmp_path
+    seen: dict[str, object] = {}
+
+    def _capture(services: object, *, stacks_dir: Path, host: str) -> object:
+        seen["stacks_dir"] = stacks_dir
+        return _preflight()
+
+    monkeypatch.setattr(pg_preflight, "run_preflight", _capture)
+
+    orchestrator._phase_pg_preflight()
+
+    assert seen["stacks_dir"] == tmp_path / "stacks"
+
+
 def test_pg_preflight_reports_a_clean_run_with_counts(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:

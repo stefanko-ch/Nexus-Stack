@@ -1208,7 +1208,7 @@ class Orchestrator:
         try:
             result = _pg_preflight.run_preflight(
                 self.enabled_services,
-                stacks_dir=Path("stacks"),
+                stacks_dir=self.project_root / "stacks",
                 host=self.ssh_host,
             )
         except Exception as exc:

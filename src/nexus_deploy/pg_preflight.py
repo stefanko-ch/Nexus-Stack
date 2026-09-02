@@ -106,6 +106,9 @@ class Mismatch:
     volume: str
     found_major: str
     expected_major: int
+    is_bind: bool = False
+    """`volume` is a host path, not a named volume — which changes both
+    what it is called and how it is discarded."""
 
 
 @dataclass(frozen=True)
@@ -189,17 +192,45 @@ def _data_mount_for(spec: dict[str, object]) -> tuple[str, bool] | None:
     source is arbitrary — `postgres-data`, `evidence-db-data`,
     `/mnt/nexus-data/gitea/db` — while the target is always under
     /var/lib/postgresql.
+
+    Both Compose volume syntaxes are read. Every stack uses the short
+    string form today, but a long-form mapping would otherwise be skipped
+    *silently*: the service drops out of the probe, and the mismatch this
+    module exists to catch reaches `compose up` unannounced.
     """
     volumes = spec.get("volumes")
     if not isinstance(volumes, list):
         return None
     for entry in volumes:
-        if not isinstance(entry, str) or ":" not in entry:
+        parsed = _parse_volume_entry(entry)
+        if parsed is None:
             continue
-        source, target = entry.split(":")[:2]
+        source, target, is_bind = parsed
         if not target.startswith("/var/lib/postgresql"):
             continue
-        return source, source.startswith((".", "/"))
+        return source, is_bind
+    return None
+
+
+def _parse_volume_entry(entry: object) -> tuple[str, str, bool] | None:
+    """``(source, target, is_bind)`` for one Compose ``volumes`` entry."""
+    if isinstance(entry, str):
+        if ":" not in entry:
+            return None
+        source, target = entry.split(":")[:2]
+        return source, target, source.startswith((".", "/"))
+    if isinstance(entry, dict):
+        src = entry.get("source")
+        tgt = entry.get("target")
+        if not isinstance(src, str) or not isinstance(tgt, str):
+            # `type: tmpfs` carries a target and no source; nothing to probe.
+            return None
+        # `type` is authoritative where present. A long-form bind may name
+        # a relative source ("./initdb"), which the leading-character test
+        # would read as a named volume.
+        kind = entry.get("type")
+        is_bind = kind == "bind" if isinstance(kind, str) else src.startswith((".", "/"))
+        return src, tgt, is_bind
     return None
 
 
@@ -243,7 +274,7 @@ def render_preflight_script(containers: list[PgContainer]) -> str:
                 "--format '{{.Mountpoint}}' 2>/dev/null || true)"
             )
         lines.append('FOUND="-"')
-        lines.append('if [ -n "$MP" ] && [ -d "$MP" ]; then')
+        lines.append('if [ -d "$MP" ]; then')
         lines.append(
             "  for rel in " + " ".join(shlex.quote(p) for p in _PG_VERSION_CANDIDATES) + "; do"
         )
@@ -251,6 +282,22 @@ def render_preflight_script(containers: list[PgContainer]) -> str:
         lines.append('      if [ -s "$f" ]; then FOUND=$(tr -d "[:space:]" < "$f"); break 2; fi')
         lines.append("    done")
         lines.append("  done")
+        # `-` has to keep meaning "no cluster here", because that is what
+        # lets the phase pass. A directory that cannot be listed, or one
+        # holding files this probe does not recognise, establishes no such
+        # thing — report it as undetermined and let the phase say so.
+        lines.append('  if [ "$FOUND" = "-" ]; then')
+        lines.append('    if ENTRIES=$(ls -A "$MP" 2>/dev/null); then')
+        lines.append('      [ -n "$ENTRIES" ] && FOUND="?"')
+        lines.append("    else")
+        lines.append('      FOUND="?"')
+        lines.append("    fi")
+        lines.append("  fi")
+        if not c.is_bind:
+            # inspect named a mountpoint, so the volume exists; a bind
+            # source that is simply not there is a genuine `-`.
+            lines.append('elif [ -n "$MP" ]; then')
+            lines.append('  FOUND="?"')
         lines.append("fi")
         lines.append('echo "PGCHECK $STACK $SVC $FOUND $WANT"')
         lines.append("")
@@ -289,6 +336,9 @@ def parse_result(stdout: str, containers: list[PgContainer]) -> PreflightResult:
         if found == "-":
             absent += 1
             continue
+        if found == "?":
+            unreadable.append(f"{stack}/{service} (data directory could not be read)")
+            continue
         if not found.isdigit():
             # A PG_VERSION holding something other than a major is a
             # damaged directory, not a version. Comparing it would report
@@ -306,6 +356,7 @@ def parse_result(stdout: str, containers: list[PgContainer]) -> PreflightResult:
                     volume=container.qualified_volume if container else "",
                     found_major=found,
                     expected_major=int(want),
+                    is_bind=container.is_bind if container else False,
                 )
             )
 
@@ -333,9 +384,10 @@ def format_failure(mismatches: tuple[Mismatch, ...]) -> str:
         "",
     ]
     for m in mismatches:
+        where = "bind mount" if m.is_bind else "volume"
         out.append(
             f"     {m.stack}/{m.service}: data is PostgreSQL {m.found_major}, "
-            f"image is {m.expected_major}  (volume {m.volume})"
+            f"image is {m.expected_major}  ({where} {m.volume})"
         )
     out += [
         "",
@@ -345,8 +397,20 @@ def format_failure(mismatches: tuple[Mismatch, ...]) -> str:
         "     1. Migrate the data. Start the OLD major against the volume,",
         "        `pg_dump` it, start the new one against an empty volume and",
         "        `pg_restore` into it.",
-        "     2. Discard the data, if the stack can rebuild it:",
-        "        `docker volume rm <volume>` and deploy again.",
+        "     2. Discard the data, if the stack can rebuild it, then deploy",
+        "        again. A bind mount is emptied rather than removed, so that",
+        "        the ownership `setup` gave the directory survives:",
+        "",
+    ]
+    for m in mismatches:
+        # `find -mindepth 1 -delete` over `rm -rf <dir>/*`: it takes
+        # dotfiles too, and leaves the directory itself in place.
+        out.append(
+            f"        find {m.volume} -mindepth 1 -delete"
+            if m.is_bind
+            else f"        docker volume rm {m.volume}"
+        )
+    out += [
         "",
         "   Reached only under the snapshot lifecycle — a rebuild teardown",
         "   drops the volume with the server, so the same bump is free there.",

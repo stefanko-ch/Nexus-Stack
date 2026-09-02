@@ -22,6 +22,7 @@ import pytest
 
 from nexus_deploy.pg_preflight import (
     _POSTGRES_IMAGE,
+    Mismatch,
     PgContainer,
     discover_pg_containers,
     format_failure,
@@ -134,14 +135,18 @@ def test_an_empty_pg_version_file_is_not_read_as_a_version(tmp_path: Path) -> No
     """A zero-byte PG_VERSION is a half-written directory, not a cluster.
 
     Treating it as a version would compare "" against the major and report
-    a mismatch naming a version nobody has.
+    a mismatch naming a version nobody has. Nor is it `absent`: the
+    directory is not empty, so something is there and this probe could not
+    say what — the deploy proceeds, but the phase reports partial.
     """
     (tmp_path / "PG_VERSION").write_text("")
+    containers = [_bind("half", tmp_path, 18)]
 
-    result = parse_result(_probe([_bind("half", tmp_path, 18)]), [_bind("half", tmp_path, 18)])
+    result = parse_result(_probe(containers), containers)
 
     assert result.ok
-    assert result.absent == 1
+    assert result.absent == 0
+    assert result.unverified == ("half/half-db (data directory could not be read)",)
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +315,9 @@ def test_the_failure_message_carries_what_the_operator_needs(tmp_path: Path) -> 
     assert str(tmp_path) in message
     assert "Re-running the deploy will not help" in message
     assert "pg_dump" in message
-    assert "docker volume rm" in message
+    # A bind mount, so the discard command has to be the one that works
+    # on a directory — see the dedicated test below.
+    assert f"find {tmp_path} -mindepth 1 -delete" in message
     assert "snapshot lifecycle" in message
 
 
@@ -423,8 +430,9 @@ def test_a_pg_version_that_is_not_a_number_is_unverified(tmp_path: Path) -> None
         (None, "no volumes key at all"),
         ([], "empty volumes list"),
         ("postgres-data:/var/lib/postgresql/data", "a string where a list belongs"),
-        ([{"type": "volume", "source": "d"}], "long-form mount syntax"),
+        ([{"type": "volume", "source": "d"}], "long-form mount with no target"),
         (["postgres-data"], "an anonymous volume, no colon"),
+        ([42], "an entry that is neither a string nor a mapping"),
         (["./conf:/etc/postgresql/postgresql.conf"], "a mount that is not the data dir"),
     ],
 )
@@ -433,11 +441,10 @@ def test_a_service_without_a_recognisable_data_mount_is_skipped(
 ) -> None:
     """Discovery walks every stack, so one odd entry must not raise.
 
-    Long-form mount syntax is the interesting one: it is valid Compose and
-    this repo happens not to use it, so the parser would meet it for the
-    first time in production. Skipping is right — a service whose data
-    directory cannot be located cannot be checked — but it has to skip
-    rather than crash the deploy before compose-up.
+    Skipping is right where the data directory genuinely cannot be located
+    — but it has to skip rather than crash the deploy before compose-up.
+    A long-form mount naming a target is *not* in this list; see
+    `test_a_long_form_data_mount_is_discovered`.
     """
     stack = tmp_path / "odd"
     stack.mkdir()
@@ -457,3 +464,136 @@ def test_a_compose_file_with_no_services_is_skipped(tmp_path: Path) -> None:
     (stack / "docker-compose.yml").write_text("services:\n")
 
     assert discover_pg_containers(tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# Long-form compose mounts are read, not silently skipped
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("entry", "source", "is_bind", "why"),
+    [
+        (
+            {"type": "volume", "source": "db-data", "target": "/var/lib/postgresql"},
+            "db-data",
+            False,
+            "long-form named volume",
+        ),
+        (
+            {"type": "bind", "source": "/mnt/nexus-data/x/db", "target": "/var/lib/postgresql"},
+            "/mnt/nexus-data/x/db",
+            True,
+            "long-form bind by absolute path",
+        ),
+        (
+            {"type": "bind", "source": "./db", "target": "/var/lib/postgresql/data"},
+            "./db",
+            True,
+            "relative bind — only `type` says it is one",
+        ),
+    ],
+)
+def test_a_long_form_data_mount_is_discovered(
+    tmp_path: Path, entry: dict[str, str], source: str, is_bind: bool, why: str
+) -> None:
+    """Skipping one would be silent, and silence here reads as success.
+
+    A service that drops out of discovery is not reported as unverified —
+    nothing knows it existed. The mismatch this module exists to catch
+    would reach compose-up unannounced, which is the one outcome the phase
+    must never produce.
+    """
+    stack = tmp_path / "lf"
+    stack.mkdir()
+    (stack / "docker-compose.yml").write_text(
+        __import__("yaml").safe_dump(
+            {"services": {"lf-db": {"image": "postgres:18-alpine", "volumes": [entry]}}}
+        )
+    )
+
+    found = discover_pg_containers(tmp_path)
+
+    assert len(found) == 1, f"not discovered: {why}"
+    assert found[0].source == source
+    assert found[0].is_bind is is_bind
+
+
+# ---------------------------------------------------------------------------
+# `absent` has to mean "verified empty", because it is what lets the deploy run
+# ---------------------------------------------------------------------------
+
+
+def test_a_directory_that_cannot_be_listed_is_unverified_not_absent(tmp_path: Path) -> None:
+    """The dangerous reading: unreadable looks exactly like uninitialised.
+
+    Both leave the probe with no PG_VERSION. Counting the first as absent
+    lets the phase pass on a directory whose major nobody established —
+    here one holding PostgreSQL 17 under an image asking for 18.
+    """
+    data = tmp_path / "locked"
+    data.mkdir()
+    (data / "PG_VERSION").write_text("17\n")
+    data.chmod(0o000)
+    containers = [_bind("locked", data, 18)]
+    try:
+        result = parse_result(_probe(containers), containers)
+    finally:
+        data.chmod(0o755)
+
+    assert result.absent == 0
+    assert len(result.unverified) == 1
+    assert "locked/locked-db" in result.unverified[0]
+
+
+def test_a_non_empty_directory_with_no_cluster_is_unverified(tmp_path: Path) -> None:
+    """A layout none of the four candidates match must not read as empty.
+
+    An uninitialised volume is empty. Files this probe does not recognise
+    mean it looked in the wrong place, not that there is nothing there.
+    """
+    (tmp_path / "something").write_text("x")
+    containers = [_bind("odd", tmp_path, 18)]
+
+    result = parse_result(_probe(containers), containers)
+
+    assert result.absent == 0
+    assert result.unverified == ("odd/odd-db (data directory could not be read)",)
+
+
+def test_a_genuinely_empty_directory_is_still_absent(tmp_path: Path) -> None:
+    """The counterpart — first deploy has to stay quiet, not go partial."""
+    containers = [_bind("fresh", tmp_path, 18)]
+
+    result = parse_result(_probe(containers), containers)
+
+    assert result.absent == 1
+    assert result.unverified == ()
+    assert result.ok
+
+
+# ---------------------------------------------------------------------------
+# The recovery command has to exist for the thing it names
+# ---------------------------------------------------------------------------
+
+
+def test_a_bind_mount_is_named_and_discarded_as_a_directory() -> None:
+    """`docker volume rm /mnt/nexus-data/gitea/db` removes nothing.
+
+    Three of the six persisted databases are bind mounts, so the wrong
+    command is the likely one. It fails with 'no such volume' and sends
+    the operator looking for a volume that was never there.
+    """
+    text = format_failure(
+        (
+            Mismatch("gitea", "gitea-db", "/mnt/nexus-data/gitea/db", "16", 17, is_bind=True),
+            Mismatch("shared", "postgres", "postgres_pg-data", "17", 18, is_bind=False),
+        )
+    )
+
+    assert "bind mount /mnt/nexus-data/gitea/db" in text
+    assert "find /mnt/nexus-data/gitea/db -mindepth 1 -delete" in text
+    assert "docker volume rm /mnt/nexus-data/gitea/db" not in text
+    # The named volume keeps the command that does work for it.
+    assert "volume postgres_pg-data" in text
+    assert "docker volume rm postgres_pg-data" in text

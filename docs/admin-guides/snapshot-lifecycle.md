@@ -153,7 +153,8 @@ An image still in `creating` state cannot be deleted through the API. Purge name
 ### A database refuses to start after a PostgreSQL version bump
 
 The deploy now stops before this happens, with a message naming both
-versions and the volume. Before the preflight
+versions and, per database, the exact command that discards the data.
+Before the preflight
 ([#734](https://github.com/stefanko-ch/Nexus-Stack/issues/734)) it showed up
 as a restart loop and `compose up failed`, with the cause a `docker logs`
 away.
@@ -167,10 +168,11 @@ it.
 
 The message offers the two ways out. Migrating means starting the old
 major against the volume, `pg_dump`, then the new major against an empty
-volume and `pg_restore`. Discarding means `docker volume rm` (or clearing
-the bind-mounted directory under `/mnt/nexus-data`) and deploying again —
-fine for a stack that rebuilds its own schema, not for one holding data
-you want.
+volume and `pg_restore`. Discarding means `docker volume rm <volume>` for a
+named volume, or `find <dir> -mindepth 1 -delete` for one of the bind mounts
+under `/mnt/nexus-data` — emptied rather than removed, so the ownership
+`ensure_data_dirs` gave the directory survives. Then deploy again. Fine for a
+stack that rebuilds its own schema, not for one holding data you want.
 
 Re-running the deploy is the one thing that does not help: it reproduces
 the same state exactly.
