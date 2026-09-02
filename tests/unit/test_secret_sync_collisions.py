@@ -23,12 +23,28 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from nexus_deploy.secret_sync import StackTarget, render_remote_script
+
+# jq does real work in the rendered script — JSON to TSV — so it cannot be
+# shimmed the way curl and docker are without reimplementing it. Without it
+# the script takes its intentional missing-jq early exit, writes no env
+# file, and every test below fails on an assertion that says nothing about
+# the cause. A skip names the cause instead.
+#
+# Not asserted as always-present: five workflows in this repo use jq
+# without installing it and one installs it explicitly, so "the runner has
+# jq" is a habit here rather than a guarantee. If these ever skip in CI,
+# that is the signal to add an install step rather than to weaken them.
+requires_jq = pytest.mark.skipif(
+    shutil.which("jq") is None,
+    reason="the rendered secret-sync script needs jq; install it to run these",
+)
 
 # A curl that answers from fixture files instead of Infisical. The folder
 # listing and the per-folder secret fetch differ by `secretPath` appearing
@@ -95,10 +111,17 @@ def _run_sync(tmp_path: Path, folders: dict[str, dict[str, str]]) -> tuple[str, 
         },
         check=False,
     )
+    # The exit status is part of what is under test. Without this a failure
+    # anywhere after the env file is written -- cleanup, the compose
+    # recreate -- still satisfies every content assertion below, and the
+    # tests would report a sync that succeeded when it did not.
+    assert proc.returncode == 0, f"sync script exited {proc.returncode}\n{proc.stdout}{proc.stderr}"
+
     env_file = stack_dir / Path(target.env_file).name
     return proc.stdout + proc.stderr, env_file.read_text() if env_file.exists() else ""
 
 
+@requires_jq
 def test_the_alphabetically_first_folder_wins(tmp_path: Path) -> None:
     """Precedence follows `LC_ALL=C sort` over folder names.
 
@@ -119,6 +142,7 @@ def test_the_alphabetically_first_folder_wins(tmp_path: Path) -> None:
     assert "collisions=1" in out
 
 
+@requires_jq
 def test_the_losing_folder_is_named_in_the_log(tmp_path: Path) -> None:
     """The discard is announced, and names both sides.
 
@@ -141,6 +165,7 @@ def test_the_losing_folder_is_named_in_the_log(tmp_path: Path) -> None:
     assert "first-wins" in out
 
 
+@requires_jq
 def test_sorting_is_byte_order_not_locale(tmp_path: Path) -> None:
     """`LC_ALL=C` is not alphabetical: uppercase sorts before lowercase.
 
@@ -162,6 +187,7 @@ def test_sorting_is_byte_order_not_locale(tmp_path: Path) -> None:
     assert "collisions=1" in out
 
 
+@requires_jq
 def test_the_root_folder_loses_to_every_named_folder(tmp_path: Path) -> None:
     """Root is appended after the sorted list, so it is processed last.
 
@@ -182,6 +208,7 @@ def test_the_root_folder_loses_to_every_named_folder(tmp_path: Path) -> None:
     assert "collisions=1" in out
 
 
+@requires_jq
 def test_distinct_keys_across_folders_are_all_kept(tmp_path: Path) -> None:
     """The guard rails: only equal keys collide.
 
@@ -201,6 +228,7 @@ def test_distinct_keys_across_folders_are_all_kept(tmp_path: Path) -> None:
     assert "collisions=0" in out
 
 
+@requires_jq
 @pytest.mark.parametrize("label", ["clickhouse", "postgres"])
 def test_a_key_present_in_only_one_folder_is_never_a_collision(tmp_path: Path, label: str) -> None:
     """A single occurrence is not shadowed, whichever folder holds it."""
