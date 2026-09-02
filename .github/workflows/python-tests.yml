@@ -6,8 +6,26 @@
 #   - typecheck:   mypy --strict (~1-2 min, depends on cache hit)
 #   - test:        pytest unit + integration with coverage gate (≥80%)
 #
-# Tests run only when Python or workflow files change — to keep CI cheap
-# during pure docs/stack PRs.
+# Tests run only when the files they actually read change — to keep CI
+# cheap during pure documentation PRs.
+#
+# That includes `services.yaml` and `stacks/**`, not just Python.
+# `test_stack_conventions.py` reads both and is where support_images
+# uniqueness, version pinning and compose/services.yaml agreement are
+# enforced. Two mutations confirm it, rather than the path list being
+# argued from the file names:
+#
+#   services.yaml: postgres:14-alpine -> postgres:latest
+#     -> test_support_images_are_pinned[infisical] and
+#        test_compose_fallbacks_match_the_declared_version[infisical]
+#   stacks/infisical/docker-compose.yml: fallback 14 -> 15
+#     -> test_compose_fallbacks_match_the_declared_version[infisical]
+#
+# Before this, neither PR ran a single test: a stack-only change matched
+# no path, so the assertions written for exactly that change fired only
+# when a PR happened to touch Python too.
+#
+# Docs stay excluded — no test reads them.
 # =============================================================================
 
 name: "CI: Python Tests"
@@ -17,6 +35,8 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "services.yaml"
+      - "stacks/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
@@ -27,6 +47,8 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "services.yaml"
+      - "stacks/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
