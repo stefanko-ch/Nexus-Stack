@@ -110,8 +110,14 @@ can be loaded. It replaced the earlier `scripts/deploy.sh`; see
 
 One Hetzner Cloud server runs Docker and nothing else of consequence. Each enabled
 service is a Docker Compose stack from `stacks/<name>/docker-compose.yml`, attached
-to a shared `app-network`. Service data that must survive lives under a bind-mounted
-path on the local SSD; that path is what gets synced to R2 on teardown.
+to a shared `app-network`.
+
+Stacks that hold data usually write it to a bind-mounted path on the local SSD
+rather than into a Docker volume. That is a convention, **not** persistence: what
+actually survives a `rebuild` teardown is the explicit list in `standard_targets()`
+(`src/nexus_deploy/s3_restore.py`), and a stack can sit on such a path without being
+in it. [Lifecycle](./lifecycle.md) is where that distinction is spelled out, and it
+is the one worth reading before trusting a stack with something.
 
 Server type and location are configurable and the spin-up picks from a preference
 list rather than a single fixed type, because Hetzner capacity for any one type in
