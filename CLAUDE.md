@@ -896,6 +896,46 @@ WIP: still working on it        → Not descriptive
 Merge branch 'main' into feat   → Merge commits should not be PR titles
 ```
 
+### After merging, check that Release Please saw the commit
+
+**Release Please drops commits it cannot parse, silently, with a green
+workflow.** It logs one line and carries on:
+
+```
+❯ commit could not be parsed: 9e016e2 feat: Make a Nexus-Stack operable as …
+✔ Considering: 5 commits
+```
+
+Six commits existed since the last tag. The feature simply never reached
+`CHANGELOG.md`, and nothing failed — no red check, no warning on the
+release PR. It was found only because the entry was missing when someone
+read the release PR.
+
+So after merging a PR, confirm the commit arrived:
+
+```bash
+RID=$(gh run list --workflow=release-please.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run view "$RID" --log | grep -E "could not be parsed|Considering:"
+git log --oneline "$(git describe --tags --abbrev=0)"..main | wc -l
+```
+
+`Considering: N` must equal that commit count. If it does not, the
+changelog is already wrong and the fix has to land **before** the release
+PR is merged — the missing entry is added by hand to `CHANGELOG.md` on
+`release-please--branches--main` *and* to the release PR body, and any
+further commit to `main` regenerates that branch and discards the repair.
+
+What is *not* the cause, so nobody re-derives it: the subject was a valid
+`feat:`, the message was not the longest in the batch, it contained no
+carriage returns, and `conventional-commits-parser` parses it correctly on
+its own (returns `type='feat'`). The rejection happens inside Release
+Please's own wrapper and the trigger has not been isolated. The suspect is
+a squash-merge body carrying a fenced code block whose lines look like git
+trailers (`unset:`, `LABEL + accent:`) alongside a generated `Tests:`
+section — suspect, not finding. This is why the check is on the *count*
+rather than on a content rule: a rule guessed from an unproven cause would
+be worse than useless.
+
 ### Development Workflow
 
 1. Create a feature branch from `main`:
