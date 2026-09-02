@@ -2216,9 +2216,9 @@ def test_run_pre_bootstrap_runs_phases_in_order(
     orchestrator: Orchestrator,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """All 8 pre-bootstrap phases run in deterministic order:
+    """All 9 pre-bootstrap phases run in deterministic order:
     workspace-coords (first), service-env, firewall-configure,
-    stack-sync, firewall-sync, global-env, compose-up,
+    stack-sync, firewall-sync, global-env, pg-preflight, compose-up,
     infisical-provision."""
     invocation_order: list[str] = []
 
@@ -2239,6 +2239,7 @@ def test_run_pre_bootstrap_runs_phases_in_order(
     monkeypatch.setattr(Orchestrator, "_phase_stack_sync", _make_phase("stack-sync"))
     monkeypatch.setattr(Orchestrator, "_phase_firewall_sync", _make_phase("firewall-sync"))
     monkeypatch.setattr(Orchestrator, "_phase_global_env", _make_phase("global-env"))
+    monkeypatch.setattr(Orchestrator, "_phase_pg_preflight", _make_phase("pg-preflight"))
     monkeypatch.setattr(Orchestrator, "_phase_compose_up", _make_phase("compose-up"))
     monkeypatch.setattr(
         Orchestrator,
@@ -2248,7 +2249,11 @@ def test_run_pre_bootstrap_runs_phases_in_order(
     result = orchestrator.run_pre_bootstrap()
     # workspace-coords first (downstream phases gate on REPO_NAME etc.);
     # firewall-configure before stack-sync (rsync picks up overrides);
-    # firewall-sync + global-env after stack-sync (use the synced state).
+    # firewall-sync + global-env after stack-sync (use the synced state);
+    # pg-preflight immediately before compose-up — after stack-sync so it
+    # reads the compose files the run will actually use, and before
+    # compose-up because once a container has started on a mismatched data
+    # directory the failure is a restart loop rather than a diagnosis.
     assert invocation_order == [
         "workspace-coords",
         "service-env",
@@ -2256,6 +2261,7 @@ def test_run_pre_bootstrap_runs_phases_in_order(
         "stack-sync",
         "firewall-sync",
         "global-env",
+        "pg-preflight",
         "compose-up",
         "infisical-provision",
     ]
