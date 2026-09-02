@@ -229,11 +229,20 @@ Infisical is not a way to keep something from that person.
 | `HCLOUD_TOKEN` | Hetzner console | API token |
 | `DOMAIN` | Your domain | e.g. `example.com` |
 | `TF_VAR_admin_email` | Your email | Admin - full access including SSH |
-| `GH_SECRETS_TOKEN` | GitHub PAT, or a Forgejo access token | Stores the generated R2 credentials ([how to create](#gh_secrets_token)) |
+| `GH_SECRETS_TOKEN` | GitHub PAT, or a Forgejo access token | Stores the credentials the setup generates ([how to create](#gh_secrets_token)) |
+| `GH_ACTIONS_TOKEN` | GitHub PAT | What Cloudflare runs on. Setup works without it by falling back to `GH_SECRETS_TOKEN` — which hands Cloudflare secret-write rights it never uses, so treat an unset value as a transitional state rather than a choice ([how to create](#gh_actions_token)) |
 
 #### GH_SECRETS_TOKEN
 
-This token is what lets the setup workflow store the generated R2 credentials as repository secrets. That is all it needs to do — see `GH_ACTIONS_TOKEN` below for the Cloudflare half, which used to share this token and should not.
+This token is what lets the setup workflow store the credentials it generates as
+repository secrets. Four of them, not only the R2 pair: `SSH_PRIVATE_KEY`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_DATA_BUCKET` all go through
+`repo-secret.sh` with this token. Worth knowing before scoping it down or
+removing it on the assumption that it is only about R2 — without it the SSH key
+exists for one run and the next standalone spin-up finds none.
+
+Storing those is all it needs to do; see `GH_ACTIONS_TOKEN` below for the
+Cloudflare half, which used to share this token and should not.
 
 Without it the first run stops with an explanatory error, and Cloudflare-based automation that triggers GitHub Actions will not work. The workflow used to print the credentials to the log as a fallback; it no longer does, because Actions logs on a public repository are readable by anyone and these keys open the OpenTofu state bucket.
 

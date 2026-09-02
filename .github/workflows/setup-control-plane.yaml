@@ -70,6 +70,44 @@ jobs:
       TF_VAR_external_s3_label: ${{ secrets.EXTERNAL_S3_LABEL }}
 
     steps:
+      - name: Check the Cloudflare token split
+        env:
+          HAS_ACTIONS_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN != '' }}
+        run: |
+          # First step of the job on purpose. It used to sit next to the
+          # Cloudflare steps near the end, where any earlier failure — tofu,
+          # R2, secret storage — meant the warning never printed. A notice
+          # that only appears on fully successful runs is missing exactly
+          # when someone is already reading the log.
+          #
+          # This reports which secret NAME was found and nothing more. The
+          # workflow cannot read a token's permissions, so it cannot say
+          # whether GH_ACTIONS_TOKEN was actually created with the narrow
+          # scope, and claiming otherwise would be a reassurance nobody
+          # checked.
+          if [ "$HAS_ACTIONS_TOKEN" = "true" ]; then
+            echo "GH_ACTIONS_TOKEN is set — Cloudflare will be given that token."
+            echo "   Its permissions are not visible from here; the intended"
+            echo "   scope is Actions: Read and write plus Contents: Read."
+          else
+            echo "⚠️  GH_ACTIONS_TOKEN is not set, so Cloudflare will be given"
+            echo "   GH_SECRETS_TOKEN instead."
+            echo ""
+            echo "   That token carries Secrets: Read and write, which Cloudflare"
+            echo "   never uses — it only dispatches workflows, reads runs, and"
+            echo "   reads the latest release. Whoever can read the Worker's"
+            echo "   binding can therefore rewrite any repository secret,"
+            echo "   including HCLOUD_TOKEN and CLOUDFLARE_API_TOKEN, and the"
+            echo "   next workflow run would use the replacement."
+            echo ""
+            echo "   To split it (see docs/admin-guides/setup-guide.md):"
+            echo "     1. Create a second fine-grained token with"
+            echo "        Actions: Read and write, Contents: Read."
+            echo "     2. Save it as GH_ACTIONS_TOKEN."
+            echo "     3. Reduce GH_SECRETS_TOKEN to Secrets: Read and write."
+            echo "     4. Re-run this workflow."
+          fi
+
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -1177,36 +1215,6 @@ jobs:
             echo "r2_data_secret_key=$R2_SECRET_ACCESS_KEY"
             echo "r2_data_bucket=$BUCKET_NAME"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Check the Cloudflare token split
-        env:
-          HAS_ACTIONS_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN != '' }}
-        run: |
-          # Not fatal. Splitting the token requires the operator to create a
-          # second one, and failing every existing deployment on upgrade
-          # would be a worse trade than running one more spin-up with the
-          # wider token. But it must not pass silently either: a fallback
-          # nobody is told about is how an over-scoped credential stays in
-          # place for a year.
-          if [ "$HAS_ACTIONS_TOKEN" = "true" ]; then
-            echo "✅ Cloudflare receives GH_ACTIONS_TOKEN — scoped to what it needs"
-          else
-            echo "⚠️  GH_ACTIONS_TOKEN is not set, so Cloudflare receives GH_SECRETS_TOKEN."
-            echo ""
-            echo "   That token carries Secrets: Read and write, which Cloudflare"
-            echo "   never uses — it only dispatches workflows, reads runs, and"
-            echo "   reads the latest release. Whoever can read the Worker's"
-            echo "   binding can therefore rewrite any repository secret,"
-            echo "   including HCLOUD_TOKEN and CLOUDFLARE_API_TOKEN, and the"
-            echo "   next workflow run would use the replacement."
-            echo ""
-            echo "   To split it (see docs/admin-guides/setup-guide.md):"
-            echo "     1. Create a second fine-grained token with"
-            echo "        Actions: Read and write, Contents: Read."
-            echo "     2. Save it as GH_ACTIONS_TOKEN."
-            echo "     3. Reduce GH_SECRETS_TOKEN to Secrets: Read and write."
-            echo "     4. Re-run this workflow."
-          fi
 
       - name: Set Scheduled Teardown Worker secrets
         env:
