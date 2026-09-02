@@ -285,8 +285,11 @@ Two names are involved and only one of them matters to the code. GitHub's
 else — so pick something that survives a year of not thinking about it, such as
 `nexus-stack-cloudflare-actions`. The **repository secret** must be called
 exactly `GH_ACTIONS_TOKEN`: the workflow reads `secrets.GH_ACTIONS_TOKEN`, and
-any other spelling silently takes the fallback, leaving the warning in the log
-with no hint that a typo caused it.
+any other spelling falls back to `GH_SECRETS_TOKEN`, and the warning it logs
+reads *"GH_ACTIONS_TOKEN is not set"* — which is true, and identical to what you
+would see having never created the token at all. The fallback is not silent; the
+typo is. Check the spelling against this page before concluding the secret is
+missing.
 
 Save it as `GH_ACTIONS_TOKEN`. Then narrow `GH_SECRETS_TOKEN` by removing
 **Actions** (and **Contents**, if you granted it) — and leave **Secrets → Read
