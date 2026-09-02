@@ -278,6 +278,23 @@ The recurring shapes, all observed in this repo:
 | "nothing is left behind" | Does the cleanup verify its own result, or only attempt it? |
 | A doc quoting an error string | Does the code print it verbatim? Two code paths with near-identical wording means a log search finds only one. Make the messages identical rather than documenting both. |
 | "this test / run covers X" | Trace it. A rebuild spin-up does not exercise a restored Postgres data directory, because `s3_restore` persists that database as a `pg_dump`, not as a filesystem tree. |
+| A **success** line: "X is set / scoped / configured" | Does this step read that? A status message may only name state the same step inspected. Twice in one PR a Cloudflare check reported a permission scope no workflow can read, then a fallback token it never tested for — both true-sounding, both unknowable there. |
+
+**The rule covers success messages, not only failures.** A green line is read
+less carefully than a red one, which makes a wrong one worse rather than
+better: `✅ scoped to what it needs` reassures about permissions the runner
+cannot see, and `falls back to X` names a secret the step never checked exists.
+Both survived review once and were caught the second time. If a status line
+mentions something the step did not read, either read it or drop the mention.
+
+**A mutation test proves nothing until the mutation reaches the code.** Break
+the behaviour deliberately, and confirm the test fails *for that reason* — a
+mutation that silently fails to apply, or that lands on a branch the test never
+executes, looks exactly like a passing test with a gap. Both happened here: one
+replacement string did not match after escaping, and one changed a `docker`
+invocation the rendered script never emits for that target, because
+`force_recreate` is false. Neither was a weak test; both would have been
+reported as one.
 
 **Never report an action as done before its tool call has returned.** Write the
 sentence after the result, not while planning the call — a wrong "I have

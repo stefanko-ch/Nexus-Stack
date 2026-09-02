@@ -47,10 +47,11 @@ Flag any claim of this shape unless the surrounding code guarantees it:
 - **"the next run will take path Y"** without checking the condition that selects the path. In `setup-control-plane.yaml` that is `check_r2`, which requires *both* R2 secrets to be non-empty — so an incomplete pair takes the first-time path, not the recreate path.
 - **"nothing is left behind"** for a cleanup that does not verify its own result.
 - Documentation quoting an error string that the code does not print verbatim. An operator searching the log finds nothing. Prefer making the messages identical over documenting two variants.
+- **A success line naming state the step never read** — `✅ X is set / scoped / configured`. Applies to green output too, and there it is worse: a reassuring line is read less carefully than a red one. A status message may only name state the same step inspected. Seen twice in one PR on the same check — it reported a token's permission scope, which no workflow can read, and then a fallback secret it had never tested for.
 
 When a guarantee cannot be given, say so: *"this step cannot determine which"* is a better failure message than a confident wrong one, and it tells the operator to go look.
 
-Real examples, all from PR #687 review: a recovery message asserted deleted secrets that a `|| true` may have left in place; another said the next run takes a path it does not take; a documented error string matched only one of two code paths.
+Real examples, mostly from PR #687 review: a recovery message asserted deleted secrets that a `|| true` may have left in place; another said the next run takes a path it does not take; a documented error string matched only one of two code paths.
 
 ## 5. Error handling in critical operations
 
