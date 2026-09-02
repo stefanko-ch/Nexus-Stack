@@ -129,6 +129,20 @@ jobs:
       - name: Sync deps
         run: uv sync --frozen --group dev
 
+      # tests/unit/test_secret_sync_collisions.py runs the rendered
+      # secret-sync script for real, and that script uses jq to turn the
+      # Infisical response into TSV. jq cannot be shimmed the way curl and
+      # docker are without reimplementing it.
+      #
+      # Installed rather than assumed present: five workflows in this repo
+      # use jq without installing it and one installs it explicitly, so its
+      # availability on the runner image is a habit rather than a
+      # guarantee. Those tests skip when jq is missing, which on a
+      # developer machine is the right outcome and in CI would mean a green
+      # run that never exercised what the suite claims to pin.
+      - name: Install jq (needed by the secret-sync script tests)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: pytest unit
         # Runs the full test suite under pyproject.toml's testpaths (today
         # only tests/unit/; an `integration` marker is registered for
