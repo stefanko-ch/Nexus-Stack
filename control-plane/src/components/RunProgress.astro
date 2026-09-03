@@ -107,33 +107,41 @@
     border-top: 1px solid var(--border);
   }
   .rp-steps[hidden] { display: none; }
-  .rp-steps li {
+  /* EVERYTHING BELOW IS :global(). The step list is built with innerHTML
+     on each poll, and Astro adds its [data-astro-cid-*] attribute only to
+     statically rendered elements — scoped selectors never match
+     JS-generated ones. Without :global() the marks lose their colour, the
+     names fall back to browser-default link blue, and `.rp-sr` does not
+     hide, so every row reads "59 ⊘ skipped Deploy stacks 0s" with the
+     screen-reader text printed on screen. Same pattern and same reason as
+     :global(.stack-row-name) in StackTable.astro. */
+  :global(.rp-steps li) {
     display: flex; align-items: baseline; gap: 0.6rem;
     padding: 0.25rem 0; font-size: 0.8rem;
     border-bottom: 1px solid rgba(42, 42, 62, 0.5);
   }
-  .rp-job-head {
+  :global(.rp-job-head) {
     font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;
     letter-spacing: 0.08em; padding-top: 0.6rem;
   }
-  .rp-i { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 2.2rem; }
-  .rp-mark { font-family: 'JetBrains Mono', monospace; min-width: 1rem; }
-  .rp-name { flex: 1; }
-  .rp-name a { color: inherit; text-decoration: none; }
-  .rp-name a:hover { text-decoration: underline; }
-  .rp-dur { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  :global(.rp-i) { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 2.2rem; text-align: right; }
+  :global(.rp-mark) { font-family: 'JetBrains Mono', monospace; min-width: 1rem; }
+  :global(.rp-name) { flex: 1; }
+  :global(.rp-name a) { color: inherit; text-decoration: none; }
+  :global(.rp-name a:hover) { text-decoration: underline; }
+  :global(.rp-dur) { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 3rem; text-align: right; }
 
-  .rp-done .rp-mark { color: var(--accent); }
-  .rp-running .rp-mark { color: var(--info); animation: pulse 1.6s infinite; }
-  .rp-running .rp-name { color: var(--text-primary); font-weight: 700; }
-  .rp-pending { opacity: 0.55; }
-  .rp-skipped { opacity: 0.45; }
-  .rp-failed .rp-mark, .rp-failed .rp-name { color: var(--error); }
+  :global(.rp-done .rp-mark) { color: var(--accent); }
+  :global(.rp-running .rp-mark) { color: var(--info); animation: pulse 1.6s infinite; }
+  :global(.rp-running .rp-name) { color: var(--text-primary); font-weight: 700; }
+  :global(.rp-pending) { opacity: 0.55; }
+  :global(.rp-skipped) { opacity: 0.45; }
+  :global(.rp-failed .rp-mark), :global(.rp-failed .rp-name) { color: var(--error); }
   /* Runner bookkeeping — kept in N/M so the numbers match GitHub's own
      view, dimmed because nobody is waiting on "Post Checkout". */
-  .rp-housekeeping .rp-name { color: var(--text-muted); }
+  :global(.rp-housekeeping .rp-name) { color: var(--text-muted); }
 
-  .rp-sr {
+  :global(.rp-sr) {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
@@ -262,7 +270,10 @@
         job.steps.forEach(function(s) {
           const mark = stepMark(s);
           const cls = stepClass(s, failedIndex) + (s.housekeeping ? ' rp-housekeeping' : '');
-          const dur = s.durationMs != null ? fmtDuration(s.durationMs) : '';
+          // A skipped step has identical start and end timestamps, so it
+          // reports 0 ms. Printing "0s" against thirty rows suggests they
+          // all ran instantly; blank says what actually happened.
+          const dur = s.durationMs ? fmtDuration(s.durationMs) : '';
           const name = s.htmlUrl
             ? '<a href="' + esc(s.htmlUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(s.name) + '</a>'
             : esc(s.name);
