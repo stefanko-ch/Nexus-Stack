@@ -906,23 +906,45 @@ workflow.** It logs one line and carries on:
 ✔ Considering: 5 commits
 ```
 
-Six commits existed since the last tag. The feature simply never reached
-`CHANGELOG.md`, and nothing failed — no red check, no warning on the
-release PR. It was found only because the entry was missing when someone
-read the release PR.
+Six commits existed since `v0.74.0`. The feature never reached
+`CHANGELOG.md`, and nothing failed — no red check, no warning on release
+PR #764. It was caught only because someone read that PR before merging
+it, which is not a control. The repair landed on
+`release-please--branches--main` as `93254c3`, minutes before the merge
+that cut `v0.75.0`.
 
-So after merging a PR, confirm the commit arrived:
+So after merging a PR, confirm the commit arrived. Pin every input —
+the run for *this* SHA, the tag reachable from *the remote* `main`:
 
 ```bash
-RID=$(gh run list --workflow=release-please.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-gh run view "$RID" --log | grep -E "could not be parsed|Considering:"
-git log --oneline "$(git describe --tags --abbrev=0)"..main | wc -l
+git fetch --prune --tags origin
+SHA=$(git rev-parse origin/main)
+
+RID=$(gh run list --workflow=release-please.yml --branch main --commit "$SHA" \
+        --json databaseId,status --jq '[.[] | select(.status == "completed")][0].databaseId')
+
+if [ -z "$RID" ]; then
+  echo "Release Please has not finished for $SHA yet — try again in a minute."
+else
+  gh run view "$RID" --log | grep -E "could not be parsed|Considering:"
+  git log --oneline "$(git describe --tags --abbrev=0 origin/main)"..origin/main | wc -l
+fi
 ```
+
+None of that pinning is decoration. `--limit 1` returns the *previous*
+run in the seconds before GitHub creates the new one, and a local `main`
+or a local tag list that has not been fetched counts a different range
+than Release Please processed. Either produces a comparison of two
+unrelated numbers — a check that reports a mismatch that is not there, or
+agreement that is not either. An empty `RID` means "not finished", not
+"nothing to check", which is why it is a separate branch rather than an
+empty grep.
 
 `Considering: N` must equal that commit count. If it does not, the
 changelog is already wrong and the fix has to land **before** the release
 PR is merged — the missing entry is added by hand to `CHANGELOG.md` on
-`release-please--branches--main` *and* to the release PR body, and any
+`release-please--branches--main` *and* to the release PR body, since the
+GitHub release notes come from the PR rather than from the branch. Any
 further commit to `main` regenerates that branch and discards the repair.
 
 What is *not* the cause, so nobody re-derives it: the subject was a valid
