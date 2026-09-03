@@ -205,6 +205,11 @@
       btnSpinUp.disabled = true;
       btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Triggering…';
       triggerInFlight = true;
+      // Latch before the request: until it is set, a service toggle on
+      // another tab or page is still accepted and can commit after the
+      // workflow has read the enabled list.
+      ensureStatusSubscription();
+      if (window.NS && window.NS.status) window.NS.status.beginDispatch('spinUp');
       try {
         const r = await fetch('/api/spin-up', {
           method: 'POST',
@@ -218,6 +223,7 @@
           // applyRunState a no-op forever, so the button would stay
           // enabled through the next run.
           triggerInFlight = false;
+          if (window.NS && window.NS.status) window.NS.status.cancelDispatch();
           showToast('Session expired - please refresh the page', 'error');
           btnSpinUp.innerHTML = originalHTML;
           btnSpinUp.disabled = false;
@@ -229,21 +235,22 @@
           btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Running…';
           runWasInProgress = true;
           triggerInFlight = false;
-          // Latch the controls and force a fresh poll: /api/status reports
-          // `dispatching` during the seconds before GitHub lists the run,
-          // and the latch covers the cases where even that cannot — a
-          // response already in flight, or the D1 marker not landing.
-          ensureStatusSubscription();
+          // Force a fresh poll: /api/status reports `dispatching` during
+          // the seconds before GitHub lists the run, and the latch covers
+          // the cases where even that cannot — a response already in
+          // flight, or the D1 marker not landing.
           if (window.NS && window.NS.status) window.NS.status.noteDispatch('spinUp');
           setTimeout(refresh, 2000);
         } else {
           triggerInFlight = false;
+          if (window.NS && window.NS.status) window.NS.status.cancelDispatch();
           showToast(data.error || 'Failed to trigger Spin Up', 'error');
           btnSpinUp.innerHTML = originalHTML;
           btnSpinUp.disabled = false;
         }
       } catch (_) {
         triggerInFlight = false;
+        if (window.NS && window.NS.status) window.NS.status.cancelDispatch();
         showToast('Network error - please try again', 'error');
         btnSpinUp.innerHTML = originalHTML;
         btnSpinUp.disabled = false;

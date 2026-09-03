@@ -231,10 +231,15 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     const generation = statusGeneration;
     const isCurrent = function() { return generation === statusGeneration; };
 
-    // Ask for the pinned run's steps only once it is no longer the running
-    // one; while it runs the server returns its progress anyway.
+    // Sent whenever a run is pinned, not only once we believe it stopped.
+    // The poll that DISCOVERS the run has finished is decided by the state
+    // of the previous poll, which still said "running" — so it would omit
+    // the parameter, the server would return no progress, and the final
+    // bar would blink out and reappear one cadence later. The server
+    // ignores the parameter while a run is active (it returns the running
+    // run's progress regardless), so sending it always costs nothing.
     let url = '/api/status';
-    if (statusPinnedRun && (!statusLast || !statusLast.inProgress)) {
+    if (statusPinnedRun) {
       url += '?progress_for=' + encodeURIComponent(statusPinnedRun);
     }
     const request = fetch(url, { credentials: 'same-origin' })
@@ -339,8 +344,26 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     /** Fetch now. Pass {force:true} to bypass an in-flight request. */
     refreshNow: function(opts) { return statusFetch(opts); },
     /**
-     * Call right after a dispatch returns 200. Holds the controls locked
-     * locally until a poll proves the server is tracking the run — see
+     * Call BEFORE issuing the dispatch request, not after it returns.
+     *
+     * The POST takes a moment, and until the latch is set `runLocked()` is
+     * false — so a service toggle in that window is accepted, commits to
+     * D1, and may land after the workflow has already read the enabled
+     * list. The run then uses the old configuration while the UI shows the
+     * new one, which is the desync this lock exists to prevent.
+     */
+    beginDispatch: function(family) {
+      dispatchLatch = { family: family || null, at: Date.now() };
+      statusDeliver(decorate(statusLast || { success: true }), null);
+    },
+    /** The dispatch failed — release the controls. */
+    cancelDispatch: function() {
+      dispatchLatch = null;
+      statusDeliver(decorate(statusLast || { success: true }), null);
+    },
+    /**
+     * Call once a dispatch has returned 200. Keeps the controls locked
+     * until a poll proves the server is tracking the run — see
      * `dispatchLatch` above for the four ways that would otherwise fail.
      */
     noteDispatch: function(family) {
