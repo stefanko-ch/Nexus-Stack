@@ -204,6 +204,17 @@
     let expandedPreference = false;
     let autoExpandedFor = null;
     let dismissedRun = null;
+    // A finished SUCCESSFUL run clears itself after a while. The green bar
+    // has said what it has to say, the status panel above already reads
+    // "Deployed", and it sits between the buttons and Active Stacks —
+    // which is where the operator is heading next.
+    //
+    // Failure and cancellation stay until dismissed: the bar is the only
+    // place naming the step it stopped at, and a timer that removes that
+    // while somebody is reading it would be worse than never showing it.
+    const AUTO_HIDE_SUCCESS_MS = 30000;
+    let autoHideTimer = null;
+    let autoHideFor = null;
     let renderedSignature = null;
     let elapsedTimer = null;
     let elapsedFrom = null;
@@ -310,14 +321,51 @@
       el.steps.innerHTML = html;
     }
 
+    function cancelAutoHide() {
+      if (autoHideTimer) { clearTimeout(autoHideTimer); autoHideTimer = null; }
+      autoHideFor = null;
+    }
+
+    /** Hide a finished successful run after a pause. Never while Details is
+     *  open — the list would vanish out from under whoever opened it. */
+    function scheduleAutoHide(runId) {
+      if (autoHideFor === runId || expanded) return;
+      cancelAutoHide();
+      autoHideFor = runId;
+      autoHideTimer = setTimeout(function() {
+        autoHideTimer = null;
+        // Re-checked at fire time, not only when scheduled: Details may
+        // have been opened during the wait, and a new run may have started.
+        if (expanded) { autoHideFor = null; return; }
+        const cur = window.NS.status.current();
+        // Matching the run id is not enough on its own: the finished
+        // payload stays cached, so a dispatch or a fresh run started in the
+        // meantime still carries it. Anything in flight owns the bar now.
+        if (!cur || cur.dispatching || cur.dispatchTimedOut || cur.inProgress) {
+          autoHideFor = null;
+          return;
+        }
+        const p = cur.progress;
+        if (!p || p.runId !== runId || p.conclusion !== 'success') { autoHideFor = null; return; }
+        dismissedRun = runId;
+        try { sessionStorage.setItem('rp-dismissed', String(runId)); } catch (_) {}
+        hide();
+      }, AUTO_HIDE_SUCCESS_MS);
+    }
+
     function setExpanded(next, remember) {
       expanded = next;
       if (remember !== false) expandedPreference = next;
+      // Opening Details is a request to keep reading.
+      if (next) cancelAutoHide();
       el.toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
       el.steps.hidden = !next;
     }
 
     function hide() {
+      // Cancel first: a timer left armed past a hide fires against whatever
+      // the bar shows 30s later, which may be a different run entirely.
+      cancelAutoHide();
       root.hidden = true;
       stopElapsed(null);
       renderedSignature = null;
@@ -329,6 +377,10 @@
       // Dispatched, but GitHub has not listed the run yet. Without this the
       // dashboard would show the PREVIOUS run as if nothing had happened.
       if (data.dispatching || data.dispatchTimedOut) {
+        // A new dispatch supersedes the previous run's pending auto-hide.
+        // The finished payload is still cached, so without this the old
+        // timer's identity check would pass and it would blank this banner.
+        cancelAutoHide();
         const label = LABELS[data.dispatchedWorkflow] || 'Workflow';
         root.hidden = false;
         root.className = 'run-progress';
@@ -443,9 +495,20 @@
 
       // Open the list once on failure — that is when the detail is the
       // point. Never collapse what the operator opened.
+      // `remember: false` — the program opened this, not the operator. Left
+      // as a preference it would persist into every later run, and since an
+      // open list suppresses the auto-hide below, one failed spin-up would
+      // stop every subsequent successful one from ever clearing itself.
       if (done && p.conclusion === 'failure' && autoExpandedFor !== p.runId) {
         autoExpandedFor = p.runId;
-        setExpanded(true);
+        setExpanded(true, false);
+      }
+
+      if (done && p.conclusion === 'success') {
+        scheduleAutoHide(p.runId);
+      } else {
+        // Still running, or it failed: nothing should be on a timer.
+        cancelAutoHide();
       }
     }
 

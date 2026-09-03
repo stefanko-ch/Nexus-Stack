@@ -62,7 +62,12 @@ Two states worth recognising:
 - **"Dispatched — waiting for GitHub to start the run"** — the click landed, but GitHub has not created the run yet. This takes a few seconds. The buttons stay disabled throughout, so a second click cannot start a second run.
 - **A sliding bar instead of a percentage** — the run is queued for a runner, or a job has not reported its steps yet. There is nothing to count, so nothing is claimed.
 
-When a run finishes, the bar stays: green at 100% for success, or red at the point it failed, with the failing step named and the list already expanded. It is **not** filled to 100% on failure — cleanup steps run after a failure, and filling the bar would suggest the work completed. Dismiss it, or start another run, to clear it.
+When a run finishes the bar reports the outcome, and the two outcomes are treated differently on purpose:
+
+- **Success** — green at 100%, with the total time and step count. It clears itself after half a minute, since the status panel above already says *Deployed* and you are probably heading for your stacks. Open **Details** and it stays: the list does not disappear while you are reading it.
+- **Failure** — red, stopped at the step it failed on, with that step named and the list already expanded. It stays until you dismiss it. The bar is **not** filled to 100%: cleanup steps run after a failure, so a full bar would suggest the work completed.
+
+Either way, reloading the page clears it — the bar reports the run you watched, not a state the stack is in.
 
 ## Controls are locked while a workflow runs
 
