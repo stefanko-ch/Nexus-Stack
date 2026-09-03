@@ -33,7 +33,7 @@ from nexus_deploy import pipeline as _pipeline
 from nexus_deploy import s3_persistence as _s3_persistence
 from nexus_deploy import s3_restore as _s3_restore
 from nexus_deploy.compose_runner import run_compose_up
-from nexus_deploy.config import ConfigError, NexusConfig
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, ConfigError, NexusConfig
 from nexus_deploy.forgejo import (
     ForgejoError,
     run_configure_forgejo,
@@ -1120,7 +1120,8 @@ def _forgejo_woodpecker_oauth(args: list[str]) -> int:
     Optional env:
 
     - ``ADMIN_USERNAME`` — admin username, path-validated (default
-      ``admin``). Mirrors :class:`NexusConfig`'s ``admin_username``
+      :data:`~nexus_deploy.config.DEFAULT_ADMIN_USERNAME`). Mirrors
+      :class:`NexusConfig`'s ``admin_username``
       default so the CLI works without an explicit env-passing
       layer when invoked manually.
     - ``FORGEJO_HOST`` — SSH host alias (default ``nexus``)
@@ -1153,7 +1154,7 @@ def _forgejo_woodpecker_oauth(args: list[str]) -> int:
 
     domain = os.environ.get("DOMAIN") or ""
     forgejo_token = os.environ.get("FORGEJO_TOKEN") or ""
-    admin_username = os.environ.get("ADMIN_USERNAME") or "admin"
+    admin_username = os.environ.get("ADMIN_USERNAME") or DEFAULT_ADMIN_USERNAME
     ssh_host = os.environ.get("FORGEJO_HOST") or "nexus"
     # Issue #540: SUBDOMAIN_SEPARATOR threaded through to the redirect-URI
     # builder. ``"."`` (default) yields ``woodpecker.<domain>/authorize``;
@@ -1292,7 +1293,8 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
     Optional env:
 
     - ``ADMIN_USERNAME`` — admin username, path-validated (default
-      ``admin``). Mirrors :class:`NexusConfig`'s ``admin_username``
+      :data:`~nexus_deploy.config.DEFAULT_ADMIN_USERNAME`). Mirrors
+      :class:`NexusConfig`'s ``admin_username``
       default so the CLI works without an explicit env-passing layer
       when invoked manually. (Same default as
       ``forgejo woodpecker-oauth`` — Copilot R1 consistency fix.)
@@ -1326,7 +1328,7 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
         print(f"forgejo mirror-setup: unknown args {args!r}", file=sys.stderr)
         return 2
 
-    admin_username = os.environ.get("ADMIN_USERNAME") or "admin"
+    admin_username = os.environ.get("ADMIN_USERNAME") or DEFAULT_ADMIN_USERNAME
     admin_password = os.environ.get("FORGEJO_ADMIN_PASS") or ""
     forgejo_token = os.environ.get("FORGEJO_TOKEN") or ""
     gh_mirror_repos_csv = os.environ.get("GH_MIRROR_REPOS") or ""

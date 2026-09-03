@@ -67,7 +67,7 @@ from nexus_deploy import service_env as _service_env
 from nexus_deploy import services as _services
 from nexus_deploy import stack_sync as _stack_sync
 from nexus_deploy import workspace_coords as _workspace_coords
-from nexus_deploy.config import NexusConfig
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.ssh import SSHClient
 
@@ -741,7 +741,7 @@ class Orchestrator:
                     base_url=f"http://localhost:{port}",
                     domain=domain,
                     forgejo_token=self.state.forgejo_token,
-                    admin_username=self.config.admin_username or "admin",
+                    admin_username=self.config.admin_username or DEFAULT_ADMIN_USERNAME,
                     subdomain_separator=self.bootstrap_env.subdomain_separator,
                 )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
@@ -810,7 +810,7 @@ class Orchestrator:
             with ssh.port_forward(local_port, "localhost", 3202) as port:
                 result = _forgejo.run_mirror_setup(
                     base_url=f"http://localhost:{port}",
-                    admin_username=self.config.admin_username or "admin",
+                    admin_username=self.config.admin_username or DEFAULT_ADMIN_USERNAME,
                     admin_password=self.config.forgejo_admin_password or "",
                     forgejo_token=self.state.forgejo_token,
                     forgejo_user_username=self.forgejo_user_username,

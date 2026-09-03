@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from nexus_deploy.config import NexusConfig
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig
 from nexus_deploy.infisical import (
     BootstrapEnv,
     BootstrapResult,
@@ -181,7 +181,10 @@ def test_compute_folders_skip_empty_drops_optional_keys() -> None:
     """A folder builder skips per-key None/empty values (preserves UI edits)."""
     folders = compute_folders(NexusConfig.from_secrets_json("{}"), BootstrapEnv(domain="x.test"))
     config_folder = next(f for f in folders if f.name == "config")
-    assert config_folder.secrets == {"DOMAIN": "x.test", "ADMIN_USERNAME": "admin"}
+    assert config_folder.secrets == {
+        "DOMAIN": "x.test",
+        "ADMIN_USERNAME": DEFAULT_ADMIN_USERNAME,
+    }
     # ADMIN_EMAIL absent → not in payload
 
 

@@ -920,10 +920,19 @@ _FORBIDDEN_CREDENTIAL_DEFAULTS = frozenset({"admin", "root", "postgres", "admini
 
 # A variable whose value is a credential rather than configuration.
 # Matched on the name, because that is all a compose file exposes.
+#
+# The name grammar is Compose's own -- `[_a-zA-Z][_a-zA-Z0-9]*`, matched
+# case-insensitively -- not the SHOUTING_CASE this repo happens to use.
+# An upper-case-only pattern would skip `${grafana_admin_user:-admin}`,
+# which Compose accepts and which is the same defect in different
+# clothes. The only lower-case interpolations in the tree today are
+# `${domain}`, `${subdomain}` and `${var.domain}`; none is credential-
+# shaped and none carries a default, so widening costs no false hits.
 _CREDENTIAL_VAR = re.compile(
-    r"\$\{(?P<var>[A-Z0-9_]*"
+    r"\$\{(?P<var>[_a-zA-Z][_a-zA-Z0-9]*?"
     r"(?:USER|USERNAME|PASS|PASSWORD|SECRET|TOKEN|KEY|ADMIN|ROOT)"
-    r"[A-Z0-9_]*):-(?P<default>[^}]*)\}"
+    r"[_a-zA-Z0-9]*):-(?P<default>[^}]*)\}",
+    re.IGNORECASE,
 )
 
 # `${IMAGE_FOO:-org/foo:1.2}` is the house pattern that lets the

@@ -95,7 +95,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from nexus_deploy import _remote
-from nexus_deploy.config import NexusConfig, service_host
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
 from nexus_deploy.infisical import BootstrapEnv
 
 _RESULT_LINE_RE = re.compile(
@@ -271,7 +271,7 @@ def render_portainer_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     secrets in argv (R4).
     """
     del env  # not used; signature uniform across hooks
-    username = config.admin_username or "admin"
+    username = config.admin_username or DEFAULT_ADMIN_USERNAME
     password = config.portainer_admin_password or ""
     if not password:
         return 'echo "RESULT hook=portainer status=skipped-not-ready"\n'
