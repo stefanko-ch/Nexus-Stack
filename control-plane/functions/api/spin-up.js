@@ -12,6 +12,7 @@ import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { resolveLifecycle } from './_utils/workflow-selection.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import { requireOperator } from './_utils/require-operator.js';
+import { markDispatched } from './_utils/dispatch-marker.js';
 
 /**
  * Get enabled services from D1
@@ -101,6 +102,9 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
+      // Before answering: the dashboard re-polls 2 s after this response,
+      // and without the marker it would find last night's run instead.
+      await markDispatched(env.NEXUS_DB, 'spinUp');
       return new Response(JSON.stringify({
         success: true,
         message: 'Spin-up workflow triggered successfully',

@@ -10,6 +10,7 @@ import { logApiCall, logError } from './_utils/logger.js';
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import { requireAdmin } from './_utils/require-admin.js';
+import { markDispatched } from './_utils/dispatch-marker.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -58,6 +59,7 @@ export async function onRequestPost(context) {
 
     // GitHub returns 204 No Content on success
     if (response.status === 204) {
+      await markDispatched(env.NEXUS_DB, 'setup');
       return new Response(JSON.stringify({
         success: true,
         message: 'Deploy workflow triggered successfully'

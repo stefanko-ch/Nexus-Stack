@@ -95,6 +95,125 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     servicesCacheTime = 0;
   };
 
+  // ---- Workflow status subscription ---------------------------------------
+  // ONE poller for the whole page. The dashboard renders the progress bar,
+  // PendingBar drives its "Spin Up Now" button from it, and both used to
+  // guess independently — PendingBar with a 30s timer that re-enabled the
+  // button whether or not the run had finished.
+  //
+  // Cadence is deliberate, because /api/status costs GitHub rate limit and
+  // that limit is per ACCOUNT, shared with every other token of this user:
+  //   5s   a run is in progress and the tab is visible  (near-realtime)
+  //   10s  idle
+  //   ---  hidden tab: nothing at all, and an immediate fetch on return
+  // Under 500 remaining calls it backs off to 15s. Errors back off
+  // exponentially to 60s, as the dashboard's own poller did before.
+  //
+  // Starts LAZILY: nothing polls until someone subscribes, so /stacks and
+  // /settings add no GitHub load just by mounting PendingBar.
+
+  const STATUS_FAST_MS = 5000;
+  const STATUS_IDLE_MS = 10000;
+  const STATUS_LOW_BUDGET_MS = 15000;
+  const STATUS_MAX_MS = 60000;
+  const RATE_LIMIT_FLOOR = 500;
+
+  let statusSubscribers = [];
+  let statusLast = null;
+  let statusTimer = null;
+  let statusErrors = 0;
+  let statusInflight = null;
+  // The run whose progress we still want after it stops being "in
+  // progress", so the finished bar (100% green, or red at the failed step)
+  // survives instead of vanishing the moment the run ends.
+  let statusPinnedRun = null;
+
+  function statusInterval() {
+    if (statusErrors > 0) {
+      return Math.min(STATUS_IDLE_MS * Math.pow(2, Math.min(statusErrors, 6)), STATUS_MAX_MS);
+    }
+    if (statusLast && typeof statusLast.rateLimitRemaining === 'number'
+        && statusLast.rateLimitRemaining < RATE_LIMIT_FLOOR) {
+      return STATUS_LOW_BUDGET_MS;
+    }
+    return (statusLast && statusLast.inProgress) ? STATUS_FAST_MS : STATUS_IDLE_MS;
+  }
+
+  function statusSchedule() {
+    if (statusTimer) clearTimeout(statusTimer);
+    if (statusSubscribers.length === 0) return;
+    if (document.hidden) return;   // resumed by visibilitychange
+    statusTimer = setTimeout(function() { statusFetch(); }, statusInterval());
+  }
+
+  function statusFetch() {
+    if (statusInflight) return statusInflight;
+    // Ask for the pinned run's steps only once it is no longer the running
+    // one; while it runs the server returns its progress anyway.
+    let url = '/api/status';
+    if (statusPinnedRun && (!statusLast || !statusLast.inProgress)) {
+      url += '?progress_for=' + encodeURIComponent(statusPinnedRun);
+    }
+    statusInflight = fetch(url, { credentials: 'same-origin' })
+      .then(function(r) {
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) throw new Error('non-json');
+        return r.json();
+      })
+      .then(function(data) {
+        statusInflight = null;
+        statusErrors = 0;
+        statusLast = data;
+        if (data && data.progress && data.progress.runId) statusPinnedRun = data.progress.runId;
+        statusSubscribers.forEach(function(fn) {
+          try { fn(data); } catch (e) { console.error('status subscriber failed:', e); }
+        });
+        statusSchedule();
+        return data;
+      })
+      .catch(function(err) {
+        statusInflight = null;
+        statusErrors += 1;
+        statusSubscribers.forEach(function(fn) {
+          try { fn(null, err); } catch (e) { console.error('status subscriber failed:', e); }
+        });
+        statusSchedule();
+        return null;
+      });
+    return statusInflight;
+  }
+
+  window.NS.status = {
+    /** Call fn(data, err) on every poll. Returns an unsubscribe function. */
+    subscribe: function(fn) {
+      statusSubscribers.push(fn);
+      if (statusLast) { try { fn(statusLast); } catch (e) {} }
+      if (statusSubscribers.length === 1) statusFetch();
+      else statusSchedule();
+      return function() {
+        statusSubscribers = statusSubscribers.filter(function(x) { return x !== fn; });
+        if (statusSubscribers.length === 0 && statusTimer) {
+          clearTimeout(statusTimer);
+          statusTimer = null;
+        }
+      };
+    },
+    /** Fetch now — after a dispatch, or when the tab becomes visible. */
+    refreshNow: function() { return statusFetch(); },
+    /** Last payload, or null before the first response. */
+    current: function() { return statusLast; },
+    /** Keep showing this run's steps after it finishes. */
+    pinRun: function(id) { statusPinnedRun = id || null; },
+  };
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    } else if (statusSubscribers.length > 0) {
+      statusFetch();
+    }
+  });
+
   // ---- Tri-state status ---------------------------------------------------
   // enabled + deployed -> running
   // enabled + !deployed -> pending-enable

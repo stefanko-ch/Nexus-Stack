@@ -1,12 +1,80 @@
 /**
  * Get workflow status
- * GET /api/status
+ * GET /api/status[?progress_for=<run id>]
  *
- * Returns the current infrastructure state based on GitHub Actions workflow runs.
- * More robust than before - uses workflow file paths instead of name matching.
+ * Returns the current infrastructure state based on GitHub Actions workflow
+ * runs, and — while a lifecycle run is in progress — its step-by-step
+ * progress ("Step N of M") from the jobs API.
+ *
+ * ONE endpoint on purpose. The GitHub rate limit (5000/h) is per account,
+ * shared by every token of it. A second browser request per poll would
+ * double the spend for the same picture; folding the jobs fetch in here
+ * means one request from the browser and at most two to GitHub, and only
+ * the second while something is actually running. It also means the
+ * browser never supplies a run id to fetch — see `progress_for` below for
+ * the one narrow exception.
+ *
+ * `progress_for` exists so the dashboard can render the FINAL state of a
+ * run that just finished (100% green, or red at the failed step) — the
+ * status alone would drop it the moment `inProgress` turns false. The id
+ * is accepted only if it is one this endpoint itself selected; anything
+ * else is ignored, not fetched.
+ *
+ * No `requireSameOrigin` here: that guard requires a JSON Content-Type,
+ * which a browser GET never sends, and it exists for state-changing
+ * endpoints. Reads are gated by Cloudflare Access like every other GET.
  */
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
+import { deriveProgress } from './_utils/run-progress.js';
+import { readDispatchMarker, DISPATCH_GRACE_MS, DISPATCH_SKEW_MS } from './_utils/dispatch-marker.js';
+
+const FAMILY_ORDER = ['initialSetup', 'setup', 'spinUp', 'teardown', 'destroy'];
+
+function githubHeaders(token) {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'Nexus-Stack-Control-Plane',
+  };
+}
+
+/** The wire shape for one run. Only fields the UI needs; never the raw run. */
+function summarise(run) {
+  if (!run) return null;
+  return {
+    id: run.id,
+    runNumber: run.run_number,
+    status: run.status,
+    conclusion: run.conclusion,
+    createdAt: run.created_at,
+    updatedAt: run.updated_at,
+    event: run.event,
+    url: run.html_url,
+  };
+}
+
+/**
+ * Jobs for one run, derived into progress. Never throws: a failure to
+ * look is reported as `unavailable`, not as "no steps" — the UI then says
+ * the step list could not be read instead of showing an empty one.
+ */
+async function fetchProgress(env, run) {
+  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs/${run.id}/jobs?per_page=100`;
+  try {
+    const response = await fetchWithTimeout(url, { headers: githubHeaders(env.GITHUB_TOKEN) });
+    if (!response.ok) {
+      // Status code only. The body is GitHub's, but this project does not
+      // forward API bodies it has not looked at.
+      console.error(`GitHub jobs API error: ${response.status}`);
+      return { ...deriveProgress(run, null), unavailable: true };
+    }
+    return deriveProgress(run, await response.json());
+  } catch (error) {
+    console.error('GitHub jobs fetch failed:', error && error.name);
+    return { ...deriveProgress(run, null), unavailable: true };
+  }
+}
 
 export async function onRequestGet(context) {
   const { env, request } = context;
@@ -43,16 +111,23 @@ export async function onRequestGet(context) {
   };
   const matchesPath = (path, candidates) => candidates.some((c) => path.includes(c));
 
+  // Which family a run belongs to: path first (most reliable), then name.
+  // Initial Setup includes spin-up, so it counts as a successful deployment.
+  const classify = (run) => {
+    const path = run.path || run.workflow_id || '';
+    const name = run.name || '';
+    if (matchesPath(path, WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup')) return 'initialSetup';
+    if (matchesPath(path, WORKFLOW_PATHS.setup) || (name.includes('Setup') && !name.includes('Initial'))) return 'setup';
+    if (matchesPath(path, WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up')) return 'spinUp';
+    if (matchesPath(path, WORKFLOW_PATHS.teardown) || name.includes('Teardown')) return 'teardown';
+    if (matchesPath(path, WORKFLOW_PATHS.destroy) || name.includes('Destroy')) return 'destroy';
+    return null;
+  };
+
   try {
     const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=100`;
 
-    const response = await fetchWithTimeout(url, {
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Plane',
-      },
-    });
+    const response = await fetchWithTimeout(url, { headers: githubHeaders(env.GITHUB_TOKEN) });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -67,6 +142,11 @@ export async function onRequestGet(context) {
       });
     }
 
+    // Surfaced so the client can slow down before the account runs dry —
+    // the limit is shared with every other token of this GitHub user.
+    const remainingHeader = Number(response.headers.get('x-ratelimit-remaining'));
+    const rateLimitRemaining = Number.isFinite(remainingHeader) ? remainingHeader : null;
+
     const data = await response.json();
 
     if (!data.workflow_runs || !Array.isArray(data.workflow_runs)) {
@@ -79,48 +159,49 @@ export async function onRequestGet(context) {
       });
     }
 
-    // Find the most recent run for each workflow type
-    // Use workflow path (more reliable) or fallback to name
-    const workflows = {
-      initialSetup: null,
-      setup: null,
-      spinUp: null,
-      teardown: null,
-      destroy: null,
-    };
+    // A dispatch that has not shown up as a run yet. Runs of that family
+    // created before the dispatch are ignored while the marker is fresh,
+    // so the previous run cannot be mistaken for the new one — the race
+    // dispatch-marker.js describes.
+    const now = Date.now();
+    const marker = await readDispatchMarker(env.NEXUS_DB, now);
+    const cutoff = marker ? marker.at - DISPATCH_SKEW_MS : null;
+    const predatesDispatch = (family, run) =>
+      marker !== null && family === marker.family && Date.parse(run.created_at) < cutoff;
 
+    // Newest run per family. The list is newest-first, so first match wins.
+    const workflows = { initialSetup: null, setup: null, spinUp: null, teardown: null, destroy: null };
     for (const run of data.workflow_runs) {
-      const workflowPath = run.path || run.workflow_id || '';
-      const workflowName = run.name || '';
+      const family = classify(run);
+      if (!family || workflows[family]) continue;
+      if (predatesDispatch(family, run)) continue;
+      workflows[family] = run;
+    }
 
-      // Match by path first (most reliable), then fallback to name
-      // Initial Setup includes spin-up, so count it as a successful deployment
-      if (!workflows.initialSetup && (
-        matchesPath(workflowPath, WORKFLOW_PATHS.initialSetup) ||
-        workflowName.includes('Initial Setup')
-      )) {
-        workflows.initialSetup = run;
-      } else if (!workflows.setup && (
-        matchesPath(workflowPath, WORKFLOW_PATHS.setup) ||
-        workflowName.includes('Setup') && !workflowName.includes('Initial')
-      )) {
-        workflows.setup = run;
-      } else if (!workflows.spinUp && (
-        matchesPath(workflowPath, WORKFLOW_PATHS.spinUp) ||
-        workflowName.includes('Spin Up') ||
-        workflowName.includes('Spin-Up')
-      )) {
-        workflows.spinUp = run;
-      } else if (!workflows.teardown && (
-        matchesPath(workflowPath, WORKFLOW_PATHS.teardown) ||
-        workflowName.includes('Teardown')
-      )) {
-        workflows.teardown = run;
-      } else if (!workflows.destroy && (
-        matchesPath(workflowPath, WORKFLOW_PATHS.destroy) ||
-        workflowName.includes('Destroy')
-      )) {
-        workflows.destroy = run;
+    // Is anything running?
+    let runningFamily = null;
+    for (const family of FAMILY_ORDER) {
+      const r = workflows[family];
+      if (r && (r.status === 'in_progress' || r.status === 'queued')) {
+        runningFamily = family;
+        break;
+      }
+    }
+    const runningWorkflow = runningFamily ? workflows[runningFamily] : null;
+
+    // Dispatched, but GitHub has not listed the run yet.
+    let dispatching = false;
+    let dispatchTimedOut = false;
+    let dispatchedAt = null;
+    let dispatchedWorkflow = null;
+    if (marker) {
+      const candidate = workflows[marker.family];
+      const appeared = candidate && Date.parse(candidate.created_at) >= cutoff;
+      if (!appeared) {
+        dispatchedAt = new Date(marker.at).toISOString();
+        dispatchedWorkflow = marker.family;
+        if (marker.ageMs <= DISPATCH_GRACE_MS) dispatching = true;
+        else dispatchTimedOut = true;
       }
     }
 
@@ -128,13 +209,7 @@ export async function onRequestGet(context) {
     let infraState = 'unknown';
     let inProgress = false;
 
-    // Check if any workflow is currently running
-    const allRuns = [workflows.initialSetup, workflows.setup, workflows.spinUp, workflows.teardown, workflows.destroy].filter(Boolean);
-    const runningWorkflow = allRuns.find(r =>
-      r && (r.status === 'in_progress' || r.status === 'queued')
-    );
-
-    if (runningWorkflow) {
+    if (runningWorkflow || dispatching) {
       inProgress = true;
       infraState = 'running';
     } else {
@@ -145,18 +220,33 @@ export async function onRequestGet(context) {
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
       if (completedRuns.length > 0) {
-        const lastRun = completedRuns[0];
-        const lastPath = lastRun.path || lastRun.workflow_id || '';
-        const lastName = lastRun.name || '';
-
+        const lastFamily = classify(completedRuns[0]);
         // Initial Setup or Spin Up means infrastructure is deployed
-        if (matchesPath(lastPath, WORKFLOW_PATHS.initialSetup) || lastName.includes('Initial Setup') ||
-            matchesPath(lastPath, WORKFLOW_PATHS.spinUp) || lastName.includes('Spin Up') || lastName.includes('Spin-Up')) {
+        if (lastFamily === 'initialSetup' || lastFamily === 'spinUp') {
           infraState = 'deployed';
-        } else if (matchesPath(lastPath, WORKFLOW_PATHS.teardown) || lastName.includes('Teardown')) {
+        } else if (lastFamily === 'teardown') {
           infraState = 'torn-down';
-        } else if (matchesPath(lastPath, WORKFLOW_PATHS.destroy) || lastName.includes('Destroy')) {
+        } else if (lastFamily === 'destroy') {
           infraState = 'destroyed';
+        }
+      }
+    }
+
+    // Step progress: for the running run, or for the one just-finished run
+    // the client asked about — and only if that id is one we selected.
+    let progress = null;
+    let progressFamily = null;
+    if (runningWorkflow) {
+      progress = await fetchProgress(env, runningWorkflow);
+      progressFamily = runningFamily;
+    } else {
+      const requested = new URL(request.url).searchParams.get('progress_for');
+      if (requested && /^\d{1,15}$/.test(requested)) {
+        const wanted = Number(requested);
+        const family = FAMILY_ORDER.find((f) => workflows[f] && workflows[f].id === wanted) || null;
+        if (family) {
+          progress = await fetchProgress(env, workflows[family]);
+          progressFamily = family;
         }
       }
     }
@@ -165,37 +255,20 @@ export async function onRequestGet(context) {
       success: true,
       infraState,
       inProgress,
+      runningWorkflow: runningFamily,
+      dispatching,
+      dispatchTimedOut,
+      dispatchedAt,
+      dispatchedWorkflow,
+      progress,
+      progressFamily,
+      rateLimitRemaining,
       workflows: {
-        initialSetup: workflows.initialSetup ? {
-          status: workflows.initialSetup.status,
-          conclusion: workflows.initialSetup.conclusion,
-          updatedAt: workflows.initialSetup.updated_at,
-          url: workflows.initialSetup.html_url,
-        } : null,
-        setup: workflows.setup ? {
-          status: workflows.setup.status,
-          conclusion: workflows.setup.conclusion,
-          updatedAt: workflows.setup.updated_at,
-          url: workflows.setup.html_url,
-        } : null,
-        spinUp: workflows.spinUp ? {
-          status: workflows.spinUp.status,
-          conclusion: workflows.spinUp.conclusion,
-          updatedAt: workflows.spinUp.updated_at,
-          url: workflows.spinUp.html_url,
-        } : null,
-        teardown: workflows.teardown ? {
-          status: workflows.teardown.status,
-          conclusion: workflows.teardown.conclusion,
-          updatedAt: workflows.teardown.updated_at,
-          url: workflows.teardown.html_url,
-        } : null,
-        destroy: workflows.destroy ? {
-          status: workflows.destroy.status,
-          conclusion: workflows.destroy.conclusion,
-          updatedAt: workflows.destroy.updated_at,
-          url: workflows.destroy.html_url,
-        } : null,
+        initialSetup: summarise(workflows.initialSetup),
+        setup: summarise(workflows.setup),
+        spinUp: summarise(workflows.spinUp),
+        teardown: summarise(workflows.teardown),
+        destroy: summarise(workflows.destroy),
       },
     }), {
       headers: {
@@ -207,7 +280,7 @@ export async function onRequestGet(context) {
     console.error('Status endpoint error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Internal server error'
+      error: 'Failed to fetch workflow status'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

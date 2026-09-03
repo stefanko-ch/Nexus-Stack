@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import RunProgress from '../components/RunProgress.astro';
 ---
 
 <Layout title="Nexus Stack" activeNav="dashboard">
@@ -35,17 +36,8 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </div>
 
-  <!-- Workflow Progress Banner -->
-  <div id="workflow-progress-banner" style="display: none;" class="progress-banner">
-    <div class="progress-banner-content">
-      <span class="spinner"></span>
-      <div class="progress-banner-text">
-        <strong><span id="progress-workflow-name">Workflow</span> is running...</strong>
-        <span class="progress-hint">This usually takes 5-10 minutes</span>
-      </div>
-      <a id="progress-workflow-link" href="#" target="_blank" rel="noopener noreferrer" class="progress-link">View in GitHub</a>
-    </div>
-  </div>
+  <!-- Live step-by-step progress for the running workflow -->
+  <RunProgress />
 
   <!-- Active Stacks -->
   <div class="active-stacks-panel">
@@ -236,34 +228,7 @@ import Layout from '../layouts/Layout.astro';
     display: block;
   }
 
-  /* Progress Banner */
-  .progress-banner {
-    background: rgba(0, 170, 255, 0.08);
-    border: 1px solid rgba(0, 170, 255, 0.3);
-    padding: 0.8rem 1.2rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .progress-banner-content {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-  }
-
-  .progress-hint {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    display: block;
-  }
-
-  .progress-link {
-    color: var(--info);
-    text-decoration: none;
-    font-size: 0.8rem;
-    margin-left: auto;
-  }
-
-  .progress-link:hover { text-decoration: underline; }
+  /* Progress banner styles moved to components/RunProgress.astro */
 
   /* Active Stacks */
   .active-stacks-panel {
@@ -425,60 +390,26 @@ import Layout from '../layouts/Layout.astro';
     updateButtons({ infraState: 'unknown', inProgress: false, workflows: {} });
   }
 
-  // Fetch and display status
-  async function fetchStatus() {
-    try {
-      const response = await fetch(`${API_URL}/api/status`, { credentials: 'same-origin' });
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        showToast('Session expired - please refresh the page', 'error');
-        enableFallbackState();
-        return;
-      }
-      const data = await response.json();
-      if (data.success) {
-        updateStatusDisplay(data);
-        updateButtons(data);
-        updateWorkflowProgress(data);
-        if (wasInProgress && !data.inProgress) {
-          loadActiveStacks();
-        }
-        wasInProgress = data.inProgress;
-      } else {
-        enableFallbackState();
-      }
-    } catch (error) {
-      console.error('Failed to fetch status:', error);
+  // Status arrives from the shared poller in StacksShared.astro — one
+  // timer for the whole page, visibility-aware, faster while a run is in
+  // progress. The progress bar itself is RunProgress.astro, subscribed
+  // separately to the same source.
+  function onStatus(data, err) {
+    if (err || !data || !data.success) {
+      if (err) console.error('Failed to fetch status:', err);
       enableFallbackState();
+      return;
     }
+    updateStatusDisplay(data);
+    updateButtons(data);
+    if (wasInProgress && !data.inProgress) {
+      loadActiveStacks();
+    }
+    wasInProgress = data.inProgress;
   }
 
-  function updateWorkflowProgress(data) {
-    const banner = document.getElementById('workflow-progress-banner');
-    if (!banner) return;
-    if (data.inProgress) {
-      const workflowNames = {
-        initialSetup: 'Initial Setup', spinUp: 'Spin Up',
-        teardown: 'Teardown', destroy: 'Destroy', setup: 'Setup'
-      };
-      let runningName = 'Workflow';
-      let runningUrl = '#';
-      for (const [key, label] of Object.entries(workflowNames)) {
-        const wf = data.workflows[key];
-        if (wf && (wf.status === 'in_progress' || wf.status === 'queued')) {
-          runningName = label;
-          runningUrl = wf.url || '#';
-          break;
-        }
-      }
-      banner.querySelector('#progress-workflow-name').textContent = runningName;
-      const link = banner.querySelector('#progress-workflow-link');
-      link.href = runningUrl;
-      link.style.display = runningUrl !== '#' ? 'inline-block' : 'none';
-      banner.style.display = 'block';
-    } else {
-      banner.style.display = 'none';
-    }
+  function fetchStatus() {
+    return window.NS.status.refreshNow();
   }
 
   function updateStatusDisplay(data) {
@@ -499,6 +430,9 @@ import Layout from '../layouts/Layout.astro';
     const btnSpinUp = document.getElementById('btn-spin-up');
     const btnTeardown = document.getElementById('btn-teardown');
 
+    // `inProgress` covers `dispatching` too — the window after the 204 in
+    // which GitHub has not listed the run yet. Before, the buttons came
+    // back during that window and a second click started a second run.
     if (data.inProgress) {
       btnSpinUp.disabled = true;
       btnTeardown.disabled = true;
@@ -683,23 +617,9 @@ import Layout from '../layouts/Layout.astro';
     } catch {}
   }
 
-  // Polling
-  let consecutiveErrors = 0;
-  let pollTimeout;
-  function scheduleNextPoll() {
-    if (pollTimeout) clearTimeout(pollTimeout);
-    const baseInterval = 10000;
-    const maxInterval = 60000;
-    const interval = Math.min(baseInterval * Math.pow(2, Math.min(consecutiveErrors, 6)), maxInterval);
-    pollTimeout = setTimeout(() => {
-      fetchStatus()
-        .then(() => { consecutiveErrors = 0; scheduleNextPoll(); })
-        .catch(() => { consecutiveErrors++; scheduleNextPoll(); });
-    }, interval);
-  }
-
-  // Init
+  // Init. Polling, backoff and the visibility rules live in
+  // window.NS.status (StacksShared.astro); subscribing starts it.
   checkHealth();
   loadActiveStacks();
-  fetchStatus().then(() => scheduleNextPoll()).catch(() => scheduleNextPoll());
+  window.NS.status.subscribe(onStatus);
 </script>

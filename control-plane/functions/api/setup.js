@@ -1,7 +1,7 @@
 /**
  * Trigger Setup Control Plane workflow
  * POST /api/setup
- * 
+ *
  * Triggers the GitHub Actions setup-control-plane.yaml workflow.
  * Includes validation, error handling, and retry logic.
  */
@@ -9,6 +9,7 @@ import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { logApiCall, logError } from './_utils/logger.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { markDispatched } from './_utils/dispatch-marker.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -21,9 +22,9 @@ export async function onRequestPost(context) {
 
   // Validate environment variables
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Missing required environment variables' 
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Missing required environment variables'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -31,7 +32,7 @@ export async function onRequestPost(context) {
   }
 
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/setup-control-plane.yaml/dispatches`;
-  
+
   try {
     const response = await fetchWithTimeout(url, {
       method: 'POST',
@@ -45,6 +46,7 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
+      await markDispatched(env.NEXUS_DB, 'setup');
       await logApiCall(env.NEXUS_DB, '/api/setup', 'POST', {
         action: 'setup_control_plane_triggered',
       });
@@ -61,7 +63,7 @@ export async function onRequestPost(context) {
 
     const errorText = await response.text();
     let errorMessage = `Failed to trigger workflow: ${response.status}`;
-    
+
     try {
       const errorJson = JSON.parse(errorText);
       errorMessage = errorJson.message || errorMessage;
@@ -73,9 +75,9 @@ export async function onRequestPost(context) {
 
     console.error(`Setup trigger failed: ${response.status} - ${errorMessage}`);
 
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: errorMessage 
+    return new Response(JSON.stringify({
+      success: false,
+      error: errorMessage
     }), {
       status: response.status,
       headers: { 'Content-Type': 'application/json' },

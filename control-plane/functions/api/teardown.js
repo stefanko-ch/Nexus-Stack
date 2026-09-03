@@ -12,6 +12,7 @@ import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { requireOperator } from './_utils/require-operator.js';
 import { resolveLifecycle } from './_utils/workflow-selection.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { markDispatched } from './_utils/dispatch-marker.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -79,6 +80,7 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
+      await markDispatched(env.NEXUS_DB, 'teardown');
       return new Response(JSON.stringify({
         success: true,
         message: 'Teardown workflow triggered successfully'
