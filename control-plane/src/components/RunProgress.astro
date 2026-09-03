@@ -149,7 +149,11 @@
   @media (prefers-reduced-motion: reduce) {
     .rp-fill { transition: none; }
     .rp-bar.is-indeterminate .rp-fill { animation: none; width: 100%; opacity: 0.4; }
-    .rp-glyph.is-spinning, .rp-running .rp-mark { animation: none; }
+    /* The mark needs :global() here for the same reason as above — it is
+       injected, so a scoped override would leave it animating for exactly
+       the people who asked it not to. */
+    .rp-glyph.is-spinning { animation: none; }
+    :global(.rp-running .rp-mark) { animation: none; }
   }
 </style>
 
@@ -273,7 +277,13 @@
           // A skipped step has identical start and end timestamps, so it
           // reports 0 ms. Printing "0s" against thirty rows suggests they
           // all ran instantly; blank says what actually happened.
-          const dur = s.durationMs ? fmtDuration(s.durationMs) : '';
+          //
+          // Only for skipped, not for every zero: GitHub's timestamps have
+          // second resolution, so a genuinely fast step also reports 0 ms
+          // and "0s" is the truth about it.
+          const dur = s.conclusion === 'skipped'
+            ? ''
+            : (s.durationMs == null ? '' : fmtDuration(s.durationMs));
           const name = s.htmlUrl
             ? '<a href="' + esc(s.htmlUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(s.name) + '</a>'
             : esc(s.name);

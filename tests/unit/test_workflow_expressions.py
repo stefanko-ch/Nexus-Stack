@@ -24,41 +24,53 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 _WORKFLOWS = sorted(Path(".github/workflows").glob("*.y*ml"))
 _ACTIONS = sorted(Path(".github/actions").rglob("action.y*ml"))
 _FILES = _WORKFLOWS + _ACTIONS
 
 _EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}")
-_RUN_BLOCK = re.compile(r"\s*run:\s*[|>]")
 
 
-def _inside_run_block(lines: list[str], index: int) -> bool:
-    """Is line `index` (0-based) part of a `run:` block scalar?
+def _run_line_ranges(path: Path) -> list[tuple[int, int]]:
+    """Line ranges (1-based, inclusive) of every `run:` value in the file.
 
-    Walks back to the first line indented less than this one: for a block
-    scalar's content that is the `run:` key itself.
+    Uses the YAML node graph rather than a regex over the text. A regex has
+    to enumerate the forms `run:` can take — `run: |`, `|-`, `>`, `>+`, an
+    inline `run: echo …`, and `- run: |` when it is a step's first key —
+    and the first version of this check missed three of the five. The
+    parser knows all of them, and cannot fall behind YAML.
     """
-    indent = len(lines[index]) - len(lines[index].lstrip())
-    for j in range(index - 1, -1, -1):
-        line = lines[j]
-        if not line.strip():
-            continue
-        if len(line) - len(line.lstrip()) >= indent:
-            continue
-        return bool(_RUN_BLOCK.match(line))
-    return False
+    ranges: list[tuple[int, int]] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, yaml.MappingNode):
+            for key, value in node.value:
+                if isinstance(key, yaml.ScalarNode) and key.value == "run":
+                    ranges.append((value.start_mark.line + 1, value.end_mark.line + 1))
+                walk(value)
+        elif isinstance(node, yaml.SequenceNode):
+            for item in node.value:
+                walk(item)
+
+    for document in yaml.compose_all(path.read_text()):
+        if document is not None:
+            walk(document)
+    return ranges
 
 
 def _offenders(path: Path) -> list[str]:
     lines = path.read_text().splitlines()
+    ranges = _run_line_ranges(path)
     found = []
-    for i, line in enumerate(lines):
+    for i, line in enumerate(lines, 1):
+        if not any(start <= i <= end for start, end in ranges):
+            continue  # outside every script body — a YAML comment, say
         for match in _EXPRESSION.finditer(line):
             if match.group(1).strip():
                 continue  # a real expression; not our business
-            if _inside_run_block(lines, i):
-                found.append(f"{path}:{i + 1}: {line.strip()}")
+            found.append(f"{path}:{i}: {line.strip()}")
     return found
 
 
@@ -82,26 +94,41 @@ def test_no_empty_github_expression_in_a_script_body(path: Path) -> None:
     )
 
 
-def test_the_check_detects_a_planted_empty_expression(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("label", "content", "expected"),
+    [
+        ("inline run", "runs:\n  steps:\n    - run: echo ${{ }}\n", 1),
+        ("block scalar", "runs:\n  steps:\n    - run: |\n        echo ${{ }}\n", 1),
+        ("chomped block", "runs:\n  steps:\n    - run: |-\n        echo ${{ }}\n", 1),
+        ("folded block", "runs:\n  steps:\n    - run: >+\n        echo ${{ }}\n", 1),
+        (
+            "run below other keys",
+            "runs:\n  steps:\n    - name: x\n      run: |\n        echo ${{ }}\n",
+            1,
+        ),
+        ("yaml comment", "runs:\n  # mentions ${{ }} harmlessly\n  steps: []\n", 0),
+        (
+            "comment above run",
+            "runs:\n  steps:\n    # ${{ }} here is fine\n    - run: |\n        echo ok\n",
+            0,
+        ),
+        ("real expression", "runs:\n  steps:\n    - run: |\n        echo ${{ inputs.x }}\n", 0),
+    ],
+)
+def test_the_check_sees_every_run_form_and_no_comments(
+    tmp_path: Path, label: str, content: str, expected: int
+) -> None:
     """The rule above passes trivially if the detection does not work.
 
-    Both shapes are here on purpose: the same text is harmless in a YAML
-    comment and fatal one line deeper, and a check that cannot tell them
-    apart would either miss the bug or ban a legitimate comment.
+    Every form `run:` can take is here because the first version of this
+    check used a regex and missed three of them — inline values, chomping
+    indicators, and `- run: |` where `run` is a step's first key. The real
+    bug was caught only because it happened to use the one form that regex
+    recognised. The comment cases are here for the opposite reason: the
+    same text is harmless in a YAML comment and fatal one line deeper, and
+    a check that cannot tell them apart is either useless or unusable.
     """
     planted = tmp_path / "action.yml"
-    planted.write_text(
-        "runs:\n"
-        "  using: composite\n"
-        "  steps:\n"
-        "    # Harmless: a YAML comment mentioning ${{ }} is never parsed.\n"
-        "    - name: Example\n"
-        "      shell: bash\n"
-        "      run: |\n"
-        "        # Fatal: substitution runs over the whole body first.\n"
-        "        echo ${{ }}\n"
-    )
+    planted.write_text(content)
     offenders = _offenders(planted)
-    assert len(offenders) == 1, offenders
-    assert offenders[0].endswith("echo ${{ }}")
-    assert ":9:" in offenders[0], "flagged the wrong line"
+    assert len(offenders) == expected, f"{label}: {offenders}"
