@@ -917,20 +917,29 @@ So after merging a PR, confirm the commit arrived. Pin every input —
 the run for *this* SHA, the tag reachable from *the remote* `main`:
 
 ```bash
-# Fail closed: without a successful fetch, `origin/main` is whatever was
-# last seen, and every number below describes the wrong snapshot.
-git fetch --prune --tags origin || { echo "fetch failed — do not trust what follows"; return 2>/dev/null || exit 1; }
-SHA=$(git rev-parse origin/main)
-
-RID=$(gh run list --workflow=release-please.yml --branch main --commit "$SHA" \
-        --json databaseId,status \
-        --jq '[.[] | select(.status == "completed")][0].databaseId // empty')
-
-if [ -z "$RID" ]; then
-  echo "Release Please has not finished for $SHA yet — try again in a minute."
+# Everything hangs off a successful fetch: without one, `origin/main` is
+# whatever was last seen and every number below describes the wrong
+# snapshot. Written as one `if` so that a failure stops the check without
+# an `exit` — this is meant to be pasted into a terminal, and `exit` in an
+# interactive shell closes it.
+if ! git fetch --prune --tags origin; then
+  echo "fetch failed — do not trust what follows"
 else
-  gh run view "$RID" --log | grep -E "could not be parsed|Considering:"
-  git log --oneline "$(git describe --tags --abbrev=0 origin/main)"..origin/main | wc -l
+  SHA=$(git rev-parse origin/main)
+
+  # `.[0]` is the newest run for that SHA; requiring it to be completed
+  # means a rerun in progress reads as "not finished" rather than falling
+  # back to the older completed one.
+  RID=$(gh run list --workflow=release-please.yml --branch main --commit "$SHA" \
+          --json databaseId,status \
+          --jq '.[0] | select(.status == "completed") | .databaseId')
+
+  if [ -z "$RID" ]; then
+    echo "Release Please has not finished for $SHA yet — try again in a minute."
+  else
+    gh run view "$RID" --log | grep -E "could not be parsed|Considering:"
+    git log --oneline "$(git describe --tags --abbrev=0 origin/main)"..origin/main | wc -l
+  fi
 fi
 ```
 
@@ -943,11 +952,23 @@ agreement that is not either. An empty `RID` means "not finished", not
 "nothing to check", which is why it is a separate branch rather than an
 empty grep.
 
-`// empty` is belt-and-braces rather than a fix for an observed failure:
-`gh --jq` prints nothing for a `null` result, verified both for a SHA with
-no runs and for one whose runs the filter excludes. A bare `jq` in a pipe
-*does* print `null`, so the guard would silently stop guarding the moment
-someone rewrote the call that way.
+Taking `.[0]` and *then* testing its status is the part that is easy to
+get backwards. Filtering to completed runs first and taking the first
+match returns the previous run while a rerun is in flight, so the check
+reads a stale log and reports agreement about a run that has been
+superseded. Written this way, an unfinished newest run yields nothing and
+the guard fires. Exercised against all three shapes:
+
+```text
+[]                                                    -> ''  guard fires
+[{id:2,in_progress},{id:1,completed}]                 -> ''  guard fires
+[{id:9,completed}]                                    -> 9   proceeds
+```
+
+`gh --jq` also prints nothing for a `null` result, verified for a SHA with
+no runs and for one whose runs the filter excludes — so no `// empty` is
+needed here. A bare `jq` in a pipe *does* print `null`; if this call is
+ever rewritten that way, the guard needs it back.
 
 `Considering: N` must equal that commit count. If it does not, the
 changelog is already wrong and the fix has to land **before** the release
