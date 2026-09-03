@@ -338,8 +338,15 @@
         // have been opened during the wait, and a new run may have started.
         if (expanded) { autoHideFor = null; return; }
         const cur = window.NS.status.current();
-        const p = cur && cur.progress;
-        if (!p || p.runId !== runId) { autoHideFor = null; return; }
+        // Matching the run id is not enough on its own: the finished
+        // payload stays cached, so a dispatch or a fresh run started in the
+        // meantime still carries it. Anything in flight owns the bar now.
+        if (!cur || cur.dispatching || cur.dispatchTimedOut || cur.inProgress) {
+          autoHideFor = null;
+          return;
+        }
+        const p = cur.progress;
+        if (!p || p.runId !== runId || p.conclusion !== 'success') { autoHideFor = null; return; }
         dismissedRun = runId;
         try { sessionStorage.setItem('rp-dismissed', String(runId)); } catch (_) {}
         hide();
@@ -356,6 +363,9 @@
     }
 
     function hide() {
+      // Cancel first: a timer left armed past a hide fires against whatever
+      // the bar shows 30s later, which may be a different run entirely.
+      cancelAutoHide();
       root.hidden = true;
       stopElapsed(null);
       renderedSignature = null;
@@ -367,6 +377,10 @@
       // Dispatched, but GitHub has not listed the run yet. Without this the
       // dashboard would show the PREVIOUS run as if nothing had happened.
       if (data.dispatching || data.dispatchTimedOut) {
+        // A new dispatch supersedes the previous run's pending auto-hide.
+        // The finished payload is still cached, so without this the old
+        // timer's identity check would pass and it would blank this banner.
+        cancelAutoHide();
         const label = LABELS[data.dispatchedWorkflow] || 'Workflow';
         root.hidden = false;
         root.className = 'run-progress';
