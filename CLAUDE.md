@@ -894,6 +894,14 @@ finds progressively more marginal things, and is the pedantic loop that
 `.claude/skills/fix-pr-comments` already warns about at the PR stage.
 If a finding is too big to fix in this round, file an issue and push.
 
+**Say what this does not cover.** The round reviews the diff as it stands
+when you run it, so the fixes you make in response are themselves never
+locally reviewed. That gap is inherent to a single round and cannot be
+closed by moving the round later: wherever it sits, whatever you change
+after it is unreviewed. The gap is deliberate, and the PR review is what
+covers it — so do not add a second local round to chase it, and do not
+describe this step as a complete pre-push filter, because it is not one.
+
 Triage the findings exactly like PR review comments — the same bucket
 framework, the same scepticism. A local finding is not more authoritative
 for being local. Dismiss what misreads the code, and say why in the
