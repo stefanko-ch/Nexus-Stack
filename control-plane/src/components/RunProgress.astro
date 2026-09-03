@@ -204,6 +204,17 @@
     let expandedPreference = false;
     let autoExpandedFor = null;
     let dismissedRun = null;
+    // A finished SUCCESSFUL run clears itself after a while. The green bar
+    // has said what it has to say, the status panel above already reads
+    // "Deployed", and it sits between the buttons and Active Stacks —
+    // which is where the operator is heading next.
+    //
+    // Failure and cancellation stay until dismissed: the bar is the only
+    // place naming the step it stopped at, and a timer that removes that
+    // while somebody is reading it would be worse than never showing it.
+    const AUTO_HIDE_SUCCESS_MS = 30000;
+    let autoHideTimer = null;
+    let autoHideFor = null;
     let renderedSignature = null;
     let elapsedTimer = null;
     let elapsedFrom = null;
@@ -310,9 +321,36 @@
       el.steps.innerHTML = html;
     }
 
+    function cancelAutoHide() {
+      if (autoHideTimer) { clearTimeout(autoHideTimer); autoHideTimer = null; }
+      autoHideFor = null;
+    }
+
+    /** Hide a finished successful run after a pause. Never while Details is
+     *  open — the list would vanish out from under whoever opened it. */
+    function scheduleAutoHide(runId) {
+      if (autoHideFor === runId || expanded) return;
+      cancelAutoHide();
+      autoHideFor = runId;
+      autoHideTimer = setTimeout(function() {
+        autoHideTimer = null;
+        // Re-checked at fire time, not only when scheduled: Details may
+        // have been opened during the wait, and a new run may have started.
+        if (expanded) { autoHideFor = null; return; }
+        const cur = window.NS.status.current();
+        const p = cur && cur.progress;
+        if (!p || p.runId !== runId) { autoHideFor = null; return; }
+        dismissedRun = runId;
+        try { sessionStorage.setItem('rp-dismissed', String(runId)); } catch (_) {}
+        hide();
+      }, AUTO_HIDE_SUCCESS_MS);
+    }
+
     function setExpanded(next, remember) {
       expanded = next;
       if (remember !== false) expandedPreference = next;
+      // Opening Details is a request to keep reading.
+      if (next) cancelAutoHide();
       el.toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
       el.steps.hidden = !next;
     }
@@ -443,9 +481,20 @@
 
       // Open the list once on failure — that is when the detail is the
       // point. Never collapse what the operator opened.
+      // `remember: false` — the program opened this, not the operator. Left
+      // as a preference it would persist into every later run, and since an
+      // open list suppresses the auto-hide below, one failed spin-up would
+      // stop every subsequent successful one from ever clearing itself.
       if (done && p.conclusion === 'failure' && autoExpandedFor !== p.runId) {
         autoExpandedFor = p.runId;
-        setExpanded(true);
+        setExpanded(true, false);
+      }
+
+      if (done && p.conclusion === 'success') {
+        scheduleAutoHide(p.runId);
+      } else {
+        // Still running, or it failed: nothing should be on a timer.
+        cancelAutoHide();
       }
     }
 
