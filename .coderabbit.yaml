@@ -16,6 +16,22 @@
 #
 # request_changes_workflow was turned off for a different reason — see
 # the note at that key. It is about the verdict, not the volume.
+#
+# Audited 2026-09-03 against the tree. Four path_instructions asserted
+# rules the repo does not follow, three of them citing CLAUDE.md for
+# text that is not in it — mem_limit as a MUST (5 of 82 stacks), every
+# `${VAR:-default}` as forbidden (150 exist, ~140 of them legitimate
+# image-tag overrides), a validation block on every variable (12 of 62),
+# and SHA-pinned actions (3 of 33) citing an "audit-finding H45" in an
+# AUDIT_REPORT.md that does not exist. An instruction that describes a
+# rule nobody follows is not a strict reviewer, it is a dismissal
+# generator. Each one is now either cited accurately or carries the
+# count that sets its strength.
+#
+# The tools block was left alone deliberately: across 2410 lines of
+# CodeRabbit comments on ten PRs, only markdownlint and ast-grep were
+# ever named. Disabling a tool that has never reported anything saves
+# no noise and costs coverage.
 
 language: en
 
@@ -64,13 +80,16 @@ reviews:
     # Lockfiles / generated content.
     - "!control-plane/package-lock.json"
     - "!**/node_modules/**"
-    # Audit / report artefacts (gitignored anyway).
-    - "!AUDIT_REPORT.md"
 
   path_instructions:
+    # These are the highest-value knob in this file and the easiest to
+    # get wrong: an instruction that states a rule the repo does not
+    # follow turns every PR touching that path into a dismissal round.
+    # Each rule below is either in CLAUDE.md (cited) or measured against
+    # the tree, with the count that justifies its strength.
     - path: "stacks/**/docker-compose.yml"
       instructions: |
-        Apply Nexus-Stack's Docker conventions from CLAUDE.md:
+        Per CLAUDE.md ("Adding New Stacks", "Service Account Naming"):
         - Stateful services MUST pin image versions (no :latest except
           for the documented allow-list: drawio, it-tools, wetty,
           code-server, jupyter, marimo, adminer, excalidraw,
@@ -78,33 +97,60 @@ reviews:
         - Service accounts MUST use the `nexus-` prefix
           (nexus-postgres, nexus-<service>). Flag `admin`, `postgres`,
           `root` or service-name-alone usage.
-        - Every container MUST have `restart: unless-stopped` and
-          `mem_limit`. Stacks join `app-network` (external).
-        - Hardcoded credential fallbacks (`${VAR:-default-password}`)
-          are forbidden — use `${VAR:?must be set}` so missing env
-          fails fast.
+        - Every container gets `restart: unless-stopped` and joins
+          `app-network` (external: true).
+
+        Not in CLAUDE.md, but a direct consequence of the naming rule:
+        a credential env var must not carry a guessable default.
+        `${ADMIN_USERNAME:-admin}` hands back exactly the default the
+        nexus- prefix exists to prevent. Require `${VAR:?message}` or an
+        empty default; the four that exist are tracked in #780.
+        The exception is a fallback whose value is an image tag on an
+        `image:` field — `${IMAGE_*:-<pinned tag>}` is the house pattern
+        letting the orchestrator override an image, and ~140 of the 150
+        fallbacks in this tree are that. The exemption is about what the
+        value is, not what the variable is called: a credential-shaped
+        variable stays in scope whatever its name begins with.
+
+        Do NOT flag a missing `mem_limit`. 5 of 82 stacks set one; the
+        gap is tracked in #741, and re-raising it per PR is noise.
     - path: "tofu/**/*.tf"
       instructions: |
-        Per CLAUDE.md: every variable that flows into a Cloudflare /
-        Hetzner resource needs a `validation` block where the failure
-        mode is opaque without one (account/zone IDs, domains, ports,
-        emails). Always use `${local.resource_prefix}` for resource
-        naming.
+        Per CLAUDE.md ("Resource Naming"): always use
+        `${local.resource_prefix}` for resource names.
+
+        A `validation` block is wanted on variables whose failure mode
+        is otherwise opaque — account/zone IDs, domains, ports, emails —
+        but 12 of 62 variables have one, so this is a direction of
+        travel rather than a rule. Raise it on a newly added variable;
+        do not raise it on existing ones a PR merely touches.
     - path: ".github/workflows/**"
       instructions: |
-        Per CLAUDE.md: critical operations (infra destroy, deploy)
-        must fail loudly — never `|| echo "..."` swallowing real
-        errors. Secrets must be masked (`::add-mask::`) before being
-        passed through `echo`. Pin third-party actions to commit SHAs
-        rather than floating @vN tags (audit-finding H45).
+        Per CLAUDE.md ("Error Handling Principles"): critical operations
+        (infra destroy, deploy) must fail loudly — never `|| echo "..."`
+        swallowing a real error, and never let the failure indicator be
+        a by-product such as an error string that happens to be empty.
+        Status and message belong in separate variables.
+        Per CLAUDE.md ("NEVER print secrets to logs"): mask dynamic
+        secrets with `::add-mask::` before anything can echo them.
+
+        Pinning third-party actions to commit SHAs is intended but not
+        yet done: 3 of 33 `uses:` lines are pinned, and #652 tracks the
+        migration. Raise it when a third-party `uses:` reference is added
+        or modified — a tag bump is the moment to pin — but not for an
+        untouched `@vN` line that a PR merely happens to sit next to.
     - path: "src/nexus_deploy/**/*.py"
       instructions: |
-        Per CLAUDE.md: never log secret values; use
-        `type(exc).__name__` not `str(exc)` in error logs (secrets
-        often leak via __str__). All subprocess.run calls must use
-        shlex-quoted args, never shell=True, never os.system. Match
-        the project's pure-rendering / DI-seam pattern (callable
-        injection for testability) where applicable.
+        Per CLAUDE.md ("NEVER print secrets to logs"): never log a secret
+        value, and use `type(exc).__name__` rather than `str(exc)` in
+        error logs — secrets leak through __str__.
+
+        Convention rather than written rule, but absolute: no
+        `shell=True`, no `os.system`, subprocess arguments stay a list.
+        The package currently contains zero of all three, so treat any
+        introduction as a regression rather than a style preference.
+        Match the pure-rendering / callable-injection pattern the service
+        hooks use (`_SERVICE_HOOKS` in services.py) where applicable.
 
   tools:
     # Secret-scanning — high value across compose files, scripts, TF.
@@ -120,8 +166,10 @@ reviews:
     yamllint:
       enabled: true
 
-    # GitHub Actions workflow validation (catches the floating-@vN
-    # patterns, missing permissions, deprecated runners).
+    # GitHub Actions workflow validation: expression syntax, action
+    # inputs, shellcheck over `run:` bodies, deprecated runners. It does
+    # not check SHA pinning — see the workflows path_instruction for
+    # that, and #652 for the migration.
     actionlint:
       enabled: true
 

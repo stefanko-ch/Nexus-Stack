@@ -859,7 +859,9 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
    - Include a detailed commit message explaining what was done
    - Stage only the relevant files
 
-3. **Ask the user before pushing**:
+3. **Run one local CodeRabbit round before pushing** (see below).
+
+4. **Ask the user before pushing**:
    - After committing, ask: "Soll ich pushen?" or "Should I push?"
    - Wait for explicit confirmation before pushing to remote
    - Do NOT push automatically unless explicitly requested
@@ -867,12 +869,71 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 **Example workflow:**
 ```
 1. Make code changes
-2. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
-3. git commit -m "fix(ci): Add R2 bucket cleanup..."
-4. "Soll ich pushen?" / "Should I push?"
-5. Wait for user confirmation
-6. git push (only if confirmed)
+2. Run the affected tests / checks — see "Mandatory Testing" above
+3. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
+4. git commit -m "fix(ci): Add R2 bucket cleanup..."
+5. coderabbit review --agent --base main   # exactly once
+6. Fix what is genuinely valid, re-run the tests, commit as a follow-up
+7. "Soll ich pushen?" / "Should I push?"   # report dismissed findings here
+8. Wait for user confirmation
+9. git push (only if confirmed)
 ```
+
+### Local CodeRabbit round before pushing — exactly one
+
+Before asking to push a branch, run the CodeRabbit CLI once against
+`main` and act on what it finds:
+
+```bash
+coderabbit review --agent --base main
+```
+
+**Exactly one round. Never re-run it to check your own fix.** The point
+is to catch what would otherwise arrive as a PR comment twenty minutes
+later, not to iterate to silence. A second run costs another review,
+finds progressively more marginal things, and is the pedantic loop that
+`.claude/skills/fix-pr-comments` already warns about at the PR stage.
+If a finding is too big to fix in this round, file an issue and push.
+
+**Say what this does not cover.** The round reviews the diff as it stands
+when you run it, so the fixes you make in response are themselves never
+locally reviewed. That gap is inherent to a single round and cannot be
+closed by moving the round later: wherever it sits, whatever you change
+after it is unreviewed. The gap is deliberate, and the PR review is what
+covers it — so do not add a second local round to chase it, and do not
+describe this step as a complete pre-push filter, because it is not one.
+
+Triage the findings exactly like PR review comments — the same bucket
+framework, the same scepticism. A local finding is not more authoritative
+for being local. Dismiss what misreads the code, and say why — never
+silently. Where a dismissal accompanies a fix, the follow-up commit
+message is the place for it. Where you dismiss everything there is no
+follow-up commit, so it goes in the message that asks to push. Do not
+amend the earlier commit or manufacture an empty one to hold a
+sentence.
+
+The review is not a test run. It reads the diff; it does not execute
+anything. "Mandatory Testing" above still applies to the original commit
+and to every follow-up.
+
+What the flags mean, since the defaults are not what you want here:
+
+- `--base main` compares the whole branch against `main`, which is what
+  you want after committing — verified: a run on a branch whose only
+  change was already committed reviewed that file. The bare `coderabbit
+  review` reviews "tracked changes" per its own `--help`, and there are
+  separate `--committed` / `--uncommitted` flags; if you drop `--base`,
+  confirm the `reviewedFiles` list in the output is not empty rather
+  than reading a silent pass as a clean branch.
+- `--agent` emits structured JSON findings instead of prose.
+- `--light` exists for a cheaper pass; use it only when a branch is
+  large and obviously mechanical.
+
+Requires the CLI (`brew install --cask coderabbit` — it is a cask, not
+a formula) and `coderabbit auth login`. If it is not installed or not
+authenticated, say so and push without it rather than silently skipping
+the step — a skipped check that nobody knows was skipped is worse than
+no check.
 
 ### PR Titles for Release Notes
 
