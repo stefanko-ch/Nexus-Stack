@@ -132,6 +132,8 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
   let statusPinnedRun = null;
   let statusFinalProgress = null;
   let statusFinalProgressFamily = null;
+  let statusFinalProgressRunId = null;
+  let statusGeneration = 0;
 
   // LOCAL LATCH. Between clicking Spin Up and a poll that can see the new
   // run there are several ways to be told "nothing is running", and each
@@ -219,6 +221,16 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     const force = opts && opts.force;
     if (statusInflight && !force) return statusInflight;
 
+    // Every request carries a generation. Forcing leaves the earlier one
+    // running, and it answers with a picture from before the dispatch —
+    // so only the newest may touch shared state. Without this the stale
+    // response lands after the forced one, overwrites `statusLast` with
+    // "nothing is running", and PendingBar re-enables Spin Up on a stack
+    // that is provisioning.
+    statusGeneration += 1;
+    const generation = statusGeneration;
+    const isCurrent = function() { return generation === statusGeneration; };
+
     // Ask for the pinned run's steps only once it is no longer the running
     // one; while it runs the server returns its progress anyway.
     let url = '/api/status';
@@ -233,6 +245,7 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
       })
       .then(function(data) {
         if (statusInflight === request) statusInflight = null;
+        if (!isCurrent()) return data;   // superseded; do not publish
         // `success: false` is a JSON body, not a success — /api/status
         // answers that way for a 500, an unusable GitHub response, and a
         // GitHub non-2xx (rate limiting included). Counting it as a good
@@ -255,22 +268,38 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
         // not: `current()` and the replay on subscribe would then hand out
         // a payload with no progress and the finished bar would vanish on
         // the next page interaction.
-        let finalFamily = statusFinalProgressFamily;
+        const cachedFamily = statusFinalProgressFamily;
+        const cachedRunId = statusFinalProgressRunId;
         if (data.progress && data.progress.runId) {
           if (data.progress.status === 'completed') {
             statusFinalProgress = data.progress;
             statusFinalProgressFamily = data.progressFamily || null;
+            statusFinalProgressRunId = data.progress.runId;
             statusPinnedRun = null;
           } else {
             statusFinalProgress = null;
             statusFinalProgressFamily = null;
+            statusFinalProgressRunId = null;
             statusPinnedRun = data.progress.runId;
           }
         } else if (statusFinalProgress && !data.inProgress) {
-          data = Object.assign({}, data, {
-            progress: statusFinalProgress,
-            progressFamily: data.progressFamily || finalFamily || null,
-          });
+          // Only if the payload still describes the run the cache belongs
+          // to. A short run that starts and finishes between two polls
+          // arrives with no `progress` (nothing pinned it), and merging
+          // blindly would present the PREVIOUS run's steps as this run's
+          // result — the same bar, the same green tick, the wrong run.
+          const selected = cachedFamily ? data.workflows && data.workflows[cachedFamily] : null;
+          const stillTheSameRun = cachedRunId !== null && selected && selected.id === cachedRunId;
+          if (stillTheSameRun) {
+            data = Object.assign({}, data, {
+              progress: statusFinalProgress,
+              progressFamily: data.progressFamily || cachedFamily || null,
+            });
+          } else {
+            statusFinalProgress = null;
+            statusFinalProgressFamily = null;
+            statusFinalProgressRunId = null;
+          }
         }
 
         statusLast = data;
@@ -280,6 +309,7 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
       })
       .catch(function(err) {
         if (statusInflight === request) statusInflight = null;
+        if (!isCurrent()) return null;
         statusErrors += 1;
         // Deliver the latch even on failure — a transient network error
         // must not be read as "the run finished".

@@ -214,6 +214,10 @@
         const contentType = r.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
           // Cloudflare Access expired — Astro session bounced.
+          // Clear the flag before returning: leaving it set makes
+          // applyRunState a no-op forever, so the button would stay
+          // enabled through the next run.
+          triggerInFlight = false;
           showToast('Session expired - please refresh the page', 'error');
           btnSpinUp.innerHTML = originalHTML;
           btnSpinUp.disabled = false;

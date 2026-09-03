@@ -239,9 +239,14 @@
       // Rebuild only when something changed — the list is re-derived from
       // the API on every poll (so a newly added step shows up on its own),
       // but re-writing identical HTML would fight the operator's scroll.
-      const sig = progress.jobs.map(function(j) {
+      // `runId` leads the signature. Without it, two runs of the same
+      // workflow at the same step compare equal — the list would keep the
+      // PREVIOUS run's names, durations and step links while the header
+      // counts the new one. Durations are in too, since a step that is
+      // still running changes its duration without changing its status.
+      const sig = progress.runId + '#' + progress.jobs.map(function(j) {
         return j.name + ':' + j.steps.map(function(s) {
-          return s.index + s.status + (s.conclusion || '');
+          return [s.index, s.number, s.status, s.conclusion || '', s.durationMs == null ? '' : s.durationMs].join('~');
         }).join(',');
       }).join('|');
       if (sig === renderedSignature) return;
