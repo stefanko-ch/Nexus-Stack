@@ -859,7 +859,9 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
    - Include a detailed commit message explaining what was done
    - Stage only the relevant files
 
-3. **Ask the user before pushing**:
+3. **Run one local CodeRabbit round before pushing** (see below).
+
+4. **Ask the user before pushing**:
    - After committing, ask: "Soll ich pushen?" or "Should I push?"
    - Wait for explicit confirmation before pushing to remote
    - Do NOT push automatically unless explicitly requested
@@ -869,10 +871,52 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 1. Make code changes
 2. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
 3. git commit -m "fix(ci): Add R2 bucket cleanup..."
-4. "Soll ich pushen?" / "Should I push?"
-5. Wait for user confirmation
-6. git push (only if confirmed)
+4. coderabbit review --agent --base main   # exactly once
+5. Fix what is genuinely valid, commit as a follow-up
+6. "Soll ich pushen?" / "Should I push?"
+7. Wait for user confirmation
+8. git push (only if confirmed)
 ```
+
+### Local CodeRabbit round before pushing — exactly one
+
+Before asking to push a branch, run the CodeRabbit CLI once against
+`main` and act on what it finds:
+
+```bash
+coderabbit review --agent --base main
+```
+
+**Exactly one round. Never re-run it to check your own fix.** The point
+is to catch what would otherwise arrive as a PR comment twenty minutes
+later, not to iterate to silence. A second run costs another review,
+finds progressively more marginal things, and is the pedantic loop that
+`.claude/skills/fix-pr-comments` already warns about at the PR stage.
+If a finding is too big to fix in this round, file an issue and push.
+
+Triage the findings exactly like PR review comments — the same bucket
+framework, the same scepticism. A local finding is not more authoritative
+for being local. Dismiss what misreads the code, and say why in the
+commit message rather than silently ignoring it.
+
+What the flags mean, since the defaults are not what you want here:
+
+- `--base main` compares the whole branch against `main`, which is what
+  you want after committing — verified: a run on a branch whose only
+  change was already committed reviewed that file. The bare `coderabbit
+  review` reviews "tracked changes" per its own `--help`, and there are
+  separate `--committed` / `--uncommitted` flags; if you drop `--base`,
+  confirm the `reviewedFiles` list in the output is not empty rather
+  than reading a silent pass as a clean branch.
+- `--agent` emits structured JSON findings instead of prose.
+- `--light` exists for a cheaper pass; use it only when a branch is
+  large and obviously mechanical.
+
+Requires the CLI (`brew install --cask coderabbit` — it is a cask, not
+a formula) and `coderabbit auth login`. If it is not installed or not
+authenticated, say so and push without it rather than silently skipping
+the step — a skipped check that nobody knows was skipped is worse than
+no check.
 
 ### PR Titles for Release Notes
 

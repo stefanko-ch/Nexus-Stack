@@ -104,10 +104,13 @@ reviews:
         a credential env var must not carry a guessable default.
         `${ADMIN_USERNAME:-admin}` hands back exactly the default the
         nexus- prefix exists to prevent. Require `${VAR:?message}` or an
-        empty default; the four that exist are tracked in #780. This
-        does NOT apply to `${IMAGE_*:-<pinned tag>}`
-        — that is the house pattern letting the orchestrator override an
-        image, and ~140 of the 150 fallbacks in this tree are that.
+        empty default; the four that exist are tracked in #780.
+        The exception is a fallback whose value is an image tag on an
+        `image:` field — `${IMAGE_*:-<pinned tag>}` is the house pattern
+        letting the orchestrator override an image, and ~140 of the 150
+        fallbacks in this tree are that. The exemption is about what the
+        value is, not what the variable is called: a credential-shaped
+        variable stays in scope whatever its name begins with.
 
         Do NOT flag a missing `mem_limit`. 5 of 82 stacks set one; the
         gap is tracked in #741, and re-raising it per PR is noise.
@@ -133,8 +136,9 @@ reviews:
 
         Pinning third-party actions to commit SHAs is intended but not
         yet done: 3 of 33 `uses:` lines are pinned, and #652 tracks the
-        migration. Raise it on a newly added action, not on the existing
-        `@vN` lines a PR happens to touch.
+        migration. Raise it when a third-party `uses:` reference is added
+        or modified — a tag bump is the moment to pin — but not for an
+        untouched `@vN` line that a PR merely happens to sit next to.
     - path: "src/nexus_deploy/**/*.py"
       instructions: |
         Per CLAUDE.md ("NEVER print secrets to logs"): never log a secret
