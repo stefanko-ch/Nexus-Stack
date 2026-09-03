@@ -1,7 +1,7 @@
 # serializer version: 1
 # name: test_dump_shell_empty_snapshot
   '''
-  ADMIN_USERNAME=admin
+  ADMIN_USERNAME=nexus
   INFISICAL_PASS=''
   INFISICAL_ENCRYPTION_KEY=''
   INFISICAL_AUTH_SECRET=''

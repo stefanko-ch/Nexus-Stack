@@ -37,7 +37,7 @@ services:
     env_file: .env
     environment:
       # RustFS uses RUSTFS_ACCESS_KEY/SECRET_KEY (not ROOT_USER/PASSWORD)
-      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?must be set in .env (rendered by service_env._render_rustfs)}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
       RUSTFS_ADDRESS: ":9000"
       RUSTFS_CONSOLE_ENABLE: "true"

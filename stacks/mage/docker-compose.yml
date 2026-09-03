@@ -28,7 +28,7 @@ services:
       REQUIRE_USER_AUTHENTICATION: "true"
       DEFAULT_OWNER_EMAIL: ${USER_EMAIL}
       DEFAULT_OWNER_PASSWORD: ${MAGE_ADMIN_PASSWORD}
-      DEFAULT_OWNER_USERNAME: ${ADMIN_USERNAME:-admin}
+      DEFAULT_OWNER_USERNAME: ${ADMIN_USERNAME:?must be set in the global .env (written by orchestrator._phase_global_env)}
       # Server settings
       MAGE_PUBLIC_HOST: https://mage.${DOMAIN}
     deploy:

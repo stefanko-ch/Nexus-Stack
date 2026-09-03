@@ -910,3 +910,56 @@ def test_strict_host_check_only_where_a_tunnel_rule_exists(services: dict[str, A
         f"strict_host_check set on services with no tunnel ingress rule: {offenders}. "
         f"The flag only has an effect on a service with a subdomain."
     )
+
+
+# Values a credential-shaped variable must never fall back to. `admin`,
+# `root` and `postgres` are the names CLAUDE.md's "Service Account Naming
+# Convention" forbids outright; a stack's own name is the "service name
+# alone" half of the same rule.
+_FORBIDDEN_CREDENTIAL_DEFAULTS = frozenset({"admin", "root", "postgres", "administrator"})
+
+# A variable whose value is a credential rather than configuration. Matched
+# on the name because that is all a compose file exposes. `IMAGE_*` is
+# deliberately not here: `${IMAGE_FOO:-org/foo:1.2}` is the house pattern
+# that lets the orchestrator override a pinned tag, and ~140 of those exist.
+_CREDENTIAL_VAR = re.compile(
+    r"\$\{(?P<var>(?!IMAGE_)[A-Z0-9_]*"
+    r"(?:USER|USERNAME|PASS|PASSWORD|SECRET|TOKEN|KEY|ADMIN|ROOT)"
+    r"[A-Z0-9_]*):-(?P<default>[^}]*)\}"
+)
+
+
+def test_no_credential_variable_falls_back_to_a_guessable_default() -> None:
+    """A credential env var must not carry a guessable default.
+
+    `${ADMIN_USERNAME:-admin}` hands back exactly the name the `nexus-`
+    prefix rule exists to prevent, and `:-` fires on an *empty* value too,
+    not only on an unset one -- so it is reachable whenever an upstream
+    step produces a blank rather than failing.
+
+    Four of these existed when this test was written (#780): grafana,
+    mage, litellm and rustfs. The fix is `${VAR:?<where it comes from>}`,
+    the pattern infisical/hoppscotch/questdb already use, so a stack whose
+    credential is missing refuses to start instead of starting wrong.
+
+    An empty default (`${VAR:-}`) is allowed: it hands back nothing, which
+    is not guessable and generally fails downstream on its own.
+    """
+    offenders: list[str] = []
+    for stack in STACK_DIRS:
+        text = (STACKS_DIR / stack / "docker-compose.yml").read_text()
+        for match in _CREDENTIAL_VAR.finditer(text):
+            default = match.group("default").strip()
+            if not default:
+                continue
+            if default.lower() in _FORBIDDEN_CREDENTIAL_DEFAULTS or default.lower() == stack:
+                offenders.append(f"{stack}: ${{{match.group('var')}:-{default}}}")
+
+    assert not offenders, (
+        "credential variables fall back to a guessable default:\n  "
+        + "\n  ".join(sorted(offenders))
+        + "\nUse ${VAR:?must be set in .env (rendered by service_env._render_<stack>)} "
+        "instead, so the stack fails loudly rather than starting with a name "
+        "an attacker would try first. See CLAUDE.md, 'Service Account Naming "
+        "Convention', and #780."
+    )

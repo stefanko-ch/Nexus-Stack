@@ -1733,6 +1733,23 @@ class Orchestrator:
 
         admin_email_value = self.bootstrap_env.admin_email or ""
         admin_username_value = self.admin_username or self.config.admin_username or ""
+        # An empty value here is not a missing nicety, it is a broken deploy:
+        # `_validate_value` below only rejects shell-unsafe characters, so an
+        # empty ADMIN_USERNAME would be written as `ADMIN_USERNAME=` and every
+        # stack reading `${ADMIN_USERNAME:-...}` would take its fallback --
+        # `:-` fires on empty, not only on unset. Fail instead of handing back
+        # a working-looking name nobody chose (#780).
+        if not admin_username_value:
+            return PhaseResult(
+                name="global-env",
+                status="failed",
+                detail=(
+                    "ADMIN_USERNAME resolved to an empty value; refusing to write .env. "
+                    "It comes from the tofu output `admin_username` via NexusConfig, "
+                    "which substitutes DEFAULT_ADMIN_USERNAME when the key is absent, "
+                    "so an empty value means the config was built some other way."
+                ),
+            )
         validations = [
             ("DOMAIN", self.domain),
             ("ADMIN_EMAIL", admin_email_value),

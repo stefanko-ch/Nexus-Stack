@@ -44,11 +44,19 @@ class ConfigError(Exception):
 # `tofu output -json secrets`. `fallback` is the value substituted when
 # the JSON key is absent or empty:
 #   - "" is the overwhelming majority (omit-if-empty)
-#   - "admin" is the admin_username default
+#   - DEFAULT_ADMIN_USERNAME is the admin_username default
 #   - "External Storage" / "auto" are explicit non-empty defaults
 # ---------------------------------------------------------------------------
+
+#: Fallback admin username, kept identical to `variable "admin_username"` in
+#: tofu/stack/variables.tf. It used to read "admin" here while Terraform said
+#: "nexus", so a deploy that lost the tofu output silently handed back exactly
+#: the name CLAUDE.md's `nexus-` rule exists to prevent (#780). Every Python
+#: site that needs a fallback imports this one rather than repeating a literal.
+DEFAULT_ADMIN_USERNAME = "nexus"
+
 _FIELDS: tuple[tuple[str, str, str], ...] = (
-    ("ADMIN_USERNAME", "admin_username", "admin"),
+    ("ADMIN_USERNAME", "admin_username", DEFAULT_ADMIN_USERNAME),
     ("INFISICAL_PASS", "infisical_admin_password", ""),
     ("INFISICAL_ENCRYPTION_KEY", "infisical_encryption_key", ""),
     ("INFISICAL_AUTH_SECRET", "infisical_auth_secret", ""),

@@ -882,16 +882,22 @@ def test_litellm_emits_config_yaml_sidecar(
     assert master_key not in content
 
 
-def test_litellm_admin_username_falls_back_to_admin(
+def test_litellm_admin_username_falls_back_to_the_shared_default(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """LITELLM_UI_USERNAME defaults to 'admin' when admin_username
-    is unset — UI login form needs a username field."""
+    """LITELLM_UI_USERNAME still gets a value when admin_username is
+    unset -- the UI login form needs a username field -- but it must be
+    the shared default, not a local literal.
+
+    It used to be a hardcoded 'admin' here, one of three sites that
+    disagreed with Terraform's 'nexus' (#780).
+    """
+    from nexus_deploy.config import DEFAULT_ADMIN_USERNAME
     from nexus_deploy.service_env import _render_litellm
 
     config = full_config.model_copy(update={"admin_username": None})
     rendered = _render_litellm(config, full_env)
-    assert rendered.env_vars["LITELLM_UI_USERNAME"] == "admin"
+    assert rendered.env_vars["LITELLM_UI_USERNAME"] == DEFAULT_ADMIN_USERNAME
 
 
 def test_litellm_env_vars_include_all_three_secrets(

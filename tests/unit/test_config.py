@@ -21,7 +21,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from syrupy.assertion import SnapshotAssertion
 
-from nexus_deploy.config import _FIELDS, ConfigError, NexusConfig
+from nexus_deploy.config import _FIELDS, DEFAULT_ADMIN_USERNAME, ConfigError, NexusConfig
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -130,9 +130,17 @@ def test_dump_shell_emits_all_fields() -> None:
         assert f"{bash_var}=" in rendered
 
 
-def test_dump_shell_admin_username_default_is_admin() -> None:
-    """When SECRETS_JSON is ``{}`` the per-field fallback fires —
-    ``ADMIN_USERNAME`` defaults to ``admin``.
+def test_dump_shell_admin_username_default_matches_terraform() -> None:
+    """When SECRETS_JSON is ``{}`` the per-field fallback fires, and it
+    must agree with ``variable "admin_username"`` in
+    tofu/stack/variables.tf.
+
+    It said ``admin`` here while Terraform said ``nexus``, so a deploy
+    that lost the tofu output handed back the one name CLAUDE.md's
+    ``nexus-`` rule exists to prevent (#780). Asserting the constant
+    rather than a literal keeps the two from drifting apart again --
+    though only Terraform can make the constant itself wrong, which is
+    why the docstring names the file.
 
     The tofu-default may also produce a different value when
     ``tofu output`` lands a populated SECRETS_JSON; the per-field
@@ -140,7 +148,8 @@ def test_dump_shell_admin_username_default_is_admin() -> None:
     """
     config = NexusConfig.from_secrets_json("{}")
     parsed = _parse_dump(config.dump_shell())
-    assert parsed["ADMIN_USERNAME"] == "admin"
+    assert parsed["ADMIN_USERNAME"] == DEFAULT_ADMIN_USERNAME
+    assert DEFAULT_ADMIN_USERNAME == "nexus"
 
 
 def test_dump_shell_external_s3_fallbacks() -> None:
@@ -413,7 +422,7 @@ def test_cli_dump_shell_default_tofu_dir(
     rc = main()
     captured = capsys.readouterr()
     assert rc == 0
-    assert captured.out.startswith("ADMIN_USERNAME=admin\n")
+    assert captured.out.startswith(f"ADMIN_USERNAME={DEFAULT_ADMIN_USERNAME}\n")
     assert captured_cwd == [Path("tofu/stack")]
 
 
