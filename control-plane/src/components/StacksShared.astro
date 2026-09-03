@@ -150,6 +150,7 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
   // click until a poll proves the server has taken over — nothing else
   // clears it except the give-up bound.
   let dispatchLatch = null;   // { family, at }
+  let runLockStarted = false;
 
   function latchActive(now) {
     if (!dispatchLatch) return false;
@@ -321,6 +322,27 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     current: function() { return statusLast ? decorate(statusLast) : null; },
     /** Is a dispatch outstanding that no poll has confirmed yet? */
     isLatched: function() { return latchActive(); },
+    /** Should service toggles be refused right now? */
+    runLocked: function() {
+      if (latchActive()) return true;
+      return !!(statusLast && statusLast.success && statusLast.inProgress);
+    },
+  };
+
+  /**
+   * Start polling and mark <body> while a run is in progress, so pages
+   * that render toggles can grey them out. Call from those pages only —
+   * this is what makes them poll at all, and pages without toggles have
+   * no reason to spend GitHub rate limit.
+   */
+  window.NS.lockControlsDuringRuns = function() {
+    if (runLockStarted) return;
+    runLockStarted = true;
+    const apply = function() {
+      document.body.classList.toggle('run-locked', window.NS.status.runLocked());
+    };
+    window.NS.status.subscribe(apply);
+    apply();
   };
 
   document.addEventListener('visibilitychange', function() {
@@ -364,6 +386,17 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
 
   window.NS.toggleService = async function(name, enabled) {
     const action = enabled ? 'enable' : 'disable';
+    // A toggle made during a run is silently ignored by that run: the
+    // enabled-services list was read from D1 when the workflow started.
+    // The UI would then show one configuration and the stack would be
+    // running another, with nothing to tell the operator which. Refuse
+    // here rather than in each page — click, keyboard shortcut and all
+    // three pages that render toggles funnel through this function.
+    if (window.NS.status && window.NS.status.runLocked()) {
+      const msg = 'A workflow is running — changes now would not be picked up. Wait for it to finish.';
+      if (typeof showToast === 'function') showToast(msg, 'error');
+      return { success: false, error: msg };
+    }
     try {
       const response = await fetch('/api/services', {
         method: 'POST',

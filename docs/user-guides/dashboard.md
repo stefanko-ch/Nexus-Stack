@@ -64,6 +64,14 @@ Two states worth recognising:
 
 When a run finishes, the bar stays: green at 100% for success, or red at the point it failed, with the failing step named and the list already expanded. It is **not** filled to 100% on failure — cleanup steps run after a failure, and filling the bar would suggest the work completed. Dismiss it, or start another run, to clear it.
 
+## Controls are locked while a workflow runs
+
+Spin Up and Teardown are disabled from the moment you click until the run ends, and so are the service toggles on [Stacks](./stacks.md), Search and the category pages. The progress bar appears on those pages too, so the greyed-out toggles have a visible reason.
+
+This is not cosmetic. The workflow reads the list of enabled services from the database **when it starts**. A service switched on halfway through is silently ignored by that run — the Control Plane would show one configuration while the stack ran another, with nothing to tell you which is which. Clicking a locked toggle says so rather than doing nothing.
+
+The lock also holds during the few seconds between your click and GitHub creating the run, and it survives a page reload, a failed status check, and a temporarily unreachable database. Spin-up has no server-side guard against being started twice, so a second click during that window would provision a second server.
+
 ## Action buttons
 
 Two buttons, each tied to a GitHub Actions workflow:

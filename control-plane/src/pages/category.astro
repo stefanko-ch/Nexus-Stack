@@ -1,8 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import RunProgress from '../components/RunProgress.astro';
 ---
 
 <Layout title="Category" activeNav="stacks">
+  <RunProgress />
   <div class="category-header">
     <button type="button" class="btn-back" onclick="document.referrer && document.referrer.startsWith(location.origin) ? history.back() : (location.href='/stacks')">&#8592; Back to Stacks</button>
     <h2 id="page-title">Loading...</h2>
@@ -210,6 +212,10 @@ import Layout from '../layouts/Layout.astro';
       toggleEl.classList.remove('disabled');
     }
   }
+
+  // Lock service toggles while a spin-up or teardown runs (#249) and
+  // show the progress bar, so the greyed toggles have a visible reason.
+  window.NS.lockControlsDuringRuns();
 
   window.NS.registerKeyboard({ searchInputId: null });
 

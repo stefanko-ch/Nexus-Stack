@@ -116,6 +116,20 @@ h2 {
   background: #888;
 }
 
+/* Locked while a spin-up or teardown runs. The workflow read the enabled
+   list from D1 when it started, so a change made now is silently ignored
+   and the UI would disagree with the stack (#249). window.NS.toggleService
+   refuses regardless — this is the visible half. */
+body.run-locked .toggle-switch {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+body.run-locked .toggle-switch::after {
+  background: #888;
+}
+
 /* =============================================================================
    Badges
    ============================================================================= */
