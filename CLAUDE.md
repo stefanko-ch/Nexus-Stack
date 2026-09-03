@@ -869,13 +869,14 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 **Example workflow:**
 ```
 1. Make code changes
-2. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
-3. git commit -m "fix(ci): Add R2 bucket cleanup..."
-4. coderabbit review --agent --base main   # exactly once
-5. Fix what is genuinely valid, commit as a follow-up
-6. "Soll ich pushen?" / "Should I push?"
-7. Wait for user confirmation
-8. git push (only if confirmed)
+2. Run the affected tests / checks — see "Mandatory Testing" above
+3. "I've added a new step to delete R2 bucket in destroy-all.yml workflow..."
+4. git commit -m "fix(ci): Add R2 bucket cleanup..."
+5. coderabbit review --agent --base main   # exactly once
+6. Fix what is genuinely valid, re-run the tests, commit as a follow-up
+7. "Soll ich pushen?" / "Should I push?"   # report dismissed findings here
+8. Wait for user confirmation
+9. git push (only if confirmed)
 ```
 
 ### Local CodeRabbit round before pushing — exactly one
@@ -904,8 +905,16 @@ describe this step as a complete pre-push filter, because it is not one.
 
 Triage the findings exactly like PR review comments — the same bucket
 framework, the same scepticism. A local finding is not more authoritative
-for being local. Dismiss what misreads the code, and say why in the
-commit message rather than silently ignoring it.
+for being local. Dismiss what misreads the code, and say why — never
+silently. Where a dismissal accompanies a fix, the follow-up commit
+message is the place for it. Where you dismiss everything there is no
+follow-up commit, so it goes in the message that asks to push. Do not
+amend the earlier commit or manufacture an empty one to hold a
+sentence.
+
+The review is not a test run. It reads the diff; it does not execute
+anything. "Mandatory Testing" above still applies to the original commit
+and to every follow-up.
 
 What the flags mean, since the defaults are not what you want here:
 
