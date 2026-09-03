@@ -176,6 +176,9 @@
     // Expanded state is the operator's choice and must survive polls. It
     // is only forced open once, when a run fails.
     let expanded = false;
+    // What the operator last chose, so a dispatching phase in between can
+    // collapse the list without forgetting they had it open.
+    let expandedPreference = false;
     let autoExpandedFor = null;
     let dismissedRun = null;
     let renderedSignature = null;
@@ -270,8 +273,9 @@
       el.steps.innerHTML = html;
     }
 
-    function setExpanded(next) {
+    function setExpanded(next, remember) {
       expanded = next;
+      if (remember !== false) expandedPreference = next;
       el.toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
       el.steps.hidden = !next;
     }
@@ -301,11 +305,14 @@
         el.bar.removeAttribute('aria-valuenow');
         el.bar.setAttribute('aria-valuetext', el.step.textContent);
         el.fill.style.width = data.dispatchTimedOut ? '0%' : '';
-        el.link.href = 'https://github.com';
         el.link.hidden = true;
         el.dismiss.hidden = true;
         el.toggle.hidden = true;
-        el.steps.hidden = true;
+        // Through setExpanded, not by setting `hidden` directly: hiding
+        // the list while `aria-expanded` still says "true" leaves the
+        // toggle lying, and the operator's next click is swallowed
+        // restoring a state that was never visible.
+        setExpanded(false, false);
         startElapsed(data.dispatchedAt);
         return;
       }
@@ -321,6 +328,9 @@
       root.hidden = false;
       el.toggle.hidden = false;
       el.link.hidden = false;
+      // Restore what the operator had chosen, in case a dispatching phase
+      // collapsed the list in between.
+      if (expandedPreference !== expanded) setExpanded(expandedPreference, false);
       root.className = 'run-progress'
         + (done && p.conclusion === 'success' ? ' is-success' : '')
         + (done && p.conclusion === 'failure' ? ' is-failure' : '')

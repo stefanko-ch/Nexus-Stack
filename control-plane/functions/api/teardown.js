@@ -80,9 +80,12 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
-      await markDispatched(env.NEXUS_DB, 'teardown');
+      // `tracked: false` — marker not stored, so the client keeps its own
+      // latch. See spin-up.js for the reasoning.
+      const tracked = await markDispatched(env.NEXUS_DB, 'teardown');
       return new Response(JSON.stringify({
         success: true,
+        tracked,
         message: 'Teardown workflow triggered successfully'
       }), {
         status: 200,

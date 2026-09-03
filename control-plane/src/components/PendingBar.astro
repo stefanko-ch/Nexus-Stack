@@ -180,8 +180,13 @@
     // click was not just possible, it looked invited. Now it stays
     // "Running…" until a poll says the run is over.
     let runWasInProgress = false;
+    // Set for the duration of the POST. A scheduled poll landing in that
+    // window would otherwise overwrite "Triggering…" and clear `disabled`
+    // before the dispatch has even been accepted.
+    let triggerInFlight = false;
 
     function applyRunState(data) {
+      if (triggerInFlight) return;
       if (!data || !data.success) return;
       if (data.inProgress) {
         runWasInProgress = true;
@@ -199,6 +204,7 @@
       const originalHTML = btnSpinUp.innerHTML;
       btnSpinUp.disabled = true;
       btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Triggering…';
+      triggerInFlight = true;
       try {
         const r = await fetch('/api/spin-up', {
           method: 'POST',
@@ -217,18 +223,23 @@
         if (data.success) {
           showToast('Spin Up triggered!');
           btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Running…';
-          // Ask the shared poller straight away. /api/status now reports
+          runWasInProgress = true;
+          triggerInFlight = false;
+          // Latch the controls and force a fresh poll: /api/status reports
           // `dispatching` during the seconds before GitHub lists the run,
-          // so this no longer sees the PREVIOUS run and concludes the
-          // stack is idle.
-          if (window.NS && window.NS.status) window.NS.status.refreshNow();
+          // and the latch covers the cases where even that cannot — a
+          // response already in flight, or the D1 marker not landing.
+          ensureStatusSubscription();
+          if (window.NS && window.NS.status) window.NS.status.noteDispatch('spinUp');
           setTimeout(refresh, 2000);
         } else {
+          triggerInFlight = false;
           showToast(data.error || 'Failed to trigger Spin Up', 'error');
           btnSpinUp.innerHTML = originalHTML;
           btnSpinUp.disabled = false;
         }
       } catch (_) {
+        triggerInFlight = false;
         showToast('Network error - please try again', 'error');
         btnSpinUp.innerHTML = originalHTML;
         btnSpinUp.disabled = false;

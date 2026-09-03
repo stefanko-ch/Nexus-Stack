@@ -104,9 +104,15 @@ export async function onRequestPost(context) {
     if (response.status === 204) {
       // Before answering: the dashboard re-polls 2 s after this response,
       // and without the marker it would find last night's run instead.
-      await markDispatched(env.NEXUS_DB, 'spinUp');
+      //
+      // `tracked: false` means the marker did not land (D1 down), so
+      // /api/status cannot protect this window. GitHub has accepted the
+      // dispatch either way — this is not a failure to retry — so the
+      // client holds its own latch instead. See window.NS.status.noteDispatch.
+      const tracked = await markDispatched(env.NEXUS_DB, 'spinUp');
       return new Response(JSON.stringify({
         success: true,
+        tracked,
         message: 'Spin-up workflow triggered successfully',
         enabledServices: enabledServicesList
       }), {

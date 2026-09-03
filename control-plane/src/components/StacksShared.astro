@@ -117,6 +117,9 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
   const STATUS_LOW_BUDGET_MS = 15000;
   const STATUS_MAX_MS = 60000;
   const RATE_LIMIT_FLOOR = 500;
+  // Matches DISPATCH_GRACE_MS on the server. Only a give-up bound — the
+  // latch normally clears as soon as a poll shows the server knows.
+  const DISPATCH_LATCH_MS = 90000;
 
   let statusSubscribers = [];
   let statusLast = null;
@@ -127,6 +130,59 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
   // progress", so the finished bar (100% green, or red at the failed step)
   // survives instead of vanishing the moment the run ends.
   let statusPinnedRun = null;
+  let statusFinalProgress = null;
+  let statusFinalProgressFamily = null;
+
+  // LOCAL LATCH. Between clicking Spin Up and a poll that can see the new
+  // run there are several ways to be told "nothing is running", and each
+  // one re-enables the button on a stack that is mid-provision:
+  //
+  //   - a poll already in flight when the click happened answers with data
+  //     computed before the dispatch;
+  //   - a scheduled poll lands while the POST is still open;
+  //   - the D1 marker did not store (`tracked: false`), so the server has
+  //     no way to know either;
+  //   - the poll itself fails, and the error path used to fall back to
+  //     "not in progress".
+  //
+  // `spin-up.yml` has no concurrency lock, so a second click is a second
+  // provisioning run. The latch says "a dispatch is outstanding" from the
+  // click until a poll proves the server has taken over — nothing else
+  // clears it except the give-up bound.
+  let dispatchLatch = null;   // { family, at }
+
+  function latchActive(now) {
+    if (!dispatchLatch) return false;
+    if ((now || Date.now()) - dispatchLatch.at > DISPATCH_LATCH_MS) {
+      dispatchLatch = null;
+      return false;
+    }
+    return true;
+  }
+
+  // The server has taken over once it reports the run running, or reports
+  // the dispatch itself as pending. Either way it will keep the controls
+  // locked without our help.
+  function serverKnows(data) {
+    if (!data || !data.success) return false;
+    if (data.dispatching || data.dispatchTimedOut) return true;
+    return data.inProgress === true;
+  }
+
+  /** What subscribers see: the payload, with the latch folded in. */
+  function decorate(data) {
+    if (!latchActive()) return data;
+    if (serverKnows(data)) { dispatchLatch = null; return data; }
+    if (!data || !data.success) return data;
+    return Object.assign({}, data, {
+      inProgress: true,
+      dispatching: true,
+      dispatchedWorkflow: data.dispatchedWorkflow || dispatchLatch.family,
+      dispatchedAt: data.dispatchedAt || new Date(dispatchLatch.at).toISOString(),
+      infraState: 'running',
+      latched: true,
+    });
+  }
 
   function statusInterval() {
     if (statusErrors > 0) {
@@ -136,6 +192,9 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
         && statusLast.rateLimitRemaining < RATE_LIMIT_FLOOR) {
       return STATUS_LOW_BUDGET_MS;
     }
+    // Latched counts as running: this is exactly the window in which the
+    // next poll matters most.
+    if (latchActive()) return STATUS_FAST_MS;
     return (statusLast && statusLast.inProgress) ? STATUS_FAST_MS : STATUS_IDLE_MS;
   }
 
@@ -146,48 +205,96 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     statusTimer = setTimeout(function() { statusFetch(); }, statusInterval());
   }
 
-  function statusFetch() {
-    if (statusInflight) return statusInflight;
+  function statusDeliver(data, err) {
+    statusSubscribers.forEach(function(fn) {
+      try { fn(data, err); } catch (e) { console.error('status subscriber failed:', e); }
+    });
+  }
+
+  function statusFetch(opts) {
+    // `force` skips the in-flight share. After a dispatch the request
+    // already open was computed BEFORE it, and reusing it would report the
+    // stack as idle milliseconds after the click.
+    const force = opts && opts.force;
+    if (statusInflight && !force) return statusInflight;
+
     // Ask for the pinned run's steps only once it is no longer the running
     // one; while it runs the server returns its progress anyway.
     let url = '/api/status';
     if (statusPinnedRun && (!statusLast || !statusLast.inProgress)) {
       url += '?progress_for=' + encodeURIComponent(statusPinnedRun);
     }
-    statusInflight = fetch(url, { credentials: 'same-origin' })
+    const request = fetch(url, { credentials: 'same-origin' })
       .then(function(r) {
         const ct = r.headers.get('content-type') || '';
         if (!ct.includes('application/json')) throw new Error('non-json');
         return r.json();
       })
       .then(function(data) {
-        statusInflight = null;
+        if (statusInflight === request) statusInflight = null;
+        // `success: false` is a JSON body, not a success — /api/status
+        // answers that way for a 500, an unusable GitHub response, and a
+        // GitHub non-2xx (rate limiting included). Counting it as a good
+        // poll kept the cadence at 10s against a failing upstream.
+        if (!data || !data.success) {
+          statusErrors += 1;
+          statusDeliver(decorate(data), new Error((data && data.error) || 'status failed'));
+          statusSchedule();
+          return data;
+        }
         statusErrors = 0;
+
+        // Keep the finished run's steps on screen without asking GitHub
+        // for them again on every idle poll. The pin is dropped as soon as
+        // the run reports `completed`; the payload is kept so later polls,
+        // which carry no `progress`, still render the final bar.
+        //
+        // The augmented payload — not the raw one — becomes `statusLast`.
+        // Assigning first and augmenting after looks equivalent and is
+        // not: `current()` and the replay on subscribe would then hand out
+        // a payload with no progress and the finished bar would vanish on
+        // the next page interaction.
+        let finalFamily = statusFinalProgressFamily;
+        if (data.progress && data.progress.runId) {
+          if (data.progress.status === 'completed') {
+            statusFinalProgress = data.progress;
+            statusFinalProgressFamily = data.progressFamily || null;
+            statusPinnedRun = null;
+          } else {
+            statusFinalProgress = null;
+            statusFinalProgressFamily = null;
+            statusPinnedRun = data.progress.runId;
+          }
+        } else if (statusFinalProgress && !data.inProgress) {
+          data = Object.assign({}, data, {
+            progress: statusFinalProgress,
+            progressFamily: data.progressFamily || finalFamily || null,
+          });
+        }
+
         statusLast = data;
-        if (data && data.progress && data.progress.runId) statusPinnedRun = data.progress.runId;
-        statusSubscribers.forEach(function(fn) {
-          try { fn(data); } catch (e) { console.error('status subscriber failed:', e); }
-        });
+        statusDeliver(decorate(data), null);
         statusSchedule();
         return data;
       })
       .catch(function(err) {
-        statusInflight = null;
+        if (statusInflight === request) statusInflight = null;
         statusErrors += 1;
-        statusSubscribers.forEach(function(fn) {
-          try { fn(null, err); } catch (e) { console.error('status subscriber failed:', e); }
-        });
+        // Deliver the latch even on failure — a transient network error
+        // must not be read as "the run finished".
+        statusDeliver(latchActive() ? decorate({ success: true }) : null, err);
         statusSchedule();
         return null;
       });
-    return statusInflight;
+    statusInflight = request;
+    return request;
   }
 
   window.NS.status = {
     /** Call fn(data, err) on every poll. Returns an unsubscribe function. */
     subscribe: function(fn) {
       statusSubscribers.push(fn);
-      if (statusLast) { try { fn(statusLast); } catch (e) {} }
+      if (statusLast) { try { fn(decorate(statusLast)); } catch (e) {} }
       if (statusSubscribers.length === 1) statusFetch();
       else statusSchedule();
       return function() {
@@ -198,19 +305,29 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
         }
       };
     },
-    /** Fetch now — after a dispatch, or when the tab becomes visible. */
-    refreshNow: function() { return statusFetch(); },
+    /** Fetch now. Pass {force:true} to bypass an in-flight request. */
+    refreshNow: function(opts) { return statusFetch(opts); },
+    /**
+     * Call right after a dispatch returns 200. Holds the controls locked
+     * locally until a poll proves the server is tracking the run — see
+     * `dispatchLatch` above for the four ways that would otherwise fail.
+     */
+    noteDispatch: function(family) {
+      dispatchLatch = { family: family || null, at: Date.now() };
+      statusDeliver(decorate(statusLast || { success: true }), null);
+      return statusFetch({ force: true });
+    },
     /** Last payload, or null before the first response. */
-    current: function() { return statusLast; },
-    /** Keep showing this run's steps after it finishes. */
-    pinRun: function(id) { statusPinnedRun = id || null; },
+    current: function() { return statusLast ? decorate(statusLast) : null; },
+    /** Is a dispatch outstanding that no poll has confirmed yet? */
+    isLatched: function() { return latchActive(); },
   };
 
   document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
       if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
     } else if (statusSubscribers.length > 0) {
-      statusFetch();
+      statusFetch({ force: true });
     }
   });
 

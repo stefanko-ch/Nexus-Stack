@@ -397,6 +397,11 @@ import RunProgress from '../components/RunProgress.astro';
   function onStatus(data, err) {
     if (err || !data || !data.success) {
       if (err) console.error('Failed to fetch status:', err);
+      // A failed poll is not evidence that the run finished. Re-enabling
+      // here let a transient network blip invite a second dispatch onto a
+      // stack that was mid-provision — `spin-up.yml` has no concurrency
+      // lock. Keep the last known state and wait for a real answer.
+      if (wasInProgress || (window.NS.status && window.NS.status.isLatched())) return;
       enableFallbackState();
       return;
     }
@@ -575,7 +580,15 @@ import RunProgress from '../components/RunProgress.astro';
       if (data.success) {
         const labels = { 'spin-up': 'Spin Up', 'teardown': 'Teardown' };
         showToast((labels[action] || action) + ' triggered!');
-        setTimeout(fetchStatus, 2000);
+        // Latch the controls locally and force a fresh poll. Without the
+        // force, `refreshNow` would hand back the request that was already
+        // in flight — computed before the dispatch — and the buttons would
+        // come straight back on a stack that is now provisioning.
+        const family = action === 'teardown' ? 'teardown' : 'spinUp';
+        window.NS.status.noteDispatch(family);
+        if (data.tracked === false) {
+          console.warn('Dispatch not recorded in D1 — controls are held locally only');
+        }
       } else {
         showToast(data.error || 'Failed to trigger action', 'error');
         buttons.forEach(btn => btn.disabled = false);

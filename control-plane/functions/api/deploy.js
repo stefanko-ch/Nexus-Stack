@@ -59,9 +59,10 @@ export async function onRequestPost(context) {
 
     // GitHub returns 204 No Content on success
     if (response.status === 204) {
-      await markDispatched(env.NEXUS_DB, 'setup');
+      const tracked = await markDispatched(env.NEXUS_DB, 'setup');
       return new Response(JSON.stringify({
         success: true,
+        tracked,
         message: 'Deploy workflow triggered successfully'
       }), {
         status: 200,

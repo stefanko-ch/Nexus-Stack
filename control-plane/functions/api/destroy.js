@@ -51,12 +51,13 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
-      await markDispatched(env.NEXUS_DB, 'destroy');
+      const tracked = await markDispatched(env.NEXUS_DB, 'destroy');
       await logApiCall(env.NEXUS_DB, '/api/destroy', 'POST', {
         action: 'destroy_all_triggered',
       });
       return new Response(JSON.stringify({
         success: true,
+        tracked,
         message: 'Destroy workflow triggered successfully'
       }), {
         status: 200,

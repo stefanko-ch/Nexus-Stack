@@ -46,12 +46,13 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
-      await markDispatched(env.NEXUS_DB, 'setup');
+      const tracked = await markDispatched(env.NEXUS_DB, 'setup');
       await logApiCall(env.NEXUS_DB, '/api/setup', 'POST', {
         action: 'setup_control_plane_triggered',
       });
       return new Response(JSON.stringify({
         success: true,
+        tracked,
         message: 'Setup workflow triggered successfully'
       }), {
         status: 200,

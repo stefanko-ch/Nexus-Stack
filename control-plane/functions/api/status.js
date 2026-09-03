@@ -27,7 +27,7 @@
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 import { deriveProgress } from './_utils/run-progress.js';
-import { readDispatchMarker, DISPATCH_GRACE_MS, DISPATCH_SKEW_MS } from './_utils/dispatch-marker.js';
+import { readDispatchMarkers, DISPATCH_GRACE_MS, DISPATCH_SKEW_MS } from './_utils/dispatch-marker.js';
 
 const FAMILY_ORDER = ['initialSetup', 'setup', 'spinUp', 'teardown', 'destroy'];
 
@@ -114,8 +114,12 @@ export async function onRequestGet(context) {
   // Which family a run belongs to: path first (most reliable), then name.
   // Initial Setup includes spin-up, so it counts as a successful deployment.
   const classify = (run) => {
-    const path = run.path || run.workflow_id || '';
-    const name = run.name || '';
+    // Strictly a string. `workflow_id` used to be the fallback here, and
+    // it is a NUMBER — `path.includes(...)` on it throws a TypeError and
+    // takes the whole endpoint down. It could not have matched a filename
+    // substring anyway.
+    const path = typeof run.path === 'string' ? run.path : '';
+    const name = typeof run.name === 'string' ? run.name : '';
     if (matchesPath(path, WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup')) return 'initialSetup';
     if (matchesPath(path, WORKFLOW_PATHS.setup) || (name.includes('Setup') && !name.includes('Initial'))) return 'setup';
     if (matchesPath(path, WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up')) return 'spinUp';
@@ -144,8 +148,13 @@ export async function onRequestGet(context) {
 
     // Surfaced so the client can slow down before the account runs dry —
     // the limit is shared with every other token of this GitHub user.
-    const remainingHeader = Number(response.headers.get('x-ratelimit-remaining'));
-    const rateLimitRemaining = Number.isFinite(remainingHeader) ? remainingHeader : null;
+    //
+    // The null check is not defensive noise: `Number(null)` is 0, and a
+    // finite 0 reads as "no budget left", so a missing header would slow
+    // every poll to the low-budget cadence — including mid-run.
+    const remainingHeader = response.headers.get('x-ratelimit-remaining');
+    const remainingValue = remainingHeader === null ? NaN : Number(remainingHeader);
+    const rateLimitRemaining = Number.isFinite(remainingValue) ? remainingValue : null;
 
     const data = await response.json();
 
@@ -159,15 +168,20 @@ export async function onRequestGet(context) {
       });
     }
 
-    // A dispatch that has not shown up as a run yet. Runs of that family
-    // created before the dispatch are ignored while the marker is fresh,
-    // so the previous run cannot be mistaken for the new one — the race
-    // dispatch-marker.js describes.
+    // Dispatches that have not shown up as runs yet. Runs of a marked
+    // family created before its dispatch are ignored while the marker is
+    // fresh, so the previous run cannot be mistaken for the new one — the
+    // race dispatch-marker.js describes. Markers are per family: a
+    // teardown dispatched while a setup is still pending must not erase
+    // the setup's protection.
     const now = Date.now();
-    const marker = await readDispatchMarker(env.NEXUS_DB, now);
-    const cutoff = marker ? marker.at - DISPATCH_SKEW_MS : null;
-    const predatesDispatch = (family, run) =>
-      marker !== null && family === marker.family && Date.parse(run.created_at) < cutoff;
+    const markers = await readDispatchMarkers(env.NEXUS_DB, now);
+    const cutoffFor = (family) =>
+      markers[family] ? markers[family].at - DISPATCH_SKEW_MS : null;
+    const predatesDispatch = (family, run) => {
+      const cutoff = cutoffFor(family);
+      return cutoff !== null && Date.parse(run.created_at) < cutoff;
+    };
 
     // Newest run per family. The list is newest-first, so first match wins.
     const workflows = { initialSetup: null, setup: null, spinUp: null, teardown: null, destroy: null };
@@ -189,20 +203,26 @@ export async function onRequestGet(context) {
     }
     const runningWorkflow = runningFamily ? workflows[runningFamily] : null;
 
-    // Dispatched, but GitHub has not listed the run yet.
+    // Dispatched, but GitHub has not listed the run yet. Reported for the
+    // oldest still-pending dispatch, so two in flight cannot hide one
+    // another.
     let dispatching = false;
     let dispatchTimedOut = false;
     let dispatchedAt = null;
     let dispatchedWorkflow = null;
-    if (marker) {
-      const candidate = workflows[marker.family];
-      const appeared = candidate && Date.parse(candidate.created_at) >= cutoff;
-      if (!appeared) {
-        dispatchedAt = new Date(marker.at).toISOString();
-        dispatchedWorkflow = marker.family;
-        if (marker.ageMs <= DISPATCH_GRACE_MS) dispatching = true;
-        else dispatchTimedOut = true;
-      }
+    const pending = FAMILY_ORDER
+      .filter((family) => {
+        if (!markers[family]) return false;
+        const candidate = workflows[family];
+        return !(candidate && Date.parse(candidate.created_at) >= cutoffFor(family));
+      })
+      .sort((a, b) => markers[a].at - markers[b].at);
+    if (pending.length > 0) {
+      const family = pending[0];
+      dispatchedAt = new Date(markers[family].at).toISOString();
+      dispatchedWorkflow = family;
+      if (markers[family].ageMs <= DISPATCH_GRACE_MS) dispatching = true;
+      else dispatchTimedOut = true;
     }
 
     // Determine infrastructure state based on recent runs
