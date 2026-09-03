@@ -154,10 +154,17 @@ runs:
         EOF
 
         # Read from the environment, never interpolated into the test.
-        # `${{ }}` is substituted textually before bash parses the line, so
-        # an input containing a quote becomes shell syntax rather than a
-        # value: `" = "" ]; touch /tmp/x; [ "` turns one conditional into
-        # three commands. Through `env:` it arrives as data.
+        # A GitHub expression — the double-brace form — is substituted
+        # textually before bash parses the line, so an input containing a
+        # quote becomes shell syntax rather than a value: one conditional
+        # turns into three commands. Through `env:` it arrives as data.
+        #
+        # The double-brace form is DESCRIBED here rather than written out.
+        # An earlier version of this comment spelled it with empty braces,
+        # and GitHub evaluated it: an empty expression is a template error,
+        # so the whole action failed to load and every spin-up died at this
+        # step. A bash `#` does not hide it — expression substitution runs
+        # over the entire `run:` body before bash ever sees it.
         #
         # Compared against the literal 'true' rather than passed through:
         # the variable is typed bool in OpenTofu, and an unset repo variable
