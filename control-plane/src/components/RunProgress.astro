@@ -61,7 +61,7 @@
   .rp-headline { flex: 1; min-width: 12rem; }
   .rp-headline strong { display: block; font-size: 0.9rem; }
   .rp-step { font-size: 0.8rem; color: var(--text-secondary); }
-  .rp-elapsed { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .rp-elapsed { font-size: 0.78rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
   .rp-link {
     color: var(--info); text-decoration: none; font-size: 0.78rem;
@@ -121,25 +121,36 @@
     border-bottom: 1px solid rgba(42, 42, 62, 0.5);
   }
   :global(.rp-job-head) {
-    font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;
+    font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;
     letter-spacing: 0.08em; padding-top: 0.6rem;
   }
-  :global(.rp-i) { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 2.2rem; text-align: right; }
-  :global(.rp-mark) { font-family: 'JetBrains Mono', monospace; min-width: 1rem; }
-  :global(.rp-name) { flex: 1; }
+  /* STATE IS COLOUR, NOT OPACITY. `opacity` on the row multiplied with the
+     colour underneath: a muted index inside a 0.45 skipped row measured
+     1.57:1 against the background — invisible, and a failed spin-up leaves
+     roughly thirty of its thirty-seven steps skipped, so that was most of
+     the list. Setting each element's colour outright keeps every state
+     legible and still visibly ranked.
+
+       name, active      #ffffff        19.8:1
+       name, inactive    secondary       7.6:1
+       index, duration   secondary       7.6:1
+       mark, inactive    muted           3.4:1  (a glyph, not text) */
+  :global(.rp-i) { color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 2.2rem; text-align: right; }
+  :global(.rp-mark) { font-family: 'JetBrains Mono', monospace; min-width: 1rem; color: var(--text-muted); }
+  :global(.rp-name) { flex: 1; color: var(--text-primary); }
   :global(.rp-name a) { color: inherit; text-decoration: none; }
   :global(.rp-name a:hover) { text-decoration: underline; }
-  :global(.rp-dur) { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 3rem; text-align: right; }
+  :global(.rp-dur) { color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 3rem; text-align: right; }
 
   :global(.rp-done .rp-mark) { color: var(--accent); }
   :global(.rp-running .rp-mark) { color: var(--info); animation: pulse 1.6s infinite; }
-  :global(.rp-running .rp-name) { color: var(--text-primary); font-weight: 700; }
-  :global(.rp-pending) { opacity: 0.55; }
-  :global(.rp-skipped) { opacity: 0.45; }
+  :global(.rp-running .rp-name) { font-weight: 700; }
+  :global(.rp-pending .rp-name), :global(.rp-skipped .rp-name) { color: var(--text-secondary); }
   :global(.rp-failed .rp-mark), :global(.rp-failed .rp-name) { color: var(--error); }
   /* Runner bookkeeping — kept in N/M so the numbers match GitHub's own
-     view, dimmed because nobody is waiting on "Post Checkout". */
-  :global(.rp-housekeeping .rp-name) { color: var(--text-muted); }
+     view, ranked below the real steps because nobody is waiting on
+     "Post Checkout". */
+  :global(.rp-housekeeping .rp-name) { color: var(--text-secondary); }
 
   :global(.rp-sr) {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
