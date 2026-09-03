@@ -918,15 +918,24 @@ def test_strict_host_check_only_where_a_tunnel_rule_exists(services: dict[str, A
 # alone" half of the same rule.
 _FORBIDDEN_CREDENTIAL_DEFAULTS = frozenset({"admin", "root", "postgres", "administrator"})
 
-# A variable whose value is a credential rather than configuration. Matched
-# on the name because that is all a compose file exposes. `IMAGE_*` is
-# deliberately not here: `${IMAGE_FOO:-org/foo:1.2}` is the house pattern
-# that lets the orchestrator override a pinned tag, and ~140 of those exist.
+# A variable whose value is a credential rather than configuration.
+# Matched on the name, because that is all a compose file exposes.
 _CREDENTIAL_VAR = re.compile(
-    r"\$\{(?P<var>(?!IMAGE_)[A-Z0-9_]*"
+    r"\$\{(?P<var>[A-Z0-9_]*"
     r"(?:USER|USERNAME|PASS|PASSWORD|SECRET|TOKEN|KEY|ADMIN|ROOT)"
     r"[A-Z0-9_]*):-(?P<default>[^}]*)\}"
 )
+
+# `${IMAGE_FOO:-org/foo:1.2}` is the house pattern that lets the
+# orchestrator override a pinned tag, and ~140 of them exist. The
+# exemption is the `image:` line rather than the `IMAGE_` prefix, because
+# a name-based one would wave through a genuine credential that happened
+# to be called `IMAGE_REGISTRY_PASSWORD`. Every IMAGE_ fallback in the
+# tree sits on an image: line today, so this exempts exactly the same set
+# while keying on what the value *is*. Two of them -- IMAGE_ADMINER and
+# IMAGE_PGADMIN -- match the credential name pattern above, which is
+# precisely why the exemption cannot be the name.
+_IMAGE_FIELD = re.compile(r"^\s*image:\s")
 
 
 def test_no_credential_variable_falls_back_to_a_guessable_default() -> None:
@@ -948,12 +957,15 @@ def test_no_credential_variable_falls_back_to_a_guessable_default() -> None:
     offenders: list[str] = []
     for stack in STACK_DIRS:
         text = (STACKS_DIR / stack / "docker-compose.yml").read_text()
-        for match in _CREDENTIAL_VAR.finditer(text):
-            default = match.group("default").strip()
-            if not default:
+        for line in text.splitlines():
+            if _IMAGE_FIELD.match(line):
                 continue
-            if default.lower() in _FORBIDDEN_CREDENTIAL_DEFAULTS or default.lower() == stack:
-                offenders.append(f"{stack}: ${{{match.group('var')}:-{default}}}")
+            for match in _CREDENTIAL_VAR.finditer(line):
+                default = match.group("default").strip()
+                if not default:
+                    continue
+                if default.lower() in _FORBIDDEN_CREDENTIAL_DEFAULTS or default.lower() == stack:
+                    offenders.append(f"{stack}: ${{{match.group('var')}:-{default}}}")
 
     assert not offenders, (
         "credential variables fall back to a guessable default:\n  "
