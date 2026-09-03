@@ -896,6 +896,98 @@ WIP: still working on it        → Not descriptive
 Merge branch 'main' into feat   → Merge commits should not be PR titles
 ```
 
+### After merging, check that Release Please saw the commit
+
+**Release Please drops commits it cannot parse, silently, with a green
+workflow.** It logs one line and carries on:
+
+```
+❯ commit could not be parsed: 9e016e2 feat: Make a Nexus-Stack operable as …
+✔ Considering: 5 commits
+```
+
+Six commits existed since `v0.74.0`. The feature never reached
+`CHANGELOG.md`, and nothing failed — no red check, no warning on release
+PR #764. It was caught only because someone read that PR before merging
+it, which is not a control. The repair landed on
+`release-please--branches--main` as `93254c3`, minutes before the merge
+that cut `v0.75.0`.
+
+So after merging a PR, confirm the commit arrived. Pin every input —
+the run for *this* SHA, the tag reachable from *the remote* `main`:
+
+```bash
+# Everything hangs off a successful fetch: without one, `origin/main` is
+# whatever was last seen and every number below describes the wrong
+# snapshot. Written as one `if` so that a failure stops the check without
+# an `exit` — this is meant to be pasted into a terminal, and `exit` in an
+# interactive shell closes it.
+if ! git fetch --prune --tags origin; then
+  echo "fetch failed — do not trust what follows"
+else
+  SHA=$(git rev-parse origin/main)
+
+  # `.[0]` is the newest run for that SHA; requiring it to be completed
+  # means a rerun in progress reads as "not finished" rather than falling
+  # back to the older completed one.
+  RID=$(gh run list --workflow=release-please.yml --branch main --commit "$SHA" \
+          --json databaseId,status \
+          --jq '.[0] | select(.status == "completed") | .databaseId')
+
+  if [ -z "$RID" ]; then
+    echo "Release Please has not finished for $SHA yet — try again in a minute."
+  else
+    gh run view "$RID" --log | grep -E "could not be parsed|Considering:"
+    git log --oneline "$(git describe --tags --abbrev=0 origin/main)"..origin/main | wc -l
+  fi
+fi
+```
+
+None of that pinning is decoration. `--limit 1` returns the *previous*
+run in the seconds before GitHub creates the new one, and a local `main`
+or a local tag list that has not been fetched counts a different range
+than Release Please processed. Either produces a comparison of two
+unrelated numbers — a check that reports a mismatch that is not there, or
+agreement that is not either. An empty `RID` means "not finished", not
+"nothing to check", which is why it is a separate branch rather than an
+empty grep.
+
+Taking `.[0]` and *then* testing its status is the part that is easy to
+get backwards. Filtering to completed runs first and taking the first
+match returns the previous run while a rerun is in flight, so the check
+reads a stale log and reports agreement about a run that has been
+superseded. Written this way, an unfinished newest run yields nothing and
+the guard fires. Exercised against all three shapes:
+
+```text
+[]                                                    -> ''  guard fires
+[{id:2,in_progress},{id:1,completed}]                 -> ''  guard fires
+[{id:9,completed}]                                    -> 9   proceeds
+```
+
+`gh --jq` also prints nothing for a `null` result, verified for a SHA with
+no runs and for one whose runs the filter excludes — so no `// empty` is
+needed here. A bare `jq` in a pipe *does* print `null`; if this call is
+ever rewritten that way, the guard needs it back.
+
+`Considering: N` must equal that commit count. If it does not, the
+changelog is already wrong and the fix has to land **before** the release
+PR is merged — the missing entry is added by hand to `CHANGELOG.md` on
+`release-please--branches--main` *and* to the release PR body, since the
+GitHub release notes come from the PR rather than from the branch. Any
+further commit to `main` regenerates that branch and discards the repair.
+
+What is *not* the cause, so nobody re-derives it: the subject was a valid
+`feat:`, the message was not the longest in the batch, it contained no
+carriage returns, and `conventional-commits-parser` parses it correctly on
+its own (returns `type='feat'`). The rejection happens inside Release
+Please's own wrapper and the trigger has not been isolated. The suspect is
+a squash-merge body carrying a fenced code block whose lines look like git
+trailers (`unset:`, `LABEL + accent:`) alongside a generated `Tests:`
+section — suspect, not finding. This is why the check is on the *count*
+rather than on a content rule: a rule guessed from an unproven cause would
+be worse than useless.
+
 ### Development Workflow
 
 1. Create a feature branch from `main`:
