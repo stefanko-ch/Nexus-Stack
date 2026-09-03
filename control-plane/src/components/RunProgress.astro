@@ -1,0 +1,436 @@
+---
+// Live progress for the running lifecycle workflow.
+//
+// Replaces a banner that said "Workflow is running… This usually takes
+// 5-10 minutes" and left the operator to open GitHub to learn anything
+// else. Now: a bar, "Step N of M", the name of the step actually running,
+// and — behind Details — the full step list as GitHub shows it.
+//
+// The step list is NOT hardcoded anywhere. M is counted from
+// /actions/runs/{id}/jobs on every poll, so a step added to a workflow
+// later appears here with no change to the Control Plane, and M can grow
+// mid-run (the snapshot lifecycle's second job only reports its steps
+// once the first job finishes).
+//
+// Subscribes to window.NS.status — the single poller in StacksShared —
+// rather than fetching on its own.
+---
+
+<section id="run-progress" class="run-progress" hidden>
+  <div class="rp-head">
+    <span id="rp-glyph" class="rp-glyph" aria-hidden="true"></span>
+    <div class="rp-headline">
+      <strong id="rp-title">Workflow</strong>
+      <span id="rp-step" class="rp-step" aria-live="polite"></span>
+    </div>
+    <span id="rp-elapsed" class="rp-elapsed"></span>
+    <a id="rp-link" class="rp-link" href="#" target="_blank" rel="noopener noreferrer">View in GitHub</a>
+    <button id="rp-dismiss" class="rp-link rp-dismiss" type="button" hidden>Dismiss</button>
+  </div>
+
+  <div id="rp-bar" class="rp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+    <div id="rp-fill" class="rp-fill"></div>
+  </div>
+
+  <button id="rp-toggle" class="rp-toggle" type="button" aria-expanded="false" aria-controls="rp-steps">
+    <span class="rp-caret" aria-hidden="true">&#9656;</span> Details
+  </button>
+  <ol id="rp-steps" class="rp-steps" hidden></ol>
+</section>
+
+<style>
+  .run-progress {
+    background: rgba(0, 170, 255, 0.06);
+    border: 1px solid rgba(0, 170, 255, 0.3);
+    border-left-width: 3px;
+    padding: 0.8rem 1.2rem;
+    margin-bottom: 1.5rem;
+    border-radius: 3px;
+  }
+  .run-progress[hidden] { display: none; }
+  .run-progress.is-success { background: rgba(0, 255, 136, 0.06); border-color: rgba(0, 255, 136, 0.35); }
+  .run-progress.is-failure { background: rgba(255, 68, 68, 0.06); border-color: rgba(255, 68, 68, 0.35); }
+  .run-progress.is-cancelled { background: rgba(102, 102, 102, 0.08); border-color: var(--border); }
+
+  .rp-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+  .rp-glyph { font-family: 'JetBrains Mono', monospace; color: var(--info); }
+  .is-success .rp-glyph { color: var(--accent); }
+  .is-failure .rp-glyph { color: var(--error); }
+  .rp-glyph.is-spinning { animation: pulse 1.6s infinite; }
+
+  .rp-headline { flex: 1; min-width: 12rem; }
+  .rp-headline strong { display: block; font-size: 0.9rem; }
+  .rp-step { font-size: 0.8rem; color: var(--text-secondary); }
+  .rp-elapsed { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .rp-link {
+    color: var(--info); text-decoration: none; font-size: 0.78rem;
+    background: transparent; border: 1px solid rgba(0, 170, 255, 0.3);
+    border-radius: 3px; padding: 0.2rem 0.6rem; cursor: pointer; font-family: inherit;
+  }
+  .rp-link:hover { background: rgba(0, 170, 255, 0.1); }
+
+  .rp-bar {
+    position: relative; height: 6px; margin: 0.7rem 0 0.5rem;
+    background: rgba(255, 255, 255, 0.07); border-radius: 3px; overflow: hidden;
+  }
+  .rp-fill {
+    height: 100%; width: 0%; background: var(--info);
+    transition: width 0.4s ease;
+  }
+  .is-success .rp-fill { background: var(--accent); }
+  .is-failure .rp-fill { background: var(--error); }
+  .is-cancelled .rp-fill { background: var(--text-muted); }
+
+  /* Nothing to count yet: a run that is queued, or a job that has not
+     reported its steps. A sliding sliver rather than a fake percentage. */
+  .rp-bar.is-indeterminate .rp-fill {
+    width: 35%; background: var(--info);
+    animation: rp-slide 1.4s ease-in-out infinite;
+  }
+  @keyframes rp-slide {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+  }
+
+  .rp-toggle {
+    background: none; border: none; color: var(--text-secondary);
+    font-family: inherit; font-size: 0.78rem; cursor: pointer; padding: 0.2rem 0;
+  }
+  .rp-toggle:hover { color: var(--accent); }
+  .rp-caret { display: inline-block; transition: transform 0.2s; }
+  .rp-toggle[aria-expanded="true"] .rp-caret { transform: rotate(90deg); }
+
+  .rp-steps {
+    list-style: none; margin: 0.5rem 0 0; padding: 0;
+    max-height: 22rem; overflow-y: auto;
+    border-top: 1px solid var(--border);
+  }
+  .rp-steps[hidden] { display: none; }
+  .rp-steps li {
+    display: flex; align-items: baseline; gap: 0.6rem;
+    padding: 0.25rem 0; font-size: 0.8rem;
+    border-bottom: 1px solid rgba(42, 42, 62, 0.5);
+  }
+  .rp-job-head {
+    font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.08em; padding-top: 0.6rem;
+  }
+  .rp-i { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 2.2rem; }
+  .rp-mark { font-family: 'JetBrains Mono', monospace; min-width: 1rem; }
+  .rp-name { flex: 1; }
+  .rp-name a { color: inherit; text-decoration: none; }
+  .rp-name a:hover { text-decoration: underline; }
+  .rp-dur { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .rp-done .rp-mark { color: var(--accent); }
+  .rp-running .rp-mark { color: var(--info); animation: pulse 1.6s infinite; }
+  .rp-running .rp-name { color: var(--text-primary); font-weight: 700; }
+  .rp-pending { opacity: 0.55; }
+  .rp-skipped { opacity: 0.45; }
+  .rp-failed .rp-mark, .rp-failed .rp-name { color: var(--error); }
+  /* Runner bookkeeping — kept in N/M so the numbers match GitHub's own
+     view, dimmed because nobody is waiting on "Post Checkout". */
+  .rp-housekeeping .rp-name { color: var(--text-muted); }
+
+  .rp-sr {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rp-fill { transition: none; }
+    .rp-bar.is-indeterminate .rp-fill { animation: none; width: 100%; opacity: 0.4; }
+    .rp-glyph.is-spinning, .rp-running .rp-mark { animation: none; }
+  }
+</style>
+
+<script is:inline>
+  (function() {
+    const root = document.getElementById('run-progress');
+    if (!root || !window.NS || !window.NS.status) return;
+
+    const el = {
+      glyph: document.getElementById('rp-glyph'),
+      title: document.getElementById('rp-title'),
+      step: document.getElementById('rp-step'),
+      elapsed: document.getElementById('rp-elapsed'),
+      link: document.getElementById('rp-link'),
+      dismiss: document.getElementById('rp-dismiss'),
+      bar: document.getElementById('rp-bar'),
+      fill: document.getElementById('rp-fill'),
+      toggle: document.getElementById('rp-toggle'),
+      steps: document.getElementById('rp-steps'),
+    };
+
+    const LABELS = {
+      initialSetup: 'Initial Setup', setup: 'Control Plane Setup',
+      spinUp: 'Spin Up', teardown: 'Teardown', destroy: 'Destroy',
+    };
+
+    const esc = (s) => (typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(s)
+      : String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+
+    // Expanded state is the operator's choice and must survive polls. It
+    // is only forced open once, when a run fails.
+    let expanded = false;
+    // What the operator last chose, so a dispatching phase in between can
+    // collapse the list without forgetting they had it open.
+    let expandedPreference = false;
+    let autoExpandedFor = null;
+    let dismissedRun = null;
+    let renderedSignature = null;
+    let elapsedTimer = null;
+    let elapsedFrom = null;
+
+    try {
+      const stored = sessionStorage.getItem('rp-dismissed');
+      if (stored) dismissedRun = Number(stored);
+    } catch (_) { /* private mode */ }
+
+    function fmtDuration(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '';
+      const s = Math.floor(ms / 1000);
+      if (s < 60) return s + 's';
+      const m = Math.floor(s / 60);
+      const rem = s % 60;
+      if (m < 60) return m + 'm ' + String(rem).padStart(2, '0') + 's';
+      return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+    }
+
+    // Ticks locally once a second. Polling every second just to move a
+    // clock would spend rate limit on arithmetic the browser can do.
+    function startElapsed(from) {
+      elapsedFrom = from ? Date.parse(from) : null;
+      if (elapsedTimer) clearInterval(elapsedTimer);
+      if (!elapsedFrom) { el.elapsed.textContent = ''; return; }
+      const tick = function() {
+        el.elapsed.textContent = fmtDuration(Date.now() - elapsedFrom);
+      };
+      tick();
+      elapsedTimer = setInterval(tick, 1000);
+    }
+
+    function stopElapsed(finalMs) {
+      if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+      el.elapsed.textContent = Number.isFinite(finalMs) ? fmtDuration(finalMs) : '';
+    }
+
+    function stepClass(s, failedIndex) {
+      if (s.conclusion === 'failure') return 'rp-failed';
+      if (s.conclusion === 'skipped') return 'rp-skipped';
+      if (s.status === 'in_progress') return 'rp-running';
+      if (s.status === 'completed') return 'rp-done';
+      return 'rp-pending';
+    }
+
+    function stepMark(s) {
+      if (s.conclusion === 'failure') return ['✗', 'failed'];
+      if (s.conclusion === 'skipped') return ['⊘', 'skipped'];
+      if (s.conclusion === 'cancelled') return ['⊘', 'cancelled'];
+      if (s.status === 'in_progress') return ['●', 'running'];
+      if (s.status === 'completed') return ['✓', 'done'];
+      return ['○', 'pending'];
+    }
+
+    function renderSteps(progress) {
+      // Rebuild only when something changed — the list is re-derived from
+      // the API on every poll (so a newly added step shows up on its own),
+      // but re-writing identical HTML would fight the operator's scroll.
+      // `runId` leads the signature. Without it, two runs of the same
+      // workflow at the same step compare equal — the list would keep the
+      // PREVIOUS run's names, durations and step links while the header
+      // counts the new one. Durations are in too, since a step that is
+      // still running changes its duration without changing its status.
+      const sig = progress.runId + '#' + progress.jobs.map(function(j) {
+        return j.name + ':' + j.steps.map(function(s) {
+          return [s.index, s.number, s.status, s.conclusion || '', s.durationMs == null ? '' : s.durationMs].join('~');
+        }).join(',');
+      }).join('|');
+      if (sig === renderedSignature) return;
+      renderedSignature = sig;
+
+      const failedIndex = progress.failedAt ? progress.failedAt.index : null;
+      const multiJob = progress.jobs.length > 1;
+      let html = '';
+      progress.jobs.forEach(function(job) {
+        if (multiJob) {
+          html += '<li class="rp-job-head">' + esc(job.name) + '</li>';
+        }
+        job.steps.forEach(function(s) {
+          const mark = stepMark(s);
+          const cls = stepClass(s, failedIndex) + (s.housekeeping ? ' rp-housekeeping' : '');
+          const dur = s.durationMs != null ? fmtDuration(s.durationMs) : '';
+          const name = s.htmlUrl
+            ? '<a href="' + esc(s.htmlUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(s.name) + '</a>'
+            : esc(s.name);
+          html += '<li class="' + cls + '">'
+            + '<span class="rp-i">' + s.index + '</span>'
+            + '<span class="rp-mark" aria-hidden="true">' + mark[0] + '</span>'
+            + '<span class="rp-sr">' + mark[1] + '</span>'
+            + '<span class="rp-name">' + name + '</span>'
+            + '<span class="rp-dur">' + dur + '</span>'
+            + '</li>';
+        });
+      });
+      el.steps.innerHTML = html;
+    }
+
+    function setExpanded(next, remember) {
+      expanded = next;
+      if (remember !== false) expandedPreference = next;
+      el.toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+      el.steps.hidden = !next;
+    }
+
+    function hide() {
+      root.hidden = true;
+      stopElapsed(null);
+      renderedSignature = null;
+    }
+
+    function render(data) {
+      if (!data || !data.success) { hide(); return; }
+
+      // Dispatched, but GitHub has not listed the run yet. Without this the
+      // dashboard would show the PREVIOUS run as if nothing had happened.
+      if (data.dispatching || data.dispatchTimedOut) {
+        const label = LABELS[data.dispatchedWorkflow] || 'Workflow';
+        root.hidden = false;
+        root.className = 'run-progress';
+        el.glyph.textContent = data.dispatchTimedOut ? '⚠' : '◐';
+        el.glyph.classList.toggle('is-spinning', !data.dispatchTimedOut);
+        el.title.textContent = label;
+        el.step.textContent = data.dispatchTimedOut
+          ? 'Could not find the run — open GitHub to check'
+          : 'Dispatched — waiting for GitHub to start the run';
+        el.bar.classList.toggle('is-indeterminate', !data.dispatchTimedOut);
+        el.bar.removeAttribute('aria-valuenow');
+        el.bar.setAttribute('aria-valuetext', el.step.textContent);
+        el.fill.style.width = data.dispatchTimedOut ? '0%' : '';
+        el.link.hidden = true;
+        el.dismiss.hidden = true;
+        el.toggle.hidden = true;
+        // Through setExpanded, not by setting `hidden` directly: hiding
+        // the list while `aria-expanded` still says "true" leaves the
+        // toggle lying, and the operator's next click is swallowed
+        // restoring a state that was never visible.
+        setExpanded(false, false);
+        startElapsed(data.dispatchedAt);
+        return;
+      }
+
+      const p = data.progress;
+      if (!p || !p.runId) { hide(); return; }
+      if (dismissedRun === p.runId && p.status === 'completed') { hide(); return; }
+
+      const label = LABELS[data.progressFamily] || 'Workflow';
+      const done = p.status === 'completed';
+      const total = p.totals.steps;
+
+      root.hidden = false;
+      el.toggle.hidden = false;
+      el.link.hidden = false;
+      // Restore what the operator had chosen, in case a dispatching phase
+      // collapsed the list in between.
+      if (expandedPreference !== expanded) setExpanded(expandedPreference, false);
+      root.className = 'run-progress'
+        + (done && p.conclusion === 'success' ? ' is-success' : '')
+        + (done && p.conclusion === 'failure' ? ' is-failure' : '')
+        + (done && p.conclusion === 'cancelled' ? ' is-cancelled' : '');
+
+      // Headline
+      if (done) {
+        el.glyph.classList.remove('is-spinning');
+        if (p.conclusion === 'success') {
+          el.glyph.textContent = '✓';
+          el.title.textContent = label + ' finished';
+          el.step.textContent = total + ' step' + (total === 1 ? '' : 's') + ' completed';
+        } else if (p.conclusion === 'failure') {
+          el.glyph.textContent = '✗';
+          el.title.textContent = label + ' failed';
+          el.step.textContent = p.failedAt
+            ? 'Failed at step ' + p.failedAt.index + ' of ' + total + ': ' + p.failedAt.name
+            : 'Failed — see the step list';
+        } else {
+          el.glyph.textContent = '⊘';
+          el.title.textContent = label + ' ' + (p.conclusion || 'ended');
+          el.step.textContent = p.cancelledAt
+            ? 'Cancelled at step ' + p.cancelledAt.index + ' of ' + total
+            : '';
+        }
+      } else {
+        el.glyph.textContent = '◐';
+        el.glyph.classList.add('is-spinning');
+        el.title.textContent = label + ' is running';
+        if (p.unavailable) {
+          el.step.textContent = 'Running — step details are unavailable right now';
+        } else if (p.indeterminate) {
+          el.step.textContent = p.waitingFor
+            ? 'Waiting for job "' + p.waitingFor + '"'
+            : 'Queued — waiting for a runner';
+        } else if (p.current) {
+          el.step.textContent = 'Step ' + p.current.index + ' of ' + total + ': '
+            + (p.current.starting ? 'starting ' : '') + p.current.name;
+        } else {
+          el.step.textContent = p.totals.completed + ' of ' + total + ' steps';
+        }
+      }
+
+      // Bar
+      const indeterminate = !done && (p.indeterminate || p.unavailable);
+      el.bar.classList.toggle('is-indeterminate', indeterminate);
+      if (indeterminate) {
+        el.bar.removeAttribute('aria-valuenow');
+        el.fill.style.width = '';
+      } else {
+        el.fill.style.width = p.percent + '%';
+        el.bar.setAttribute('aria-valuenow', String(p.percent));
+      }
+      el.bar.setAttribute('aria-valuetext', el.step.textContent);
+
+      el.link.href = p.htmlUrl || '#';
+      el.dismiss.hidden = !done;
+
+      // Elapsed: from the first job's start, so time spent queued behind
+      // the concurrency group is not counted as work.
+      if (done) {
+        const started = p.startedAt ? Date.parse(p.startedAt) : null;
+        const ended = data.workflows && data.workflows[data.progressFamily]
+          ? Date.parse(data.workflows[data.progressFamily].updatedAt) : null;
+        stopElapsed(started && ended ? ended - started : null);
+      } else if (p.startedAt) {
+        if (elapsedFrom !== Date.parse(p.startedAt)) startElapsed(p.startedAt);
+      } else {
+        startElapsed(p.createdAt);
+      }
+
+      if (total > 0) renderSteps(p);
+
+      // Open the list once on failure — that is when the detail is the
+      // point. Never collapse what the operator opened.
+      if (done && p.conclusion === 'failure' && autoExpandedFor !== p.runId) {
+        autoExpandedFor = p.runId;
+        setExpanded(true);
+      }
+    }
+
+    el.toggle.addEventListener('click', function() { setExpanded(!expanded); });
+    el.dismiss.addEventListener('click', function() {
+      const cur = window.NS.status.current();
+      const id = cur && cur.progress ? cur.progress.runId : null;
+      if (id) {
+        dismissedRun = id;
+        try { sessionStorage.setItem('rp-dismissed', String(id)); } catch (_) {}
+      }
+      hide();
+    });
+
+    window.NS.status.subscribe(function(data, err) {
+      if (err) return;      // keep the last good picture; the poller backs off
+      render(data);
+    });
+  })();
+</script>

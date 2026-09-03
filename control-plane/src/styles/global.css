@@ -116,6 +116,24 @@ h2 {
   background: #888;
 }
 
+/* Locked while a spin-up or teardown runs. The workflow read the enabled
+   list from D1 when it started, so a change made now is silently ignored
+   and the UI would disagree with the stack (#249). window.NS.toggleService
+   refuses regardless — this is the visible half. */
+/* Deliberately NO `pointer-events: none` here, unlike `.toggle-switch.disabled`
+   above. A core service can never be toggled and has a tooltip saying so, but
+   this lock is temporary and its reason is not obvious — the click has to reach
+   `window.NS.toggleService`, which refuses it and explains why. Suppressing the
+   event would make a locked toggle do nothing at all. */
+body.run-locked .toggle-switch {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+body.run-locked .toggle-switch::after {
+  background: #888;
+}
+
 /* =============================================================================
    Badges
    ============================================================================= */

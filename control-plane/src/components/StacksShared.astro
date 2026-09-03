@@ -95,6 +95,317 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
     servicesCacheTime = 0;
   };
 
+  // ---- Workflow status subscription ---------------------------------------
+  // ONE poller for the whole page. The dashboard renders the progress bar,
+  // PendingBar drives its "Spin Up Now" button from it, and both used to
+  // guess independently — PendingBar with a 30s timer that re-enabled the
+  // button whether or not the run had finished.
+  //
+  // Cadence is deliberate, because /api/status costs GitHub rate limit and
+  // that limit is per ACCOUNT, shared with every other token of this user:
+  //   5s   a run is in progress and the tab is visible  (near-realtime)
+  //   10s  idle
+  //   ---  hidden tab: nothing at all, and an immediate fetch on return
+  // Under 500 remaining calls it backs off to 15s. Errors back off
+  // exponentially to 60s, as the dashboard's own poller did before.
+  //
+  // Starts LAZILY: nothing polls until someone subscribes, so /stacks and
+  // /settings add no GitHub load just by mounting PendingBar.
+
+  const STATUS_FAST_MS = 5000;
+  const STATUS_IDLE_MS = 10000;
+  const STATUS_LOW_BUDGET_MS = 15000;
+  const STATUS_MAX_MS = 60000;
+  const RATE_LIMIT_FLOOR = 500;
+  // Matches DISPATCH_GRACE_MS on the server. Only a give-up bound — the
+  // latch normally clears as soon as a poll shows the server knows.
+  const DISPATCH_LATCH_MS = 90000;
+
+  let statusSubscribers = [];
+  let statusLast = null;
+  let statusTimer = null;
+  let statusErrors = 0;
+  let statusInflight = null;
+  // The run whose progress we still want after it stops being "in
+  // progress", so the finished bar (100% green, or red at the failed step)
+  // survives instead of vanishing the moment the run ends.
+  let statusPinnedRun = null;
+  let statusFinalProgress = null;
+  let statusFinalProgressFamily = null;
+  let statusFinalProgressRunId = null;
+  let statusGeneration = 0;
+
+  // LOCAL LATCH. Between clicking Spin Up and a poll that can see the new
+  // run there are several ways to be told "nothing is running", and each
+  // one re-enables the button on a stack that is mid-provision:
+  //
+  //   - a poll already in flight when the click happened answers with data
+  //     computed before the dispatch;
+  //   - a scheduled poll lands while the POST is still open;
+  //   - the D1 marker did not store (`tracked: false`), so the server has
+  //     no way to know either;
+  //   - the poll itself fails, and the error path used to fall back to
+  //     "not in progress".
+  //
+  // `spin-up.yml` has no concurrency lock, so a second click is a second
+  // provisioning run. The latch says "a dispatch is outstanding" from the
+  // click until a poll proves the server has taken over — nothing else
+  // clears it except the give-up bound.
+  let dispatchLatch = null;   // { family, at }
+  let runLockStarted = false;
+
+  function latchActive(now) {
+    if (!dispatchLatch) return false;
+    if ((now || Date.now()) - dispatchLatch.at > DISPATCH_LATCH_MS) {
+      dispatchLatch = null;
+      return false;
+    }
+    return true;
+  }
+
+  // The server has taken over once it reports the run running, or reports
+  // the dispatch itself as pending. Either way it will keep the controls
+  // locked without our help.
+  function serverKnows(data) {
+    if (!data || !data.success) return false;
+    if (data.dispatching || data.dispatchTimedOut) return true;
+    return data.inProgress === true;
+  }
+
+  /** What subscribers see: the payload, with the latch folded in. */
+  function decorate(data) {
+    if (!latchActive()) return data;
+    if (serverKnows(data)) { dispatchLatch = null; return data; }
+    if (!data || !data.success) return data;
+    return Object.assign({}, data, {
+      inProgress: true,
+      dispatching: true,
+      dispatchedWorkflow: data.dispatchedWorkflow || dispatchLatch.family,
+      dispatchedAt: data.dispatchedAt || new Date(dispatchLatch.at).toISOString(),
+      infraState: 'running',
+      latched: true,
+    });
+  }
+
+  function statusInterval() {
+    if (statusErrors > 0) {
+      return Math.min(STATUS_IDLE_MS * Math.pow(2, Math.min(statusErrors, 6)), STATUS_MAX_MS);
+    }
+    if (statusLast && typeof statusLast.rateLimitRemaining === 'number'
+        && statusLast.rateLimitRemaining < RATE_LIMIT_FLOOR) {
+      return STATUS_LOW_BUDGET_MS;
+    }
+    // Latched counts as running: this is exactly the window in which the
+    // next poll matters most.
+    if (latchActive()) return STATUS_FAST_MS;
+    return (statusLast && statusLast.inProgress) ? STATUS_FAST_MS : STATUS_IDLE_MS;
+  }
+
+  function statusSchedule() {
+    if (statusTimer) clearTimeout(statusTimer);
+    if (statusSubscribers.length === 0) return;
+    if (document.hidden) return;   // resumed by visibilitychange
+    statusTimer = setTimeout(function() { statusFetch(); }, statusInterval());
+  }
+
+  function statusDeliver(data, err) {
+    statusSubscribers.forEach(function(fn) {
+      try { fn(data, err); } catch (e) { console.error('status subscriber failed:', e); }
+    });
+  }
+
+  function statusFetch(opts) {
+    // `force` skips the in-flight share. After a dispatch the request
+    // already open was computed BEFORE it, and reusing it would report the
+    // stack as idle milliseconds after the click.
+    const force = opts && opts.force;
+    if (statusInflight && !force) return statusInflight;
+
+    // Every request carries a generation. Forcing leaves the earlier one
+    // running, and it answers with a picture from before the dispatch —
+    // so only the newest may touch shared state. Without this the stale
+    // response lands after the forced one, overwrites `statusLast` with
+    // "nothing is running", and PendingBar re-enables Spin Up on a stack
+    // that is provisioning.
+    statusGeneration += 1;
+    const generation = statusGeneration;
+    const isCurrent = function() { return generation === statusGeneration; };
+
+    // Sent whenever a run is pinned, not only once we believe it stopped.
+    // The poll that DISCOVERS the run has finished is decided by the state
+    // of the previous poll, which still said "running" — so it would omit
+    // the parameter, the server would return no progress, and the final
+    // bar would blink out and reappear one cadence later. The server
+    // ignores the parameter while a run is active (it returns the running
+    // run's progress regardless), so sending it always costs nothing.
+    let url = '/api/status';
+    if (statusPinnedRun) {
+      url += '?progress_for=' + encodeURIComponent(statusPinnedRun);
+    }
+    const request = fetch(url, { credentials: 'same-origin' })
+      .then(function(r) {
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) throw new Error('non-json');
+        return r.json();
+      })
+      .then(function(data) {
+        if (statusInflight === request) statusInflight = null;
+        if (!isCurrent()) return data;   // superseded; do not publish
+        // `success: false` is a JSON body, not a success — /api/status
+        // answers that way for a 500, an unusable GitHub response, and a
+        // GitHub non-2xx (rate limiting included). Counting it as a good
+        // poll kept the cadence at 10s against a failing upstream.
+        if (!data || !data.success) {
+          statusErrors += 1;
+          statusDeliver(decorate(data), new Error((data && data.error) || 'status failed'));
+          statusSchedule();
+          return data;
+        }
+        statusErrors = 0;
+
+        // Keep the finished run's steps on screen without asking GitHub
+        // for them again on every idle poll. The pin is dropped as soon as
+        // the run reports `completed`; the payload is kept so later polls,
+        // which carry no `progress`, still render the final bar.
+        //
+        // The augmented payload — not the raw one — becomes `statusLast`.
+        // Assigning first and augmenting after looks equivalent and is
+        // not: `current()` and the replay on subscribe would then hand out
+        // a payload with no progress and the finished bar would vanish on
+        // the next page interaction.
+        const cachedFamily = statusFinalProgressFamily;
+        const cachedRunId = statusFinalProgressRunId;
+        if (data.progress && data.progress.runId) {
+          if (data.progress.status === 'completed') {
+            statusFinalProgress = data.progress;
+            statusFinalProgressFamily = data.progressFamily || null;
+            statusFinalProgressRunId = data.progress.runId;
+            statusPinnedRun = null;
+          } else {
+            statusFinalProgress = null;
+            statusFinalProgressFamily = null;
+            statusFinalProgressRunId = null;
+            statusPinnedRun = data.progress.runId;
+          }
+        } else if (statusFinalProgress && !data.inProgress) {
+          // Only if the payload still describes the run the cache belongs
+          // to. A short run that starts and finishes between two polls
+          // arrives with no `progress` (nothing pinned it), and merging
+          // blindly would present the PREVIOUS run's steps as this run's
+          // result — the same bar, the same green tick, the wrong run.
+          const selected = cachedFamily ? data.workflows && data.workflows[cachedFamily] : null;
+          const stillTheSameRun = cachedRunId !== null && selected && selected.id === cachedRunId;
+          if (stillTheSameRun) {
+            data = Object.assign({}, data, {
+              progress: statusFinalProgress,
+              progressFamily: data.progressFamily || cachedFamily || null,
+            });
+          } else {
+            statusFinalProgress = null;
+            statusFinalProgressFamily = null;
+            statusFinalProgressRunId = null;
+          }
+        }
+
+        statusLast = data;
+        statusDeliver(decorate(data), null);
+        statusSchedule();
+        return data;
+      })
+      .catch(function(err) {
+        if (statusInflight === request) statusInflight = null;
+        if (!isCurrent()) return null;
+        statusErrors += 1;
+        // Deliver the latch even on failure — a transient network error
+        // must not be read as "the run finished".
+        statusDeliver(latchActive() ? decorate({ success: true }) : null, err);
+        statusSchedule();
+        return null;
+      });
+    statusInflight = request;
+    return request;
+  }
+
+  window.NS.status = {
+    /** Call fn(data, err) on every poll. Returns an unsubscribe function. */
+    subscribe: function(fn) {
+      statusSubscribers.push(fn);
+      if (statusLast) { try { fn(decorate(statusLast)); } catch (e) {} }
+      if (statusSubscribers.length === 1) statusFetch();
+      else statusSchedule();
+      return function() {
+        statusSubscribers = statusSubscribers.filter(function(x) { return x !== fn; });
+        if (statusSubscribers.length === 0 && statusTimer) {
+          clearTimeout(statusTimer);
+          statusTimer = null;
+        }
+      };
+    },
+    /** Fetch now. Pass {force:true} to bypass an in-flight request. */
+    refreshNow: function(opts) { return statusFetch(opts); },
+    /**
+     * Call BEFORE issuing the dispatch request, not after it returns.
+     *
+     * The POST takes a moment, and until the latch is set `runLocked()` is
+     * false — so a service toggle in that window is accepted, commits to
+     * D1, and may land after the workflow has already read the enabled
+     * list. The run then uses the old configuration while the UI shows the
+     * new one, which is the desync this lock exists to prevent.
+     */
+    beginDispatch: function(family) {
+      dispatchLatch = { family: family || null, at: Date.now() };
+      statusDeliver(decorate(statusLast || { success: true }), null);
+    },
+    /** The dispatch failed — release the controls. */
+    cancelDispatch: function() {
+      dispatchLatch = null;
+      statusDeliver(decorate(statusLast || { success: true }), null);
+    },
+    /**
+     * Call once a dispatch has returned 200. Keeps the controls locked
+     * until a poll proves the server is tracking the run — see
+     * `dispatchLatch` above for the four ways that would otherwise fail.
+     */
+    noteDispatch: function(family) {
+      dispatchLatch = { family: family || null, at: Date.now() };
+      statusDeliver(decorate(statusLast || { success: true }), null);
+      return statusFetch({ force: true });
+    },
+    /** Last payload, or null before the first response. */
+    current: function() { return statusLast ? decorate(statusLast) : null; },
+    /** Is a dispatch outstanding that no poll has confirmed yet? */
+    isLatched: function() { return latchActive(); },
+    /** Should service toggles be refused right now? */
+    runLocked: function() {
+      if (latchActive()) return true;
+      return !!(statusLast && statusLast.success && statusLast.inProgress);
+    },
+  };
+
+  /**
+   * Start polling and mark <body> while a run is in progress, so pages
+   * that render toggles can grey them out. Call from those pages only —
+   * this is what makes them poll at all, and pages without toggles have
+   * no reason to spend GitHub rate limit.
+   */
+  window.NS.lockControlsDuringRuns = function() {
+    if (runLockStarted) return;
+    runLockStarted = true;
+    const apply = function() {
+      document.body.classList.toggle('run-locked', window.NS.status.runLocked());
+    };
+    window.NS.status.subscribe(apply);
+    apply();
+  };
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    } else if (statusSubscribers.length > 0) {
+      statusFetch({ force: true });
+    }
+  });
+
   // ---- Tri-state status ---------------------------------------------------
   // enabled + deployed -> running
   // enabled + !deployed -> pending-enable
@@ -128,6 +439,17 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
 
   window.NS.toggleService = async function(name, enabled) {
     const action = enabled ? 'enable' : 'disable';
+    // A toggle made during a run is silently ignored by that run: the
+    // enabled-services list was read from D1 when the workflow started.
+    // The UI would then show one configuration and the stack would be
+    // running another, with nothing to tell the operator which. Refuse
+    // here rather than in each page — click, keyboard shortcut and all
+    // three pages that render toggles funnel through this function.
+    if (window.NS.status && window.NS.status.runLocked()) {
+      const msg = 'A workflow is running — changes now would not be picked up. Wait for it to finish.';
+      if (typeof showToast === 'function') showToast(msg, 'error');
+      return { success: false, error: msg };
+    }
     try {
       const response = await fetch('/api/services', {
         method: 'POST',

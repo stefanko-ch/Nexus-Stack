@@ -163,6 +163,7 @@
         text.textContent = formatBreakdown(stackCount, fwCount);
         view.setAttribute('href', pickViewHref(stackCount, fwCount));
         bar.hidden = false;
+        ensureStatusSubscription();
       } else {
         bar.hidden = true;
       }
@@ -171,13 +172,44 @@
     // Issue #476: Spin Up button POSTs /api/spin-up directly, same
     // contract as the Dashboard button. Disable while the request is
     // in flight so a panicky double-click can't trigger two workflow
-    // runs. After a successful trigger, re-enables after a 30s safety
-    // timeout (the workflow itself takes minutes, but the operator
-    // might want to retry if our API call silently failed).
+    // runs.
+    //
+    // The button's state after that comes from window.NS.status, not from
+    // a timer. It used to re-enable itself after a blind 30s while the
+    // workflow was still running for another five minutes — so a second
+    // click was not just possible, it looked invited. Now it stays
+    // "Running…" until a poll says the run is over.
+    let runWasInProgress = false;
+    // Set for the duration of the POST. A scheduled poll landing in that
+    // window would otherwise overwrite "Triggering…" and clear `disabled`
+    // before the dispatch has even been accepted.
+    let triggerInFlight = false;
+
+    function applyRunState(data) {
+      if (triggerInFlight) return;
+      if (!data || !data.success) return;
+      if (data.inProgress) {
+        runWasInProgress = true;
+        btnSpinUp.disabled = true;
+        btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Running…';
+      } else {
+        btnSpinUp.disabled = false;
+        btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Spin Up Now';
+        // A finished run changes what is deployed — recount.
+        if (runWasInProgress) { runWasInProgress = false; refresh(); }
+      }
+    }
+
     async function triggerSpinUp() {
       const originalHTML = btnSpinUp.innerHTML;
       btnSpinUp.disabled = true;
       btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Triggering…';
+      triggerInFlight = true;
+      // Latch before the request: until it is set, a service toggle on
+      // another tab or page is still accepted and can commit after the
+      // workflow has read the enabled list.
+      ensureStatusSubscription();
+      if (window.NS && window.NS.status) window.NS.status.beginDispatch('spinUp');
       try {
         const r = await fetch('/api/spin-up', {
           method: 'POST',
@@ -187,6 +219,11 @@
         const contentType = r.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
           // Cloudflare Access expired — Astro session bounced.
+          // Clear the flag before returning: leaving it set makes
+          // applyRunState a no-op forever, so the button would stay
+          // enabled through the next run.
+          triggerInFlight = false;
+          if (window.NS && window.NS.status) window.NS.status.cancelDispatch();
           showToast('Session expired - please refresh the page', 'error');
           btnSpinUp.innerHTML = originalHTML;
           btnSpinUp.disabled = false;
@@ -195,24 +232,25 @@
         const data = await r.json();
         if (data.success) {
           showToast('Spin Up triggered!');
-          // Re-fetch state — pending count usually stays the same until
-          // the workflow finishes + the deployed-state sync runs, but
-          // refreshing keeps us honest if anything else changed.
-          setTimeout(refresh, 2000);
           btnSpinUp.innerHTML = '<span aria-hidden="true">&#x26A1;</span> Running…';
-          // Re-enable after 30s — the workflow takes minutes but the
-          // operator might want to retry if our API call itself failed
-          // silently somewhere.
-          setTimeout(function() {
-            btnSpinUp.innerHTML = originalHTML;
-            btnSpinUp.disabled = false;
-          }, 30000);
+          runWasInProgress = true;
+          triggerInFlight = false;
+          // Force a fresh poll: /api/status reports `dispatching` during
+          // the seconds before GitHub lists the run, and the latch covers
+          // the cases where even that cannot — a response already in
+          // flight, or the D1 marker not landing.
+          if (window.NS && window.NS.status) window.NS.status.noteDispatch('spinUp');
+          setTimeout(refresh, 2000);
         } else {
+          triggerInFlight = false;
+          if (window.NS && window.NS.status) window.NS.status.cancelDispatch();
           showToast(data.error || 'Failed to trigger Spin Up', 'error');
           btnSpinUp.innerHTML = originalHTML;
           btnSpinUp.disabled = false;
         }
       } catch (_) {
+        triggerInFlight = false;
+        if (window.NS && window.NS.status) window.NS.status.cancelDispatch();
         showToast('Network error - please try again', 'error');
         btnSpinUp.innerHTML = originalHTML;
         btnSpinUp.disabled = false;
@@ -230,6 +268,17 @@
     }
 
     btnSpinUp.addEventListener('click', triggerSpinUp);
+
+    // Only subscribe where the banner is actually shown — the dashboard
+    // subscribes anyway, and on other pages this starts the poller only
+    // once there is something pending to act on.
+    let unsubscribeStatus = null;
+    function ensureStatusSubscription() {
+      if (unsubscribeStatus || !window.NS || !window.NS.status) return;
+      unsubscribeStatus = window.NS.status.subscribe(function(data, err) {
+        if (!err) applyRunState(data);
+      });
+    }
 
     refresh();
     document.addEventListener('visibilitychange', function() {

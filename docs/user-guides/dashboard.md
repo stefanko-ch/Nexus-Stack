@@ -32,6 +32,46 @@ The panel re-polls automatically every few seconds, so you can keep it open whil
 
 ![Status panel in the orange "Torn down" state, indicating no server is running](./assets/dashboard-status-torn-down.png)
 
+## Progress while a workflow runs
+
+Spin-up and teardown used to be a black box: a spinner and "this usually takes 5-10 minutes". While one runs you now get a progress bar with the step it is on:
+
+```text
+◐  Spin Up is running                                      2m 14s   View in GitHub
+   Step 19 of 37: Deploy stacks
+   ████████████████░░░░░░░░░░░░░░░░
+   ▸ Details
+```
+
+**Step N of M** counts the steps GitHub actually reports for this run, which is more than the workflow file declares — the runner adds its own `Set up job`, a `Post …` step for each action that has cleanup, and `Complete job`. They are counted and shown greyed out, so the numbers match what you see if you click **View in GitHub**. The list is read live: a step added to a workflow later appears here on its own, and the total can grow mid-run.
+
+**Details** expands the full list, the same one GitHub shows:
+
+| Mark | Meaning |
+|------|---------|
+| ✓ | Finished |
+| ● | Running now |
+| ○ | Not started |
+| ⊘ | Skipped — a step whose `if:` condition did not apply |
+| ✗ | Failed |
+
+Each step shows how long it took, and its name links to that step in the GitHub log.
+
+Two states worth recognising:
+
+- **"Dispatched — waiting for GitHub to start the run"** — the click landed, but GitHub has not created the run yet. This takes a few seconds. The buttons stay disabled throughout, so a second click cannot start a second run.
+- **A sliding bar instead of a percentage** — the run is queued for a runner, or a job has not reported its steps yet. There is nothing to count, so nothing is claimed.
+
+When a run finishes, the bar stays: green at 100% for success, or red at the point it failed, with the failing step named and the list already expanded. It is **not** filled to 100% on failure — cleanup steps run after a failure, and filling the bar would suggest the work completed. Dismiss it, or start another run, to clear it.
+
+## Controls are locked while a workflow runs
+
+Spin Up and Teardown are disabled from the moment you click until the run ends, and so are the service toggles on [Stacks](./stacks.md), Search and the category pages. The progress bar appears on those pages too, so the greyed-out toggles have a visible reason.
+
+This is not cosmetic. The workflow reads the list of enabled services from the database **when it starts**. A service switched on halfway through is silently ignored by that run — the Control Plane would show one configuration while the stack ran another, with nothing to tell you which is which. Clicking a locked toggle says so rather than doing nothing.
+
+The lock also holds during the few seconds between your click and GitHub creating the run, and it survives a page reload, a failed status check, and a temporarily unreachable database. Spin-up has no server-side guard against being started twice, so a second click during that window would provision a second server.
+
 ## Action buttons
 
 Two buttons, each tied to a GitHub Actions workflow:

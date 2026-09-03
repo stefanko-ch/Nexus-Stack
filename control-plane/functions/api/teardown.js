@@ -12,6 +12,7 @@ import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { requireOperator } from './_utils/require-operator.js';
 import { resolveLifecycle } from './_utils/workflow-selection.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { markDispatched } from './_utils/dispatch-marker.js';
 
 export async function onRequestPost(context) {
   const { env, request } = context;
@@ -79,8 +80,12 @@ export async function onRequestPost(context) {
     });
 
     if (response.status === 204) {
+      // `tracked: false` — marker not stored, so the client keeps its own
+      // latch. See spin-up.js for the reasoning.
+      const tracked = await markDispatched(env.NEXUS_DB, 'teardown');
       return new Response(JSON.stringify({
         success: true,
+        tracked,
         message: 'Teardown workflow triggered successfully'
       }), {
         status: 200,
