@@ -917,11 +917,14 @@ So after merging a PR, confirm the commit arrived. Pin every input —
 the run for *this* SHA, the tag reachable from *the remote* `main`:
 
 ```bash
-git fetch --prune --tags origin
+# Fail closed: without a successful fetch, `origin/main` is whatever was
+# last seen, and every number below describes the wrong snapshot.
+git fetch --prune --tags origin || { echo "fetch failed — do not trust what follows"; return 2>/dev/null || exit 1; }
 SHA=$(git rev-parse origin/main)
 
 RID=$(gh run list --workflow=release-please.yml --branch main --commit "$SHA" \
-        --json databaseId,status --jq '[.[] | select(.status == "completed")][0].databaseId')
+        --json databaseId,status \
+        --jq '[.[] | select(.status == "completed")][0].databaseId // empty')
 
 if [ -z "$RID" ]; then
   echo "Release Please has not finished for $SHA yet — try again in a minute."
@@ -939,6 +942,12 @@ unrelated numbers — a check that reports a mismatch that is not there, or
 agreement that is not either. An empty `RID` means "not finished", not
 "nothing to check", which is why it is a separate branch rather than an
 empty grep.
+
+`// empty` is belt-and-braces rather than a fix for an observed failure:
+`gh --jq` prints nothing for a `null` result, verified both for a SHA with
+no runs and for one whose runs the filter excludes. A bare `jq` in a pipe
+*does* print `null`, so the guard would silently stop guarding the moment
+someone rewrote the call that way.
 
 `Considering: N` must equal that commit count. If it does not, the
 changelog is already wrong and the fix has to land **before** the release
