@@ -40,7 +40,11 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6789/api/health"]
+      # /api/health answers 401 without a session — which proves Mage is
+      # serving, so it counts as healthy. `curl -f` exits 22 on any 4xx and
+      # marked a working container unhealthy for its whole lifetime (#783).
+      # Same code-whitelist form as opensearch, marquez and questdb use.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:6789/api/health | grep -qxF -e 200 -e 401"]
       interval: 30s
       timeout: 10s
       retries: 3

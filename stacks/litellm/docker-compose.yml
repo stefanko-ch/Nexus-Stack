@@ -74,7 +74,11 @@ services:
       - litellm-internal
       - ollama-internal
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4000/health/liveness || exit 1"]
+      # The image ships neither wget nor curl, so the previous wget probe
+      # could never pass: the health log read `/bin/sh: wget: not found` on
+      # every attempt while /health/liveness answered 200 (#783). LiteLLM is
+      # a Python app, so probe with the interpreter that is already there.
+      test: ["CMD-SHELL", "python -c \"import urllib.request as r; r.urlopen('http://localhost:4000/health/liveness', timeout=5)\""]
       interval: 30s
       timeout: 10s
       retries: 3
