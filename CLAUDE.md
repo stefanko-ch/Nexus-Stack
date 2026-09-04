@@ -903,6 +903,20 @@ after it is unreviewed. The gap is deliberate, and the PR review is what
 covers it — so do not add a second local round to chase it, and do not
 describe this step as a complete pre-push filter, because it is not one.
 
+**Report the round, every time, unprompted.** The round is worthless if
+nobody can tell whether it happened. Two places, both mandatory:
+
+- **In the message that asks to push**, state the commit SHA that was
+  reviewed, the number of findings, and a one-line verdict per finding.
+  Zero findings is a result and gets reported too — "reviewed <sha>, 0
+  findings" — not silence.
+- **In the PR description**, the same summary, so the reviewer knows what
+  a machine already looked at and what was dismissed.
+
+Never say a round ran without naming the SHA it ran against. A review of
+an earlier commit is not a review of the branch, and that difference is
+invisible unless the SHA is written down.
+
 Triage the findings exactly like PR review comments — the same bucket
 framework, the same scepticism. A local finding is not more authoritative
 for being local. Dismiss what misreads the code, and say why — never
