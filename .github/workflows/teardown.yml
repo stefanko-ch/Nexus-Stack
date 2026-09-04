@@ -176,7 +176,7 @@ jobs:
           # Read services from D1 (single source of truth)
           echo "📋 Reading services from D1..."
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+          ENABLED_SERVICES=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
             --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
             | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
 
@@ -288,12 +288,12 @@ jobs:
             exit 0
           fi
 
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
           echo "✅ Teardown timestamp written to D1"
 
           # Reset all firewall rules to disabled (ports must be explicitly re-opened)
           echo "🔥 Resetting firewall rules..."
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
           echo "✅ Firewall rules reset - all ports closed for next Spin Up"
 
       - name: Log teardown completed

@@ -61,7 +61,7 @@ ESCAPED_LEVEL="${LEVEL//\'/\'\'}"
 SQL="INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', '$ESCAPED_LEVEL', '$ESCAPED_MESSAGE', '$ESCAPED_METADATA')"
 
 # Execute via wrangler (silent on success)
-if npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$SQL" 2>/dev/null; then
+if npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$SQL" 2>/dev/null; then
   echo "📝 Logged: [$LEVEL] $MESSAGE"
 else
   echo "⚠️ Failed to log to D1 (non-critical)"

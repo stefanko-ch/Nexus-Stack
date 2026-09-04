@@ -1263,14 +1263,14 @@ jobs:
           # Setting them as wrangler secrets would conflict (Cloudflare error 10053).
 
           echo "  Setting GITHUB_TOKEN..."
-          if ! echo "$GITHUB_TOKEN" | npx wrangler@4 secret put GITHUB_TOKEN --name="$WORKER_NAME" 2>&1; then
+          if ! echo "$GITHUB_TOKEN" | npx wrangler@4.129.0 secret put GITHUB_TOKEN --name="$WORKER_NAME" 2>&1; then
             echo "❌ Failed to set GITHUB_TOKEN - Worker will not be able to trigger workflows"
             exit 1
           fi
 
           if [ -n "$RESEND_API_KEY" ]; then
             echo "  Setting RESEND_API_KEY..."
-            if ! echo "$RESEND_API_KEY" | npx wrangler@4 secret put RESEND_API_KEY --name="$WORKER_NAME" 2>&1; then
+            if ! echo "$RESEND_API_KEY" | npx wrangler@4.129.0 secret put RESEND_API_KEY --name="$WORKER_NAME" 2>&1; then
               echo "⚠️  Failed to set RESEND_API_KEY - email notifications will not work"
             fi
           else
@@ -1419,7 +1419,7 @@ jobs:
 
           if [ -n "$GITHUB_TOKEN" ]; then
             echo "  Setting GITHUB_TOKEN secret..."
-            if ! echo "$GITHUB_TOKEN" | npx wrangler@4 pages secret put GITHUB_TOKEN \
+            if ! echo "$GITHUB_TOKEN" | npx wrangler@4.129.0 pages secret put GITHUB_TOKEN \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "❌ Failed to set GITHUB_TOKEN - Control Plane will not work"
               exit 1
@@ -1430,14 +1430,14 @@ jobs:
           fi
 
           echo "  Setting GITHUB_OWNER secret..."
-          if ! echo "${{ github.repository_owner }}" | npx wrangler@4 pages secret put GITHUB_OWNER \
+          if ! echo "${{ github.repository_owner }}" | npx wrangler@4.129.0 pages secret put GITHUB_OWNER \
             --project-name="$PROJECT_NAME" 2>&1; then
             echo "❌ Failed to set GITHUB_OWNER"
             exit 1
           fi
 
           echo "  Setting GITHUB_REPO secret..."
-          if ! echo "${{ github.event.repository.name }}" | npx wrangler@4 pages secret put GITHUB_REPO \
+          if ! echo "${{ github.event.repository.name }}" | npx wrangler@4.129.0 pages secret put GITHUB_REPO \
             --project-name="$PROJECT_NAME" 2>&1; then
             echo "❌ Failed to set GITHUB_REPO"
             exit 1
@@ -1445,7 +1445,7 @@ jobs:
 
           if [ -n "$DOMAIN" ]; then
             echo "  Setting DOMAIN secret..."
-            if ! echo "$DOMAIN" | npx wrangler@4 pages secret put DOMAIN \
+            if ! echo "$DOMAIN" | npx wrangler@4.129.0 pages secret put DOMAIN \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "⚠️  Failed to set DOMAIN"
             fi
@@ -1460,7 +1460,7 @@ jobs:
           # can't keep overriding DOMAIN after the operator unset it.
           if [ -n "$BASE_DOMAIN" ]; then
             echo "  Setting BASE_DOMAIN secret..."
-            if ! echo "$BASE_DOMAIN" | npx wrangler@4 pages secret put BASE_DOMAIN \
+            if ! echo "$BASE_DOMAIN" | npx wrangler@4.129.0 pages secret put BASE_DOMAIN \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "⚠️  Failed to set BASE_DOMAIN"
             fi
@@ -1469,7 +1469,7 @@ jobs:
             # `secret delete` is interactive by default and fails loudly if the
             # secret doesn't exist. Pipe 'y' to auto-confirm, swallow output,
             # and don't fail the step when the secret wasn't there to begin with.
-            echo y | npx wrangler@4 pages secret delete BASE_DOMAIN \
+            echo y | npx wrangler@4.129.0 pages secret delete BASE_DOMAIN \
               --project-name="$PROJECT_NAME" >/dev/null 2>&1 || true
           fi
 
@@ -1485,13 +1485,13 @@ jobs:
           fi
           if [ -n "$TEMPLATE_VERSION" ]; then
             echo "  Setting TEMPLATE_VERSION secret..."
-            if ! echo "$TEMPLATE_VERSION" | npx wrangler@4 pages secret put TEMPLATE_VERSION \
+            if ! echo "$TEMPLATE_VERSION" | npx wrangler@4.129.0 pages secret put TEMPLATE_VERSION \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "⚠️  Failed to set TEMPLATE_VERSION"
             fi
           else
             echo "  .template-version missing or empty; removing any stale Pages secret so runtime falls back to the GitHub API / 'dev'..."
-            echo y | npx wrangler@4 pages secret delete TEMPLATE_VERSION \
+            echo y | npx wrangler@4.129.0 pages secret delete TEMPLATE_VERSION \
               --project-name="$PROJECT_NAME" >/dev/null 2>&1 || true
           fi
 
@@ -1507,21 +1507,21 @@ jobs:
             CONTROL_PLANE_URL="https://control${SUBDOMAIN_SEPARATOR}${DOMAIN}"
 
             echo "  Setting SUBDOMAIN_SEPARATOR secret..."
-            if ! echo "$SUBDOMAIN_SEPARATOR" | npx wrangler@4 pages secret put SUBDOMAIN_SEPARATOR \
+            if ! echo "$SUBDOMAIN_SEPARATOR" | npx wrangler@4.129.0 pages secret put SUBDOMAIN_SEPARATOR \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "❌ Failed to set SUBDOMAIN_SEPARATOR - Control Plane will use wrong URLs"
               exit 1
             fi
 
             echo "  Setting INFISICAL_URL secret..."
-            if ! echo "$INFISICAL_URL" | npx wrangler@4 pages secret put INFISICAL_URL \
+            if ! echo "$INFISICAL_URL" | npx wrangler@4.129.0 pages secret put INFISICAL_URL \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "❌ Failed to set INFISICAL_URL - Secrets page will be broken"
               exit 1
             fi
 
             echo "  Setting CONTROL_PLANE_URL secret..."
-            if ! echo "$CONTROL_PLANE_URL" | npx wrangler@4 pages secret put CONTROL_PLANE_URL \
+            if ! echo "$CONTROL_PLANE_URL" | npx wrangler@4.129.0 pages secret put CONTROL_PLANE_URL \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "❌ Failed to set CONTROL_PLANE_URL - teardown emails will link to wrong host"
               exit 1
@@ -1530,7 +1530,7 @@ jobs:
 
           if [ -n "$ADMIN_EMAIL" ]; then
             echo "  Setting ADMIN_EMAIL secret..."
-            if ! echo "$ADMIN_EMAIL" | npx wrangler@4 pages secret put ADMIN_EMAIL \
+            if ! echo "$ADMIN_EMAIL" | npx wrangler@4.129.0 pages secret put ADMIN_EMAIL \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "⚠️  Failed to set ADMIN_EMAIL"
             fi
@@ -1538,33 +1538,33 @@ jobs:
 
           if [ -n "$USER_EMAIL" ]; then
             echo "  Setting USER_EMAIL secret..."
-            if ! echo "$USER_EMAIL" | npx wrangler@4 pages secret put USER_EMAIL \
+            if ! echo "$USER_EMAIL" | npx wrangler@4.129.0 pages secret put USER_EMAIL \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "⚠️  Failed to set USER_EMAIL"
             fi
           fi
 
           echo "  Setting SERVER_TYPE secret..."
-          if ! echo "${{ vars.SERVER_TYPE || 'cx43' }}" | npx wrangler@4 pages secret put SERVER_TYPE \
+          if ! echo "${{ vars.SERVER_TYPE || 'cx43' }}" | npx wrangler@4.129.0 pages secret put SERVER_TYPE \
             --project-name="$PROJECT_NAME" 2>&1; then
             echo "⚠️  Failed to set SERVER_TYPE"
           fi
 
           echo "  Setting SERVER_LOCATION secret..."
-          if ! echo "${{ vars.SERVER_LOCATION || 'hel1' }}" | npx wrangler@4 pages secret put SERVER_LOCATION \
+          if ! echo "${{ vars.SERVER_LOCATION || 'hel1' }}" | npx wrangler@4.129.0 pages secret put SERVER_LOCATION \
             --project-name="$PROJECT_NAME" 2>&1; then
             echo "⚠️  Failed to set SERVER_LOCATION"
           fi
 
           echo "  Setting ALLOW_DISABLE_AUTO_SHUTDOWN secret..."
-          if ! echo "${{ vars.ALLOW_DISABLE_AUTO_SHUTDOWN == 'true' }}" | npx wrangler@4 pages secret put ALLOW_DISABLE_AUTO_SHUTDOWN \
+          if ! echo "${{ vars.ALLOW_DISABLE_AUTO_SHUTDOWN == 'true' }}" | npx wrangler@4.129.0 pages secret put ALLOW_DISABLE_AUTO_SHUTDOWN \
             --project-name="$PROJECT_NAME" 2>&1; then
             echo "⚠️  Failed to set ALLOW_DISABLE_AUTO_SHUTDOWN"
           fi
 
           if [ -n "$RESEND_API_KEY" ]; then
             echo "  Setting RESEND_API_KEY secret..."
-            if ! echo "$RESEND_API_KEY" | npx wrangler@4 pages secret put RESEND_API_KEY \
+            if ! echo "$RESEND_API_KEY" | npx wrangler@4.129.0 pages secret put RESEND_API_KEY \
               --project-name="$PROJECT_NAME" 2>&1; then
               echo "⚠️  Failed to set RESEND_API_KEY - email sending will not work"
             fi
@@ -1592,27 +1592,27 @@ jobs:
           cd ../..
 
           # Initialize schema (creates tables if they don't exist)
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
 
           # Schema migrations for existing databases
           # admin_only column added for services that can only be toggled via GitHub Actions
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN admin_only INTEGER DEFAULT 0" 2>/dev/null || true
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN admin_only INTEGER DEFAULT 0" 2>/dev/null || true
           # landing_path column for per-service URL path in Control Plane "Open" links
           # (e.g. Chroma's "/docs/" Swagger UI). Migration runs here too — NOT only
           # in sync-deployed-state.sh — so the new Pages frontend's SELECT including
           # landing_path doesn't 500 on existing D1 instances between Pages auto-deploy
           # (on merge) and the next spin-up that runs the sync script.
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" 2>/dev/null || true
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" 2>/dev/null || true
           # api_only column for headless services (e.g. Meilisearch) — clicking Open
           # shows an API-info modal instead of opening the raw JSON URL. Same race
           # window as landing_path above: Pages auto-deploys on merge, and its new
           # SELECT includes api_only; without this ALTER the frontend would 500 until
           # the next spin-up runs sync-deployed-state.sh.
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0" 2>/dev/null || true
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0" 2>/dev/null || true
 
           # Store domain in D1 config (escape single quotes)
           ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
 
           # Store SERVER_TYPE and SERVER_LOCATION in D1 config too. The
           # schema.sql seeds these via INSERT OR IGNORE, so a fresh
@@ -1626,14 +1626,14 @@ jobs:
           # truth from the very first control-plane deployment.
           ESCAPED_SERVER_TYPE="${{ vars.SERVER_TYPE || 'cx43' }}"
           ESCAPED_SERVER_TYPE=${ESCAPED_SERVER_TYPE//\'/\'\'}
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
           ESCAPED_SERVER_LOCATION="${{ vars.SERVER_LOCATION || 'hel1' }}"
           ESCAPED_SERVER_LOCATION=${ESCAPED_SERVER_LOCATION//\'/\'\'}
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
 
           # Add initial log entry (sanitize run_id as numeric)
           RUN_ID=$(printf '%d' "${{ github.run_id }}" 2>/dev/null || echo "0")
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Control Plane initialized', '{\"workflow\": \"setup-control-plane\", \"run_id\": $RUN_ID}')"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT INTO logs (source, level, message, metadata) VALUES ('github-action', 'info', 'Control Plane initialized', '{\"workflow\": \"setup-control-plane\", \"run_id\": $RUN_ID}')"
 
           echo "✅ D1 database schema initialized!"
 
@@ -1724,7 +1724,7 @@ jobs:
           # --commit-message prevents UTF-8 issues with git commit messages
           DEPLOY_OK=false
           for ATTEMPT in 1 2 3; do
-            DEPLOY_OUTPUT=$(npx wrangler@4 pages deploy dist \
+            DEPLOY_OUTPUT=$(npx wrangler@4.129.0 pages deploy dist \
               --project-name="$PROJECT_NAME" \
               --branch=main \
               --commit-dirty=true \

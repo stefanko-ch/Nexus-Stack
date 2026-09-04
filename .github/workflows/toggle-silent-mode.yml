@@ -51,7 +51,7 @@ jobs:
           esac
 
           D1_DB_NAME="nexus-${DOMAIN//./-}-db"
-          npx wrangler@4 d1 execute "$D1_DB_NAME" --remote \
+          npx wrangler@4.129.0 d1 execute "$D1_DB_NAME" --remote \
             --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', '${SILENT_MODE}', datetime('now'))"
 
           if [ "$SILENT_MODE" = "true" ]; then

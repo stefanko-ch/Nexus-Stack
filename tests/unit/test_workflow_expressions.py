@@ -132,3 +132,62 @@ def test_the_check_sees_every_run_form_and_no_comments(
     planted.write_text(content)
     offenders = _offenders(planted)
     assert len(offenders) == expected, f"{label}: {offenders}"
+
+
+# Every `npx wrangler@...` in CI must name an exact version. `wrangler@4`
+# and `wrangler@latest` both make npm resolve a range at run time, which
+# costs a registry round-trip on a cold runner and -- worse -- lets two
+# jobs in the same run legitimately execute different builds with nothing
+# recording which. #784 has the measurement: one unpinned fetch sat for
+# 423 seconds inside a step that normally takes 16.
+#
+# This test, not an env var, is the single source of truth. Threading a
+# WRANGLER_VERSION through 7 workflows, 3 shell scripts and a composite
+# action would add a way for the value to go missing silently; a literal
+# that a test keeps identical everywhere cannot.
+_NPX_WRANGLER = re.compile(r"npx wrangler@(?P<spec>[^\s\"';|)]+)")
+_EXACT_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
+
+_WRANGLER_FILES = sorted(
+    p for p in (*_FILES, *Path(".github/scripts").glob("*.sh")) if "npx wrangler@" in p.read_text()
+)
+
+
+def test_every_npx_wrangler_pins_an_exact_version() -> None:
+    """No `wrangler@4`, no `wrangler@latest` -- an exact x.y.z everywhere."""
+    offenders: list[str] = []
+    for path in _WRANGLER_FILES:
+        for number, line in enumerate(path.read_text().splitlines(), start=1):
+            for match in _NPX_WRANGLER.finditer(line):
+                spec = match.group("spec")
+                if not _EXACT_VERSION.match(spec):
+                    offenders.append(f"{path}:{number}: wrangler@{spec}")
+
+    assert not offenders, (
+        "npx wrangler invocations that do not pin an exact version:\n  "
+        + "\n  ".join(offenders)
+        + "\nUse wrangler@<major>.<minor>.<patch>. See #784."
+    )
+
+
+def test_all_npx_wrangler_invocations_agree_on_one_version() -> None:
+    """One version across CI, so no two jobs can run different builds."""
+    versions: dict[str, list[str]] = {}
+    for path in _WRANGLER_FILES:
+        for number, line in enumerate(path.read_text().splitlines(), start=1):
+            for match in _NPX_WRANGLER.finditer(line):
+                versions.setdefault(match.group("spec"), []).append(f"{path}:{number}")
+
+    assert versions, (
+        "no `npx wrangler@` invocations found at all -- if Wrangler is now "
+        "invoked some other way, these two tests need rewriting rather than "
+        "deleting, or the pin stops being enforced."
+    )
+    assert len(versions) == 1, (
+        "CI runs more than one Wrangler version:\n  "
+        + "\n  ".join(
+            f"{v}: {len(where)} site(s), first at {where[0]}"
+            for v, where in sorted(versions.items())
+        )
+        + "\nBumping the pin means bumping every site."
+    )

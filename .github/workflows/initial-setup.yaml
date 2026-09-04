@@ -186,7 +186,7 @@ jobs:
           done
 
           # Execute all updates in one batch
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --file /tmp/enable_services.sql
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --file /tmp/enable_services.sql
 
           echo "✅ D1 updated with initial service selection"
 

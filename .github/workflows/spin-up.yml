@@ -874,10 +874,10 @@ jobs:
           fi
 
           # Write config to D1
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_spin_up', datetime('now'), datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_type', '$ESCAPED_SERVER_TYPE', datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('server_location', '$ESCAPED_SERVER_LOCATION', datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('domain', '$ESCAPED_DOMAIN', datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_spin_up', datetime('now'), datetime('now'))"
 
           # Only write what was actually read. An empty string would
           # replace a good previous reading with a blank field.
@@ -886,11 +886,11 @@ jobs:
             value=${pair#*:}
             [ -n "$value" ] || continue
             escaped=${value//\'/\'\'}
-            npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('$key', '$escaped', datetime('now'))"
+            npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('$key', '$escaped', datetime('now'))"
           done
 
           if [ "${{ inputs.silent_mode }}" = "true" ]; then
-            npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', 'true', datetime('now'))"
+            npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', 'true', datetime('now'))"
             echo "🔇 Silent mode enabled - automated emails suppressed"
           fi
 
@@ -958,7 +958,7 @@ jobs:
             # still a Pages secret, and a credential nothing reads from it does not
             # belong in it.
             CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'del(.forgejo_runner_secret, .forgejo_service_token_id, .forgejo_service_token_secret) | to_entries | map(select(.value != null and .value != "")) | from_entries')
-            if echo "$CREDENTIALS" | npx wrangler@4 pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
+            if echo "$CREDENTIALS" | npx wrangler@4.129.0 pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
               echo "  ✅ CREDENTIALS_JSON stored"
             else
               echo "  ⚠️  Failed to store CREDENTIALS_JSON"
@@ -971,10 +971,10 @@ jobs:
           INFISICAL_PROJECT_ID=$(cat /tmp/infisical-project-id 2>/dev/null || echo "")
 
           if [ -n "$INFISICAL_TOKEN_VALUE" ] && [ -n "$INFISICAL_PROJECT_ID" ]; then
-            echo "$INFISICAL_TOKEN_VALUE" | npx wrangler@4 pages secret put INFISICAL_TOKEN --project-name "$PAGES_PROJECT" 2>/dev/null && \
+            echo "$INFISICAL_TOKEN_VALUE" | npx wrangler@4.129.0 pages secret put INFISICAL_TOKEN --project-name "$PAGES_PROJECT" 2>/dev/null && \
               echo "  ✅ INFISICAL_TOKEN stored" || echo "  ⚠️  Failed to store INFISICAL_TOKEN"
 
-            echo "$INFISICAL_PROJECT_ID" | npx wrangler@4 pages secret put INFISICAL_PROJECT_ID --project-name "$PAGES_PROJECT" 2>/dev/null && \
+            echo "$INFISICAL_PROJECT_ID" | npx wrangler@4.129.0 pages secret put INFISICAL_PROJECT_ID --project-name "$PAGES_PROJECT" 2>/dev/null && \
               echo "  ✅ INFISICAL_PROJECT_ID stored" || echo "  ⚠️  Failed to store INFISICAL_PROJECT_ID"
           else
             echo "  ⚠️  Infisical token or project ID not available - Secrets page will not work"
@@ -988,10 +988,10 @@ jobs:
           cd ../..
 
           if [ -n "$INFISICAL_CF_CLIENT_ID" ] && [ -n "$INFISICAL_CF_CLIENT_SECRET" ]; then
-            echo "$INFISICAL_CF_CLIENT_ID" | npx wrangler@4 pages secret put CF_ACCESS_CLIENT_ID --project-name "$PAGES_PROJECT" 2>/dev/null && \
+            echo "$INFISICAL_CF_CLIENT_ID" | npx wrangler@4.129.0 pages secret put CF_ACCESS_CLIENT_ID --project-name "$PAGES_PROJECT" 2>/dev/null && \
               echo "  ✅ CF_ACCESS_CLIENT_ID stored" || echo "  ⚠️  Failed to store CF_ACCESS_CLIENT_ID"
 
-            echo "$INFISICAL_CF_CLIENT_SECRET" | npx wrangler@4 pages secret put CF_ACCESS_CLIENT_SECRET --project-name "$PAGES_PROJECT" 2>/dev/null && \
+            echo "$INFISICAL_CF_CLIENT_SECRET" | npx wrangler@4.129.0 pages secret put CF_ACCESS_CLIENT_SECRET --project-name "$PAGES_PROJECT" 2>/dev/null && \
               echo "  ✅ CF_ACCESS_CLIENT_SECRET stored" || echo "  ⚠️  Failed to store CF_ACCESS_CLIENT_SECRET"
           else
             echo "  ⚠️  Infisical service token not available - Secrets page may not work if Cloudflare Access blocks API calls"
@@ -1064,7 +1064,7 @@ jobs:
           # --commit-message prevents UTF-8 issues with git commit messages
           DEPLOY_OK=false
           for ATTEMPT in 1 2 3; do
-            DEPLOY_OUTPUT=$(npx wrangler@4 pages deploy dist \
+            DEPLOY_OUTPUT=$(npx wrangler@4.129.0 pages deploy dist \
               --project-name="$PAGES_PROJECT" \
               --branch=main \
               --commit-dirty=true \
@@ -1338,7 +1338,7 @@ jobs:
             D1_DB_NAME="nexus-${DOMAIN//./-}-db"
 
             # Check if silent mode is enabled (suppresses all automated emails)
-            SILENT_MODE=$(npx wrangler@4 d1 execute "$D1_DB_NAME" --remote --json \
+            SILENT_MODE=$(npx wrangler@4.129.0 d1 execute "$D1_DB_NAME" --remote --json \
               --command "SELECT value FROM config WHERE key = 'silent_mode'" 2>/dev/null \
               | jq -r '.[0].results[0].value // "false"' 2>/dev/null || echo "false")
             if [ "$SILENT_MODE" = "true" ]; then
@@ -1347,7 +1347,7 @@ jobs:
             fi
 
             # Check if stack-online email is enabled in D1
-            NOTIFY_ON_SPINUP=$(npx wrangler@4 d1 execute "$D1_DB_NAME" --remote --json \
+            NOTIFY_ON_SPINUP=$(npx wrangler@4.129.0 d1 execute "$D1_DB_NAME" --remote --json \
               --command "SELECT value FROM config WHERE key = 'notify_on_spinup'" 2>/dev/null \
               | jq -r '.[0].results[0].value // "true"' 2>/dev/null || echo "true")
             if [ "$NOTIFY_ON_SPINUP" != "true" ]; then

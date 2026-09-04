@@ -262,7 +262,7 @@ runs:
           # unreachable. CLAUDE.md names this exact pattern as forbidden
           # for critical operations. Zero rows is legitimate; a failed
           # query is not.
-          if ! D1_SERVICES_JSON=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+          if ! D1_SERVICES_JSON=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
             --command "SELECT name FROM services WHERE enabled = 1"); then
             echo "❌ Could not read the enabled services from D1."
             echo "   Refusing to continue: an unreadable service list is not an"
@@ -302,7 +302,7 @@ runs:
         # swallowed failure here yields an empty rule set, which reads as
         # a deliberate "Zero Entry mode" and closes every port that was
         # meant to be open.
-        if ! D1_FIREWALL_JSON=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+        if ! D1_FIREWALL_JSON=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
           --command "SELECT service_name, port, source_ips, dns_record FROM firewall_rules WHERE enabled = 1"); then
           echo "❌ Could not read the firewall rules from D1."
           echo "   Refusing to continue: this would be indistinguishable from"

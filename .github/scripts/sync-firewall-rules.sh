@@ -99,7 +99,7 @@ if [ -f /tmp/sync_firewall_rules.sql ] && [ -s /tmp/sync_firewall_rules.sql ]; t
   echo "  Executing $FW_COUNT statements..."
 
   set +e
-  FW_OUTPUT=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" \
+  FW_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" \
     --remote --file /tmp/sync_firewall_rules.sql 2>&1)
   FW_EXIT=$?
   set -e

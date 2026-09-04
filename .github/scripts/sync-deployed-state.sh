@@ -67,7 +67,7 @@ for COL_SQL in \
   "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0"; do
   set +e
-  npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>/dev/null
+  npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>/dev/null
   set -e
 done
 echo "  ✅ Schema migrations complete (new columns added or already exist)"
@@ -270,7 +270,7 @@ PYEOF
 
     # Execute ALL INSERTs in a single batch call (avoids rate limits)
     set +e
-    WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+    WRANGLER_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" \
       --remote --file /tmp/init_services.sql 2>&1)
     WRANGLER_EXIT=$?
     set -e
@@ -292,7 +292,7 @@ PYEOF
 
     # Execute ALL UPDATEs in a single batch call (avoids rate limits)
     set +e
-    WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+    WRANGLER_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" \
       --remote --file /tmp/update_services.sql 2>&1)
     WRANGLER_EXIT=$?
     set -e
@@ -402,7 +402,7 @@ FWEOF
     echo "  Executing $FW_COUNT firewall rule statements (inserts + cleanups)..."
 
     set +e
-    FW_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+    FW_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" \
       --remote --file /tmp/init_firewall_rules.sql 2>&1)
     FW_EXIT=$?
     set -e
@@ -425,7 +425,7 @@ fi
 echo "  Syncing deployed state..."
 SQL="UPDATE services SET deployed = enabled, updated_at = datetime('now') WHERE deployed != enabled"
 
-DEPLOYED_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$SQL" 2>&1)
+DEPLOYED_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$SQL" 2>&1)
 DEPLOYED_EXIT=$?
 
 if [ $DEPLOYED_EXIT -eq 0 ]; then
@@ -440,7 +440,7 @@ fi
 echo "  Syncing firewall deployed state..."
 FW_SQL="UPDATE firewall_rules SET deployed = enabled, updated_at = datetime('now') WHERE deployed != enabled"
 
-FW_DEPLOYED_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --command "$FW_SQL" 2>&1)
+FW_DEPLOYED_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$FW_SQL" 2>&1)
 FW_DEPLOYED_EXIT=$?
 
 if [ $FW_DEPLOYED_EXIT -eq 0 ]; then
@@ -475,7 +475,7 @@ fi
 #      Step 3 propagates deployed = 1.
 echo "  Enforcing core = 1 → enabled = 1 invariant..."
 set +e
-WRANGLER_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" \
+WRANGLER_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" \
   --remote --command "UPDATE services SET enabled = 1, updated_at = datetime('now') WHERE core = 1 AND enabled = 0;" 2>&1)
 WRANGLER_EXIT=$?
 set -e
@@ -488,7 +488,7 @@ fi
 
 # Step 5: Final verification - list all services in D1
 echo "  Verifying services in D1..."
-VERIFY_OUTPUT=$(npx wrangler@latest d1 execute "$D1_DATABASE_NAME" --remote --json \
+VERIFY_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
   --command "SELECT name FROM services ORDER BY name" 2>&1)
 VERIFY_EXIT=$?
 
