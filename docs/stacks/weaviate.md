@@ -51,9 +51,11 @@ that #715 was opened for after nineteen stacks shared the key `postgres`.
 
 ### No vectorizer module
 
-`DEFAULT_VECTORIZER_MODULE` is `none` and `ENABLE_MODULES` is empty, so the container downloads no models and computes no embeddings. Vectors come from the client.
+`DEFAULT_VECTORIZER_MODULE` is `none`, so the container computes no embeddings. Vectors come from the client.
 
-That keeps the image small and lets it pair with whatever is already deployed — [Ollama](ollama.md) for local models, [LiteLLM](litellm.md) as a gateway, or an external provider — instead of pinning one embedding model inside the database where changing it would mean re-indexing.
+That lets it pair with whatever is already deployed — [Ollama](ollama.md) for local models, [LiteLLM](litellm.md) as a gateway, or an external provider — instead of pinning one embedding model inside the database, where changing it would mean re-indexing.
+
+`ENABLE_MODULES=""` alone does **not** turn the modules off. Measured on 1.34: with only that set, `/v1/meta` lists **39 active modules** — the API-based ones (`generative-anthropic`, `generative-aws`, and so on) are enabled by default. They download nothing, but each is an outbound integration this deployment never asked for. `API_BASED_MODULES_DISABLED=true` brings it to zero, and that is what the stack sets.
 
 ### Quick check
 

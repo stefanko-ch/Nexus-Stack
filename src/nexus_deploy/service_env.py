@@ -663,6 +663,9 @@ def _render_influxdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "INFLUXDB_ADMIN_PASSWORD": c.influxdb_admin_password or "",
             "INFLUXDB_ADMIN_TOKEN": c.influxdb_admin_token or "",
         },
+        # 0o600: the file holds an admin password and an API token in
+        # cleartext, the same reason _render_sftpgo restricts its own.
+        mode=0o600,
     )
 
 

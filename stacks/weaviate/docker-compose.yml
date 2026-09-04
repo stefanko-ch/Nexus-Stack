@@ -24,16 +24,28 @@ services:
       # 8080 is taken by it-tools on the host, so the published port
       # differs from the container port. Clients inside app-network use
       # `weaviate:8080`; only the tunnel uses 8101.
-      - "8101:8080"
+      #
+      # Bound to 127.0.0.1 rather than every interface. cloudflared
+      # connects to `http://localhost:<port>` (tofu/stack/main.tf), so
+      # nothing is lost, and the Hetzner firewall is then not the only
+      # thing standing between this port and the internet. Most existing
+      # stacks still publish unbound — that gap is #742; new stacks
+      # should not add to it.
+      - "127.0.0.1:8101:8080"
     environment:
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
       PERSISTENCE_DATA_PATH: /var/lib/weaviate
-      # No vectorizer module: embeddings are supplied by the client. That
-      # keeps the container free of model downloads and lets it pair with
-      # whatever is already in the stack — Ollama, LiteLLM, or an external
-      # provider — rather than pinning one inside the database.
+      # No vectorizer: embeddings are supplied by the client, so the
+      # database pins no embedding model and pairs with whatever is
+      # already in the stack — Ollama, LiteLLM, or an external provider.
       DEFAULT_VECTORIZER_MODULE: none
       ENABLE_MODULES: ""
+      # ENABLE_MODULES="" is NOT enough on its own. Measured on 1.34:
+      # with only that set, /v1/meta lists 39 active modules — the
+      # API-based ones (generative-anthropic, generative-aws, …) are on
+      # by default. They download nothing, but each is an outbound call
+      # this deployment never asked for. With this flag: 0 modules.
+      API_BASED_MODULES_DISABLED: "true"
       DISABLE_TELEMETRY: "true"
       CLUSTER_HOSTNAME: node1
     volumes:

@@ -23,7 +23,12 @@ services:
       # 8086 is taken by s3manager on the host, so the published port
       # differs from the container port. Clients inside app-network use
       # `influxdb:8086`; only the tunnel uses 8102.
-      - "8102:8086"
+      #
+      # Bound to 127.0.0.1 rather than every interface, for the reason
+      # given in stacks/weaviate/docker-compose.yml: cloudflared reaches
+      # it over localhost either way, and #742 tracks doing the same for
+      # the stacks that predate this.
+      - "127.0.0.1:8102:8086"
     environment:
       # Automated first-run setup. Without this InfluxDB starts in an
       # onboarding state and every request answers 401 until somebody
