@@ -155,7 +155,24 @@ _EXACT_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 # Every candidate file, not only the ones already invoking Wrangler with a
 # version. Filtering the list on `npx wrangler@` would have excluded a file
 # whose only invocation had just lost its pin.
-_WRANGLER_FILES = sorted((*_FILES, *Path(".github/scripts").glob("*.sh")))
+#
+# Both script directories. `scripts/` was missed the first time and held a
+# live `npx wrangler@latest` that the initial sweep never saw, so the
+# "all 64 sites" claim was short by one. A guardrail whose search path is
+# narrower than the thing it guards reports success by not looking.
+#
+# Not covered: `docs/**`. A copy-paste command in prose drifting from the
+# pin is a documentation inconsistency, not an unreproducible run, and a
+# guardrail over prose invites false positives on text that deliberately
+# shows an older form. The two occurrences in
+# docs/admin-guides/snapshot-lifecycle.md were brought in line by hand.
+_WRANGLER_FILES = sorted(
+    (
+        *_FILES,
+        *Path(".github/scripts").glob("*.sh"),
+        *Path("scripts").glob("*.sh"),
+    )
+)
 
 
 def test_every_npx_wrangler_pins_an_exact_version() -> None:
