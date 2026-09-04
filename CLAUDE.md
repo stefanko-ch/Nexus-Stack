@@ -917,6 +917,13 @@ Never say a round ran without naming the SHA it ran against. A review of
 an earlier commit is not a review of the branch, and that difference is
 invisible unless the SHA is written down.
 
+When the round could **not** run — CLI missing, not authenticated, quota
+exhausted — say exactly that in both places instead: "local CodeRabbit
+round skipped: <reason>". Never a SHA, never a finding count, never
+anything that reads like a result. The point of reporting is to make the
+absence visible, so a skipped round that is described vaguely is worse
+than one described plainly.
+
 Triage the findings exactly like PR review comments — the same bucket
 framework, the same scepticism. A local finding is not more authoritative
 for being local. Dismiss what misreads the code, and say why — never
