@@ -145,12 +145,17 @@ def test_the_check_sees_every_run_form_and_no_comments(
 # WRANGLER_VERSION through 7 workflows, 3 shell scripts and a composite
 # action would add a way for the value to go missing silently; a literal
 # that a test keeps identical everywhere cannot.
-_NPX_WRANGLER = re.compile(r"npx wrangler@(?P<spec>[^\s\"';|)]+)")
+# The `@spec` is optional on purpose. A bare `npx wrangler` is the worst
+# case, not an absent one -- it resolves to whatever npm calls latest --
+# and a pattern that required the `@` would have made it invisible to the
+# very test meant to catch it.
+_NPX_WRANGLER = re.compile(r"npx wrangler(?:@(?P<spec>[^\s\"';|)]+))?")
 _EXACT_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 
-_WRANGLER_FILES = sorted(
-    p for p in (*_FILES, *Path(".github/scripts").glob("*.sh")) if "npx wrangler@" in p.read_text()
-)
+# Every candidate file, not only the ones already invoking Wrangler with a
+# version. Filtering the list on `npx wrangler@` would have excluded a file
+# whose only invocation had just lost its pin.
+_WRANGLER_FILES = sorted((*_FILES, *Path(".github/scripts").glob("*.sh")))
 
 
 def test_every_npx_wrangler_pins_an_exact_version() -> None:
@@ -160,7 +165,9 @@ def test_every_npx_wrangler_pins_an_exact_version() -> None:
         for number, line in enumerate(path.read_text().splitlines(), start=1):
             for match in _NPX_WRANGLER.finditer(line):
                 spec = match.group("spec")
-                if not _EXACT_VERSION.match(spec):
+                if spec is None:
+                    offenders.append(f"{path}:{number}: bare `npx wrangler`, no version at all")
+                elif not _EXACT_VERSION.fullmatch(spec):
                     offenders.append(f"{path}:{number}: wrangler@{spec}")
 
     assert not offenders, (
@@ -176,7 +183,10 @@ def test_all_npx_wrangler_invocations_agree_on_one_version() -> None:
     for path in _WRANGLER_FILES:
         for number, line in enumerate(path.read_text().splitlines(), start=1):
             for match in _NPX_WRANGLER.finditer(line):
-                versions.setdefault(match.group("spec"), []).append(f"{path}:{number}")
+                spec = match.group("spec")
+                if spec is None:
+                    continue  # the pinning test above owns this case
+                versions.setdefault(spec, []).append(f"{path}:{number}")
 
     assert versions, (
         "no `npx wrangler@` invocations found at all -- if Wrangler is now "
