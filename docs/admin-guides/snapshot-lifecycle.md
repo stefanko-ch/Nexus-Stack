@@ -77,7 +77,7 @@ does not, so anyone with Access can see which mode a stack is on.
 If the Control Plane is unavailable, the same row can be set directly:
 
 ```bash
-npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
+npx wrangler@4.129.0 d1 execute nexus-<domain-slug>-db --remote \
   --command "UPDATE config SET value = 'snapshot' WHERE key = 'lifecycle_mode'"
 ```
 
@@ -106,7 +106,7 @@ Cost: one power cycle. Check afterwards that the image appears in the Hetzner co
 **Control Plane → Settings → Lifecycle → Rebuild**, or directly:
 
 ```bash
-npx wrangler@4 d1 execute nexus-<domain-slug>-db --remote \
+npx wrangler@4.129.0 d1 execute nexus-<domain-slug>-db --remote \
   --command "UPDATE config SET value = 'rebuild' WHERE key = 'lifecycle_mode'"
 ```
 

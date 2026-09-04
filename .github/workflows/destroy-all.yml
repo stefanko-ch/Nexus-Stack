@@ -151,7 +151,7 @@ jobs:
           # Read services from D1 (single source of truth)
           echo "📋 Reading services from D1..."
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+          ENABLED_SERVICES=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
             --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
             | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
 

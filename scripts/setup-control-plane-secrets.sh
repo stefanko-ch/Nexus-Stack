@@ -98,7 +98,7 @@ fi
 
 # Set GITHUB_TOKEN secret
 echo -e "${YELLOW}Setting GITHUB_TOKEN secret...${NC}"
-echo "$GITHUB_TOKEN" | CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" npx wrangler@latest pages secret put GITHUB_TOKEN --project-name="$PROJECT_NAME"
+echo "$GITHUB_TOKEN" | CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" npx wrangler@4.129.0 pages secret put GITHUB_TOKEN --project-name="$PROJECT_NAME"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ GITHUB_TOKEN secret set successfully${NC}"

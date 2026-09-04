@@ -149,7 +149,7 @@ jobs:
 
           echo "📋 Reading services from D1..."
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES=$(npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --json \
+          ENABLED_SERVICES=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
             --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
             | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
 
@@ -331,7 +331,7 @@ jobs:
             exit 0
           fi
 
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "
             INSERT OR REPLACE INTO config (key, value, updated_at) VALUES
               ('snapshot_image_id',  '${{ steps.snapshot.outputs.image_id }}', datetime('now')),
               ('snapshot_disk_gb',   '${{ steps.snapshot.outputs.disk_gb }}',  datetime('now')),
@@ -419,8 +419,8 @@ jobs:
             exit 0
           fi
 
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
-          npx wrangler@4 d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
+          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
           echo "✅ Teardown timestamp written, firewall rules reset"
 
       - name: Summary
