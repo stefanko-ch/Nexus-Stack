@@ -1,0 +1,67 @@
+# Weaviate — open-source vector database
+# https://weaviate.<domain>
+#
+# Second vector store alongside Chroma, and deliberately so: Chroma is the
+# small embedded-style option, Weaviate is the server-shaped one with
+# hybrid search (BM25 + vector), named collections and a GraphQL endpoint.
+# They answer different questions in a course, so both earn their place.
+#
+# No credentials. Weaviate ships anonymous access and this deployment
+# keeps it: the port is reachable only from app-network and through the
+# tunnel behind Cloudflare Access, which is where authentication belongs
+# in this project. Enabling Weaviate's own API-key auth would put a second
+# secret in front of the same door, and one that no other stack could then
+# use without being handed the key.
+#
+# Docs: https://weaviate.io/developers/weaviate
+
+services:
+  weaviate:
+    image: ${IMAGE_WEAVIATE:-cr.weaviate.io/semitechnologies/weaviate:1.34.0}
+    container_name: weaviate
+    restart: unless-stopped
+    ports:
+      # 8080 is taken by it-tools on the host, so the published port
+      # differs from the container port. Clients inside app-network use
+      # `weaviate:8080`; only the tunnel uses 8101.
+      - "8101:8080"
+    environment:
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      # No vectorizer module: embeddings are supplied by the client. That
+      # keeps the container free of model downloads and lets it pair with
+      # whatever is already in the stack — Ollama, LiteLLM, or an external
+      # provider — rather than pinning one inside the database.
+      DEFAULT_VECTORIZER_MODULE: none
+      ENABLE_MODULES: ""
+      DISABLE_TELEMETRY: "true"
+      CLUSTER_HOSTNAME: node1
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # wget, not curl: this image ships no curl, verified with
+      # `command -v` inside it. A curl probe would have failed on every
+      # attempt while the service was fine — the exact defect #783 fixed
+      # in three other stacks.
+      #
+      # /v1/.well-known/ready answers 200 when the node can serve queries
+      # and 503 while it cannot, so a plain success check has the right
+      # semantics here and no status whitelist is needed.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/v1/.well-known/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  weaviate_data:
+
+networks:
+  app-network:
+    external: true

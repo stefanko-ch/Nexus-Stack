@@ -79,7 +79,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (82)
+## Available Stacks (84)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -111,6 +111,7 @@ After deployment you'll have:
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)](https://hoppscotch.io)
 [![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)](https://infisical.com)
+[![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/products/influxdb/)
 [![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)](https://it-tools.tech)
 [![Jupyter](https://img.shields.io/badge/Jupyter-F37726?logo=jupyter&logoColor=white)](https://jupyter.org)
 [![Kafdrop](https://img.shields.io/badge/Kafdrop-000000?logo=apachekafka&logoColor=white)](https://github.com/obsidiandynamics/kafdrop)
@@ -159,6 +160,7 @@ After deployment you'll have:
 [![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)](https://uptime.kuma.pet)
 [![Unity Catalog](https://img.shields.io/badge/Unity%20Catalog-FF3621?logo=databricks&logoColor=white)](https://www.unitycatalog.io)
 [![Vector](https://img.shields.io/badge/Vector-3B2F63?logo=vector&logoColor=white)](https://vector.dev)
+[![Weaviate](https://img.shields.io/badge/Weaviate-00C9A7?logo=weaviate&logoColor=white)](https://weaviate.io)
 [![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)](https://github.com/butlerx/wetty)
 [![Wiki.js](https://img.shields.io/badge/Wiki.js-1976D2?logo=wikidotjs&logoColor=white)](https://js.wiki)
 [![Windmill](https://img.shields.io/badge/Windmill-3B82F6?logo=windowsterminal&logoColor=white)](https://www.windmill.dev)
@@ -196,6 +198,7 @@ After deployment you'll have:
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
 | **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
+| **InfluxDB** | Time-series database with retention policies, downsampling tasks and a built-in UI | [influxdata.com](https://www.influxdata.com/products/influxdb/) |
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
 | **Jupyter** | Interactive PySpark notebook platform with Spark SQL support and cluster connectivity | [jupyter.org](https://jupyter.org) |
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI for browsing topics and consumer groups | [GitHub](https://github.com/obsidiandynamics/kafdrop) |
@@ -244,6 +247,7 @@ After deployment you'll have:
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Unity Catalog** | Open-source catalog for Delta & Iceberg tables, volumes and AI assets | [unitycatalog.io](https://www.unitycatalog.io) |
 | **Vector** | High-performance observability pipeline for logs, metrics, and traces | [vector.dev](https://vector.dev) |
+| **Weaviate** | Vector database with hybrid search — BM25 keyword scoring plus vector similarity | [weaviate.io](https://weaviate.io) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |
 | **Wiki.js** | Open-source wiki and knowledge base with Markdown and visual editor | [js.wiki](https://js.wiki) |
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |

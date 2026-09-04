@@ -82,6 +82,8 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("LITELLM_DB_PASS", "litellm_db_password", ""),
     ("LAKEKEEPER_DB_PASS", "lakekeeper_db_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
+    ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
+    ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
     ("OPENSEARCH_ADMIN_PASS", "opensearch_admin_password", ""),
     ("MARQUEZ_DB_PASS", "marquez_db_password", ""),
     ("MARQUEZ_OPENSEARCH_PASS", "marquez_opensearch_password", ""),
@@ -213,6 +215,8 @@ class NexusConfig(BaseModel):
     litellm_db_password: str | None = None
     lakekeeper_db_password: str | None = None
     questdb_pg_password: str | None = None
+    influxdb_admin_password: str | None = None
+    influxdb_admin_token: str | None = None
     opensearch_admin_password: str | None = None
     marquez_db_password: str | None = None
     marquez_opensearch_password: str | None = None

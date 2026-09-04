@@ -88,6 +88,11 @@
       'INFISICAL_PASSWORD': 'infisical_admin_password-VALUE',
       'INFISICAL_USERNAME': 'admin@snapshot.test',
     }),
+    'influxdb': dict({
+      'INFLUXDB_ADMIN_PASSWORD': 'influxdb-admin-pw',
+      'INFLUXDB_ADMIN_TOKEN': 'influxdb-admin-token',
+      'INFLUXDB_ADMIN_USERNAME': 'nexus-influxdb',
+    }),
     'kestra': dict({
       'KESTRA_PASSWORD': 'has spaces and\trabs',
       'KESTRA_USERNAME': 'admin@snapshot.test',

@@ -719,6 +719,25 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "influxdb",
+            _filter_empty(
+                {
+                    # Username alongside the secrets, as every other folder
+                    # does. It matters here for the same reason as QuestDB:
+                    # a reader holding only the password would try `admin`,
+                    # which is the default the `nexus-` rule exists to stop.
+                    "INFLUXDB_ADMIN_USERNAME": "nexus-influxdb",
+                    "INFLUXDB_ADMIN_PASSWORD": config.influxdb_admin_password,
+                    # The token, not the password, is what API clients and
+                    # Telegraf use. Stored separately so it can be rotated
+                    # without touching the UI login.
+                    "INFLUXDB_ADMIN_TOKEN": config.influxdb_admin_token,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {
