@@ -51,7 +51,11 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:9000/ || exit 1"]
+      # An S3 root request without credentials answers 403, which is the
+      # correct healthy response. `curl -f` read that as failure (#783). The
+      # trailing `|| exit 1` was redundant twice over: -f already exits
+      # non-zero, and Docker treats any non-zero as unhealthy.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9000/ | grep -qxF -e 200 -e 403"]
       interval: 30s
       timeout: 10s
       retries: 3
