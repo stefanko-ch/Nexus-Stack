@@ -47,6 +47,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Cache the npm store
+        # `npm ci` and every Wrangler invocation download through
+        # ~/.npm, and on a cold runner that is the single largest cost here:
+        # run 33852993550 lost 1463s across five gaps of 145-425s, each one
+        # an npm fetch with no log output in between -- 24 of its 35 minutes
+        # (#784). The earlier `_npx`-only proposal would have covered three
+        # of the five; the other two are `npm ci` for the Astro build.
+        #
+        # The Wrangler pin is IN the key on purpose. Without it a pin bump
+        # would restore the old store under the loose restore-key, and
+        # because the primary key already exists GitHub would not save the
+        # new one -- so every later run would re-download it, permanently.
+        # tests/unit/test_workflow_expressions.py keeps this literal equal
+        # to the pinned version.
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-wrangler4.129.0-${{ hashFiles('control-plane/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-wrangler4.129.0-
+            npm-${{ runner.os }}-
+
       - name: Log teardown start
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
