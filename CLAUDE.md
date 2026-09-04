@@ -904,14 +904,19 @@ covers it — so do not add a second local round to chase it, and do not
 describe this step as a complete pre-push filter, because it is not one.
 
 **Report the round, every time, unprompted.** The round is worthless if
-nobody can tell whether it happened. Two places, both mandatory:
+nobody can tell whether it happened. Two places, in this order — the
+second happens later, because a PR usually does not exist yet at the
+first:
 
 - **In the message that asks to push**, state the commit SHA that was
   reviewed, the number of findings, and a one-line verdict per finding.
   Zero findings is a result and gets reported too — "reviewed <sha>, 0
-  findings" — not silence.
-- **In the PR description**, the same summary, so the reviewer knows what
-  a machine already looked at and what was dismissed.
+  findings" — not silence. This one is always possible and never skipped.
+- **In the PR description, when the PR is created** — which is a separate
+  step the user asks for, never automatic. Carry the same summary in, so
+  the reviewer knows what a machine already looked at and what was
+  dismissed. On a branch that never becomes a PR, this half simply does
+  not apply; it is not a reason to delay the push report.
 
 Never say a round ran without naming the SHA it ran against. A review of
 an earlier commit is not a review of the branch, and that difference is
