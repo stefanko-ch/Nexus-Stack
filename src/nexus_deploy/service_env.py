@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from nexus_deploy.config import NexusConfig, service_host
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
 from nexus_deploy.infisical import BootstrapEnv
 
 # ---------------------------------------------------------------------------
@@ -342,7 +342,7 @@ def _render_grafana(
     )
     return RenderedEnv(
         env_vars={
-            "GRAFANA_ADMIN_USER": c.admin_username or "admin",
+            "GRAFANA_ADMIN_USER": c.admin_username or DEFAULT_ADMIN_USERNAME,
             "GRAFANA_ADMIN_PASSWORD": c.grafana_admin_password or "",
         },
         sidecars=(
@@ -831,7 +831,7 @@ def _render_litellm(
             "LITELLM_MASTER_KEY": c.litellm_master_key or "",
             "LITELLM_SALT_KEY": c.litellm_salt_key or "",
             "LITELLM_DB_PASSWORD": c.litellm_db_password or "",
-            "LITELLM_UI_USERNAME": c.admin_username or "admin",
+            "LITELLM_UI_USERNAME": c.admin_username or DEFAULT_ADMIN_USERNAME,
         },
         sidecars=(
             # mode 0o644: bind-mounted into the litellm container which

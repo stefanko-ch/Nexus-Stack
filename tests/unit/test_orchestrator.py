@@ -3127,6 +3127,40 @@ def test_phase_global_env_rejects_shell_unsafe_image_value(
     assert not write_called, "validation must reject BEFORE writing the .env"
 
 
+def test_phase_global_env_rejects_empty_admin_username(
+    orchestrator: Orchestrator,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty ADMIN_USERNAME must abort, not reach the .env.
+
+    `_validate_value` only rejects shell-unsafe characters, so an empty
+    value would sail through and be written as `ADMIN_USERNAME=`. Every
+    stack reading `${ADMIN_USERNAME:-...}` then takes its fallback --
+    `:-` fires on empty, not only on unset -- which is how a deploy could
+    end up with `admin` while tofu's own default says `nexus` (#780).
+    """
+    write_called = False
+
+    def _fake_run(*args: object, **kwargs: object) -> MagicMock:
+        nonlocal write_called
+        write_called = True
+        cp = MagicMock()
+        cp.returncode = 0
+        return cp
+
+    monkeypatch.setattr("nexus_deploy.orchestrator.subprocess.run", _fake_run)
+    orchestrator.image_versions_json = "{}"
+    orchestrator.admin_username = ""
+    # NexusConfig is frozen, so replace it rather than assigning a field.
+    orchestrator.config = orchestrator.config.model_copy(update={"admin_username": ""})
+
+    result = orchestrator._phase_global_env()
+
+    assert result.status == "failed"
+    assert "ADMIN_USERNAME" in result.detail
+    assert not write_called, "must reject BEFORE writing the .env"
+
+
 def test_phase_global_env_rejects_dollar_in_value(
     orchestrator: Orchestrator,
 ) -> None:

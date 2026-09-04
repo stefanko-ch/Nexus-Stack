@@ -62,7 +62,7 @@ from typing import Literal
 
 import requests
 
-from nexus_deploy.config import NexusConfig, service_host
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
 from nexus_deploy.ssh import SSHClient
 
 _CONNECT_TIMEOUT_S: float = 3.0
@@ -1446,7 +1446,7 @@ def run_configure_forgejo(
     PATCH failed but token created), the token IS in the result so
     the orchestrator can capture it via eval.
     """
-    admin_username = config.admin_username or "admin"
+    admin_username = config.admin_username or DEFAULT_ADMIN_USERNAME
     admin_password = config.forgejo_admin_password or ""
     db_password = config.forgejo_db_password or ""
 

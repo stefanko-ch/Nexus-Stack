@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -21,7 +22,10 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from syrupy.assertion import SnapshotAssertion
 
-from nexus_deploy.config import _FIELDS, ConfigError, NexusConfig
+from nexus_deploy.config import _FIELDS, DEFAULT_ADMIN_USERNAME, ConfigError, NexusConfig
+
+# Same convention as tests/unit/test_stack_conventions.py.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -130,9 +134,14 @@ def test_dump_shell_emits_all_fields() -> None:
         assert f"{bash_var}=" in rendered
 
 
-def test_dump_shell_admin_username_default_is_admin() -> None:
-    """When SECRETS_JSON is ``{}`` the per-field fallback fires —
-    ``ADMIN_USERNAME`` defaults to ``admin``.
+def test_dump_shell_admin_username_default_matches_terraform() -> None:
+    """When SECRETS_JSON is ``{}`` the per-field fallback fires, and it
+    must agree with ``variable "admin_username"`` in
+    tofu/stack/variables.tf.
+
+    It said ``admin`` here while Terraform said ``nexus``, so a deploy
+    that lost the tofu output handed back the one name CLAUDE.md's
+    ``nexus-`` rule exists to prevent (#780).
 
     The tofu-default may also produce a different value when
     ``tofu output`` lands a populated SECRETS_JSON; the per-field
@@ -140,7 +149,39 @@ def test_dump_shell_admin_username_default_is_admin() -> None:
     """
     config = NexusConfig.from_secrets_json("{}")
     parsed = _parse_dump(config.dump_shell())
-    assert parsed["ADMIN_USERNAME"] == "admin"
+    assert parsed["ADMIN_USERNAME"] == DEFAULT_ADMIN_USERNAME
+
+
+def test_default_admin_username_matches_the_terraform_variable() -> None:
+    """The Python constant and Terraform's own default must agree.
+
+    Asserting ``DEFAULT_ADMIN_USERNAME == "nexus"`` would only compare
+    two Python values: change tofu/stack/variables.tf and that test still
+    passes while the deployed default drifts -- which is exactly the
+    failure this whole change repairs. So read the .tf file.
+
+    Parsed with a regex rather than an HCL library: the repo has no HCL
+    parser dependency, and adding one for a single literal is a worse
+    trade than a pattern anchored to the block it reads.
+    """
+    variables_tf = (REPO_ROOT / "tofu" / "stack" / "variables.tf").read_text()
+    match = re.search(
+        r'variable\s+"admin_username"\s*\{[^}]*?default\s*=\s*"([^"]*)"',
+        variables_tf,
+        re.DOTALL,
+    )
+    assert match, (
+        'could not find `variable "admin_username"` with a `default` in '
+        "tofu/stack/variables.tf -- if the variable was renamed or its "
+        "default removed, DEFAULT_ADMIN_USERNAME in src/nexus_deploy/config.py "
+        "needs the same treatment."
+    )
+    assert match.group(1) == DEFAULT_ADMIN_USERNAME, (
+        f"tofu/stack/variables.tf defaults admin_username to {match.group(1)!r} "
+        f"but DEFAULT_ADMIN_USERNAME is {DEFAULT_ADMIN_USERNAME!r}. A deploy that "
+        "loses the tofu output would then hand back a different name than a "
+        "deploy that keeps it. See #780."
+    )
 
 
 def test_dump_shell_external_s3_fallbacks() -> None:
@@ -413,7 +454,7 @@ def test_cli_dump_shell_default_tofu_dir(
     rc = main()
     captured = capsys.readouterr()
     assert rc == 0
-    assert captured.out.startswith("ADMIN_USERNAME=admin\n")
+    assert captured.out.startswith(f"ADMIN_USERNAME={DEFAULT_ADMIN_USERNAME}\n")
     assert captured_cwd == [Path("tofu/stack")]
 
 

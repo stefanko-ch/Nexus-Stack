@@ -67,7 +67,7 @@ from nexus_deploy import service_env as _service_env
 from nexus_deploy import services as _services
 from nexus_deploy import stack_sync as _stack_sync
 from nexus_deploy import workspace_coords as _workspace_coords
-from nexus_deploy.config import NexusConfig
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.ssh import SSHClient
 
@@ -741,7 +741,7 @@ class Orchestrator:
                     base_url=f"http://localhost:{port}",
                     domain=domain,
                     forgejo_token=self.state.forgejo_token,
-                    admin_username=self.config.admin_username or "admin",
+                    admin_username=self.config.admin_username or DEFAULT_ADMIN_USERNAME,
                     subdomain_separator=self.bootstrap_env.subdomain_separator,
                 )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
@@ -810,7 +810,7 @@ class Orchestrator:
             with ssh.port_forward(local_port, "localhost", 3202) as port:
                 result = _forgejo.run_mirror_setup(
                     base_url=f"http://localhost:{port}",
-                    admin_username=self.config.admin_username or "admin",
+                    admin_username=self.config.admin_username or DEFAULT_ADMIN_USERNAME,
                     admin_password=self.config.forgejo_admin_password or "",
                     forgejo_token=self.state.forgejo_token,
                     forgejo_user_username=self.forgejo_user_username,
@@ -1733,6 +1733,23 @@ class Orchestrator:
 
         admin_email_value = self.bootstrap_env.admin_email or ""
         admin_username_value = self.admin_username or self.config.admin_username or ""
+        # An empty value here is not a missing nicety, it is a broken deploy:
+        # `_validate_value` below only rejects shell-unsafe characters, so an
+        # empty ADMIN_USERNAME would be written as `ADMIN_USERNAME=` and every
+        # stack reading `${ADMIN_USERNAME:-...}` would take its fallback --
+        # `:-` fires on empty, not only on unset. Fail instead of handing back
+        # a working-looking name nobody chose (#780).
+        if not admin_username_value:
+            return PhaseResult(
+                name="global-env",
+                status="failed",
+                detail=(
+                    "ADMIN_USERNAME resolved to an empty value; refusing to write .env. "
+                    "It comes from the tofu output `admin_username` via NexusConfig, "
+                    "which substitutes DEFAULT_ADMIN_USERNAME when the key is absent, "
+                    "so an empty value means the config was built some other way."
+                ),
+            )
         validations = [
             ("DOMAIN", self.domain),
             ("ADMIN_EMAIL", admin_email_value),

@@ -56,7 +56,7 @@ services:
       # vs. admin bearer for API), add random_password.litellm_ui_password
       # in tofu/stack/main.tf, plumb it through service_env.py +
       # Infisical, and reference it here.
-      UI_USERNAME: ${LITELLM_UI_USERNAME:-admin}
+      UI_USERNAME: ${LITELLM_UI_USERNAME:?must be set in .env (rendered by service_env._render_litellm)}
       UI_PASSWORD: ${LITELLM_MASTER_KEY}
       # Telemetry off (project-wide convention)
       LITELLM_LOCAL_MODEL_COST_MAP: "True"

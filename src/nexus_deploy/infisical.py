@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Literal
 
 from nexus_deploy import _remote
-from nexus_deploy.config import NexusConfig, service_host
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
 
 # Server-side Infisical endpoint.
 _INFISICAL_HOST = "localhost"
@@ -460,7 +460,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     # at dump time, so pushed values match the bash-eval consumers
     # exactly (admin_username default + EXTERNAL_S3_* explicit
     # defaults).
-    admin_username = config.admin_username or "admin"
+    admin_username = config.admin_username or DEFAULT_ADMIN_USERNAME
     external_s3_label = config.external_s3_label or "External Storage"
     external_s3_region = config.external_s3_region or "auto"
 

@@ -910,3 +910,77 @@ def test_strict_host_check_only_where_a_tunnel_rule_exists(services: dict[str, A
         f"strict_host_check set on services with no tunnel ingress rule: {offenders}. "
         f"The flag only has an effect on a service with a subdomain."
     )
+
+
+# Values a credential-shaped variable must never fall back to. `admin`,
+# `root` and `postgres` are the names CLAUDE.md's "Service Account Naming
+# Convention" forbids outright; a stack's own name is the "service name
+# alone" half of the same rule.
+_FORBIDDEN_CREDENTIAL_DEFAULTS = frozenset({"admin", "root", "postgres", "administrator"})
+
+# A variable whose value is a credential rather than configuration.
+# Matched on the name, because that is all a compose file exposes.
+#
+# The name grammar is Compose's own -- `[_a-zA-Z][_a-zA-Z0-9]*`, matched
+# case-insensitively -- not the SHOUTING_CASE this repo happens to use.
+# An upper-case-only pattern would skip `${grafana_admin_user:-admin}`,
+# which Compose accepts and which is the same defect in different
+# clothes. The only lower-case interpolations in the tree today are
+# `${domain}`, `${subdomain}` and `${var.domain}`; none is credential-
+# shaped and none carries a default, so widening costs no false hits.
+_CREDENTIAL_VAR = re.compile(
+    r"\$\{(?P<var>[_a-zA-Z][_a-zA-Z0-9]*?"
+    r"(?:USER|USERNAME|PASS|PASSWORD|SECRET|TOKEN|KEY|ADMIN|ROOT)"
+    r"[_a-zA-Z0-9]*):-(?P<default>[^}]*)\}",
+    re.IGNORECASE,
+)
+
+# `${IMAGE_FOO:-org/foo:1.2}` is the house pattern that lets the
+# orchestrator override a pinned tag, and ~140 of them exist. The
+# exemption is the `image:` line rather than the `IMAGE_` prefix, because
+# a name-based one would wave through a genuine credential that happened
+# to be called `IMAGE_REGISTRY_PASSWORD`. Every IMAGE_ fallback in the
+# tree sits on an image: line today, so this exempts exactly the same set
+# while keying on what the value *is*. Two of them -- IMAGE_ADMINER and
+# IMAGE_PGADMIN -- match the credential name pattern above, which is
+# precisely why the exemption cannot be the name.
+_IMAGE_FIELD = re.compile(r"^\s*image:\s")
+
+
+def test_no_credential_variable_falls_back_to_a_guessable_default() -> None:
+    """A credential env var must not carry a guessable default.
+
+    `${ADMIN_USERNAME:-admin}` hands back exactly the name the `nexus-`
+    prefix rule exists to prevent, and `:-` fires on an *empty* value too,
+    not only on an unset one -- so it is reachable whenever an upstream
+    step produces a blank rather than failing.
+
+    Four of these existed when this test was written (#780): grafana,
+    mage, litellm and rustfs. The fix is `${VAR:?<where it comes from>}`,
+    the pattern infisical/hoppscotch/questdb already use, so a stack whose
+    credential is missing refuses to start instead of starting wrong.
+
+    An empty default (`${VAR:-}`) is allowed: it hands back nothing, which
+    is not guessable and generally fails downstream on its own.
+    """
+    offenders: list[str] = []
+    for stack in STACK_DIRS:
+        text = (STACKS_DIR / stack / "docker-compose.yml").read_text()
+        for line in text.splitlines():
+            if _IMAGE_FIELD.match(line):
+                continue
+            for match in _CREDENTIAL_VAR.finditer(line):
+                default = match.group("default").strip()
+                if not default:
+                    continue
+                if default.lower() in _FORBIDDEN_CREDENTIAL_DEFAULTS or default.lower() == stack:
+                    offenders.append(f"{stack}: ${{{match.group('var')}:-{default}}}")
+
+    assert not offenders, (
+        "credential variables fall back to a guessable default:\n  "
+        + "\n  ".join(sorted(offenders))
+        + "\nUse ${VAR:?must be set in .env (rendered by service_env._render_<stack>)} "
+        "instead, so the stack fails loudly rather than starting with a name "
+        "an attacker would try first. See CLAUDE.md, 'Service Account Naming "
+        "Convention', and #780."
+    )

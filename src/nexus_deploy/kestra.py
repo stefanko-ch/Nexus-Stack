@@ -43,7 +43,7 @@ from typing import Literal
 
 import requests
 
-from nexus_deploy.config import NexusConfig
+from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig
 
 # Default HTTP timeouts:
 # - connect: short (TCP setup) — Kestra is local via tunnel; if it
@@ -724,7 +724,7 @@ def run_register_system_flows(
         repo_owner=repo_owner,
         repo_name=repo_name,
         branch=branch,
-        admin_username=config.admin_username or "admin",
+        admin_username=config.admin_username or DEFAULT_ADMIN_USERNAME,
     )
     register_results = register_all_system_flows(client, flows)
 
