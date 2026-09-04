@@ -232,24 +232,74 @@ def test_all_npx_wrangler_invocations_agree_on_one_version() -> None:
 # and permanently. That failure is invisible in a green workflow, which is
 # why it gets a test rather than a comment.
 #
-# Walks the parsed steps rather than grepping lines. A line-based version
-# checked only that the versions it *found* agreed, so deleting the pin
-# from one workflow's key left the others agreeing and the test silent --
-# the fifth time in this branch's history that a guardrail missed its own
-# evasion rather than the obvious violation.
-_NPM_CACHE_STEP = "Cache the npm store"
+# Three earlier drafts of this check each missed their own evasion rather
+# than the obvious violation, and each was caught by a reviewer:
+#
+#   1. grepped lines, so deleting a whole cache step left the remaining
+#      keys agreeing and the test silent
+#   2. asserted only that *a* step existed somewhere, so deleting it from
+#      one workflow kept the other six green
+#   3. matched the step by NAME, so renaming the action or pointing `path`
+#      at something other than ~/.npm passed, and worked per workflow
+#      rather than per job -- a cache in job A does nothing for job B
+#
+# Hence: identify the cache by what it does, and reason per job.
 _CACHE_KEY_PIN = re.compile(r"-wrangler(?P<spec>[0-9][^-\s]*)-")
+_RUNS_NPM = re.compile(r"npx wrangler|npm ci\b|npm run ")
+_SCRIPT_REF = re.compile(r"\.github/scripts/([A-Za-z0-9_.-]+\.sh)")
+
+#: Scripts under .github/scripts that themselves invoke npm. A job that
+#: calls one of these touches npm without the workflow text ever saying so.
+_NPM_SCRIPTS = frozenset(
+    path.name for path in Path(".github/scripts").glob("*.sh") if "npx wrangler" in path.read_text()
+)
 
 
-def _npm_cache_steps() -> list[tuple[Path, dict[str, Any]]]:
-    found: list[tuple[Path, dict[str, Any]]] = []
+def _jobs(path: Path) -> dict[str, Any]:
+    document = yaml.safe_load(path.read_text()) or {}
+    return document.get("jobs") or {}
+
+
+def _npm_cache_steps() -> dict[tuple[Path, str], dict[str, Any]]:
+    """(workflow, job) -> the step that caches ~/.npm, found by substance.
+
+    Keyed on `uses` and `with.path`, never on the step's name: a step can
+    be renamed freely, but one that does not run actions/cache over
+    ~/.npm is not an npm cache whatever it is called.
+    """
+    found: dict[tuple[Path, str], dict[str, Any]] = {}
     for path in _WORKFLOWS:
-        document = yaml.safe_load(path.read_text())
-        for job in (document.get("jobs") or {}).values():
+        for job_id, job in _jobs(path).items():
             for step in job.get("steps") or []:
-                if isinstance(step, dict) and str(step.get("name", "")).startswith(_NPM_CACHE_STEP):
-                    found.append((path, step))
+                if not isinstance(step, dict):
+                    continue
+                if not str(step.get("uses", "")).startswith("actions/cache@"):
+                    continue
+                cached = str((step.get("with") or {}).get("path", ""))
+                if any(line.strip() == "~/.npm" for line in cached.splitlines()):
+                    found[(path, job_id)] = step
     return found
+
+
+def _jobs_using_npm() -> set[tuple[Path, str]]:
+    """Jobs that run npm in their own steps, directly or via a script.
+
+    A job whose only content is `uses:` another workflow is excluded --
+    the callee is a workflow in its own right and gets checked there.
+    """
+    using: set[tuple[Path, str]] = set()
+    for path in _WORKFLOWS:
+        for job_id, job in _jobs(path).items():
+            for step in job.get("steps") or []:
+                if not isinstance(step, dict):
+                    continue
+                run = str(step.get("run", ""))
+                if _RUNS_NPM.search(run) or any(
+                    name in _NPM_SCRIPTS for name in _SCRIPT_REF.findall(run)
+                ):
+                    using.add((path, job_id))
+                    break
+    return using
 
 
 def test_npm_cache_keys_carry_the_pinned_wrangler_version() -> None:
@@ -265,19 +315,19 @@ def test_npm_cache_keys_carry_the_pinned_wrangler_version() -> None:
 
     steps = _npm_cache_steps()
     assert steps, (
-        f"no step named {_NPM_CACHE_STEP!r} in any workflow. If the caching was "
-        "removed deliberately, delete this test with it; otherwise the npm "
+        "no step anywhere runs actions/cache over ~/.npm. If the caching was "
+        "removed deliberately, delete these tests with it; otherwise the npm "
         "store is no longer cached at all. See #784."
     )
 
     offenders: list[str] = []
-    for path, step in steps:
+    for (path, job_id), step in sorted(steps.items()):
         key = str((step.get("with") or {}).get("key", ""))
         match = _CACHE_KEY_PIN.search(key)
         if match is None:
-            offenders.append(f"{path}: key names no Wrangler version: {key}")
+            offenders.append(f"{path}:{job_id}: key names no Wrangler version: {key}")
         elif match.group("spec") != version:
-            offenders.append(f"{path}: key says {match.group('spec')}, npx says {version}")
+            offenders.append(f"{path}:{job_id}: key says {match.group('spec')}, npx says {version}")
 
     assert not offenders, (
         "npm-store cache keys out of step with the Wrangler pin:\n  "
@@ -287,32 +337,24 @@ def test_npm_cache_keys_carry_the_pinned_wrangler_version() -> None:
     )
 
 
-def test_every_workflow_touching_npm_caches_the_store() -> None:
-    """A workflow that runs npm must cache ~/.npm -- all of them, not some.
+def test_every_job_touching_npm_caches_the_store() -> None:
+    """Per job, not per workflow -- a cache in job A does nothing for job B."""
+    using = _jobs_using_npm()
+    cached = set(_npm_cache_steps())
 
-    Asserting only that *a* cache step exists somewhere let the step be
-    deleted from one workflow while the others kept the test green. The
-    set that needs the cache is derivable, so derive it.
-    """
-    uses_npm = {
-        path
-        for path in _WORKFLOWS
-        if re.search(r"npx wrangler|npm ci\b|npm run ", path.read_text())
-    }
-    has_cache = {path for path, _ in _npm_cache_steps()}
-
-    missing = sorted(str(p) for p in uses_npm - has_cache)
+    missing = sorted(f"{path}:{job_id}" for path, job_id in using - cached)
     assert not missing, (
-        "workflows that run npm without caching ~/.npm:\n  "
+        "jobs that run npm without caching ~/.npm:\n  "
         + "\n  ".join(missing)
-        + f"\nAdd a step named {_NPM_CACHE_STEP!r}. A cold npm fetch cost "
-        "145-425s per occurrence in run 33852993550. See #784."
+        + "\nAdd an actions/cache step over ~/.npm to that job. A cold npm "
+        "fetch cost 145-425s per occurrence in run 33852993550. See #784."
     )
 
-    stray = sorted(str(p) for p in has_cache - uses_npm)
+    stray = sorted(f"{path}:{job_id}" for path, job_id in cached - using)
     assert not stray, (
-        "workflows with an npm-store cache but no npm usage:\n  "
+        "jobs with an npm-store cache but no npm usage:\n  "
         + "\n  ".join(stray)
-        + "\nEither the usage was removed and the cache step should go too, "
-        "or the detection above needs widening."
+        + "\nEither the usage was removed and the cache should go too, or "
+        "the detection needs widening -- note it already follows "
+        ".github/scripts/*.sh references."
     )
