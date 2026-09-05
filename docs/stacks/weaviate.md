@@ -59,8 +59,10 @@ That lets it pair with whatever is already deployed — [Ollama](ollama.md) for 
 
 ### Quick check
 
+The tunnel hostname is behind Cloudflare Access, so an unauthenticated `curl` gets an Access page rather than JSON. Check from the server, where the port is bound to loopback:
+
 ```bash
-curl -s https://weaviate.<domain>/v1/meta | jq '.version'
+ssh nexus "curl -s http://127.0.0.1:8101/v1/meta" | jq '.version'
 ```
 
 Inside the stack, other containers reach it at `weaviate:8080` — the container port, not the published `8101`.

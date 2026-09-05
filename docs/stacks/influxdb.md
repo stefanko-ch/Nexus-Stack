@@ -51,30 +51,42 @@ The username is stored alongside the secrets deliberately: a reader holding only
 
 The **token**, not the password, is what API clients and Telegraf use. The password is only for signing in to the web UI.
 
+Both land in Infisical, and Infisical's contents are synced into Kestra as `SECRET_*` environment variables — so any Kestra flow author can read them with `{{ secret('NAME') }}`. That is true of every credential in this project, not a property of InfluxDB, and #716 tracks narrowing it to an allowlist.
+
 ### First run
 
 The container starts in `DOCKER_INFLUXDB_INIT_MODE=setup`, so the organisation, bucket, admin user and token are created on first boot from the environment. Without it InfluxDB would sit in an onboarding state answering 401 to everything until somebody completed a wizard by hand — which nobody would, on a stack that is torn down and rebuilt.
 
 Setup runs once. On a later spin-up the volume already holds an initialised database and the init variables are ignored.
 
+That matters if the generated credentials ever change while the volume survives: InfluxDB would keep the old password and token, while Infisical showed the new ones. The two lifecycles do not produce that state on their own — in `rebuild` mode the volume is destroyed along with the server, so setup runs fresh against the new values; in `snapshot` mode the volume and the OpenTofu state survive together, so the values do not change. It becomes possible only if a `random_password` is replaced by hand. If you do that, rotate inside InfluxDB too — the environment variables will not do it for you. This is the same property as every other stack that initialises from environment on first run.
+
 ### Writing from Telegraf
 
-Telegraf currently writes to `outputs.prometheus_client`. To send to InfluxDB instead, add to `stacks/telegraf/telegraf.conf`:
+Telegraf currently writes to `outputs.prometheus_client`. Pointing it at InfluxDB takes two steps, and **neither is wired up for you today**.
+
+**1. Create a write-scoped token.** Do not hand Telegraf the admin token. It is an all-access credential; a metrics agent needs write access to one bucket. In the InfluxDB UI: *Load Data → API Tokens → Generate → Custom API Token*, write access to `default`, nothing else. The admin token stays a bootstrap and operator credential.
+
+**2. Get that token into the container.** `stacks/telegraf/docker-compose.yml` has no `env_file`, so a `$VARIABLE` in `telegraf.conf` expands to nothing and Telegraf would authenticate with an empty token. The value has to reach the container explicitly — for example by adding the token to Telegraf's `environment:` block, or by writing it into `telegraf.conf` directly and accepting that the file then holds a secret.
+
+Then in `stacks/telegraf/telegraf.conf`:
 
 ```toml
 [[outputs.influxdb_v2]]
   urls = ["http://influxdb:8086"]
-  token = "$INFLUXDB_ADMIN_TOKEN"
+  token = "$INFLUXDB_WRITE_TOKEN"   # only if step 2 actually puts it there
   organization = "nexus"
   bucket = "default"
 ```
 
-Note `influxdb:8086` — the container port, not the published `8102`. Other stacks on `app-network` reach it the same way.
+Note `influxdb:8086` — the container port, not the published `8102`. Other stacks on `app-network` reach it the same way, over plain HTTP: inside the Docker network there is no TLS, the same as for PostgreSQL, MinIO and everything else here. The encryption boundary is the Cloudflare Tunnel, not the container network.
 
 ### Quick check
 
+The tunnel hostname sits behind Cloudflare Access, so an unauthenticated `curl` gets an Access page rather than JSON. Check from the server instead — the port is bound to loopback there:
+
 ```bash
-curl -s https://influxdb.<domain>/health | jq '.status'
+ssh nexus "curl -s http://127.0.0.1:8102/health" | jq '.status'
 ```
 
 `/health` answers 200 with `"pass"` once the node is ready, and 503 before that. The container's healthcheck whitelists 200 rather than using `curl -f`, so a response that proves the service is up is never read as a failure (#783).
