@@ -267,6 +267,23 @@
     // Defined inline so adding a new api_only service only requires editing
     // services.yaml + (optionally) this map.
     window.NS.apiOnlyHints = {
+      weaviate: {
+        intro: 'Weaviate is a REST and GraphQL API with no web UI of any kind — ' +
+               'this image bundles no Swagger or docs page either, so opening the ' +
+               'URL shows a JSON index of endpoints. Collections are managed from a ' +
+               'client library; the snippet below just checks the instance is up.',
+        // No auth_command: this deployment runs with anonymous access, so
+        // there is no key to fetch.
+        //
+        // A full `curl`, not a curl_suffix. The suffix form builds
+        // `curl <stackUrl>/v1/meta`, and that hostname is behind Cloudflare
+        // Access — a copied command has no Access session and returns the
+        // login page instead of Weaviate's JSON. The port is bound to
+        // loopback on the server, so going in over SSH is the form that
+        // actually runs. Same command as docs/stacks/weaviate.md.
+        curl: 'ssh nexus "curl -s http://127.0.0.1:8101/v1/meta"',
+        docs_url: 'https://weaviate.io/developers/weaviate/api/rest',
+      },
       meilisearch: {
         intro: 'Meilisearch is a pure REST API — no built-in web UI in production mode. ' +
                'Use the snippets below to authenticate and query, or open the raw endpoint ' +

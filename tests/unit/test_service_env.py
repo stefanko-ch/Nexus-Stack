@@ -79,6 +79,8 @@ def full_config() -> NexusConfig:
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
         questdb_pg_password="questdb-pg-pw",
+        influxdb_admin_password="influxdb-admin-pw",
+        influxdb_admin_token="influxdb-admin-token",
         opensearch_admin_password="opensearch-admin-pw",
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
@@ -2419,3 +2421,52 @@ def test_forgejo_runner_is_declared_internal_only_with_no_subdomain() -> None:
     assert entry["internal_only"] is True
     assert "subdomain" not in entry
     assert entry.get("core", False) is False
+
+
+def test_influxdb_renders_both_secrets(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Password and token, and nothing else.
+
+    The username is set in the compose file rather than rendered here, so
+    the key set stays at two. Pinned so a third secret cannot arrive
+    without a fail-fast guard beside it.
+    """
+    from nexus_deploy.service_env import _render_influxdb
+
+    rendered = _render_influxdb(full_config, full_env)
+    assert rendered.env_vars == {
+        "INFLUXDB_ADMIN_PASSWORD": "influxdb-admin-pw",
+        "INFLUXDB_ADMIN_TOKEN": "influxdb-admin-token",
+    }
+
+
+def test_influxdb_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """0o600: the file holds an admin password and an API token in
+    cleartext, so the default 0o644 would leave both readable by every
+    account on the server."""
+    from nexus_deploy.service_env import _render_influxdb
+
+    assert _render_influxdb(full_config, full_env).mode == 0o600
+
+
+def test_influxdb_raises_on_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The compose file uses `${VAR:?}`, so an empty value stops the
+    container -- but failing here names the cause, while failing there
+    produces a compose error the operator has to trace back."""
+    from nexus_deploy.service_env import _render_influxdb
+
+    config = full_config.model_copy(update={"influxdb_admin_password": ""})
+    with pytest.raises(ServiceEnvError, match="INFLUXDB_ADMIN_PASSWORD"):
+        _render_influxdb(config, full_env)
+
+
+def test_influxdb_raises_on_empty_token(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Worse than a weak token: DOCKER_INFLUXDB_INIT setup mode accepts an
+    empty one, and the resulting instance then has an admin token that is
+    the empty string."""
+    from nexus_deploy.service_env import _render_influxdb
+
+    config = full_config.model_copy(update={"influxdb_admin_token": ""})
+    with pytest.raises(ServiceEnvError, match="INFLUXDB_ADMIN_TOKEN"):
+        _render_influxdb(config, full_env)

@@ -1,0 +1,76 @@
+# InfluxDB — purpose-built time-series database
+# https://influxdb.<domain>
+#
+# QuestDB is already here and already accepts the InfluxDB line protocol,
+# so this is NOT "the missing sink for Telegraf" — Telegraf can write to
+# either, and today writes to `outputs.prometheus_client`.
+#
+# What InfluxDB adds that QuestDB does not have is lifecycle: buckets with
+# retention policies, a task engine for downsampling, and a token model
+# with per-token scopes. Plus Flux, which is a different way of thinking
+# about time-series than SQL and worth having side by side in a course.
+# QuestDB stays the SQL-first option; this is the one where data ages out
+# on a schedule.
+#
+# Docs: https://docs.influxdata.com/influxdb/v2/
+
+services:
+  influxdb:
+    image: ${IMAGE_INFLUXDB:-influxdb:2.9.1}
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      # 8086 is taken by s3manager on the host, so the published port
+      # differs from the container port. Clients inside app-network use
+      # `influxdb:8086`; only the tunnel uses 8102.
+      #
+      # Bound to 127.0.0.1 rather than every interface, for the reason
+      # given in stacks/weaviate/docker-compose.yml: cloudflared reaches
+      # it over localhost either way, and #742 tracks doing the same for
+      # the stacks that predate this.
+      - "127.0.0.1:8102:8086"
+    environment:
+      # Automated first-run setup. Without this InfluxDB starts in an
+      # onboarding state and every request answers 401 until somebody
+      # completes a wizard by hand — which nobody would, on a stack that
+      # is torn down and rebuilt.
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: nexus-influxdb
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_influxdb)}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_ADMIN_TOKEN:?must be set in .env (rendered by service_env._render_influxdb)}
+      DOCKER_INFLUXDB_INIT_ORG: nexus
+      DOCKER_INFLUXDB_INIT_BUCKET: default
+      # 0 = keep forever. A teaching stack should not silently drop the
+      # data somebody wrote last week; buckets with real retention are
+      # created deliberately from the UI or the API.
+      DOCKER_INFLUXDB_INIT_RETENTION: "0"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # curl, not wget: this image ships curl and no wget, verified with
+      # `command -v` inside it.
+      #
+      # /health answers 200 when the node is ready and 503 while it is
+      # not, so a status whitelist of 200 is exactly right — and `curl -f`
+      # is avoided on purpose, since it also fails on responses that prove
+      # the service is up (#783).
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8086/health | grep -qxF -e 200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  influxdb_data:
+  influxdb_config:
+
+networks:
+  app-network:
+    external: true

@@ -632,6 +632,43 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_influxdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """InfluxDB: time-series database. Two secrets, and both are required.
+
+    The password signs in to the web UI; the token is what Telegraf and
+    every API client presents. They are separate so that rotating one
+    does not invalidate the other.
+
+    Fail-fast on either being empty. The compose file uses `${VAR:?...}`
+    for both, so an empty value would stop the container rather than
+    start it wrong -- but failing here names the cause, while failing
+    there produces a compose error the operator has to trace back.
+
+    An empty token would be worse than a weak one: `DOCKER_INFLUXDB_INIT`
+    setup mode accepts it, and the resulting instance has an admin token
+    that is the empty string.
+    """
+    if _empty(c.influxdb_admin_password):
+        raise ServiceEnvError(
+            "InfluxDB enabled but INFLUXDB_ADMIN_PASSWORD is empty -- "
+            "it comes from the tofu output `influxdb_admin_password`."
+        )
+    if _empty(c.influxdb_admin_token):
+        raise ServiceEnvError(
+            "InfluxDB enabled but INFLUXDB_ADMIN_TOKEN is empty -- "
+            "it comes from the tofu output `influxdb_admin_token`."
+        )
+    return RenderedEnv(
+        env_vars={
+            "INFLUXDB_ADMIN_PASSWORD": c.influxdb_admin_password or "",
+            "INFLUXDB_ADMIN_TOKEN": c.influxdb_admin_token or "",
+        },
+        # 0o600: the file holds an admin password and an API token in
+        # cleartext, the same reason _render_sftpgo restricts its own.
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -1651,6 +1688,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
     EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),
     EnvSpec("opensearch", _is_enabled("opensearch"), _render_opensearch),
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),

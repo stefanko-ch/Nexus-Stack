@@ -235,6 +235,22 @@ resource "random_password" "lakekeeper_db_password" {
 # The port is not published, but it is on app-network where every other
 # stack can reach it, so both are overridden. No special characters needed
 # here — QuestDB validates nothing on start, unlike OpenSearch below.
+# InfluxDB admin password and API token. Two secrets rather than one:
+# the password signs in to the web UI, the token is what Telegraf and
+# every API client actually present. Leaking one does not hand over the
+# other, and the token can be rotated without touching the login.
+# `special = false` because both travel through a compose .env and an
+# Infisical payload, and neither needs the extra character class.
+resource "random_password" "influxdb_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "influxdb_token" {
+  length  = 48
+  special = false
+}
+
 resource "random_password" "questdb_pg" {
   length  = 24
   special = false

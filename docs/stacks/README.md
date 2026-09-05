@@ -114,6 +114,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | SSRF Proxy (Dify) | `ubuntu/squid` | `latest` | Latest ² |
 | Quickwit | `quickwit/quickwit` | `0.8.1` | Exact ¹ |
 | QuestDB | `questdb/questdb` | `10.0.1` | Exact ¹ |
+| InfluxDB | `influxdb` | `2.9.1` | Exact ¹ |
+| Weaviate | `cr.weaviate.io/semitechnologies/weaviate` | `1.34.0` | Exact ¹ |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -194,6 +196,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
+| **InfluxDB** | Time-series database with retention and downsampling tasks | [influxdb.md](influxdb.md) |
 | **IT-Tools** | Developer tools collection | [it-tools.md](it-tools.md) |
 | **Jupyter PySpark** | Interactive PySpark notebook | [jupyter.md](jupyter.md) |
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI | [kafdrop.md](kafdrop.md) |
@@ -241,6 +244,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Unity Catalog** | Catalog for Delta & Iceberg tables, volumes and AI assets | [unity-catalog.md](unity-catalog.md) |
 | **Uptime Kuma** | Self-hosted monitoring tool | [uptime-kuma.md](uptime-kuma.md) |
 | **Vector** | Observability data pipeline | [vector.md](vector.md) |
+| **Weaviate** | Vector database with hybrid BM25 + vector search | [weaviate.md](weaviate.md) |
 | **Wetty** | Web-based SSH terminal | [wetty.md](wetty.md) |
 | **Wiki.js** | Wiki platform | [wikijs.md](wikijs.md) |
 | **Windmill** | Developer workflow engine | [windmill.md](windmill.md) |
