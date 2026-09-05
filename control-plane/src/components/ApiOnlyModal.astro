@@ -286,14 +286,29 @@
       },
       meilisearch: {
         intro: 'Meilisearch is a pure REST API — no built-in web UI in production mode. ' +
-               'Use the snippets below to authenticate and query, or open the raw endpoint ' +
-               'to see the JSON status response.',
+               'The quick test runs on the server, because this hostname sits behind ' +
+               'Cloudflare Access and a copied curl carries no Access session. The auth ' +
+               'snippet is for fetching the key to your own machine, e.g. for a client ' +
+               'library — the curl below does not use it.',
         // Infisical-CLI: keys ARE case-sensitive and folder-scoped. The master
         // key is pushed by infisical.py to folder /meilisearch under key
-        // MEILISEARCH_MASTER_KEY — both must match exactly or the CLI returns
-        // "secret not found". The export sets a shell var the curl below picks up.
+        // MEILISEARCH_MASTER_KEY -- both must match exactly or the CLI returns
+        // "secret not found".
         auth_command: 'export MEILISEARCH_MASTER_KEY=$(infisical secrets get MEILISEARCH_MASTER_KEY --path=/meilisearch --plain)',
-        curl: 'curl -H "Authorization: Bearer $MEILISEARCH_MASTER_KEY" \\\n  __URL__/health',
+        // Three deliberate choices, each measured (#792):
+        //
+        //  - Runs over ssh against 127.0.0.1, not the tunnel URL. The previous
+        //    version targeted __URL__, which Cloudflare Access answers with a
+        //    login page, so it could never have worked as copied.
+        //  - Hits /indexes, not /health. Measured on v1.43.1: /health returns
+        //    200 WITHOUT a token, so a bearer header there proves nothing.
+        //    /indexes returns 401 without and 200 with -- this tests the key.
+        //  - Sources the server's own .env rather than interpolating the secret
+        //    into the ssh command line, which would put it in argv on the
+        //    server. The variable is MEILI_MASTER_KEY there; the Infisical key
+        //    name above is deliberately different.
+        curl: "ssh nexus 'set -a; . /opt/docker-server/stacks/meilisearch/.env; set +a; " +
+              "curl -s -H \"Authorization: Bearer $MEILI_MASTER_KEY\" http://127.0.0.1:7700/indexes'",
       },
     };
 
