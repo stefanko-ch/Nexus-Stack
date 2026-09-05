@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.76.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.75.0...v0.76.0) (2026-09-05)
+
+
+### 🚀 Features
+
+* **control-plane:** Clear the progress bar after a successful run ([#778](https://github.com/stefanko-ch/Nexus-Stack/issues/778)) ([4d68179](https://github.com/stefanko-ch/Nexus-Stack/commit/4d681792582f3c006c6dac1cf28b4bbdcf42cd99))
+* **control-plane:** Show live step-by-step progress for spin-up and teardown ([#775](https://github.com/stefanko-ch/Nexus-Stack/issues/775)) ([5ddba13](https://github.com/stefanko-ch/Nexus-Stack/commit/5ddba13a88883faf8b844fbf6cf08661e08d84b7))
+* **stacks:** Add InfluxDB and Weaviate ([#791](https://github.com/stefanko-ch/Nexus-Stack/issues/791)) ([0fda0fc](https://github.com/stefanko-ch/Nexus-Stack/commit/0fda0fc98aabdc08d7f1a9aa87130b6e349c4a27))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Remove an empty GitHub expression that broke every spin-up ([#776](https://github.com/stefanko-ch/Nexus-Stack/issues/776)) ([3d6d8d8](https://github.com/stefanko-ch/Nexus-Stack/commit/3d6d8d8d8062d56029ce4b6534a695a44d7c0ba7))
+* **control-plane:** Make the step list legible on the dark background ([#777](https://github.com/stefanko-ch/Nexus-Stack/issues/777)) ([2684474](https://github.com/stefanko-ch/Nexus-Stack/commit/2684474c16c615c7cb62d2b1321166f4a0a1ea4c))
+* **stacks:** Stop falling back to the admin username the naming rule forbids ([#782](https://github.com/stefanko-ch/Nexus-Stack/issues/782)) ([688f5dc](https://github.com/stefanko-ch/Nexus-Stack/commit/688f5dc931e01fa22e883c1c7a596ff43375f7e4))
+* **stacks:** Stop three healthchecks from marking working services unhealthy ([#786](https://github.com/stefanko-ch/Nexus-Stack/issues/786)) ([51b17b4](https://github.com/stefanko-ch/Nexus-Stack/commit/51b17b481999934713eb362627e0daba7e32d729))
+
+
+### ⚡ Performance
+
+* **ci:** Cache the npm store — 24 of 35 minutes went to cold npm fetches ([#789](https://github.com/stefanko-ch/Nexus-Stack/issues/789)) ([48433b2](https://github.com/stefanko-ch/Nexus-Stack/commit/48433b2e1ff692b1aaacbf0f31fef3d9dd16c586))
+
+
+### 📚 Documentation
+
+* Record how to catch a commit Release Please dropped ([#773](https://github.com/stefanko-ch/Nexus-Stack/issues/773)) ([a7ffd59](https://github.com/stefanko-ch/Nexus-Stack/commit/a7ffd5919d8741ffde7da2013f75f60f948a6dd6))
+* Require the local CodeRabbit round to be reported, with its SHA ([#788](https://github.com/stefanko-ch/Nexus-Stack/issues/788)) ([111901d](https://github.com/stefanko-ch/Nexus-Stack/commit/111901dab1d5dd2b4332c81e082d5fb23bbede3d))
+
+
+### 🔧 Maintenance
+
+* **ci:** Pin every npx wrangler invocation to an exact version ([#787](https://github.com/stefanko-ch/Nexus-Stack/issues/787)) ([ee6bf52](https://github.com/stefanko-ch/Nexus-Stack/commit/ee6bf52cee7a88d2224d8d761bb1f9f20e24eae6))
+* Correct CodeRabbit instructions that state rules the repo breaks ([#781](https://github.com/stefanko-ch/Nexus-Stack/issues/781)) ([c1d8435](https://github.com/stefanko-ch/Nexus-Stack/commit/c1d8435f0f1fac5e51088249579c001252e0acf9))
+
 ## [0.75.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.74.0...v0.75.0) (2026-09-02)
 
 
