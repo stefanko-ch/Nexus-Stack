@@ -115,6 +115,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Quickwit | `quickwit/quickwit` | `0.8.1` | Exact ¹ |
 | QuestDB | `questdb/questdb` | `10.0.1` | Exact ¹ |
 | InfluxDB | `influxdb` | `2.9.1` | Exact ¹ |
+| Nussknacker | `touk/nussknacker` | `1.18.1_scala-2.13` | Exact ¹ |
 | Weaviate | `cr.weaviate.io/semitechnologies/weaviate` | `1.34.0` | Exact ¹ |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
@@ -215,6 +216,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
+| **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |

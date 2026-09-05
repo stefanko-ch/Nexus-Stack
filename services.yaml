@@ -673,6 +673,16 @@ services:
     support_images:
       nocodb-postgres: "postgres:16-alpine"
 
+  nussknacker:
+    subdomain: "nussknacker"
+    port: 8103
+    public: false
+    category: "streaming"
+    website: "https://nussknacker.io"
+    description: "Visual low-code designer for stream processing — drag-and-drop scenarios that run on Flink."
+    long_description: "Nussknacker is a low-code designer for real-time decision logic: you draw a scenario — source, filters, enrichments, sink — and deploy it to Flink without writing code. It is the counterpart to Dinky rather than a replacement: same engine underneath, different audience. Dinky is a SQL IDE for developers, Nussknacker is for domain experts who know the rules but not the language, which makes the pair useful for teaching the same pipeline twice from two directions. Wired to the existing Flink and Redpanda stacks out of the box. One container with an embedded state database; the admin account is generated per deployment, replacing the five demo accounts the image ships."
+    image: "touk/nussknacker:1.18.1_scala-2.13"
+
   ollama:
     subdomain: "ollama"
     port: 8093

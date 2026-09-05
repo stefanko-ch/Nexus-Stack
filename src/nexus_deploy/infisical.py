@@ -719,6 +719,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "nussknacker",
+            _filter_empty(
+                {
+                    # Username alongside the password. It matters more here
+                    # than elsewhere: the image's own default is `admin`
+                    # with password `admin`, so a reader holding only the
+                    # password would try exactly the account this replaces.
+                    "NUSSKNACKER_ADMIN_USERNAME": "nexus-nussknacker",
+                    "NUSSKNACKER_ADMIN_PASSWORD": config.nussknacker_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "influxdb",
             _filter_empty(
                 {
