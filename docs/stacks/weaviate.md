@@ -49,7 +49,15 @@ Both are vector stores and both stay. [Chroma](chroma.md) is the small, embedded
 
 ### No credentials, on purpose
 
-Weaviate runs with `AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true`. The port is published only inside `app-network` and reachable from outside solely through the tunnel, behind Cloudflare Access — which is where authentication lives in this project.
+Weaviate runs with `AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true`. Three ways in, and none of them is open to the internet:
+
+| From | Reaches it at | Gated by |
+|---|---|---|
+| Another container on `app-network` | `weaviate:8080` | nothing |
+| The host itself, e.g. over SSH | `127.0.0.1:8101` | SSH, which is itself behind the tunnel |
+| Anywhere else | `https://weaviate.<domain>` | Cloudflare Access |
+
+The published port binds to loopback only, so nothing on the server's public interfaces answers. Authentication for outside traffic is Cloudflare Access, which is where it lives for every service in this project.
 
 Enabling Weaviate's own API-key auth would add a second secret in front of the same door, and one that every other stack on the network would then need handed to it. Nothing is gained; a key to distribute is lost.
 
