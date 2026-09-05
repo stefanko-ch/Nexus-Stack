@@ -16,6 +16,19 @@ Weaviate is a server-shaped vector database. Collections carry a schema, queries
 - Filtered vector search: `where` clauses applied during the search, not after
 - File-backed persistence on a local volume
 
+### Browser entry point — there is no web UI
+
+Weaviate is API-only. Opening it in a browser shows a JSON index of endpoints, not a dashboard:
+
+```json
+{"links":[{"href":"/v1/meta","name":"Meta information about this instance/cluster"},
+          {"href":"/v1/schema","name":"view complete schema"}, ...]}
+```
+
+That is the correct response, not a fault. Verified against the running container: `/` answers 301 and redirects to `/v1`; `/swagger`, `/docs` and `/openapi.json` all answer 404 — this image bundles no documentation UI, unlike [Chroma](chroma.md), which serves Swagger at `/docs/`.
+
+The service's `services.yaml` entry therefore sets `landing_path: "/v1"`, so the Control Plane's **Open Weaviate** button goes straight to that index instead of depending on the redirect. Managing collections is done from a client — Python, TypeScript, Go — or from Weaviate's separately hosted cloud console, which this stack does not deploy.
+
 ### Why alongside Chroma
 
 Both are vector stores and both stay. [Chroma](chroma.md) is the small, embedded-style option most tutorials start with — you add texts, you query, you are done. Weaviate is what a retrieval pipeline looks like once relevance has to be tuned: schema, hybrid scoring, filters that run inside the search. Comparing the two on the same corpus is the point of having both.
