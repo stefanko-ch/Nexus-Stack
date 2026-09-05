@@ -27,7 +27,11 @@ Weaviate is API-only. Opening it in a browser shows a JSON index of endpoints, n
 
 That is the correct response, not a fault. Verified against the running container: `/` answers 301 and redirects to `/v1`; `/swagger`, `/docs` and `/openapi.json` all answer 404 — this image bundles no documentation UI, unlike [Chroma](chroma.md), which serves Swagger at `/docs/`.
 
-The service's `services.yaml` entry therefore sets `landing_path: "/v1"`, so the Control Plane's **Open Weaviate** button goes straight to that index instead of depending on the redirect. Managing collections is done from a client — Python, TypeScript, Go — or from Weaviate's separately hosted cloud console, which this stack does not deploy.
+The service's `services.yaml` entry therefore sets **`api_only: true`**. The Control Plane then does not navigate to the URL at all: clicking **Open Weaviate** opens a dialog explaining there is no UI, with a `curl` snippet against `/v1/meta`. Same treatment as [Meilisearch](meilisearch.md), which also serves only JSON.
+
+This differs from [Chroma](chroma.md) on purpose. Chroma *does* have a UI — its image bundles Swagger at `/docs/` — so it uses `landing_path` to send the button there. Weaviate has nothing to send the button to, and a `landing_path` pointing at a JSON index would still open a tab full of JSON. The two fields answer different questions: `landing_path` means "the UI is not at `/`", `api_only` means "there is no UI".
+
+Managing collections is done from a client — Python, TypeScript, Go — or from Weaviate's separately hosted cloud console, which this stack does not deploy.
 
 ### Why alongside Chroma
 

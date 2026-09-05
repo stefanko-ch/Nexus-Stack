@@ -1030,7 +1030,7 @@ services:
     description: "Vector database with hybrid search — combines BM25 keyword scoring with vector similarity."
     long_description: "Weaviate is a server-shaped vector database: named collections with a schema, a GraphQL endpoint alongside REST, and hybrid search that blends BM25 keyword scoring with vector similarity in one query. It sits next to Chroma on purpose — Chroma is the small embedded-style store most tutorials start with, Weaviate is what a retrieval pipeline looks like when relevance has to be tuned. No vectorizer module is enabled, so embeddings come from the client and it pairs with whatever is already in the stack: Ollama, LiteLLM, or an external provider. Anonymous access inside the tunnel; authentication is Cloudflare Access, as everywhere else here."
     image: "cr.weaviate.io/semitechnologies/weaviate:1.34.0"
-    landing_path: "/v1"   # API-only — no UI; / redirects here anyway, made explicit
+    api_only: true   # No web UI at all — / redirects to a JSON endpoint index
 
   wetty:
     subdomain: "wetty"
