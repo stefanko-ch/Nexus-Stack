@@ -2525,3 +2525,21 @@ def test_nussknacker_raises_on_empty_password(
     config = full_config.model_copy(update={"nussknacker_admin_password": ""})
     with pytest.raises(ServiceEnvError, match="NUSSKNACKER_ADMIN_PASSWORD"):
         _render_nussknacker(config, full_env)
+
+
+def test_nussknacker_escapes_the_password_for_hocon(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A quote or backslash must not end the HOCON string early.
+
+    `random_password.nussknacker_admin` sets `special = false`, so today
+    the value is alphanumeric and this cannot bite -- but that is a
+    coupling across two files, and a flag flip in the .tf would produce
+    a users.conf that either fails to parse or authenticates something
+    other than the password.
+    """
+    from nexus_deploy.service_env import _render_nussknacker
+
+    config = full_config.model_copy(update={"nussknacker_admin_password": 'a"b\\c'})
+    content = _render_nussknacker(config, full_env).sidecars[0].content
+    assert '    password: "a\\"b\\\\c"' in content

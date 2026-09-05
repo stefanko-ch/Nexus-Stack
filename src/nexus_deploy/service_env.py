@@ -672,7 +672,14 @@ def _render_nussknacker(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         "users: [\n"
         "  {\n"
         '    identity: "nexus-nussknacker"\n'
-        f'    password: "{password}"\n'
+        # json.dumps, not an f-string in quotes. HOCON quoted strings
+        # escape like JSON, so a password containing " or \\ would end
+        # the string early and produce a file that either fails to parse
+        # or silently authenticates something other than the password.
+        # `random_password.nussknacker_admin` sets `special = false`
+        # today, so this cannot happen -- but that is a coupling across
+        # two files, and one call costs less than relying on it.
+        f"    password: {json.dumps(password)}\n"
         '    roles: ["Admin"]\n'
         "  }\n"
         "]\n"
