@@ -2242,3 +2242,43 @@ def test_render_wikijs_hook_default_separator_is_dot_form_unchanged() -> None:
     config = _make_config(wikijs_admin_password="pw")
     script = render_wikijs_hook(config, env)
     assert shlex.quote("https://wiki.example.com") in script
+
+
+def test_render_redpanda_hook_builds_json_with_jq_not_printf() -> None:
+    """A password with a quote must not produce a malformed request body.
+
+    `random_password.redpanda_admin` sets `special = false`, so today the
+    value is alphanumeric and printf would be safe. That is a coupling
+    between a .tf file and this one with nothing enforcing it, and the
+    failure mode -- a 400 from a body the reader cannot see -- is
+    unpleasant to debug.
+
+    The password goes to jq on stdin rather than through `--arg`, which
+    would put it back into jq's argv inside the container and undo the
+    reason the whole hook pipes it.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    # Comment lines stripped first: the hook explains why --arg is wrong,
+    # and a plain substring check matches its own explanation. Third time
+    # that trap has been hit in this repo, hence the note.
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+
+    assert "jq -Rsc" in commands
+    assert "jq --arg" not in commands, "--arg puts the password in jq's argv"
+    assert 'printf \'{"username"' not in commands, "the body must not be built by printf"
+
+
+def test_render_redpanda_hook_masks_the_password_in_error_output() -> None:
+    """Diagnostics must not be able to print the password.
+
+    The bodies this API returns carry only a message and a code, so this
+    is precaution rather than an observed leak — but the logs are public
+    and CLAUDE.md's rule is absolute. Bash parameter expansion is used so
+    the value never reaches sed's argv either.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+
+    for var in ("CREATE_BODY", "UPDATE_BODY"):
+        assert f'{var}=${{{var}//"$REDPANDA_PASSWORD"/***}}' in script, (
+            f"{var} is printed to stderr and must be masked first"
+        )

@@ -740,7 +740,17 @@ redpanda_hook() {{
     REDPANDA_PASSWORD={password_q}
     USER_EXISTED=false
     RP_URL=http://localhost:9644/v1/security/users
-    RP_BODY=$(printf '{{"username":"nexus-redpanda","password":"%s","algorithm":"SCRAM-SHA-256"}}' "$REDPANDA_PASSWORD")
+    # jq builds the JSON, not printf: a password containing a quote,
+    # a backslash or a newline would otherwise produce a malformed body
+    # and a confusing 400. `random_password.redpanda_admin` sets
+    # `special = false` today, so it cannot happen -- but that is a
+    # coupling between a .tf file and this one with nothing enforcing
+    # it, and jq is already used throughout this module.
+    #
+    # Password on stdin, not `jq --arg`: --arg would put it back into
+    # jq's argv inside the container, undoing the point of the pipe.
+    RP_BODY=$(printf '%s' "$REDPANDA_PASSWORD" \
+        | jq -Rsc '{{username:"nexus-redpanda",password:.,algorithm:"SCRAM-SHA-256"}}')
     CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \
         curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \
              -X POST "$RP_URL" -H 'Content-Type: application/json' -d @- 2>/dev/null || echo "000")
@@ -753,6 +763,13 @@ redpanda_hook() {{
                      -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' -d @- 2>/dev/null || echo "000")
             if [ "$UPDATE_CODE" != "200" ]; then
                 UPDATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
+                # Mask the password before printing. The bodies observed
+                # from this API carry only a message and a code, but an
+                # error that echoed the request would put the secret in a
+                # public build log, and that is not a risk worth taking
+                # for a diagnostic. Bash parameter expansion, so the
+                # value never reaches sed's argv either.
+                UPDATE_BODY=${{UPDATE_BODY//"$REDPANDA_PASSWORD"/***}}
                 echo "  ⚠ Admin API could not update the nexus-redpanda password (HTTP $UPDATE_CODE): ${{UPDATE_BODY:-(no body)}}" >&2
                 echo "RESULT hook=redpanda status=failed"
                 return 0
@@ -761,6 +778,7 @@ redpanda_hook() {{
             # 000 means curl never reached the endpoint, which is a
             # different fault from the API rejecting the request. Say
             # which rather than guessing.
+            CREATE_BODY=${{CREATE_BODY//"$REDPANDA_PASSWORD"/***}}
             echo "  ⚠ Admin API could not create the nexus-redpanda user (HTTP $CREATE_CODE): ${{CREATE_BODY:-(no body)}}" >&2
             echo "RESULT hook=redpanda status=failed"
             return 0
