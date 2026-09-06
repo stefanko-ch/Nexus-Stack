@@ -2358,23 +2358,46 @@ def test_render_redpanda_hook_never_attributes_a_stale_body_to_a_new_request() -
         HTTP 000: {"message":"User already exists"}
 
     naming a conflict that never happened, while the real fault was that
-    nothing answered. Two defences, both asserted here:
+    nothing answered. Four defences, all asserted here:
 
-    1. Every read of the response file deletes it in the same exec, so
-       no body can outlive the request that produced it.
-    2. The "already exists" branch is gated on a real HTTP status. At
-       000 there is no response to interpret.
+    1. The response path is unique per invocation. `spin-up.yml` has no
+       `concurrency:` group, so two runs really can reach this hook at
+       once and a shared path would cross their responses.
+    2. Every request clears the file first — consume-after-read alone is
+       not enough, because a deploy interrupted between the write and the
+       read never reaches the delete.
+    3. Every read consumes the file in the same exec, so no body outlives
+       the request that produced it.
+    4. The "already exists" branch is gated on a real HTTP status. At 000
+       there is no response to interpret.
     """
     script = render_redpanda_hook(_make_config(), _make_env())
     lines = _fold_continuations(script)
 
-    # Path inside the RedPanda container, never opened by this process.
-    response_file = "/tmp/rp-user.out"  # noqa: S108 — remote path, not a local temp file
-    reads = [line for line in lines if response_file in line and "cat " in line]
-    assert len(reads) == 2, f"expected the create and update reads, found {len(reads)}"
-    for read in reads:
-        assert f"rm -f {response_file}" in read, (
-            f"the response file must be consumed, not just read: {read.strip()}"
+    path_assignments = [line for line in lines if line.strip().startswith("RP_OUT=")]
+    assert len(path_assignments) == 1, (
+        f"expected one response-path assignment, found {len(path_assignments)}"
+    )
+    assert "$$" in path_assignments[0], (
+        "the response path must be unique per invocation — two concurrent "
+        f"runs would otherwise share it: {path_assignments[0].strip()}"
+    )
+
+    reads = [line for line in lines if "cat " in line and "$RP_OUT" in line]
+    assert len(reads) == 1, f"expected one read helper, found {len(reads)}"
+    assert "rm -f $RP_OUT" in reads[0] or 'rm -f "$RP_OUT"' in reads[0], (
+        f"the response file must be consumed, not just read: {reads[0].strip()}"
+    )
+    calls = [line for line in lines if "rp_read_response" in line and "=$(" in line]
+    assert len(calls) == 2, f"expected the create and update reads, found {len(calls)}"
+
+    requests = [i for i, line in enumerate(lines) if "-X POST" in line or "-X PUT" in line]
+    assert len(requests) == 2, f"expected two Admin API requests, found {len(requests)}"
+    for index in requests:
+        preceding = lines[max(0, index - 4) : index]
+        assert any("rp_clear_response" in line for line in preceding), (
+            "each request must clear the response file first; nothing clears "
+            f"before: {lines[index].strip()}"
         )
 
     guard = [line for line in lines if "already exists" in line and "grep" in line]

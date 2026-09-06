@@ -760,8 +760,34 @@ redpanda_hook() {{
     # jq's argv inside the container, undoing the point of the pipe.
     RP_BODY=$(printf '%s' "$REDPANDA_PASSWORD" \\
         | jq -Rsc '{{username:"nexus-redpanda",password:.,algorithm:"SCRAM-SHA-256"}}')
+    # Clear the response file BEFORE each request, not only after reading
+    # it. Consume-after-read closes the window only when the read is
+    # actually reached: a deploy interrupted between the write and the read
+    # leaves the body in place, and the next run's transport failure -- which
+    # never touches the file, measured -- would then report it as its own.
+    # With this, curl either writes a real response or the file is absent,
+    # and the diagnostic says `(no body)`.
+    #
+    # `|| true` is right here and is not the swallowed-failure pattern:
+    # `rm -f` succeeds on a missing file, so the only way this fails is an
+    # unreachable container -- in which case the request on the next line
+    # fails too and reports it properly. This command is not the failure
+    # indicator for anything.
+    # One path per invocation. `spin-up.yml` carries no `concurrency:`
+    # group, so two runs really can reach this hook at the same time; on a
+    # shared path each would clear and overwrite the other's response and
+    # both diagnostics would be about the wrong request. `$$` is the PID of
+    # the shell this script runs in, which differs per SSH session.
+    RP_OUT=/tmp/rp-user.$$.out
+    rp_clear_response() {{
+        docker exec redpanda rm -f "$RP_OUT" >/dev/null 2>&1 || true
+    }}
+    rp_read_response() {{
+        docker exec redpanda sh -c "cat $RP_OUT 2>/dev/null; rm -f $RP_OUT" 2>/dev/null || echo ""
+    }}
+    rp_clear_response
     CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
-        curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
+        curl -s -o "$RP_OUT" -w '%{{http_code}}' \\
              --connect-timeout 3 --max-time 30 \\
              -X POST "$RP_URL" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
     # `|| true` plus a default, NOT `|| echo "000"`. curl already writes
@@ -781,21 +807,22 @@ redpanda_hook() {{
     # that died between the POST and the PUT would produce
     # `HTTP 000: {{"message":"User already exists"}}` -- an error message
     # naming a conflict that did not happen.
-    CREATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null; rm -f /tmp/rp-user.out' 2>/dev/null || echo "")
+    CREATE_BODY=$(rp_read_response)
     if [ "$CREATE_CODE" != "200" ]; then
         # 000 means curl never spoke to the broker, so whatever is in
         # $CREATE_BODY cannot be this request's response. Only a real
         # HTTP status may be read as "the user is already there".
         if [ "$CREATE_CODE" != "000" ] && echo "$CREATE_BODY" | grep -qi 'already exists'; then
             USER_EXISTED=true
+            rp_clear_response
             UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
-                curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
+                curl -s -o "$RP_OUT" -w '%{{http_code}}' \\
                      --connect-timeout 3 --max-time 30 \\
                      -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
             UPDATE_CODE=${{UPDATE_CODE:-000}}
             if [ "$UPDATE_CODE" != "200" ]; then
                 # Same consume-and-delete as the create above.
-                UPDATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null; rm -f /tmp/rp-user.out' 2>/dev/null || echo "")
+                UPDATE_BODY=$(rp_read_response)
                 # Mask the password before printing. The bodies observed
                 # from this API carry only a message and a code, but an
                 # error that echoed the request would put the secret in a
