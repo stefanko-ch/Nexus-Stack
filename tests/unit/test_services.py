@@ -2428,6 +2428,11 @@ def test_render_redpanda_hook_asks_the_broker_whether_the_user_exists() -> None:
     script = render_redpanda_hook(_make_config(), _make_env())
     lines = _fold_continuations(script)
 
+    urls = [line.strip() for line in lines if line.strip().startswith("RP_URL=")]
+    assert urls == ["RP_URL=http://localhost:9644/v1/security/users"], (
+        f"the probe is only meaningful against the users endpoint, got {urls}"
+    )
+
     probes = [
         i
         for i, line in enumerate(lines)
@@ -2435,6 +2440,13 @@ def test_render_redpanda_hook_asks_the_broker_whether_the_user_exists() -> None:
     ]
     assert len(probes) == 1, (
         f"expected one existence probe against the users endpoint, found {len(probes)}"
+    )
+    # A GET, and specifically not a write. curl defaults to GET, so the
+    # check is that nothing overrides it: a probe that had become a POST
+    # would satisfy every other assertion here while creating the very
+    # user it claims to be looking for.
+    assert "-X " not in lines[probes[0]], (
+        f"the probe must not override curl's GET: {lines[probes[0]].strip()}"
     )
 
     creates = [i for i, line in enumerate(lines) if "-X POST" in line]
