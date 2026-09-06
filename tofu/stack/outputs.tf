@@ -183,6 +183,7 @@ output "secrets" {
     # QuestDB (time-series)
     questdb_pg_password = random_password.questdb_pg.result
     influxdb_admin_password = random_password.influxdb_admin.result
+    nussknacker_admin_password = random_password.nussknacker_admin.result
     influxdb_admin_token    = random_password.influxdb_token.result
 
     # OpenSearch (standalone search + Dashboards)

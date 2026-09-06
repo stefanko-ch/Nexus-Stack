@@ -81,6 +81,7 @@ def full_config() -> NexusConfig:
         questdb_pg_password="questdb-pg-pw",
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
+        nussknacker_admin_password="nussknacker-admin-pw",
         opensearch_admin_password="opensearch-admin-pw",
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
@@ -2470,3 +2471,75 @@ def test_influxdb_raises_on_empty_token(full_config: NexusConfig, full_env: Boot
     config = full_config.model_copy(update={"influxdb_admin_token": ""})
     with pytest.raises(ServiceEnvError, match="INFLUXDB_ADMIN_TOKEN"):
         _render_influxdb(config, full_env)
+
+
+def test_nussknacker_renders_users_conf_with_the_generated_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """One account, ours, and none of the image's five demo accounts.
+
+    The shipped users.conf defines admin/admin, reader/reader,
+    writer/writer, deployer/deployer and demo/demo. Pointing
+    AUTHENTICATION_USERS_FILE at this file replaces all of them, so the
+    absence of those identities is the property worth pinning.
+    """
+    from nexus_deploy.service_env import _render_nussknacker
+
+    rendered = _render_nussknacker(full_config, full_env)
+    (sidecar,) = rendered.sidecars
+    assert sidecar.relative_path == "users.conf"
+    assert 'identity: "nexus-nussknacker"' in sidecar.content
+    assert 'password: "nussknacker-admin-pw"' in sidecar.content
+    for demo in ("admin", "reader", "writer", "deployer", "demo"):
+        assert f'identity: "{demo}"' not in sidecar.content
+
+
+def test_nussknacker_users_conf_is_owner_only(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """0o600 on both: the password is cleartext in the sidecar, and the
+    .env sits beside it."""
+    from nexus_deploy.service_env import _render_nussknacker
+
+    rendered = _render_nussknacker(full_config, full_env)
+    assert rendered.mode == 0o600
+    assert rendered.sidecars[0].mode == 0o600
+
+
+def test_nussknacker_renders_no_env_vars(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Everything else is static and lives in the compose file. Pinned so
+    a secret cannot arrive in the .env without a guard beside it."""
+    from nexus_deploy.service_env import _render_nussknacker
+
+    assert _render_nussknacker(full_config, full_env).env_vars == {}
+
+
+def test_nussknacker_raises_on_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Rendering an empty password would produce a valid HOCON file with
+    `password: ""` -- the container would start and the account would be
+    unusable, which is harder to notice than a failed deploy."""
+    from nexus_deploy.service_env import _render_nussknacker
+
+    config = full_config.model_copy(update={"nussknacker_admin_password": ""})
+    with pytest.raises(ServiceEnvError, match="NUSSKNACKER_ADMIN_PASSWORD"):
+        _render_nussknacker(config, full_env)
+
+
+def test_nussknacker_escapes_the_password_for_hocon(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A quote or backslash must not end the HOCON string early.
+
+    `random_password.nussknacker_admin` sets `special = false`, so today
+    the value is alphanumeric and this cannot bite -- but that is a
+    coupling across two files, and a flag flip in the .tf would produce
+    a users.conf that either fails to parse or authenticates something
+    other than the password.
+    """
+    from nexus_deploy.service_env import _render_nussknacker
+
+    config = full_config.model_copy(update={"nussknacker_admin_password": 'a"b\\c'})
+    content = _render_nussknacker(config, full_env).sidecars[0].content
+    assert '    password: "a\\"b\\\\c"' in content

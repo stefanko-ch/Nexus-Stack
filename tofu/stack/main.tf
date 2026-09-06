@@ -241,6 +241,17 @@ resource "random_password" "lakekeeper_db_password" {
 # other, and the token can be rotated without touching the login.
 # `special = false` because both travel through a compose .env and an
 # Infisical payload, and neither needs the extra character class.
+# Nussknacker Designer admin password. The image ships five demo
+# accounts whose passwords equal their usernames (admin/admin and
+# friends); this replaces all of them with one generated credential for
+# `nexus-nussknacker`, written into a rendered users.conf. `special =
+# false` because the value lands in a HOCON file where quoting rules
+# would otherwise have to be reasoned about.
+resource "random_password" "nussknacker_admin" {
+  length  = 24
+  special = false
+}
+
 resource "random_password" "influxdb_admin" {
   length  = 24
   special = false

@@ -1,0 +1,112 @@
+# Nussknacker — visual low-code designer for stream processing
+# https://nussknacker.<domain>
+#
+# The counterpart to Dinky. Same engine underneath — the existing Flink
+# stack — but a different audience: Dinky is a SQL IDE for developers,
+# Nussknacker is drag-and-drop for domain experts. A course can run the
+# same scenario down both paths and compare.
+#
+# ONE container, not two. The issue that asked for this (#602) assumed a
+# companion PostgreSQL for the Designer's state. It does not need one:
+# the image ships an embedded HSQLDB under STORAGE_DIR, verified by
+# running it — `/opt/nussknacker/storage/db` appears on first boot and
+# Flyway migrates into it. The volume below is that state.
+#
+# Docs: https://nussknacker.io/documentation/
+
+services:
+  nussknacker:
+    # scala-2.12, NOT 2.13 — see docs/stacks/nussknacker.md. The job JAR
+    # uploaded to Flink does not bundle the Scala library; it takes it from
+    # the cluster, and stacks/flink ships flink-scala_2.12-1.20.1.jar. A
+    # 2.13 build therefore deploys with
+    #   NoClassDefFoundError: scala/util/Using$Releasable
+    # Nussknacker pairs the same way in its own quickstart.
+    image: ${IMAGE_NUSSKNACKER:-touk/nussknacker:1.18.1_scala-2.12}
+    container_name: nussknacker
+    restart: unless-stopped
+    ports:
+      # 8080 is taken by it-tools on the host. Bound to loopback: the
+      # tunnel reaches it over localhost, so nothing needs to answer on
+      # the public interfaces (#742).
+      - "127.0.0.1:8103:8080"
+    environment:
+      # Wiring to the stacks that do the actual work. All three are read
+      # by the shipped application.conf as `${?VAR}` — no config file
+      # mount is needed for them, which is what #602 left open.
+      #
+      # Endpoints taken from redpanda-console's own configuration rather
+      # than from documentation, since that is what demonstrably works
+      # against this deployment.
+      FLINK_REST_URL: http://flink-jobmanager:8081
+      KAFKA_ADDRESS: redpanda:9092
+      SCHEMA_REGISTRY_URL: http://redpanda:8081
+
+      # Without these three the Designer starts, answers 200 on
+      # /api/app/healthCheck, serves its UI -- and cannot create a single
+      # scenario. The shipped application.conf declares three scenario
+      # types and gives all three `category: "Default"`, which is not a
+      # valid mapping:
+      #
+      #   GET /api/app/config/categoriesWithProcessingType -> HTTP 500
+      #   Found keys with more than one values: Default during translating
+      #   List((Default,streaming), (Default,request-response-embedded),
+      #        (Default,streaming-lite-embedded)) to Map
+      #
+      # The categories are literals in that file, not `${?VAR}`, so no
+      # ordinary environment variable reaches them. What does reach them
+      # is Typesafe Config's env-var override, which bin/run.sh enables
+      # with `-Dconfig.override_with_env_vars=true`: CONFIG_FORCE_ plus
+      # the config path, `__` for each hyphen in a key.
+      #
+      # Verified against 1.18.1 on a throwaway container: with these set,
+      # the same endpoint answers 200 with
+      # {"RequestResponse":"request-response-embedded",
+      #  "Streaming":"streaming","StreamingLite":"streaming-lite-embedded"}.
+      #
+      # All three are kept rather than the Flink one alone: they cost
+      # nothing until a scenario uses them, and dropping a key from a
+      # merged HOCON config is the more fragile edit.
+      CONFIG_FORCE_scenarioTypes_streaming_category: Streaming
+      CONFIG_FORCE_scenarioTypes_streaming__lite__embedded_category: StreamingLite
+      CONFIG_FORCE_scenarioTypes_request__response__embedded_category: RequestResponse
+
+      # The five demo accounts this image ships — admin/admin,
+      # reader/reader, writer/writer, deployer/deployer, demo/demo, each
+      # with password equal to username — are replaced wholesale by
+      # pointing this at a rendered file. Verified: with it set,
+      # `admin:admin` answers 401 and only the generated account works.
+      AUTHENTICATION_USERS_FILE: /opt/nussknacker/conf/users-nexus.conf
+    volumes:
+      # Rendered by service_env._render_nussknacker with the generated
+      # password. It cannot be a static file with `${VAR}` in it:
+      # Nussknacker parses this file without environment substitution and
+      # exits 1 on startup if it finds one — measured, not assumed.
+      - ./users.conf:/opt/nussknacker/conf/users-nexus.conf:ro
+      - nussknacker_storage:/opt/nussknacker/storage
+    deploy:
+      resources:
+        limits:
+          # Measured at 794 MB idle on first boot. JVM, so it grows under
+          # load; 1.5g leaves headroom without crowding Flink and Kestra
+          # on the same box.
+          memory: 1500m
+    healthcheck:
+      # curl, not wget: this image has both, and curl matches the house
+      # pattern. /api/app/healthCheck answers 200 unauthenticated once
+      # the Designer is up — measured ~12s from cold start, hence the
+      # 60s start_period.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/app/healthCheck | grep -qxF -e 200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  nussknacker_storage:
+
+networks:
+  app-network:
+    external: true

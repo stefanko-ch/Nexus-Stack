@@ -79,7 +79,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (84)
+## Available Stacks (85)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -130,6 +130,7 @@ After deployment you'll have:
 [![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)](https://min.io)
 [![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io)
 [![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)](https://nocodb.com)
+[![Nussknacker](https://img.shields.io/badge/Nussknacker-1E88E5?logo=apacheflink&logoColor=white)](https://nussknacker.io)
 [![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)](https://ollama.com)
 [![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)](https://open-metadata.org)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org)
@@ -217,6 +218,7 @@ After deployment you'll have:
 | **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **NocoDB** | Open-source Airtable alternative - turn any database into a spreadsheet | [nocodb.com](https://nocodb.com) |
+| **Nussknacker** | Visual low-code designer for stream processing — drag-and-drop scenarios that run on Flink | [nussknacker.io](https://nussknacker.io) |
 | **Ollama** | Local LLM inference with Open WebUI chat interface | [openwebui.com](https://openwebui.com) |
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **OpenSearch** | Apache-2.0 search & analytics engine with Dashboards — speaks the Elasticsearch API | [opensearch.org](https://opensearch.org) |

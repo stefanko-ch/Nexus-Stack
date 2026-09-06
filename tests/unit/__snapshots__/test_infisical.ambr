@@ -141,6 +141,10 @@
       'NOCODB_PASSWORD': 'nocodb_admin_password-VALUE',
       'NOCODB_USERNAME': 'admin@snapshot.test',
     }),
+    'nussknacker': dict({
+      'NUSSKNACKER_ADMIN_PASSWORD': 'nussknacker-admin-pw',
+      'NUSSKNACKER_ADMIN_USERNAME': 'nexus-nussknacker',
+    }),
     'openmetadata': dict({
       'OPENMETADATA_DB_PASSWORD': 'openmetadata_db_password-VALUE',
       'OPENMETADATA_PASSWORD': 'openmetadata_admin_password-VALUE',
