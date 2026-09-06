@@ -321,7 +321,7 @@ def test_render_redpanda_hook_basic() -> None:
     # Wait via docker exec curl (admin API not exposed externally)
     assert "docker exec redpanda curl" in script
     # rpk SASL user create + cluster config
-    assert "rpk acl user create nexus-redpanda" in script
+    assert '-X POST "$RP_URL"' in script
     assert "rpk cluster config set superusers" in script
     # Verify via /v1/security/users
     assert "/v1/security/users" in script
@@ -347,7 +347,7 @@ def test_render_redpanda_hook_password_via_stdin_not_argv() -> None:
         if "docker exec -e" in line:
             assert canary not in line, f"Password leaked into docker exec -e argv: {line!r}"
     # Pipe-to-stdin form must be present
-    assert "printf '%s' \"$REDPANDA_PASSWORD\" |" in script
+    assert "printf '%s' \"$RP_BODY\" | docker exec -i redpanda" in script
     assert "docker exec -i redpanda" in script
 
 
@@ -376,31 +376,61 @@ def test_render_redpanda_hook_uses_curl_dash_f_for_status_check() -> None:
     assert script.count("curl -sf") >= 3  # initial wait + post-restart wait + verify
 
 
-def test_render_redpanda_hook_password_rotation_via_create_first_then_delete() -> None:
-    """Round-1 + round-2 findings: rotation must propagate. A previous
-    naive implementation never synced the password on a second run, so
-    Infisical rotation silently broke clients. The current pattern is
-    try-create-first; only delete + recreate IF create reports "already
-    exists" (the rotation case). The delete is gated on the broker
-    proving it's responsive — a transient broker glitch on the first
-    create returns failed without touching state. Round-2 specifically
-    flagged delete-before-prove as a real bug — broker could be
-    left with no SASL user if create failed transiently.
+def test_render_redpanda_hook_rotation_updates_without_deleting() -> None:
+    """Rotation must propagate, and must not open a window with no user.
+
+    History: a naive first version never synced the password on a second
+    run, so an Infisical rotation silently broke clients. The fix was
+    try-create-first, then delete + recreate on "already exists" — which
+    left a brief moment with no SASL user, accepted at the time as the
+    price of rotating.
+
+    The Admin API removes that trade. Measured on v24.3.1: POST returns
+    500 "User already exists" on a duplicate, and PUT updates the
+    password in place. So the delete is gone, and its absence is the
+    property worth pinning — a future edit reintroducing it would
+    reintroduce the window.
     """
     script = render_redpanda_hook(_make_config(), _make_env())
-    # Try-create-first happens BEFORE any delete
-    create_idx = script.find("rpk acl user create nexus-redpanda")
-    delete_idx = script.find("rpk acl user delete nexus-redpanda")
-    assert create_idx >= 0, "rpk acl user create must be in script"
-    assert delete_idx >= 0, "rpk acl user delete must be in script"
-    assert create_idx < delete_idx, (
-        "create-attempt must come BEFORE delete (no delete-before-prove)"
+
+    assert "rpk acl user delete" not in script, (
+        "the rotation path must not delete the user: PUT updates the "
+        "password in place, and a delete reopens the no-user window"
     )
-    # The delete is gated on "already exists" branch
+    create_idx = script.find('-X POST "$RP_URL"')
+    update_idx = script.find('-X PUT "$RP_URL/nexus-redpanda"')
+    assert create_idx >= 0, "POST must create the user"
+    assert update_idx >= 0, "PUT must handle the rotation case"
+    assert create_idx < update_idx, "PUT is only reached after POST reports a duplicate"
     assert "already exists" in script
-    # Tracked via USER_EXISTED so restart can be skipped on rotation
     assert "USER_EXISTED=true" in script
     assert "USER_EXISTED=false" in script
+
+
+def test_render_redpanda_hook_does_not_use_password_stdin() -> None:
+    """`rpk acl user create` has no --password-stdin flag.
+
+    Measured against the image this stack runs:
+
+        $ docker run --rm --entrypoint rpk \
+              redpandadata/redpanda:v24.3.1 acl user create --help
+        --password string    New user's password
+
+    A comment in the hook once claimed the flag was "confirmed available
+    on the pinned v24.3 image"; the deploy of 2026-09-06 failed with
+    `unknown flag: --password-stdin` and the broker was left without its
+    SASL user. The same flag had already been reverted once in 7c3c530.
+    Twice is enough to pin it.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+
+    # Comment lines are stripped first. The hook explains at length why
+    # the flag is not used, so a naive substring check would match its
+    # own explanation -- the same trap the workflow guardrails hit when
+    # they read prose as if it were a command.
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert "--password-stdin" not in commands
+    assert "rpk acl user create" not in commands
 
 
 def test_render_redpanda_hook_cluster_config_set_failure_propagates() -> None:
@@ -2212,3 +2242,215 @@ def test_render_wikijs_hook_default_separator_is_dot_form_unchanged() -> None:
     config = _make_config(wikijs_admin_password="pw")
     script = render_wikijs_hook(config, env)
     assert shlex.quote("https://wiki.example.com") in script
+
+
+def test_render_redpanda_hook_builds_json_with_jq_not_printf() -> None:
+    """A password with a quote must not produce a malformed request body.
+
+    `random_password.redpanda_admin` sets `special = false`, so today the
+    value is alphanumeric and printf would be safe. That is a coupling
+    between a .tf file and this one with nothing enforcing it, and the
+    failure mode -- a 400 from a body the reader cannot see -- is
+    unpleasant to debug.
+
+    The password goes to jq on stdin rather than through `--arg`, which
+    would put it back into jq's argv inside the container and undo the
+    reason the whole hook pipes it.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    # Comment lines stripped first: the hook explains why --arg is wrong,
+    # and a plain substring check matches its own explanation. Third time
+    # that trap has been hit in this repo, hence the note.
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+
+    assert "jq -Rsc" in commands
+    assert "jq --arg" not in commands, "--arg puts the password in jq's argv"
+    assert 'printf \'{"username"' not in commands, "the body must not be built by printf"
+
+
+def test_render_redpanda_hook_masks_the_password_in_error_output() -> None:
+    """Diagnostics must not be able to print the password.
+
+    The bodies this API returns carry only a message and a code, so this
+    is precaution rather than an observed leak — but the logs are public
+    and CLAUDE.md's rule is absolute. Bash parameter expansion is used so
+    the value never reaches sed's argv either.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+
+    for var in ("CREATE_BODY", "UPDATE_BODY"):
+        assert f'{var}=${{{var}//"$REDPANDA_PASSWORD"/***}}' in script, (
+            f"{var} is printed to stderr and must be masked first"
+        )
+
+
+def test_render_redpanda_hook_emits_real_line_continuations() -> None:
+    """A single backslash in the f-string is eaten by Python, not bash.
+
+    Such a continuation renders as one long line with the indentation
+    folded in. Harmless for a command, but the same mistake on a `#`
+    comment line silently swallows whatever follows it -- a command that
+    then never runs, in a hook nobody reads again after it works once.
+
+    The fragment must end its line. Checking only that the line ends in
+    a backslash is not enough: a collapsed line still ends with the
+    backslash of the *next* continuation, so that weaker form passed
+    while the defect was present. Found by mutation, not by reading.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+
+    for fragment in ("| docker exec -i redpanda", "-w '%{http_code}'"):
+        hits = [line.rstrip() for line in script.splitlines() if fragment in line]
+        assert hits, f"fragment vanished from the hook: {fragment!r}"
+        for line in hits:
+            assert line.endswith(fragment + " \\"), (
+                "continuation collapsed -- Python ate the backslash, so the "
+                f"command folded onto one line: {line!r}"
+            )
+
+
+def test_render_redpanda_hook_uses_data_binary() -> None:
+    """`--data-binary @-`, the form used 21 times elsewhere in this module.
+
+    `-d @-` strips newlines from the payload. jq -Rsc emits compact JSON
+    so it makes no difference to this body today, but a body that ever
+    gains a newline would be silently altered, and the module already
+    settled on the safe form.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert commands.count("--data-binary @-") == 2, "both the POST and the PUT"
+    assert "-d @-" not in commands
+
+
+def test_render_redpanda_hook_does_not_double_the_transport_code() -> None:
+    """`|| echo "000"` after a `-w '%{http_code}'` curl yields `000000`.
+
+    curl writes 000 to stdout when it cannot connect *and* exits
+    non-zero, so the echo appends a second 000. The hook prints the code
+    in its diagnostic, so the message would read "HTTP 000000" while the
+    comment beside it explains what 000 means.
+
+    CLAUDE.md names this trap, and notes that the `|| echo "000"` form
+    used elsewhere in this module is harmless only because those call
+    sites compare the value against a success code instead of printing
+    it. Copied without that audit, it becomes this.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+
+    assert '|| echo "000"' not in commands
+    for var in ("CREATE_CODE", "UPDATE_CODE"):
+        assert f"{var}=${{{var}:-000}}" in commands, (
+            f"{var} must default to 000 rather than appending a second one"
+        )
+
+
+def test_render_redpanda_hook_never_attributes_a_stale_body_to_a_new_request() -> None:
+    """A transport failure must not inherit the previous response.
+
+    `curl -o FILE` does not truncate FILE when it never reaches the
+    server. Measured inside redpandadata/redpanda:v24.3.1 (curl 7.88.1):
+    a PUT to a closed port exits non-zero, writes 000, and leaves the
+    earlier body untouched. So a broker that died between the POST and
+    the PUT would have reported
+
+        HTTP 000: {"message":"User already exists"}
+
+    naming a conflict that never happened, while the real fault was that
+    nothing answered. Four defences, all asserted here:
+
+    1. The response path is unique per invocation. `spin-up.yml` has no
+       `concurrency:` group, so two runs really can reach this hook at
+       once and a shared path would cross their responses.
+    2. Every request clears the file first — consume-after-read alone is
+       not enough, because a deploy interrupted between the write and the
+       read never reaches the delete.
+    3. Every read consumes the file in the same exec, so no body outlives
+       the request that produced it.
+    4. The "already exists" branch is gated on a real HTTP status. At 000
+       there is no response to interpret.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    lines = _fold_continuations(script)
+
+    path_assignments = [line for line in lines if line.strip().startswith("RP_OUT=")]
+    assert len(path_assignments) == 1, (
+        f"expected one response-path assignment, found {len(path_assignments)}"
+    )
+    assert "$$" in path_assignments[0], (
+        "the response path must be unique per invocation — two concurrent "
+        f"runs would otherwise share it: {path_assignments[0].strip()}"
+    )
+
+    reads = [line for line in lines if "cat " in line and "$RP_OUT" in line]
+    assert len(reads) == 1, f"expected one read helper, found {len(reads)}"
+    assert "rm -f $RP_OUT" in reads[0] or 'rm -f "$RP_OUT"' in reads[0], (
+        f"the response file must be consumed, not just read: {reads[0].strip()}"
+    )
+    calls = [line for line in lines if "rp_read_response" in line and "=$(" in line]
+    assert len(calls) == 2, f"expected the create and update reads, found {len(calls)}"
+
+    requests = [i for i, line in enumerate(lines) if "-X POST" in line or "-X PUT" in line]
+    assert len(requests) == 2, f"expected two Admin API requests, found {len(requests)}"
+    for index in requests:
+        preceding = lines[max(0, index - 4) : index]
+        assert any("rp_clear_response" in line for line in preceding), (
+            "each request must clear the response file first; nothing clears "
+            f"before: {lines[index].strip()}"
+        )
+
+    guard = [line for line in lines if "already exists" in line and "grep" in line]
+    assert len(guard) == 1, f"expected one 'already exists' branch, found {len(guard)}"
+    assert '"$CREATE_CODE" != "000"' in guard[0], (
+        f"the rotation branch must require a real HTTP response, not 000: {guard[0].strip()}"
+    )
+
+
+def _fold_continuations(script: str) -> list[str]:
+    """Join backslash-continued physical lines, then drop comments.
+
+    Each Admin API call renders as four physical lines held together by
+    a trailing `\\`. An assertion that needs to know *which* request
+    carries a fragment has to see the whole command as one string.
+    """
+    folded: list[str] = []
+    buffer = ""
+    for line in script.splitlines():
+        stripped = line.rstrip()
+        if stripped.endswith("\\"):
+            buffer += stripped[:-1].rstrip() + " "
+            continue
+        folded.append(buffer + stripped.strip() if buffer else stripped)
+        buffer = ""
+    if buffer:
+        folded.append(buffer)
+    return [line for line in folded if not line.lstrip().startswith("#")]
+
+
+def test_render_redpanda_hook_bounds_both_admin_api_writes() -> None:
+    """Both writes carry a connect and a total timeout.
+
+    `SSHClient.run_script` takes `timeout: float | None = None` and the
+    services-configure phase does not pass one, so a broker that accepts
+    the connection and then stops answering would hang the deploy with no
+    upper bound. The readiness poll in this same hook is already bounded
+    at 2s/5s; the writes were the exception.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    timeout = "--connect-timeout 3 --max-time 30"
+    lines = _fold_continuations(script)
+    for label, marker in (
+        ("POST", '-X POST "$RP_URL"'),
+        ("PUT", '-X PUT "$RP_URL/nexus-redpanda"'),
+    ):
+        matching = [line for line in lines if marker in line]
+        assert len(matching) == 1, (
+            f"expected exactly one {label} to the Admin API, found {len(matching)}"
+        )
+        # Per request, not across the script: counting the fragment in
+        # the whole hook stayed green when both timeouts sat on the POST
+        # and the PUT had none.
+        assert matching[0].count(timeout) == 1, (
+            f"the {label} must carry exactly one {timeout!r}, got: {matching[0]}"
+        )

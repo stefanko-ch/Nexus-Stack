@@ -16,9 +16,10 @@ Three hook families cover the supported services:
      fab`` for Superset) via ``docker exec -i``, with passwords
      piped via stdin to keep them out of docker's argv on the
      remote host
-  3. Idempotent re-runs: RedPanda's ``rpk acl user create`` errors
-     harmlessly if user exists; Superset falls back to ``fab
-     reset-password`` if ``fab create-admin`` reports user-exists
+  3. Idempotent re-runs: RedPanda POSTs to its Admin API and falls
+     through to a PUT when that reports the user already exists;
+     Superset falls back to ``fab reset-password`` if ``fab
+     create-admin`` reports user-exists
 
 **Python-side file mutation** (Filestash):
 
@@ -613,32 +614,40 @@ openmetadata_hook
 # Why argv-vs-stdin matters for docker exec: passing a password via
 # ``docker exec -e RPK_PASS='$pass'`` lands the env-var literal in
 # docker's argv on the host. The strictly-more-correct path is
-# ``printf '%s' "$pass" | docker exec -i <container> <cli>
-# --password-stdin``, which keeps the password on stdin from end to
-# end — never in argv on the host, in docker exec's cmdline, or in
-# the inner CLI's argv. Hooks that target CLIs without a stdin flag
-# (Superset's ``fab create-admin``) still pay the in-container argv
-# cost, but the host-level surface is always clean.
+# ``printf '%s' "$pass" | docker exec -i <container> <cli-reading-stdin>``,
+# which keeps the password on stdin from end to end — never in argv on
+# the host, in docker exec's cmdline, or in the inner CLI's argv.
+#
+# Which stdin-reading CLI depends on the service, and the tool's own
+# flags decide it rather than the pattern: RedPanda uses its Admin API
+# through ``curl -d @-`` because ``rpk acl user create`` has no
+# stdin flag (checked against the image, twice — see the hook). Hooks
+# targeting CLIs without any stdin path (Superset's ``fab
+# create-admin``) still pay the in-container argv cost, but the
+# host-level surface is always clean.
 # ---------------------------------------------------------------------------
 
 
 def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
-    """RedPanda SASL: ``rpk acl user create`` + ``rpk cluster config set superusers``.
+    """RedPanda SASL: Admin API user + ``rpk cluster config set superusers``.
 
     Wait via ``docker exec redpanda curl -sf /v1/status/ready`` (the
     admin API isn't exposed outside the container; ``-sf`` requires
-    a true 2xx status, not just a transport-level success). Password
-    reaches the container via stdin → rpk's ``--password-stdin`` flag
-    so it never lands in any process's argv on any of the three
-    surfaces (host, docker exec, container).
+    a true 2xx status, not just a transport-level success). The password
+    reaches the container on stdin and is read by
+    ``curl --data-binary @-``, so it never lands in any process's argv
+    on any of the three surfaces
+    (host, docker exec, container). ``rpk`` is not used for the user
+    because it has no stdin flag — see the comment at the call site.
 
     Idempotency contract — always converges to ``configured``
     (or ``failed`` / ``skipped-not-ready``); NO ``already-configured``
     path. Reasoning:
     - First run: create user → cluster config → restart → verify ✓
-    - Re-run with same Infisical password: rpk reports "already exists"
-      → delete + recreate (no broker restart, since SASL listener is
-      already on) → verify ✓ — ends in ``configured``, not
+    - Re-run with same Infisical password: POST reports "already
+      exists" → PUT updates it in place (no broker restart, since the
+      SASL listener is already on; and no delete, so there is never a
+      moment without a user) → verify ✓ — ends in ``configured``, not
       ``already-configured``, because we DID re-write state (the
       password was rotated to its current value, even if that
       happens to equal the previous value).
@@ -646,10 +655,11 @@ def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
       now genuinely differs → external clients pick up new credential
       via Infisical sync.
 
-    The delete is gated on the first create-attempt returning
-    "already exists" — we never delete a user we haven't proven the
-    broker can recreate. A transient broker glitch on the first
-    create returns ``failed`` without touching existing state.
+    Nothing is ever deleted. The PUT is gated on the first
+    create-attempt returning "already exists", so a transient broker
+    glitch on the first create returns ``failed`` without touching
+    existing state — and there is no point at which the broker has no
+    SASL user.
 
     Restart of the broker happens ONLY on first setup
     (``USER_EXISTED=false``). Subsequent rotations don't need it
@@ -686,49 +696,153 @@ redpanda_hook() {{
     fi
     # Try create-first. Three outcomes:
     #   1. SUCCESS → fresh install, USER_EXISTED stays false (→ restart needed below)
-    #   2. "already exists" → rotation case: delete the current user
-    #      and recreate with the current Infisical password. We only
-    #      open the no-user window AFTER the first create proved the
-    #      broker accepts our request, so a transient broker glitch
-    #      can't leave us userless mid-flight.
+    #   2. "already exists" → rotation case: PUT the current Infisical
+    #      password over the existing user. Nothing is deleted, so the
+    #      broker never sits without a SASL user; see the measured
+    #      status codes below.
     #   3. Other error → bail with failed.
-    # Pipe password via stdin so it never lands in argv on ANY of the
-    # three process-list surfaces:
+    # Pipe the password via stdin so it never lands in argv on ANY of
+    # the three process-list surfaces:
     #   (1) host's `ps aux` — `printf '%s' "$VAR" | docker exec -i ...`
     #       uses shell-builtin printf (no argv) and the docker exec
-    #       cmdline carries only flags + rpk subcommand, no password.
+    #       cmdline carries only flags and the curl invocation.
     #   (2) docker daemon's `ps aux` — same docker-exec cmdline.
-    #   (3) inside the container — rpk reads the password from stdin
-    #       via --password-stdin and never reflects it into its own
-    #       argv. Previous form did `sh -c 'RPK_PASS=$(cat); rpk
-    #       ... --password "$RPK_PASS"'` which leaked into rpk's argv
-    #       in-container.
-    # --password-stdin support: requires rpk v23+ (Redpanda image
-    # >= v23.x). Confirmed available on the pinned v24.3 image; an
-    # earlier attempt landed and was reverted in 7c3c530 (2026-04)
-    # because the then-bundled rpk was older.
+    #   (3) inside the container — curl reads the body from stdin with
+    #       `--data-binary @-` and never reflects it into its own argv.
+    # The Admin API, not `rpk acl user create`. rpk has no
+    # `--password-stdin` flag -- measured against the image this stack
+    # actually runs:
+    #
+    #   $ docker run --rm --entrypoint rpk redpandadata/redpanda:v24.3.1 \
+    #       acl user create --help
+    #   --password string    New user's password
+    #
+    # A comment here previously claimed the flag was "confirmed
+    # available on the pinned v24.3 image". It is not: the run of
+    # 2026-09-06 failed with `unknown flag: --password-stdin`, leaving
+    # the broker without its SASL user while the workflow stayed green.
+    # The same flag had already been reverted once, in 7c3c530.
+    #
+    # `--password <value>` would work but puts the secret into rpk's
+    # argv inside the container. The Admin API keeps it off every
+    # process list: the JSON reaches `docker exec -i` on stdin and curl
+    # reads it with `--data-binary @-`, so it is in no argv on the host,
+    # in docker's, or in the container.
+    #
+    # Both writes are bounded. `SSHClient.run_script` has no default
+    # timeout, so a broker that accepts the connection and then stops
+    # answering would hang the deploy with no upper limit. 3s/30s rather
+    # than the 2s/5s the readiness poll above uses: that one is a fast
+    # liveness probe run in a loop, these are single writes that may wait
+    # on a raft commit.
+    #
+    # Semantics, measured on v24.3.1:
+    #   POST   /v1/security/users          new  -> 200
+    #                                      dup  -> 500 "User already exists"
+    #   PUT    /v1/security/users/<name>   ok   -> 200 (password updated)
+    #                                      gone -> 500 "User does not exist"
+    #
+    # Hence POST, then PUT on "already exists". That replaces the
+    # previous delete-then-recreate rotation, which opened a window with
+    # no SASL user at all -- the old comment called it "brief" and
+    # accepted it; PUT removes it.
     REDPANDA_PASSWORD={password_q}
     USER_EXISTED=false
-    USER_RESULT=$(printf '%s' "$REDPANDA_PASSWORD" | \\
-        docker exec -i redpanda rpk acl user create nexus-redpanda --password-stdin --mechanism SCRAM-SHA-256 2>&1 || echo "")
-    if echo "$USER_RESULT" | grep -qi 'already exists\\|user already\\|already in use'; then
-        # Rotation path: delete + recreate. Brief no-user window —
-        # acceptable because we just proved the broker is responsive.
-        # Without this branch, an Infisical password rotation would
-        # silently leave the broker out of sync.
-        USER_EXISTED=true
-        docker exec redpanda rpk acl user delete nexus-redpanda >/dev/null 2>&1 || true
-        USER_RESULT=$(printf '%s' "$REDPANDA_PASSWORD" | \\
-            docker exec -i redpanda rpk acl user create nexus-redpanda --password-stdin --mechanism SCRAM-SHA-256 2>&1 || echo "")
-        if ! echo "$USER_RESULT" | grep -qi 'created\\|added\\|success'; then
-            echo "  ⚠ rpk acl user create failed after delete (no SASL user — broker is now in a broken state): $USER_RESULT" >&2
+    RP_URL=http://localhost:9644/v1/security/users
+    # jq builds the JSON, not printf: a password containing a quote,
+    # a backslash or a newline would otherwise produce a malformed body
+    # and a confusing 400. `random_password.redpanda_admin` sets
+    # `special = false` today, so it cannot happen -- but that is a
+    # coupling between a .tf file and this one with nothing enforcing
+    # it, and jq is already used throughout this module.
+    #
+    # Password on stdin, not `jq --arg`: --arg would put it back into
+    # jq's argv inside the container, undoing the point of the pipe.
+    RP_BODY=$(printf '%s' "$REDPANDA_PASSWORD" \\
+        | jq -Rsc '{{username:"nexus-redpanda",password:.,algorithm:"SCRAM-SHA-256"}}')
+    # Clear the response file BEFORE each request, not only after reading
+    # it. Consume-after-read closes the window only when the read is
+    # actually reached: a deploy interrupted between the write and the read
+    # leaves the body in place, and the next run's transport failure -- which
+    # never touches the file, measured -- would then report it as its own.
+    # With this, curl either writes a real response or the file is absent,
+    # and the diagnostic says `(no body)`.
+    #
+    # `|| true` is right here and is not the swallowed-failure pattern:
+    # `rm -f` succeeds on a missing file, so the only way this fails is an
+    # unreachable container -- in which case the request on the next line
+    # fails too and reports it properly. This command is not the failure
+    # indicator for anything.
+    # One path per invocation. `spin-up.yml` carries no `concurrency:`
+    # group, so two runs really can reach this hook at the same time; on a
+    # shared path each would clear and overwrite the other's response and
+    # both diagnostics would be about the wrong request. `$$` is the PID of
+    # the shell this script runs in, which differs per SSH session.
+    RP_OUT=/tmp/rp-user.$$.out
+    rp_clear_response() {{
+        docker exec redpanda rm -f "$RP_OUT" >/dev/null 2>&1 || true
+    }}
+    rp_read_response() {{
+        docker exec redpanda sh -c "cat $RP_OUT 2>/dev/null; rm -f $RP_OUT" 2>/dev/null || echo ""
+    }}
+    rp_clear_response
+    CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
+        curl -s -o "$RP_OUT" -w '%{{http_code}}' \\
+             --connect-timeout 3 --max-time 30 \\
+             -X POST "$RP_URL" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+    # `|| true` plus a default, NOT `|| echo "000"`. curl already writes
+    # 000 to stdout when it cannot connect AND exits non-zero, so the
+    # echo would append a second 000 and the diagnostic below would read
+    # "HTTP 000000" -- contradicting the comment two lines down. CLAUDE.md
+    # names this exact trap; the `|| echo "000"` form elsewhere in this
+    # module is harmless only because those call sites compare against a
+    # success code instead of printing it.
+    CREATE_CODE=${{CREATE_CODE:-000}}
+    # Consume the body: read it and delete it in the same exec. curl does
+    # NOT truncate its `-o` file when it never reaches the server, so a
+    # body left behind by the previous request would be reported as this
+    # one's. Measured inside redpandadata/redpanda:v24.3.1 (curl 7.88.1):
+    # a PUT to a closed port returns 000 and leaves the earlier
+    # "User already exists" JSON in place. Without the delete, a broker
+    # that died between the POST and the PUT would produce
+    # `HTTP 000: {{"message":"User already exists"}}` -- an error message
+    # naming a conflict that did not happen.
+    CREATE_BODY=$(rp_read_response)
+    if [ "$CREATE_CODE" != "200" ]; then
+        # 000 means curl never spoke to the broker, so whatever is in
+        # $CREATE_BODY cannot be this request's response. Only a real
+        # HTTP status may be read as "the user is already there".
+        if [ "$CREATE_CODE" != "000" ] && echo "$CREATE_BODY" | grep -qi 'already exists'; then
+            USER_EXISTED=true
+            rp_clear_response
+            UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
+                curl -s -o "$RP_OUT" -w '%{{http_code}}' \\
+                     --connect-timeout 3 --max-time 30 \\
+                     -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+            UPDATE_CODE=${{UPDATE_CODE:-000}}
+            if [ "$UPDATE_CODE" != "200" ]; then
+                # Same consume-and-delete as the create above.
+                UPDATE_BODY=$(rp_read_response)
+                # Mask the password before printing. The bodies observed
+                # from this API carry only a message and a code, but an
+                # error that echoed the request would put the secret in a
+                # public build log, and that is not a risk worth taking
+                # for a diagnostic. Bash parameter expansion, so the
+                # value never reaches sed's argv either.
+                UPDATE_BODY=${{UPDATE_BODY//"$REDPANDA_PASSWORD"/***}}
+                echo "  ⚠ Admin API could not update the nexus-redpanda password (HTTP $UPDATE_CODE): ${{UPDATE_BODY:-(no body)}}" >&2
+                echo "RESULT hook=redpanda status=failed"
+                return 0
+            fi
+        else
+            # 000 means curl never reached the endpoint, which is a
+            # different fault from the API rejecting the request. Say
+            # which rather than guessing.
+            CREATE_BODY=${{CREATE_BODY//"$REDPANDA_PASSWORD"/***}}
+            echo "  ⚠ Admin API could not create the nexus-redpanda user (HTTP $CREATE_CODE): ${{CREATE_BODY:-(no body)}}" >&2
             echo "RESULT hook=redpanda status=failed"
             return 0
         fi
-    elif ! echo "$USER_RESULT" | grep -qi 'created\\|added\\|success'; then
-        echo "  ⚠ rpk acl user create failed: $USER_RESULT" >&2
-        echo "RESULT hook=redpanda status=failed"
-        return 0
     fi
     # rpk cluster config set: superusers list. Capture the result so
     # we can fail loudly — without this check, the user would have
