@@ -401,6 +401,24 @@ def _script_lines(path: Path) -> list[tuple[int, str]]:
     ]
 
 
+# Only `${VAR:-something}` prints a diagnostic when VAR is empty. A bare
+# `$VAR`, a plain `${VAR}` and an empty default `${VAR:-}` all print nothing,
+# which is the defect this whole section exists to prevent.
+_GUARDED_EXPANSION = re.compile(r"^\$\{[A-Za-z_][A-Za-z0-9_]*:-[^}]+\}$")
+
+
+def _expansions(line: str, var: str) -> list[str]:
+    """Every expansion of `var` on the line, written as it appears.
+
+    Per expansion, not per line: the first version of this check asked
+    whether `${VAR:-` occurred anywhere on the line, so `echo "$ERR
+    ${ERR:-(no output)}"` passed on the strength of its second half while
+    the first half printed nothing.
+    """
+    pattern = re.compile(rf"\$\{{{var}(?::-[^}}]*)?\}}|\${var}(?![A-Za-z0-9_])")
+    return [match.group(0) for match in pattern.finditer(line)]
+
+
 def test_no_echo_interpolates_an_err_capture_directly() -> None:
     """Rule 1: the inline form has nowhere to put a fallback."""
     offenders = [
@@ -427,12 +445,10 @@ def test_every_captured_diagnostic_prints_with_a_fallback() -> None:
             if "echo" not in line:
                 continue
             for var in captured:
-                # `${VAR:-…}` is the only accepted expansion. A bare
-                # `$VAR` or a plain `${VAR}` prints nothing when empty.
-                bare = re.search(rf"\$\{{{var}\}}|\${var}\b", line)
-                guarded = f"${{{var}:-" in line
-                if bare and not guarded:
-                    offenders.append(f"{path}:{i}: {line.strip()}")
+                for expansion in _expansions(line, var):
+                    if _GUARDED_EXPANSION.fullmatch(expansion):
+                        continue
+                    offenders.append(f"{path}:{i}: {expansion} in: {line.strip()}")
     assert not offenders, (
         "a captured diagnostic is printed without a fallback:\n  "
         + "\n  ".join(offenders)
@@ -457,3 +473,38 @@ def test_the_fallback_rules_see_the_lines_they_are_meant_to_see() -> None:
             f"{name} captures no diagnostic any more — either the rules "
             "stopped finding the assignments, or the workflow changed shape"
         )
+
+
+@pytest.mark.parametrize(
+    ("line", "accepted"),
+    [
+        # The house form.
+        ('echo "   wrangler stderr: ${ERR:-(no output)}"', True),
+        # Any non-empty default satisfies the actual requirement: that
+        # something is printed. The literal wording is not the property.
+        ('echo "   wrangler stderr: ${ERR:-none}"', True),
+        # An empty default prints nothing — the very defect, spelled with
+        # the syntax that looks like the fix.
+        ('echo "   wrangler stderr: ${ERR:-}"', False),
+        ('echo "   wrangler stderr: $ERR"', False),
+        ('echo "   wrangler stderr: ${ERR}"', False),
+        # One good expansion must not vouch for a bare one beside it.
+        ('echo "$ERR ${ERR:-(no output)}"', False),
+        ('echo "${ERR:-(no output)} $ERR"', False),
+        # A longer name that merely starts with the variable is a
+        # different variable.
+        ('echo "${ERR_COUNT}"', True),
+    ],
+)
+def test_the_expansion_check_accepts_and_rejects_the_right_forms(line: str, accepted: bool) -> None:
+    """The rule is only as good as what it refuses.
+
+    Every False case here passed the first version of the check, which
+    asked whether `${ERR:-` appeared anywhere on the line rather than
+    inspecting each expansion.
+    """
+    found = _expansions(line, "ERR")
+    ok = all(_GUARDED_EXPANSION.fullmatch(expansion) for expansion in found)
+    if accepted and not found:
+        ok = True  # nothing to guard on this line
+    assert ok is accepted, f"expansions found: {found}"

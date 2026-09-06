@@ -196,10 +196,14 @@ jobs:
           fi
 
           if ! ENABLED_SERVICES=$(printf '%s' "$D1_SERVICES_JSON" \
-                | jq -r '.[0].results | map(.name) | join(",")'); then
+                | jq -r '.[0].results | map(.name) | join(",")' 2>/tmp/d1-parse.err); then
             echo "❌ D1 answered but the response could not be parsed."
-            D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
-            echo "   wrangler stderr: ${D1_ERR:-(no output)}"
+            # jq's own stderr, not wrangler's. Reaching this branch means the
+            # query already succeeded, so /tmp/d1-services.err holds nothing
+            # but wrangler's banner -- labelling that as the diagnostic points
+            # at the one component that did not fail.
+            PARSE_ERR=$(tr '\n\r' '  ' < /tmp/d1-parse.err 2>/dev/null | head -c 400)
+            echo "   jq stderr: ${PARSE_ERR:-(no output)}"
             exit 1
           fi
 
