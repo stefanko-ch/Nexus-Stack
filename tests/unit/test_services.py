@@ -2407,6 +2407,77 @@ def test_render_redpanda_hook_never_attributes_a_stale_body_to_a_new_request() -
     )
 
 
+def test_render_redpanda_hook_asks_the_broker_whether_the_user_exists() -> None:
+    """The restart gate must not be inferred from the create's status.
+
+    Measured against a live v24.3.1 broker: `POST /v1/security/users`
+    answers 200 both for a new user and for a re-create with an
+    unchanged password, and only returns 500 "User already exists" when
+    the password differs. So a re-deploy with the same Infisical
+    password is indistinguishable from a first install if you read the
+    create's code — `USER_EXISTED` stayed false and the broker was
+    restarted on every spin-up.
+
+    Observed in production on 2026-09-06: compose reported
+    `Container redpanda Running`, having left the container alone, while
+    its StartedAt moved into the services-configure window.
+
+    The flag must therefore come from a GET, and it must be established
+    before the create runs.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    lines = _fold_continuations(script)
+
+    urls = [line.strip() for line in lines if line.strip().startswith("RP_URL=")]
+    assert urls == ["RP_URL=http://localhost:9644/v1/security/users"], (
+        f"the probe is only meaningful against the users endpoint, got {urls}"
+    )
+
+    probes = [
+        i
+        for i, line in enumerate(lines)
+        if "$RP_URL" in line and '"nexus-redpanda"' in line and "grep" in line
+    ]
+    assert len(probes) == 1, (
+        f"expected one existence probe against the users endpoint, found {len(probes)}"
+    )
+    # The whole curl invocation, not a list of options to forbid. Rejecting
+    # `-X ` alone let `--request POST`, `-d`, `--data`, `--form` and every
+    # other body-or-method option straight through — a probe silently turned
+    # into a write would satisfy every other assertion here while creating
+    # the very user it claims to be looking for.
+    probe = lines[probes[0]]
+    invocation = re.search(r"curl\b.*?(?=\s+2>/dev/null)", probe)
+    assert invocation is not None, f"no curl invocation found in the probe: {probe.strip()}"
+    assert invocation.group(0) == 'curl -s --connect-timeout 3 --max-time 15 "$RP_URL"', (
+        f"the probe must be exactly this read-only GET, got: {invocation.group(0)}"
+    )
+
+    creates = [i for i, line in enumerate(lines) if "-X POST" in line]
+    assert len(creates) == 1, f"expected one create, found {len(creates)}"
+    assert probes[0] < creates[0], (
+        "the probe must run before the create — inferring existence from the "
+        "create's status code is the defect this guards"
+    )
+
+    assignments = [i for i, line in enumerate(lines) if line.strip() == "USER_EXISTED=true"]
+    assert assignments, "nothing ever sets USER_EXISTED=true"
+    # Between the probe and the create, not merely after the probe. The
+    # POST-conflict branch sets this flag too, so "any assignment later
+    # than the probe" is satisfied even by a hook that never wires the
+    # probe to anything at all.
+    assert any(probes[0] < i < creates[0] for i in assignments), (
+        "the GET branch must be what sets the flag; the only assignments "
+        "found belong to the create-conflict path"
+    )
+
+    restarts = [i for i, line in enumerate(lines) if "compose" in line and "restart" in line]
+    assert restarts, "no restart found; has the hook changed shape?"
+    assert all(i > probes[0] for i in restarts), (
+        "the restart decision must come after the probe that informs it"
+    )
+
+
 def _fold_continuations(script: str) -> list[str]:
     """Join backslash-continued physical lines, then drop comments.
 
