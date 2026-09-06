@@ -36,6 +36,35 @@ services:
       KAFKA_ADDRESS: redpanda:9092
       SCHEMA_REGISTRY_URL: http://redpanda:8081
 
+      # Without these three the Designer starts, answers 200 on
+      # /api/app/healthCheck, serves its UI -- and cannot create a single
+      # scenario. The shipped application.conf declares three scenario
+      # types and gives all three `category: "Default"`, which is not a
+      # valid mapping:
+      #
+      #   GET /api/app/config/categoriesWithProcessingType -> HTTP 500
+      #   Found keys with more than one values: Default during translating
+      #   List((Default,streaming), (Default,request-response-embedded),
+      #        (Default,streaming-lite-embedded)) to Map
+      #
+      # The categories are literals in that file, not `${?VAR}`, so no
+      # ordinary environment variable reaches them. What does reach them
+      # is Typesafe Config's env-var override, which bin/run.sh enables
+      # with `-Dconfig.override_with_env_vars=true`: CONFIG_FORCE_ plus
+      # the config path, `__` for each hyphen in a key.
+      #
+      # Verified against 1.18.1 on a throwaway container: with these set,
+      # the same endpoint answers 200 with
+      # {"RequestResponse":"request-response-embedded",
+      #  "Streaming":"streaming","StreamingLite":"streaming-lite-embedded"}.
+      #
+      # All three are kept rather than the Flink one alone: they cost
+      # nothing until a scenario uses them, and dropping a key from a
+      # merged HOCON config is the more fragile edit.
+      CONFIG_FORCE_scenarioTypes_streaming_category: Streaming
+      CONFIG_FORCE_scenarioTypes_streaming__lite__embedded_category: StreamingLite
+      CONFIG_FORCE_scenarioTypes_request__response__embedded_category: RequestResponse
+
       # The five demo accounts this image ships — admin/admin,
       # reader/reader, writer/writer, deployer/deployer, demo/demo, each
       # with password equal to username — are replaced wholesale by

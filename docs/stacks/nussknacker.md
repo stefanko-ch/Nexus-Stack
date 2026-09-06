@@ -67,6 +67,31 @@ The Kafka and schema-registry endpoints are taken from [Redpanda Console's](redp
 
 **Flink and Redpanda must be enabled** for scenarios to deploy or read anything. Nussknacker's UI starts without them, so the failure appears at deployment time rather than at boot.
 
+### The scenario categories have to be separated by hand
+
+The image ships three scenario types — `streaming` (Flink), `streaming-lite-embedded` and `request-response-embedded` — and assigns **all three the same category, `Default`**. Nussknacker maps categories to scenario types one-to-one, so that config does not resolve:
+
+```text
+GET /api/app/config/categoriesWithProcessingType -> HTTP 500
+Found keys with more than one values: Default during translating
+List((Default,streaming), (Default,request-response-embedded),
+     (Default,streaming-lite-embedded)) to Map
+```
+
+The consequence is worth stating plainly, because nothing about it looks broken: the container reports `healthy`, `/api/app/healthCheck` answers `{"status":"OK"}`, the UI loads and you can sign in — and **no scenario can be created at all**. This was found on the first deployment of this stack, after the container had been up and healthy for eight minutes.
+
+The categories are string literals in `application.conf`, not `${?VAR}` placeholders, so no ordinary environment variable reaches them. What does reach them is Typesafe Config's env-var override, which the image's `bin/run.sh` enables with `-Dconfig.override_with_env_vars=true`: the prefix `CONFIG_FORCE_` followed by the config path, with `__` standing in for each hyphen in a key.
+
+```yaml
+CONFIG_FORCE_scenarioTypes_streaming_category: Streaming
+CONFIG_FORCE_scenarioTypes_streaming__lite__embedded_category: StreamingLite
+CONFIG_FORCE_scenarioTypes_request__response__embedded_category: RequestResponse
+```
+
+Verified against 1.18.1: with these set, the same endpoint answers 200 with `{"RequestResponse":"request-response-embedded","Streaming":"streaming","StreamingLite":"streaming-lite-embedded"}`.
+
+One log line is a false lead if you go looking. `ReloadableProcessingTypeDataProvider - New state with processing types []` appears at startup **whether or not** the categories resolve — it is printed on the working container too. The API endpoint above is the signal that actually distinguishes the two states.
+
 ### One container, no companion database
 
 The Designer keeps its state — users, scenarios, deployment history — in an embedded HSQLDB under `/opt/nussknacker/storage`, created on first boot and migrated by Flyway. No PostgreSQL companion is deployed.
