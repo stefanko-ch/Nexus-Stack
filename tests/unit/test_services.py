@@ -2282,3 +2282,42 @@ def test_render_redpanda_hook_masks_the_password_in_error_output() -> None:
         assert f'{var}=${{{var}//"$REDPANDA_PASSWORD"/***}}' in script, (
             f"{var} is printed to stderr and must be masked first"
         )
+
+
+def test_render_redpanda_hook_emits_real_line_continuations() -> None:
+    """A single backslash in the f-string is eaten by Python, not bash.
+
+    Such a continuation renders as one long line with the indentation
+    folded in. Harmless for a command, but the same mistake on a `#`
+    comment line silently swallows whatever follows it -- a command that
+    then never runs, in a hook nobody reads again after it works once.
+
+    The fragment must end its line. Checking only that the line ends in
+    a backslash is not enough: a collapsed line still ends with the
+    backslash of the *next* continuation, so that weaker form passed
+    while the defect was present. Found by mutation, not by reading.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+
+    for fragment in ("| docker exec -i redpanda", "-w '%{http_code}'"):
+        hits = [line.rstrip() for line in script.splitlines() if fragment in line]
+        assert hits, f"fragment vanished from the hook: {fragment!r}"
+        for line in hits:
+            assert line.endswith(fragment + " \\"), (
+                "continuation collapsed -- Python ate the backslash, so the "
+                f"command folded onto one line: {line!r}"
+            )
+
+
+def test_render_redpanda_hook_uses_data_binary() -> None:
+    """`--data-binary @-`, the form used 21 times elsewhere in this module.
+
+    `-d @-` strips newlines from the payload. jq -Rsc emits compact JSON
+    so it makes no difference to this body today, but a body that ever
+    gains a newline would be silently altered, and the module already
+    settled on the safe form.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert commands.count("--data-binary @-") == 2, "both the POST and the PUT"
+    assert "-d @-" not in commands

@@ -643,9 +643,10 @@ def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     (or ``failed`` / ``skipped-not-ready``); NO ``already-configured``
     path. Reasoning:
     - First run: create user → cluster config → restart → verify ✓
-    - Re-run with same Infisical password: rpk reports "already exists"
-      → delete + recreate (no broker restart, since SASL listener is
-      already on) → verify ✓ — ends in ``configured``, not
+    - Re-run with same Infisical password: POST reports "already
+      exists" → PUT updates it in place (no broker restart, since the
+      SASL listener is already on; and no delete, so there is never a
+      moment without a user) → verify ✓ — ends in ``configured``, not
       ``already-configured``, because we DID re-write state (the
       password was rotated to its current value, even if that
       happens to equal the previous value).
@@ -749,18 +750,18 @@ redpanda_hook() {{
     #
     # Password on stdin, not `jq --arg`: --arg would put it back into
     # jq's argv inside the container, undoing the point of the pipe.
-    RP_BODY=$(printf '%s' "$REDPANDA_PASSWORD" \
+    RP_BODY=$(printf '%s' "$REDPANDA_PASSWORD" \\
         | jq -Rsc '{{username:"nexus-redpanda",password:.,algorithm:"SCRAM-SHA-256"}}')
-    CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \
-        curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \
-             -X POST "$RP_URL" -H 'Content-Type: application/json' -d @- 2>/dev/null || echo "000")
+    CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
+        curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
+             -X POST "$RP_URL" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || echo "000")
     CREATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
     if [ "$CREATE_CODE" != "200" ]; then
         if echo "$CREATE_BODY" | grep -qi 'already exists'; then
             USER_EXISTED=true
-            UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \
-                curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \
-                     -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' -d @- 2>/dev/null || echo "000")
+            UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
+                curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
+                     -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || echo "000")
             if [ "$UPDATE_CODE" != "200" ]; then
                 UPDATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
                 # Mask the password before printing. The bodies observed
