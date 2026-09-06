@@ -171,14 +171,48 @@ jobs:
 
           echo "📋 Reading services from D1..."
           D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
-          ENABLED_SERVICES=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
-            --command "SELECT name FROM services WHERE enabled = 1" 2>/dev/null \
-            | jq -r '.[0].results | map(.name) | join(",")' 2>/dev/null || echo "")
+          # Status and message are kept apart, and the query is not allowed
+          # to fail quietly. The previous form ended in `|| echo ""`, so an
+          # outage, an auth failure and a genuinely empty table all produced
+          # the same empty string -- and this workflow then went on to
+          # destroy infrastructure against a list it believed was empty.
+          #
+          # stderr goes to a file rather than into the capture: wrangler
+          # prints its banner there, and folding it into stdout would break
+          # the jq parse below.
+          D1_QUERY_FAILED=0
+          D1_SERVICES_JSON=""
+          if ! D1_SERVICES_JSON=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
+                --command "SELECT name FROM services WHERE enabled = 1" 2>/tmp/d1-services.err); then
+            D1_QUERY_FAILED=1
+          fi
 
+          if [ "$D1_QUERY_FAILED" -ne 0 ]; then
+            echo "❌ Could not read the enabled services from D1."
+            echo "   Continuing would act on a service list this step never obtained."
+            D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
+            echo "   wrangler stderr: ${D1_ERR:-(no output)}"
+            exit 1
+          fi
+
+          if ! ENABLED_SERVICES=$(printf '%s' "$D1_SERVICES_JSON" \
+                | jq -r '.[0].results | map(.name) | join(",")' 2>/tmp/d1-parse.err); then
+            echo "❌ D1 answered but the response could not be parsed."
+            # jq's own stderr, not wrangler's. Reaching this branch means the
+            # query already succeeded, so /tmp/d1-services.err holds nothing
+            # but wrangler's banner -- labelling that as the diagnostic points
+            # at the one component that did not fail.
+            PARSE_ERR=$(tr '\n\r' '  ' < /tmp/d1-parse.err 2>/dev/null | head -c 400)
+            echo "   jq stderr: ${PARSE_ERR:-(no output)}"
+            exit 1
+          fi
+
+          # Reaching here means the query succeeded, so an empty result is
+          # genuinely an empty table rather than a failure in disguise.
           if [ -n "$ENABLED_SERVICES" ]; then
             echo "📋 Enabled services from D1: $ENABLED_SERVICES"
           else
-            echo "📋 No services in D1 yet - core services will be enabled by default"
+            echo "📋 No services enabled in D1 - core services will be enabled by default"
           fi
 
           chmod +x .github/scripts/generate-services-tfvars.py
@@ -442,8 +476,27 @@ jobs:
           fi
 
           npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('last_teardown', datetime('now'), datetime('now'))"
-          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" 2>/dev/null || true
-          echo "✅ Teardown timestamp written, firewall rules reset"
+          # No `|| true`. "firewall rules reset" is a security claim, and
+          # printing it after a swallowed failure states the opposite of
+          # what happened: the next spin-up would reopen ports the operator
+          # believes are shut. The timestamp above already runs unguarded,
+          # so only the claim needs splitting from it.
+          if npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote \
+              --command "UPDATE firewall_rules SET enabled = 0, deployed = 0, updated_at = datetime('now')" \
+              >/dev/null 2>/tmp/d1-firewall.err; then
+            echo "✅ Teardown timestamp written, firewall rules reset"
+          else
+            echo "✅ Teardown timestamp written"
+            FW_ERR=$(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)
+            echo "::error title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: ${FW_ERR:-(no output)}"
+            echo ""
+            echo "NOTE: the snapshot and the infrastructure teardown already"
+            echo "      completed. Do NOT re-run this workflow to fix this — it"
+            echo "      would take a second snapshot. Reset the firewall rules"
+            echo "      from the Control Plane before the next spin-up."
+            # Non-zero on purpose; see the note in teardown.yml.
+            exit 1
+          fi
 
       - name: Summary
         if: always()
