@@ -2437,15 +2437,22 @@ def test_render_redpanda_hook_asks_the_broker_whether_the_user_exists() -> None:
         f"expected one existence probe against the users endpoint, found {len(probes)}"
     )
 
-    assignments = [i for i, line in enumerate(lines) if line.strip() == "USER_EXISTED=true"]
-    assert assignments, "nothing ever sets USER_EXISTED=true"
-    assert any(i > probes[0] for i in assignments), "the probe must be what sets the flag"
-
     creates = [i for i, line in enumerate(lines) if "-X POST" in line]
     assert len(creates) == 1, f"expected one create, found {len(creates)}"
     assert probes[0] < creates[0], (
         "the probe must run before the create — inferring existence from the "
         "create's status code is the defect this guards"
+    )
+
+    assignments = [i for i, line in enumerate(lines) if line.strip() == "USER_EXISTED=true"]
+    assert assignments, "nothing ever sets USER_EXISTED=true"
+    # Between the probe and the create, not merely after the probe. The
+    # POST-conflict branch sets this flag too, so "any assignment later
+    # than the probe" is satisfied even by a hook that never wires the
+    # probe to anything at all.
+    assert any(probes[0] < i < creates[0] for i in assignments), (
+        "the GET branch must be what sets the flag; the only assignments "
+        "found belong to the create-conflict path"
     )
 
     restarts = [i for i, line in enumerate(lines) if "compose" in line and "restart" in line]
