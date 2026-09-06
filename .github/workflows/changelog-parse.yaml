@@ -21,11 +21,18 @@ jobs:
     name: Release Please can parse this PR
     runs-on: ubuntu-latest
     steps:
+      # Both of these are new `uses:` lines rather than pre-existing ones,
+      # and #652's rule is to pin at the moment a reference is added.
+      # `persist-credentials: false` because this job only reads one file
+      # out of the tree and never pushes; leaving the token in .git/config
+      # for the rest of the job buys nothing.
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: '22'
 

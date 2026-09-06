@@ -68,14 +68,22 @@ if (!failure) {
   process.exit(0)
 }
 
+// Is the subject itself the problem? Ask before scanning the body, because
+// an unparseable subject makes EVERY body prefix fail and the scan below
+// would then blame body line 1 — a confident, wrong diagnostic of exactly
+// the kind this whole check exists to prevent.
+const subjectFails = throwsOn(`${subject}\n`) !== null
+
 // Narrow it down: the shortest body prefix that already fails. This is a
 // location, not a cause — see the note above.
 const lines = body.split('\n')
 let firstBadLine = null
-for (let n = 1; n <= lines.length; n++) {
-  if (throwsOn(`${subject}\n\n${lines.slice(0, n).join('\n')}`)) {
-    firstBadLine = n
-    break
+if (!subjectFails) {
+  for (let n = 1; n <= lines.length; n++) {
+    if (throwsOn(`${subject}\n\n${lines.slice(0, n).join('\n')}`)) {
+      firstBadLine = n
+      break
+    }
   }
 }
 
@@ -89,7 +97,14 @@ console.error('   changelog without failing. Its own workflow stays green and th
 console.error('   entry simply never appears.')
 console.error('')
 
-if (firstBadLine !== null) {
+if (subjectFails) {
+  console.error('   The TITLE is what the parser rejects, before the description is')
+  console.error('   even reached:')
+  console.error('')
+  console.error(`     ${subject}`)
+  console.error('')
+  console.error('   A conventional-commit subject looks like `type(scope): description`.')
+} else if (firstBadLine !== null) {
   const from = Math.max(1, firstBadLine - 2)
   console.error(`   Parsing first fails at body line ${firstBadLine}:`)
   console.error('')
@@ -102,11 +117,16 @@ if (firstBadLine !== null) {
   console.error('   problem — fixing it may reveal another. Removing the surrounding')
   console.error('   block from the description and re-running is the fastest way through.')
 } else {
-  console.error('   The failure could not be narrowed to a body line, which points at')
-  console.error('   the title rather than the description.')
+  console.error('   The failure could not be narrowed to a single body line: the whole')
+  console.error('   message is rejected while every prefix of it parses. That is')
+  console.error('   unusual — attach the message to the issue rather than guessing.')
 }
 
 console.error('')
-console.error('   Nothing about the CODE is wrong. Edit the PR description.')
+console.error(
+  subjectFails
+    ? '   Nothing about the CODE is wrong. Edit the PR title.'
+    : '   Nothing about the CODE is wrong. Edit the PR description.'
+)
 console.error('')
 process.exit(1)
