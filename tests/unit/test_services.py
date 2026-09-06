@@ -2346,6 +2346,27 @@ def test_render_redpanda_hook_does_not_double_the_transport_code() -> None:
         )
 
 
+def _fold_continuations(script: str) -> list[str]:
+    """Join backslash-continued physical lines, then drop comments.
+
+    Each Admin API call renders as four physical lines held together by
+    a trailing `\\`. An assertion that needs to know *which* request
+    carries a fragment has to see the whole command as one string.
+    """
+    folded: list[str] = []
+    buffer = ""
+    for line in script.splitlines():
+        stripped = line.rstrip()
+        if stripped.endswith("\\"):
+            buffer += stripped[:-1].rstrip() + " "
+            continue
+        folded.append(buffer + stripped.strip() if buffer else stripped)
+        buffer = ""
+    if buffer:
+        folded.append(buffer)
+    return [line for line in folded if not line.lstrip().startswith("#")]
+
+
 def test_render_redpanda_hook_bounds_both_admin_api_writes() -> None:
     """Both writes carry a connect and a total timeout.
 
@@ -2356,7 +2377,19 @@ def test_render_redpanda_hook_bounds_both_admin_api_writes() -> None:
     at 2s/5s; the writes were the exception.
     """
     script = render_redpanda_hook(_make_config(), _make_env())
-    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
-    assert commands.count("--connect-timeout 3 --max-time 30") == 2, (
-        "both the POST and the PUT must be bounded"
-    )
+    timeout = "--connect-timeout 3 --max-time 30"
+    lines = _fold_continuations(script)
+    for label, marker in (
+        ("POST", '-X POST "$RP_URL"'),
+        ("PUT", '-X PUT "$RP_URL/nexus-redpanda"'),
+    ):
+        matching = [line for line in lines if marker in line]
+        assert len(matching) == 1, (
+            f"expected exactly one {label} to the Admin API, found {len(matching)}"
+        )
+        # Per request, not across the script: counting the fragment in
+        # the whole hook stayed green when both timeouts sat on the POST
+        # and the PUT had none.
+        assert matching[0].count(timeout) == 1, (
+            f"the {label} must carry exactly one {timeout!r}, got: {matching[0]}"
+        )

@@ -634,8 +634,9 @@ def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     Wait via ``docker exec redpanda curl -sf /v1/status/ready`` (the
     admin API isn't exposed outside the container; ``-sf`` requires
     a true 2xx status, not just a transport-level success). The password
-    reaches the container on stdin and is read by ``curl -d @-``, so it
-    never lands in any process's argv on any of the three surfaces
+    reaches the container on stdin and is read by
+    ``curl --data-binary @-``, so it never lands in any process's argv
+    on any of the three surfaces
     (host, docker exec, container). ``rpk`` is not used for the user
     because it has no stdin flag — see the comment at the call site.
 
@@ -654,10 +655,11 @@ def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
       now genuinely differs → external clients pick up new credential
       via Infisical sync.
 
-    The delete is gated on the first create-attempt returning
-    "already exists" — we never delete a user we haven't proven the
-    broker can recreate. A transient broker glitch on the first
-    create returns ``failed`` without touching existing state.
+    Nothing is ever deleted. The PUT is gated on the first
+    create-attempt returning "already exists", so a transient broker
+    glitch on the first create returns ``failed`` without touching
+    existing state — and there is no point at which the broker has no
+    SASL user.
 
     Restart of the broker happens ONLY on first setup
     (``USER_EXISTED=false``). Subsequent rotations don't need it
@@ -694,11 +696,10 @@ redpanda_hook() {{
     fi
     # Try create-first. Three outcomes:
     #   1. SUCCESS → fresh install, USER_EXISTED stays false (→ restart needed below)
-    #   2. "already exists" → rotation case: delete the current user
-    #      and recreate with the current Infisical password. We only
-    #      open the no-user window AFTER the first create proved the
-    #      broker accepts our request, so a transient broker glitch
-    #      can't leave us userless mid-flight.
+    #   2. "already exists" → rotation case: PUT the current Infisical
+    #      password over the existing user. Nothing is deleted, so the
+    #      broker never sits without a SASL user; see the measured
+    #      status codes below.
     #   3. Other error → bail with failed.
     # Pipe the password via stdin so it never lands in argv on ANY of
     # the three process-list surfaces:
@@ -707,7 +708,7 @@ redpanda_hook() {{
     #       cmdline carries only flags and the curl invocation.
     #   (2) docker daemon's `ps aux` — same docker-exec cmdline.
     #   (3) inside the container — curl reads the body from stdin with
-    #       `-d @-` and never reflects it into its own argv.
+    #       `--data-binary @-` and never reflects it into its own argv.
     # The Admin API, not `rpk acl user create`. rpk has no
     # `--password-stdin` flag -- measured against the image this stack
     # actually runs:
@@ -725,8 +726,8 @@ redpanda_hook() {{
     # `--password <value>` would work but puts the secret into rpk's
     # argv inside the container. The Admin API keeps it off every
     # process list: the JSON reaches `docker exec -i` on stdin and curl
-    # reads it with `-d @-`, so it is in no argv on the host, in
-    # docker's, or in the container.
+    # reads it with `--data-binary @-`, so it is in no argv on the host,
+    # in docker's, or in the container.
     #
     # Both writes are bounded. `SSHClient.run_script` has no default
     # timeout, so a broker that accepts the connection and then stops
