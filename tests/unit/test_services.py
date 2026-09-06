@@ -321,7 +321,7 @@ def test_render_redpanda_hook_basic() -> None:
     # Wait via docker exec curl (admin API not exposed externally)
     assert "docker exec redpanda curl" in script
     # rpk SASL user create + cluster config
-    assert "rpk acl user create nexus-redpanda" in script
+    assert '-X POST "$RP_URL"' in script
     assert "rpk cluster config set superusers" in script
     # Verify via /v1/security/users
     assert "/v1/security/users" in script
@@ -347,7 +347,7 @@ def test_render_redpanda_hook_password_via_stdin_not_argv() -> None:
         if "docker exec -e" in line:
             assert canary not in line, f"Password leaked into docker exec -e argv: {line!r}"
     # Pipe-to-stdin form must be present
-    assert "printf '%s' \"$REDPANDA_PASSWORD\" |" in script
+    assert "printf '%s' \"$RP_BODY\" | docker exec -i redpanda" in script
     assert "docker exec -i redpanda" in script
 
 
@@ -376,31 +376,61 @@ def test_render_redpanda_hook_uses_curl_dash_f_for_status_check() -> None:
     assert script.count("curl -sf") >= 3  # initial wait + post-restart wait + verify
 
 
-def test_render_redpanda_hook_password_rotation_via_create_first_then_delete() -> None:
-    """Round-1 + round-2 findings: rotation must propagate. A previous
-    naive implementation never synced the password on a second run, so
-    Infisical rotation silently broke clients. The current pattern is
-    try-create-first; only delete + recreate IF create reports "already
-    exists" (the rotation case). The delete is gated on the broker
-    proving it's responsive — a transient broker glitch on the first
-    create returns failed without touching state. Round-2 specifically
-    flagged delete-before-prove as a real bug — broker could be
-    left with no SASL user if create failed transiently.
+def test_render_redpanda_hook_rotation_updates_without_deleting() -> None:
+    """Rotation must propagate, and must not open a window with no user.
+
+    History: a naive first version never synced the password on a second
+    run, so an Infisical rotation silently broke clients. The fix was
+    try-create-first, then delete + recreate on "already exists" — which
+    left a brief moment with no SASL user, accepted at the time as the
+    price of rotating.
+
+    The Admin API removes that trade. Measured on v24.3.1: POST returns
+    500 "User already exists" on a duplicate, and PUT updates the
+    password in place. So the delete is gone, and its absence is the
+    property worth pinning — a future edit reintroducing it would
+    reintroduce the window.
     """
     script = render_redpanda_hook(_make_config(), _make_env())
-    # Try-create-first happens BEFORE any delete
-    create_idx = script.find("rpk acl user create nexus-redpanda")
-    delete_idx = script.find("rpk acl user delete nexus-redpanda")
-    assert create_idx >= 0, "rpk acl user create must be in script"
-    assert delete_idx >= 0, "rpk acl user delete must be in script"
-    assert create_idx < delete_idx, (
-        "create-attempt must come BEFORE delete (no delete-before-prove)"
+
+    assert "rpk acl user delete" not in script, (
+        "the rotation path must not delete the user: PUT updates the "
+        "password in place, and a delete reopens the no-user window"
     )
-    # The delete is gated on "already exists" branch
+    create_idx = script.find('-X POST "$RP_URL"')
+    update_idx = script.find('-X PUT "$RP_URL/nexus-redpanda"')
+    assert create_idx >= 0, "POST must create the user"
+    assert update_idx >= 0, "PUT must handle the rotation case"
+    assert create_idx < update_idx, "PUT is only reached after POST reports a duplicate"
     assert "already exists" in script
-    # Tracked via USER_EXISTED so restart can be skipped on rotation
     assert "USER_EXISTED=true" in script
     assert "USER_EXISTED=false" in script
+
+
+def test_render_redpanda_hook_does_not_use_password_stdin() -> None:
+    """`rpk acl user create` has no --password-stdin flag.
+
+    Measured against the image this stack runs:
+
+        $ docker run --rm --entrypoint rpk \
+              redpandadata/redpanda:v24.3.1 acl user create --help
+        --password string    New user's password
+
+    A comment in the hook once claimed the flag was "confirmed available
+    on the pinned v24.3 image"; the deploy of 2026-09-06 failed with
+    `unknown flag: --password-stdin` and the broker was left without its
+    SASL user. The same flag had already been reverted once in 7c3c530.
+    Twice is enough to pin it.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+
+    # Comment lines are stripped first. The hook explains at length why
+    # the flag is not used, so a naive substring check would match its
+    # own explanation -- the same trap the workflow guardrails hit when
+    # they read prose as if it were a command.
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert "--password-stdin" not in commands
+    assert "rpk acl user create" not in commands
 
 
 def test_render_redpanda_hook_cluster_config_set_failure_propagates() -> None:
