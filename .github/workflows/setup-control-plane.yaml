@@ -1433,6 +1433,27 @@ jobs:
         run: |
           echo "⚙️  Setting Control Plane secrets..."
           PROJECT_NAME="${{ steps.prefix.outputs.project_name }}"
+          # `secret delete` is interactive and fails loudly when the secret
+          # is absent, which is the common case here. "Already gone" is a fine
+          # reason to continue; an auth error, a wrong project name or an API
+          # outage is not -- and `|| true` could not tell them apart, so a
+          # revoked token looked exactly like a clean no-op.
+          delete_pages_secret() {
+            local name="$1"
+            local err
+            if err=$(echo y | npx wrangler@4.129.0 pages secret delete "$name" \
+                  --project-name="$PROJECT_NAME" 2>&1); then
+              echo "  Removed stale Pages secret $name"
+              return 0
+            fi
+            if printf '%s' "$err" | grep -qiE "not found|does not exist|no secret"; then
+              echo "  No stale $name to remove"
+              return 0
+            fi
+            echo "::warning title=pages-secret::Could not delete the Pages secret $name, and it was not reported as absent. The runtime may still read a stale value. wrangler output: $(printf '%s' "${err:-(no output)}" | tr '\n\r' '  ' | head -c 300)"
+            return 0
+          }
+
 
           # Pages secrets survive wrangler pages deploy (unlike environment_variables
           # which get wiped). Terraform sets environment_variables on the project, but
@@ -1489,11 +1510,7 @@ jobs:
             fi
           else
             echo "  BASE_DOMAIN is empty; removing any stale Pages secret so runtime falls back to DOMAIN..."
-            # `secret delete` is interactive by default and fails loudly if the
-            # secret doesn't exist. Pipe 'y' to auto-confirm, swallow output,
-            # and don't fail the step when the secret wasn't there to begin with.
-            echo y | npx wrangler@4.129.0 pages secret delete BASE_DOMAIN \
-              --project-name="$PROJECT_NAME" >/dev/null 2>&1 || true
+            delete_pages_secret BASE_DOMAIN
           fi
 
           # TEMPLATE_VERSION — the release tag of the template code currently
@@ -1514,8 +1531,7 @@ jobs:
             fi
           else
             echo "  .template-version missing or empty; removing any stale Pages secret so runtime falls back to the GitHub API / 'dev'..."
-            echo y | npx wrangler@4.129.0 pages secret delete TEMPLATE_VERSION \
-              --project-name="$PROJECT_NAME" >/dev/null 2>&1 || true
+            delete_pages_secret TEMPLATE_VERSION
           fi
 
           # SUBDOMAIN_SEPARATOR + derived URLs. These MUST be secrets (not Terraform
@@ -1617,21 +1633,44 @@ jobs:
           # Initialize schema (creates tables if they don't exist)
           npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --file=control-plane/schema.sql --remote
 
+          # Migrations are re-run on every deploy, so "column already
+          # exists" is the expected outcome and the only one worth
+          # tolerating. `|| true` tolerated everything -- a lock, a
+          # permission failure, an outage -- and left the Control Plane
+          # querying a column that was never added.
+          #
+          # Status and message stay in separate variables: a command that
+          # exits non-zero while printing nothing must not be mistaken for
+          # success, which is why the empty case still says something.
+          migrate_column() {
+            local sql="$1"
+            local err
+            if err=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$sql" 2>&1); then
+              return 0
+            fi
+            if printf '%s' "$err" | grep -qiE "duplicate column|already exists"; then
+              return 0
+            fi
+            echo "❌ D1 migration failed: $sql"
+            echo "   wrangler output: ${err:-(no output)}"
+            return 1
+          }
+
           # Schema migrations for existing databases
           # admin_only column added for services that can only be toggled via GitHub Actions
-          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN admin_only INTEGER DEFAULT 0" 2>/dev/null || true
+          migrate_column "ALTER TABLE services ADD COLUMN admin_only INTEGER DEFAULT 0"
           # landing_path column for per-service URL path in Control Plane "Open" links
           # (e.g. Chroma's "/docs/" Swagger UI). Migration runs here too — NOT only
           # in sync-deployed-state.sh — so the new Pages frontend's SELECT including
           # landing_path doesn't 500 on existing D1 instances between Pages auto-deploy
           # (on merge) and the next spin-up that runs the sync script.
-          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" 2>/dev/null || true
+          migrate_column "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''"
           # api_only column for headless services (e.g. Meilisearch) — clicking Open
           # shows an API-info modal instead of opening the raw JSON URL. Same race
           # window as landing_path above: Pages auto-deploys on merge, and its new
           # SELECT includes api_only; without this ALTER the frontend would 500 until
           # the next spin-up runs sync-deployed-state.sh.
-          npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0" 2>/dev/null || true
+          migrate_column "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0"
 
           # Store domain in D1 config (escape single quotes)
           ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}
