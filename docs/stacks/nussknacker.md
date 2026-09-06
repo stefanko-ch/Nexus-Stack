@@ -43,7 +43,7 @@ Running the same pipeline down both paths — the same filter written once as SQ
 
 This is the part worth knowing about. The image ships a `users.conf` with **five accounts whose passwords equal their usernames**:
 
-```
+```text
 admin/admin   reader/reader   writer/writer   deployer/deployer   demo/demo
 ```
 
