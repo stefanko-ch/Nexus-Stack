@@ -2407,6 +2407,54 @@ def test_render_redpanda_hook_never_attributes_a_stale_body_to_a_new_request() -
     )
 
 
+def test_render_redpanda_hook_asks_the_broker_whether_the_user_exists() -> None:
+    """The restart gate must not be inferred from the create's status.
+
+    Measured against a live v24.3.1 broker: `POST /v1/security/users`
+    answers 200 both for a new user and for a re-create with an
+    unchanged password, and only returns 500 "User already exists" when
+    the password differs. So a re-deploy with the same Infisical
+    password is indistinguishable from a first install if you read the
+    create's code — `USER_EXISTED` stayed false and the broker was
+    restarted on every spin-up.
+
+    Observed in production on 2026-09-06: compose reported
+    `Container redpanda Running`, having left the container alone, while
+    its StartedAt moved into the services-configure window.
+
+    The flag must therefore come from a GET, and it must be established
+    before the create runs.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    lines = _fold_continuations(script)
+
+    probes = [
+        i
+        for i, line in enumerate(lines)
+        if "$RP_URL" in line and '"nexus-redpanda"' in line and "grep" in line
+    ]
+    assert len(probes) == 1, (
+        f"expected one existence probe against the users endpoint, found {len(probes)}"
+    )
+
+    assignments = [i for i, line in enumerate(lines) if line.strip() == "USER_EXISTED=true"]
+    assert assignments, "nothing ever sets USER_EXISTED=true"
+    assert any(i > probes[0] for i in assignments), "the probe must be what sets the flag"
+
+    creates = [i for i, line in enumerate(lines) if "-X POST" in line]
+    assert len(creates) == 1, f"expected one create, found {len(creates)}"
+    assert probes[0] < creates[0], (
+        "the probe must run before the create — inferring existence from the "
+        "create's status code is the defect this guards"
+    )
+
+    restarts = [i for i, line in enumerate(lines) if "compose" in line and "restart" in line]
+    assert restarts, "no restart found; has the hook changed shape?"
+    assert all(i > probes[0] for i in restarts), (
+        "the restart decision must come after the probe that informs it"
+    )
+
+
 def _fold_continuations(script: str) -> list[str]:
     """Join backslash-continued physical lines, then drop comments.
 

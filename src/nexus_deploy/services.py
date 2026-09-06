@@ -661,10 +661,16 @@ def render_redpanda_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     existing state — and there is no point at which the broker has no
     SASL user.
 
-    Restart of the broker happens ONLY on first setup
-    (``USER_EXISTED=false``). Subsequent rotations don't need it
-    because the SASL listener config is a one-time broker-side
-    setting; only the credentials change. Restart failure is
+    Restart of the broker happens ONLY on first setup, and
+    ``USER_EXISTED`` is established by asking the broker
+    (``GET /v1/security/users``) rather than by reading the create's
+    status code. That distinction is the whole point: ``POST`` answers
+    200 both for a new user and for a re-create with an unchanged
+    password, so inferring from it made every re-deploy look like a
+    first install and restarted the broker each time — which this
+    paragraph used to deny. Subsequent rotations genuinely don't need a
+    restart, because the SASL listener config is a one-time broker-side
+    setting and only the credentials change. Restart failure is
     surfaced as ``failed`` (legacy ``|| true`` hid this — listener
     not picking up the SASL change is broken-but-silent).
     """
@@ -736,19 +742,40 @@ redpanda_hook() {{
     # liveness probe run in a loop, these are single writes that may wait
     # on a raft commit.
     #
-    # Semantics, measured on v24.3.1:
-    #   POST   /v1/security/users          new  -> 200
-    #                                      dup  -> 500 "User already exists"
-    #   PUT    /v1/security/users/<name>   ok   -> 200 (password updated)
-    #                                      gone -> 500 "User does not exist"
+    # Semantics, measured against a live v24.3.1 broker. The middle row
+    # is the one that matters and the one an earlier version of this
+    # comment omitted:
+    #
+    #   POST /v1/security/users        user absent               -> 200
+    #                                  present, same password    -> 200
+    #                                  present, changed password -> 500 "User already exists"
+    #   PUT  /v1/security/users/<name> present                   -> 200 (password updated)
+    #                                  absent                    -> 500 "User does not exist"
     #
     # Hence POST, then PUT on "already exists". That replaces the
     # previous delete-then-recreate rotation, which opened a window with
     # no SASL user at all -- the old comment called it "brief" and
     # accepted it; PUT removes it.
     REDPANDA_PASSWORD={password_q}
-    USER_EXISTED=false
     RP_URL=http://localhost:9644/v1/security/users
+    # Ask the broker, rather than inferring existence from the create's
+    # status code. Because POST answers 200 both for a fresh user and for
+    # an unchanged re-create, a re-deploy with the same Infisical password
+    # is indistinguishable from a first install -- so USER_EXISTED stayed
+    # false and the broker was restarted on EVERY spin-up, while the
+    # docstring promised a restart only on first setup. Observed on
+    # 2026-09-06: compose reported `Container redpanda Running` (untouched)
+    # and the container's StartedAt still moved into the configure phase.
+    #
+    # `|| true` is right here: a broker that cannot answer this GET cannot
+    # answer the write on the next line either, and that one reports
+    # properly. A failed GET leaves the flag false, which costs an
+    # unnecessary restart and nothing else.
+    USER_EXISTED=false
+    if docker exec redpanda curl -s --connect-timeout 3 --max-time 15 "$RP_URL" 2>/dev/null \
+        | grep -q '"nexus-redpanda"'; then
+        USER_EXISTED=true
+    fi
     # jq builds the JSON, not printf: a password containing a quote,
     # a backslash or a newline would otherwise produce a malformed body
     # and a confusing 400. `random_password.redpanda_admin` sets
