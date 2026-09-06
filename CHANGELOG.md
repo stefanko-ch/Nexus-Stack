@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.77.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.76.0...v0.77.0) (2026-09-06)
+
+
+### 🚀 Features
+
+* **stacks:** Add Nussknacker — visual low-code designer on Flink ([#794](https://github.com/stefanko-ch/Nexus-Stack/issues/794)) ([4fc9eaa](https://github.com/stefanko-ch/Nexus-Stack/commit/4fc9eaae43b3d011504f05ba78e04361c5d22c61))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Stop seven D1 calls from discarding their exit status ([#797](https://github.com/stefanko-ch/Nexus-Stack/issues/797)) ([67b46c7](https://github.com/stefanko-ch/Nexus-Stack/commit/67b46c7a730f9fd63e8bb0df3d754944a71491dd))
+* **control-plane:** Make the Meilisearch curl hint runnable, and test the key ([#793](https://github.com/stefanko-ch/Nexus-Stack/issues/793)) ([cb68a53](https://github.com/stefanko-ch/Nexus-Stack/commit/cb68a5361ccf922411b27b60e17efafe32a8c031))
+* **deploy:** Create the RedPanda SASL user via the Admin API ([#798](https://github.com/stefanko-ch/Nexus-Stack/issues/798)) ([b7ca850](https://github.com/stefanko-ch/Nexus-Stack/commit/b7ca8500d191be90ecaaf0912c40d99a044a0f92))
+
 ## [0.76.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.75.0...v0.76.0) (2026-09-05)
 
 
