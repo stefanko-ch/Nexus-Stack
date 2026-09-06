@@ -754,14 +754,23 @@ redpanda_hook() {{
         | jq -Rsc '{{username:"nexus-redpanda",password:.,algorithm:"SCRAM-SHA-256"}}')
     CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
         curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
-             -X POST "$RP_URL" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || echo "000")
+             -X POST "$RP_URL" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+    # `|| true` plus a default, NOT `|| echo "000"`. curl already writes
+    # 000 to stdout when it cannot connect AND exits non-zero, so the
+    # echo would append a second 000 and the diagnostic below would read
+    # "HTTP 000000" -- contradicting the comment two lines down. CLAUDE.md
+    # names this exact trap; the `|| echo "000"` form elsewhere in this
+    # module is harmless only because those call sites compare against a
+    # success code instead of printing it.
+    CREATE_CODE=${{CREATE_CODE:-000}}
     CREATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
     if [ "$CREATE_CODE" != "200" ]; then
         if echo "$CREATE_BODY" | grep -qi 'already exists'; then
             USER_EXISTED=true
             UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
                 curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
-                     -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || echo "000")
+                     -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+            UPDATE_CODE=${{UPDATE_CODE:-000}}
             if [ "$UPDATE_CODE" != "200" ]; then
                 UPDATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
                 # Mask the password before printing. The bodies observed

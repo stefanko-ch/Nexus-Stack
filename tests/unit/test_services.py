@@ -2321,3 +2321,26 @@ def test_render_redpanda_hook_uses_data_binary() -> None:
     commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
     assert commands.count("--data-binary @-") == 2, "both the POST and the PUT"
     assert "-d @-" not in commands
+
+
+def test_render_redpanda_hook_does_not_double_the_transport_code() -> None:
+    """`|| echo "000"` after a `-w '%{http_code}'` curl yields `000000`.
+
+    curl writes 000 to stdout when it cannot connect *and* exits
+    non-zero, so the echo appends a second 000. The hook prints the code
+    in its diagnostic, so the message would read "HTTP 000000" while the
+    comment beside it explains what 000 means.
+
+    CLAUDE.md names this trap, and notes that the `|| echo "000"` form
+    used elsewhere in this module is harmless only because those call
+    sites compare the value against a success code instead of printing
+    it. Copied without that audit, it becomes this.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+
+    assert '|| echo "000"' not in commands
+    for var in ("CREATE_CODE", "UPDATE_CODE"):
+        assert f"{var}=${{{var}:-000}}" in commands, (
+            f"{var} must default to 000 rather than appending a second one"
+        )
