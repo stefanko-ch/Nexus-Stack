@@ -37,7 +37,17 @@
 // rule from that would be worse than useless, which is why this reports the
 // location and leaves the diagnosis to a human.
 
+import { readFileSync } from 'node:fs'
+
 import { parser } from '@conventional-commits/parser'
+
+// The prefix scan below reparses a growing prefix per line, which is
+// quadratic in the body length. Measured with this parser: 200 lines takes
+// 0.9s, 1000 takes 25s and 3000 takes 245s. A PR body may be 65536
+// characters, so an unbounded scan hands a fork PR minutes of runner CPU.
+// Real bodies in this repo run 50-123 lines; 400 costs about 4s and leaves
+// ample headroom.
+const MAX_SCANNED_LINES = 400
 
 const title = process.env.PR_TITLE ?? ''
 const body = process.env.PR_BODY ?? ''
@@ -61,9 +71,74 @@ const throwsOn = (text) => {
   }
 }
 
+//: The runner reads a step's stderr for workflow commands and strips leading
+//: whitespace first, so a title beginning with `::error::` would forge an
+//: annotation from this script's own output. Only the title is interpolated
+//: into a line of its own; the body excerpts below all carry a fixed prefix.
+const neutralise = (text) => text.replaceAll('::', ':\u200b:')
+
+//: The commit type, read out of the parser's own AST rather than a regex
+//: over the subject — the parser is the authority on where the type ends.
+const typeOf = (text) => {
+  let found = null
+  const walk = (node) => {
+    if (!node || typeof node !== 'object' || found !== null) return
+    if (node.type === 'type' && typeof node.value === 'string') {
+      found = node.value
+      return
+    }
+    for (const child of node.children ?? []) walk(child)
+  }
+  try {
+    walk(parser(text))
+  } catch {
+    return null
+  }
+  return found
+}
+
+//: Types Release Please is configured to understand. A type absent from this
+//: list parses fine and then has no section to land in — the same silent
+//: outcome this check exists to prevent, reached a different way. `hidden`
+//: entries stay allowed: `test:` and `style:` are deliberately kept out of
+//: the changelog, which is a decision rather than a failure.
+const configuredTypes = () => {
+  try {
+    const config = JSON.parse(readFileSync('release-please-config.json', 'utf8'))
+    const sections = []
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return
+      if (Array.isArray(node['changelog-sections'])) sections.push(...node['changelog-sections'])
+      for (const value of Object.values(node)) walk(value)
+    }
+    walk(config)
+    return new Set(sections.map((section) => section.type).filter(Boolean))
+  } catch {
+    // Unreadable or restructured config: say nothing rather than invent a
+    // failure. The parse check above is unaffected.
+    return null
+  }
+}
+
 const failure = throwsOn(message)
 
 if (!failure) {
+  const known = configuredTypes()
+  const type = typeOf(message)
+  if (known && known.size > 0 && type && !known.has(type)) {
+    console.error('')
+    console.error(`❌ \`${neutralise(type)}:\` is not a type Release Please is configured for.`)
+    console.error('')
+    console.error('   The message parses, so nothing will fail — and the entry will')
+    console.error('   have no section to land in. Same silent outcome, different route.')
+    console.error('')
+    console.error(`   Configured: ${[...known].sort().join(', ')}`)
+    console.error('')
+    console.error('   `test` and `style` are configured but hidden on purpose; both are')
+    console.error('   fine to use. Anything outside the list is not.')
+    console.error('')
+    process.exit(1)
+  }
   console.log(`✅ Release Please can parse the squash message for #${number}.`)
   process.exit(0)
 }
@@ -77,9 +152,10 @@ const subjectFails = throwsOn(`${subject}\n`) !== null
 // Narrow it down: the shortest body prefix that already fails. This is a
 // location, not a cause — see the note above.
 const lines = body.split('\n')
+const scanned = Math.min(lines.length, MAX_SCANNED_LINES)
 let firstBadLine = null
 if (!subjectFails) {
-  for (let n = 1; n <= lines.length; n++) {
+  for (let n = 1; n <= scanned; n++) {
     if (throwsOn(`${subject}\n\n${lines.slice(0, n).join('\n')}`)) {
       firstBadLine = n
       break
@@ -101,7 +177,7 @@ if (subjectFails) {
   console.error('   The TITLE is what the parser rejects, before the description is')
   console.error('   even reached:')
   console.error('')
-  console.error(`     ${subject}`)
+  console.error(`     ${neutralise(subject)}`)
   console.error('')
   console.error('   A conventional-commit subject looks like `type(scope): description`.')
 } else if (firstBadLine !== null) {
@@ -116,6 +192,11 @@ if (subjectFails) {
   console.error('   That is where the parser gives up first, not necessarily the only')
   console.error('   problem — fixing it may reveal another. Removing the surrounding')
   console.error('   block from the description and re-running is the fastest way through.')
+} else if (scanned < lines.length) {
+  console.error(`   The description is ${lines.length} lines; only the first`)
+  console.error(`   ${MAX_SCANNED_LINES} were scanned and none of them fails on its own.`)
+  console.error('   The scan is quadratic, so it is capped rather than left to run for')
+  console.error('   minutes. Shorten the description and push again to locate it.')
 } else {
   console.error('   The failure could not be narrowed to a single body line: the whole')
   console.error('   message is rejected while every prefix of it parses. That is')
