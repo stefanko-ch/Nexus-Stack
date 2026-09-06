@@ -2346,6 +2346,44 @@ def test_render_redpanda_hook_does_not_double_the_transport_code() -> None:
         )
 
 
+def test_render_redpanda_hook_never_attributes_a_stale_body_to_a_new_request() -> None:
+    """A transport failure must not inherit the previous response.
+
+    `curl -o FILE` does not truncate FILE when it never reaches the
+    server. Measured inside redpandadata/redpanda:v24.3.1 (curl 7.88.1):
+    a PUT to a closed port exits non-zero, writes 000, and leaves the
+    earlier body untouched. So a broker that died between the POST and
+    the PUT would have reported
+
+        HTTP 000: {"message":"User already exists"}
+
+    naming a conflict that never happened, while the real fault was that
+    nothing answered. Two defences, both asserted here:
+
+    1. Every read of the response file deletes it in the same exec, so
+       no body can outlive the request that produced it.
+    2. The "already exists" branch is gated on a real HTTP status. At
+       000 there is no response to interpret.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    lines = _fold_continuations(script)
+
+    # Path inside the RedPanda container, never opened by this process.
+    response_file = "/tmp/rp-user.out"  # noqa: S108 — remote path, not a local temp file
+    reads = [line for line in lines if response_file in line and "cat " in line]
+    assert len(reads) == 2, f"expected the create and update reads, found {len(reads)}"
+    for read in reads:
+        assert f"rm -f {response_file}" in read, (
+            f"the response file must be consumed, not just read: {read.strip()}"
+        )
+
+    guard = [line for line in lines if "already exists" in line and "grep" in line]
+    assert len(guard) == 1, f"expected one 'already exists' branch, found {len(guard)}"
+    assert '"$CREATE_CODE" != "000"' in guard[0], (
+        f"the rotation branch must require a real HTTP response, not 000: {guard[0].strip()}"
+    )
+
+
 def _fold_continuations(script: str) -> list[str]:
     """Join backslash-continued physical lines, then drop comments.
 

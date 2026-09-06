@@ -772,9 +772,21 @@ redpanda_hook() {{
     # module is harmless only because those call sites compare against a
     # success code instead of printing it.
     CREATE_CODE=${{CREATE_CODE:-000}}
-    CREATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
+    # Consume the body: read it and delete it in the same exec. curl does
+    # NOT truncate its `-o` file when it never reaches the server, so a
+    # body left behind by the previous request would be reported as this
+    # one's. Measured inside redpandadata/redpanda:v24.3.1 (curl 7.88.1):
+    # a PUT to a closed port returns 000 and leaves the earlier
+    # "User already exists" JSON in place. Without the delete, a broker
+    # that died between the POST and the PUT would produce
+    # `HTTP 000: {{"message":"User already exists"}}` -- an error message
+    # naming a conflict that did not happen.
+    CREATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null; rm -f /tmp/rp-user.out' 2>/dev/null || echo "")
     if [ "$CREATE_CODE" != "200" ]; then
-        if echo "$CREATE_BODY" | grep -qi 'already exists'; then
+        # 000 means curl never spoke to the broker, so whatever is in
+        # $CREATE_BODY cannot be this request's response. Only a real
+        # HTTP status may be read as "the user is already there".
+        if [ "$CREATE_CODE" != "000" ] && echo "$CREATE_BODY" | grep -qi 'already exists'; then
             USER_EXISTED=true
             UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
                 curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
@@ -782,7 +794,8 @@ redpanda_hook() {{
                      -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
             UPDATE_CODE=${{UPDATE_CODE:-000}}
             if [ "$UPDATE_CODE" != "200" ]; then
-                UPDATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null' 2>/dev/null || echo "")
+                # Same consume-and-delete as the create above.
+                UPDATE_BODY=$(docker exec redpanda sh -c 'cat /tmp/rp-user.out 2>/dev/null; rm -f /tmp/rp-user.out' 2>/dev/null || echo "")
                 # Mask the password before printing. The bodies observed
                 # from this API carry only a message and a code, but an
                 # error that echoed the request would put the secret in a
