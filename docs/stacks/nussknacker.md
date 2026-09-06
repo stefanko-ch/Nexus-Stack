@@ -92,6 +92,36 @@ Verified against 1.18.1: with these set, the same endpoint answers 200 with `{"R
 
 One log line is a false lead if you go looking. `ReloadableProcessingTypeDataProvider - New state with processing types []` appears at startup **whether or not** the categories resolve — it is printed on the working container too. The API endpoint above is the signal that actually distinguishes the two states.
 
+### Metrics are not wired up
+
+The **metrics** button on a deployed scenario leads to a Nussknacker 404. That is expected in this deployment, and it is not one missing setting but three.
+
+**1. The link points at a path that does not exist here.** The shipped config builds it from a `grafanaUrl` that defaults to a relative path:
+
+```text
+grafanaUrl: "/grafana"
+grafanaUrl: ${?GRAFANA_URL}
+metricsSettings.url: ${grafanaUrl}"/d/$dashboard?theme=dark&var-scenarioName=$scenarioName&var-env="${environment}
+```
+
+`/grafana` assumes something proxies Grafana under the Designer's own host, which is what Nussknacker's quickstart does with nginx. Here [Grafana](grafana.md) lives at its own subdomain, so the link resolves against `nussknacker.<domain>` and finds nothing.
+
+**2. There is no dashboard to point at.** The default is `nussknacker-scenario`; this project's Grafana does not ship it.
+
+**3. There is nothing to display.** Two log lines at startup say so:
+
+```text
+Error while parsing influx configuration: requirement failed:
+URL should be absolute, but got '/write'. InfluxDb Reported will be disabled.
+Influxdb metrics reporter config not found
+```
+
+`countsSettings.influxUrl` needs `INFLUXDB_URL`, which is unset — and more fundamentally, `stacks/flink` configures **no metrics reporter at all**, so Flink emits nothing for a store to collect.
+
+Setting `GRAFANA_URL` alone would only move the dead end from Nussknacker's 404 to Grafana's. Doing it properly means a Flink metrics reporter, a store to receive it ([InfluxDB](influxdb.md) is deployed and could serve), a Grafana datasource and a dashboard — a separate change, tracked in its own issue rather than smuggled into a stack addition.
+
+Scenario **deployment and execution do not depend on any of this**: verified with a `periodic → dead-end` scenario reaching `RUNNING` on Flink while metrics were entirely absent.
+
 ### One container, no companion database
 
 The Designer keeps its state — users, scenarios, deployment history — in an embedded HSQLDB under `/opt/nussknacker/storage`, created on first boot and migrated by Flyway. No PostgreSQL companion is deployed.
