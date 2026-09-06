@@ -728,6 +728,13 @@ redpanda_hook() {{
     # reads it with `-d @-`, so it is in no argv on the host, in
     # docker's, or in the container.
     #
+    # Both writes are bounded. `SSHClient.run_script` has no default
+    # timeout, so a broker that accepts the connection and then stops
+    # answering would hang the deploy with no upper limit. 3s/30s rather
+    # than the 2s/5s the readiness poll above uses: that one is a fast
+    # liveness probe run in a loop, these are single writes that may wait
+    # on a raft commit.
+    #
     # Semantics, measured on v24.3.1:
     #   POST   /v1/security/users          new  -> 200
     #                                      dup  -> 500 "User already exists"
@@ -754,6 +761,7 @@ redpanda_hook() {{
         | jq -Rsc '{{username:"nexus-redpanda",password:.,algorithm:"SCRAM-SHA-256"}}')
     CREATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
         curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
+             --connect-timeout 3 --max-time 30 \\
              -X POST "$RP_URL" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
     # `|| true` plus a default, NOT `|| echo "000"`. curl already writes
     # 000 to stdout when it cannot connect AND exits non-zero, so the
@@ -769,6 +777,7 @@ redpanda_hook() {{
             USER_EXISTED=true
             UPDATE_CODE=$(printf '%s' "$RP_BODY" | docker exec -i redpanda \\
                 curl -s -o /tmp/rp-user.out -w '%{{http_code}}' \\
+                     --connect-timeout 3 --max-time 30 \\
                      -X PUT "$RP_URL/nexus-redpanda" -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
             UPDATE_CODE=${{UPDATE_CODE:-000}}
             if [ "$UPDATE_CODE" != "200" ]; then

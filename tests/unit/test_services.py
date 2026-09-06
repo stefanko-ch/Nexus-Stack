@@ -2344,3 +2344,19 @@ def test_render_redpanda_hook_does_not_double_the_transport_code() -> None:
         assert f"{var}=${{{var}:-000}}" in commands, (
             f"{var} must default to 000 rather than appending a second one"
         )
+
+
+def test_render_redpanda_hook_bounds_both_admin_api_writes() -> None:
+    """Both writes carry a connect and a total timeout.
+
+    `SSHClient.run_script` takes `timeout: float | None = None` and the
+    services-configure phase does not pass one, so a broker that accepts
+    the connection and then stops answering would hang the deploy with no
+    upper bound. The readiness poll in this same hook is already bounded
+    at 2s/5s; the writes were the exception.
+    """
+    script = render_redpanda_hook(_make_config(), _make_env())
+    commands = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert commands.count("--connect-timeout 3 --max-time 30") == 2, (
+        "both the POST and the PUT must be bounded"
+    )
