@@ -358,3 +358,102 @@ def test_every_job_touching_npm_caches_the_store() -> None:
         "the detection needs widening -- note it already follows "
         ".github/scripts/*.sh references."
     )
+
+
+# ---------------------------------------------------------------------------
+# Captured diagnostics must never print as an empty string
+#
+# Eight failure branches echoed `wrangler stderr: $(… < /tmp/x.err …)`. A
+# command that exits non-zero while writing nothing to stderr — which is
+# exactly what a killed process does — left the label with nothing after it,
+# so the log said only "wrangler stderr:" at the one moment somebody needed
+# it. CLAUDE.md names this shape and prescribes `${VAR:-(no output)}`.
+#
+# Two rules, because there are two ways to get it wrong:
+#   1. Interpolating the capture straight into the echo. That form CANNOT
+#      carry a fallback, so it is banned outright.
+#   2. Capturing into a variable and then printing it bare. The fallback
+#      belongs on the expansion, not on the assignment.
+# ---------------------------------------------------------------------------
+
+# `\.err` must end the word: `.errors[0].message` in a jq filter is not a
+# capture file, and matching it reported two lines that already carry a
+# `// "unknown"` fallback.
+_ERR_FILE = r"\.err(?![A-Za-z0-9_])"
+_ERR_CAPTURE = re.compile(
+    r"^\s*(?P<var>[A-Za-z_][A-Za-z0-9_]*)=\$\((?P<body>[^\n]*" + _ERR_FILE + r"[^\n]*)\)"
+)
+_INLINE_ERR_ECHO = re.compile(r"echo\b[^\n]*\$\([^\n]*" + _ERR_FILE)
+
+
+def _script_lines(path: Path) -> list[tuple[int, str]]:
+    """Numbered lines inside `run:` bodies, comments dropped.
+
+    The comments matter: prose in this repo quotes the very shapes these
+    rules ban, and a check that reads a comment as code reports a defect
+    that does not exist. That has happened three times here.
+    """
+    ranges = _run_line_ranges(path)
+    return [
+        (i, line)
+        for i, line in enumerate(path.read_text().splitlines(), 1)
+        if any(start <= i <= end for start, end in ranges) and not line.lstrip().startswith("#")
+    ]
+
+
+def test_no_echo_interpolates_an_err_capture_directly() -> None:
+    """Rule 1: the inline form has nowhere to put a fallback."""
+    offenders = [
+        f"{path}:{i}: {line.strip()}"
+        for path in _FILES
+        for i, line in _script_lines(path)
+        if _INLINE_ERR_ECHO.search(line)
+    ]
+    assert not offenders, (
+        "echo interpolates a captured diagnostic directly:\n  "
+        + "\n  ".join(offenders)
+        + "\nAssign it to a variable first, then print it as "
+        '"${VAR:-(no output)}" so an empty capture still says something.'
+    )
+
+
+def test_every_captured_diagnostic_prints_with_a_fallback() -> None:
+    """Rule 2: a variable holding a capture is never expanded bare."""
+    offenders: list[str] = []
+    for path in _FILES:
+        lines = _script_lines(path)
+        captured = {match.group("var") for _, line in lines if (match := _ERR_CAPTURE.match(line))}
+        for i, line in lines:
+            if "echo" not in line:
+                continue
+            for var in captured:
+                # `${VAR:-…}` is the only accepted expansion. A bare
+                # `$VAR` or a plain `${VAR}` prints nothing when empty.
+                bare = re.search(rf"\$\{{{var}\}}|\${var}\b", line)
+                guarded = f"${{{var}:-" in line
+                if bare and not guarded:
+                    offenders.append(f"{path}:{i}: {line.strip()}")
+    assert not offenders, (
+        "a captured diagnostic is printed without a fallback:\n  "
+        + "\n  ".join(offenders)
+        + '\nUse "${VAR:-(no output)}" — a command can fail while writing '
+        "nothing, and the bare form then prints a label with no diagnostic."
+    )
+
+
+def test_the_fallback_rules_see_the_lines_they_are_meant_to_see() -> None:
+    """Neither rule may pass by looking at nothing.
+
+    Both assertions above are satisfied by an empty offender list, which
+    an over-narrow scope produces just as reliably as a clean repo. This
+    pins the scope: the teardown workflows do capture wrangler stderr,
+    and those captures are the ones the rules examine.
+    """
+    captures = {
+        str(path) for path in _FILES for _, line in _script_lines(path) if _ERR_CAPTURE.match(line)
+    }
+    for name in ("destroy-all.yml", "teardown.yml", "teardown-snapshot.yml"):
+        assert any(name in path for path in captures), (
+            f"{name} captures no diagnostic any more — either the rules "
+            "stopped finding the assignments, or the workflow changed shape"
+        )

@@ -192,14 +192,16 @@ jobs:
           if [ "$D1_QUERY_FAILED" -ne 0 ]; then
             echo "❌ Could not read the enabled services from D1."
             echo "   Continuing would act on a service list this step never obtained."
-            echo "   wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)"
+            D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
+            echo "   wrangler stderr: ${D1_ERR:-(no output)}"
             exit 1
           fi
 
           if ! ENABLED_SERVICES=$(printf '%s' "$D1_SERVICES_JSON" \
                 | jq -r '.[0].results | map(.name) | join(",")'); then
             echo "❌ D1 answered but the response could not be parsed."
-            echo "   wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)"
+            D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
+            echo "   wrangler stderr: ${D1_ERR:-(no output)}"
             exit 1
           fi
 

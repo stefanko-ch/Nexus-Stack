@@ -217,14 +217,16 @@ jobs:
           if [ "$D1_QUERY_FAILED" -ne 0 ]; then
             echo "❌ Could not read the enabled services from D1."
             echo "   Continuing would act on a service list this step never obtained."
-            echo "   wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)"
+            D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
+            echo "   wrangler stderr: ${D1_ERR:-(no output)}"
             exit 1
           fi
 
           if ! ENABLED_SERVICES=$(printf '%s' "$D1_SERVICES_JSON" \
                 | jq -r '.[0].results | map(.name) | join(",")'); then
             echo "❌ D1 answered but the response could not be parsed."
-            echo "   wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)"
+            D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
+            echo "   wrangler stderr: ${D1_ERR:-(no output)}"
             exit 1
           fi
 
@@ -353,7 +355,8 @@ jobs:
               >/dev/null 2>/tmp/d1-firewall.err; then
             echo "✅ Firewall rules reset - all ports closed for next Spin Up"
           else
-            echo "::error title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)"
+            FW_ERR=$(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)
+            echo "::error title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: ${FW_ERR:-(no output)}"
             echo ""
             echo "NOTE: the infrastructure teardown itself already completed — the"
             echo "      server is gone. Do NOT re-run this workflow to fix this."
