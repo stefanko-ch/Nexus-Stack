@@ -16,7 +16,13 @@
 
 services:
   nussknacker:
-    image: ${IMAGE_NUSSKNACKER:-touk/nussknacker:1.18.1_scala-2.13}
+    # scala-2.12, NOT 2.13 — see docs/stacks/nussknacker.md. The job JAR
+    # uploaded to Flink does not bundle the Scala library; it takes it from
+    # the cluster, and stacks/flink ships flink-scala_2.12-1.20.1.jar. A
+    # 2.13 build therefore deploys with
+    #   NoClassDefFoundError: scala/util/Using$Releasable
+    # Nussknacker pairs the same way in its own quickstart.
+    image: ${IMAGE_NUSSKNACKER:-touk/nussknacker:1.18.1_scala-2.12}
     container_name: nussknacker
     restart: unless-stopped
     ports:

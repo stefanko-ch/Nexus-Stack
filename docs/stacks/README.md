@@ -115,7 +115,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Quickwit | `quickwit/quickwit` | `0.8.1` | Exact ¹ |
 | QuestDB | `questdb/questdb` | `10.0.1` | Exact ¹ |
 | InfluxDB | `influxdb` | `2.9.1` | Exact ¹ |
-| Nussknacker | `touk/nussknacker` | `1.18.1_scala-2.13` | Exact ¹ |
+| Nussknacker | `touk/nussknacker` | `1.18.1_scala-2.12` | Exact ¹ |
 | Weaviate | `cr.weaviate.io/semitechnologies/weaviate` | `1.34.0` | Exact ¹ |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |

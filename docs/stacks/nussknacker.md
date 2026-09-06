@@ -102,10 +102,37 @@ That state is in the `nussknacker_storage` volume. Under the `rebuild` lifecycle
 
 Measured at **794 MB** idle on first boot, settling around 726 MB. The limit is 1500 MB. It is a JVM service and it is not small: on the 16 GB `cx43` it sits comfortably beside Flink and Kestra, but it is a reasonable candidate to disable when streaming is not the focus of a session.
 
+### The Scala suffix has to match the Flink cluster
+
+Pinned to **`1.18.1_scala-2.12`**, and the suffix is the load-bearing part.
+
+The JAR Nussknacker uploads to Flink does not bundle the Scala standard library — it expects the cluster to provide it. [Flink](flink.md) ships `flink-scala_2.12-1.20.1.jar` in `lib/`, so a Scala 2.13 build of Nussknacker deploys and then dies in the JobManager:
+
+```text
+java.lang.NoClassDefFoundError: scala/util/Using$Releasable
+  at pl.touk.nussknacker.engine.process.runner.FlinkStreamingProcessMain.main
+Caused by: java.lang.ClassNotFoundException: scala.util.Using$Releasable
+```
+
+`scala.util.Using` arrived in Scala 2.13, which is exactly the version the cluster does not have. Nussknacker pairs these the same way in its own quickstart: `touk/nussknacker:${VERSION}_scala-2.12` against `flink:…-scala_2.12`.
+
+Two traps when reading the tag list:
+
+- **`1.18.1` is not the Scala 2.12 build.** It is an alias for `1.18.1_scala-2.13` — same digest, `sha256:ebda5301…`. Only the explicit `_scala-2.12` suffix selects the other one.
+- **The two images' `flinkExecutor.jar` files are what differ** (`c859e105…` vs `a9763f8d…`). Their `lib/` directories both contain `scala-library-2.13.15`, because that is the Designer's own classpath and has nothing to do with the job.
+
+Verified end to end on Flink 1.20.1: with `_scala-2.12`, a `periodic → dead-end` scenario deploys and reaches `RUNNING`.
+
+### The Flink version skew is real but harmless
+
+Nussknacker 1.18.1 embeds `flink-runtime 1.19.1` (`.flink-runtime.version.properties` inside `nussknacker-flink-manager.jar`), while this stack's cluster runs 1.20.1. Flink 1.20 support landed only in Nussknacker 1.19.0, which upstream has not released.
+
+On paper that looks like a blocker. Measured, it is not: the scenario above ran on the 1.20.1 cluster without complaint. Do not "fix" this by downgrading `stacks/flink` — that image is shared with [Dinky](dinky.md).
+
 ### Version pinning
 
-Pinned to `1.18.1_scala-2.13`, published 2024-12-09 and multi-arch (`linux/amd64`, `linux/arm64`).
+Published 2024-12-09, multi-arch (`linux/amd64`, `linux/arm64`).
 
-Worth knowing before bumping: the project is actively developed — the repository saw commits this week — but **has not cut a stable release since `v1.18.1`**. Every newer Docker tag is a `SNAPSHOT`, `preview` or `staging` build. The Scala suffix is part of the tag, not a variant: `1.18.1` and `1.18.1_scala-2.13` are different tags.
+Worth knowing before bumping: the project is actively developed — the repository saw commits this week — but **has not cut a stable release since `v1.18.1`**. Every newer Docker tag is a `SNAPSHOT`, `preview` or `staging` build.
 
 The Designer runs Flyway migrations against its own database on start, so a version bump is a schema change against populated state. Test it on a copy before doing it on something you care about.
