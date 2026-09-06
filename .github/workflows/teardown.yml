@@ -353,7 +353,18 @@ jobs:
               >/dev/null 2>/tmp/d1-firewall.err; then
             echo "✅ Firewall rules reset - all ports closed for next Spin Up"
           else
-            echo "::warning title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)"
+            echo "::error title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)"
+            echo ""
+            echo "NOTE: the infrastructure teardown itself already completed — the"
+            echo "      server is gone. Do NOT re-run this workflow to fix this."
+            echo "      What failed is the D1 write that closes the firewall rules"
+            echo "      for the next spin-up. Reset them from the Control Plane's"
+            echo "      Firewall page, or re-run just that write, before spinning up."
+            # Non-zero on purpose. A green teardown asserts "all ports closed";
+            # leaving it green here would state the opposite of what happened,
+            # and the consequence surfaces one spin-up later as open ports
+            # nobody reopened deliberately.
+            exit 1
           fi
 
       - name: Log teardown completed

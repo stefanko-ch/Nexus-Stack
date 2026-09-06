@@ -1450,8 +1450,19 @@ jobs:
               echo "  No stale $name to remove"
               return 0
             fi
-            echo "::warning title=pages-secret::Could not delete the Pages secret $name, and it was not reported as absent. The runtime may still read a stale value. wrangler output: $(printf '%s' "${err:-(no output)}" | tr '\n\r' '  ' | head -c 300)"
-            return 0
+            echo "::error title=pages-secret::Could not delete the Pages secret $name, and it was not reported as absent. The runtime would keep reading the stale value instead of falling back. wrangler output: $(printf '%s' "${err:-(no output)}" | tr '\n\r' '  ' | head -c 300)"
+            # Non-zero: the caller reaches this only when the operator has
+            # cleared the value and expects the runtime to fall back. A stale
+            # secret silently defeats that, and this runs before deployment,
+            # so failing here stops a Control Plane that would read the wrong
+            # value.
+            #
+            # The "absent" branch above matches on wrangler's error text, which
+            # is a heuristic: if that wording changes, a benign no-op lands
+            # here and fails the setup. That is the direction to fail in — a
+            # broken setup is noticed at once, a stale secret is not — but if
+            # it happens, widen the pattern rather than restoring `|| true`.
+            return 1
           }
 
 

@@ -481,7 +481,14 @@ jobs:
             echo "✅ Teardown timestamp written, firewall rules reset"
           else
             echo "✅ Teardown timestamp written"
-            echo "::warning title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)"
+            echo "::error title=firewall-reset::Could not reset the firewall rules in D1. Ports enabled before this teardown will be reopened on the next spin-up. wrangler stderr: $(tr '\n\r' '  ' < /tmp/d1-firewall.err 2>/dev/null | head -c 300)"
+            echo ""
+            echo "NOTE: the snapshot and the infrastructure teardown already"
+            echo "      completed. Do NOT re-run this workflow to fix this — it"
+            echo "      would take a second snapshot. Reset the firewall rules"
+            echo "      from the Control Plane before the next spin-up."
+            # Non-zero on purpose; see the note in teardown.yml.
+            exit 1
           fi
 
       - name: Summary
