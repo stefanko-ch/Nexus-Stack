@@ -245,7 +245,9 @@ def test_all_npx_wrangler_invocations_agree_on_one_version() -> None:
 #
 # Hence: identify the cache by what it does, and reason per job.
 _CACHE_KEY_PIN = re.compile(r"-wrangler(?P<spec>[0-9][^-\s]*)-")
-_RUNS_NPM = re.compile(r"npx wrangler|npm ci\b|npm run ")
+# `npm install` belongs here too: the first job to use it slipped past
+# this pattern entirely, so the cache rule below never applied to it.
+_RUNS_NPM = re.compile(r"npx wrangler|npm ci\b|npm run |npm install\b")
 _SCRIPT_REF = re.compile(r"\.github/scripts/([A-Za-z0-9_.-]+\.sh)")
 
 #: Scripts under .github/scripts that themselves invoke npm. A job that
@@ -302,6 +304,23 @@ def _jobs_using_npm() -> set[tuple[Path, str]]:
     return using
 
 
+def _jobs_using_wrangler() -> set[tuple[Path, str]]:
+    """Jobs whose own steps invoke `npx wrangler`, directly or via a script."""
+    using: set[tuple[Path, str]] = set()
+    for path in _WORKFLOWS:
+        for job_id, job in _jobs(path).items():
+            for step in job.get("steps") or []:
+                if not isinstance(step, dict):
+                    continue
+                run = str(step.get("run", ""))
+                if _NPX_WRANGLER.search(run) or any(
+                    name in _NPM_SCRIPTS for name in _SCRIPT_REF.findall(run)
+                ):
+                    using.add((path, job_id))
+                    break
+    return using
+
+
 def test_npm_cache_keys_carry_the_pinned_wrangler_version() -> None:
     """Every npm-store cache key names the version `npx wrangler@…` uses."""
     pinned = {
@@ -320,8 +339,16 @@ def test_npm_cache_keys_carry_the_pinned_wrangler_version() -> None:
         "store is no longer cached at all. See #784."
     )
 
+    # Only for jobs that actually run Wrangler. A job installing some other
+    # pinned package caches a store whose contents have nothing to do with
+    # the Wrangler pin, and demanding that version in its key would be a
+    # rule with no meaning attached.
+    wrangler_jobs = _jobs_using_wrangler()
+
     offenders: list[str] = []
     for (path, job_id), step in sorted(steps.items()):
+        if (path, job_id) not in wrangler_jobs:
+            continue
         key = str((step.get("with") or {}).get("key", ""))
         match = _CACHE_KEY_PIN.search(key)
         if match is None:
