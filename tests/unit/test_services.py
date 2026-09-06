@@ -2441,12 +2441,16 @@ def test_render_redpanda_hook_asks_the_broker_whether_the_user_exists() -> None:
     assert len(probes) == 1, (
         f"expected one existence probe against the users endpoint, found {len(probes)}"
     )
-    # A GET, and specifically not a write. curl defaults to GET, so the
-    # check is that nothing overrides it: a probe that had become a POST
-    # would satisfy every other assertion here while creating the very
-    # user it claims to be looking for.
-    assert "-X " not in lines[probes[0]], (
-        f"the probe must not override curl's GET: {lines[probes[0]].strip()}"
+    # The whole curl invocation, not a list of options to forbid. Rejecting
+    # `-X ` alone let `--request POST`, `-d`, `--data`, `--form` and every
+    # other body-or-method option straight through — a probe silently turned
+    # into a write would satisfy every other assertion here while creating
+    # the very user it claims to be looking for.
+    probe = lines[probes[0]]
+    invocation = re.search(r"curl\b.*?(?=\s+2>/dev/null)", probe)
+    assert invocation is not None, f"no curl invocation found in the probe: {probe.strip()}"
+    assert invocation.group(0) == 'curl -s --connect-timeout 3 --max-time 15 "$RP_URL"', (
+        f"the probe must be exactly this read-only GET, got: {invocation.group(0)}"
     )
 
     creates = [i for i, line in enumerate(lines) if "-X POST" in line]
