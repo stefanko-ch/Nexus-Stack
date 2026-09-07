@@ -44,6 +44,15 @@ on:
     # — the run is created again and the banner returns. That degrades
     # visibly rather than silently, which is the right direction for a
     # filter nobody will re-check.
+    #
+    # ⚠️ Before making this check REQUIRED, read this. A required check that
+    # never runs stays pending forever, so `paths-ignore` would block every
+    # release PR — the exact failure this filter was added to prevent, in
+    # mirror image. Today that cannot happen: the `protect_main` ruleset
+    # carries deletion, non_fast_forward, pull_request, copilot_code_review
+    # and code_scanning, and no required_status_checks rule at all. If one is
+    # ever added, this check must be left out of it, or paired with a
+    # companion job that reports success on the ignored paths.
     paths-ignore:
       - 'CHANGELOG.md'
       - '.release-please-manifest.json'
