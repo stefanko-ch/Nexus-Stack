@@ -41,7 +41,14 @@ This is the part of a version bump that is easy to miss, because nothing fails a
 
 The Hadoop version comes from `spark-parent_2.13-<version>.pom`, and can be read straight out of the image (`ls /opt/spark/jars/ | grep hadoop-client-api`). The SDK version comes from `hadoop-project-<version>.pom`'s `aws-java-sdk-v2.version`. Leaving `hadoop-aws` behind produces a `NoSuchMethodError` deep inside a task rather than a build failure.
 
-`hadoop-aws` 3.5.0 also introduced a compile-scope dependency that 3.4.2 did not have, `software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3` (1.3.1, from the same POM). Whether `S3AFileSystem` loads it eagerly or only under `fs.s3a.input.stream.type=analytics` was not determined, so it is baked in rather than gambled on.
+`hadoop-aws` 3.5.0 also introduced a compile-scope dependency that 3.4.2 did not have, `software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3` (1.3.1, from the same POM). It is **mandatory**, measured by removing the jar from the built image and repeating an `s3a://` write:
+
+```text
+java.lang.NoClassDefFoundError:
+  software/amazon/s3/analyticsaccelerator/request/ObjectClient
+```
+
+`S3AFileSystem` loads it eagerly, not only under `fs.s3a.input.stream.type=analytics`. A `hadoop-aws` bump that updates only the two obvious names breaks every S3 path in the stack — which is why [Jupyter's](jupyter.md) `setup-s3a-jars.sh` downloads it too.
 
 Every jar the Dockerfile downloads is verified against Maven Central's published SHA-1.
 
@@ -85,10 +92,11 @@ The file also widens `spark.redaction.regex`. Spark's default is `(?i)secret|pas
      └───────┬────────┘
              │ S3 (hadoop-aws)
              ▼
-     ┌────────────────┐
-     │ Hetzner Object │
-     │ Storage (S3)   │
-     └────────────────┘
+     ┌────────────────────────┐
+     │ Cloudflare R2  and/or   │
+     │ Hetzner Object Storage  │
+     │ (per-bucket s3a config) │
+     └────────────────────────┘
 ```
 
 Both protocols hit the same worker pool — applications submitted via classic 7077 and via Connect 15002 share the worker's cores and memory according to standard Spark FIFO scheduling.
@@ -97,7 +105,7 @@ Both protocols hit the same worker pool — applications submitted via classic 7
 
 - **Worker cores:** Configurable via `SPARK_WORKER_CORES` (default: 2)
 - **Worker memory:** Configurable via `SPARK_WORKER_MEMORY` (default: 3g)
-- **S3 access:** Pre-configured via `SPARK_HADOOP_fs_s3a_*` environment variables when Hetzner Object Storage credentials are available
+- **S3 access:** Configured in the rendered `spark-defaults.conf`, per bucket, for whichever of Cloudflare R2 and Hetzner Object Storage have credentials. See the section above — the `SPARK_HADOOP_fs_s3a_*` environment variables this used to name never applied.
 
 ### Resource Limits
 

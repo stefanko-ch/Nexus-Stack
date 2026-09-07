@@ -1019,34 +1019,37 @@ def test_no_compose_configures_spark_through_spark_hadoop_env_vars() -> None:
         path = STACKS_DIR / name
         compose = path / "docker-compose.yml"
         setters = [
-            (number, line.strip())
+            (number, line.strip(), match.group(0))
             for number, line in enumerate(compose.read_text().splitlines(), 1)
-            if "SPARK_HADOOP_" in line and not line.lstrip().startswith("#")
+            if not line.lstrip().startswith("#")
+            for match in [re.search(r"SPARK_HADOOP_[A-Za-z0-9_]+", line)]
+            if match
         ]
         if not setters:
             continue
 
-        # Does anything else in this stack actually read them? Comment
-        # lines do not count: this file's own explanation names the
-        # variables, and so does stacks/spark/spark-defaults.conf.template,
-        # which documents why they were removed. Counting prose as a reader
-        # made the first version of this check pass a re-added block —
-        # confirmed by mutation, not by reasoning.
-        def _reads(sibling: Path) -> bool:
-            return any(
-                "SPARK_HADOOP_" in line
-                for line in sibling.read_text(errors="ignore").splitlines()
-                if not line.lstrip().startswith("#")
-            )
+        # Per variable name, not per prefix. A stack that sets four
+        # SPARK_HADOOP_* variables and reads one of them would otherwise
+        # have all four excused by the single reader.
+        #
+        # Comment lines do not count as readers: this file's own
+        # explanation names the variables, and so does
+        # stacks/spark/spark-defaults.conf.template, which documents why
+        # they were removed. Counting prose as a reader made the first
+        # version of this check pass a re-added block — confirmed by
+        # mutation, not by reasoning.
+        readers: set[str] = set()
+        for sibling in path.iterdir():
+            if not sibling.is_file() or sibling.name == "docker-compose.yml":
+                continue
+            for line in sibling.read_text(errors="ignore").splitlines():
+                if line.lstrip().startswith("#"):
+                    continue
+                readers.update(re.findall(r"SPARK_HADOOP_[A-Za-z0-9_]+", line))
 
-        consumed = any(
-            _reads(sibling)
-            for sibling in path.iterdir()
-            if sibling.is_file() and sibling.name != "docker-compose.yml"
-        )
-        if consumed:
-            continue
-        offenders += [f"{compose}:{number}: {text}" for number, text in setters]
+        offenders += [
+            f"{compose}:{number}: {text}" for number, text, name in setters if name not in readers
+        ]
 
     assert not offenders, (
         "compose files setting SPARK_HADOOP_* variables that nothing reads:\n  "

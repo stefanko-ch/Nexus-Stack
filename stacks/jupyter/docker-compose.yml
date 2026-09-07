@@ -78,12 +78,22 @@ services:
       # this env would propagate to local-mode runs (when
       # SPARK_MASTER falls back to local[*]) and break them.
       SPARK_MASTER: ${SPARK_MASTER:-local[*]}
-      # S3 (Hetzner Object Storage) for Spark access
+      # S3 (Hetzner Object Storage) for Spark access.
+      #
+      # These three names look like Spark configuration and are not: the
+      # official Spark image has no SPARK_HADOOP_* translation (that is a
+      # Bitnami feature). They work HERE only because spark-init.py reads
+      # them with os.environ.get() and calls .config() by hand — see the
+      # `endpoint` block in that file.
+      #
+      # Which is also why only three are set. `path.style.access` and
+      # `fs.s3a.impl` used to be here too, and spark-init.py ignored both:
+      # it writes those two as literals. Setting
+      # SPARK_HADOOP_fs_s3a_path_style_access: "false" changed nothing,
+      # which is the kind of dead knob that costs an hour to disbelieve.
       SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
       SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
       SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
-      SPARK_HADOOP_fs_s3a_path_style_access: "true"
-      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
       HETZNER_S3_BUCKET: ${HETZNER_S3_BUCKET:-}
       # Driver heap override. The pyspark-notebook image ships with
       # SPARK_OPTS=-Xmx4096M (split across three repeated

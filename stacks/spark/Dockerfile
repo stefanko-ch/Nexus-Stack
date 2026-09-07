@@ -60,10 +60,10 @@ RUN apt-get update && \
 # except Spark itself, and Spark wants 3.13.
 RUN ln -sf /usr/bin/python3.13 /usr/bin/python3
 
-# PYSPARK_PYTHON env-var kept as belt-and-suspenders. With the symlink
-# fix above, even Spark's hardcoded "python3" path resolves to 3.13,
-# but explicit configuration still helps if anything in Spark looks
-# up via this env var first.
+# PYSPARK_PYTHON is the primary mechanism, not the belt-and-suspenders:
+# per PythonUtils.scala:159 above, setting it is exactly what keeps the
+# bare-"python3" fallback from being reached at all. The symlink covers
+# whatever path does not consult it.
 ENV PYSPARK_PYTHON=/usr/bin/python3.13 \
     PYSPARK_DRIVER_PYTHON=/usr/bin/python3.13
 
@@ -86,13 +86,17 @@ ENV PYSPARK_PYTHON=/usr/bin/python3.13 \
 # The AWS SDK version is not chosen freely either: hadoop-project-3.5.0.pom
 # sets aws-java-sdk-v2.version=2.35.4.
 #
-# analyticsaccelerator-s3 is new in hadoop-aws 3.5.0 and is a COMPILE-scope
-# dependency there (it was absent in 3.4.2). Whether S3AFileSystem loads it
-# eagerly or only under `fs.s3a.input.stream.type=analytics` was not
-# determined, so it is baked rather than gambled on: a missing compile-scope
-# class costs a NoClassDefFoundError at first S3 access, and 4 MB of image
-# is the cheaper side of that bet. Version from the same POM
-# (amazon-s3-analyticsaccelerator-s3.version=1.3.1).
+# analyticsaccelerator-s3 is new in hadoop-aws 3.5.0 (absent in 3.4.2) and
+# is MANDATORY, not optional. Measured against this very image by removing
+# the jar and repeating an s3a:// write:
+#
+#   java.lang.NoClassDefFoundError:
+#     software/amazon/s3/analyticsaccelerator/request/ObjectClient
+#
+# So S3AFileSystem loads it eagerly, not only under
+# `fs.s3a.input.stream.type=analytics`. A hadoop-aws bump that touches only
+# the two names above breaks every S3 path in the stack. Version from the
+# same POM (amazon-s3-analyticsaccelerator-s3.version=1.3.1).
 #
 # Every artifact is SHA-1 verified — see the reasoning in the Connect
 # block below. This closes the TODO that block used to carry: hadoop-aws

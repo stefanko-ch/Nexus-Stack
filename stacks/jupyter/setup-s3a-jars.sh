@@ -32,8 +32,15 @@ set -eo pipefail
 JARS_CACHE=/home/jovyan/work/.spark-jars
 HADOOP_AWS="$JARS_CACHE/hadoop-aws-3.5.0.jar"
 AWS_BUNDLE="$JARS_CACHE/bundle-2.35.4.jar"
+# New in hadoop-aws 3.5.0 and NOT optional. Measured: with hadoop-aws
+# 3.5.0 on the classpath and this jar absent, the first s3a:// access
+# fails with
+#   NoClassDefFoundError: software/amazon/s3/analyticsaccelerator/request/ObjectClient
+# It did not exist as a dependency in 3.4.2, which is why a version bump
+# that only touched the two names above would have broken S3 here.
+ANALYTICS_ACCEL="$JARS_CACHE/analyticsaccelerator-s3-1.3.1.jar"
 
-if [ ! -f "$HADOOP_AWS" ] || [ ! -f "$AWS_BUNDLE" ]; then
+if [ ! -f "$HADOOP_AWS" ] || [ ! -f "$AWS_BUNDLE" ] || [ ! -f "$ANALYTICS_ACCEL" ]; then
     echo "[jupyter] Downloading S3A support JARs (first start only)..."
     mkdir -p "$JARS_CACHE"
     # Sweep older versions out of the cache first. Without this a version
@@ -43,17 +50,23 @@ if [ ! -f "$HADOOP_AWS" ] || [ ! -f "$AWS_BUNDLE" ]; then
     # one winning by name order. On a persistent volume that would survive
     # every redeploy, and 641MB of it.
     find "$JARS_CACHE" -maxdepth 1 -type f \
-        \( -name 'hadoop-aws-*.jar' -o -name 'bundle-*.jar' \) -delete
-    rm -f /usr/local/spark/jars/hadoop-aws-*.jar /usr/local/spark/jars/bundle-*.jar
+        \( -name 'hadoop-aws-*.jar' -o -name 'bundle-*.jar' \
+           -o -name 'analyticsaccelerator-s3-*.jar' \) -delete
+    rm -f /usr/local/spark/jars/hadoop-aws-*.jar \
+          /usr/local/spark/jars/bundle-*.jar \
+          /usr/local/spark/jars/analyticsaccelerator-s3-*.jar
     curl -fSL https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.5.0/hadoop-aws-3.5.0.jar \
         -o "$HADOOP_AWS"
     curl -fSL https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.35.4/bundle-2.35.4.jar \
         -o "$AWS_BUNDLE"
+    curl -fSL https://repo1.maven.org/maven2/software/amazon/s3/analyticsaccelerator/analyticsaccelerator-s3/1.3.1/analyticsaccelerator-s3-1.3.1.jar \
+        -o "$ANALYTICS_ACCEL"
     chown -R 1000:100 "$JARS_CACHE"
     echo "[jupyter] S3A JARs downloaded."
 fi
 cp -n "$HADOOP_AWS" /usr/local/spark/jars/
 cp -n "$AWS_BUNDLE" /usr/local/spark/jars/
+cp -n "$ANALYTICS_ACCEL" /usr/local/spark/jars/
 
 # Restore caller's shell options so we don't leak -eo pipefail to start.sh
 eval "$_SAVED_OPTS"
