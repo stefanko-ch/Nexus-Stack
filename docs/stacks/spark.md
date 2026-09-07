@@ -69,6 +69,14 @@ A config file is also the only place that reaches every process that matters. Sp
 
 Credentials are scoped per bucket (`fs.s3a.bucket.<name>.endpoint`), because this deployment can reach two stores with different endpoints. A global `fs.s3a.endpoint` would have to be wrong for one of them.
 
+**`endpoint.region` is required, not decorative.** Writing to R2 without one fails on the first deploy with:
+
+```text
+AWSBadRequestException ... Status Code: 400, Request ID: null
+```
+
+A bare 400 with a null request id — R2 rejects the request before parsing it, so there is no error code to look up. Hetzner Object Storage tolerates the omission, which is exactly why both are set: one store working says nothing about the other. `auto` is the value Cloudflare documents for R2; for Hetzner the region is the first label of the endpoint host (`fsn1.your-objectstorage.com` → `fsn1`).
+
 The file also widens `spark.redaction.regex`. Spark's default is `(?i)secret|password|token`, which hides `fs.s3a.secret.key` and leaves `fs.s3a.access.key` visible — and the master UI on port 8088 renders the environment page for every running application.
 
 ```

@@ -1575,30 +1575,55 @@ def _spark_defaults_conf(c: NexusConfig) -> str:
     ]
 
     hetzner_endpoint = f"https://{c.hetzner_s3_server}" if c.hetzner_s3_server else ""
+    # The signing region, which is NOT optional for a custom endpoint even
+    # though S3A will start without it. Measured against this deployment:
+    # writing to R2 without one fails with
+    #
+    #   AWSBadRequestException ... Status Code: 400, Request ID: null
+    #
+    # A bare 400 with a null request id, because R2 rejects the request
+    # before it parses it. Hetzner happens to tolerate the omission, which
+    # is exactly what makes this worth setting explicitly for both: one
+    # store working is not evidence the other will.
+    #
+    # `auto` is the value Cloudflare documents for R2. For Hetzner the
+    # region is the first label of the endpoint host
+    # (fsn1.your-objectstorage.com -> fsn1); `auto` also works there, but
+    # naming the real region keeps the file honest about what it means.
+    hetzner_region = c.hetzner_s3_server.split(".")[0] if c.hetzner_s3_server else ""
     stores = (
-        ("R2", c.r2_data_bucket, c.r2_data_endpoint, c.r2_data_access_key, c.r2_data_secret_key),
+        (
+            "R2",
+            c.r2_data_bucket,
+            c.r2_data_endpoint,
+            "auto",
+            c.r2_data_access_key,
+            c.r2_data_secret_key,
+        ),
         (
             "Hetzner Object Storage",
             c.hetzner_s3_bucket_general,
             hetzner_endpoint,
+            hetzner_region,
             c.hetzner_s3_access_key,
             c.hetzner_s3_secret_key,
         ),
     )
-    for label, bucket, endpoint, access_key, secret_key in stores:
+    for label, bucket, endpoint, region, access_key, secret_key in stores:
         # All four or none. A bucket line without credentials would make
         # S3A fall back to the default provider chain and fail against an
         # anonymous request, which is a slower way to learn the same thing.
-        if not (bucket and endpoint and access_key and secret_key):
+        if not (bucket and endpoint and region and access_key and secret_key):
             lines += ["", f"# {label}: not configured for this deployment."]
             continue
         prefix = f"spark.hadoop.fs.s3a.bucket.{bucket}"
         lines += [
             "",
             f"# {label}",
-            f"{prefix}.endpoint     {endpoint}",
-            f"{prefix}.access.key   {access_key}",
-            f"{prefix}.secret.key   {secret_key}",
+            f"{prefix}.endpoint          {endpoint}",
+            f"{prefix}.endpoint.region   {region}",
+            f"{prefix}.access.key        {access_key}",
+            f"{prefix}.secret.key        {secret_key}",
         ]
 
     lines += [

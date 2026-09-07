@@ -37,20 +37,31 @@
 # endpoints and different credentials, and `fs.s3a.bucket.<name>.*` is the
 # mechanism Hadoop provides for exactly that. A global `fs.s3a.endpoint` would
 # force one of them to be wrong.
+#
+# `endpoint.region` is required, not decorative. Measured against a live
+# deployment: writing to R2 without one fails with
+#
+#   AWSBadRequestException ... Status Code: 400, Request ID: null
+#
+# — a bare 400 with a null request id, because R2 rejects the request before
+# parsing it. Hetzner happens to tolerate the omission, which is precisely why
+# both are set: one store working proves nothing about the other.
 spark.hadoop.fs.s3a.impl                             org.apache.hadoop.fs.s3a.S3AFileSystem
 spark.hadoop.fs.s3a.path.style.access                true
 
 # Cloudflare R2 — the data lake. Survives a rebuild teardown, which the
 # server's own disk does not.
-spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.endpoint      <R2_ENDPOINT>
-spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.access.key    <R2_ACCESS_KEY>
-spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.secret.key    <R2_SECRET_KEY>
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.endpoint          <R2_ENDPOINT>
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.endpoint.region   auto
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.access.key        <R2_ACCESS_KEY>
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.secret.key        <R2_SECRET_KEY>
 
 # Hetzner Object Storage — kept because existing notebooks and the Jupyter
 # stack address it, and removing it would break them for no gain.
-spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.endpoint   <HETZNER_ENDPOINT>
-spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.access.key <HETZNER_ACCESS_KEY>
-spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.secret.key <HETZNER_SECRET_KEY>
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.endpoint          <HETZNER_ENDPOINT>
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.endpoint.region   <first label of the host, e.g. fsn1>
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.access.key        <HETZNER_ACCESS_KEY>
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.secret.key        <HETZNER_SECRET_KEY>
 
 # --- Redaction ---------------------------------------------------------------
 # Spark's default is `(?i)secret|password|token`, which redacts

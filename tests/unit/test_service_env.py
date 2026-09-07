@@ -1829,12 +1829,19 @@ def test_spark_defaults_conf_scopes_credentials_per_bucket(
     render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
     text = (tmp_path / "spark" / "spark-defaults.conf").read_text()
 
-    for bucket, endpoint, key in (
-        ("lake-r2", "https://acct.r2.cloudflarestorage.com", "R2KEY"),
-        ("lake-hz", "https://fsn1.your-objectstorage.com", "HZKEY"),
+    for bucket, endpoint, region, key in (
+        ("lake-r2", "https://acct.r2.cloudflarestorage.com", "auto", "R2KEY"),
+        ("lake-hz", "https://fsn1.your-objectstorage.com", "fsn1", "HZKEY"),
     ):
-        assert f"spark.hadoop.fs.s3a.bucket.{bucket}.endpoint     {endpoint}" in text
-        assert f"spark.hadoop.fs.s3a.bucket.{bucket}.access.key   {key}" in text
+        prefix = f"spark.hadoop.fs.s3a.bucket.{bucket}"
+        assert f"{prefix}.endpoint          {endpoint}" in text
+        assert f"{prefix}.access.key        {key}" in text
+        # The region is not decorative. Without it R2 answers a bare
+        # `400, Request ID: null` — it rejects the request before parsing
+        # it. Hetzner tolerates the omission, so a test that only covered
+        # one store would have passed while the other was broken, which
+        # is what happened on the first deploy of this change.
+        assert f"{prefix}.endpoint.region   {region}" in text
 
     # No global endpoint: with two stores it can only ever be half right.
     assert "\nspark.hadoop.fs.s3a.endpoint" not in text
