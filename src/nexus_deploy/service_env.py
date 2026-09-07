@@ -1610,12 +1610,32 @@ def _spark_defaults_conf(c: NexusConfig) -> str:
         ),
     )
     for label, bucket, endpoint, region, access_key, secret_key in stores:
-        # All four or none. A bucket line without credentials would make
+        # All five or none. A bucket line without credentials would make
         # S3A fall back to the default provider chain and fail against an
         # anonymous request, which is a slower way to learn the same thing.
         if not (bucket and endpoint and region and access_key and secret_key):
             lines += ["", f"# {label}: not configured for this deployment."]
             continue
+        # Refuse to pair credentials with a cleartext endpoint. Not a live
+        # hole today: tofu/stack/outputs.tf:337 derives the R2 endpoint as
+        # `https://${cloudflare_account_id}.r2.cloudflarestorage.com`, and
+        # Hetzner's is built as an f-string with the scheme baked in a few
+        # lines above. It is here because those two differ in a way that is
+        # easy to miss — Hetzner's scheme cannot be wrong by construction,
+        # R2's is taken from config verbatim — and because the cost of the
+        # asymmetry going unnoticed is an access key and secret travelling
+        # in the clear.
+        #
+        # Raising rather than skipping: an http:// endpoint is a
+        # misconfiguration, not an absence. Dropping the store silently
+        # would render "R2: not configured for this deployment", which is
+        # a false statement about a store that IS configured, just wrongly.
+        if not endpoint.startswith("https://"):
+            raise ServiceEnvError(
+                f"{label} endpoint is not HTTPS: {endpoint!r}. Object-storage "
+                "credentials would be sent in cleartext. Fix the endpoint "
+                "rather than removing this check."
+            )
         prefix = f"spark.hadoop.fs.s3a.bucket.{bucket}"
         lines += [
             "",

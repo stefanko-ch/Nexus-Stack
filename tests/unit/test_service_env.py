@@ -1868,6 +1868,41 @@ def test_spark_defaults_conf_omits_a_store_it_cannot_fully_configure(
     assert "R2: not configured" in text
 
 
+def test_spark_refuses_a_cleartext_object_storage_endpoint(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """An http:// endpoint would put the access key on the wire in clear.
+
+    Not reachable through the deploy today — `tofu/stack/outputs.tf`
+    derives the R2 endpoint with the scheme baked in, and Hetzner's is
+    built as an f-string. The check exists because those two are
+    asymmetric in a way that is easy to miss: Hetzner's scheme cannot be
+    wrong by construction, R2's is taken from config verbatim.
+
+    It raises rather than skipping the store. An `http://` endpoint is a
+    misconfiguration, not an absence, and rendering "R2: not configured
+    for this deployment" would be a false statement about a store that is
+    configured, just wrongly.
+    """
+    config = full_config.model_copy(
+        update={
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "http://acct.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+    with pytest.raises(ServiceEnvError) as excinfo:
+        render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+
+    message = str(excinfo.value)
+    assert "HTTPS" in message
+    # Split per credential rather than combined: a compound assertion does
+    # not say which of the two leaked.
+    assert "R2KEY" not in message, "the message must not echo the access key"
+    assert "R2SECRET" not in message, "the message must not echo the secret key"
+
+
 def test_spark_redaction_covers_access_keys(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:

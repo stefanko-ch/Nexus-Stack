@@ -141,8 +141,10 @@ def _(mo):
         Credentials are scoped **per bucket** in the cluster's
         `spark-defaults.conf`, so `s3a://<bucket>/...` finds its own
         endpoint. A bucket that is empty below simply was not configured
-        for this deployment; the matching write cell will then fail, and
-        that is expected rather than a fault.
+        for this deployment; the matching write cell then prints
+        `skipped` and moves on. That is not a failure — and the
+        distinction matters, because a cell that skipped and a cell that
+        failed look equally quiet if you only glance at the output.
 
         The names arrive through `.infisical.env`.
         """
