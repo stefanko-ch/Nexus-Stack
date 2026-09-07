@@ -1,0 +1,68 @@
+name: "CI: Changelog Parse"
+
+# Release Please silently drops a commit it cannot parse — green workflow, no
+# warning, missing changelog entry. Twice now (#769, #797). This turns that
+# into a red check on the PR, where the fix is an edit to the description
+# rather than a hand-repair of the release branch after the fact.
+#
+# `edited` is in the trigger list on purpose: the squash body IS the PR
+# description, so a check that only ran on `synchronize` would pass a PR and
+# then miss the edit that breaks it.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    name: Release Please can parse this PR
+    runs-on: ubuntu-latest
+    steps:
+      # Both of these are new `uses:` lines rather than pre-existing ones,
+      # and #652's rule is to pin at the moment a reference is added.
+      # `persist-credentials: false` because this job only reads one file
+      # out of the tree and never pushes; leaving the token in .git/config
+      # for the rest of the job buys nothing.
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+
+      # Every job touching npm caches the store (#784). One small pinned
+      # package is nowhere near the 202-package fetch that rule was written
+      # for, but an exemption is a thing future readers have to re-evaluate
+      # and a cache step is not.
+      - name: Cache the npm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.npm
+          key: ${{ runner.os }}-npm-ccparser0.4.1
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      # Pinned to release-please 17.x's own `@conventional-commits/parser:
+      # ^0.4.1`. A different parser would answer a different question: this
+      # check is only worth anything while it runs the same code the release
+      # pipeline runs.
+      - name: Install the parser Release Please uses
+        run: npm install --no-save --no-audit --no-fund @conventional-commits/parser@0.4.1
+
+      # Title and body reach the script through the environment, never
+      # interpolated into a shell body. A PR description is attacker-supplied
+      # text, and `${{ github.event.pull_request.body }}` inside a `run:`
+      # block is a template-injection hole.
+      - name: Parse the squash message this PR would produce
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/check-changelog-parse.mjs
