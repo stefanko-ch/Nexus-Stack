@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.77.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.77.0...v0.77.1) (2026-09-07)
+
+
+### 🐛 Bug Fixes
+
+* **deploy:** Stop restarting RedPanda on every spin-up ([#805](https://github.com/stefanko-ch/Nexus-Stack/issues/805)) ([de1e7aa](https://github.com/stefanko-ch/Nexus-Stack/commit/de1e7aaa24ad97f2036c4c90ca1f914f3128f233))
+
+
+### 📚 Documentation
+
+* **stacks:** Explain why the Nussknacker metrics button 404s ([#800](https://github.com/stefanko-ch/Nexus-Stack/issues/800)) ([79aa24f](https://github.com/stefanko-ch/Nexus-Stack/commit/79aa24ff0b688f7f2f63ec516343c6598dbc8f95))
+
+
+### 🔧 Maintenance
+
+* Fail a PR whose squash message Release Please cannot parse ([#806](https://github.com/stefanko-ch/Nexus-Stack/issues/806)) ([4c20429](https://github.com/stefanko-ch/Nexus-Stack/commit/4c204292d43bc7dd718ccf0346302768a12b2146))
+* Stop the changelog check from parking a run on every release PR ([#808](https://github.com/stefanko-ch/Nexus-Stack/issues/808)) ([a2ad8d4](https://github.com/stefanko-ch/Nexus-Stack/commit/a2ad8d49719957e95e8fc653261f7c069ec2fb27))
+
 ## [0.77.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.76.0...v0.77.0) (2026-09-06)
 
 
