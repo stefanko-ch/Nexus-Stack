@@ -1631,10 +1631,22 @@ def _spark_defaults_conf(c: NexusConfig) -> str:
         # would render "R2: not configured for this deployment", which is
         # a false statement about a store that IS configured, just wrongly.
         if not endpoint.startswith("https://"):
+            # The scheme, never the endpoint itself. A URL can carry
+            # credentials in its userinfo (`http://key:secret@host`) or in
+            # a query string, and this exception aborts the deploy — so the
+            # message lands in a GitHub Actions log, which is public for
+            # this repository. Echoing the value here would leak exactly
+            # what the check exists to protect.
+            #
+            # The operator loses nothing: they set the value, `label` says
+            # which store it belongs to, and the config is in front of them.
+            scheme = endpoint.split("://", 1)[0] if "://" in endpoint else "(none)"
             raise ServiceEnvError(
-                f"{label} endpoint is not HTTPS: {endpoint!r}. Object-storage "
-                "credentials would be sent in cleartext. Fix the endpoint "
-                "rather than removing this check."
+                f"{label} endpoint uses scheme {scheme!r}, not https. "
+                "Object-storage credentials would be sent in cleartext. "
+                "Fix the endpoint rather than removing this check. "
+                "(The endpoint is not shown here: this message reaches a "
+                "public build log, and a URL can carry credentials.)"
             )
         prefix = f"spark.hadoop.fs.s3a.bucket.{bucket}"
         lines += [

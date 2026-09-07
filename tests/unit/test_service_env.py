@@ -1884,10 +1884,12 @@ def test_spark_refuses_a_cleartext_object_storage_endpoint(
     for this deployment" would be a false statement about a store that is
     configured, just wrongly.
     """
+    # Credentials in the URL's userinfo, which is one of the two shapes
+    # that make echoing an endpoint dangerous (a query string is the other).
     config = full_config.model_copy(
         update={
             "r2_data_bucket": "lake-r2",
-            "r2_data_endpoint": "http://acct.r2.cloudflarestorage.com",
+            "r2_data_endpoint": "http://URLUSER:URLSECRET@acct.r2.cloudflarestorage.com",
             "r2_data_access_key": "R2KEY",
             "r2_data_secret_key": "R2SECRET",
         }
@@ -1896,11 +1898,19 @@ def test_spark_refuses_a_cleartext_object_storage_endpoint(
         render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
 
     message = str(excinfo.value)
-    assert "HTTPS" in message
-    # Split per credential rather than combined: a compound assertion does
-    # not say which of the two leaked.
+    assert "https" in message.lower()
+
+    # Split per value rather than combined: a compound assertion does not
+    # say which one leaked. This message aborts the deploy and therefore
+    # lands in a GitHub Actions log, which is public for this repository.
     assert "R2KEY" not in message, "the message must not echo the access key"
     assert "R2SECRET" not in message, "the message must not echo the secret key"
+    assert "URLUSER" not in message, "the message must not echo URL userinfo"
+    assert "URLSECRET" not in message, "the message must not echo a URL password"
+    assert "acct.r2.cloudflarestorage.com" not in message, (
+        "the message must not echo the endpoint at all — a URL can carry "
+        "credentials in shapes this test does not enumerate"
+    )
 
 
 def test_spark_redaction_covers_access_keys(
