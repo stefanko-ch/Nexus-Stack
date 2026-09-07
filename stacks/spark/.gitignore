@@ -1,0 +1,4 @@
+# Rendered per deployment by service_env._render_spark. Carries object
+# storage credentials, so it must never be committed. The reviewable
+# shape lives in spark-defaults.conf.template next to it.
+spark-defaults.conf

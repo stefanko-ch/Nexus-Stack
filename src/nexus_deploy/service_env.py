@@ -1540,18 +1540,107 @@ def _render_woodpecker(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _spark_defaults_conf(c: NexusConfig) -> str:
+    """Render ``spark-defaults.conf`` — per-bucket S3A, plus redaction.
+
+    This file replaced the ``SPARK_HADOOP_fs_s3a_*`` environment block that
+    used to sit on all three Spark containers and configured nothing:
+
+        $ docker run --rm --entrypoint sh apache/spark:4.2.0 \\
+            -c 'grep -c SPARK_HADOOP /opt/entrypoint.sh'
+        0
+
+    That translation is a Bitnami-image feature. The official image does not
+    do it, and Spark reads only ``AWS_*`` from the environment. S3 worked
+    from Jupyter solely because ``stacks/jupyter/spark-init.py`` reads the
+    same variables with ``os.environ.get()`` and applies them by hand.
+
+    Per-bucket (``fs.s3a.bucket.<name>.*``) rather than global, because the
+    deployment can reach two stores with different endpoints and different
+    credentials. A global ``fs.s3a.endpoint`` would have to be wrong for one
+    of them.
+
+    Always returns content, never an empty string: the file is bind-mounted,
+    and Docker creates a *directory* at a mount path whose source is
+    missing. ``spark-submit`` then fails on a config file that is a
+    directory, which reads as a Spark bug rather than a missing render.
+    """
+    lines = [
+        "# Rendered by service_env._render_spark. Do not edit by hand — it is",
+        "# regenerated on every deploy. See spark-defaults.conf.template for",
+        "# the reviewable shape and the reasoning.",
+        "",
+        "spark.hadoop.fs.s3a.impl                org.apache.hadoop.fs.s3a.S3AFileSystem",
+        "spark.hadoop.fs.s3a.path.style.access   true",
+    ]
+
+    hetzner_endpoint = f"https://{c.hetzner_s3_server}" if c.hetzner_s3_server else ""
+    stores = (
+        ("R2", c.r2_data_bucket, c.r2_data_endpoint, c.r2_data_access_key, c.r2_data_secret_key),
+        (
+            "Hetzner Object Storage",
+            c.hetzner_s3_bucket_general,
+            hetzner_endpoint,
+            c.hetzner_s3_access_key,
+            c.hetzner_s3_secret_key,
+        ),
+    )
+    for label, bucket, endpoint, access_key, secret_key in stores:
+        # All four or none. A bucket line without credentials would make
+        # S3A fall back to the default provider chain and fail against an
+        # anonymous request, which is a slower way to learn the same thing.
+        if not (bucket and endpoint and access_key and secret_key):
+            lines += ["", f"# {label}: not configured for this deployment."]
+            continue
+        prefix = f"spark.hadoop.fs.s3a.bucket.{bucket}"
+        lines += [
+            "",
+            f"# {label}",
+            f"{prefix}.endpoint     {endpoint}",
+            f"{prefix}.access.key   {access_key}",
+            f"{prefix}.secret.key   {secret_key}",
+        ]
+
+    lines += [
+        "",
+        "# Spark's default is (?i)secret|password|token, which redacts",
+        "# fs.s3a.secret.key and leaves fs.s3a.access.key visible. The master UI",
+        "# on 8088 renders the environment page for every running application.",
+        "spark.redaction.regex   (?i)secret|password|token|access[._]?key|credential",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def _render_spark(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Spark: optional Hetzner S3 + worker config defaults."""
-    s3_endpoint = f"https://{c.hetzner_s3_server}" if c.hetzner_s3_server else ""
+    """Spark: worker sizing in .env, object storage in a sidecar."""
+    del e  # not used; signature uniform across renderers
     return RenderedEnv(
         env_vars={
-            "HETZNER_S3_ENDPOINT": s3_endpoint,
-            "HETZNER_S3_ACCESS_KEY": c.hetzner_s3_access_key or "",
-            "HETZNER_S3_SECRET_KEY": c.hetzner_s3_secret_key or "",
-            "HETZNER_S3_BUCKET": c.hetzner_s3_bucket_general or "",
             "SPARK_WORKER_CORES": "2",
             "SPARK_WORKER_MEMORY": "3g",
         },
+        sidecars=(
+            SidecarFile(
+                relative_path="spark-defaults.conf",
+                content=_spark_defaults_conf(c),
+                # mode 0o644, NOT 0o600, and the credentials in this file
+                # do not change that. Same constraint as Grafana's
+                # prometheus.yml a few hundred lines above: the file is
+                # bind-mounted into containers that run as a non-root UID
+                # — verified, `id` inside nexus-spark reports
+                # uid=185(spark) — while the host-side copy is owned by
+                # the deploy user. A 0o600 file would be unreadable inside
+                # the container, and Spark would fail at startup on its
+                # own config.
+                #
+                # Secrecy therefore rests on the host-access barrier, as
+                # it does for prometheus.yml: reaching the file at all
+                # requires SSH, which sits behind the Cloudflare Tunnel
+                # and email OTP.
+                mode=0o644,
+            ),
+        ),
     )
 
 

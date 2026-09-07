@@ -127,8 +127,9 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Sling | `nexus-sling` (custom build) | `1.5.13` | Exact ³ |
 | Soda Core | `soda-core` | `3.3.7` | Exact ³ |
 | PostgreSQL (Soda DB) | `postgres` | `16-alpine` | Major |
-| Spark Master | `nexus-spark` | `4.1.1-python3.13` | Exact ³ |
-| Spark Worker | `nexus-spark` | `4.1.1-python3.13` | Exact ³ |
+| Spark Master | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
+| Spark Worker | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
+| Spark Connect | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
 | PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |

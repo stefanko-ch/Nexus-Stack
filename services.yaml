@@ -975,9 +975,9 @@ services:
     website: "https://spark.apache.org"
     description: "Distributed data processing engine with standalone cluster (Master + Worker)."
     long_description: "Apache Spark is a multi-language engine for large-scale data processing. Run batch and streaming workloads with SQL, Python, Scala, or R. This deployment includes a standalone cluster with Master and Worker nodes, accessible via the Spark Web UI and connected to Jupyter notebooks."
-    image: "nexus-spark:4.1.1-python3.13"
+    image: "nexus-spark:4.2.0-python3.13"
     support_images:
-      spark-worker: "nexus-spark:4.1.1-python3.13"
+      spark-worker: "nexus-spark:4.2.0-python3.13"
 
   telegraf:
     port: 9273

@@ -984,3 +984,73 @@ def test_no_credential_variable_falls_back_to_a_guessable_default() -> None:
         "an attacker would try first. See CLAUDE.md, 'Service Account Naming "
         "Convention', and #780."
     )
+
+
+def test_no_compose_configures_spark_through_spark_hadoop_env_vars() -> None:
+    """`SPARK_HADOOP_*` configures nothing in the official Spark image.
+
+    The Bitnami Spark image translates `SPARK_HADOOP_foo_bar` into
+    `spark.hadoop.foo.bar`. The official `apache/spark` image does not, and
+    Spark itself reads only AWS_ENDPOINT_URL / AWS_ACCESS_KEY_ID /
+    AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN from the environment:
+
+        $ docker run --rm --entrypoint sh apache/spark:4.2.0 \\
+            -c 'grep -c SPARK_HADOOP /opt/entrypoint.sh'
+        0
+
+    This stack carried such a block on all three Spark containers for
+    months. It was inert the whole time; S3 access worked from Jupyter only
+    because `stacks/jupyter/spark-init.py` reads the same variables with
+    `os.environ.get()` and applies them by hand. The replacement is a
+    rendered `spark-defaults.conf`, which Spark does read.
+
+    The variables look exactly like configuration, which is why this guards
+    against them coming back rather than trusting anyone to remember.
+
+    Jupyter is the exception and the rule accounts for it rather than
+    listing it: `stacks/jupyter/spark-init.py` reads the same names with
+    `os.environ.get()` and calls `.config(...)` by hand, so there they are
+    consumed. The check therefore asks whether anything in the same stack
+    directory reads the variable — an allowlist would have to be kept in
+    step with the code, and would not be.
+    """
+    offenders: list[str] = []
+    for name in STACK_DIRS:
+        path = STACKS_DIR / name
+        compose = path / "docker-compose.yml"
+        setters = [
+            (number, line.strip())
+            for number, line in enumerate(compose.read_text().splitlines(), 1)
+            if "SPARK_HADOOP_" in line and not line.lstrip().startswith("#")
+        ]
+        if not setters:
+            continue
+
+        # Does anything else in this stack actually read them? Comment
+        # lines do not count: this file's own explanation names the
+        # variables, and so does stacks/spark/spark-defaults.conf.template,
+        # which documents why they were removed. Counting prose as a reader
+        # made the first version of this check pass a re-added block —
+        # confirmed by mutation, not by reasoning.
+        def _reads(sibling: Path) -> bool:
+            return any(
+                "SPARK_HADOOP_" in line
+                for line in sibling.read_text(errors="ignore").splitlines()
+                if not line.lstrip().startswith("#")
+            )
+
+        consumed = any(
+            _reads(sibling)
+            for sibling in path.iterdir()
+            if sibling.is_file() and sibling.name != "docker-compose.yml"
+        )
+        if consumed:
+            continue
+        offenders += [f"{compose}:{number}: {text}" for number, text in setters]
+
+    assert not offenders, (
+        "compose files setting SPARK_HADOOP_* variables that nothing reads:\n  "
+        + "\n  ".join(offenders)
+        + "\nThe official apache/spark image ignores these. Put the setting in "
+        "the rendered spark-defaults.conf instead (service_env._render_spark)."
+    )

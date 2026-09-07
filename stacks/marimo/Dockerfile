@@ -16,9 +16,13 @@
 # con = ibis.pyspark.connect(spark). Marimo doesn't have a first-class
 # Spark SQL backend, but Ibis is the supported bridge.
 #
-# Pin the pyspark version exactly to the cluster's Spark version (4.1.1)
+# Pin the pyspark version exactly to the cluster's Spark version (4.2.0)
 # — wire-protocol skew between Connect client and server is the #1
 # footgun. Bump both together.
+#
+# The grpcio and pyarrow pins below still satisfy 4.2.0's own floors
+# (`pyarrow>=18.0.0`, `grpcio>=1.76.0`, from pyspark 4.2.0's metadata on
+# PyPI), so they are left alone rather than moved for the sake of moving.
 # =============================================================================
 
 # Pinned to a specific marimo version for reproducibility AND so the
@@ -47,11 +51,11 @@ RUN apt-get update && \
 # layer small. ALL versions pinned exactly to make rebuilds
 # reproducible — open-ended `>=` constraints would let pip pull a
 # newer grpcio / pyarrow on every rebuild and silently break
-# wire-protocol compat with the spark-connect 4.1.1 server. The
+# wire-protocol compat with the spark-connect 4.2.0 server. The
 # pins below match the known-good combination from marimo-team's
 # own pyspark smoke tests.
 RUN pip install --no-cache-dir \
-    "pyspark[connect]==4.1.1" \
+    "pyspark[connect]==4.2.0" \
     "ibis-framework[pyspark]==10.5.0" \
     "grpcio==1.76.0" \
     "grpcio-status==1.76.0" \

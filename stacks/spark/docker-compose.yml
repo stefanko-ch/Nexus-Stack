@@ -16,7 +16,7 @@
 # S3 access (Hetzner Object Storage) is pre-configured via Hadoop properties.
 #
 # IMAGE: Custom Dockerfile installs Python 3.13 (from deadsnakes PPA) on the
-# official apache/spark:4.1.1 base (Ubuntu 22.04 + Python 3.10) to match
+# official apache/spark:4.2.0 base (Ubuntu 22.04 + Python 3.10) to match
 # Jupyter's Python version. PySpark requires matching minor versions.
 # Also includes hadoop-aws + AWS SDK v2 JARs for S3A filesystem support
 # and the Spark Connect server JARs.
@@ -39,7 +39,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${IMAGE_SPARK:-nexus-spark:4.1.1-python3.13}
+    image: ${IMAGE_SPARK:-nexus-spark:4.2.0-python3.13}
     container_name: spark
     hostname: spark-master
     restart: unless-stopped
@@ -47,12 +47,13 @@ services:
       # Bind to all interfaces so master is reachable on both
       # app-network (for Jupyter) and spark-internal (for worker)
       SPARK_MASTER_OPTS: "-Dspark.master.bindAddress=0.0.0.0"
-      # S3 (Hetzner Object Storage) configuration via Hadoop properties
-      SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
-      SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
-      SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
-      SPARK_HADOOP_fs_s3a_path_style_access: "true"
-      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+    volumes:
+      # Rendered by service_env._render_spark; carries the object-storage
+      # credentials and the catalog configuration. Read by every
+      # spark-submit / spark-shell / spark-sql in the image, which is why
+      # it is mounted into all three containers rather than passed as
+      # --conf to one of them.
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     env_file:
       - path: .env
         required: false
@@ -88,7 +89,7 @@ services:
       start_period: 30s
 
   spark-worker:
-    image: ${IMAGE_SPARK_WORKER:-nexus-spark:4.1.1-python3.13}
+    image: ${IMAGE_SPARK_WORKER:-nexus-spark:4.2.0-python3.13}
     container_name: spark-worker
     hostname: spark-worker
     restart: unless-stopped
@@ -98,12 +99,13 @@ services:
     environment:
       # Bind to all interfaces (same multi-network reason as master)
       SPARK_WORKER_OPTS: "-Dspark.worker.bindAddress=0.0.0.0"
-      # S3 (Hetzner Object Storage) configuration
-      SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
-      SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
-      SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
-      SPARK_HADOOP_fs_s3a_path_style_access: "true"
-      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+    volumes:
+      # Rendered by service_env._render_spark; carries the object-storage
+      # credentials and the catalog configuration. Read by every
+      # spark-submit / spark-shell / spark-sql in the image, which is why
+      # it is mounted into all three containers rather than passed as
+      # --conf to one of them.
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     env_file:
       - path: .env
         required: false
@@ -137,7 +139,7 @@ services:
   # Clients (Marimo, future code-server) talk to it via gRPC (`sc://`)
   # and never need a JVM or pyspark[full] locally.
   #
-  # The Connect-server class lives in spark-connect_2.13-4.1.1.jar
+  # The Connect-server class lives in spark-connect_2.13-4.2.0.jar
   # which is pre-downloaded into /opt/spark/jars/ by the Dockerfile.
   # We launch via spark-submit so SparkConf is wired up correctly
   # (--master, --conf), and the SparkConnectPlugin gets registered.
@@ -150,21 +152,20 @@ services:
   # below if you see OOMs in connect-server logs.
   # =========================================================================
   spark-connect:
-    image: ${IMAGE_SPARK:-nexus-spark:4.1.1-python3.13}
+    image: ${IMAGE_SPARK:-nexus-spark:4.2.0-python3.13}
     container_name: spark-connect
     hostname: spark-connect
     restart: unless-stopped
     depends_on:
       spark-master:
         condition: service_healthy
-    environment:
-      # S3 (Hetzner Object Storage) — Connect server is also a Spark
-      # driver and submits jobs that may read s3a:// paths.
-      SPARK_HADOOP_fs_s3a_endpoint: ${HETZNER_S3_ENDPOINT:-}
-      SPARK_HADOOP_fs_s3a_access_key: ${HETZNER_S3_ACCESS_KEY:-}
-      SPARK_HADOOP_fs_s3a_secret_key: ${HETZNER_S3_SECRET_KEY:-}
-      SPARK_HADOOP_fs_s3a_path_style_access: "true"
-      SPARK_HADOOP_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+    volumes:
+      # Rendered by service_env._render_spark; carries the object-storage
+      # credentials and the catalog configuration. Read by every
+      # spark-submit / spark-shell / spark-sql in the image, which is why
+      # it is mounted into all three containers rather than passed as
+      # --conf to one of them.
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     env_file:
       - path: .env
         required: false
@@ -198,7 +199,7 @@ services:
       # Positional app jar — provides the SparkConnectServer class.
       # Pre-downloaded by stacks/spark/Dockerfile to avoid runtime
       # ivy resolution.
-      - /opt/spark/jars/spark-connect_2.13-4.1.1.jar
+      - /opt/spark/jars/spark-connect_2.13-4.2.0.jar
     # No `ports:` mapping — clients reach 15002 via the Docker
     # `app-network` only (`sc://spark-connect:15002`). Publishing
     # to the host would expose the gRPC endpoint on the VM's

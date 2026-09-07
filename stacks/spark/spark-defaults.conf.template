@@ -1,0 +1,60 @@
+# =============================================================================
+# Spark defaults — REFERENCE COPY, not the file the containers read
+# =============================================================================
+# The real `spark-defaults.conf` next to this file is rendered per deployment
+# by `service_env._render_spark` and is gitignored, because it carries object
+# storage credentials. This template exists so the shape is reviewable in the
+# repository and so a reader can see what the rendered file contains without
+# having a deployment in front of them. Same split as
+# `stacks/litellm/config.yaml.template`.
+#
+# WHY THIS FILE EXISTS AT ALL. Until Spark 4.2.0 this stack configured S3
+# through `SPARK_HADOOP_fs_s3a_*` environment variables in the compose file.
+# Those never did anything:
+#
+#   $ docker run --rm --entrypoint sh apache/spark:4.2.0 \
+#       -c 'grep -c SPARK_HADOOP /opt/entrypoint.sh'
+#   0
+#
+# The `SPARK_HADOOP_*` → config translation is a Bitnami-image feature. The
+# official apache/spark image does not do it, and Spark itself reads only
+# AWS_ENDPOINT_URL / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
+# AWS_SESSION_TOKEN from the environment. The variables were set on all three
+# containers and silently ignored on all three. S3 access from Jupyter worked
+# only because `stacks/jupyter/spark-init.py` reads the same variables with
+# `os.environ.get()` and applies them by hand.
+#
+# A config file is also the only option that reaches every process that
+# matters. Spark Connect does not propagate driver-side SparkConf — a client
+# setting a catalog property gets ignored — so the configuration has to exist
+# server-side. `--conf` flags in the compose `command:` would cover only
+# `spark-connect`, leaving the master, the workers and any interactive
+# `spark-shell` unconfigured.
+# =============================================================================
+
+# --- Object storage ----------------------------------------------------------
+# Per-bucket, not global. This deployment can reach two stores with different
+# endpoints and different credentials, and `fs.s3a.bucket.<name>.*` is the
+# mechanism Hadoop provides for exactly that. A global `fs.s3a.endpoint` would
+# force one of them to be wrong.
+spark.hadoop.fs.s3a.impl                             org.apache.hadoop.fs.s3a.S3AFileSystem
+spark.hadoop.fs.s3a.path.style.access                true
+
+# Cloudflare R2 — the data lake. Survives a rebuild teardown, which the
+# server's own disk does not.
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.endpoint      <R2_ENDPOINT>
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.access.key    <R2_ACCESS_KEY>
+spark.hadoop.fs.s3a.bucket.<R2_BUCKET>.secret.key    <R2_SECRET_KEY>
+
+# Hetzner Object Storage — kept because existing notebooks and the Jupyter
+# stack address it, and removing it would break them for no gain.
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.endpoint   <HETZNER_ENDPOINT>
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.access.key <HETZNER_ACCESS_KEY>
+spark.hadoop.fs.s3a.bucket.<HETZNER_BUCKET>.secret.key <HETZNER_SECRET_KEY>
+
+# --- Redaction ---------------------------------------------------------------
+# Spark's default is `(?i)secret|password|token`, which redacts
+# `fs.s3a.secret.key` and leaves `fs.s3a.access.key` in plain sight. The master
+# UI on port 8088 renders the environment page for every running application,
+# so the default is not enough here. Widened to cover access keys too.
+spark.redaction.regex   (?i)secret|password|token|access[._]?key|credential
