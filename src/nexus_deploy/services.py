@@ -2211,6 +2211,15 @@ def render_unity_catalog_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     Idempotent by asking first: a GET on the catalog returns non-zero when it is
     absent, and re-running a spin-up must not fail on a catalog that is already
     there.
+
+    ``-T 10`` on every call, including the ones inside the readiness loop.
+    BusyBox wget defaults to a 900-second network read timeout, so a server that
+    accepts the connection and then stalls would hang this hook for a quarter of
+    an hour per call -- and the loop's ``$SECONDS < 180`` bound would not save
+    it, because the check only runs between iterations. Measured in the image
+    against a non-routable address: without ``-T`` the call was still running
+    when a 20s cutoff killed it; with ``-T 3`` it returned after 3s. Same reason
+    ``_render_wait_healthy`` above passes curl a ``--max-time``.
     """
     del config, env  # signature uniform across hooks
     api = "http://localhost:8080/api/2.1/unity-catalog/catalogs"
@@ -2219,7 +2228,7 @@ unity_catalog_hook() {{
     READY=false
     SECONDS=0
     while [ "$SECONDS" -lt 180 ]; do
-        if docker exec unity-catalog wget -q -O /dev/null {shlex.quote(api)} 2>/dev/null; then
+        if docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api)} 2>/dev/null; then
             READY=true; break
         fi
         sleep 3
@@ -2230,17 +2239,17 @@ unity_catalog_hook() {{
         return 0
     fi
 
-    if docker exec unity-catalog wget -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
+    if docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
         echo "RESULT hook=unity-catalog status=already-configured"
         return 0
     fi
 
-    if docker exec unity-catalog wget -q -O /dev/null \
+    if docker exec unity-catalog wget -T 10 -q -O /dev/null \
         --header='Content-Type: application/json' \
         --post-data='{{"name":"unity","comment":"Default catalog for Nexus Stack. Spark reaches it as unity.<schema>.<table>."}}' \
         {shlex.quote(api)} 2>/dev/null; then
         echo "RESULT hook=unity-catalog status=configured"
-    elif docker exec unity-catalog wget -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
+    elif docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
         # The POST failed but the catalog is there. Two deploys can reach this
         # hook at once -- spin-up.yml has no concurrency group (#801) -- and the
         # loser of that race would otherwise report `failed` for a catalog that

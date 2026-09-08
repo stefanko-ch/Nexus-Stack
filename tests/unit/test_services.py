@@ -2573,6 +2573,24 @@ def test_render_unity_catalog_hook_rechecks_after_a_failed_post() -> None:
     assert "status=failed" in script
 
 
+def test_render_unity_catalog_hook_bounds_every_probe() -> None:
+    """Every wget carries -T, the readiness loop's included.
+
+    BusyBox wget defaults to a 900-second network read timeout. A server that
+    accepts the connection and then stalls would hang the hook for a quarter of
+    an hour per call, and the loop's `$SECONDS < 180` bound does not help --
+    that check only runs between iterations, never during one. Same reason
+    `_render_wait_healthy` passes curl a `--max-time`.
+
+    Asserted over ALL calls rather than the one a reviewer happened to flag:
+    the flagged line was the third of four.
+    """
+    script = render_unity_catalog_hook(_make_config(), _make_env())
+    calls = [line for line in script.splitlines() if "wget" in line]
+    assert calls, "no wget call rendered — this test would pass vacuously"
+    assert all(" -T " in line for line in calls), calls
+
+
 def test_unity_catalog_hook_is_registered() -> None:
     """Registered under the services.yaml key.
 
