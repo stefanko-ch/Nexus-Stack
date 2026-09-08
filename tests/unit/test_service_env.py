@@ -2886,3 +2886,84 @@ def test_spark_names_the_catalog_only_when_unity_catalog_is_enabled(
     # Not set on purpose: leaving Spark's own catalog as the default keeps
     # every existing notebook working.
     assert "spark.sql.defaultCatalog" not in with_uc
+
+
+def test_spark_conf_hash_tracks_the_rendered_config(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """SPARK_CONF_HASH must change with the file and not otherwise.
+
+    Spark parses spark-defaults.conf once, at process start. The compose file
+    mounts the whole conf/ DIRECTORY, so editing a file inside it leaves the
+    service definition identical and `docker compose up -d` does not recreate
+    a running container — the cluster keeps the previous configuration while
+    the deploy reports success.
+
+    Measured on a live deployment before this existed: unity-catalog was
+    enabled between two spin-ups, the second wrote the catalog block at 17:36,
+    and spark-connect was still the container started at 17:30. Every query
+    answered SCHEMA_NOT_FOUND until it was restarted by hand.
+
+    Feeding the digest through .env makes the change visible to compose.
+    Verified against a minimal stack in both directions: an unchanged .env
+    left the container id untouched, a changed one produced a new container.
+    """
+
+    def render(**overrides: object) -> tuple[str, str]:
+        config = full_config.model_copy(update=dict(overrides))
+        render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+        env = _env_settings((tmp_path / "spark" / ".env").read_text())
+        conf = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
+        return env["SPARK_CONF_HASH"], conf
+
+    base = {
+        "unity_catalog_db_password": "ucpass",
+        "r2_data_bucket": "lake-r2",
+        "r2_data_endpoint": "https://acct.r2.cloudflarestorage.com",
+        "r2_data_access_key": "R2KEY",
+        "r2_data_secret_key": "R2SECRET",
+    }
+
+    first_hash, first_conf = render(**base)
+    assert first_hash, "SPARK_CONF_HASH is missing from the rendered .env"
+
+    # Same inputs -> same digest. Without this the containers would be
+    # recreated on every deploy, which is the cost this design exists to avoid.
+    again_hash, again_conf = render(**base)
+    assert again_hash == first_hash
+    assert again_conf == first_conf
+
+    # A changed credential must move the digest. This is the case that was
+    # silently broken: rotate the keys under a running Spark and object
+    # storage goes dead with nothing reporting it.
+    rotated_hash, rotated_conf = render(**{**base, "r2_data_secret_key": "ROTATED"})
+    assert rotated_conf != first_conf
+    assert rotated_hash != first_hash
+
+
+def test_spark_conf_hash_moves_when_the_catalog_block_appears(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Enabling unity-catalog between two spin-ups must recreate Spark.
+
+    This is the exact sequence that produced the incident: spark and marimo
+    first, unity-catalog in a second spin-up. The config gained the catalog
+    block; the running container never saw it.
+    """
+    config = full_config.model_copy(
+        update={
+            "unity_catalog_db_password": "ucpass",
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://acct.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+
+    render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+    without = _env_settings((tmp_path / "spark" / ".env").read_text())["SPARK_CONF_HASH"]
+
+    render_all_env_files(config, full_env, ["spark", "unity-catalog"], stacks_dir=tmp_path)
+    with_uc = _env_settings((tmp_path / "spark" / ".env").read_text())["SPARK_CONF_HASH"]
+
+    assert without != with_uc

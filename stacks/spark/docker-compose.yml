@@ -63,6 +63,16 @@ services:
       # --conf flags.
       - ./conf:/opt/spark/conf:ro
     env_file:
+      # Also carries SPARK_CONF_HASH, a digest of conf/spark-defaults.conf.
+      # Do not remove it as unused: nothing reads the value, and that is the
+      # point. Spark parses spark-defaults.conf once at process start, and
+      # because the mount above is a DIRECTORY, editing a file inside it does
+      # not change this service's definition — so `docker compose up -d`
+      # leaves a running container alone and the cluster keeps the old
+      # configuration while the deploy reports success. Feeding the digest
+      # through the environment makes the change visible to compose, which
+      # then recreates the container exactly when the config changed.
+      # Rendered by service_env._render_spark; see the comment there.
       - path: .env
         required: false
     # Run Master class directly in foreground via official entrypoint
@@ -123,6 +133,16 @@ services:
       # --conf flags.
       - ./conf:/opt/spark/conf:ro
     env_file:
+      # Also carries SPARK_CONF_HASH, a digest of conf/spark-defaults.conf.
+      # Do not remove it as unused: nothing reads the value, and that is the
+      # point. Spark parses spark-defaults.conf once at process start, and
+      # because the mount above is a DIRECTORY, editing a file inside it does
+      # not change this service's definition — so `docker compose up -d`
+      # leaves a running container alone and the cluster keeps the old
+      # configuration while the deploy reports success. Feeding the digest
+      # through the environment makes the change visible to compose, which
+      # then recreates the container exactly when the config changed.
+      # Rendered by service_env._render_spark; see the comment there.
       - path: .env
         required: false
     # Run Worker class directly in foreground via official entrypoint
@@ -191,6 +211,16 @@ services:
       # --conf flags.
       - ./conf:/opt/spark/conf:ro
     env_file:
+      # Also carries SPARK_CONF_HASH, a digest of conf/spark-defaults.conf.
+      # Do not remove it as unused: nothing reads the value, and that is the
+      # point. Spark parses spark-defaults.conf once at process start, and
+      # because the mount above is a DIRECTORY, editing a file inside it does
+      # not change this service's definition — so `docker compose up -d`
+      # leaves a running container alone and the cluster keeps the old
+      # configuration while the deploy reports success. Feeding the digest
+      # through the environment makes the change visible to compose, which
+      # then recreates the container exactly when the config changed.
+      # Rendered by service_env._render_spark; see the comment there.
       - path: .env
         required: false
     entrypoint: ["/opt/entrypoint.sh"]
