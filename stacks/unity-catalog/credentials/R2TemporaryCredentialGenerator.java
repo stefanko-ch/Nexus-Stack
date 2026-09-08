@@ -66,6 +66,18 @@ public class R2TemporaryCredentialGenerator implements AwsCredentialGenerator {
   /** Parent S3 secret. The HS256 signing key — never leaves this process. */
   private static final String ENV_SECRET_ACCESS_KEY = "R2_SECRET_ACCESS_KEY";
 
+  /**
+   * S3 endpoint host, e.g. {@code <account>.r2.cloudflarestorage.com}. Used
+   * verbatim as the JWT audience.
+   *
+   * <p>Taken from configuration rather than rebuilt from the account id, because
+   * Cloudflare also serves jurisdiction-bound endpoints such as
+   * {@code <account>.eu.r2.cloudflarestorage.com}. Reconstructing the host would
+   * silently drop the jurisdiction label and produce an audience R2 does not
+   * accept — a signature that verifies locally and is refused remotely.
+   */
+  private static final String ENV_ENDPOINT_HOST = "R2_ENDPOINT_HOST";
+
   /** Optional. Lifetime of a minted token in seconds. */
   private static final String ENV_TTL_SECONDS = "R2_TOKEN_TTL_SECONDS";
 
@@ -75,12 +87,14 @@ public class R2TemporaryCredentialGenerator implements AwsCredentialGenerator {
   private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
   private final String accountId;
+  private final String endpointHost;
   private final String parentAccessKeyId;
   private final byte[] parentSecretAccessKey;
   private final long ttlSeconds;
 
   public R2TemporaryCredentialGenerator() {
     this.accountId = require(ENV_ACCOUNT_ID);
+    this.endpointHost = require(ENV_ENDPOINT_HOST);
     this.parentAccessKeyId = require(ENV_ACCESS_KEY_ID);
     this.parentSecretAccessKey = require(ENV_SECRET_ACCESS_KEY).getBytes(StandardCharsets.UTF_8);
     this.ttlSeconds = readTtl();
@@ -155,7 +169,7 @@ public class R2TemporaryCredentialGenerator implements AwsCredentialGenerator {
     claims.put("scope", scope);
     claims.put("sub", accountId);
     claims.put("iss", parentAccessKeyId);
-    claims.put("aud", accountId + ".r2.cloudflarestorage.com");
+    claims.put("aud", endpointHost);
     claims.put("iat", issuedAt.getEpochSecond());
     claims.put("exp", expiry.getEpochSecond());
 

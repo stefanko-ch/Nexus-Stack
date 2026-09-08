@@ -249,6 +249,23 @@ dropped unless **either** `bucketPath` + `region` + `awsRoleArn` **or**
 carries a placeholder role ARN that is never dereferenced, purely to satisfy
 that gate.
 
+### The `unity` catalog is created for you
+
+A fresh PostgreSQL metastore starts empty, and `spark-defaults.conf` names a
+catalog called `unity`. Without something to bridge that, the first query on a
+new deployment fails with `404 CATALOG_NOT_FOUND — Catalog not found: unity`
+while the container is healthy and the API answers.
+
+The services-configure phase creates it (`render_unity_catalog_hook` in
+`src/nexus_deploy/services.py`), asking first so a re-run reports
+`already-configured` rather than failing. It goes through
+`docker exec unity-catalog wget` rather than host `curl`, because this API
+publishes no port and the image carries no `curl`.
+
+Worth knowing if you compare against upstream: their image ships a
+pre-populated H2 metastore with sample catalogs, so this gap does not appear
+until the metastore is switched to PostgreSQL.
+
 ### The custom image
 
 `stacks/unity-catalog/Dockerfile` adds exactly one compiled class to

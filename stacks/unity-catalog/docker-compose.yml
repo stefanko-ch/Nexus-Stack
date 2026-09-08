@@ -5,15 +5,16 @@
 # managed one. A REST catalog covering Delta and Iceberg tables, unstructured
 # volumes, functions and models. Upstream documents integrations for Spark,
 # Trino, DuckDB, Daft and others, and ships Java and Python clients under
-# clients/ — see docs/stacks/unity-catalog.md for what has actually been
-# tried against THIS stack, which so far is nothing.
+# clients/. What has been exercised against THIS stack is Spark: creating a
+# Delta table on R2, writing to it and reading it back, verified against the
+# live bucket. See docs/stacks/unity-catalog.md.
 #
 # Overlaps with Lakekeeper, deliberately and only partly: Lakekeeper
 # implements the Iceberg REST Catalog spec and nothing else, while Unity
 # Catalog also covers Delta, volumes and AI assets under one namespace.
 #
 # They are independent in the way that matters: separate databases,
-# separate volumes, separate internal networks, and neither reads the
+# separate storage, separate internal networks, and neither reads the
 # other's config. Both join app-network, as every stack here does, so
 # their containers CAN reach each other — nothing in either makes use of
 # that. Disable one and the other is untouched.
@@ -105,6 +106,11 @@ services:
       # one — a catalog with no object storage still serves managed metadata.
       UC_R2_BUCKET: ${R2_DATA_BUCKET:-}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      # The endpoint host verbatim, because Cloudflare also serves
+      # jurisdiction-bound hosts (<account>.eu.r2.cloudflarestorage.com).
+      # Rebuilding it from the account id would drop that label and mint
+      # tokens R2 refuses.
+      R2_ENDPOINT_HOST: ${R2_DATA_ENDPOINT_HOST:-}
       R2_ACCESS_KEY_ID: ${R2_DATA_ACCESS_KEY:-}
       R2_SECRET_ACCESS_KEY: ${R2_DATA_SECRET_KEY:-}
     depends_on:

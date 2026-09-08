@@ -2759,6 +2759,33 @@ def test_unity_catalog_derives_the_account_id_from_the_r2_endpoint(
     assert env["UNITY_CATALOG_DB_PASSWORD"] == "ucpass"
 
 
+def test_unity_catalog_keeps_a_jurisdiction_bound_endpoint_host_intact(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """The audience host travels verbatim; only the account id is derived.
+
+    Cloudflare serves jurisdiction-bound endpoints such as
+    ``<account>.eu.r2.cloudflarestorage.com``. The generator signs the host as
+    the JWT ``aud``, so rebuilding it from the account id would drop the ``eu``
+    label — producing a token whose signature verifies locally and which R2
+    refuses, which is the worst place for the difference to show up.
+    """
+    config = full_config.model_copy(
+        update={
+            "unity_catalog_db_password": "ucpass",
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://abc123def456.eu.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+    render_all_env_files(config, full_env, ["unity-catalog"], stacks_dir=tmp_path)
+    env = _env_settings((tmp_path / "unity-catalog" / ".env").read_text())
+
+    assert env["R2_ACCOUNT_ID"] == "abc123def456"
+    assert env["R2_DATA_ENDPOINT_HOST"] == "abc123def456.eu.r2.cloudflarestorage.com"
+
+
 def test_unity_catalog_leaves_the_account_id_empty_for_a_foreign_endpoint(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:

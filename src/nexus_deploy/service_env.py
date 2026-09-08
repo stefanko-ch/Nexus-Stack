@@ -681,6 +681,13 @@ def _render_unity_catalog(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "UNITY_CATALOG_DB_PASSWORD": c.unity_catalog_db_password or "",
             "R2_DATA_BUCKET": c.r2_data_bucket or "",
             "R2_ACCOUNT_ID": account_id,
+            # The host verbatim, not rebuilt from the account id. Cloudflare
+            # also serves jurisdiction-bound endpoints
+            # (<account>.eu.r2.cloudflarestorage.com), and the generator signs
+            # this as the JWT audience — a reconstructed host would drop the
+            # jurisdiction label and mint tokens R2 refuses, with a signature
+            # that verifies locally.
+            "R2_DATA_ENDPOINT_HOST": host if account_id else "",
             "R2_DATA_ACCESS_KEY": c.r2_data_access_key or "",
             "R2_DATA_SECRET_KEY": c.r2_data_secret_key or "",
         },

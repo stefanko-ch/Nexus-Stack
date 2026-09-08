@@ -42,9 +42,18 @@ CONF_DIR="/home/unitycatalog/etc/conf"
 : "${UC_DB_USER:?unity-catalog: UC_DB_USER is unset}"
 : "${UC_DB_PASSWORD:?unity-catalog: UC_DB_PASSWORD is unset}"
 
-# Written with a restrictive umask rather than chmod-after-write: between
-# creation and chmod the file would briefly be world-readable with the password
-# already in it.
+# Removed first, then written under a restrictive umask. Both halves matter:
+#
+#   - `umask` alone does nothing here. The image ships a hibernate.properties
+#     at 0644, and a redirect onto an EXISTING file truncates it while leaving
+#     its mode untouched -- so the password landed in a world-readable file.
+#     Measured in the container, not reasoned about.
+#   - chmod-after-write would close it, but leaves a window in which the file
+#     already holds the password at 0644.
+#
+# Deleting first means the redirect creates the file, which is when umask
+# applies, and there is no moment where it exists with the wrong mode.
+rm -f "$CONF_DIR/hibernate.properties"
 (
   umask 077
   cat > "$CONF_DIR/hibernate.properties" <<EOF
@@ -74,10 +83,17 @@ EOF
 # plain `>>` would stack another s3.* block on every restart and grow the file
 # without bound. Properties.load would still resolve the last one, which is
 # precisely what would keep the growth invisible until someone read the file.
-cp "$CONF_DIR/server.properties.base" "$CONF_DIR/server.properties"
+# `cat >` rather than `cp`, and the difference is not stylistic. This image is
+# Alpine, so `cp` is BusyBox's: it recreates the destination with the SOURCE's
+# mode. The base file is 0444, so a `cp` leaves server.properties read-only and
+# the append below fails with "Permission denied" -- and on the next start even
+# the copy fails, because the destination is no longer writable either.
+# Redirection truncates the existing file and leaves its mode alone.
+cat "$CONF_DIR/server.properties.base" > "$CONF_DIR/server.properties"
 
 if [ -n "${UC_R2_BUCKET:-}" ]; then
   : "${R2_ACCOUNT_ID:?unity-catalog: UC_R2_BUCKET is set but R2_ACCOUNT_ID is not}"
+  : "${R2_ENDPOINT_HOST:?unity-catalog: UC_R2_BUCKET is set but R2_ENDPOINT_HOST is not}"
   : "${R2_ACCESS_KEY_ID:?unity-catalog: UC_R2_BUCKET is set but R2_ACCESS_KEY_ID is not}"
   : "${R2_SECRET_ACCESS_KEY:?unity-catalog: UC_R2_BUCKET is set but R2_SECRET_ACCESS_KEY is not}"
 
