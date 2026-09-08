@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -1772,10 +1773,38 @@ def _render_spark(
     credentials rather than the enabled-service list.
     """
     del e  # not used; signature uniform across renderers
+    conf = _spark_defaults_conf(c, unity_catalog_enabled=unity_catalog_enabled)
     return RenderedEnv(
         env_vars={
             "SPARK_WORKER_CORES": "2",
             "SPARK_WORKER_MEMORY": "3g",
+            # A digest of the file below, and the only reason it is here.
+            #
+            # Spark reads spark-defaults.conf ONCE, at process start. The
+            # compose file mounts the whole conf/ DIRECTORY, so changing a file
+            # inside it does not change the service definition -- and
+            # `docker compose up -d` leaves a running container alone. The
+            # deploy then reports success while the cluster runs the previous
+            # configuration, indefinitely.
+            #
+            # Measured on a live deployment: unity-catalog was enabled between
+            # two spin-ups, the second wrote the catalog block at 17:36, and
+            # spark-connect was still the container started at 17:30. Every
+            # query answered `SCHEMA_NOT_FOUND` until the container was
+            # restarted by hand. The same failure applies to the R2 and Hetzner
+            # credentials this file carries: rotate them under a running Spark
+            # and object storage goes silently dead.
+            #
+            # Putting the digest in .env makes the change visible to compose,
+            # which then recreates the containers -- exactly when the
+            # configuration changed, and never otherwise. Verified both ways
+            # against a minimal stack: an unchanged .env left the container id
+            # untouched, a changed one produced a new container.
+            #
+            # Cheaper and less error-prone than a force-recreate in the deploy,
+            # which would restart Spark on every run whether or not anything
+            # changed, and which someone has to remember to keep wired up.
+            "SPARK_CONF_HASH": hashlib.sha256(conf.encode("utf-8")).hexdigest()[:16],
         },
         sidecars=(
             SidecarFile(
@@ -1796,7 +1825,7 @@ def _render_spark(
                 # nothing. That is not true of every image — unity-catalog
                 # mounts a single file for exactly the opposite reason.
                 relative_path="conf/spark-defaults.conf",
-                content=_spark_defaults_conf(c, unity_catalog_enabled=unity_catalog_enabled),
+                content=conf,
                 # mode 0o644, NOT 0o600, and the credentials in this file
                 # do not change that. Same constraint as Grafana's
                 # prometheus.yml a few hundred lines above: the file is
