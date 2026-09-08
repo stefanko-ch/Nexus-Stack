@@ -338,3 +338,17 @@ Learn more about Nexus-Stack and explore the full documentation:
 ## License
 
 [MIT](LICENSE)
+
+## Activity
+
+![Repobeats analytics image](https://repobeats.axiom.co/api/embed/f8f883f70e3a96a899518a605d21827739dba963.svg "Repobeats analytics image")
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=stefanko-ch%2Fnexus-stack&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&legend=top-left" />
+  </picture>
+</a>
