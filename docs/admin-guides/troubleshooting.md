@@ -235,6 +235,148 @@ scripts, and the per-service configure hooks. Failures there tend to be
 quiet — wrong output rather than a non-zero exit — so a green step is
 not proof.
 
+## A hostname stops resolving after a teardown or destroy
+
+**Symptom.** Right after a teardown, `destroy-all` or a re-deploy, a service
+URL stops working from your machine — while the stack itself is healthy.
+SSH fails before it even reaches Cloudflare:
+
+```text
+dial tcp: lookup ssh.example.com: no such host
+Connection closed by UNKNOWN port 65535
+```
+
+A browser shows a DNS error rather than a Cloudflare Access login. Other
+people, or the same laptop on a different network, reach the service fine.
+
+**Cause.** A teardown deletes the DNS records; the spin-up recreates them.
+In the window between, every lookup legitimately answers `NXDOMAIN`, and
+your resolver caches that. The record comes back — your resolver keeps
+serving the "does not exist" it learned.
+
+### Confirm it in one step
+
+Ask both resolvers the same question, and read the **status** rather than the
+answer — an empty answer section and an `NXDOMAIN` look identical with
+`+short`:
+
+```bash
+dig ssh.example.com +noall +comment | grep -o "status: [A-Z]*"            # yours
+dig ssh.example.com @1.1.1.1 +noall +comment | grep -o "status: [A-Z]*"   # Cloudflare
+```
+
+`NXDOMAIN` from yours and `NOERROR` from Cloudflare is this problem. Both
+`NXDOMAIN` means the record really is gone — check the spin-up finished.
+
+To see which resolver your machine uses, read the whole output rather than
+the first block. macOS keeps several resolver configurations, and a VPN or a
+`search`-domain entry can put a scoped one ahead of the DHCP-supplied
+default:
+
+```bash
+scutil --dns          # macOS — look for the block matching your domain
+```
+
+### Flushing the local cache: when it helps and when it cannot
+
+```bash
+sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+```
+
+This empties **macOS's own** cache. If that is where the stale answer sits,
+it fixes the problem outright — worth trying first, it costs nothing.
+
+It cannot do more than that. The next lookup goes to your router, hotspot or
+ISP resolver, and if the stale negative answer is cached *there*, it comes
+straight back. That cache is not reachable from your machine, which is what
+makes the flush look like it did nothing.
+
+### Why waiting can take longer than the TTL suggests
+
+Read the zone's negative TTL from the `AUTHORITY` section of a query for a
+name that does not exist, rather than from the SOA record directly:
+
+```bash
+dig no-such-name.example.com +noall +authority
+# example.com.  1800  IN  SOA  ns.example.com. dns.example.com. 2414374634 10000 2400 604800 1800
+#               ^^^^                                                                        ^^^^
+```
+
+Both numbers matter. RFC 2308 defines the effective negative-cache TTL as the
+**minimum** of the SOA record's own TTL (first `^^^^`) and its `MINIMUM` field
+(last). `dig example.com SOA +short` shows only the second, so a zone whose
+SOA TTL is lower would be read wrong. For this project's zone both are 1800,
+which is where the thirty minutes below come from.
+
+Thirty minutes — but that is thirty minutes from the moment the resolver last
+asked **upstream**, not from the teardown. Your own queries do not reset it:
+while the entry is cached the resolver answers from cache and the TTL simply
+counts down. When it expires, the next query goes upstream again — and if the
+record is still gone, a fresh negative answer is cached with a fresh thirty
+minutes.
+
+So during a long outage the entry is renewed every half hour, and what
+governs is the **last renewal before the record came back**. Worked example
+from a real incident: `destroy-all` at 14:56, spin-up finished at 17:21, and
+at 17:39 the resolver still answered `NXDOMAIN` — nearly three hours after
+the teardown, and neither broken nor ignoring the TTL. Its last upstream
+query simply fell shortly before 17:21.
+
+The practical consequence: after a spin-up completes, allow up to the full
+negative TTL before concluding something else is wrong.
+
+### Fix
+
+Point your machine at a public resolver. This does **not** make you immune — a
+public resolver caches negative answers the same way, and querying it during
+the outage window leaves it holding one too. What it does is take your router,
+hotspot or ISP resolver out of the path, so the only cache in play is one you
+can compare against directly. That is usually enough, because the stale entry
+is nearly always the local one:
+
+```bash
+networksetup -getdnsservers Wi-Fi                      # note this first
+networksetup -setdnsservers Wi-Fi 1.1.1.1 8.8.8.8      # macOS
+```
+
+`empty` is how you go back to whatever DHCP hands out:
+
+```bash
+networksetup -setdnsservers Wi-Fi empty
+```
+
+It restores the *automatic* configuration, not a manual one you had before —
+which is why the first command above is worth running and keeping.
+
+Use the right service name — `networksetup -listallnetworkservices` lists
+them; a USB or Bluetooth tether is not `Wi-Fi`.
+
+For a single hostname, right now, without changing your network settings.
+Both lines together, in this order:
+
+```bash
+sudo sed -i '' '/# nexus-temp$/d' /etc/hosts
+echo "104.21.11.47 ssh.example.com # nexus-temp" | sudo tee -a /etc/hosts
+```
+
+Any Cloudflare edge IP works, because the tunnel is selected by SNI rather
+than by address — take whatever `dig +short <host> @1.1.1.1` returns.
+
+Remove it once you no longer need it; the address is not guaranteed to stay
+valid:
+
+```bash
+sudo sed -i '' '/# nexus-temp$/d' /etc/hosts
+```
+
+**Why the marker, and why the delete comes first.** `/etc/hosts` is read top
+to bottom and the first match wins. Appending without removing leaves the
+previous entry ahead of the new one, so after the edge IP changes you would
+still be pinned to the old address — with a file that looks like it was
+updated. Deleting by marker rather than by hostname also leaves alone any
+mapping for the same host that was there for another reason and that you did
+not put there.
+
 ## General Tips
 
 ### SSH Access Issues
