@@ -21,13 +21,15 @@ clients for Spark, Trino, DuckDB and Python.
 | Host port | `3211` → container `3000` |
 | API | `http://unitycatalog:8080` — internal only, on `app-network` |
 | Public | No — Cloudflare Access (email OTP) |
-| Metastore | H2 file in the `unitycatalog-data` volume, mounted at `/home/unitycatalog/etc/db` — no PostgreSQL needed |
+| Metastore | PostgreSQL 16 (`unity-catalog-db`), bind-mounted at `/mnt/nexus-data/unity-catalog/db` |
+| Data lake | Cloudflare R2 — table files live there, not on the server |
 
 ### Containers
 
 | Container | Role |
 |---|---|
-| `unity-catalog` | The server. REST API on 8080, Hibernate metastore, no published port. |
+| `unity-catalog` | The server. REST API on 8080, no published port. Built locally — see *The custom image* below. |
+| `unity-catalog-db` | PostgreSQL 16 metastore. Internal network only. |
 | `unity-catalog-ui` | React UI on 3000 — the only published port. |
 
 The container names differ from the hostnames used elsewhere on this page,
@@ -53,7 +55,7 @@ nothing else, while Unity Catalog also covers Delta, volumes and AI assets.
 
 They share **no database, no volume and no internal network**, and neither
 reads the other's configuration. Lakekeeper keeps its own PostgreSQL; Unity
-Catalog keeps an H2 file in its own volume. Enable either alone, both, or
+Catalog keeps its metastore in its own PostgreSQL. Enable either alone, both, or
 neither.
 
 Both do join `app-network`, as every stack here does, so their containers
@@ -169,53 +171,103 @@ curl -s http://unitycatalog:8080/api/2.1/unity-catalog/catalogs | jq .
 
 ### From Spark
 
-**Not verified against this stack yet.** The configuration below is
-transcribed from [upstream's Spark integration
-guide](https://docs.unitycatalog.io/integrations/unity-catalog-spark/),
-selecting the row for Spark 4.1.x because [the Spark stack](./spark.md)
-runs `nexus-spark:4.2.0`. Nobody has run it here; treat the first attempt
-as a test rather than a recipe, and correct this section with what actually
-worked.
+**Nothing to configure.** When both stacks are enabled, the deploy writes
+the catalog into `stacks/spark/conf/spark-defaults.conf`, and the connector
+and Delta JARs are baked into `nexus-spark`. Open a notebook and address a
+table by its three-part name:
 
-Two JARs are required and **neither is baked into the Nexus Spark image** —
-it pre-bakes hadoop-aws, the AWS SDK and the Spark Connect server, but not
-Delta. They resolve through Ivy on first use, which is the ~30-second
-cold start `stacks/spark/Dockerfile` pre-bakes its own JARs to avoid.
+```sql
+CREATE SCHEMA IF NOT EXISTS unity.teaching;
 
-```bash
-spark-shell \
-  --packages "io.delta:delta-spark_4.1_2.13:4.3.1,io.unitycatalog:unitycatalog-spark_4.1_2.13:0.5.0" \
-  --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension" \
-  --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog" \
-  --conf "spark.sql.catalog.unity=io.unitycatalog.spark.UCSingleCatalog" \
-  --conf "spark.sql.catalog.unity.uri=http://unitycatalog:8080" \
-  --conf "spark.sql.defaultCatalog=unity"
+CREATE TABLE unity.teaching.trips (id INT, city STRING) USING delta
+  LOCATION 's3://<your-r2-bucket>/teaching/trips';
+
+INSERT INTO unity.teaching.trips VALUES (1, 'Zürich');
+SELECT * FROM unity.teaching.trips;
 ```
 
-Upstream's example also passes `spark.sql.catalog.unity.token`. It is
-omitted here because `server.authorization=disable` — add it if you ever
-turn Unity Catalog's own auth on.
+Three details that are easy to get wrong, all of them measured:
 
-Known unknowns, listed rather than glossed over:
+- **`s3://`, never `s3a://`.** Unity Catalog rejects the latter outright
+  with `Unsupported URI scheme: s3a`. The rendered config maps `fs.s3.impl`
+  to `S3AFileSystem` so the `s3://` scheme still works.
+- **`spark.sql.defaultCatalog` is deliberately not set.** Spark's own
+  catalog stays the default, so existing notebooks keep working; a Unity
+  Catalog table is always addressed as `unity.<schema>.<table>`.
+- **The artefact names carry the Spark minor.** `delta-spark_4.2_2.13` and
+  `unitycatalog-spark_4.2_2.13`. `io.delta:delta-spark_2.13` also publishes
+  a 4.4.0 and is the wrong one. Delta is *not* a transitive dependency of
+  the connector — its POM lists no `io.delta` artefact at all — which is why
+  `stacks/spark/Dockerfile` bakes both trees explicitly.
 
-- The connector version upstream documents is `0.5.0` while this stack runs
-  server `v0.6.0`. Whether that pairing works is untested.
-- `delta-spark_4.1_2.13:4.3.1` is the version in upstream's guide; it has
-  not been checked against Maven Central from here.
-- Ivy resolution needs outbound network from the Spark container on first
-  use.
+The catalog block is written **only when the unity-catalog stack is
+enabled**. `spark.sql.extensions` and `spark.sql.catalog.spark_catalog` are
+read when a SparkSession is constructed, so naming them on a deployment
+without the catalog would burden every Spark session with JARs whose only
+purpose is a service that is not running.
 
 ## External tables on object storage
 
-`conf/server.properties` ships with the S3 slots (`s3.bucketPath.0`,
-`s3.accessKey.0`, …) **empty on purpose**. This stack has four candidates —
-MinIO, Garage, RustFS, SeaweedFS — and wiring one in by default would make
-Unity Catalog fail whenever that stack is disabled, which is exactly what
-the project's "each stack brings its own resources" rule prevents.
+Table data lives in **Cloudflare R2**, wired up automatically when the
+deployment has a data bucket. R2 rather than one of this stack's four
+in-cluster object stores (MinIO, Garage, RustFS, SeaweedFS) for the reason
+the catalog exists at all: a rebuild teardown destroys the server's disk,
+and a catalogue of vanished files is worse than no catalogue.
 
-To register external tables, fill those in deliberately with credentials
-from Infisical and re-run a spin-up. Managed tables in the local volume
-work without any of it.
+`entrypoint.sh` appends the `s3.*` block at container start from environment
+variables the deploy renders. There is nothing to fill in by hand.
+
+### Why a credential generator, and why it had to be written
+
+Unity Catalog does not hand Spark the bucket credentials. It *vends* a
+short-lived triple per request, and both of its built-in generators are
+AWS-shaped:
+
+| Generator | Selected when | Why it cannot serve R2 |
+|---|---|---|
+| `StsAwsCredentialGenerator` | default | Calls STS `AssumeRole`. R2 has no STS. |
+| `StaticAwsCredentialGenerator` | `s3.sessionToken.<i>` is set | R2 validates the token; an invented one returns `403 The security token included in the request is invalid`. |
+
+Returning the plain access key with **no** session token is not a way out
+either — `io.unitycatalog.hadoop.internal.auth.AwsCredential` asserts one is
+present, and the client fails with `IllegalArgumentException: AWS session
+token is missing` before a request ever reaches R2.
+
+So `stacks/unity-catalog/credentials/R2TemporaryCredentialGenerator.java`
+mints real ones, using [Cloudflare's local signing
+scheme](https://developers.cloudflare.com/r2/api/s3/temporary-credentials/):
+an HS256 JWT signed with the parent secret, whose SHA-256 hex digest is the
+temporary secret and whose `base64("jwt/" + jwt)` is the session token. A
+fresh token per call, scoped down to `object-read-only` when the request
+only needs `SELECT`.
+
+One non-obvious piece of configuration comes with it. A bucket entry is
+dropped unless **either** `bucketPath` + `region` + `awsRoleArn` **or**
+`accessKey` + `secretKey` + `sessionToken` is complete — and
+`credentialGenerator` does not count towards either triple
+(`ServerProperties.getS3Configurations`). The appended block therefore
+carries a placeholder role ARN that is never dereferenced, purely to satisfy
+that gate.
+
+### The custom image
+
+`stacks/unity-catalog/Dockerfile` adds exactly one compiled class to
+upstream's image. Everything else it needs is already there: the PostgreSQL
+JDBC driver 42.7.12 is on the server classpath as shipped, and Jackson is a
+compile dependency of the server itself.
+
+The class reaches the classpath without rebuilding the server, because the
+launcher runs `java -cp $(cat server/target/classpath)` — the classpath is a
+*file*, and the image appends one entry to it.
+
+**No configuration is bind-mounted.** A single-file bind mount pins the
+inode, and the deploy's rsync replaces files rather than rewriting them, so
+the container would serve the copy it saw at creation time for as long as it
+lived — a bug this project already paid for on Spark. Mounting the whole
+directory is Spark's fix and is not available here, because
+`/home/unitycatalog/etc/conf` also holds `certs.json` and the token-signing
+keys. Instead the static half is baked into the image and `entrypoint.sh`
+writes the per-deployment half at start.
 
 ## Debugging
 
@@ -231,8 +283,12 @@ ssh nexus "docker exec unity-catalog wget -qO- http://localhost:8080/api/2.1/uni
 # Did the UI reach the server? It looks for the host `server`, via alias.
 ssh nexus "docker logs unity-catalog-ui 2>&1 | tail -30"
 
-# Is the metastore in the volume, where it survives a recreate?
-ssh nexus "docker exec unity-catalog ls -la /home/unitycatalog/etc/db"
+# Is the metastore reachable, and does it hold the catalog tables?
+ssh nexus "docker exec unity-catalog-db psql -U nexus-unitycatalog -d unitycatalog -c '\\dt'"
+
+# What did the entrypoint actually write? (No password is printed —
+# hibernate.properties is 0600 and holds one, so this reads the other file.)
+ssh nexus "docker exec unity-catalog cat /home/unitycatalog/etc/conf/server.properties"
 ```
 
 Two things about this image are worth knowing before debugging it, because
@@ -253,14 +309,17 @@ error — it simply lands where nothing reads it, so a config file mounted
 there is ignored in silence and a volume mounted there persists an empty
 directory.
 
-That second point is why this stack no longer overrides
-`hibernate.properties`. Upstream points H2 at `jdbc:h2:file:./etc/db/h2db`,
-relative to `WORKDIR`, so the metastore lives at
-`/home/unitycatalog/etc/db`. The volume is mounted there directly rather
-than redirecting H2 elsewhere — one less file to keep in sync with
-upstream, and it persists exactly what upstream writes. If an image bump
-ever moves that path, the symptom is catalog registrations disappearing on
-the next `--force-recreate`, which this project does on every spin-up.
+**`hibernate.properties` has no environment override.** Unlike
+`server.properties` — whose `getProperty` checks system properties and then
+the environment before the file — `HibernateConfigurator` reads the path
+directly. That asymmetry is the whole reason `entrypoint.sh` exists: the
+metastore DSN can only be delivered as a file.
+
+Upstream defaults to an H2 file under `/home/unitycatalog/etc/db`. This
+stack points Hibernate at PostgreSQL instead, because `pg_dump` is what
+carries the catalog across a rebuild teardown — the same path Gitea and
+Dify already use in `s3_restore.standard_targets()`. An rsync of a live H2
+file can capture a torn state and has nothing to verify it against.
 
 ## Related
 

@@ -180,17 +180,20 @@ output "secrets" {
     # Lakekeeper (Iceberg REST Catalog)
     lakekeeper_db_password = random_password.lakekeeper_db_password.result
 
+    # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
+    unity_catalog_db_password = random_password.unity_catalog_db_password.result
+
     # QuestDB (time-series)
-    questdb_pg_password = random_password.questdb_pg.result
-    influxdb_admin_password = random_password.influxdb_admin.result
+    questdb_pg_password        = random_password.questdb_pg.result
+    influxdb_admin_password    = random_password.influxdb_admin.result
     nussknacker_admin_password = random_password.nussknacker_admin.result
-    influxdb_admin_token    = random_password.influxdb_token.result
+    influxdb_admin_token       = random_password.influxdb_token.result
 
     # OpenSearch (standalone search + Dashboards)
     opensearch_admin_password = random_password.opensearch_admin.result
 
     # Marquez (OpenLineage backend)
-    marquez_db_password = random_password.marquez_db_password.result
+    marquez_db_password         = random_password.marquez_db_password.result
     marquez_opensearch_password = random_password.marquez_opensearch_admin.result
 
     # ClickHouse

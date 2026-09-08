@@ -222,6 +222,9 @@
       'SUPERSET_SECRET_KEY': 'superset_secret_key-VALUE',
       'SUPERSET_USERNAME': 'admin',
     }),
+    'unity-catalog': dict({
+      'UNITY_CATALOG_DB_PASSWORD': 'unity_catalog_db_password-VALUE',
+    }),
     'uptime-kuma': dict({
       'UPTIME_KUMA_PASSWORD': 'kuma_admin_password-VALUE',
       'UPTIME_KUMA_USERNAME': 'nexus-test-user',

@@ -719,6 +719,16 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "unity-catalog",
+            _filter_empty(
+                {
+                    "UNITY_CATALOG_DB_PASSWORD": config.unity_catalog_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "nussknacker",
             _filter_empty(
                 {

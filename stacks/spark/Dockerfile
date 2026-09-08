@@ -148,4 +148,53 @@ RUN set -eux; \
             | sha1sum -c -; \
     done
 
+# Delta Lake + the Unity Catalog connector.
+#
+# Baked rather than resolved at runtime for the same reason as the Connect
+# jars above, and for one more: `--packages` needs Maven Central reachable
+# from the server on every container start, which turns a catalog query into
+# something that can fail on a network hiccup.
+#
+# THE ARTEFACT NAMES ARE NOT THE OBVIOUS ONES. Both projects publish a build
+# per Spark minor, so the coordinates carry `_4.2` before the Scala suffix:
+# `delta-spark_4.2_2.13`, not `delta-spark_2.13`. `io.delta:delta-spark_2.13`
+# also exists and also has a 4.4.0 — it is the wrong one here.
+#
+# And Delta is NOT a transitive dependency of the connector. Its POM
+# (unitycatalog-spark_4.2_2.13-0.6.0.pom) lists unitycatalog-client,
+# unitycatalog-hadoop, jackson, antlr and Spark itself — no io.delta at all.
+# Resolving only the connector gives a classpath that fails at query time
+# with `ClassNotFoundException: io.delta.sql.DeltaSparkSessionExtension`.
+#
+# The list is the full transitive closure MINUS what apache/spark:4.2.0
+# already ships and minus the three S3 jars fetched above — derived by
+# resolving `--packages` once and diffing against `ls /opt/spark/jars`,
+# rather than guessed. Every entry SHA-1 verified, as above.
+RUN set -eux; \
+    for a in \
+        "io/delta/delta-spark_4.2_2.13/4.4.0/delta-spark_4.2_2.13-4.4.0.jar" \
+        "io/delta/delta-storage/4.4.0/delta-storage-4.4.0.jar" \
+        "io/delta/delta-kernel-api/4.4.0/delta-kernel-api-4.4.0.jar" \
+        "io/delta/delta-kernel-defaults/4.4.0/delta-kernel-defaults-4.4.0.jar" \
+        "io/delta/delta-kernel-unitycatalog/4.4.0/delta-kernel-unitycatalog-4.4.0.jar" \
+        "io/unitycatalog/unitycatalog-spark_4.2_2.13/0.6.0/unitycatalog-spark_4.2_2.13-0.6.0.jar" \
+        "io/unitycatalog/unitycatalog-client/0.6.0/unitycatalog-client-0.6.0.jar" \
+        "io/unitycatalog/unitycatalog-hadoop/0.6.0/unitycatalog-hadoop-0.6.0.jar" \
+        "org/openapitools/jackson-databind-nullable/0.2.6/jackson-databind-nullable-0.2.6.jar" \
+        "com/fasterxml/jackson/dataformat/jackson-dataformat-xml/2.15.0/jackson-dataformat-xml-2.15.0.jar" \
+        "com/fasterxml/jackson/datatype/jackson-datatype-jdk8/2.13.5/jackson-datatype-jdk8-2.13.5.jar" \
+        "com/fasterxml/woodstox/woodstox-core/6.5.1/woodstox-core-6.5.1.jar" \
+        "org/codehaus/woodstox/stax2-api/4.2.1/stax2-api-4.2.1.jar" \
+        "commons-logging/commons-logging/1.3.0/commons-logging-1.3.0.jar" \
+        "javax/annotation/javax.annotation-api/1.3.2/javax.annotation-api-1.3.2.jar" \
+        "org/roaringbitmap/shims/0.9.25/shims-0.9.25.jar" \
+        "org/wildfly/openssl/wildfly-openssl/2.2.5.Final/wildfly-openssl-2.2.5.Final.jar" \
+    ; do \
+        jar="/opt/spark/jars/${a##*/}"; \
+        curl -fSL "https://repo1.maven.org/maven2/$a" -o "$jar"; \
+        curl -fSL "https://repo1.maven.org/maven2/$a.sha1" \
+            | awk -v j="$jar" '{print $1 "  " j}' \
+            | sha1sum -c -; \
+    done
+
 USER spark
