@@ -65,7 +65,7 @@ container inode 260310  written 15:48:40  (does not)
 
 Mounting over `/opt/spark/conf` hides nothing: that directory does not exist in `apache/spark:4.2.0`. `SPARK_CONF_DIR` defaults to `$SPARK_HOME/conf` (`bin/load-spark-env.sh:33`), so this is where every `spark-submit`, `spark-shell` and `spark-sql` looks.
 
-This is not a rule to copy blindly — [Unity Catalog](unity-catalog.md) mounts a single file for the opposite reason, because mounting its directory would hide the image's own log4j2 configuration. The question to ask is what else lives in the target directory.
+This is not a rule to copy blindly. [Unity Catalog](unity-catalog.md) cannot do either: mounting its `etc/conf` directory would hide the image's log4j2 configuration and its token-signing keys, and mounting a single file inside it would hit exactly the stale-inode bug above. That stack bakes its static configuration into the image and writes the rest at container start instead. The question to ask is what else lives in the target directory.
 
 Before Spark 4.2.0 this stack set `SPARK_HADOOP_fs_s3a_*` environment variables instead. **They never did anything:**
 

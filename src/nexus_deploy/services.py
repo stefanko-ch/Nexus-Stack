@@ -2187,6 +2187,84 @@ ScriptRunner = Callable[[str], "subprocess.CompletedProcess[str]"]
 
 HookRenderer = Callable[[NexusConfig, BootstrapEnv], str]
 
+
+def render_unity_catalog_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Unity Catalog: create the ``unity`` catalog Spark is configured to use.
+
+    Without this the first query on a fresh deployment fails with
+    ``404 CATALOG_NOT_FOUND — Catalog not found: unity``, and nothing before
+    that point looks wrong: the container is healthy, the API answers, and
+    ``spark-defaults.conf`` names a catalog that simply does not exist yet.
+
+    Easy to miss during development, and it was: upstream's image ships a
+    pre-populated H2 metastore carrying sample catalogs, so every probe against
+    the stock image found one. Switching the metastore to PostgreSQL starts it
+    empty, which is when the gap appeared.
+
+    ``docker exec`` with the container's own ``wget``, not host ``curl`` like
+    the REST hooks above: this API publishes no port. It reaches the outside
+    world only through the tunnel-fronted UI, so ``localhost:8080`` on the host
+    is nothing. There is no ``curl`` in the image either -- the runtime stage is
+    bare Alpine plus a JRE -- but BusyBox ``wget`` takes ``--post-data`` and
+    ``--header``, which is all this needs.
+
+    Idempotent by asking first: a GET on the catalog returns non-zero when it is
+    absent, and re-running a spin-up must not fail on a catalog that is already
+    there.
+
+    ``-T 10`` on every call, including the ones inside the readiness loop.
+    BusyBox wget defaults to a 900-second network read timeout, so a server that
+    accepts the connection and then stalls would hang this hook for a quarter of
+    an hour per call -- and the loop's ``$SECONDS < 180`` bound would not save
+    it, because the check only runs between iterations. Measured in the image
+    against a non-routable address: without ``-T`` the call was still running
+    when a 20s cutoff killed it; with ``-T 3`` it returned after 3s. Same reason
+    ``_render_wait_healthy`` above passes curl a ``--max-time``.
+    """
+    del config, env  # signature uniform across hooks
+    api = "http://localhost:8080/api/2.1/unity-catalog/catalogs"
+    return f"""
+unity_catalog_hook() {{
+    READY=false
+    SECONDS=0
+    while [ "$SECONDS" -lt 180 ]; do
+        if docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api)} 2>/dev/null; then
+            READY=true; break
+        fi
+        sleep 3
+    done
+    if [ "$READY" != "true" ]; then
+        echo "  ⚠ Unity Catalog not ready after 180s — skipping setup" >&2
+        echo "RESULT hook=unity-catalog status=skipped-not-ready"
+        return 0
+    fi
+
+    if docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
+        echo "RESULT hook=unity-catalog status=already-configured"
+        return 0
+    fi
+
+    if docker exec unity-catalog wget -T 10 -q -O /dev/null \
+        --header='Content-Type: application/json' \
+        --post-data='{{"name":"unity","comment":"Default catalog for Nexus Stack. Spark reaches it as unity.<schema>.<table>."}}' \
+        {shlex.quote(api)} 2>/dev/null; then
+        echo "RESULT hook=unity-catalog status=configured"
+    elif docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
+        # The POST failed but the catalog is there. Two deploys can reach this
+        # hook at once -- spin-up.yml has no concurrency group (#801) -- and the
+        # loser of that race would otherwise report `failed` for a catalog that
+        # exists. Re-asking is also the honest answer for any other POST failure
+        # that left the catalog behind.
+        echo "RESULT hook=unity-catalog status=already-configured"
+    else
+        echo "  ⚠ Could not create the 'unity' catalog — Spark queries will report CATALOG_NOT_FOUND" >&2
+        echo "RESULT hook=unity-catalog status=failed"
+    fi
+}}
+unity_catalog_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -2205,6 +2283,9 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     "windmill": render_windmill_hook,
     "sftpgo": render_sftpgo_hook,
     "hedgedoc": render_hedgedoc_hook,
+    # Creates the `unity` catalog the Spark config names. A fresh PostgreSQL
+    # metastore starts empty, so without this every query 404s.
+    "unity-catalog": render_unity_catalog_hook,
     # pg-ducklake bootstrap re-apply (handles cred rotation on
     # persistent-volume deploys where the entrypoint-initdb scripts
     # only ran on first init).

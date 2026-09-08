@@ -2705,3 +2705,184 @@ def test_nussknacker_escapes_the_password_for_hocon(
     config = full_config.model_copy(update={"nussknacker_admin_password": 'a"b\\c'})
     content = _render_nussknacker(config, full_env).sidecars[0].content
     assert '    password: "a\\"b\\\\c"' in content
+
+
+# ---------------------------------------------------------------------------
+# Unity Catalog
+# ---------------------------------------------------------------------------
+
+
+def _env_settings(text: str) -> dict[str, str]:
+    """Parse a rendered .env into KEY -> value.
+
+    Written because substring assertions on the raw text pass when they
+    should not: `"R2_ACCOUNT_ID=abc123" in text` is true for the line
+    `R2_ACCOUNT_ID=abc123.r2.cloudflarestorage.com`, so a mutation that
+    dropped the derivation entirely left the test green. Caught by breaking
+    the code on purpose, not by reading it.
+    """
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        out[key.strip()] = value
+    return out
+
+
+def test_unity_catalog_derives_the_account_id_from_the_r2_endpoint(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """R2_ACCOUNT_ID is derived, not carried as its own config field.
+
+    Cloudflare builds the endpoint as
+    ``https://<account id>.r2.cloudflarestorage.com`` and
+    ``tofu/stack/outputs.tf`` composes it exactly that way, so a separate
+    field would be a second source that can disagree with the first — with
+    nothing to say which one is wrong. The generator signs the JWT's ``sub``
+    with this value, and R2 rejects a wrong one at vend time.
+    """
+    config = full_config.model_copy(
+        update={
+            "unity_catalog_db_password": "ucpass",
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://abc123def456.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+    render_all_env_files(config, full_env, ["unity-catalog"], stacks_dir=tmp_path)
+    env = _env_settings((tmp_path / "unity-catalog" / ".env").read_text())
+
+    assert env["R2_ACCOUNT_ID"] == "abc123def456"
+    assert env["R2_DATA_BUCKET"] == "lake-r2"
+    assert env["UNITY_CATALOG_DB_PASSWORD"] == "ucpass"
+
+
+def test_unity_catalog_keeps_a_jurisdiction_bound_endpoint_host_intact(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """The audience host travels verbatim; only the account id is derived.
+
+    Cloudflare serves jurisdiction-bound endpoints such as
+    ``<account>.eu.r2.cloudflarestorage.com``. The generator signs the host as
+    the JWT ``aud``, so rebuilding it from the account id would drop the ``eu``
+    label — producing a token whose signature verifies locally and which R2
+    refuses, which is the worst place for the difference to show up.
+    """
+    config = full_config.model_copy(
+        update={
+            "unity_catalog_db_password": "ucpass",
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://abc123def456.eu.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+    render_all_env_files(config, full_env, ["unity-catalog"], stacks_dir=tmp_path)
+    env = _env_settings((tmp_path / "unity-catalog" / ".env").read_text())
+
+    assert env["R2_ACCOUNT_ID"] == "abc123def456"
+    assert env["R2_DATA_ENDPOINT_HOST"] == "abc123def456.eu.r2.cloudflarestorage.com"
+
+
+def test_unity_catalog_leaves_the_account_id_empty_for_a_foreign_endpoint(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """A non-R2 endpoint yields no account id, so the entrypoint refuses.
+
+    The derivation is a string split, and a MinIO or Hetzner endpoint would
+    otherwise hand it a first label that looks like an account id and is not
+    — producing JWTs R2 would reject with an opaque 403 during CREATE TABLE,
+    far from the cause.
+    """
+    config = full_config.model_copy(
+        update={
+            "unity_catalog_db_password": "ucpass",
+            "r2_data_bucket": "lake",
+            "r2_data_endpoint": "https://fsn1.your-objectstorage.com",
+            "r2_data_access_key": "KEY",
+            "r2_data_secret_key": "SECRET",
+        }
+    )
+    render_all_env_files(config, full_env, ["unity-catalog"], stacks_dir=tmp_path)
+    env = _env_settings((tmp_path / "unity-catalog" / ".env").read_text())
+
+    assert env["R2_ACCOUNT_ID"] == ""
+    # The bucket still travels: the entrypoint uses the pair to decide, and
+    # a bucket without an account id is what makes it refuse loudly.
+    assert env["R2_DATA_BUCKET"] == "lake"
+
+
+def test_unity_catalog_refuses_an_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Same guard as Lakekeeper: an empty password leaves Postgres
+    initialising with no auth and restart-looping, with a log line that
+    names neither the stack nor the missing step."""
+    config = full_config.model_copy(update={"unity_catalog_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="UNITY_CATALOG_DB_PASSWORD"):
+        render_all_env_files(config, full_env, ["unity-catalog"], stacks_dir=tmp_path)
+
+
+def test_spark_names_the_catalog_only_when_unity_catalog_is_enabled(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """The catalog block is conditional, and that is not cosmetic.
+
+    ``spark.sql.catalog.unity`` pointing at a server that is not running
+    fails the query rather than the session, but the pair it comes with
+    does not: ``spark.sql.extensions`` and ``spark.sql.catalog.spark_catalog``
+    are read at SparkSession construction. Writing them unconditionally
+    would make every Spark session on a deployment without the catalog
+    depend on jars whose only reason to exist is the catalog.
+    """
+    config = full_config.model_copy(
+        update={
+            "unity_catalog_db_password": "ucpass",
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://acct.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+
+    def settings(text: str) -> dict[str, str]:
+        """The file's actual settings, comments excluded.
+
+        Substring-matching the whole file is what this test did first, and
+        it failed: the rendered file EXPLAINS in a comment that
+        `spark.sql.defaultCatalog` is deliberately unset, so `"..." not in
+        text` was false for a key nothing sets. Parsing the settings is the
+        only form of this assertion that means what it says.
+        """
+        out: dict[str, str] = {}
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, _, value = line.partition(" ")
+            out[key] = value.strip()
+        return out
+
+    render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+    without = settings((tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text())
+    assert not [k for k in without if k.startswith("spark.sql.")]
+
+    render_all_env_files(config, full_env, ["spark", "unity-catalog"], stacks_dir=tmp_path)
+    with_uc = settings((tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text())
+    # The SERVICE name, not the container name: `unity-catalog` is the
+    # container, and compose does not make that a DNS alias on app-network.
+    assert with_uc["spark.sql.catalog.unity.uri"] == "http://unitycatalog:8080"
+    assert with_uc["spark.sql.catalog.unity"] == "io.unitycatalog.spark.UCSingleCatalog"
+    assert with_uc["spark.sql.extensions"] == "io.delta.sql.DeltaSparkSessionExtension"
+    # Unity Catalog rejects an s3a:// table location outright
+    # (`Unsupported URI scheme: s3a`), so locations are s3:// and something
+    # has to serve that scheme.
+    assert with_uc["spark.hadoop.fs.s3.impl"] == "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    # Present with an empty value, which is not the same as absent: the
+    # connector reads the property, and authorization is disabled server-side.
+    assert with_uc["spark.sql.catalog.unity.token"] == ""
+    # Not set on purpose: leaving Spark's own catalog as the default keeps
+    # every existing notebook working.
+    assert "spark.sql.defaultCatalog" not in with_uc

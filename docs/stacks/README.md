@@ -134,7 +134,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |
 | Trino | `trinodb/trino` | `479` | Exact ¹ |
-| Unity Catalog | `unitycatalog/unitycatalog` | `v0.6.0` | Exact ¹ |
+| Unity Catalog | built locally from `unitycatalog/unitycatalog` | `v0.6.0` | Exact ¹ |
+| PostgreSQL (Unity Catalog metastore) | `postgres` | `16-alpine` | Major |
 | Unity Catalog UI | `unitycatalog/unitycatalog-ui` | `@sha256:3a688197…` | Digest ⁵ |
 | Vector | `timberio/vector` | `0.54.0-alpine` | Exact ¹ |
 | Wiki.js | `requarks/wiki` | `2.5.306` | Exact ¹ |

@@ -5,24 +5,34 @@
 # managed one. A REST catalog covering Delta and Iceberg tables, unstructured
 # volumes, functions and models. Upstream documents integrations for Spark,
 # Trino, DuckDB, Daft and others, and ships Java and Python clients under
-# clients/ — see docs/stacks/unity-catalog.md for what has actually been
-# tried against THIS stack, which so far is nothing.
+# clients/. What has been exercised against THIS stack is Spark: creating a
+# Delta table on R2, writing to it and reading it back, verified against the
+# live bucket. See docs/stacks/unity-catalog.md.
 #
 # Overlaps with Lakekeeper, deliberately and only partly: Lakekeeper
 # implements the Iceberg REST Catalog spec and nothing else, while Unity
 # Catalog also covers Delta, volumes and AI assets under one namespace.
 #
 # They are independent in the way that matters: separate databases,
-# separate volumes, separate internal networks, and neither reads the
+# separate storage, separate internal networks, and neither reads the
 # other's config. Both join app-network, as every stack here does, so
 # their containers CAN reach each other — nothing in either makes use of
 # that. Disable one and the other is untouched.
 #
 # Architecture:
-#   - unitycatalog:    the server, REST API on :8080. Metastore is an H2
-#                      file in the data volume, mounted at the path H2
-#                      already writes to — no Postgres needed.
+#   - unitycatalog:    the server, REST API on :8080. Built from the local
+#                      Dockerfile, which adds one compiled class: the R2
+#                      credential generator without which no table can live
+#                      on object storage.
+#   - unity-catalog-db: PostgreSQL 16 metastore, bind-mounted under
+#                      /mnt/nexus-data so `pg_dump` can carry it across a
+#                      rebuild teardown. Replaced an H2 file in a named
+#                      volume, which nothing could restore.
 #   - unitycatalog-ui: React UI on :3000, the only published port.
+#
+# Where the table data lives: Cloudflare R2, not this host. That is the point
+# of the arrangement — the catalog survives in Postgres, the data survives in
+# R2, and a rebuild teardown destroys neither.
 #
 # ⚠️ Version skew between the two images, and it is upstream's, not ours.
 # The server is actively released (v0.6.0, 2026-08-20) while the published
@@ -61,7 +71,10 @@ services:
   # Unity Catalog - REST API server
   # ---------------------------------------------------------------------------
   unitycatalog:
-    image: ${IMAGE_UNITY_CATALOG:-unitycatalog/unitycatalog:v0.6.0}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_UNITY_CATALOG:-nexus-unity-catalog:0.6.0}
     # Must match the services.yaml key exactly. compose_runner verifies a
     # stack started by grepping `docker ps --format '{{.Names}}'` for the
     # service name, line-exact — a container named `unitycatalog` would
@@ -69,23 +82,40 @@ services:
     # while running perfectly.
     container_name: unity-catalog
     restart: unless-stopped
-    volumes:
-      # Paths are /home/unitycatalog, NOT /opt. The image's Dockerfile sets
-      # ARG HOME="/home/unitycatalog", copies `bin/ etc/` there and makes it
-      # WORKDIR. An earlier version of this file mounted under /opt, so both
-      # config files landed somewhere the server never looks: they were
-      # silently ignored, and the volume below persisted an empty directory
-      # while H2 wrote into the image layer.
-      #
-      # A single file rather than the whole conf directory: the image also
-      # carries log4j2 configs there, and mounting over the directory would
-      # hide them.
-      - ./conf/server.properties:/home/unitycatalog/etc/conf/server.properties:ro
-      # Mounted where H2 already writes, rather than pointing H2 somewhere
-      # else. Upstream's hibernate.properties uses
-      # `jdbc:h2:file:./etc/db/h2db` relative to WORKDIR, so this volume IS
-      # the metastore — no config override to keep in sync with upstream.
-      - unitycatalog-data:/home/unitycatalog/etc/db
+    # No volumes, and deliberately none for configuration.
+    #
+    # Config paths are /home/unitycatalog/etc/conf (the image's Dockerfile sets
+    # ARG HOME="/home/unitycatalog" and makes it WORKDIR). Mounting a single
+    # file there pins its inode, and the deploy's rsync REPLACES files — so the
+    # container would keep serving the copy it saw at creation time. That
+    # exact bug cost a debugging session on Spark before #810. Mounting the
+    # whole directory is Spark's fix but is not available here: etc/conf also
+    # holds certs.json and the token-signing keys, which mounting over would
+    # hide. So the static half is baked into the image and the per-deployment
+    # half is written by entrypoint.sh at start.
+    #
+    # The metastore no longer needs one either: it lives in unity-catalog-db
+    # below, whose bind-mount is what a teardown snapshot can actually carry.
+    environment:
+      UC_DB_HOST: unity-catalog-db:5432
+      UC_DB_NAME: unitycatalog
+      UC_DB_USER: nexus-unitycatalog
+      UC_DB_PASSWORD: ${UNITY_CATALOG_DB_PASSWORD}
+      # Empty when the deployment has no R2 data bucket. entrypoint.sh then
+      # skips the s3 block and says so, rather than writing a half-configured
+      # one — a catalog with no object storage still serves managed metadata.
+      UC_R2_BUCKET: ${R2_DATA_BUCKET:-}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      # The endpoint host verbatim, because Cloudflare also serves
+      # jurisdiction-bound hosts (<account>.eu.r2.cloudflarestorage.com).
+      # Rebuilding it from the account id would drop that label and mint
+      # tokens R2 refuses.
+      R2_ENDPOINT_HOST: ${R2_DATA_ENDPOINT_HOST:-}
+      R2_ACCESS_KEY_ID: ${R2_DATA_ACCESS_KEY:-}
+      R2_SECRET_ACCESS_KEY: ${R2_DATA_SECRET_KEY:-}
+    depends_on:
+      unity-catalog-db:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -118,6 +148,49 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Metastore
+  # ---------------------------------------------------------------------------
+  # PostgreSQL rather than the H2 file upstream defaults to, for one reason:
+  # `pg_dump` is what carries this catalog across a rebuild teardown. The
+  # project already runs that path for Gitea and Dify via
+  # s3_restore.standard_targets(), while an rsync of a live H2 file can capture
+  # a torn state and has nothing to verify it against.
+  #
+  # Bind-mounted under /mnt/nexus-data like Gitea's database, which is where
+  # the snapshot and restore machinery looks.
+  #
+  # Pinned to 16-alpine, and the mount path is tied to that: PostgreSQL 18
+  # moved PGDATA to /var/lib/postgresql/18/docker, so bumping the tag while
+  # keeping this mount would write the cluster into the container's writable
+  # layer — healthy container, empty database after the next --force-recreate.
+  # tests/unit/test_stack_conventions.py asserts the pairing.
+  unity-catalog-db:
+    image: ${IMAGE_UNITY_CATALOG_POSTGRES:-postgres:16-alpine}
+    container_name: unity-catalog-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-unitycatalog
+      POSTGRES_PASSWORD: ${UNITY_CATALOG_DB_PASSWORD}
+      POSTGRES_DB: unitycatalog
+    volumes:
+      - /mnt/nexus-data/unity-catalog/db:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    networks:
+      - unitycatalog-internal
+    healthcheck:
+      # -U matters: without it pg_isready probes as the OS user (root), which
+      # has no role here, and the check fails against a perfectly healthy
+      # server.
+      test: ["CMD-SHELL", "pg_isready -U nexus-unitycatalog -d unitycatalog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # Unity Catalog UI
@@ -187,9 +260,6 @@ services:
     networks:
       - app-network
       - unitycatalog-internal
-
-volumes:
-  unitycatalog-data:
 
 networks:
   app-network:

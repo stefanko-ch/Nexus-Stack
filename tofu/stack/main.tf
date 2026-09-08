@@ -230,6 +230,20 @@ resource "random_password" "lakekeeper_db_password" {
   special = false
 }
 
+# Unity Catalog Postgres password — the metastore, not the data.
+# Table contents live in Cloudflare R2; this database holds the catalog
+# (catalogs, schemas, table pointers, credentials) and is what
+# s3_restore.standard_targets() carries across a rebuild teardown as a
+# pg_dump. Upstream defaults to an H2 file, which nothing could restore.
+#
+# special = false for the same reason as every other password here: the
+# value travels through docker-compose interpolation and a JDBC URL, and
+# both have characters they would rather not see.
+resource "random_password" "unity_catalog_db_password" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

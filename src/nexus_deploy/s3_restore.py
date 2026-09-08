@@ -368,6 +368,19 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
         # mode being that nothing reports an error, the stack comes back,
         # and the data is simply gone.
         _s3.PostgresDumpTarget(container="postgres", database="postgres", user="nexus-postgres"),
+        # Unity Catalog's metastore. Listed for a reason the other entries
+        # do not have: the catalog is only half the state. The table DATA
+        # lives in Cloudflare R2 and survives a rebuild teardown on its own,
+        # so without this dump the objects would come back while the catalog
+        # pointing at them would not -- Delta files sitting in a bucket that
+        # nothing knows how to name. Restoring both is what makes
+        # `SELECT * FROM unity.<schema>.<table>` work after a spin-up
+        # without re-registering anything.
+        _s3.PostgresDumpTarget(
+            container="unity-catalog-db",
+            database="unitycatalog",
+            user="nexus-unitycatalog",
+        ),
     )
     rsync = (
         _s3.RsyncTarget(

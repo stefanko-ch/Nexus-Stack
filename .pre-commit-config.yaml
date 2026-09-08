@@ -108,7 +108,12 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-        files: ^scripts/.*\.sh$
+        # scripts/ AND stacks/: three stack scripts run on the server
+        # (jupyter/setup-s3a-jars.sh, openmetadata/init-db.sh,
+        # unity-catalog/entrypoint.sh) and were unlinted while the pattern
+        # named only scripts/. All three already pass at this severity, so
+        # widening it cost nothing and closed the gap.
+        files: ^(scripts|stacks)/.*\.sh$
         args:
           # `--severity=error` only blocks real bugs; the helpers carry a
           # few pre-existing style/info nits we tolerate.

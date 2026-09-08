@@ -50,6 +50,7 @@ from nexus_deploy.services import (
     render_remote_script,
     render_sftpgo_hook,
     render_superset_hook,
+    render_unity_catalog_hook,
     render_uptime_kuma_hook,
     render_wikijs_hook,
     render_windmill_hook,
@@ -108,7 +109,7 @@ def _make_env(admin_email: str = "ops@example.com") -> BootstrapEnv:
 
 def test_supported_hooks_contains_all_specs() -> None:
     """5 REST hooks + 3 docker-exec hooks + Filestash (python) +
-    6 additional admin-setups."""
+    7 additional admin-setups."""
     assert set(supported_hooks()) == {
         # REST first-init
         "portainer",
@@ -127,6 +128,9 @@ def test_supported_hooks_contains_all_specs() -> None:
         "garage",
         "wikijs",
         "dify",
+        # Creates the `unity` catalog the Spark config names; a fresh
+        # PostgreSQL metastore has none, so every query would 404.
+        "unity-catalog",
         "windmill",
         "sftpgo",
         # pg-ducklake bootstrap-SQL re-apply
@@ -2525,3 +2529,75 @@ def test_render_redpanda_hook_bounds_both_admin_api_writes() -> None:
         assert matching[0].count(timeout) == 1, (
             f"the {label} must carry exactly one {timeout!r}, got: {matching[0]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Unity Catalog (create the `unity` catalog on a fresh metastore)
+# ---------------------------------------------------------------------------
+
+
+def test_render_unity_catalog_hook_basic() -> None:
+    script = render_unity_catalog_hook(_make_config(), _make_env())
+    assert "unity_catalog_hook()" in script
+    # `docker exec` with the container's own wget, not host curl: this API
+    # publishes no port, and the image has no curl.
+    assert "docker exec unity-catalog wget" in script
+    assert "curl" not in script
+    assert "--post-data" in script
+    assert "RESULT hook=unity-catalog" in script
+
+
+def test_render_unity_catalog_hook_asks_before_creating() -> None:
+    """Idempotent by a GET, not by tolerating a failed POST.
+
+    A spin-up runs this on every deploy, so the second run must report
+    `already-configured` rather than failing on a catalog that exists.
+    """
+    script = render_unity_catalog_hook(_make_config(), _make_env())
+    assert "/api/2.1/unity-catalog/catalogs/unity" in script
+    assert "status=already-configured" in script
+
+
+def test_render_unity_catalog_hook_rechecks_after_a_failed_post() -> None:
+    """A losing race must report already-configured, not failed.
+
+    Two deploys can reach this hook at once — spin-up.yml has no concurrency
+    group (#801) — and a duplicate POST is refused. Reporting `failed` for a
+    catalog that demonstrably exists is a false alarm in a workflow log people
+    are meant to trust, so the hook asks again before saying so.
+    """
+    script = render_unity_catalog_hook(_make_config(), _make_env())
+    # Once to skip creation, once after a failed POST.
+    assert script.count("/api/2.1/unity-catalog/catalogs/unity") == 2
+    assert script.count("status=already-configured") == 2
+    assert "status=failed" in script
+
+
+def test_render_unity_catalog_hook_bounds_every_probe() -> None:
+    """Every wget carries -T, the readiness loop's included.
+
+    BusyBox wget defaults to a 900-second network read timeout. A server that
+    accepts the connection and then stalls would hang the hook for a quarter of
+    an hour per call, and the loop's `$SECONDS < 180` bound does not help --
+    that check only runs between iterations, never during one. Same reason
+    `_render_wait_healthy` passes curl a `--max-time`.
+
+    Asserted over ALL calls rather than the one a reviewer happened to flag:
+    the flagged line was the third of four.
+    """
+    script = render_unity_catalog_hook(_make_config(), _make_env())
+    calls = [line for line in script.splitlines() if "wget" in line]
+    assert calls, "no wget call rendered — this test would pass vacuously"
+    assert all(" -T " in line for line in calls), calls
+
+
+def test_unity_catalog_hook_is_registered() -> None:
+    """Registered under the services.yaml key.
+
+    Without the hook a fresh PostgreSQL metastore has no `unity` catalog, and
+    every Spark query fails with `404 CATALOG_NOT_FOUND` against a stack whose
+    container is healthy and whose API answers.
+    """
+    from nexus_deploy.services import _HOOK_REGISTRY
+
+    assert _HOOK_REGISTRY["unity-catalog"] is render_unity_catalog_hook

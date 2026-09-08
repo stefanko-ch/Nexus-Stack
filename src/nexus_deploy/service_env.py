@@ -632,6 +632,68 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_unity_catalog(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Unity Catalog: Postgres metastore, plus R2 for the credential generator.
+
+    Everything here reaches the container as an environment variable and is
+    turned into a config file by ``stacks/unity-catalog/entrypoint.sh``. No
+    sidecar, and no config bind mount — the reasoning is in that script's
+    header, and it is the same inode-pinning bug ``_render_spark`` below
+    works around by mounting a directory. Unity Catalog cannot use that fix:
+    ``etc/conf`` also holds the token-signing keys.
+
+    ``R2_ACCOUNT_ID`` is derived from the endpoint rather than carried as its
+    own config field. Cloudflare builds the S3 endpoint as
+    ``https://<account id>.r2.cloudflarestorage.com``
+    (``tofu/stack/outputs.tf`` composes it exactly that way), so the account id
+    is the first host label. Adding a field would mean two sources that can
+    disagree, and nothing would notice which one was wrong.
+
+    The R2 block is optional: a deployment with no data bucket still gets a
+    working catalog for managed metadata, and the entrypoint says so on
+    stderr. The DB password is not optional — an empty one leaves Postgres
+    initialising with no auth and restart-looping, so it fails here instead.
+    """
+    if _empty(c.unity_catalog_db_password):
+        raise ServiceEnvError(
+            "Unity Catalog enabled but UNITY_CATALOG_DB_PASSWORD is empty — "
+            "`tofu apply` in tofu/stack generates "
+            "random_password.unity_catalog_db_password and the same run pushes "
+            "it to Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log. Aborting to "
+            "avoid a restart-looping Postgres container with no auth.",
+        )
+    del e  # not used; signature uniform across renderers
+
+    endpoint = c.r2_data_endpoint or ""
+    # Only the host's first label, and only when the endpoint is the shape
+    # Cloudflare documents. Anything else yields an empty account id, which
+    # makes the entrypoint refuse the R2 block outright rather than sign JWTs
+    # with a subject that R2 will reject at vend time — a failure that would
+    # otherwise surface as an opaque 403 during a CREATE TABLE.
+    account_id = ""
+    host = endpoint.split("://", 1)[-1].split("/", 1)[0]
+    if host.endswith(".r2.cloudflarestorage.com"):
+        account_id = host.split(".", 1)[0]
+
+    return RenderedEnv(
+        env_vars={
+            "UNITY_CATALOG_DB_PASSWORD": c.unity_catalog_db_password or "",
+            "R2_DATA_BUCKET": c.r2_data_bucket or "",
+            "R2_ACCOUNT_ID": account_id,
+            # The host verbatim, not rebuilt from the account id. Cloudflare
+            # also serves jurisdiction-bound endpoints
+            # (<account>.eu.r2.cloudflarestorage.com), and the generator signs
+            # this as the JWT audience — a reconstructed host would drop the
+            # jurisdiction label and mint tokens R2 refuses, with a signature
+            # that verifies locally.
+            "R2_DATA_ENDPOINT_HOST": host if account_id else "",
+            "R2_DATA_ACCESS_KEY": c.r2_data_access_key or "",
+            "R2_DATA_SECRET_KEY": c.r2_data_secret_key or "",
+        },
+    )
+
+
 def _render_nussknacker(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Nussknacker: replace the five shipped demo accounts.
 
@@ -1540,7 +1602,7 @@ def _render_woodpecker(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
-def _spark_defaults_conf(c: NexusConfig) -> str:
+def _spark_defaults_conf(c: NexusConfig, *, unity_catalog_enabled: bool) -> str:
     """Render ``spark-defaults.conf`` — per-bucket S3A, plus redaction.
 
     This file replaced the ``SPARK_HADOOP_fs_s3a_*`` environment block that
@@ -1658,6 +1720,36 @@ def _spark_defaults_conf(c: NexusConfig) -> str:
             f"{prefix}.secret.key        {secret_key}",
         ]
 
+    if unity_catalog_enabled:
+        lines += [
+            "",
+            "# --- Unity Catalog ---------------------------------------------------",
+            "# Only written when the unity-catalog stack is enabled. Naming a",
+            "# catalog whose server is not running would make every Spark session",
+            "# fail at startup rather than only the queries that use it.",
+            "#",
+            "# Reached as `unitycatalog`, the compose SERVICE name — the container",
+            "# is named `unity-catalog`, which is not a DNS alias on app-network.",
+            "#",
+            "# spark.sql.defaultCatalog is deliberately NOT set: leaving Spark's",
+            "# own catalog in place keeps every existing notebook working, and a",
+            "# Unity Catalog table is addressed explicitly as unity.<schema>.<table>.",
+            "#",
+            "# fs.s3 (not just fs.s3a) because Unity Catalog rejects an s3a:// table",
+            "# location outright — `Unsupported URI scheme: s3a` — so locations are",
+            "# s3:// and something has to serve that scheme.",
+            "spark.sql.catalog.unity                 io.unitycatalog.spark.UCSingleCatalog",
+            "spark.sql.catalog.unity.uri             http://unitycatalog:8080",
+            # Empty value, written as a bare key. server.authorization=disable in
+            # the unity-catalog stack, so there is no token to send — but the
+            # connector reads the property, and an absent one is not the same as
+            # an empty one.
+            "spark.sql.catalog.unity.token",
+            "spark.sql.extensions                    io.delta.sql.DeltaSparkSessionExtension",
+            "spark.sql.catalog.spark_catalog         org.apache.spark.sql.delta.catalog.DeltaCatalog",
+            "spark.hadoop.fs.s3.impl                 org.apache.hadoop.fs.s3a.S3AFileSystem",
+        ]
+
     lines += [
         "",
         "# Spark's default is (?i)secret|password|token, which redacts",
@@ -1669,8 +1761,16 @@ def _spark_defaults_conf(c: NexusConfig) -> str:
     return "\n".join(lines)
 
 
-def _render_spark(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Spark: worker sizing in .env, object storage in a sidecar."""
+def _render_spark(
+    c: NexusConfig, e: BootstrapEnv, *, unity_catalog_enabled: bool = False
+) -> RenderedEnv:
+    """Spark: worker sizing in .env, object storage and catalog in a sidecar.
+
+    ``unity_catalog_enabled`` comes from the cross-spec branch in
+    :func:`render_all_env_files` -- the same route ``jupyter`` uses for
+    ``spark_enabled``. It cannot be read from ``NexusConfig``, which carries
+    credentials rather than the enabled-service list.
+    """
     del e  # not used; signature uniform across renderers
     return RenderedEnv(
         env_vars={
@@ -1696,7 +1796,7 @@ def _render_spark(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
                 # nothing. That is not true of every image — unity-catalog
                 # mounts a single file for exactly the opposite reason.
                 relative_path="conf/spark-defaults.conf",
-                content=_spark_defaults_conf(c),
+                content=_spark_defaults_conf(c, unity_catalog_enabled=unity_catalog_enabled),
                 # mode 0o644, NOT 0o600, and the credentials in this file
                 # do not change that. Same constraint as Grafana's
                 # prometheus.yml a few hundred lines above: the file is
@@ -1913,6 +2013,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
     EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),
@@ -2027,6 +2128,10 @@ def render_all_env_files(
     """
     results: list[ServiceRenderResult] = []
     spark_enabled = "spark" in enabled
+    # Spark only names the Unity Catalog server when that stack is actually
+    # deployed; see _spark_defaults_conf for why a dangling catalog is worse
+    # than no catalog.
+    unity_catalog_enabled = "unity-catalog" in enabled
     # Grafana renders ``prometheus.yml`` from a template that lives
     # alongside the docker-compose at ``stacks_dir/grafana/``. Read it
     # ONCE here so the renderer stays a pure (config, env) → result
@@ -2082,6 +2187,8 @@ def render_all_env_files(
         # needs the prometheus.yml.template loaded from stacks_dir.
         if spec.service_name == "jupyter":
             rendered = _render_jupyter(config, env, spark_enabled=spark_enabled)
+        elif spec.service_name == "spark":
+            rendered = _render_spark(config, env, unity_catalog_enabled=unity_catalog_enabled)
         elif spec.service_name == "grafana":
             rendered = _render_grafana(config, env, prometheus_template=prometheus_template)
         elif spec.service_name == "litellm":
