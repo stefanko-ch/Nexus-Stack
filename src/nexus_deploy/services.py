@@ -2240,6 +2240,13 @@ unity_catalog_hook() {{
         --post-data='{{"name":"unity","comment":"Default catalog for Nexus Stack. Spark reaches it as unity.<schema>.<table>."}}' \
         {shlex.quote(api)} 2>/dev/null; then
         echo "RESULT hook=unity-catalog status=configured"
+    elif docker exec unity-catalog wget -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
+        # The POST failed but the catalog is there. Two deploys can reach this
+        # hook at once -- spin-up.yml has no concurrency group (#801) -- and the
+        # loser of that race would otherwise report `failed` for a catalog that
+        # exists. Re-asking is also the honest answer for any other POST failure
+        # that left the catalog behind.
+        echo "RESULT hook=unity-catalog status=already-configured"
     else
         echo "  ⚠ Could not create the 'unity' catalog — Spark queries will report CATALOG_NOT_FOUND" >&2
         echo "RESULT hook=unity-catalog status=failed"

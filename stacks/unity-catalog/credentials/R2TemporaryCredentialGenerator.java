@@ -1,13 +1,16 @@
 package ch.nexusstack.unitycatalog;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.unitycatalog.server.service.credential.CredentialContext;
+import io.unitycatalog.server.utils.NormalizedURL;
 import io.unitycatalog.server.service.credential.aws.AwsCredentialGenerator;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import software.amazon.awssdk.services.sts.model.Credentials;
@@ -50,6 +53,10 @@ import software.amazon.awssdk.services.sts.model.Credentials;
  * {@code server.properties}, because {@code AwsCredentialVendor} instantiates this
  * class through {@code Class.forName(...).getDeclaredConstructor().newInstance()} —
  * a no-argument constructor, which gets handed no configuration at all.
+ *
+ * <p>Each token is confined to the locations the request actually named — see
+ * {@link #pathsFor} — so a client that asked for one table cannot reach the
+ * table beside it.
  *
  * <p>A fresh token is minted on <b>every</b> call. The alternative — minting once at
  * deploy time and writing the result into a config file — expires while the stack is
@@ -148,7 +155,7 @@ public class R2TemporaryCredentialGenerator implements AwsCredentialGenerator {
 
     Instant now = Instant.now();
     Instant expiry = now.plusSeconds(ttlSeconds);
-    String jwt = signJwt(bucket, scope, now, expiry);
+    String jwt = signJwt(bucket, scope, pathsFor(ctx.getLocations()), now, expiry);
 
     return Credentials.builder()
         .accessKeyId(parentAccessKeyId)
@@ -159,7 +166,66 @@ public class R2TemporaryCredentialGenerator implements AwsCredentialGenerator {
         .build();
   }
 
-  private String signJwt(String bucket, String scope, Instant issuedAt, Instant expiry) {
+  /**
+   * The {@code paths} claim confining the token, or {@code null} for bucket-wide.
+   *
+   * <p>Without it the token opens the entire data lake at its scope: a client that
+   * asked for one table could read and write every other one beside it. Unity
+   * Catalog's own STS generator narrows the same way, through
+   * {@code AwsPolicyGenerator.generatePolicy(ctx.getPrivileges(), ctx.getLocations())}.
+   *
+   * <p><b>Two entries per location, and both are load-bearing.</b> Measured against
+   * the live bucket:
+   *
+   * <ul>
+   *   <li>{@code prefixPaths} needs the trailing slash. Granted {@code data/tbl},
+   *       a token can still write {@code data/tbl2/leak.txt} — R2 matches the
+   *       prefix as a string, and the sibling table starts with it. Granted
+   *       {@code data/tbl/}, that write is refused.
+   *   <li>{@code objectPaths} needs the bare key. S3A's {@code getFileStatus}
+   *       HEADs {@code data/tbl} with no slash to decide whether the location
+   *       exists, and that key is not under {@code data/tbl/} — so a
+   *       prefix-only grant fails the CREATE TABLE with
+   *       {@code AccessDeniedException ... 403} before anything is written.
+   * </ul>
+   *
+   * With both, the HEAD answers 404 (absent, not forbidden), LIST and the writes
+   * inside succeed, and the sibling stays denied.
+   *
+   * <p>Returns {@code null} rather than a partial claim when any location cannot
+   * be narrowed — a bucket-root location, say. Emitting the others would silently
+   * deny the one that could not be expressed, which fails later and further away
+   * than simply not narrowing.
+   */
+  private ObjectNode pathsFor(List<NormalizedURL> locations) {
+    if (locations == null || locations.isEmpty()) {
+      return null;
+    }
+    ArrayNode prefixPaths = MAPPER.createArrayNode();
+    ArrayNode objectPaths = MAPPER.createArrayNode();
+    for (NormalizedURL location : locations) {
+      String path = location.toUri().getPath();
+      if (path == null) {
+        return null;
+      }
+      String key = path.startsWith("/") ? path.substring(1) : path;
+      while (key.endsWith("/")) {
+        key = key.substring(0, key.length() - 1);
+      }
+      if (key.isEmpty()) {
+        return null;
+      }
+      prefixPaths.add(key + "/");
+      objectPaths.add(key);
+    }
+    ObjectNode paths = MAPPER.createObjectNode();
+    paths.set("prefixPaths", prefixPaths);
+    paths.set("objectPaths", objectPaths);
+    return paths;
+  }
+
+  private String signJwt(
+      String bucket, String scope, ObjectNode paths, Instant issuedAt, Instant expiry) {
     ObjectNode header = MAPPER.createObjectNode();
     header.put("alg", "HS256");
     header.put("typ", "JWT");
@@ -172,6 +238,9 @@ public class R2TemporaryCredentialGenerator implements AwsCredentialGenerator {
     claims.put("aud", endpointHost);
     claims.put("iat", issuedAt.getEpochSecond());
     claims.put("exp", expiry.getEpochSecond());
+    if (paths != null) {
+      claims.set("paths", paths);
+    }
 
     String signingInput = encodeJson(header) + "." + encodeJson(claims);
     return signingInput + "." + URL_ENCODER.encodeToString(hmacSha256(signingInput));

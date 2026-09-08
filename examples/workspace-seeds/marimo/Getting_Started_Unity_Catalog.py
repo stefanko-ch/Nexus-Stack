@@ -52,9 +52,26 @@ def _():
     from _nexus_spark import get_spark
 
     spark = get_spark()
+
+    # Seeded notebooks land in every workspace, whether or not the stack they
+    # describe is enabled. Two things have to be true for the cells below, and
+    # they fail differently, so they are reported separately rather than as one
+    # "not available".
     bucket = os.environ.get("R2_BUCKET", "")
-    print("R2 bucket:", bucket or "(not configured — the cells below will skip)")
-    return bucket, spark
+    # Empty unless the deploy wrote the catalog block, which it does only when
+    # the unity-catalog stack is enabled. Checked against the cluster rather
+    # than guessed from the environment: this is the server's configuration,
+    # and Spark Connect keeps client and server config separate.
+    catalog = spark.conf.get("spark.sql.catalog.unity", "")
+    ready = bool(bucket) and bool(catalog)
+
+    print("R2 bucket    :", bucket or "(not configured)")
+    print("unity catalog:", catalog or "(not enabled on this deployment)")
+    if not ready:
+        print()
+        print("The cells below will skip. Enable Unity Catalog in the Control")
+        print("Plane and re-run a spin-up to work through this notebook.")
+    return bucket, ready, spark
 
 
 @app.cell
@@ -71,9 +88,9 @@ def _(mo):
 
 
 @app.cell
-def _(bucket, spark):
-    if not bucket:
-        print("skipped — no R2 bucket configured for this deployment")
+def _(bucket, ready, spark):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
     else:
         spark.sql("CREATE SCHEMA IF NOT EXISTS unity.workshop")
         spark.sql("SHOW SCHEMAS IN unity").show()
@@ -100,9 +117,9 @@ def _(mo):
 
 
 @app.cell
-def _(bucket, spark):
-    if not bucket:
-        print("skipped — no R2 bucket configured for this deployment")
+def _(bucket, ready, spark):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
     else:
         _location = f"s3://{bucket}/workshop/cities"
         spark.sql(f"""
@@ -132,9 +149,9 @@ def _(mo):
 
 
 @app.cell
-def _(bucket, spark):
-    if not bucket:
-        print("skipped — no R2 bucket configured for this deployment")
+def _(bucket, ready, spark):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
     else:
         spark.sql("""
             INSERT INTO unity.workshop.cities VALUES
@@ -165,9 +182,9 @@ def _(mo):
 
 
 @app.cell
-def _(bucket, spark):
-    if not bucket:
-        print("skipped — no R2 bucket configured for this deployment")
+def _(bucket, ready, spark):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
     else:
         spark.sql("SHOW TABLES IN unity.workshop").show()
         spark.sql("DESCRIBE TABLE unity.workshop.cities").show()

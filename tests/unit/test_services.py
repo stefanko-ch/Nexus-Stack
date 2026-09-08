@@ -2558,6 +2558,21 @@ def test_render_unity_catalog_hook_asks_before_creating() -> None:
     assert "status=already-configured" in script
 
 
+def test_render_unity_catalog_hook_rechecks_after_a_failed_post() -> None:
+    """A losing race must report already-configured, not failed.
+
+    Two deploys can reach this hook at once — spin-up.yml has no concurrency
+    group (#801) — and a duplicate POST is refused. Reporting `failed` for a
+    catalog that demonstrably exists is a false alarm in a workflow log people
+    are meant to trust, so the hook asks again before saying so.
+    """
+    script = render_unity_catalog_hook(_make_config(), _make_env())
+    # Once to skip creation, once after a failed POST.
+    assert script.count("/api/2.1/unity-catalog/catalogs/unity") == 2
+    assert script.count("status=already-configured") == 2
+    assert "status=failed" in script
+
+
 def test_unity_catalog_hook_is_registered() -> None:
     """Registered under the services.yaml key.
 

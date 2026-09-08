@@ -241,6 +241,20 @@ temporary secret and whose `base64("jwt/" + jwt)` is the session token. A
 fresh token per call, scoped down to `object-read-only` when the request
 only needs `SELECT`.
 
+**Each token is confined to the locations the request named.** Without that,
+a client that asked for one table would receive a token good for the entire
+data lake — Unity Catalog's own STS generator narrows the same way. The JWT
+carries two entries per location, and both are needed:
+
+| Claim | Value | Why |
+|---|---|---|
+| `paths.prefixPaths` | `data/tbl/` | The trailing slash is what stops it. Granted `data/tbl`, the token can still write `data/tbl2/leak.txt` — R2 matches the prefix as a string and the sibling table starts with it. |
+| `paths.objectPaths` | `data/tbl` | S3A's `getFileStatus` HEADs the bare key to decide whether the location exists, and that key is not under `data/tbl/`. A prefix-only grant fails `CREATE TABLE` with `AccessDeniedException … 403` before anything is written. |
+
+Both measured against the live bucket. With the pair, the HEAD answers 404
+(absent, not forbidden), LIST and writes inside succeed, and the neighbouring
+table stays denied.
+
 One non-obvious piece of configuration comes with it. A bucket entry is
 dropped unless **either** `bucketPath` + `region` + `awsRoleArn` **or**
 `accessKey` + `secretKey` + `sessionToken` is complete — and
