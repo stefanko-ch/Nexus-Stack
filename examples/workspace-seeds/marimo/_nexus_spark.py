@@ -23,7 +23,7 @@ SparkConf to the remote driver — Hadoop properties (s3a endpoint, keys)
 must be set on the spark-connect *server* side. Setting them here is a
 no-op.
 
-They live in ``stacks/spark/spark-defaults.conf``, rendered per deployment
+They live in ``stacks/spark/conf/spark-defaults.conf``, rendered per deployment
 by ``service_env._render_spark`` and mounted into all three Spark
 containers. This paragraph used to name ``SPARK_HADOOP_*`` environment
 variables instead, which was wrong twice over: they were never read by the

@@ -48,12 +48,20 @@ services:
       # app-network (for Jupyter) and spark-internal (for worker)
       SPARK_MASTER_OPTS: "-Dspark.master.bindAddress=0.0.0.0"
     volumes:
-      # Rendered by service_env._render_spark; carries the object-storage
-      # credentials and the catalog configuration. Read by every
-      # spark-submit / spark-shell / spark-sql in the image, which is why
-      # it is mounted into all three containers rather than passed as
-      # --conf to one of them.
-      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      # The DIRECTORY, not the file inside it. A single-file bind mount
+      # pins the inode, and the deploy's rsync replaces files rather than
+      # rewriting them in place — so a container that outlives a redeploy
+      # keeps reading the copy it saw when it was created. Measured: host
+      # inode 260308 (20:00:41, with the fix) against container inode
+      # 260310 (15:48:40, without it), while the deploy reported success.
+      #
+      # Mounting over /opt/spark/conf hides nothing: the directory does
+      # not exist in apache/spark:4.2.0. SPARK_CONF_DIR defaults to
+      # $SPARK_HOME/conf (bin/load-spark-env.sh:33), so this is where
+      # every spark-submit / spark-shell / spark-sql looks — which is why
+      # all three containers get it rather than one of them getting
+      # --conf flags.
+      - ./conf:/opt/spark/conf:ro
     env_file:
       - path: .env
         required: false
@@ -100,12 +108,20 @@ services:
       # Bind to all interfaces (same multi-network reason as master)
       SPARK_WORKER_OPTS: "-Dspark.worker.bindAddress=0.0.0.0"
     volumes:
-      # Rendered by service_env._render_spark; carries the object-storage
-      # credentials and the catalog configuration. Read by every
-      # spark-submit / spark-shell / spark-sql in the image, which is why
-      # it is mounted into all three containers rather than passed as
-      # --conf to one of them.
-      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      # The DIRECTORY, not the file inside it. A single-file bind mount
+      # pins the inode, and the deploy's rsync replaces files rather than
+      # rewriting them in place — so a container that outlives a redeploy
+      # keeps reading the copy it saw when it was created. Measured: host
+      # inode 260308 (20:00:41, with the fix) against container inode
+      # 260310 (15:48:40, without it), while the deploy reported success.
+      #
+      # Mounting over /opt/spark/conf hides nothing: the directory does
+      # not exist in apache/spark:4.2.0. SPARK_CONF_DIR defaults to
+      # $SPARK_HOME/conf (bin/load-spark-env.sh:33), so this is where
+      # every spark-submit / spark-shell / spark-sql looks — which is why
+      # all three containers get it rather than one of them getting
+      # --conf flags.
+      - ./conf:/opt/spark/conf:ro
     env_file:
       - path: .env
         required: false
@@ -160,12 +176,20 @@ services:
       spark-master:
         condition: service_healthy
     volumes:
-      # Rendered by service_env._render_spark; carries the object-storage
-      # credentials and the catalog configuration. Read by every
-      # spark-submit / spark-shell / spark-sql in the image, which is why
-      # it is mounted into all three containers rather than passed as
-      # --conf to one of them.
-      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+      # The DIRECTORY, not the file inside it. A single-file bind mount
+      # pins the inode, and the deploy's rsync replaces files rather than
+      # rewriting them in place — so a container that outlives a redeploy
+      # keeps reading the copy it saw when it was created. Measured: host
+      # inode 260308 (20:00:41, with the fix) against container inode
+      # 260310 (15:48:40, without it), while the deploy reported success.
+      #
+      # Mounting over /opt/spark/conf hides nothing: the directory does
+      # not exist in apache/spark:4.2.0. SPARK_CONF_DIR defaults to
+      # $SPARK_HOME/conf (bin/load-spark-env.sh:33), so this is where
+      # every spark-submit / spark-shell / spark-sql looks — which is why
+      # all three containers get it rather than one of them getting
+      # --conf flags.
+      - ./conf:/opt/spark/conf:ro
     env_file:
       - path: .env
         required: false

@@ -1679,7 +1679,23 @@ def _render_spark(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         },
         sidecars=(
             SidecarFile(
-                relative_path="spark-defaults.conf",
+                # Into conf/, because the compose file mounts the DIRECTORY
+                # rather than this file. A single-file bind mount pins the
+                # inode, and the deploy's rsync replaces files rather than
+                # rewriting them — so the container would keep reading the
+                # copy it saw at creation time, for as long as it lived.
+                #
+                # Measured on a live deployment before the change: host
+                # inode 260308 written at 20:00:41 carrying the fix, while
+                # `docker exec spark-connect stat` reported inode 260310
+                # from 15:48:40 without it. The deploy reported success and
+                # the cluster ran the previous configuration.
+                #
+                # Safe here specifically: /opt/spark/conf does not exist in
+                # apache/spark:4.2.0 (checked), so mounting over it hides
+                # nothing. That is not true of every image — unity-catalog
+                # mounts a single file for exactly the opposite reason.
+                relative_path="conf/spark-defaults.conf",
                 content=_spark_defaults_conf(c),
                 # mode 0o644, NOT 0o600, and the credentials in this file
                 # do not change that. Same constraint as Grafana's

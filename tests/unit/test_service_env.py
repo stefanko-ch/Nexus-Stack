@@ -1794,7 +1794,11 @@ def test_render_all_writes_spark_defaults_conf(
     file that is a directory.
     """
     render_all_env_files(full_config, full_env, ["spark"], stacks_dir=tmp_path)
-    conf = tmp_path / "spark" / "spark-defaults.conf"
+    # Under conf/, because the compose file mounts the DIRECTORY. A
+    # single-file bind mount pins the inode, and the deploy's rsync
+    # replaces files rather than rewriting them, so a container outliving
+    # a redeploy would keep reading the copy it saw at creation.
+    conf = tmp_path / "spark" / "conf" / "spark-defaults.conf"
     assert conf.exists(), "the mount source must exist or Docker makes a directory"
 
     text = conf.read_text()
@@ -1827,7 +1831,7 @@ def test_spark_defaults_conf_scopes_credentials_per_bucket(
         }
     )
     render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
-    text = (tmp_path / "spark" / "spark-defaults.conf").read_text()
+    text = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
 
     for bucket, endpoint, region, key in (
         ("lake-r2", "https://acct.r2.cloudflarestorage.com", "auto", "R2KEY"),
@@ -1863,7 +1867,7 @@ def test_spark_defaults_conf_omits_a_store_it_cannot_fully_configure(
         }
     )
     render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
-    text = (tmp_path / "spark" / "spark-defaults.conf").read_text()
+    text = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
     assert "spark.hadoop.fs.s3a.bucket.lake-r2" not in text
     assert "R2: not configured" in text
 
@@ -1924,7 +1928,7 @@ def test_spark_redaction_covers_access_keys(
     application, so the default is not enough here.
     """
     render_all_env_files(full_config, full_env, ["spark"], stacks_dir=tmp_path)
-    text = (tmp_path / "spark" / "spark-defaults.conf").read_text()
+    text = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
 
     line = next((ln for ln in text.splitlines() if ln.startswith("spark.redaction.regex")), None)
     assert line is not None, "no redaction override; Spark's default shows access keys"

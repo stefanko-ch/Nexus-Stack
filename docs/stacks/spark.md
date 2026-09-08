@@ -54,7 +54,18 @@ Every jar the Dockerfile downloads is verified against Maven Central's published
 
 ### S3 is configured in a file, not in the environment
 
-`stacks/spark/spark-defaults.conf` is rendered per deployment by `service_env._render_spark` and mounted into all three containers. `spark-defaults.conf.template` next to it is the reviewable copy; the rendered one is gitignored because it holds object-storage credentials.
+`stacks/spark/conf/spark-defaults.conf` is rendered per deployment by `service_env._render_spark`. `spark-defaults.conf.template` beside the `conf/` directory is the reviewable copy; the rendered one is gitignored because it holds object-storage credentials.
+
+**The compose file mounts the directory, not the file, and that distinction is load-bearing.** A single-file bind mount pins the inode. The deploy's rsync replaces files rather than rewriting them in place, so a container that outlives a redeploy keeps reading the copy it saw when it was created — indefinitely, while the deploy reports success. Measured on a live deployment:
+
+```text
+host      inode 260308  written 20:00:41  (carries the fix)
+container inode 260310  written 15:48:40  (does not)
+```
+
+Mounting over `/opt/spark/conf` hides nothing: that directory does not exist in `apache/spark:4.2.0`. `SPARK_CONF_DIR` defaults to `$SPARK_HOME/conf` (`bin/load-spark-env.sh:33`), so this is where every `spark-submit`, `spark-shell` and `spark-sql` looks.
+
+This is not a rule to copy blindly — [Unity Catalog](unity-catalog.md) mounts a single file for the opposite reason, because mounting its directory would hide the image's own log4j2 configuration. The question to ask is what else lives in the target directory.
 
 Before Spark 4.2.0 this stack set `SPARK_HADOOP_fs_s3a_*` environment variables instead. **They never did anything:**
 
@@ -113,7 +124,7 @@ Both protocols hit the same worker pool — applications submitted via classic 7
 
 - **Worker cores:** Configurable via `SPARK_WORKER_CORES` (default: 2)
 - **Worker memory:** Configurable via `SPARK_WORKER_MEMORY` (default: 3g)
-- **S3 access:** Configured in the rendered `spark-defaults.conf`, per bucket, for whichever of Cloudflare R2 and Hetzner Object Storage have credentials. See the section above — the `SPARK_HADOOP_fs_s3a_*` environment variables this used to name never applied.
+- **S3 access:** Configured in the rendered `conf/spark-defaults.conf`, per bucket, for whichever of Cloudflare R2 and Hetzner Object Storage have credentials. See the section above — the `SPARK_HADOOP_fs_s3a_*` environment variables this used to name never applied.
 
 ### Resource Limits
 
