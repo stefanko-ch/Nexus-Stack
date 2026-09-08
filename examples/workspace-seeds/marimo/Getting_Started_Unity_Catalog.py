@@ -96,7 +96,7 @@ def _(bucket, ready, spark):
     if not ready:
         print("skipped — see the setup cell above for which half is missing")
     else:
-        spark.sql("CREATE SCHEMA IF NOT EXISTS unity.workshop")
+        spark.sql("CREATE SCHEMA IF NOT EXISTS unity.demo")
         spark.sql("SHOW SCHEMAS IN unity").show()
     return
 
@@ -125,9 +125,9 @@ def _(bucket, ready, spark):
     if not ready:
         print("skipped — see the setup cell above for which half is missing")
     else:
-        _location = f"s3://{bucket}/workshop/cities"
+        _location = f"s3://{bucket}/demo/cities"
         spark.sql(f"""
-            CREATE TABLE IF NOT EXISTS unity.workshop.cities (
+            CREATE TABLE IF NOT EXISTS unity.demo.cities (
                 id INT,
                 name STRING,
                 country STRING
@@ -158,14 +158,14 @@ def _(bucket, ready, spark):
         print("skipped — see the setup cell above for which half is missing")
     else:
         spark.sql("""
-            INSERT INTO unity.workshop.cities VALUES
+            INSERT INTO unity.demo.cities VALUES
                 (1, 'Zürich', 'CH'),
                 (2, 'Lisbon', 'PT'),
                 (3, 'Tallinn', 'EE')
         """)
         spark.sql("""
             SELECT DISTINCT id, name, country
-            FROM unity.workshop.cities
+            FROM unity.demo.cities
             ORDER BY id
         """).show()
     return
@@ -190,8 +190,8 @@ def _(bucket, ready, spark):
     if not ready:
         print("skipped — see the setup cell above for which half is missing")
     else:
-        spark.sql("SHOW TABLES IN unity.workshop").show()
-        spark.sql("DESCRIBE TABLE unity.workshop.cities").show()
+        spark.sql("SHOW TABLES IN unity.demo").show()
+        spark.sql("DESCRIBE TABLE unity.demo.cities").show()
     return
 
 

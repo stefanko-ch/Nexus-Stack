@@ -177,13 +177,13 @@ and Delta JARs are baked into `nexus-spark`. Open a notebook and address a
 table by its three-part name:
 
 ```sql
-CREATE SCHEMA IF NOT EXISTS unity.teaching;
+CREATE SCHEMA IF NOT EXISTS unity.demo;
 
-CREATE TABLE unity.teaching.trips (id INT, city STRING) USING delta
+CREATE TABLE unity.demo.trips (id INT, city STRING) USING delta
   LOCATION 's3://<your-r2-bucket>/teaching/trips';
 
-INSERT INTO unity.teaching.trips VALUES (1, 'Zürich');
-SELECT * FROM unity.teaching.trips;
+INSERT INTO unity.demo.trips VALUES (1, 'Zürich');
+SELECT * FROM unity.demo.trips;
 ```
 
 Three details that are easy to get wrong, all of them measured:
