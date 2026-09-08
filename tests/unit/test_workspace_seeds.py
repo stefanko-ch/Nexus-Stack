@@ -12,7 +12,11 @@ from pathlib import Path
 import pytest
 
 SEEDS_DIR = Path(__file__).resolve().parents[2] / "examples" / "workspace-seeds"
-MARIMO_SEEDS = sorted((SEEDS_DIR / "marimo").glob("*.py"))
+# rglob, not glob: the seeder itself walks recursively (seeder.py:170,
+# `root.rglob("*")`), and other seed trees already nest — kestra/flows,
+# kestra/workflows, prefect/flows. A notebook at marimo/<sub>/x.py would
+# therefore ship without this check ever seeing it.
+MARIMO_SEEDS = sorted((SEEDS_DIR / "marimo").rglob("*.py"))
 
 # Marimo's own limit, copied from the version this project runs:
 #
@@ -43,7 +47,9 @@ def test_marimo_seed_directory_is_not_empty() -> None:
     assert MARIMO_SEEDS, f"no marimo seeds found under {SEEDS_DIR / 'marimo'}"
 
 
-@pytest.mark.parametrize("path", MARIMO_SEEDS, ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "path", MARIMO_SEEDS, ids=lambda p: str(p.relative_to(SEEDS_DIR / "marimo"))
+)
 def test_marimo_seed_is_recognisable_as_a_notebook(path: Path) -> None:
     """A seeded notebook must declare itself inside marimo's 512-byte header.
 

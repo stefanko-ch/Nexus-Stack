@@ -126,7 +126,7 @@ Convention background: [examples/README.md](../examples/README.md) carries the f
 
 marimo decides a `.py` file is a notebook by reading only the **first 512 bytes** and checking for both `import marimo` and `marimo.App` (`marimo/_server/files/directory_scanner.py`, `READ_LIMIT = 512`). A long module docstring pushes both markers past that window.
 
-**Flag any new or modified `.py` under `examples/workspace-seeds/marimo/` whose `marimo.App` lands after byte 512.**
+**Flag any new or modified `.py` under `examples/workspace-seeds/marimo/` (including nested paths) where *either* `import marimo` or `marimo.App` is not fully contained in the first 512 bytes.** Both are required, and "fully contained" is the exact test — a marker that starts at byte 505 runs past the boundary and does not count.
 
 Why it matters more than it looks: nothing fails. The notebook opens and runs perfectly by direct URL. The only symptom is a plain code icon instead of a notebook icon in marimo's file browser — and users read that as the seed being absent. Five of six seeds shipped that way, three of them for two weeks, and it was reported as "I don't see the seeds" twice before anyone looked at an icon.
 
