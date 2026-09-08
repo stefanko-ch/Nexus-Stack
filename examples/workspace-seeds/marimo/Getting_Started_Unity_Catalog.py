@@ -199,6 +199,179 @@ def _(bucket, ready, spark):
 def _(mo):
     mo.md(
         r"""
+        ## 5 — A volume, for the files that are not tables
+
+        A table is Delta: columns, rows, a schema. A **volume** is the
+        catalog's answer for everything else — a CSV someone handed you, a
+        folder of images, a trained model. The catalog tracks the name and
+        the location; the bytes live in R2 exactly as a table's do.
+
+        Volumes are not part of Spark SQL. `SHOW VOLUMES` is a Databricks
+        dialect and Spark rejects it, so this section talks to Unity
+        Catalog's REST API directly — with `urllib` from the standard
+        library, no install needed.
+        """
+    )
+    return
+
+
+@app.cell
+def _():
+    import json
+    import os
+    import urllib.error
+    import urllib.request
+
+    UC_API = "http://unitycatalog:8080/api/2.1/unity-catalog"
+
+    def uc(path, body=None, method=None):
+        """Call the catalog. Returns (status, parsed-body-or-text)."""
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(
+            f"{UC_API}{path}",
+            data=data,
+            method=method or ("POST" if data else "GET"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                return resp.status, json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            return exc.code, (exc.read() or b"").decode()[:300]
+
+    r2_endpoint = os.environ.get("R2_ENDPOINT", "")
+    return r2_endpoint, uc
+
+
+@app.cell
+def _(bucket, ready, uc):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
+    else:
+        _location = f"s3://{bucket}/demo/volumes/reports"
+        # Create-if-absent by hand: the API has no IF NOT EXISTS, and a
+        # second run would otherwise fail on a volume that is already there.
+        _status, _existing = uc("/volumes/unity.demo.reports")
+        if _status == 200:
+            print("volume already exists:", _existing["storage_location"])
+        else:
+            print(
+                uc(
+                    "/volumes",
+                    {
+                        "catalog_name": "unity",
+                        "schema_name": "demo",
+                        "name": "reports",
+                        "volume_type": "EXTERNAL",
+                        "storage_location": _location,
+                    },
+                )[0],
+                _location,
+            )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+        ## 6 — Ask the catalog for permission, then write
+
+        This is the part worth slowing down for. **You never hold the
+        bucket's key.** You name a volume, the catalog hands back
+        credentials minted for that request, and they expire.
+
+        Ask for `WRITE_VOLUME` and you get write access; ask for
+        `READ_VOLUME` and the token cannot write at all. Either way it is
+        confined to this volume's prefix — a token for `demo/volumes/reports`
+        cannot touch `demo/volumes/anything-else`.
+
+        PyArrow does the S3 work here because it ships with this image and
+        speaks session tokens. `boto3` is not installed; DuckDB would work
+        too.
+        """
+    )
+    return
+
+
+@app.cell
+def _(r2_endpoint, ready, uc):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
+    elif not r2_endpoint:
+        print("skipped — R2_ENDPOINT is not set for this deployment")
+    else:
+        import pyarrow as pa
+        import pyarrow.csv as pacsv
+        from pyarrow import fs
+
+        _volume = uc("/volumes/unity.demo.reports")[1]
+        _status, _vend = uc(
+            "/temporary-volume-credentials",
+            {"volume_id": _volume["volume_id"], "operation": "WRITE_VOLUME"},
+        )
+        _cred = _vend["aws_temp_credentials"]
+
+        _s3 = fs.S3FileSystem(
+            access_key=_cred["access_key_id"],
+            secret_key=_cred["secret_access_key"],
+            session_token=_cred["session_token"],
+            endpoint_override=r2_endpoint,
+            region="auto",
+        )
+        # PyArrow paths are bucket-relative-with-bucket, not URLs: strip the
+        # scheme from what the catalog returned rather than rebuilding it.
+        _key = _volume["storage_location"].removeprefix("s3://") + "/cities.csv"
+
+        _table = pa.table({"id": [1, 2, 3], "name": ["Zürich", "Lisbon", "Tallinn"]})
+        with _s3.open_output_stream(_key) as _out:
+            pacsv.write_csv(_table, _out)
+        print("wrote  ", _key)
+
+        with _s3.open_input_stream(_key) as _in:
+            print("read   ", _in.read().decode().strip().replace("\n", " | "))
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+        ## 7 — Both kinds of object, side by side
+
+        The catalog now holds a table and a volume in the same schema, and
+        the Control Plane UI lists both under `unity` → `demo`.
+        """
+    )
+    return
+
+
+@app.cell
+def _(ready, uc):
+    if not ready:
+        print("skipped — see the setup cell above for which half is missing")
+    else:
+        print(
+            "tables :",
+            [
+                t["name"]
+                for t in uc("/tables?catalog_name=unity&schema_name=demo")[1].get("tables", [])
+            ],
+        )
+        print(
+            "volumes:",
+            [
+                v["name"]
+                for v in uc("/volumes?catalog_name=unity&schema_name=demo")[1].get("volumes", [])
+            ],
+        )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
         ## What just happened, and why it survives
 
         The Delta files went to R2 and the registration went to Unity
@@ -211,8 +384,29 @@ def _(mo):
         read-only when the query only reads. The long-lived key stays
         inside the catalog server.
 
-        You can see the same table from the Unity Catalog UI at
-        `https://unity-catalog.<your-domain>`.
+        The same applies to the volume, with one difference worth noticing:
+        the table's credentials were vended to Spark without you seeing
+        them, while for the volume you asked and received them yourself.
+        Same mechanism, one step more visible.
+
+        ## Why Functions and Models stay empty
+
+        Open the catalog UI at `https://unity-catalog.<your-domain>` and the
+        schema shows four sections. Two of them will have nothing in them,
+        and that is not a fault in this deployment:
+
+        - **Functions** — the catalog can store one, but the Spark connector
+          does not implement Spark's function interface. Any attempt from a
+          notebook answers `MISSING_CATALOG_ABILITY.FUNCTIONS: Catalog unity
+          does not support functions`. Registering one you cannot call would
+          fill the section and teach nothing.
+        - **Models** — Unity Catalog keeps model artefacts in a *managed*
+          location, and this stack configures none: tables and volumes both
+          carry an explicit location instead. Creating one fails with
+          `FAILED_PRECONDITION ... has managed location configured`.
+
+        Both are tracked as issues in Nexus-Stack rather than worked around
+        here.
         """
     )
     return
