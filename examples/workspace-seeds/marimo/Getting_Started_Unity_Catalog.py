@@ -1,18 +1,8 @@
 """Create and query a Delta table that outlives the server.
 
-The point of this notebook is not Delta and not SQL — it is that the table
-you create here is still there after a teardown and spin-up, which is not
-true of anything written to the server's own disk.
-
-Two independent pieces make that work, and both have to be in place:
-
-* **Unity Catalog** remembers that the table exists, in a PostgreSQL
-  metastore that the snapshot layer carries across as a `pg_dump`.
-* **Cloudflare R2** holds the files themselves, outside the server
-  entirely.
-
-Run `Verify_Spark_And_S3.py` first if anything here fails — it isolates
-which layer broke.
+Deliberately short: marimo reads only the first 512 bytes to decide a file
+is a notebook, and prose above `import marimo` pushes the markers out of
+that window. The introduction lives in the first cell instead.
 """
 
 import marimo
@@ -33,6 +23,20 @@ def _(mo):
     mo.md(
         r"""
         # Unity Catalog on R2
+
+        The point of this notebook is not Delta and not SQL — it is that the
+        table you create here is still there after a teardown and spin-up,
+        which is not true of anything written to the server's own disk.
+
+        Two independent pieces make that work, and both have to be in place:
+
+        * **Unity Catalog** remembers that the table exists, in a PostgreSQL
+          metastore that the snapshot layer carries across as a `pg_dump`.
+        * **Cloudflare R2** holds the files themselves, outside the server
+          entirely.
+
+        Run `Verify_Spark_And_S3.py` first if anything here fails — it
+        isolates which layer broke.
 
         A table here has a **three-part name**: `unity.<schema>.<table>`.
         The leading `unity` is the catalog, and it is what tells Spark to

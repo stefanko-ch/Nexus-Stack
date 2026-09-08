@@ -1,35 +1,8 @@
 """Getting Started with PostgREST in Marimo.
 
-PostgREST is a Go binary that introspects a Postgres schema and serves
-every table / view / RPC as a REST endpoint. The Nexus-Stack PostgREST
-stack points it at the shared `postgres` stack, so any tables you
-create in that database are immediately query-able over HTTP.
-
-This notebook walks through the API surface:
-
-    1. One-time setup: create a demo schema with a table + sample rows
-       (run once via CloudBeaver/pgAdmin/Adminer/psql — see below)
-    2. List rows with GET /<table>
-    3. Filter (?col=eq.value), order (?order=col.desc), paginate (Range header)
-    4. Insert via POST
-    5. Update via PATCH
-    6. Delete via DELETE
-    7. Fetch the auto-generated OpenAPI spec
-
-Network: hits PostgREST at `http://postgrest:3000` (the internal
-app-network hostname). This bypasses Cloudflare Access since we're
-already inside the trusted compose network — no JWT needed for the
-anon-role traffic in the lab default. For external clients hitting
-`https://postgrest.<domain>`, Cloudflare Access at the edge gates
-who reaches the API.
-
-No extra pip installs needed. The notebook uses `urllib.request` +
-`json` from the stdlib so it works on the un-augmented Marimo image.
-
-This file was seeded into your Forgejo workspace repo from
-``nexus-stack/examples/workspace-seeds/marimo/Getting_Started_PostgREST.py``.
-Edit it in Forgejo or directly in Marimo — your changes persist across
-spin-ups (seeding only adds new files, never overwrites).
+Deliberately short: marimo reads only the first 512 bytes to decide a file
+is a notebook, and prose above `import marimo` pushes the markers out of
+that window. The introduction lives in the first cell instead.
 """
 
 import marimo
@@ -51,9 +24,40 @@ def _(mo):
         r"""
         # Getting Started with PostgREST on Marimo
 
-        PostgREST exposes every table in the configured schema as a REST endpoint.
-        We hit the internal hostname `http://postgrest:3000` (no Cloudflare Access
-        round-trip from inside the compose network).
+        PostgREST is a Go binary that introspects a Postgres schema and
+        serves every table, view and RPC as a REST endpoint. The Nexus-Stack
+        stack points it at the shared `postgres` stack, so a table you
+        create in that database becomes query-able over HTTP — once
+        PostgREST has reloaded its schema cache and the role it connects as
+        can read the table. Both are one step each, and the setup section
+        below does them.
+
+        This notebook walks through the API surface:
+
+        1. One-time setup: a demo schema with a table and sample rows (run
+           once — see below)
+        2. List rows with `GET /<table>`
+        3. Filter (`?col=eq.value`), order (`?order=col.desc`), paginate
+           (`Range` header)
+        4. Insert via `POST`
+        5. Update via `PATCH`
+        6. Delete via `DELETE`
+        7. Fetch the auto-generated OpenAPI spec
+
+        **Network.** The cells hit `http://postgrest:3000`, the internal
+        app-network hostname. That bypasses Cloudflare Access because we are
+        already inside the trusted compose network — no JWT is needed for
+        the anon-role traffic in the lab default. For external clients
+        hitting `https://postgrest.<domain>`, Access at the edge gates who
+        reaches the API.
+
+        No extra installs: the notebook uses `urllib.request` and `json`
+        from the standard library, so it works on the un-augmented Marimo
+        image.
+
+        Seeded from `examples/workspace-seeds/marimo/` in Nexus-Stack. Edit
+        it here or in Forgejo — your changes survive a spin-up, because
+        seeding only adds files and never overwrites.
 
         ## One-time setup (run in CloudBeaver / pgAdmin / Adminer / psql)
 

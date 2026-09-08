@@ -786,6 +786,29 @@ When adding or editing seeded examples:
 5. **Make seed files idempotent.** A user may execute a seeded flow more than once. Either detect pre-existing state and skip, or design the flow so re-runs are safe (overwriting outputs is fine; accumulating side-effects is not).
 6. **Existing files in Forgejo are never overwritten.** The seed loop uses HTTP `POST` (create-only); it returns 422 for files that already exist and counts them as `SKIPPED`. User edits persist across re-deploys. To ship an updated example, give it a new filename or version-suffix it.
 
+7. **Keep a seeded marimo notebook's module docstring under ~450 bytes.**
+   marimo decides a `.py` file is a notebook by reading only the **first 512
+   bytes** and looking for both `import marimo` and `marimo.App`
+   (`marimo/_server/files/directory_scanner.py`, `READ_LIMIT = 512`). A long
+   module docstring pushes both past that window, and the file then appears
+   in marimo's file browser with a plain code icon instead of a notebook
+   icon.
+
+   Nothing fails when this happens — the notebook opens and runs perfectly
+   by direct URL. The only symptom is that users conclude the seeds are not
+   there, which is exactly how it was reported, twice, before anyone looked
+   at an icon. Five of six seeds were over the limit; the sixth passed at
+   byte 419, by luck.
+
+   So keep a short summary docstring — it is what a reader sees on GitHub —
+   and put the rest in the notebook's **first `mo.md` cell**, where a reader
+   of the notebook sees it instead. Do **not** reach for marimo's
+   `# /// script` escape hatch, which makes it read the whole file: that
+   block exists for PEP 723 metadata and changes `uv run` behaviour.
+
+   `tests/unit/test_workspace_seeds.py` enforces the rule against the real
+   tree, so a violation fails CI rather than shipping silently.
+
 Full details — including the `kestra/flows/` vs `kestra/workflows/` distinction, Kestra namespace derivation from subdirs, and how to add a new per-stack or per-consumer subtype — live in [examples/README.md](examples/README.md).
 
 ## Commit Convention
