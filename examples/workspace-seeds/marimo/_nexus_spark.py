@@ -20,9 +20,19 @@ first get_spark() call.
 
 Note on Hadoop / S3 config: Spark Connect does NOT propagate driver-side
 SparkConf to the remote driver — Hadoop properties (s3a endpoint, keys)
-must be set on the spark-connect *server* side via SPARK_HADOOP_* env
-vars (already wired in stacks/spark/docker-compose.yml). Setting them
-here would be a no-op.
+must be set on the spark-connect *server* side. Setting them here is a
+no-op.
+
+They live in ``stacks/spark/conf/spark-defaults.conf``, rendered per deployment
+by ``service_env._render_spark`` and mounted into all three Spark
+containers. This paragraph used to name ``SPARK_HADOOP_*`` environment
+variables instead, which was wrong twice over: they were never read by the
+official Spark image (that translation is a Bitnami feature), and they no
+longer exist in the compose file.
+
+Credentials are scoped per bucket, so ``s3a://<bucket>/...`` finds its own
+endpoint. The bucket names reach this container through ``.infisical.env``
+as ``R2_BUCKET`` and ``HETZNER_S3_BUCKET``.
 """
 from __future__ import annotations
 

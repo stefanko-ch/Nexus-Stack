@@ -24,11 +24,71 @@ Apache Spark provides a unified analytics engine for large-scale data processing
 
 | Container | Image | Purpose |
 |-----------|-------|---------|
-| `spark-master` | `nexus-spark:4.1.1-python3.13` | Cluster manager + Web UI (port 8088); accepts classic-protocol clients on 7077 |
-| `spark-worker` | `nexus-spark:4.1.1-python3.13` | Task executor (connects to master on 7077) |
-| `spark-connect` | `nexus-spark:4.1.1-python3.13` | gRPC server on 15002 — driver-JVM for thin clients (Marimo, code-server). Connects to master like any other Spark application. |
+| `spark-master` | `nexus-spark:4.2.0-python3.13` | Cluster manager + Web UI (port 8088); accepts classic-protocol clients on 7077 |
+| `spark-worker` | `nexus-spark:4.2.0-python3.13` | Task executor (connects to master on 7077) |
+| `spark-connect` | `nexus-spark:4.2.0-python3.13` | gRPC server on 15002 — driver-JVM for thin clients (Marimo, code-server). Connects to master like any other Spark application. |
 
-> **Custom image:** The official `apache/spark:4.1.1` ships Python 3.10 (Ubuntu 22.04), but our Jupyter / spark-worker setup uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs Python 3.13 via deadsnakes PPA, adds `hadoop-aws` + AWS SDK v2 JARs for S3A filesystem support, and pre-downloads the Spark Connect server JARs (`spark-connect_2.13-4.1.1.jar`, `spark-connect-common_2.13-4.1.1.jar`) into `/opt/spark/jars/` so the Connect server starts without ivy resolution at runtime.
+> **Custom image:** The official `apache/spark:4.2.0` ships Python 3.10 (Ubuntu 22.04), but our Jupyter / spark-worker setup uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs Python 3.13 via deadsnakes PPA, adds `hadoop-aws` + AWS SDK v2 JARs for S3A filesystem support, and pre-downloads the Spark Connect server JARs (`spark-connect_2.13-4.2.0.jar`, `spark-connect-common_2.13-4.2.0.jar`) into `/opt/spark/jars/` so the Connect server starts without ivy resolution at runtime.
+
+### The S3A jars track Spark's bundled Hadoop
+
+This is the part of a version bump that is easy to miss, because nothing fails at build time:
+
+| Spark | bundles Hadoop | so `hadoop-aws` must be | and the AWS SDK v2 |
+|---|---|---|---|
+| 4.1.1 | 3.4.2 | 3.4.2 | 2.29.52 |
+| 4.2.0 | **3.5.0** | **3.5.0** | **2.35.4** |
+
+The Hadoop version comes from `spark-parent_2.13-<version>.pom`, and can be read straight out of the image (`ls /opt/spark/jars/ | grep hadoop-client-api`). The SDK version comes from `hadoop-project-<version>.pom`'s `aws-java-sdk-v2.version`. Leaving `hadoop-aws` behind produces a `NoSuchMethodError` deep inside a task rather than a build failure.
+
+`hadoop-aws` 3.5.0 also introduced a compile-scope dependency that 3.4.2 did not have, `software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3` (1.3.1, from the same POM). It is **mandatory**, measured by removing the jar from the built image and repeating an `s3a://` write:
+
+```text
+java.lang.NoClassDefFoundError:
+  software/amazon/s3/analyticsaccelerator/request/ObjectClient
+```
+
+`S3AFileSystem` loads it eagerly, not only under `fs.s3a.input.stream.type=analytics`. A `hadoop-aws` bump that updates only the two obvious names breaks every S3 path in the stack — which is why [Jupyter's](jupyter.md) `setup-s3a-jars.sh` downloads it too.
+
+Every jar the Dockerfile downloads is verified against Maven Central's published SHA-1.
+
+### S3 is configured in a file, not in the environment
+
+`stacks/spark/conf/spark-defaults.conf` is rendered per deployment by `service_env._render_spark`. `spark-defaults.conf.template` beside the `conf/` directory is the reviewable copy; the rendered one is gitignored because it holds object-storage credentials.
+
+**The compose file mounts the directory, not the file, and that distinction is load-bearing.** A single-file bind mount pins the inode. The deploy's rsync replaces files rather than rewriting them in place, so a container that outlives a redeploy keeps reading the copy it saw when it was created — indefinitely, while the deploy reports success. Measured on a live deployment:
+
+```text
+host      inode 260308  written 20:00:41  (carries the fix)
+container inode 260310  written 15:48:40  (does not)
+```
+
+Mounting over `/opt/spark/conf` hides nothing: that directory does not exist in `apache/spark:4.2.0`. `SPARK_CONF_DIR` defaults to `$SPARK_HOME/conf` (`bin/load-spark-env.sh:33`), so this is where every `spark-submit`, `spark-shell` and `spark-sql` looks.
+
+This is not a rule to copy blindly — [Unity Catalog](unity-catalog.md) mounts a single file for the opposite reason, because mounting its directory would hide the image's own log4j2 configuration. The question to ask is what else lives in the target directory.
+
+Before Spark 4.2.0 this stack set `SPARK_HADOOP_fs_s3a_*` environment variables instead. **They never did anything:**
+
+```bash
+docker run --rm --entrypoint sh apache/spark:4.2.0 -c 'grep -c SPARK_HADOOP /opt/entrypoint.sh'
+# 0
+```
+
+That translation is a Bitnami-image feature. The official image does not do it, and Spark reads only `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` from the environment. S3 access worked from [Jupyter](jupyter.md) only because `stacks/jupyter/spark-init.py` reads the same variables with `os.environ.get()` and applies them by hand — which is why Jupyter still sets them and a test allows it there.
+
+A config file is also the only place that reaches every process that matters. Spark Connect does **not** propagate driver-side `SparkConf`, so a client that sets a property gets ignored; `--conf` flags in the compose `command:` would configure `spark-connect` alone, leaving the master, the workers and any interactive `spark-shell` untouched.
+
+Credentials are scoped per bucket (`fs.s3a.bucket.<name>.endpoint`), because this deployment can reach two stores with different endpoints. A global `fs.s3a.endpoint` would have to be wrong for one of them.
+
+**`endpoint.region` is required, not decorative.** Writing to R2 without one fails on the first deploy with:
+
+```text
+AWSBadRequestException ... Status Code: 400, Request ID: null
+```
+
+A bare 400 with a null request id — R2 rejects the request before parsing it, so there is no error code to look up. Hetzner Object Storage tolerates the omission, which is exactly why both are set: one store working says nothing about the other. `auto` is the value Cloudflare documents for R2; for Hetzner the region is the first label of the endpoint host (`fsn1.your-objectstorage.com` → `fsn1`).
+
+The file also widens `spark.redaction.regex`. Spark's default is `(?i)secret|password|token`, which hides `fs.s3a.secret.key` and leaves `fs.s3a.access.key` visible — and the master UI on port 8088 renders the environment page for every running application.
 
 ```
    ┌──────────────────────┐          ┌──────────────────────┐
@@ -51,10 +111,11 @@ Apache Spark provides a unified analytics engine for large-scale data processing
      └───────┬────────┘
              │ S3 (hadoop-aws)
              ▼
-     ┌────────────────┐
-     │ Hetzner Object │
-     │ Storage (S3)   │
-     └────────────────┘
+     ┌────────────────────────┐
+     │ Cloudflare R2  and/or   │
+     │ Hetzner Object Storage  │
+     │ (per-bucket s3a config) │
+     └────────────────────────┘
 ```
 
 Both protocols hit the same worker pool — applications submitted via classic 7077 and via Connect 15002 share the worker's cores and memory according to standard Spark FIFO scheduling.
@@ -63,7 +124,7 @@ Both protocols hit the same worker pool — applications submitted via classic 7
 
 - **Worker cores:** Configurable via `SPARK_WORKER_CORES` (default: 2)
 - **Worker memory:** Configurable via `SPARK_WORKER_MEMORY` (default: 3g)
-- **S3 access:** Pre-configured via `SPARK_HADOOP_fs_s3a_*` environment variables when Hetzner Object Storage credentials are available
+- **S3 access:** Configured in the rendered `conf/spark-defaults.conf`, per bucket, for whichever of Cloudflare R2 and Hetzner Object Storage have credentials. See the section above — the `SPARK_HADOOP_fs_s3a_*` environment variables this used to name never applied.
 
 ### Resource Limits
 

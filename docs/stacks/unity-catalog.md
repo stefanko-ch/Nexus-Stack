@@ -173,7 +173,7 @@ curl -s http://unitycatalog:8080/api/2.1/unity-catalog/catalogs | jq .
 transcribed from [upstream's Spark integration
 guide](https://docs.unitycatalog.io/integrations/unity-catalog-spark/),
 selecting the row for Spark 4.1.x because [the Spark stack](./spark.md)
-runs `nexus-spark:4.1.1`. Nobody has run it here; treat the first attempt
+runs `nexus-spark:4.2.0`. Nobody has run it here; treat the first attempt
 as a test rather than a recipe, and correct this section with what actually
 worked.
 

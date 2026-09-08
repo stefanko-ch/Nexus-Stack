@@ -1775,6 +1775,168 @@ def test_render_all_jupyter_uses_spark_master_when_spark_enabled(
     assert "SPARK_MASTER=spark://spark-master:7077" in content
 
 
+def test_render_all_writes_spark_defaults_conf(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Spark's object-storage config is a file, not environment variables.
+
+    It used to be `SPARK_HADOOP_fs_s3a_*` on all three containers, which
+    configured nothing: the official apache/spark image has no
+    `SPARK_HADOOP_*` translation (that is a Bitnami feature) and Spark
+    itself reads only `AWS_*` from the environment. Measured:
+
+        docker run --rm --entrypoint sh apache/spark:4.2.0 \
+          -c 'grep -c SPARK_HADOOP /opt/entrypoint.sh'   ->  0
+
+    The file must exist whenever spark is enabled, credentials or not:
+    it is bind-mounted, and Docker creates a *directory* at a mount path
+    whose source is missing, after which spark-submit fails on a config
+    file that is a directory.
+    """
+    render_all_env_files(full_config, full_env, ["spark"], stacks_dir=tmp_path)
+    # Under conf/, because the compose file mounts the DIRECTORY. A
+    # single-file bind mount pins the inode, and the deploy's rsync
+    # replaces files rather than rewriting them, so a container outliving
+    # a redeploy would keep reading the copy it saw at creation.
+    conf = tmp_path / "spark" / "conf" / "spark-defaults.conf"
+    assert conf.exists(), "the mount source must exist or Docker makes a directory"
+
+    text = conf.read_text()
+    assert "spark.hadoop.fs.s3a.impl" in text
+    assert "SPARK_HADOOP" not in text, "that spelling never configured anything"
+
+    # 0o644, not 0o600, and the credentials do not change that: the file is
+    # bind-mounted into containers running as uid 185 while the host copy
+    # belongs to the deploy user. Same constraint as grafana's prometheus.yml.
+    assert conf.stat().st_mode & 0o777 == 0o644
+
+
+def test_spark_defaults_conf_scopes_credentials_per_bucket(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Per-bucket keys, because two stores with different endpoints coexist.
+
+    A global `fs.s3a.endpoint` would have to be wrong for one of them.
+    """
+    config = full_config.model_copy(
+        update={
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://acct.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+            "hetzner_s3_server": "fsn1.your-objectstorage.com",
+            "hetzner_s3_bucket_general": "lake-hz",
+            "hetzner_s3_access_key": "HZKEY",
+            "hetzner_s3_secret_key": "HZSECRET",
+        }
+    )
+    render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+    text = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
+
+    for bucket, endpoint, region, key in (
+        ("lake-r2", "https://acct.r2.cloudflarestorage.com", "auto", "R2KEY"),
+        ("lake-hz", "https://fsn1.your-objectstorage.com", "fsn1", "HZKEY"),
+    ):
+        prefix = f"spark.hadoop.fs.s3a.bucket.{bucket}"
+        assert f"{prefix}.endpoint          {endpoint}" in text
+        assert f"{prefix}.access.key        {key}" in text
+        # The region is not decorative. Without it R2 answers a bare
+        # `400, Request ID: null` — it rejects the request before parsing
+        # it. Hetzner tolerates the omission, so a test that only covered
+        # one store would have passed while the other was broken, which
+        # is what happened on the first deploy of this change.
+        assert f"{prefix}.endpoint.region   {region}" in text
+
+    # No global endpoint: with two stores it can only ever be half right.
+    assert "\nspark.hadoop.fs.s3a.endpoint" not in text
+
+
+def test_spark_defaults_conf_omits_a_store_it_cannot_fully_configure(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """All four values or none — a bucket line without credentials is worse
+    than no bucket line, because S3A then falls back to the default provider
+    chain and fails on an anonymous request instead of saying what is
+    missing."""
+    config = full_config.model_copy(
+        update={
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "https://acct.r2.cloudflarestorage.com",
+            "r2_data_access_key": "",
+            "r2_data_secret_key": "",
+        }
+    )
+    render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+    text = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
+    assert "spark.hadoop.fs.s3a.bucket.lake-r2" not in text
+    assert "R2: not configured" in text
+
+
+def test_spark_refuses_a_cleartext_object_storage_endpoint(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """An http:// endpoint would put the access key on the wire in clear.
+
+    Not reachable through the deploy today — `tofu/stack/outputs.tf`
+    derives the R2 endpoint with the scheme baked in, and Hetzner's is
+    built as an f-string. The check exists because those two are
+    asymmetric in a way that is easy to miss: Hetzner's scheme cannot be
+    wrong by construction, R2's is taken from config verbatim.
+
+    It raises rather than skipping the store. An `http://` endpoint is a
+    misconfiguration, not an absence, and rendering "R2: not configured
+    for this deployment" would be a false statement about a store that is
+    configured, just wrongly.
+    """
+    # Credentials in the URL's userinfo, which is one of the two shapes
+    # that make echoing an endpoint dangerous (a query string is the other).
+    config = full_config.model_copy(
+        update={
+            "r2_data_bucket": "lake-r2",
+            "r2_data_endpoint": "http://URLUSER:URLSECRET@acct.r2.cloudflarestorage.com",
+            "r2_data_access_key": "R2KEY",
+            "r2_data_secret_key": "R2SECRET",
+        }
+    )
+    with pytest.raises(ServiceEnvError) as excinfo:
+        render_all_env_files(config, full_env, ["spark"], stacks_dir=tmp_path)
+
+    message = str(excinfo.value)
+    assert "https" in message.lower()
+
+    # Split per value rather than combined: a compound assertion does not
+    # say which one leaked. This message aborts the deploy and therefore
+    # lands in a GitHub Actions log, which is public for this repository.
+    assert "R2KEY" not in message, "the message must not echo the access key"
+    assert "R2SECRET" not in message, "the message must not echo the secret key"
+    assert "URLUSER" not in message, "the message must not echo URL userinfo"
+    assert "URLSECRET" not in message, "the message must not echo a URL password"
+    assert "acct.r2.cloudflarestorage.com" not in message, (
+        "the message must not echo the endpoint at all — a URL can carry "
+        "credentials in shapes this test does not enumerate"
+    )
+
+
+def test_spark_redaction_covers_access_keys(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Spark's default redaction leaves access keys in plain sight.
+
+    `spark.redaction.regex` defaults to `(?i)secret|password|token`, which
+    hides `fs.s3a.secret.key` and shows `fs.s3a.access.key`. The master UI
+    on port 8088 renders the environment page for every running
+    application, so the default is not enough here.
+    """
+    render_all_env_files(full_config, full_env, ["spark"], stacks_dir=tmp_path)
+    text = (tmp_path / "spark" / "conf" / "spark-defaults.conf").read_text()
+
+    line = next((ln for ln in text.splitlines() if ln.startswith("spark.redaction.regex")), None)
+    assert line is not None, "no redaction override; Spark's default shows access keys"
+    pattern = line.split(None, 1)[1]
+    for token in ("secret", "password", "token", "access"):
+        assert token in pattern, f"redaction pattern does not mention {token!r}: {pattern}"
+
+
 def test_render_all_writes_sidecars_for_seaweedfs(
     full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
 ) -> None:
