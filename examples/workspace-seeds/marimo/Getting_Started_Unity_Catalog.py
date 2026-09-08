@@ -237,7 +237,17 @@ def _():
             with urllib.request.urlopen(req, timeout=20) as resp:
                 return resp.status, json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as exc:
+            # The catalog answered and said no. The body carries the reason.
             return exc.code, (exc.read() or b"").decode()[:300]
+        except urllib.error.URLError as exc:
+            # No answer at all: the container is down, or the name does not
+            # resolve. Caught separately so a stopped catalog reads as a
+            # sentence rather than a traceback — HTTPError is a subclass of
+            # URLError, so the order of these two matters.
+            return "unreachable", (
+                f"{UC_API} did not answer ({exc.reason}). Is the "
+                "unity-catalog stack enabled and running?"
+            )
 
     r2_endpoint = os.environ.get("R2_ENDPOINT", "")
     return r2_endpoint, uc
@@ -388,6 +398,21 @@ def _(mo):
         the table's credentials were vended to Spark without you seeing
         them, while for the volume you asked and received them yourself.
         Same mechanism, one step more visible.
+
+        ## Two things the UI will not show you
+
+        **The table has no columns.** Open `unity.demo.cities` in the UI and
+        the Columns section is empty, even though the query above returned
+        rows. The Spark connector registers the table's type, format and
+        location and leaves the schema in the Delta log at that location —
+        so Spark reads it from there, and the catalog never sees it. Not a
+        fault in this deployment: a table created through the REST API *with*
+        a `columns` array does show them.
+
+        **The volume shows no files.** Unity Catalog has no files API — only
+        the volume's own metadata. Your `cities.csv` is in R2 and this
+        notebook just read it back; there is simply no endpoint the browser
+        could list it from.
 
         ## Why Functions and Models stay empty
 
