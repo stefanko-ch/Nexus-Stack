@@ -114,6 +114,29 @@ reviews:
 
         Do NOT flag a missing `mem_limit`. 5 of 82 stacks set one; the
         gap is tracked in #741, and re-raising it per PR is noise.
+    - path: "examples/workspace-seeds/marimo/**/*.py"
+      instructions: |
+        Per CLAUDE.md ("Code Examples", rule 7): marimo decides a .py file
+        is a notebook by reading only the FIRST 512 BYTES and looking for
+        both `import marimo` and `marimo.App`
+        (marimo/_server/files/directory_scanner.py, READ_LIMIT = 512).
+
+        Flag a module docstring long enough to push either marker past
+        byte 512. Nothing fails when that happens — the notebook opens and
+        runs by direct URL — but it shows a plain code icon instead of a
+        notebook icon in marimo's file browser, and users read that as the
+        seed being absent. It shipped that way for five of six seeds.
+
+        The fix is a short summary docstring plus the prose in the first
+        mo.md cell, NOT marimo's `# /// script` escape hatch, which exists
+        for PEP 723 metadata and changes `uv run` behaviour.
+
+        Do NOT flag this on a file that is a helper module rather than a
+        notebook (no `marimo.App` anywhere in it, e.g. `_nexus_spark.py`);
+        the rule does not apply to those.
+
+        tests/unit/test_workspace_seeds.py already enforces this, so treat
+        a violation as a missing test update too.
     - path: "tofu/**/*.tf"
       instructions: |
         Per CLAUDE.md ("Resource Naming"): always use

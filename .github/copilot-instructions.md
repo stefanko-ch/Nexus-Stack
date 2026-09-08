@@ -108,7 +108,7 @@ Do not add AI-tool advertising or "Generated with …" footers to commit message
 
 Files under `examples/workspace-seeds/` are auto-seeded into every user's Forgejo workspace repo on spin-up. **Flows in `examples/workspace-seeds/kestra/flows/` (and any other Kestra YAML elsewhere under `workspace-seeds/kestra/`) must not declare schedule / cron triggers.**
 
-A `triggers:` block of type `io.kestra.plugin.core.trigger.Schedule` (or the legacy `io.kestra.core.models.triggers.types.Schedule`) inside a seeded flow file is a hard issue — flag it. Reason: a seed file lands on every user stack, so a cron trigger fires N times in parallel for an N-user cohort, multiplying load on external APIs (CloudFront, Databricks Free-Edition quota), R2 egress, and Kestra container CPU. Examples are teaching artifacts to be triggered manually; cron belongs to platform-internal flows registered directly by `scripts/deploy.sh` via the Kestra API (e.g. `system.flow-sync`), which live outside `workspace-seeds/`.
+A `triggers:` block of type `io.kestra.plugin.core.trigger.Schedule` (or the legacy `io.kestra.core.models.triggers.types.Schedule`) inside a seeded flow file is a hard issue — flag it. Reason: a seed file lands on every user stack, so a cron trigger fires N times in parallel for an N-user cohort, multiplying load on external APIs (CloudFront, Databricks Free-Edition quota), R2 egress, and Kestra container CPU. Examples are teaching artifacts to be triggered manually; cron belongs to platform-internal flows registered directly by the Python orchestrator via the Kestra API (e.g. `system.flow-sync` — see `src/nexus_deploy/kestra.py`), which live outside `workspace-seeds/`.
 
 What's allowed in seeded flows:
 - No `triggers:` block at all (run via the **Execute** button in the Kestra UI). Preferred.
@@ -118,9 +118,23 @@ What's not allowed:
 - `Schedule` / cron triggers — flag and request removal, regardless of cron interval.
 - `Flow`, `RealtimeKafka`, or other auto-firing trigger types in seeded examples — flag.
 
-Spotting it: scan the diff for any new or modified `*.yaml` under `examples/workspace-seeds/kestra/` and look for either `type: io.kestra.plugin.core.trigger.Schedule` (modern form) or `type: io.kestra.core.models.triggers.types.Schedule` (legacy form — what `scripts/deploy.sh` itself registers for `system.git-sync` and `system.flow-sync`) in a `triggers:` block. Both type strings are accepted by Kestra, so the rule must catch both. Same applies if a contributor adds a new file under that tree without explicit scheduling but later edits it to introduce one.
+Spotting it: scan the diff for any new or modified `*.yaml` under `examples/workspace-seeds/kestra/` and look for either `type: io.kestra.plugin.core.trigger.Schedule` (modern form) or `type: io.kestra.core.models.triggers.types.Schedule` (legacy form — what the orchestrator itself registers for `system.git-sync` and `system.flow-sync`) in a `triggers:` block. Both type strings are accepted by Kestra, so the rule must catch both. Same applies if a contributor adds a new file under that tree without explicit scheduling but later edits it to introduce one.
 
 Convention background: [examples/README.md](../examples/README.md) carries the full rationale and the rules for the rest of the seed-tree (path-mapping, idempotency, secret references via `{{ secret('NAME') }}`, etc.).
+
+## 10. Seeded marimo notebooks — the 512-byte header
+
+marimo decides a `.py` file is a notebook by reading only the **first 512 bytes** and checking for both `import marimo` and `marimo.App` (`marimo/_server/files/directory_scanner.py`, `READ_LIMIT = 512`). A long module docstring pushes both markers past that window.
+
+**Flag any new or modified `.py` under `examples/workspace-seeds/marimo/` whose `marimo.App` lands after byte 512.**
+
+Why it matters more than it looks: nothing fails. The notebook opens and runs perfectly by direct URL. The only symptom is a plain code icon instead of a notebook icon in marimo's file browser — and users read that as the seed being absent. Five of six seeds shipped that way, three of them for two weeks, and it was reported as "I don't see the seeds" twice before anyone looked at an icon.
+
+The fix is a short summary docstring (it is what a reader sees on GitHub) plus the prose in the notebook's **first `mo.md` cell**. Do not accept marimo's `# /// script` escape hatch as a fix: that block exists for PEP 723 inline metadata and changes `uv run` behaviour.
+
+Do **not** flag a helper module that is not a notebook at all — no `marimo.App` anywhere in the file, e.g. `_nexus_spark.py`. The rule does not apply to those.
+
+`tests/unit/test_workspace_seeds.py` enforces this against the real tree, so a violation also means a test was not run.
 
 ## What NOT to flag
 

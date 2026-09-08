@@ -26,8 +26,11 @@ def _(mo):
 
         PostgREST is a Go binary that introspects a Postgres schema and
         serves every table, view and RPC as a REST endpoint. The Nexus-Stack
-        stack points it at the shared `postgres` stack, so any table you
-        create in that database is immediately query-able over HTTP.
+        stack points it at the shared `postgres` stack, so a table you
+        create in that database becomes query-able over HTTP — once
+        PostgREST has reloaded its schema cache and the role it connects as
+        can read the table. Both are one step each, and the setup section
+        below does them.
 
         This notebook walks through the API surface:
 
