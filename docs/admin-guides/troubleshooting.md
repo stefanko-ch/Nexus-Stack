@@ -235,6 +235,102 @@ scripts, and the per-service configure hooks. Failures there tend to be
 quiet — wrong output rather than a non-zero exit — so a green step is
 not proof.
 
+## A hostname stops resolving after a teardown or destroy
+
+**Symptom.** Right after a teardown, `destroy-all` or a re-deploy, a service
+URL stops working from your machine — while the stack itself is healthy.
+SSH fails before it even reaches Cloudflare:
+
+```text
+dial tcp: lookup ssh.example.com: no such host
+Connection closed by UNKNOWN port 65535
+```
+
+A browser shows a DNS error rather than a Cloudflare Access login. Other
+people, or the same laptop on a different network, reach the service fine.
+
+**Cause.** A teardown deletes the DNS records; the spin-up recreates them.
+In the window between, every lookup legitimately answers `NXDOMAIN`, and
+your resolver caches that. The record comes back — your resolver keeps
+serving the "does not exist" it learned.
+
+### Confirm it in one step
+
+Compare your own resolver against a public one:
+
+```bash
+dig +short marimo.example.com                 # your resolver
+dig +short marimo.example.com @1.1.1.1        # Cloudflare
+```
+
+If the second returns an IP and the first returns nothing, it is this.
+For the exact status rather than an empty line:
+
+```bash
+dig marimo.example.com @1.1.1.1 +noall +comment | grep -o "status: [A-Z]*"
+```
+
+To see which resolver your machine is actually using — the one DHCP handed
+it, which on a phone hotspot is the phone:
+
+```bash
+scutil --dns | grep -m1 'nameserver\[0\]'    # macOS
+```
+
+### Why flushing the local cache does not help
+
+```bash
+sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
+```
+
+This empties **macOS's** cache. The next lookup then goes to your router or
+hotspot, which answers from **its** cache — the one holding the stale
+negative answer. You cannot reach that from your machine.
+
+### Why waiting can take longer than the TTL suggests
+
+The zone's negative TTL is 1800 seconds:
+
+```bash
+dig example.com SOA +short
+# anirban.ns.cloudflare.com. dns.cloudflare.com. 2414327986 10000 2400 604800 1800
+#                                                                            ^^^^
+```
+
+Thirty minutes — but the clock restarts on **every** query made while the
+record is still absent. A `destroy-all` at 14:56 whose spin-up finished at
+17:21 leaves a two-and-a-half-hour window in which each lookup refreshed the
+entry, so the last one before 17:21 governs. Observed exactly that: nearly
+three hours after the destroy, the resolver still said `NXDOMAIN`, and it
+was neither broken nor ignoring the TTL.
+
+### Fix
+
+Point your machine at a public resolver. This is the one that stops the
+problem recurring on every teardown, and on whatever network you are on:
+
+```bash
+networksetup -setdnsservers Wi-Fi 1.1.1.1 8.8.8.8      # macOS
+networksetup -setdnsservers Wi-Fi empty                # to undo
+```
+
+Use the right service name — `networksetup -listallnetworkservices` lists
+them; a USB or Bluetooth tether is not `Wi-Fi`.
+
+For a single hostname, right now, without changing your network settings:
+
+```bash
+echo "104.21.11.47 ssh.example.com" | sudo tee -a /etc/hosts
+```
+
+Any Cloudflare edge IP works, because the tunnel is selected by SNI rather
+than by address — take whatever `dig +short <host> @1.1.1.1` returns. Remove
+the line afterwards; the address is not guaranteed to stay valid:
+
+```bash
+sudo sed -i '' '/example.com/d' /etc/hosts
+```
+
 ## General Tips
 
 ### SSH Access Issues
