@@ -256,36 +256,40 @@ serving the "does not exist" it learned.
 
 ### Confirm it in one step
 
-Compare your own resolver against a public one:
+Ask both resolvers the same question, and read the **status** rather than the
+answer — an empty answer section and an `NXDOMAIN` look identical with
+`+short`:
 
 ```bash
-dig +short marimo.example.com                 # your resolver
-dig +short marimo.example.com @1.1.1.1        # Cloudflare
+dig ssh.example.com +noall +comment | grep -o "status: [A-Z]*"            # yours
+dig ssh.example.com @1.1.1.1 +noall +comment | grep -o "status: [A-Z]*"   # Cloudflare
 ```
 
-If the second returns an IP and the first returns nothing, it is this.
-For the exact status rather than an empty line:
+`NXDOMAIN` from yours and `NOERROR` from Cloudflare is this problem. Both
+`NXDOMAIN` means the record really is gone — check the spin-up finished.
+
+To see which resolver your machine uses, read the whole output rather than
+the first block. macOS keeps several resolver configurations, and a VPN or a
+`search`-domain entry can put a scoped one ahead of the DHCP-supplied
+default:
 
 ```bash
-dig marimo.example.com @1.1.1.1 +noall +comment | grep -o "status: [A-Z]*"
+scutil --dns          # macOS — look for the block matching your domain
 ```
 
-To see which resolver your machine is actually using — the one DHCP handed
-it, which on a phone hotspot is the phone:
-
-```bash
-scutil --dns | grep -m1 'nameserver\[0\]'    # macOS
-```
-
-### Why flushing the local cache does not help
+### Flushing the local cache: when it helps and when it cannot
 
 ```bash
 sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
 ```
 
-This empties **macOS's** cache. The next lookup then goes to your router or
-hotspot, which answers from **its** cache — the one holding the stale
-negative answer. You cannot reach that from your machine.
+This empties **macOS's own** cache. If that is where the stale answer sits,
+it fixes the problem outright — worth trying first, it costs nothing.
+
+It cannot do more than that. The next lookup goes to your router, hotspot or
+ISP resolver, and if the stale negative answer is cached *there*, it comes
+straight back. That cache is not reachable from your machine, which is what
+makes the flush look like it did nothing.
 
 ### Why waiting can take longer than the TTL suggests
 
@@ -297,17 +301,31 @@ dig example.com SOA +short
 #                                                                            ^^^^
 ```
 
-Thirty minutes — but the clock restarts on **every** query made while the
-record is still absent. A `destroy-all` at 14:56 whose spin-up finished at
-17:21 leaves a two-and-a-half-hour window in which each lookup refreshed the
-entry, so the last one before 17:21 governs. Observed exactly that: nearly
-three hours after the destroy, the resolver still said `NXDOMAIN`, and it
-was neither broken nor ignoring the TTL.
+Thirty minutes — but that is thirty minutes from the moment the resolver last
+asked **upstream**, not from the teardown. Your own queries do not reset it:
+while the entry is cached the resolver answers from cache and the TTL simply
+counts down. When it expires, the next query goes upstream again — and if the
+record is still gone, a fresh negative answer is cached with a fresh thirty
+minutes.
+
+So during a long outage the entry is renewed every half hour, and what
+governs is the **last renewal before the record came back**. Worked example
+from a real incident: `destroy-all` at 14:56, spin-up finished at 17:21, and
+at 17:39 the resolver still answered `NXDOMAIN` — nearly three hours after
+the teardown, and neither broken nor ignoring the TTL. Its last upstream
+query simply fell shortly before 17:21.
+
+The practical consequence: after a spin-up completes, allow up to the full
+negative TTL before concluding something else is wrong.
 
 ### Fix
 
-Point your machine at a public resolver. This is the one that stops the
-problem recurring on every teardown, and on whatever network you are on:
+Point your machine at a public resolver. This does **not** make you immune — a
+public resolver caches negative answers the same way, and querying it during
+the outage window leaves it holding one too. What it does is take your router,
+hotspot or ISP resolver out of the path, so the only cache in play is one you
+can compare against directly. That is usually enough, because the stale entry
+is nearly always the local one:
 
 ```bash
 networksetup -setdnsservers Wi-Fi 1.1.1.1 8.8.8.8      # macOS
@@ -328,8 +346,13 @@ than by address — take whatever `dig +short <host> @1.1.1.1` returns. Remove
 the line afterwards; the address is not guaranteed to stay valid:
 
 ```bash
-sudo sed -i '' '/example.com/d' /etc/hosts
+sudo sed -i '' '/[[:space:]]ssh\.example\.com$/d' /etc/hosts
 ```
+
+The escaped dots and the anchor matter. Unescaped, `example.com` is a regular
+expression in which each `.` matches any character; without the trailing `$`
+it also matches a longer hostname that merely starts the same way. Either
+would delete mappings you meant to keep.
 
 ## General Tips
 
