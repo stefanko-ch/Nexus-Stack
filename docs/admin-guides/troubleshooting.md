@@ -293,13 +293,20 @@ makes the flush look like it did nothing.
 
 ### Why waiting can take longer than the TTL suggests
 
-The zone's negative TTL is 1800 seconds:
+Read the zone's negative TTL from the `AUTHORITY` section of a query for a
+name that does not exist, rather than from the SOA record directly:
 
 ```bash
-dig example.com SOA +short
-# anirban.ns.cloudflare.com. dns.cloudflare.com. 2414327986 10000 2400 604800 1800
-#                                                                            ^^^^
+dig no-such-name.example.com +noall +authority
+# example.com.  1800  IN  SOA  ns.example.com. dns.example.com. 2414374634 10000 2400 604800 1800
+#               ^^^^                                                                        ^^^^
 ```
+
+Both numbers matter. RFC 2308 defines the effective negative-cache TTL as the
+**minimum** of the SOA record's own TTL (first `^^^^`) and its `MINIMUM` field
+(last). `dig example.com SOA +short` shows only the second, so a zone whose
+SOA TTL is lower would be read wrong. For this project's zone both are 1800,
+which is where the thirty minutes below come from.
 
 Thirty minutes — but that is thirty minutes from the moment the resolver last
 asked **upstream**, not from the teardown. Your own queries do not reset it:
@@ -328,31 +335,47 @@ can compare against directly. That is usually enough, because the stale entry
 is nearly always the local one:
 
 ```bash
+networksetup -getdnsservers Wi-Fi                      # note this first
 networksetup -setdnsservers Wi-Fi 1.1.1.1 8.8.8.8      # macOS
-networksetup -setdnsservers Wi-Fi empty                # to undo
 ```
+
+`empty` is how you go back to whatever DHCP hands out:
+
+```bash
+networksetup -setdnsservers Wi-Fi empty
+```
+
+It restores the *automatic* configuration, not a manual one you had before —
+which is why the first command above is worth running and keeping.
 
 Use the right service name — `networksetup -listallnetworkservices` lists
 them; a USB or Bluetooth tether is not `Wi-Fi`.
 
-For a single hostname, right now, without changing your network settings:
+For a single hostname, right now, without changing your network settings.
+Both lines together, in this order:
 
 ```bash
-echo "104.21.11.47 ssh.example.com" | sudo tee -a /etc/hosts
+sudo sed -i '' '/# nexus-temp$/d' /etc/hosts
+echo "104.21.11.47 ssh.example.com # nexus-temp" | sudo tee -a /etc/hosts
 ```
 
 Any Cloudflare edge IP works, because the tunnel is selected by SNI rather
-than by address — take whatever `dig +short <host> @1.1.1.1` returns. Remove
-the line afterwards; the address is not guaranteed to stay valid:
+than by address — take whatever `dig +short <host> @1.1.1.1` returns.
+
+Remove it once you no longer need it; the address is not guaranteed to stay
+valid:
 
 ```bash
-sudo sed -i '' '/[[:space:]]ssh\.example\.com$/d' /etc/hosts
+sudo sed -i '' '/# nexus-temp$/d' /etc/hosts
 ```
 
-The escaped dots and the anchor matter. Unescaped, `example.com` is a regular
-expression in which each `.` matches any character; without the trailing `$`
-it also matches a longer hostname that merely starts the same way. Either
-would delete mappings you meant to keep.
+**Why the marker, and why the delete comes first.** `/etc/hosts` is read top
+to bottom and the first match wins. Appending without removing leaves the
+previous entry ahead of the new one, so after the edge IP changes you would
+still be pinned to the old address — with a file that looks like it was
+updated. Deleting by marker rather than by hostname also leaves alone any
+mapping for the same host that was there for another reason and that you did
+not put there.
 
 ## General Tips
 
