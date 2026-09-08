@@ -1,35 +1,8 @@
 """Getting Started with DuckDB in Marimo.
 
-DuckDB is **pre-installed** in the Nexus-Stack Marimo image — no
-``pip install`` needed. The base image ``ghcr.io/marimo-team/marimo:0.23.4-sql``
-ships ``marimo[sql]`` which bundles:
-
-    duckdb + sqlglot + ibis-framework + polars + pyarrow
-
-So you can ``import duckdb`` directly OR use Marimo's native SQL cells
-(``mo.sql(...)``) which are backed by DuckDB by default.
-
-This notebook walks through six DuckDB patterns you'll actually use:
-
-    1. Sanity check — version + simple SELECT
-    2. Synthetic data via the ``range()`` table function — no I/O,
-       runs anywhere
-    3. Read remote parquet directly from HTTP via the ``httpfs`` extension
-       (auto-loaded; no manual ``INSTALL httpfs`` or ``LOAD httpfs`` needed)
-    4. Aggregate + window function on the public NYC Taxi dataset
-    5. Convert query results to Polars / Pandas / PyArrow
-    6. Marimo's native SQL cell with ``mo.sql`` (reactive DAG-aware,
-       results auto-render as paginated tables)
-
-No schedule, no API key, no Spark. Default queries hit NYC TLC's public
-CloudFront — same source the Kestra ``r2-taxi-pipeline`` and Prefect
-``nyc-green-taxi-pipeline`` seeds use, but DuckDB streams the parquet
-columns it needs over HTTP without ever materializing a local file.
-
-This file was seeded into your Forgejo workspace repo from
-``nexus-stack/examples/workspace-seeds/marimo/Getting_Started_DuckDB.py``.
-Edit it in Forgejo or directly in Marimo — your changes persist across
-spin-ups (seeding only adds new files, never overwrites).
+Deliberately short: marimo reads only the first 512 bytes to decide a file
+is a notebook, and prose above `import marimo` pushes the markers out of
+that window. The introduction lives in the first cell instead.
 """
 
 import marimo
@@ -69,6 +42,32 @@ def _(mo):
 
         Run cells in order or hit **Run all** — Marimo figures out the
         dependency graph from the function signatures.
+
+        ## What this notebook covers
+
+        1. Sanity check — version and a simple `SELECT`
+        2. Synthetic data via the `range()` table function — no I/O, runs
+           anywhere
+        3. Read remote parquet directly over HTTP via the `httpfs`
+           extension (auto-loaded; no manual `INSTALL` or `LOAD` needed)
+        4. Aggregate and window function on the public NYC Taxi dataset
+        5. Convert query results to Polars / Pandas / PyArrow
+        6. Marimo's native SQL cell with `mo.sql` — reactive, results
+           render as paginated tables
+
+        No schedule, no API key, no Spark. The default queries hit NYC TLC's
+        public CloudFront — the same source the Kestra `r2-taxi-pipeline`
+        and Prefect `nyc-green-taxi-pipeline` seeds use — but DuckDB streams
+        only the parquet columns it needs, without ever materialising a
+        local file.
+
+        The image is `ghcr.io/marimo-team/marimo:0.23.4-sql`, whose
+        `marimo[sql]` extras bundle duckdb + sqlglot + ibis-framework +
+        polars + pyarrow.
+
+        Seeded from `examples/workspace-seeds/marimo/` in Nexus-Stack. Edit
+        it here or in Forgejo — your changes survive a spin-up, because
+        seeding only adds files and never overwrites.
         """
     )
     return

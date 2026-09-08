@@ -1,16 +1,8 @@
 """Verify the Spark cluster and its object-storage wiring.
 
-A diagnostic notebook, not a tutorial — every cell answers one question
-that has a right answer, so a failure tells you which layer broke rather
-than that "Spark doesn't work".
-
-Run it after a version bump, after a spin-up that changed the Spark stack,
-or when something that used to work stopped. `Getting_Started_PySpark.py`
-is the notebook to read if you want to learn PySpark; this one is the
-notebook to run when you want to know whether the plumbing is intact.
-
-It writes to `s3a://<bucket>/nexus_seeds/verify/` with `mode("overwrite")`,
-so re-running it is safe and leaves nothing behind that accumulates.
+Deliberately short: marimo reads only the first 512 bytes to decide a file
+is a notebook, and prose above `import marimo` pushes the markers out of
+that window. The introduction lives in the first cell instead.
 """
 
 import marimo
@@ -30,6 +22,20 @@ def _(mo):
     mo.md(
         r"""
         # Verify Spark and S3
+
+        A diagnostic notebook, not a tutorial — every cell answers one
+        question that has a right answer, so a failure tells you which layer
+        broke rather than that "Spark doesn't work".
+
+        Run it after a version bump, after a spin-up that changed the Spark
+        stack, or when something that used to work stopped.
+        `Getting_Started_PySpark.py` is the notebook to read if you want to
+        learn PySpark; this is the one to run when you want to know whether
+        the plumbing is intact.
+
+        It writes to `s3a://<bucket>/nexus_seeds/verify/` with
+        `mode("overwrite")`, so re-running it is safe and leaves nothing
+        behind that accumulates.
 
         Each section below has an expected answer. Work top to bottom and
         stop at the first one that disagrees — later cells assume the

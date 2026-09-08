@@ -1,42 +1,10 @@
 """NYC Yellow-Taxi 2025 pipeline — Spark Connect + Marimo.
 
-Mirror of the Kestra `r2-taxi-pipeline.yaml` flow, adapted for Marimo:
-
-    1. Bootstrap: download monthly Yellow-Taxi parquets from NYC TLC's
-       public CloudFront and upload each to Hetzner Object Storage.
-       DuckDB does the transfer via `s3://...` (its httpfs extension's
-       URL scheme — same physical bucket as the s3a:// reads below,
-       just a different client-library URI prefix). No compute-cluster
-       round-trip needed.
-    2. Read all months back as a Spark DataFrame via the Connect server
-       using `s3a://...` (Spark's Hadoop-FileSystem URI scheme; uses
-       hadoop-aws under the hood, which is configured server-side in
-       spark-connect).
-    3. Aggregate stats with Spark SQL and render as a paginated table.
-
-Both `s3://` (DuckDB) and `s3a://` (Spark) point at the same physical
-object: `<HETZNER_S3_BUCKET>/nexus-tutorials/NYC/yellow_tripdata_2025-MM.parquet`.
-The two URI schemes are just two clients' conventions for talking to
-S3-compatible storage; the bytes on disk are identical.
-
-Default: 2 months (Jan + Feb 2025). Edit the `months` list to add more.
-The Kestra flow has the same default for the same reason — every student
-stack runs this on every "Execute", so a small default keeps CloudFront
-egress and run time low when a cohort hits the button at once.
-
-Pre-reqs:
-    - Marimo + Spark stacks both enabled
-    - Infisical has these secrets (synced into Marimo's env on spin-up):
-        HETZNER_S3_BUCKET, HETZNER_S3_ENDPOINT,
-        HETZNER_S3_ACCESS_KEY, HETZNER_S3_SECRET_KEY
-      Without them, the bootstrap cell raises early with a clear hint.
-
-Why DuckDB for the transfer (not Spark): pyspark[connect] doesn't read
-HTTP URLs natively, and a "download to /tmp then write via Spark" path
-would shuttle 60 MiB per month through the Marimo container. DuckDB's
-httpfs streams directly from CloudFront to S3 in-process — same pattern
-the Kestra equivalent uses (DuckDB+httpfs for the stats query).
+Deliberately short: marimo reads only the first 512 bytes to decide a file
+is a notebook, and prose above `import marimo` pushes the markers out of
+that window. The introduction lives in the first cell instead.
 """
+
 
 import marimo
 
@@ -62,6 +30,47 @@ def _(mo):
         Mirrors the Kestra flow `nexus-tutorials.r2-taxi-pipeline` —
         same data source, similar shape, different runtime (Marimo
         + DuckDB + Spark Connect instead of Kestra + DuckDB).
+
+        ## What happens
+
+        1. **Bootstrap** — download monthly Yellow-Taxi parquets from NYC
+           TLC's public CloudFront and upload each to Hetzner Object
+           Storage. DuckDB does the transfer via `s3://…`, its httpfs
+           extension's URL scheme. No compute-cluster round trip.
+        2. **Read** — all months back as a Spark DataFrame through the
+           Connect server via `s3a://…`, Spark's Hadoop-FileSystem scheme,
+           which uses hadoop-aws configured server-side in `spark-connect`.
+        3. **Aggregate** — stats with Spark SQL, rendered as a paginated
+           table.
+
+        `s3://` (DuckDB) and `s3a://` (Spark) point at the *same* object:
+        `<HETZNER_S3_BUCKET>/nexus-tutorials/NYC/yellow_tripdata_2025-MM.parquet`.
+        The two schemes are two clients' conventions for the same
+        S3-compatible storage; the bytes on disk are identical.
+
+        **Why DuckDB for the transfer and not Spark.** `pyspark[connect]`
+        does not read HTTP URLs natively, and a "download to /tmp, then
+        write via Spark" path would shuttle 60 MiB per month through the
+        Marimo container. DuckDB's httpfs streams straight from CloudFront
+        to S3 in-process — the same pattern the Kestra equivalent uses.
+
+        ## Before you run it
+
+        - Marimo **and** Spark stacks both enabled.
+        - Infisical holds `HETZNER_S3_BUCKET`, `HETZNER_S3_ENDPOINT`,
+          `HETZNER_S3_ACCESS_KEY` and `HETZNER_S3_SECRET_KEY`, synced into
+          Marimo's environment on spin-up. Without them the bootstrap cell
+          raises early with a clear hint.
+
+        The default is two months (January and February 2025); edit the
+        `months` list to add more. The Kestra flow defaults the same way
+        and for the same reason — every student stack runs this on every
+        **Execute**, so a small default keeps CloudFront egress and run
+        time low when a cohort hits the button at once.
+
+        Seeded from `examples/workspace-seeds/marimo/` in Nexus-Stack. Edit
+        it here or in Forgejo — your changes survive a spin-up, because
+        seeding only adds files and never overwrites.
         """
     )
     return
