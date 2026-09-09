@@ -126,6 +126,13 @@ s3.region.0=auto
 s3.awsRoleArn.0=arn:aws:iam::000000000000:role/unused-with-credential-generator
 s3.credentialGenerator.0=ch.nexusstack.unitycatalog.R2TemporaryCredentialGenerator
 EOF
+
+  # Printed on every start, because the failure this prevents is silent. A
+  # table whose recorded location lies outside this path gets no credentials
+  # vended, and the query fails with a bare 403 -- nothing in that error says
+  # which path was configured. `docker logs unity-catalog` is where somebody
+  # chasing that 403 will look, so the answer is put there.
+  echo "unity-catalog: table data goes under s3://${UC_R2_BUCKET}/${UC_R2_PREFIX}/ — a table recorded outside this path cannot be read" >&2
 else
   echo "unity-catalog: no R2 bucket configured — external tables on object storage will not work" >&2
 fi
