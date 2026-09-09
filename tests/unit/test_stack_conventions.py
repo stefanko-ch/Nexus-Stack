@@ -815,14 +815,19 @@ def test_ports_are_unique_across_stacks(services: dict[str, Any]) -> None:
     assert not unexpected, f"host port claimed by more than one stack: {unexpected}"
 
 
-def test_core_services_are_the_documented_four(services: dict[str, Any]) -> None:
+def test_core_services_are_the_documented_five(services: dict[str, Any]) -> None:
     """`core: true` means always deployed and not disableable.
 
     Pinned because the set is small, load-bearing, and has changed silently
     before — Gitea held a place here until the Forgejo migration took it.
+
+    SFTPGo joined so that every deployment can see what is in its object
+    storage. It is not the only browser — filestash covers R2 and Hetzner,
+    s3manager covers Hetzner — but all three were optional, so a default
+    deployment had none. SFTPGo takes the slot because it also speaks SFTP.
     """
     core = {name for name, entry in services.items() if entry.get("core")}
-    assert core == {"forgejo", "grafana", "infisical", "portainer"}, (
+    assert core == {"forgejo", "grafana", "infisical", "portainer", "sftpgo"}, (
         f"core services changed to {sorted(core)}. That is a deliberate decision; "
         f"update this test and the docs together."
     )

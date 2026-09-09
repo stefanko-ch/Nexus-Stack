@@ -116,7 +116,7 @@ jobs:
         run: |
           # No hardcoded core list. There used to be one — "infisical,mailpit"
           # — and it was wrong in both directions: the core set is forgejo,
-          # grafana, infisical and portainer, so it named one of four and
+          # grafana, infisical, portainer and sftpgo, so it named one of five and
           # added mailpit, which is not core at all. Enabling mailpit on
           # every setup was invisible only because this job was skipped
           # whenever the field was empty; making the job unconditional would
