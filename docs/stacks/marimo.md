@@ -44,7 +44,7 @@ The Marimo container is a thin gRPC client — the driver-JVM lives in the dedic
 
 ### Quickstart
 
-Six seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch. The seeds live in the Forgejo workspace repo, and Marimo's entrypoint runs the `git clone` when `FORGEJO_REPO_URL` is set in its env — see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml). On a Marimo-only install without Forgejo you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Forgejo enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
+Seven seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch. The seeds live in the Forgejo workspace repo, and Marimo's entrypoint runs the `git clone` when `FORGEJO_REPO_URL` is set in its env — see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml). On a Marimo-only install without Forgejo you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Forgejo enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
 
 > **Upgrade note:** Marimo's entrypoint only clones the workspace repo when `/app/notebooks/<repo>/.git` is **absent** ([`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On an existing workspace where Marimo was already running before a new seed shipped, `gh workflow run spin-up.yml` won't pull the new file in automatically — the repo dir already exists. Either run `git pull` from inside the Marimo notebook UI's terminal, or wipe the `marimo_data` volume and let the first-launch clone re-fetch (loses any local notebook edits). The new seeds DO appear in fresh stack deployments.
 
@@ -53,6 +53,7 @@ Six seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/
 - **`Getting_Started_DuckDB.py`** — DuckDB walkthrough that doesn't need the Spark stack at all: in-memory queries, `range()` synthetic data, remote parquet over `httpfs`, aggregate + window functions, Polars/Pandas/PyArrow conversion, and Marimo's native `mo.sql()` reactive cell. Useful as a single-node analytics baseline before reaching for Spark.
 - **`Getting_Started_PostgREST.py`** — REST-API walkthrough over the shared `postgres` stack via the PostgREST stack: list / filter / order / paginate / POST / PATCH / DELETE / OpenAPI. Stdlib-only (`urllib.request`), hits the internal `http://postgrest:3000` so no Cloudflare Access detour. Requires the PostgREST stack enabled.
 - **`Getting_Started_Unity_Catalog.py`** — Delta tables on Unity Catalog through Spark: create a schema, create a table, insert, read back, then work with volumes over the REST API. Also documents what the catalogue genuinely cannot do yet, so the empty Functions and Models tabs don't read as a broken deployment. Requires the Unity Catalog and Spark stacks enabled.
+- **`Getting_Started_Lakekeeper.py`** — Iceberg tables on the Lakekeeper catalogue via PyIceberg, with no Spark involved: create a namespace and table, append, read back three ways, then walk the snapshot history and time-travel to an earlier one. Requires the Lakekeeper stack enabled.
 - **`Verify_Spark_And_S3.py`** — a diagnostic rather than a tutorial, in six numbered checks: cluster version, executors actually starting, Arrow round-tripping through gRPC, which buckets the deployment has, an R2 write-and-read-back, and whether Hetzner object storage is still reachable. Run this first when something is broken.
 - **`NYC_Taxi_Pipeline.py`** — end-to-end bootstrap-to-S3 + Spark-analytics pattern using DuckDB for the upload step and Spark for the read+aggregate.
 
@@ -110,14 +111,25 @@ The image ships `pyiceberg==0.12.0`, the Python client for the Iceberg REST prot
 
 No extras are installed with it, and none are needed: `to_arrow()`, `to_duckdb()`, `to_pandas()` and `to_polars()` import their target lazily, and pyarrow, duckdb and polars are all already in the image.
 
-Point it at a catalogue with the **in-cluster** URL. The public hostname sits behind Cloudflare Access and answers a client with an HTML login page:
+Writes additionally need `s3fs`, which is installed alongside it. Lakekeeper signs each S3 request on the client's behalf — Cloudflare R2 has no AWS STS endpoint — and PyIceberg implements that signing only in its fsspec FileIO. Without `s3fs` a write fails *after* the table has already been created in the catalogue, leaving a real but empty table behind.
+
+With the [Lakekeeper](./lakekeeper.md) stack enabled, the seeded helper needs no arguments — `$LAKEKEEPER_URI` and `$LAKEKEEPER_WAREHOUSE` are set by the Marimo stack:
+
+```python
+from _nexus_iceberg import get_catalog
+
+cat = get_catalog()
+cat.list_namespaces()
+```
+
+The long form, for a catalogue the helper does not know about. Note the **in-cluster** URL — the public hostname sits behind Cloudflare Access and answers a client with an HTML login page:
 
 ```python
 from pyiceberg.catalog import load_catalog
 
 cat = load_catalog(
     "lakekeeper",
-    **{"type": "rest", "uri": "http://lakekeeper:8181/catalog", "warehouse": "<name>"},
+    **{"type": "rest", "uri": "http://lakekeeper:8181/catalog", "warehouse": "nexus"},
 )
 
 tbl = cat.load_table("my_namespace.my_table")
@@ -133,7 +145,7 @@ con = tbl.scan().to_duckdb("orders")
 con.sql("SELECT country, count(*) FROM orders GROUP BY country").pl()
 ```
 
-> **Not yet turnkey.** The [Lakekeeper](./lakekeeper.md) stack starts with no warehouse, and nothing creates one for you — a warehouse must currently be added by hand through Lakekeeper's UI or management API before the snippet above resolves. The warehouse hook and a guided seed notebook are the next step; until they land, treat this section as the client-side reference rather than a complete walkthrough.
+The `nexus` warehouse is created for you during spin-up by `render_lakekeeper_hook`, so there is nothing to set up by hand. `Getting_Started_Lakekeeper.py` is the guided walkthrough — snapshots, time travel, and what survives a teardown.
 
 ## Infisical secrets
 

@@ -41,6 +41,7 @@ from nexus_deploy.services import (
     render_garage_hook,
     render_hedgedoc_hook,
     render_lakefs_hook,
+    render_lakekeeper_hook,
     render_metabase_hook,
     render_n8n_hook,
     render_openmetadata_hook,
@@ -109,7 +110,7 @@ def _make_env(admin_email: str = "ops@example.com") -> BootstrapEnv:
 
 def test_supported_hooks_contains_all_specs() -> None:
     """5 REST hooks + 3 docker-exec hooks + Filestash (python) +
-    7 additional admin-setups."""
+    8 additional admin-setups."""
     assert set(supported_hooks()) == {
         # REST first-init
         "portainer",
@@ -131,6 +132,10 @@ def test_supported_hooks_contains_all_specs() -> None:
         # Creates the `unity` catalog the Spark config names; a fresh
         # PostgreSQL metastore has none, so every query would 404.
         "unity-catalog",
+        # Bootstraps the Lakekeeper server and creates the `nexus` Iceberg
+        # warehouse. A fresh install has neither, and creating a warehouse
+        # before the bootstrap returns 404 ProjectNotFound.
+        "lakekeeper",
         "windmill",
         "sftpgo",
         # pg-ducklake bootstrap-SQL re-apply
@@ -2589,6 +2594,122 @@ def test_render_unity_catalog_hook_bounds_every_probe() -> None:
     calls = [line for line in script.splitlines() if "wget" in line]
     assert calls, "no wget call rendered — this test would pass vacuously"
     assert all(" -T " in line for line in calls), calls
+
+
+def test_render_lakekeeper_hook_basic() -> None:
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    assert "lakekeeper_hook()" in script
+    # Host curl against the published port, not `docker exec`: the Lakekeeper
+    # image is distroless -- no shell, no curl, no wget to exec into.
+    assert "http://localhost:8195" in script
+    assert "docker exec" not in script
+    assert "RESULT hook=lakekeeper" in script
+
+
+def test_render_lakekeeper_hook_bootstraps_before_creating_the_warehouse() -> None:
+    """The bootstrap POST must precede the warehouse POST.
+
+    Creating a warehouse on a server that has not been bootstrapped returns
+    `404 ProjectNotFound` for the default project id -- measured against a
+    fresh database. Ordering is the whole contract here, so assert on
+    positions rather than mere presence.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    boot = script.index("-X POST http://localhost:8195/management/v1/bootstrap")
+    warehouse = script.index("-X POST http://localhost:8195/management/v1/warehouse")
+    assert boot < warehouse, "warehouse creation is rendered before the bootstrap"
+
+
+def test_render_lakekeeper_hook_skips_the_bootstrap_when_already_done() -> None:
+    """A re-deploy must not re-POST the bootstrap.
+
+    `/management/v1/info` reports `bootstrapped`, and the hook branches on it
+    rather than POSTing and tolerating the error.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    assert "/management/v1/info" in script
+    assert ".bootstrapped // false" in script
+    assert '[ "$BOOTSTRAPPED" != "true" ]' in script
+
+
+def test_render_lakekeeper_hook_asks_before_creating() -> None:
+    """Idempotent by a GET on the warehouse list, not by tolerating a failure.
+
+    A duplicate create returns `400 CreateWarehouseStorageProfileOverlap`,
+    which is indistinguishable from a genuinely bad profile, so the status
+    code alone cannot carry idempotency.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    assert script.count("status=already-configured") == 2
+    assert "status=failed" in script
+
+
+def test_render_lakekeeper_hook_keeps_the_r2_secret_out_of_argv() -> None:
+    """The secret reaches jq through the environment, never as an argument.
+
+    Anything in argv is readable via `ps` by any user on the box. The rendered
+    script may mention the env var NAMES, but the secret's value must appear
+    only in the `NEXUS_SK=` assignment that prefixes the jq call -- never
+    inside a `--arg` or on the curl command line.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    assert "env.NEXUS_SK" in script
+    assert "env.NEXUS_AK" in script
+    # The value itself: present once, as the env assignment.
+    assert script.count("r2-sk") == 1
+    secret_lines = [line for line in script.splitlines() if "r2-sk" in line]
+    assert secret_lines, "secret never rendered — this test would pass vacuously"
+    assert all("NEXUS_SK=" in line for line in secret_lines), secret_lines
+    assert "--arg" in script  # non-secret args do use --arg
+    assert not any("--arg" in line and "r2-sk" in line for line in script.splitlines())
+
+
+def test_render_lakekeeper_hook_storage_profile_matches_r2() -> None:
+    """The profile carries the four settings R2 actually requires.
+
+    Each one was measured against a live catalogue, and dropping any of them
+    breaks a different thing: `s3-compat` + path-style because R2 is not AWS,
+    `sts-enabled: false` because R2 has no STS endpoint, and remote signing
+    because with both off Lakekeeper vends no credentials at all and the first
+    write dies with `AWS Error ACCESS_DENIED`.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    profile = json.loads(script.split("--argjson profile '")[1].split("'")[0])
+    assert profile["flavor"] == "s3-compat"
+    assert profile["path-style-access"] is True
+    assert profile["sts-enabled"] is False
+    assert profile["remote-signing-enabled"] is True
+    # The shared data bucket is addressed at its root by Unity Catalog and
+    # pg-ducklake, so the warehouse has to own a subtree rather than the top.
+    assert profile["key-prefix"] == "lakekeeper"
+
+
+def test_render_lakekeeper_hook_skips_without_object_storage() -> None:
+    """No R2, no warehouse -- and a skip rather than a failure.
+
+    The catalogue still runs and its UI still works; there is simply nothing
+    to point a warehouse at.
+    """
+    for missing in (
+        "r2_data_bucket",
+        "r2_data_endpoint",
+        "r2_data_access_key",
+        "r2_data_secret_key",
+    ):
+        script = render_lakekeeper_hook(_make_config(**{missing: ""}), _make_env())
+        assert script.strip() == 'echo "RESULT hook=lakekeeper status=skipped-not-ready"', missing
+
+
+def test_lakekeeper_hook_is_registered() -> None:
+    """Registered under the services.yaml key.
+
+    Without it a fresh Lakekeeper answers /health while holding no warehouse,
+    and every PyIceberg call fails with `NoSuchWarehouseException` against a
+    stack that looks entirely healthy.
+    """
+    from nexus_deploy.services import _HOOK_REGISTRY
+
+    assert _HOOK_REGISTRY["lakekeeper"] is render_lakekeeper_hook
 
 
 def test_unity_catalog_hook_is_registered() -> None:

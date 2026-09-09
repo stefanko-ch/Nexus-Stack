@@ -381,6 +381,21 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             database="unitycatalog",
             user="nexus-unitycatalog",
         ),
+        # Lakekeeper's Iceberg catalogue, for exactly the reason above. The
+        # Parquet and metadata files live in R2 under the `lakekeeper/` prefix
+        # and come back on their own; this database holds the warehouse, the
+        # namespaces and the table pointers that give them names. Restoring
+        # only one half leaves either unreadable files or an empty catalogue.
+        #
+        # It also carries the warehouse's stored R2 credentials, encrypted
+        # with LAKEKEEPER__PG_ENCRYPTION_KEY. That key is the Lakekeeper DB
+        # password, which Tofu keeps in state across a teardown, so a restored
+        # dump still decrypts.
+        _s3.PostgresDumpTarget(
+            container="lakekeeper-db",
+            database="lakekeeper",
+            user="nexus-lakekeeper",
+        ),
     )
     rsync = (
         _s3.RsyncTarget(
