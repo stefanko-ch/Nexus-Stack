@@ -61,6 +61,34 @@ RUN pip install --no-cache-dir \
     "grpcio-status==1.76.0" \
     "pyarrow==19.0.1"
 
+# PyIceberg — the client for the Iceberg REST catalogs (Lakekeeper, Polaris).
+#
+# Deliberately WITHOUT the [duckdb,polars,pyarrow] extras. Those extras only
+# declare dependencies that this image already carries: `marimo[sql]` brings
+# duckdb and polars, and pyarrow is pinned exactly above. Asking for them
+# again gives pip a reason to move pins the block above exists to hold still.
+# Measured against this base image: plain `pyiceberg==0.12.0` installs its own
+# dependencies and touches none of the existing ones —
+#
+#   before: pyarrow 19.0.1  grpcio 1.76.0  duckdb 1.5.2  polars 1.40.1
+#   after:  pyarrow 19.0.1  grpcio 1.76.0  duckdb 1.5.2  polars 1.40.1
+#
+# The conversion methods work regardless of the extras, because they import
+# their target lazily: `table.scan().to_arrow()`, `.to_duckdb()`, `.to_polars()`
+# all live on DataScan, and `Table.to_polars()` is a convenience on top.
+#
+# NOT a Spark path. Iceberg publishes no `iceberg-spark-runtime-4.2_2.13`, and
+# the 4.1 build is binary-incompatible with the Spark 4.2.0 this stack runs:
+#
+#   IncompatibleClassChangeError: class org.apache.iceberg.spark.source.SparkView
+#   can not implement org.apache.spark.sql.connector.catalog.View,
+#   because it is not an interface
+#
+# Spark 4.2 support landed in Iceberg's main branch on 2026-09-04 but is not in
+# any release. Until it is, PyIceberg is how a notebook reaches these catalogs.
+RUN pip install --no-cache-dir \
+    "pyiceberg==0.12.0"
+
 # Stay as root — the entrypoint chowns the notebooks volume then drops
 # to appuser via gosu before exec'ing marimo. We can't drop here
 # because the chown needs root and the entrypoint is what handles

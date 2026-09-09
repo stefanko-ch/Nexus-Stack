@@ -44,7 +44,7 @@ The Marimo container is a thin gRPC client — the driver-JVM lives in the dedic
 
 ### Quickstart
 
-Four seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch. The seeds live in the Forgejo workspace repo, and Marimo's entrypoint runs the `git clone` when `FORGEJO_REPO_URL` is set in its env — see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On a Marimo-only install without Forgejo you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Forgejo enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
+Six seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch. The seeds live in the Forgejo workspace repo, and Marimo's entrypoint runs the `git clone` when `FORGEJO_REPO_URL` is set in its env — see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml). On a Marimo-only install without Forgejo you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Forgejo enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
 
 > **Upgrade note:** Marimo's entrypoint only clones the workspace repo when `/app/notebooks/<repo>/.git` is **absent** ([`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On an existing workspace where Marimo was already running before a new seed shipped, `gh workflow run spin-up.yml` won't pull the new file in automatically — the repo dir already exists. Either run `git pull` from inside the Marimo notebook UI's terminal, or wipe the `marimo_data` volume and let the first-launch clone re-fetch (loses any local notebook edits). The new seeds DO appear in fresh stack deployments.
 
@@ -52,6 +52,8 @@ Four seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks
 - **`Getting_Started_PySpark.py`** — minimal "spin up a SparkSession via Spark Connect, run a job, render results" walkthrough. Start here.
 - **`Getting_Started_DuckDB.py`** — DuckDB walkthrough that doesn't need the Spark stack at all: in-memory queries, `range()` synthetic data, remote parquet over `httpfs`, aggregate + window functions, Polars/Pandas/PyArrow conversion, and Marimo's native `mo.sql()` reactive cell. Useful as a single-node analytics baseline before reaching for Spark.
 - **`Getting_Started_PostgREST.py`** — REST-API walkthrough over the shared `postgres` stack via the PostgREST stack: list / filter / order / paginate / POST / PATCH / DELETE / OpenAPI. Stdlib-only (`urllib.request`), hits the internal `http://postgrest:3000` so no Cloudflare Access detour. Requires the PostgREST stack enabled.
+- **`Getting_Started_Unity_Catalog.py`** — Delta tables on Unity Catalog through Spark: create a schema, create a table, insert, read back, then work with volumes over the REST API. Also documents what the catalogue genuinely cannot do yet, so the empty Functions and Models tabs don't read as a broken deployment. Requires the Unity Catalog and Spark stacks enabled.
+- **`Verify_Spark_And_S3.py`** — a diagnostic rather than a tutorial, in six numbered checks: cluster version, executors actually starting, Arrow round-tripping through gRPC, which buckets the deployment has, an R2 write-and-read-back, and whether Hetzner object storage is still reachable. Run this first when something is broken.
 - **`NYC_Taxi_Pipeline.py`** — end-to-end bootstrap-to-S3 + Spark-analytics pattern using DuckDB for the upload step and Spark for the read+aggregate.
 
 The minimal pattern is:
@@ -101,6 +103,30 @@ The gRPC stream then fails back to Marimo, which surfaces a clean `MarimoInterru
 Marimo's reactive DAG re-runs cells when their upstream changes. The `spark` session is module-level cached in `_nexus_spark.py`, so multiple cells importing it share one Connect channel — Marimo never re-creates the session.
 
 But: Marimo does NOT track mutations to attributes. `spark.conf.set("spark.sql.shuffle.partitions", "4")` from one cell will NOT cause downstream cells to re-execute. **Treat the SparkSession as immutable after build.** If you need a different config, call `_nexus_spark.stop_spark()` and then `get_spark()` again — that's an explicit reset.
+
+## Iceberg catalogues (PyIceberg)
+
+The image ships `pyiceberg==0.12.0`, the Python client for the Iceberg REST protocol. It talks to a catalogue directly over HTTP — no JVM, no Spark, no jar — which is why it is the way to reach Iceberg tables from a notebook. **Spark cannot do this today**; Iceberg publishes no runtime jar for the Spark 4.2 this project runs, which is measured and explained in [docs/stacks/spark.md](./spark.md#iceberg-is-not-available-from-spark-yet) and tracked in [#828](https://github.com/stefanko-ch/Nexus-Stack/issues/828).
+
+No extras are installed with it, and none are needed: `to_arrow()`, `to_duckdb()`, `to_pandas()` and `to_polars()` import their target lazily, and pyarrow, duckdb and polars are all already in the image.
+
+Point it at a catalogue with the **in-cluster** URL. The public hostname sits behind Cloudflare Access and answers a client with an HTML login page:
+
+```python
+from pyiceberg.catalog import load_catalog
+
+cat = load_catalog(
+    "lakekeeper",
+    **{"type": "rest", "uri": "http://lakekeeper:8181/catalog", "warehouse": "<name>"},
+)
+
+tbl = cat.load_table("my_namespace.my_table")
+tbl.scan().to_polars()        # also .to_arrow(), .to_duckdb("t"), .to_pandas()
+```
+
+Note where the conversions live: `scan()` returns a `DataScan` and carries all four. `Table` itself only offers `to_polars()` as a shortcut — `Table.to_arrow()` and `Table.to_duckdb()` do not exist.
+
+> **Not yet turnkey.** The [Lakekeeper](./lakekeeper.md) stack starts with no warehouse, and nothing creates one for you — a warehouse must currently be added by hand through Lakekeeper's UI or management API before the snippet above resolves. The warehouse hook and a guided seed notebook are the next step; until they land, treat this section as the client-side reference rather than a complete walkthrough.
 
 ## Infisical secrets
 
