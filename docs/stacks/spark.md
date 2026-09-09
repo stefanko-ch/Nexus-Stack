@@ -90,7 +90,7 @@ A bare 400 with a null request id — R2 rejects the request before parsing it, 
 
 The file also widens `spark.redaction.regex`. Spark's default is `(?i)secret|password|token`, which hides `fs.s3a.secret.key` and leaves `fs.s3a.access.key` visible — and the master UI on port 8088 renders the environment page for every running application.
 
-```
+```text
    ┌──────────────────────┐          ┌──────────────────────┐
    │  Jupyter PySpark     │          │  Marimo PySpark      │
    │  (driver-JVM local)  │          │  (gRPC client only)  │
@@ -180,3 +180,43 @@ A pre-built helper module ships in the workspace seed at `marimo/_nexus_spark.py
 - **Connect (`sc://...:15002`)**: Marimo today, code-server in the future. Driver runs server-side in the `spark-connect` container. Thin client (gRPC + Arrow). Better fit for reactive notebooks; first-class formatter support in Marimo. Some advanced features have caveats — check the [Spark Connect compatibility matrix](https://spark.apache.org/docs/latest/spark-connect-overview.html#what-is-supported-in-spark-40) before relying on niche APIs.
 
 Both protocols submit applications to the same `spark-master`, so they share the worker's resources.
+
+### Iceberg is not available from Spark yet
+
+Nexus-Stack ships two Iceberg REST catalogues — [Lakekeeper](./lakekeeper.md) and, later, Polaris — but **Spark cannot talk to either of them today**. Reaching an Iceberg catalogue from Spark needs the `iceberg-spark-runtime` jar built for the exact Spark version, and no such jar exists for the Spark 4.2.0 this stack runs.
+
+Measured on 2026-09-09, against Maven Central:
+
+| Artefact | Status |
+|---|---|
+| `iceberg-spark-runtime-4.2_2.13` | does not exist — HTTP 404 |
+| `iceberg-spark-runtime-4.1_2.13` | exists, newest version `1.11.0` (2026-05-19) |
+
+The 4.1 jar is not a workaround. Loading it on Spark 4.2.0 fails on the first statement:
+
+```text
+java.lang.IncompatibleClassChangeError: class org.apache.iceberg.spark.source.SparkView
+  can not implement org.apache.spark.sql.connector.catalog.View,
+  because it is not an interface
+```
+
+Spark 4.2 turned `View` from an interface into a class; the jar was compiled against the interface form. That is a binary incompatibility, not a configuration mistake, and it surfaces while `SparkCatalog` is being loaded — so it happens for every catalogue type, REST included. The older `4.0_2.13` build is further from 4.2, not closer.
+
+Support for Spark 4.2 was merged into Iceberg's `main` branch on 2026-09-04 ([apache/iceberg#14984](https://github.com/apache/iceberg/pull/14984)) but is in no release. When Iceberg next releases, re-run the check below; if it succeeds, the Spark side can be wired up (tracked in [#828](https://github.com/stefanko-ch/Nexus-Stack/issues/828)):
+
+```bash
+# 1. Has a 4.2 build appeared? 404 means still not.
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.2_2.13/
+
+# 2. If it has, substitute the new coordinate here and confirm it runs.
+docker run --rm apache/spark:4.2.0 /opt/spark/bin/spark-sql --master 'local[1]' \
+  --packages org.apache.iceberg:iceberg-spark-runtime-4.2_2.13:<VERSION> \
+  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+  --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
+  --conf spark.sql.catalog.local.type=hadoop \
+  --conf spark.sql.catalog.local.warehouse=/tmp/warehouse \
+  -e "CREATE TABLE local.p.t (id INT) USING iceberg; INSERT INTO local.p.t VALUES (1); SELECT * FROM local.p.t;"
+```
+
+**Until then, use PyIceberg from Marimo.** It speaks the Iceberg REST protocol directly over HTTP — no JVM, no jar, no version matrix — and is installed in the Marimo image. See [docs/stacks/marimo.md](./marimo.md). Delta Lake is unaffected by any of this and keeps working from Spark through [Unity Catalog](./unity-catalog.md).
