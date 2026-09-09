@@ -180,14 +180,20 @@ table by its three-part name:
 CREATE SCHEMA IF NOT EXISTS unity.demo;
 
 CREATE TABLE unity.demo.trips (id INT, city STRING) USING delta
-  LOCATION 's3://<your-r2-bucket>/teaching/trips';
+  LOCATION 's3://<your-r2-bucket>/unity-catalog/teaching/trips';
 
 INSERT INTO unity.demo.trips VALUES (1, 'Zürich');
 SELECT * FROM unity.demo.trips;
 ```
 
-Three details that are easy to get wrong, all of them measured:
+Four details that are easy to get wrong, all of them measured:
 
+- **Stay under `unity-catalog/`.** That prefix is the subtree this catalogue
+  owns in the shared bucket, and it is what `s3.bucketPath.0` is set to. An
+  explicit `LOCATION` outside it gets no credentials vended for it, so the
+  write fails with a 403 rather than a helpful message. Omit `LOCATION`
+  entirely and Spark places the table at
+  `s3://<bucket>/unity-catalog/<schema>/<table>` by itself.
 - **`s3://`, never `s3a://`.** Unity Catalog rejects the latter outright
   with `Unsupported URI scheme: s3a`. The rendered config maps `fs.s3.impl`
   to `S3AFileSystem` so the `s3://` scheme still works.
@@ -216,6 +222,30 @@ and a catalogue of vanished files is worse than no catalogue.
 
 `entrypoint.sh` appends the `s3.*` block at container start from environment
 variables the deploy renders. There is nothing to fill in by hand.
+
+### The `unity-catalog/` prefix
+
+Everything this catalogue writes lands under `s3://<bucket>/unity-catalog/`,
+because `s3.bucketPath.0` carries that prefix. The data bucket is shared —
+Lakekeeper owns `lakekeeper/`, pg-ducklake writes its own tables, and Spark
+can be pointed anywhere — so a catalogue writing to the root produces
+top-level folders named after whatever schema someone happened to create.
+A folder called `demo` at the root says nothing about which stack made it,
+and would collide outright with any other stack choosing the same word.
+
+Two consequences worth knowing:
+
+- **Table locations are absolute.** Unity Catalog records
+  `s3://<bucket>/unity-catalog/demo/cities`, not a path relative to
+  `bucketPath`. Tables created before this prefix existed still point at
+  `s3://<bucket>/demo/cities`, which is now outside the configured path, so no
+  credentials are vended for them and they stop being readable. The Parquet
+  files are untouched; the catalogue simply cannot reach them. Check with
+  `GET /api/2.1/unity-catalog/tables?catalog_name=unity&schema_name=<schema>`
+  and re-create anything whose `storage_location` lacks the prefix.
+- **The prefix is not configurable**, deliberately. It is part of the bucket's
+  layout, and a deployment that changed it would orphan its own tables the
+  same way.
 
 ### Why a credential generator, and why it had to be written
 

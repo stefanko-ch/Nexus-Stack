@@ -125,7 +125,10 @@ def _(bucket, ready, spark):
     if not ready:
         print("skipped — see the setup cell above for which half is missing")
     else:
-        _location = f"s3://{bucket}/demo/cities"
+        # Under `unity-catalog/`, which is the subtree this catalogue owns in
+        # the shared bucket. An explicit LOCATION outside it gets no
+        # credentials vended for it and the write fails with a 403.
+        _location = f"s3://{bucket}/unity-catalog/demo/cities"
         spark.sql(f"""
             CREATE TABLE IF NOT EXISTS unity.demo.cities (
                 id INT,
@@ -258,7 +261,7 @@ def _(bucket, ready, uc):
     if not ready:
         print("skipped — see the setup cell above for which half is missing")
     else:
-        _location = f"s3://{bucket}/demo/volumes/reports"
+        _location = f"s3://{bucket}/unity-catalog/demo/volumes/reports"
         # Create-if-absent by hand: the API has no IF NOT EXISTS, and a
         # second run would otherwise fail on a volume that is already there.
         _status, _existing = uc("/volumes/unity.demo.reports")

@@ -91,6 +91,21 @@ EOF
 # Redirection truncates the existing file and leaves its mode alone.
 cat "$CONF_DIR/server.properties.base" > "$CONF_DIR/server.properties"
 
+# Subtree this catalog owns inside the shared data bucket. Not configurable on
+# purpose: the value is part of the bucket's layout contract, and a deployment
+# that changed it would silently orphan every table already recorded, because
+# Unity Catalog stores table locations ABSOLUTELY -- `s3://bucket/demo/cities`,
+# not a path relative to bucketPath. A location outside the configured
+# bucketPath gets no credentials vended for it.
+#
+# The bucket is shared: Lakekeeper owns `lakekeeper/`, pg-ducklake writes its
+# own tables, and Spark can be pointed anywhere. Before this prefix existed,
+# Unity Catalog was the only one writing to the ROOT, so its tables showed up
+# as a bare schema name -- a folder called `demo` that says nothing about who
+# made it, and that would collide outright with any other stack choosing the
+# same word.
+UC_R2_PREFIX="unity-catalog"
+
 if [ -n "${UC_R2_BUCKET:-}" ]; then
   : "${R2_ACCOUNT_ID:?unity-catalog: UC_R2_BUCKET is set but R2_ACCOUNT_ID is not}"
   : "${R2_ENDPOINT_HOST:?unity-catalog: UC_R2_BUCKET is set but R2_ENDPOINT_HOST is not}"
@@ -100,7 +115,7 @@ if [ -n "${UC_R2_BUCKET:-}" ]; then
   cat >> "$CONF_DIR/server.properties" <<EOF
 
 # --- Appended at container start by entrypoint.sh ---
-s3.bucketPath.0=s3://${UC_R2_BUCKET}
+s3.bucketPath.0=s3://${UC_R2_BUCKET}/${UC_R2_PREFIX}
 s3.region.0=auto
 # Never dereferenced. ServerProperties.getS3Configurations drops a bucket entry
 # unless bucketPath+region+awsRoleArn OR accessKey+secretKey+sessionToken are
