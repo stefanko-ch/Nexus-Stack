@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.78.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.77.1...v0.78.0) (2026-09-09)
+
+
+### 🚀 Features
+
+* **examples:** Demonstrate Unity Catalog volumes in the seeded notebook ([#827](https://github.com/stefanko-ch/Nexus-Stack/issues/827)) ([ed731a7](https://github.com/stefanko-ch/Nexus-Stack/commit/ed731a72c32bc47121bf15edadd847dde1526d34))
+* **stacks:** Connect Unity Catalog to Cloudflare R2 with a Postgres metastore ([#814](https://github.com/stefanko-ch/Nexus-Stack/issues/814)) ([85af969](https://github.com/stefanko-ch/Nexus-Stack/commit/85af969c697035800caf215d02410862295e7220))
+* **stacks:** Upgrade Spark to 4.2.0 and fix S3 config that never applied ([#810](https://github.com/stefanko-ch/Nexus-Stack/issues/810)) ([d11bdc0](https://github.com/stefanko-ch/Nexus-Stack/commit/d11bdc0ec9c36eb830584545ed7b579a5d1644fa))
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Make seeded marimo notebooks recognisable as notebooks ([#818](https://github.com/stefanko-ch/Nexus-Stack/issues/818)) ([aab94dd](https://github.com/stefanko-ch/Nexus-Stack/commit/aab94dd225bfe0c22beed585ab8f68076c942c1e))
+* **stacks:** Recreate Spark when its rendered config changes ([#820](https://github.com/stefanko-ch/Nexus-Stack/issues/820)) ([85ec8aa](https://github.com/stefanko-ch/Nexus-Stack/commit/85ec8aabecf6eb3e31eb9314872a1f81a8e9041d))
+
+
+### 📚 Documentation
+
+* Add activity and star-history charts to the README ([#825](https://github.com/stefanko-ch/Nexus-Stack/issues/825)) ([0cf4198](https://github.com/stefanko-ch/Nexus-Stack/commit/0cf41988be7ef1d184a48ee5af58672dc194ca78))
+* **admin:** Explain why a hostname stops resolving after a teardown ([#819](https://github.com/stefanko-ch/Nexus-Stack/issues/819)) ([7c00db6](https://github.com/stefanko-ch/Nexus-Stack/commit/7c00db6c3187cbfef409fd7012a816fa0413141c))
+* **stacks:** Name the Unity Catalog example schema `demo` ([#824](https://github.com/stefanko-ch/Nexus-Stack/issues/824)) ([649d43a](https://github.com/stefanko-ch/Nexus-Stack/commit/649d43a2d8ba13fe8539bc658c9e167b56050d50))
+
 ## [0.77.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.77.0...v0.77.1) (2026-09-07)
 
 
