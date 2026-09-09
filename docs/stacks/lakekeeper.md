@@ -8,7 +8,7 @@ title: "Lakekeeper"
 
 **Modern Iceberg REST Catalog (Rust)**
 
-Lakekeeper is an open-source implementation of the [Apache Iceberg REST Catalog specification](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml). It turns the existing object storage (Garage / MinIO / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from Spark, Trino, DuckDB, PyIceberg, or any other Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication.
+Lakekeeper is an open-source implementation of the [Apache Iceberg REST Catalog specification](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml). It turns the existing object storage (Garage / MinIO / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from any Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication. In this deployment that means **PyIceberg** (from Marimo, Jupyter or any Python client) and **Trino**; Spark is not among them today, for a reason that is measured rather than assumed — see [From Spark](#from-spark--not-available-yet) below.
 
 | Setting | Value |
 |---------|-------|
@@ -116,9 +116,11 @@ spellings.
 export S3_ACCESS_KEY_ID=$(infisical secrets get R2_DATA_ACCESS_KEY --path=/r2 --plain)
 export S3_SECRET_ACCESS_KEY=$(infisical secrets get R2_DATA_SECRET_KEY --path=/r2 --plain)
 
-# Run this from the server, against the in-cluster address. The heredoc
-# expands the env vars before piping to curl; shell history keeps the
-# unexpanded form, so the secret stays out of it.
+# Run this ON THE SERVER (`ssh nexus`), against the host-published port
+# 8195 — not the in-cluster `lakekeeper:8181`, which only resolves from
+# inside the Docker network, and not the public hostname, which Cloudflare
+# Access gates. The heredoc expands the env vars before piping to curl;
+# shell history keeps the unexpanded form, so the secret stays out of it.
 cat <<EOF | curl -X POST http://localhost:8195/management/v1/warehouse \
   -H "Content-Type: application/json" --data-binary @-
 {
@@ -288,6 +290,13 @@ helper takes it as `get_catalog("archive")`.
   credentials cannot write to the bucket, or the profile has both
   `sts-enabled` and `remote-signing-enabled` false, in which case Lakekeeper
   vends the client nothing at all.
+- **An occasional `403 Forbidden` on a single request, where a retry
+  succeeds** — a known open question, tracked in
+  [#832](https://github.com/stefanko-ch/Nexus-Stack/issues/832). Seen during
+  local rehearsal against MinIO, more often the more S3 round-trips a process
+  makes; **not yet observed or ruled out against R2**. Nothing is left
+  inconsistent when it happens — an Iceberg write either commits or does not.
+  Re-run the cell.
 - **Container permanently `unhealthy` while the API answers** — a healthcheck
   using `CMD-SHELL`. The image is distroless: the only executable in it is
   `/home/nonroot/lakekeeper`, so a shell-based probe exits 127. The shipped

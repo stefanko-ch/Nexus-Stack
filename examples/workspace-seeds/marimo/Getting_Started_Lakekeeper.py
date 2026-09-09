@@ -47,7 +47,14 @@ def _(mo):
         - **Schema on the table, not in your head.** Types and column names
           live in the catalogue.
 
-        Everything below is safe to run more than once.
+        Everything below is safe to run more than once — the table lands on
+        the same six rows however often you hit **Run all**.
+
+        > **If a cell fails with `403 Forbidden` / `PermissionError`, just run
+        > it again.** Individual S3 requests occasionally come back 403 on this
+        > path, without a pattern anyone has pinned down yet — it is being
+        > tracked in issue #832, and a re-run succeeds. Nothing is corrupted
+        > when it happens: a write either commits or it does not.
         """
     )
     return
@@ -116,14 +123,21 @@ def _(cat):
 def _(mo):
     mo.md(
         r"""
-        ## 3 — Write, and notice what a write costs
+        ## 3 — Write twice, on purpose
 
-        `append` uploads Parquet to R2 and then commits a new snapshot in the
-        catalogue. Re-running this cell appends **again** — the row count
-        grows by four each time. That is the honest behaviour of an append,
-        not a bug; step 5 shows how to see the history it leaves behind.
+        Two writes, and the difference between them is the lesson.
 
-        Writes go through `s3fs`, which the Marimo image installs on purpose.
+        `overwrite` replaces the table's contents. `append` adds to them. The
+        notebook opens with an overwrite so that **re-running it lands on the
+        same four rows** rather than stacking another four on top — a seeded
+        notebook gets executed more than once, and a growing table would be a
+        side effect nobody asked for.
+
+        Then one append of two more rows. Together they leave the table at six
+        rows on every run, and leave **two snapshots** behind, which is what
+        step 5 needs.
+
+        Both go through `s3fs`, which the Marimo image installs on purpose.
         Lakekeeper signs each S3 request on your behalf (R2 has no AWS STS
         endpoint), and PyIceberg implements that signing only in its fsspec
         backend.
@@ -133,9 +147,20 @@ def _(mo):
 
 
 @app.cell
-def _(orders, tbl):
-    tbl.append(orders)
-    f"{tbl.scan().to_arrow().num_rows} rows after this append"
+def _(orders, pa, tbl):
+    # Snapshot 1: the table is exactly `orders`, whatever it held before.
+    tbl.overwrite(orders)
+
+    # Snapshot 2: two more rows on top.
+    late = pa.table(
+        {
+            "id": pa.array([5, 6], pa.int64()),
+            "country": pa.array(["IT", "CH"]),
+            "amount": pa.array([12.0, 3.75], pa.float64()),
+        }
+    )
+    tbl.append(late)
+    f"{tbl.scan().to_arrow().num_rows} rows — the same on every run"
     return
 
 
@@ -179,12 +204,13 @@ def _(mo):
         r"""
         ## 5 — Snapshots and time travel
 
-        Every append left a snapshot. They are not a debugging aid — they are
+        Each write left a snapshot. They are not a debugging aid — they are
         how Iceberg gives you a stable read while someone else is writing, and
         they let you read the table as it was at any earlier commit.
 
-        If you have run this notebook more than once, you will see more than
-        one row below.
+        Step 3 made two, so you see at least two below; running the notebook
+        again adds two more, because the history accumulates even though the
+        table contents do not.
         """
     )
     return
@@ -213,13 +239,13 @@ def _(fresh):
 
 @app.cell
 def _(fresh, snaps):
-    # Read the table as of its oldest snapshot. After a single append that is
-    # the current state; once you have run this notebook twice it is visibly
-    # smaller -- which is the whole point.
-    _oldest = snaps[0]["snapshot_id"]
-    _then = fresh.scan(snapshot_id=_oldest).to_arrow().num_rows
+    # Read the table as of the snapshot BEFORE the last write. Step 3's
+    # overwrite-then-append guarantees this is smaller than the current state,
+    # rather than depending on how often the notebook has been run.
+    _before_last = snaps[-2]["snapshot_id"]
+    _then = fresh.scan(snapshot_id=_before_last).to_arrow().num_rows
     _now = fresh.scan().to_arrow().num_rows
-    f"snapshot {_oldest} held {_then} rows; the table now has {_now}"
+    f"snapshot {_before_last} held {_then} rows; the table now has {_now}"
     return
 
 
@@ -293,8 +319,13 @@ def _(mo):
 
         ### Things that will surprise you
 
-        - **Appending is not idempotent.** Re-running step 3 adds the rows
-          again. Use `tbl.overwrite(...)` when you want replace semantics.
+        - **`append` accumulates, `overwrite` does not.** This notebook opens
+          with an overwrite so re-running it is safe. Swap it for an `append`
+          and the table grows by four every time you hit Run all.
+        - **The history accumulates either way.** Snapshots are never replaced,
+          so the snapshot list in step 5 grows on each run even though the row
+          count does not. That is Iceberg working as intended; expiring old
+          snapshots is a maintenance operation you ask for explicitly.
         - **The public URL is not the API URL.** `https://lakekeeper.<domain>`
           is for the browser UI. Clients use `http://lakekeeper:8181/catalog`
           from inside the Docker network.
