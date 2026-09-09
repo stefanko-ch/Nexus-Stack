@@ -2288,6 +2288,12 @@ def render_lakekeeper_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     fresh database. Bootstrapping first turns ``bootstrapped: false`` into
     ``true`` in ``/management/v1/info`` and returns 204.
 
+    A failed bootstrap is a warning, not a verdict. Re-POSTing it on a server
+    that already has one returns ``400 CatalogAlreadyBootstrapped``, so a
+    single unanswered ``/info`` call is enough to walk this hook into a POST
+    that fails for a perfectly healthy stack. The warehouse check decides the
+    outcome instead.
+
     Host ``curl`` against ``localhost:8195``, not ``docker exec`` like the
     Unity Catalog hook: Lakekeeper publishes a port, and the image is
     distroless -- there is no shell, no curl and no wget inside it to exec
@@ -2373,11 +2379,17 @@ lakekeeper_hook() {{
         case "$BOOT_CODE" in
             2??) ;;
             *)
-                # Every later call needs the default project this creates, so
-                # there is nothing useful to attempt after this fails.
-                echo "  ⚠ lakekeeper bootstrap returned HTTP $BOOT_CODE — warehouse cannot be created" >&2
-                echo "RESULT hook=lakekeeper status=failed"
-                return 0
+                # Warn, then carry on to the warehouse check rather than
+                # reporting failure here. A non-2xx is ambiguous: a server
+                # that is already bootstrapped answers this POST with
+                # `400 CatalogAlreadyBootstrapped` (measured), so a single
+                # unanswered /management/v1/info -- which leaves BOOTSTRAPPED
+                # at its "false" default -- would otherwise make this hook
+                # report `failed` for a stack whose warehouse is right there.
+                # The warehouse check below is ground truth; if the bootstrap
+                # genuinely failed, the create returns 404 ProjectNotFound and
+                # the failure is reported there, with this warning above it.
+                echo "  ⚠ lakekeeper bootstrap returned HTTP $BOOT_CODE — continuing to the warehouse check" >&2
                 ;;
         esac
     fi

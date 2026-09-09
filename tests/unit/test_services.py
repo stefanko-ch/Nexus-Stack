@@ -2632,6 +2632,23 @@ def test_render_lakekeeper_hook_skips_the_bootstrap_when_already_done() -> None:
     assert '[ "$BOOTSTRAPPED" != "true" ]' in script
 
 
+def test_render_lakekeeper_hook_does_not_fail_on_a_refused_bootstrap() -> None:
+    """A non-2xx bootstrap warns and continues; it does not end the hook.
+
+    Re-POSTing the bootstrap on a server that already has one returns
+    `400 CatalogAlreadyBootstrapped` (measured). Since BOOTSTRAPPED defaults
+    to "false" whenever `/management/v1/info` does not answer, one unanswered
+    call would otherwise walk the hook into that 400 and make it report
+    `failed` for a stack whose warehouse exists. The warehouse check is
+    ground truth, so the bootstrap branch must fall through to it.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    boot_case = script.split("BOOT_CODE=${BOOT_CODE:-000}")[1].split("esac")[0]
+    assert "status=failed" not in boot_case, boot_case
+    assert "return 0" not in boot_case, boot_case
+    assert "$BOOT_CODE" in boot_case  # the code still reaches the log
+
+
 def test_render_lakekeeper_hook_asks_before_creating() -> None:
     """Idempotent by a GET on the warehouse list, not by tolerating a failure.
 
@@ -2655,13 +2672,16 @@ def test_render_lakekeeper_hook_keeps_the_r2_secret_out_of_argv() -> None:
     script = render_lakekeeper_hook(_make_config(), _make_env())
     assert "env.NEXUS_SK" in script
     assert "env.NEXUS_AK" in script
-    # The value itself: present once, as the env assignment.
+    # The value itself: present once, and only in the env assignment. This is
+    # the load-bearing assertion and it does not care about line layout -- a
+    # `--arg sk 'r2-sk'` moved onto a line of its own still fails it, because
+    # that line carries no `NEXUS_SK=`. Verified by mutation, both when the
+    # rogue --arg shares a line with another and when it sits alone.
     assert script.count("r2-sk") == 1
     secret_lines = [line for line in script.splitlines() if "r2-sk" in line]
     assert secret_lines, "secret never rendered — this test would pass vacuously"
     assert all("NEXUS_SK=" in line for line in secret_lines), secret_lines
-    assert "--arg" in script  # non-secret args do use --arg
-    assert not any("--arg" in line and "r2-sk" in line for line in script.splitlines())
+    assert "--arg" in script  # non-secret args legitimately use --arg
 
 
 def test_render_lakekeeper_hook_storage_profile_matches_r2() -> None:

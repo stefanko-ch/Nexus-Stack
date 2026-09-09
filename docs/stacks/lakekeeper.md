@@ -217,6 +217,36 @@ encryption key for secrets in postgres` and uses a built-in key — which would
 put the R2 secret in the catalogue database under an encryption anyone can
 reverse.
 
+#### Upgrading an existing install: the database moved
+
+Before this change the catalogue lived in a Docker named volume,
+`lakekeeper-db-data`. It is now a bind mount at
+`/mnt/nexus-data/lakekeeper/db`, and **nothing copies the old data across** —
+Postgres finds an empty directory and initialises a fresh, empty catalogue.
+The Parquet files in object storage are untouched, but nothing names them any
+more.
+
+Whether this affects you depends on the lifecycle mode:
+
+- **Rebuild** (`lifecycle_mode: rebuild`) — nothing to do. The teardown
+  destroys the server, so the named volume was already gone on every cycle.
+- **Snapshot** (`lifecycle_mode: snapshot`) — the disk image preserved that
+  volume, so it may hold a catalogue you care about. Copy it across **once**,
+  on the server, before the first spin-up that carries this change:
+
+```bash
+# With the stack stopped.
+docker run --rm \
+  -v lakekeeper-db-data:/from \
+  -v /mnt/nexus-data/lakekeeper/db:/to \
+  alpine sh -c 'cd /from && cp -a . /to/'
+```
+
+Check `docker volume ls | grep lakekeeper` first: no such volume means there
+is nothing to migrate. Afterwards, `docker volume rm lakekeeper-db-data`
+reclaims the space — but only once a spin-up has confirmed the catalogue came
+back.
+
 **Not covered:** object-storage durability itself. R2 gives you provider-level
 durability; a MinIO / Garage / SeaweedFS warehouse on the same Hetzner box is
 not redundant unless the operator wires their own replication.

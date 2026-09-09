@@ -140,6 +140,13 @@ services:
       # Without the dump, an R2-backed warehouse survives a teardown while the
       # catalogue that names its tables does not -- Parquet files in a bucket
       # nothing can resolve.
+      #
+      # ⚠️ This replaced the named volume `lakekeeper-db-data`, and nothing
+      # copies the old contents over. Under a rebuild lifecycle that volume
+      # was destroyed with the server on every teardown, so there is nothing
+      # to lose; under a snapshot lifecycle the disk image kept it, and an
+      # existing catalogue needs a one-time copy. The command is in
+      # docs/stacks/lakekeeper.md, "Upgrading an existing install".
       - /mnt/nexus-data/lakekeeper/db:/var/lib/postgresql/data
     networks:
       - lakekeeper-internal
