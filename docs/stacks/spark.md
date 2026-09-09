@@ -90,7 +90,7 @@ A bare 400 with a null request id — R2 rejects the request before parsing it, 
 
 The file also widens `spark.redaction.regex`. Spark's default is `(?i)secret|password|token`, which hides `fs.s3a.secret.key` and leaves `fs.s3a.access.key` visible — and the master UI on port 8088 renders the environment page for every running application.
 
-```
+```text
    ┌──────────────────────┐          ┌──────────────────────┐
    │  Jupyter PySpark     │          │  Marimo PySpark      │
    │  (driver-JVM local)  │          │  (gRPC client only)  │
@@ -194,7 +194,7 @@ Measured on 2026-09-09, against Maven Central:
 
 The 4.1 jar is not a workaround. Loading it on Spark 4.2.0 fails on the first statement:
 
-```
+```text
 java.lang.IncompatibleClassChangeError: class org.apache.iceberg.spark.source.SparkView
   can not implement org.apache.spark.sql.connector.catalog.View,
   because it is not an interface

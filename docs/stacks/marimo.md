@@ -30,7 +30,7 @@ Marimo is a reactive Python notebook that's reproducible, git-friendly, and depl
 
 When the Spark stack is also enabled, Marimo can run PySpark workloads against the cluster via the Spark Connect endpoint. Topology:
 
-```
+```text
 Marimo container (Python 3.13, no JDK)
    │ pyspark[connect] + Arrow + gRPC
    ▼ sc://spark-connect:15002
