@@ -24,14 +24,14 @@ Lakekeeper is an open-source implementation of the [Apache Iceberg REST Catalog 
 
 Before Lakekeeper, every Iceberg-aware engine in the stack needed its own catalog config (or a local Hive Metastore). Lakekeeper centralises that:
 
-| Engine | Before | With Lakekeeper |
-|---|---|---|
-| Spark | Per-job Hadoop config + own warehouse path | `spark.sql.catalog.lakekeeper.type=rest` + URL |
-| Trino | Per-catalog `iceberg.yml` with separate metastore | One REST catalog config pointing at Lakekeeper |
-| PyIceberg | Local `.pyiceberg.yaml` per project | `Catalog.load("lakekeeper", uri="...")` |
-| DuckDB | Manual table-by-table `iceberg_scan(s3://...)` | `ATTACH 'http://...' AS lk (TYPE iceberg)` |
+| Engine | Before | With Lakekeeper | Available here |
+|---|---|---|---|
+| PyIceberg | Local `.pyiceberg.yaml` per project | `load_catalog("nexus", type="rest", uri=...)` | **yes** — this is the path the seeded notebook uses |
+| Trino | Per-catalog `iceberg.yml` with separate metastore | One REST catalog config pointing at Lakekeeper | yes, when the Trino stack is enabled |
+| DuckDB | Manual table-by-table `iceberg_scan(s3://...)` | `ATTACH 'http://...' AS lk (TYPE iceberg)` | yes |
+| Spark | Per-job Hadoop config + own warehouse path | `spark.sql.catalog.lakekeeper.type=rest` + URL | **no** — blocked upstream, see [From Spark](#from-spark--not-available-yet) |
 
-All engines read + write the **same** physical Parquet files in object storage, with the catalog as the single source of truth for which version of which table lives where.
+Every engine that *can* connect reads and writes the **same** physical Parquet files in object storage, with the catalog as the single source of truth for which version of which table lives where. Spark is listed because that is the shape the integration will take once Iceberg ships a Spark 4.2 runtime ([#828](https://github.com/stefanko-ch/Nexus-Stack/issues/828)) — it is not something to configure today.
 
 ### Usage
 
