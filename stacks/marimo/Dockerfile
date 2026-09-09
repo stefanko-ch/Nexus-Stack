@@ -89,8 +89,17 @@ RUN pip install --no-cache-dir \
 #
 # Spark 4.2 support landed in Iceberg's main branch on 2026-09-04 but is not in
 # any release. Until it is, PyIceberg is how a notebook reaches these catalogs.
+# s3fs is not optional here, despite reading like a nice-to-have. Lakekeeper's
+# warehouses use remote signing (the catalogue signs each S3 request for the
+# client), because Cloudflare R2 has no AWS STS endpoint and Lakekeeper vends
+# no credentials at all with both STS and remote signing off -- the first write
+# then dies with `AWS Error ACCESS_DENIED`. PyIceberg implements remote signing
+# only in its fsspec FileIO, which needs s3fs; without it a write fails with
+# `ModuleNotFoundError: No module named 's3fs'` after the table already exists
+# in the catalogue. All three states measured against Lakekeeper v0.13.3.
 RUN pip install --no-cache-dir \
-    "pyiceberg==0.12.0"
+    "pyiceberg==0.12.0" \
+    "s3fs==2026.7.0"
 
 # Stay as root — the entrypoint chowns the notebooks volume then drops
 # to appuser via gosu before exec'ing marimo. We can't drop here

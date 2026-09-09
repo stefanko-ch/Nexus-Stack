@@ -93,7 +93,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Planka | `ghcr.io/plankanban/planka` | `2.1.1` | Exact ¹ |
 | PostgreSQL (Planka DB) | `postgres` | `16-alpine` | Major |
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
-| Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.12.2` | Exact ¹ |
+| Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |

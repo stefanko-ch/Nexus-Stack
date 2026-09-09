@@ -39,7 +39,7 @@ services:
   # serve"`) makes the lifecycle explicit + lets Docker's restart
   # policy do the right thing for each role.
   lakekeeper-bootstrap:
-    image: ${IMAGE_LAKEKEEPER:-quay.io/lakekeeper/catalog:v0.12.2}
+    image: ${IMAGE_LAKEKEEPER:-quay.io/lakekeeper/catalog:v0.13.3}
     container_name: lakekeeper-bootstrap
     restart: "no"
     command: ["migrate"]
@@ -56,7 +56,7 @@ services:
   # Lakekeeper Catalog - REST API server
   # ---------------------------------------------------------------------------
   lakekeeper:
-    image: ${IMAGE_LAKEKEEPER:-quay.io/lakekeeper/catalog:v0.12.2}
+    image: ${IMAGE_LAKEKEEPER:-quay.io/lakekeeper/catalog:v0.13.3}
     container_name: lakekeeper
     env_file:
       - .env
@@ -79,6 +79,14 @@ services:
       # later want fine-grained per-team table permissions inside
       # Lakekeeper itself (see docs/stacks/lakekeeper.md).
       LAKEKEEPER__AUTHZ_BACKEND: allow-all
+      # Encrypts the warehouse storage credentials Lakekeeper keeps in
+      # Postgres. Left unset, it logs "THIS IS UNSAFE! Using default
+      # encryption key for secrets in postgres" and uses a built-in key, so
+      # the R2 secret would sit in the catalogue database under an encryption
+      # anyone can reverse. Must stay stable across spin-ups, or previously
+      # stored credentials stop decrypting -- see _render_lakekeeper for why
+      # it reuses the DB password rather than adding a second secret.
+      LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER_PG_ENCRYPTION_KEY}
     deploy:
       resources:
         limits:
@@ -92,7 +100,19 @@ services:
       - app-network
       - lakekeeper-internal
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8181/health || exit 1"]
+      # CMD, not CMD-SHELL, and the binary's own subcommand rather than wget.
+      # This image is distroless: the only executable in it is
+      # /home/nonroot/lakekeeper. There is no /bin/sh and no wget, so a
+      # CMD-SHELL probe cannot start at all -- it exits 127 with
+      # `stat /bin/sh: no such file or directory` and the container is marked
+      # unhealthy forever, however well the server is actually running.
+      # Measured against both v0.12.2 and v0.13.3, so this was already the
+      # case before the version bump; it went unnoticed because nothing in the
+      # deploy pipeline waits on container health.
+      #
+      # `healthcheck -s` calls the server's own /health endpoint and exits 0
+      # when it answers, 1 when nothing is listening (verified both ways).
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck", "-s"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -110,7 +130,24 @@ services:
       POSTGRES_PASSWORD: ${LAKEKEEPER_DB_PASSWORD}
       POSTGRES_DB: lakekeeper
     volumes:
-      - lakekeeper-db-data:/var/lib/postgresql/data
+      # Bind mount under /mnt/nexus-data rather than a named volume, matching
+      # gitea-db / forgejo-db / dify-db / unity-catalog-db. Two reasons, and
+      # only the second is about this stack:
+      #   - the snapshot lifecycle images the disk, and a path under
+      #     /mnt/nexus-data is where the other stateful stacks keep their data
+      #   - s3_restore's PostgresDumpTarget for lakekeeper-db needs the
+      #     database to exist at a predictable place across a rebuild
+      # Without the dump, an R2-backed warehouse survives a teardown while the
+      # catalogue that names its tables does not -- Parquet files in a bucket
+      # nothing can resolve.
+      #
+      # ⚠️ This replaced the named volume `lakekeeper-db-data`, and nothing
+      # copies the old contents over. Under a rebuild lifecycle that volume
+      # was destroyed with the server on every teardown, so there is nothing
+      # to lose; under a snapshot lifecycle the disk image kept it, and an
+      # existing catalogue needs a one-time copy. The command is in
+      # docs/stacks/lakekeeper.md, "Upgrading an existing install".
+      - /mnt/nexus-data/lakekeeper/db:/var/lib/postgresql/data
     networks:
       - lakekeeper-internal
     healthcheck:
@@ -118,9 +155,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-volumes:
-  lakekeeper-db-data:
 
 networks:
   app-network:

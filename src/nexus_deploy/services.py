@@ -115,6 +115,16 @@ _RESULT_LINE_RE = re.compile(
 # dash), so this is defence in depth.
 _VALID_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
+# The Iceberg warehouse `render_lakekeeper_hook` creates, and the object-key
+# subtree it owns. Both names are part of the contract with the seeded
+# notebook: `examples/workspace-seeds/marimo/_nexus_iceberg.py` opens
+# LAKEKEEPER_WAREHOUSE by name, so renaming either here without renaming it
+# there leaves the notebook asking for a warehouse that does not exist.
+# The prefix matters because the data bucket is shared -- Unity Catalog
+# addresses it at the root and pg-ducklake writes tables into it.
+LAKEKEEPER_WAREHOUSE = "nexus"
+LAKEKEEPER_KEY_PREFIX = "lakekeeper"
+
 HookStatus = Literal["configured", "already-configured", "failed", "skipped-not-ready"]
 
 
@@ -2265,6 +2275,168 @@ unity_catalog_hook
 """
 
 
+def render_lakekeeper_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Lakekeeper: bootstrap the server, then create the ``nexus`` warehouse.
+
+    A fresh Lakekeeper has neither. Without them, the first PyIceberg call
+    fails while everything looks healthy -- the container is up, /health
+    answers 200, and the catalogue simply has nothing in it.
+
+    **Two steps, not one, and the order is not optional.** Creating a
+    warehouse before the server is bootstrapped returns
+    ``404 ProjectNotFound`` for the default project id, measured against a
+    fresh database. Bootstrapping first turns ``bootstrapped: false`` into
+    ``true`` in ``/management/v1/info`` and returns 204.
+
+    A failed bootstrap is a warning, not a verdict. Re-POSTing it on a server
+    that already has one returns ``400 CatalogAlreadyBootstrapped``, so a
+    single unanswered ``/info`` call is enough to walk this hook into a POST
+    that fails for a perfectly healthy stack. The warehouse check decides the
+    outcome instead.
+
+    Host ``curl`` against ``localhost:8195``, not ``docker exec`` like the
+    Unity Catalog hook: Lakekeeper publishes a port, and the image is
+    distroless -- there is no shell, no curl and no wget inside it to exec
+    into.
+
+    The storage profile is what makes the warehouse usable from a notebook:
+
+    - ``flavor: s3-compat`` + ``path-style-access`` -- R2 is not AWS S3
+    - ``sts-enabled: false`` -- R2 has no AWS STS endpoint
+    - ``remote-signing-enabled: true`` -- Lakekeeper signs each request on
+      the client's behalf
+
+    Remote signing is not a preference. With it off *and* STS off, Lakekeeper
+    vends the client no credentials at all and the first write dies with
+    ``AWS Error ACCESS_DENIED``, measured. It is also why
+    ``stacks/marimo/Dockerfile`` installs ``s3fs``: PyIceberg implements
+    remote signing only in its fsspec FileIO.
+
+    ``credential-type: access-key`` rather than Lakekeeper's own
+    ``cloudflare-r2`` type, which additionally requires a ``token`` field --
+    a Cloudflare API token this stack does not have and does not want to
+    mint.
+
+    ``key-prefix`` scopes the warehouse to a subtree. The data bucket is
+    shared: Unity Catalog addresses it at the root (``s3://<bucket>``) and
+    pg-ducklake uses it as a default table path, so an unprefixed warehouse
+    would interleave Iceberg metadata with their objects.
+
+    Idempotent by asking first. A second create returns
+    ``400 CreateWarehouseStorageProfileOverlap`` rather than a conflict code,
+    so the re-check after a failed POST matters more here than usual: that
+    status alone cannot distinguish "someone else just created it" from a
+    genuine rejection.
+
+    Secrets reach jq through env vars (``NEXUS_AK`` / ``NEXUS_SK``) and are
+    referenced as ``env.NEXUS_AK`` / ``env.NEXUS_SK``, never as ``--arg``
+    values, and the body is piped to curl over stdin. Neither process carries
+    the R2 secret in argv (R4).
+    """
+    del env  # signature uniform across hooks
+    bucket = config.r2_data_bucket or ""
+    endpoint = config.r2_data_endpoint or ""
+    access_key = config.r2_data_access_key or ""
+    secret_key = config.r2_data_secret_key or ""
+    if not (bucket and endpoint and access_key and secret_key):
+        # No object storage, no warehouse worth creating. The catalogue still
+        # runs and its UI still works, so this is a skip rather than a
+        # failure.
+        return 'echo "RESULT hook=lakekeeper status=skipped-not-ready"\n'
+
+    base = "http://localhost:8195"
+    wait = _render_wait_healthy(
+        name="lakekeeper",
+        url=f"{base}/health",
+        timeout_seconds=120,
+        interval_seconds=3,
+    )
+    profile = shlex.quote(
+        json.dumps(
+            {
+                "type": "s3",
+                "bucket": bucket,
+                "region": "auto",
+                "endpoint": endpoint,
+                "flavor": "s3-compat",
+                "path-style-access": True,
+                "sts-enabled": False,
+                "remote-signing-enabled": True,
+                "key-prefix": LAKEKEEPER_KEY_PREFIX,
+            },
+        ),
+    )
+    return f"""
+lakekeeper_hook() {{
+    {wait}
+    INFO=$(curl -s --max-time 10 {shlex.quote(base + "/management/v1/info")} 2>/dev/null || echo "{{}}")
+    BOOTSTRAPPED=$(printf '%s' "$INFO" | jq -r '.bootstrapped // false | tostring' 2>/dev/null || echo "false")
+    if [ "$BOOTSTRAPPED" != "true" ]; then
+        BOOT_CODE=$(printf '%s' '{{"accept-terms-of-use":true}}' | curl -s -o /dev/null -w '%{{http_code}}' \\
+            -X POST {shlex.quote(base + "/management/v1/bootstrap")} \\
+            --max-time 30 -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+        BOOT_CODE=${{BOOT_CODE:-000}}
+        case "$BOOT_CODE" in
+            2??) ;;
+            *)
+                # Warn, then carry on to the warehouse check rather than
+                # reporting failure here. A non-2xx is ambiguous: a server
+                # that is already bootstrapped answers this POST with
+                # `400 CatalogAlreadyBootstrapped` (measured), so a single
+                # unanswered /management/v1/info -- which leaves BOOTSTRAPPED
+                # at its "false" default -- would otherwise make this hook
+                # report `failed` for a stack whose warehouse is right there.
+                # The warehouse check below is ground truth; if the bootstrap
+                # genuinely failed, the create returns 404 ProjectNotFound and
+                # the failure is reported there, with this warning above it.
+                echo "  ⚠ lakekeeper bootstrap returned HTTP $BOOT_CODE — continuing to the warehouse check" >&2
+                ;;
+        esac
+    fi
+
+    if curl -s --max-time 10 {shlex.quote(base + "/management/v1/warehouse")} 2>/dev/null \\
+        | jq -e --arg n {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
+          '[.warehouses[]? | select(.name == $n)] | length > 0' >/dev/null 2>&1; then
+        echo "RESULT hook=lakekeeper status=already-configured"
+        return 0
+    fi
+
+    BODY=$(NEXUS_AK={shlex.quote(access_key)} NEXUS_SK={shlex.quote(secret_key)} jq -n \\
+        --argjson profile {profile} \\
+        --arg name {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
+        '{{"warehouse-name": $name, "storage-profile": $profile,
+           "storage-credential": {{type: "s3", "credential-type": "access-key",
+                                  "access-key-id": env.NEXUS_AK,
+                                  "secret-access-key": env.NEXUS_SK}}}}')
+    CREATE_CODE=$(printf '%s' "$BODY" | curl -s -o /dev/null -w '%{{http_code}}' \\
+        -X POST {shlex.quote(base + "/management/v1/warehouse")} \\
+        --max-time 60 -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+    CREATE_CODE=${{CREATE_CODE:-000}}
+    case "$CREATE_CODE" in
+        2??)
+            echo "RESULT hook=lakekeeper status=configured"
+            ;;
+        *)
+            # Re-ask rather than trust the code. Two spin-ups can reach this
+            # hook at once (spin-up.yml has no concurrency group, #801), and
+            # the loser gets the same 400 as a genuinely bad profile.
+            if curl -s --max-time 10 {shlex.quote(base + "/management/v1/warehouse")} 2>/dev/null \\
+                | jq -e --arg n {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
+                  '[.warehouses[]? | select(.name == $n)] | length > 0' >/dev/null 2>&1; then
+                echo "RESULT hook=lakekeeper status=already-configured"
+            else
+                # The body is not echoed: it repeats the request, R2 secret
+                # included, and this log is public.
+                echo "  ⚠ lakekeeper warehouse creation returned HTTP $CREATE_CODE — Iceberg clients will find no warehouse" >&2
+                echo "RESULT hook=lakekeeper status=failed"
+            fi
+            ;;
+    esac
+}}
+lakekeeper_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -2286,6 +2458,10 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # Creates the `unity` catalog the Spark config names. A fresh PostgreSQL
     # metastore starts empty, so without this every query 404s.
     "unity-catalog": render_unity_catalog_hook,
+    # Bootstraps the server and creates the `nexus` Iceberg warehouse on R2.
+    # A fresh Lakekeeper has neither, and without both the catalogue answers
+    # /health while holding nothing an Iceberg client can open.
+    "lakekeeper": render_lakekeeper_hook,
     # pg-ducklake bootstrap re-apply (handles cred rotation on
     # persistent-volume deploys where the entrypoint-initdb scripts
     # only ran on first init).

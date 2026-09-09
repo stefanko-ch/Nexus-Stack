@@ -72,6 +72,22 @@ services:
       # (examples/workspace-seeds/marimo/_nexus_spark.py). Override
       # per-notebook via os.environ if pointing at a different cluster.
       - SPARK_CONNECT_URL=sc://spark-connect:15002
+      # Default Iceberg REST catalogue for the helper module
+      # (examples/workspace-seeds/marimo/_nexus_iceberg.py). Hardcoded here
+      # for the same reason as SPARK_CONNECT_URL above: it is topology, not a
+      # secret, and writing it to .env would put a value in two places.
+      #
+      # The in-cluster URL, deliberately. https://lakekeeper.<domain> is
+      # behind Cloudflare Access and answers an API client with an HTML login
+      # page, which PyIceberg then fails to parse as JSON -- an error that
+      # reads like a catalogue fault and is not one.
+      #
+      # The warehouse name matches services.LAKEKEEPER_WAREHOUSE, which is
+      # what render_lakekeeper_hook creates. Both are set even when the
+      # Lakekeeper stack is disabled; they are inert until something opens
+      # the catalogue.
+      - LAKEKEEPER_URI=http://lakekeeper:8181/catalog
+      - LAKEKEEPER_WAREHOUSE=nexus
       # NOTE: HETZNER_S3_* are intentionally NOT set here. They land
       # in `.infisical.env` via the secret-sync block in deploy.sh
       # and reach the container via env_file above. Listing them in
