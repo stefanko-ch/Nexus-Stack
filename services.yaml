@@ -934,12 +934,18 @@ services:
       postgres: 4566
 
   sftpgo:
-    # Core because it is the only way to look at what is IN the object storage.
-    # Both buckets a deployment has -- Cloudflare R2 and Hetzner Object Storage
-    # -- are mounted as virtual folders by render_sftpgo_hook, and every stack
-    # that writes to them (Unity Catalog, Lakekeeper, pg-ducklake, Spark) leaves
-    # prefixes that are unreadable without a file browser. Leaving that browser
-    # optional meant a default deployment could write data nobody could inspect.
+    # Core so that every deployment can see what is IN its object storage.
+    # Stacks that write there -- Unity Catalog, Lakekeeper, pg-ducklake, Spark
+    # -- leave prefixes that mean nothing without a browser to open them, and
+    # until now all three browsers were optional: filestash (R2 + Hetzner),
+    # s3manager (Hetzner only) and this one. A default deployment therefore had
+    # none, and could write data nobody could inspect.
+    #
+    # SFTPGo rather than filestash, which covers the same two buckets: it also
+    # speaks SFTP, so external tools that cannot talk S3 reach the same data,
+    # and render_sftpgo_hook already mounts both buckets as virtual folders.
+    # Making filestash core instead would be a defensible different choice;
+    # making neither core was the actual bug.
     core: true
     subdomain: "sftpgo"
     port: 8090
