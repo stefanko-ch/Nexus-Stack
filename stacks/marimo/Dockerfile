@@ -74,8 +74,11 @@ RUN pip install --no-cache-dir \
 #   after:  pyarrow 19.0.1  grpcio 1.76.0  duckdb 1.5.2  polars 1.40.1
 #
 # The conversion methods work regardless of the extras, because they import
-# their target lazily: `table.scan().to_arrow()`, `.to_duckdb()`, `.to_polars()`
-# all live on DataScan, and `Table.to_polars()` is a convenience on top.
+# their target lazily. They live on DataScan, which `table.scan()` returns:
+# `.to_arrow()`, `.to_polars()`, `.to_pandas()`, and `.to_duckdb("name")` —
+# that last one takes a required table name and hands back a connection with
+# the data registered under it, rather than returning a frame. `Table` itself
+# carries only `to_polars()` as a shortcut; there is no `Table.to_arrow()`.
 #
 # NOT a Spark path. Iceberg publishes no `iceberg-spark-runtime-4.2_2.13`, and
 # the 4.1 build is binary-incompatible with the Spark 4.2.0 this stack runs:

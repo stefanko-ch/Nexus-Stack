@@ -121,10 +121,17 @@ cat = load_catalog(
 )
 
 tbl = cat.load_table("my_namespace.my_table")
-tbl.scan().to_polars()        # also .to_arrow(), .to_duckdb("t"), .to_pandas()
+tbl.scan().to_polars()        # also .to_arrow(), .to_pandas()
 ```
 
-Note where the conversions live: `scan()` returns a `DataScan` and carries all four. `Table` itself only offers `to_polars()` as a shortcut — `Table.to_arrow()` and `Table.to_duckdb()` do not exist.
+Note where the conversions live: `scan()` returns a `DataScan`, and that is what carries them. `Table` itself only offers `to_polars()` as a shortcut — `Table.to_arrow()` and `Table.to_duckdb()` do not exist.
+
+`to_duckdb` is the odd one out and does not fit the line above. It takes a **required** table name and returns a connection with the data registered under that name, rather than returning a frame:
+
+```python
+con = tbl.scan().to_duckdb("orders")
+con.sql("SELECT country, count(*) FROM orders GROUP BY country").pl()
+```
 
 > **Not yet turnkey.** The [Lakekeeper](./lakekeeper.md) stack starts with no warehouse, and nothing creates one for you — a warehouse must currently be added by hand through Lakekeeper's UI or management API before the snippet above resolves. The warehouse hook and a guided seed notebook are the next step; until they land, treat this section as the client-side reference rather than a complete walkthrough.
 
