@@ -15,8 +15,20 @@ SFTPGo is a fully-featured SFTP/SCP/WebDAV/FTPS server with a web admin UI, per-
 - Hand-shipping a CSV from a laptop into the lake without configuring an S3 client
 - Reading files written by Kestra flows from a remote workstation
 
+> **Core service — always deployed, cannot be disabled.** SFTPGo is the only
+> thing in the stack that lets you *look at* the object storage. Both buckets a
+> deployment has are mounted here as virtual folders, and every stack that
+> writes to them leaves prefixes — `lakekeeper/`, a Unity Catalog schema name, a
+> DuckLake path — that mean nothing without a browser to open them. When SFTPGo
+> was optional, the default deployment could write data nobody could inspect.
+>
+> The consequence to know: it is deployed even on a stack with no object storage
+> configured. It runs, the admin UI works, and the `services-configure` phase
+> reports `skipped-not-ready` because there is no bucket to attach.
+
 | Setting | Value |
 |---------|-------|
+| Core service | Yes — always enabled |
 | Default Port (web UI) | `8090` |
 | SFTP Port | `2022` |
 | Suggested Subdomain | `sftpgo` |

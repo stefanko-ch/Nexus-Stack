@@ -17,7 +17,9 @@ A terminal over HTTP/HTTPS that allows you to access your server via a web brows
 - **Cloudflare Access protected** - Secure access via email OTP authentication
 - **Public key authentication only** - No password authentication for enhanced security
 - **Short session duration** - Cloudflare Access sessions expire after 1 hour for enhanced security
-- **Core service** - Always enabled, cannot be disabled
+- **Optional** - enable it in the Control Plane like any other stack. It is not
+  a core service; `services.yaml` carries no `core: true` for it. (This line
+  used to claim the opposite.)
 
 **Security Features:**
 - ✅ **Public key authentication only** - `SSHAUTH=publickey` prevents password-based logins

@@ -934,6 +934,13 @@ services:
       postgres: 4566
 
   sftpgo:
+    # Core because it is the only way to look at what is IN the object storage.
+    # Both buckets a deployment has -- Cloudflare R2 and Hetzner Object Storage
+    # -- are mounted as virtual folders by render_sftpgo_hook, and every stack
+    # that writes to them (Unity Catalog, Lakekeeper, pg-ducklake, Spark) leaves
+    # prefixes that are unreadable without a file browser. Leaving that browser
+    # optional meant a default deployment could write data nobody could inspect.
+    core: true
     subdomain: "sftpgo"
     port: 8090
     public: false

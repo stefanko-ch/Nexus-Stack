@@ -130,9 +130,12 @@ Other known differences from GitHub Actions:
 
 ### Security — read this before enabling on a shared stack
 
-**Anyone who can push to a repository here can execute code on your
-server — and this is a core service, so it is present on every
-stack.** That is not a Forgejo quirk; it is what self-hosted CI is.
+**Once this stack is enabled, anyone who can push to a repository can
+execute code on your server.** Forgejo itself is a core service and is
+present on every stack, but it cannot run anything without a runner —
+which is exactly why the runner is separate and opt-in. Enabling it is
+the moment the code-execution path opens. That is not a Forgejo quirk;
+it is what self-hosted CI is.
 For a class stack it means every student with commit rights has a code
 execution primitive.
 
