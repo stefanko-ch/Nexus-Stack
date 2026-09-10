@@ -1062,3 +1062,28 @@ def test_no_compose_configures_spark_through_spark_hadoop_env_vars() -> None:
         + "\nThe official apache/spark image ignores these. Put the setting in "
         "the rendered spark-defaults.conf instead (service_env._render_spark)."
     )
+
+
+def test_unity_catalog_writes_under_its_own_prefix() -> None:
+    """Unity Catalog owns a subtree of the data bucket, not its root.
+
+    The bucket is shared. Lakekeeper scopes itself with `key-prefix: lakekeeper`
+    and pg-ducklake writes its own tables there, but Unity Catalog used to
+    append nothing, so a table created as `unity.demo.cities` landed at
+    `s3://<bucket>/demo/cities` — a top-level folder named after a schema,
+    saying nothing about which stack made it and colliding outright with any
+    other stack that picked the same word.
+
+    Asserted on the rendered property rather than on the prefix constant alone:
+    the constant existing proves nothing if the bucketPath line stops using it.
+    """
+    entrypoint = (REPO_ROOT / "stacks/unity-catalog/entrypoint.sh").read_text()
+
+    prefix_lines = [line for line in entrypoint.splitlines() if line.startswith("UC_R2_PREFIX=")]
+    assert prefix_lines == ['UC_R2_PREFIX="unity-catalog"'], prefix_lines
+
+    bucket_paths = [line for line in entrypoint.splitlines() if line.startswith("s3.bucketPath.")]
+    assert bucket_paths == ["s3.bucketPath.0=s3://${UC_R2_BUCKET}/${UC_R2_PREFIX}"], (
+        f"bucketPath no longer carries the prefix: {bucket_paths}. Writing to the "
+        "bucket root puts Unity Catalog's schemas next to every other stack's data."
+    )

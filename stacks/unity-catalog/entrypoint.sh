@@ -91,6 +91,21 @@ EOF
 # Redirection truncates the existing file and leaves its mode alone.
 cat "$CONF_DIR/server.properties.base" > "$CONF_DIR/server.properties"
 
+# Subtree this catalog owns inside the shared data bucket. Not configurable on
+# purpose: the value is part of the bucket's layout contract, and a deployment
+# that changed it would silently orphan every table already recorded, because
+# Unity Catalog stores table locations ABSOLUTELY -- `s3://bucket/demo/cities`,
+# not a path relative to bucketPath. A location outside the configured
+# bucketPath gets no credentials vended for it.
+#
+# The bucket is shared: Lakekeeper owns `lakekeeper/`, pg-ducklake writes its
+# own tables, and Spark can be pointed anywhere. Before this prefix existed,
+# Unity Catalog was the only one writing to the ROOT, so its tables showed up
+# as a bare schema name -- a folder called `demo` that says nothing about who
+# made it, and that would collide outright with any other stack choosing the
+# same word.
+UC_R2_PREFIX="unity-catalog"
+
 if [ -n "${UC_R2_BUCKET:-}" ]; then
   : "${R2_ACCOUNT_ID:?unity-catalog: UC_R2_BUCKET is set but R2_ACCOUNT_ID is not}"
   : "${R2_ENDPOINT_HOST:?unity-catalog: UC_R2_BUCKET is set but R2_ENDPOINT_HOST is not}"
@@ -100,7 +115,7 @@ if [ -n "${UC_R2_BUCKET:-}" ]; then
   cat >> "$CONF_DIR/server.properties" <<EOF
 
 # --- Appended at container start by entrypoint.sh ---
-s3.bucketPath.0=s3://${UC_R2_BUCKET}
+s3.bucketPath.0=s3://${UC_R2_BUCKET}/${UC_R2_PREFIX}
 s3.region.0=auto
 # Never dereferenced. ServerProperties.getS3Configurations drops a bucket entry
 # unless bucketPath+region+awsRoleArn OR accessKey+secretKey+sessionToken are
@@ -111,6 +126,13 @@ s3.region.0=auto
 s3.awsRoleArn.0=arn:aws:iam::000000000000:role/unused-with-credential-generator
 s3.credentialGenerator.0=ch.nexusstack.unitycatalog.R2TemporaryCredentialGenerator
 EOF
+
+  # Printed on every start, because the failure this prevents is silent. A
+  # table whose recorded location lies outside this path gets no credentials
+  # vended, and the query fails with a bare 403 -- nothing in that error says
+  # which path was configured. `docker logs unity-catalog` is where somebody
+  # chasing that 403 will look, so the answer is put there.
+  echo "unity-catalog: table data goes under s3://${UC_R2_BUCKET}/${UC_R2_PREFIX}/ — a table recorded outside this path cannot be read" >&2
 else
   echo "unity-catalog: no R2 bucket configured — external tables on object storage will not work" >&2
 fi
