@@ -1164,3 +1164,170 @@ def test_marimo_disables_botocore_streaming_checksums() -> None:
             f"{var} is {env.get(var)!r}, expected 'when_required'. Iceberg "
             "writes to R2 fail with a signature mismatch without it."
         )
+
+
+def test_kestra_flows_use_no_removed_2x_constructs() -> None:
+    """Seeded flows and the rendered system flows must load on Kestra 2.x.
+
+    Two constructs were removed in 2.0 and both were in use here:
+
+    - `io.kestra.plugin.core.flow.ForEach` — gone; `Loop` replaces it and
+      takes the same `values` / `concurrencyLimit` / `tasks`, verified
+      against 2.0's own plugin schema.
+    - `io.kestra.core.models.triggers.types.Schedule` — gone. Kestra 1.0.60
+      still accepted it (HTTP 200 on POST) while 2.0 rejects it with
+      `422 Could not resolve type id`. The modern
+      `io.kestra.plugin.core.trigger.Schedule` is accepted by BOTH, which is
+      why this could be fixed without waiting for the version bump.
+
+    Asserted against the flow sources rather than a version string: the point
+    is what the flows contain, not which tag they happen to run on.
+    """
+    import re
+
+    from nexus_deploy.kestra import render_system_flows
+
+    sources = {
+        p.name: p.read_text()
+        for p in (REPO_ROOT / "examples/workspace-seeds/kestra/flows").glob("*.yaml")
+    }
+    assert sources, "no seeded Kestra flows found — this test would pass vacuously"
+    sources.update(
+        render_system_flows(
+            repo_owner="owner", repo_name="repo", branch="main", admin_username="a@b.c"
+        )
+    )
+
+    removed = {
+        "ForEach": r"io\.kestra\.plugin\.core\.flow\.ForEach\b",
+        "legacy Schedule trigger": r"io\.kestra\.core\.models\.triggers\.types\.Schedule\b",
+        # `Loop` runs each iteration as its own sub-execution, so the
+        # iteration variables changed and outputs are no longer keyed.
+        # Measured on 2.0: `taskrun.value` -> FAILED, `item.value` -> SUCCESS;
+        # `outputs.x[item.value].y` -> FAILED, `outputs.x.y` -> SUCCESS.
+        "taskrun.* iteration variable": r"\{\{[^}]*\btaskrun\.(value|iteration)\b",
+        "output keyed by iteration": r"outputs\.\w+\[[^\]]+\]",
+        # Not a 2.0 removal -- `substring` does not exist in 1.0.60 either,
+        # so this flow's upload step could never have run. `slice` is the
+        # Pebble filter that works on both.
+        "substring filter": r"\|\s*substring\(",
+    }
+
+    # Comment lines do not count. The flows explain what changed and why,
+    # which means they legitimately NAME the removed constructs in prose --
+    # and Kestra never sees a comment. Same distinction the SPARK_HADOOP
+    # check above draws, for the same reason.
+    def code_only(body: str) -> str:
+        return "\n".join(line for line in body.splitlines() if not line.lstrip().startswith("#"))
+
+    offenders = [
+        f"{name}: {label}"
+        for name, body in sources.items()
+        for label, pat in removed.items()
+        if re.search(pat, code_only(body))
+    ]
+    assert not offenders, "flows use constructs removed in Kestra 2.0:\n  " + "\n  ".join(offenders)
+
+
+def test_kestra_flows_parse_as_yaml() -> None:
+    """Every seeded flow, and every rendered system flow, must be valid YAML.
+
+    Trivial, and it exists because nothing caught the obvious. Editing a
+    comment block in `parallel-http-fetch-to-r2.yaml` left one key indented
+    two spaces too far, which makes the file unparseable — and every other
+    check in this suite still passed, because they all matched substrings
+    rather than loading the document. Kestra would have rejected it at
+    registration time, i.e. during a deploy.
+    """
+    import yaml
+
+    from nexus_deploy.kestra import render_system_flows
+
+    docs = {
+        p.name: p.read_text()
+        for p in (REPO_ROOT / "examples/workspace-seeds/kestra/flows").glob("*.yaml")
+    }
+    assert docs, "no seeded Kestra flows found — this test would pass vacuously"
+    docs.update(
+        render_system_flows(
+            repo_owner="owner", repo_name="repo", branch="main", admin_username="a@b.c"
+        )
+    )
+
+    for name, body in docs.items():
+        try:
+            parsed = yaml.safe_load(body)
+        except yaml.YAMLError as exc:  # pragma: no cover - failure path
+            raise AssertionError(f"{name} is not valid YAML: {exc}") from exc
+        assert isinstance(parsed, dict), f"{name} did not parse to a mapping"
+        for key in ("id", "namespace", "tasks"):
+            assert key in parsed, f"{name} has no `{key}`"
+
+
+def test_kestra_tasks_reach_the_api_internally() -> None:
+    """Tasks calling Kestra's own API must not go through the public hostname.
+
+    `git.PushFlows` and `git.SyncFlows` read and write flow definitions over
+    Kestra's REST API. Upstream resolves that URL as
+    `kestra.tasks.sdk.authentication.url`, then `kestra.url`, then
+    `http://localhost:8080`. This stack must set `kestra.url` for the UI's
+    absolute links, which means the last fallback is unreachable — so without
+    the explicit setting, internal tasks are handed the Cloudflare-Access
+    hostname and receive a `302` HTML page instead of JSON. Observed on a live
+    deployment: `Failed to export flows from Kestra for namespace <ns>`, with
+    an HTML body reading `302 Found ... cloudflare`.
+
+    Parsed from the embedded KESTRA_CONFIGURATION rather than grepped, so a
+    commented-out or mis-indented block fails rather than passes.
+    """
+    import yaml
+
+    compose = yaml.safe_load((REPO_ROOT / "stacks/kestra/docker-compose.yml").read_text())
+    cfg = yaml.safe_load(compose["services"]["kestra"]["environment"]["KESTRA_CONFIGURATION"])
+    auth = cfg["kestra"]["tasks"].get("sdk", {}).get("authentication", {})
+
+    assert auth.get("url") == "http://localhost:8080", (
+        f"tasks.sdk.authentication.url is {auth.get('url')!r}. Anything public "
+        "here routes internal API calls into Cloudflare Access."
+    )
+    # 2.0 also requires those calls to authenticate.
+    assert auth.get("username"), "tasks.sdk.authentication.username is unset"
+    assert auth.get("password"), "tasks.sdk.authentication.password is unset"
+    # The browser-facing URL stays public — the two must not be conflated.
+    assert cfg["kestra"]["url"] == "${KESTRA_URL}"
+
+
+def test_flow_sync_tolerates_an_absent_user_directory() -> None:
+    """`sync-user` must not fail when the student has written no flows yet.
+
+    `kestra/flows` is where a student's own flows live. Git cannot store an
+    empty directory, so on a fresh workspace it does not exist — and
+    SyncFlows' default is to fail on a missing `gitDirectory`. That turns a
+    system flow red on every new stack for an entirely normal condition.
+    Observed on a live deployment: `sync-seeds` SUCCESS, `sync-user` FAILED,
+    "The directory 'kestra/flows' was not found in the git repository". The
+    seeds had arrived; only the signal was wrong.
+
+    `sync-seeds` deliberately does NOT get the flag: `nexus_seeds/kestra/flows`
+    is written by the seeding phase, so its absence means seeding did not
+    happen, and that should stay loud.
+    """
+    import yaml
+
+    from nexus_deploy.kestra import render_system_flows
+
+    flow = yaml.safe_load(
+        render_system_flows(
+            repo_owner="owner", repo_name="repo", branch="main", admin_username="a@b.c"
+        )["system.flow-sync"]
+    )
+    tasks = {t["id"]: t for t in flow["tasks"]}
+    assert set(tasks) == {"sync-seeds", "sync-user"}, sorted(tasks)
+
+    assert tasks["sync-user"].get("failOnMissingDirectory") is False, (
+        "sync-user fails on a fresh workspace without this — the student "
+        "directory does not exist until they write their first flow."
+    )
+    assert "failOnMissingDirectory" not in tasks["sync-seeds"], (
+        "sync-seeds must stay loud: a missing seed directory means seeding did not happen."
+    )

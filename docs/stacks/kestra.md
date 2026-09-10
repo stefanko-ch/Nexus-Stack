@@ -24,7 +24,84 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 | Website | [kestra.io](https://kestra.io) |
 | Source | [GitHub](https://github.com/kestra-io/kestra) |
 
-> ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. The `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` env vars are still rendered for forward-compat (Kestra EE / OIDC), but unused while basic-auth is off.
+> ⚠️ **Kestra 2.0, and there is no way back.** The stack runs `kestra/kestra:v2.0`,
+> which is also the `latest-lts` tag (identical digest — checked). Upstream is
+> explicit that the upgrade is one-way: *"Several 2.0 migrations are
+> irreversible: in particular, the BasicAuth password rehash prevents rollback
+> to 1.x."* A database that has been through 2.0's Flyway migrations cannot be
+> served by a 1.x image again.
+>
+> Under the default **rebuild** lifecycle this costs nothing — Kestra's Postgres
+> is not in the R2 persistence set and is recreated from migrations on every
+> spin-up, so a pin change is a fresh database either way.
+>
+> **Under a `snapshot` lifecycle, take a backup first.** `kestra-postgres-data`
+> is a named Docker volume, so the disk image preserves it, and the first
+> `v2.0` start migrates it irreversibly — there is no supported way back to a
+> 1.x image afterwards. Before the first spin-up carrying this change:
+>
+> ```bash
+> ssh nexus 'docker exec kestra-postgres pg_dump -U nexus-kestra kestra \
+>   | gzip > /mnt/nexus-data/kestra-pre-2.0.sql.gz && \
+>   ls -lh /mnt/nexus-data/kestra-pre-2.0.sql.gz'
+> ```
+>
+> That dump is only useful together with a 1.x image — restoring it into 2.0
+> would simply be re-migrated. Its purpose is to let you rebuild the old state
+> elsewhere if something about 2.0 turns out to be unacceptable, not to enable
+> an in-place rollback, which does not exist.
+>
+> What was checked against 2.0 before the bump, all by registering the actual
+> flows against a local 2.0 instance:
+>
+> | | |
+> |---|---|
+> | Flow registration (`POST /api/v1/flows`) | works — 200 |
+> | `git` plugin tasks this stack uses | all present: `SyncFlows`, `SyncNamespaceFiles`, `PushFlows` |
+> | Basic auth | still works; the generated password needs no special characters |
+> | Browser UI without credentials | still open (`/ui/` → 200), so the no-popup promise above still holds |
+> | Seeded + system flows | all six accepted by a fresh 2.0 |
+>
+> **`Loop` is not a drop-in for `ForEach`.** It runs each iteration as its
+> own *sub-execution*, which changes the variables and the output shape.
+> Measured on 2.0 by executing flows, not merely registering them:
+>
+> | expression | result |
+> |---|---|
+> | `{{ taskrun.value }}` | FAILED — "Unable to find `value`" |
+> | `{{ item.value }}`, `{{ item.index }}` | SUCCESS |
+> | `{{ outputs.x[item.value].y }}` | FAILED |
+> | `{{ outputs.x.y }}` | SUCCESS — the iteration already scopes it |
+>
+> **Registering a flow does not validate it.** All six flows returned HTTP
+> 200 on `POST /api/v1/flows` while still carrying `taskrun.value`, which
+> only fails when an execution reaches the expression. Anything checked
+> against Kestra has to be *run*.
+>
+> Three things had to change first, all in this repo rather than in Kestra:
+> `io.kestra.plugin.core.flow.ForEach` is removed (now `Loop`), and
+> `io.kestra.core.models.triggers.types.Schedule` is removed (now
+> `io.kestra.plugin.core.trigger.Schedule`). 1.0.60 accepted the old trigger
+> type and 2.0 rejects it with `422 Could not resolve type id`. And the
+> `substring` Pebble filter in `parallel-http-fetch-to-r2.yaml` does not
+> exist — **not in 2.0 and not in 1.0.60 either**, so that flow's upload
+> step could never have run on any version this stack has shipped. `slice`
+> is the filter that works on both.
+>
+> **They did, and it broke on the first real run.** Both system flows failed
+> with `Failed to export flows from Kestra for namespace <ns>` and an HTML
+> body reading `302 Found … cloudflare`. `git.PushFlows` and `git.SyncFlows`
+> call Kestra's own REST API, and upstream resolves that URL as
+> `kestra.tasks.sdk.authentication.url` → `kestra.url` → `http://localhost:8080`.
+> This stack has to set `kestra.url` for the UI's absolute links, so the
+> working fallback was never reached and the tasks were handed the
+> Cloudflare-Access hostname.
+>
+> Fixed by setting `kestra.tasks.sdk.authentication` explicitly — internal URL
+> plus the basic-auth credentials 2.0 now requires for such calls. The two URLs
+> are deliberately different: `kestra.url` stays public for the browser.
+
+> ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. `enabled: false` turns off the **UI** prompt only — the REST API still demands authentication on 2.0. Measured on the running server: `GET /ui/` without credentials returns 200, `GET /api/v1/main/flows/...` returns 401, and 200 with them. So `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` are **not** spare forward-compat values: they are what `kestra.tasks.sdk.authentication` (above) hands to `git.PushFlows` / `git.SyncFlows`, and removing them breaks those tasks while leaving the UI working — a failure that looks unrelated to auth.
 
 ### Architecture
 

@@ -5,7 +5,7 @@ description: |
   each response into R2.
 
   Pattern, three tasks per iteration:
-    1. ForEach — iterate over the input URL list (`urls`).
+    1. Loop — iterate over the input URL list (`urls`).
     2. http.Download — GET the iteration's URL.
     3. s3.Upload — push the response body into R2, keyed by index +
        a sanitised slug derived from the URL so each iteration
@@ -23,20 +23,19 @@ description: |
   JSON responses, won't OOM the 4 GB Kestra container. Lower it for
   large payloads, raise it for many small ones by editing
   `concurrencyLimit:` in the `fetch_all` task. (Can't be a flow
-  input — Kestra parses the YAML for `ForEach.concurrencyLimit`
+  input — Kestra parses the YAML for `Loop.concurrencyLimit`
   before rendering Pebble templates, so a `{{ inputs.X }}` value
   fails type-check as Integer.)
 
-  IMPORTANT: input URLs MUST be unique. Kestra's `each_parallel`
-  keys per-iteration outputs by `taskrun.value` (the loop value),
-  so two identical URLs in `urls` would collide on the same
-  `outputs.download[<dup-url>]` map entry — both download tasks
-  write to the same key and the second silently overwrites the
-  first. The R2 keys themselves stay distinct (each gets a unique
-  `idx<N>-<hash>` segment), but both R2 objects would carry the
-  SECOND download's payload. If your input list might contain
-  duplicates, dedupe it upstream (the task that emits `urls`) or
-  add a leading dedup task before this loop.
+  Input URLs SHOULD be unique — but only to avoid wasted work, not for
+  correctness. Under `ForEach` this WAS a correctness problem: outputs
+  were keyed by the loop value, so two identical URLs collided on one
+  map entry and the second overwrote the first. `Loop` gives each
+  iteration its own sub-execution and its own outputs, so nothing
+  collides any more. Two identical URLs now simply fetch the same
+  response twice and write it to two distinct R2 keys (each iteration
+  gets its own `idx<N>-<hash>` segment). Harmless, just pointless — one
+  extra request and one extra object. Dedupe upstream if you care.
 
   This file was seeded into your Forgejo workspace repo from
   `nexus-stack/examples/workspace-seeds/kestra/flows/parallel-http-fetch-to-r2.yaml`.
@@ -78,12 +77,12 @@ inputs:
 
 tasks:
   # ---------------------------------------------------------------------
-  # 1. ForEach over the URL list. Each iteration runs `download` then
+  # 1. Loop over the URL list. Each iteration runs `download` then
   #    `upload` on its own URL.
   #
   #    `concurrencyLimit` is hard-coded (4) instead of bound to a flow
   #    input because Kestra deserialises the YAML BEFORE rendering
-  #    Pebble templates, and ForEach.concurrencyLimit is typed as a
+  #    Pebble templates, and Loop.concurrencyLimit is typed as a
   #    java.lang.Integer — a string-shaped ``{{ inputs.X }}`` value
   #    fails YAML deserialisation with
   #    ``Cannot deserialize value of type java.lang.Integer from String``.
@@ -91,18 +90,18 @@ tasks:
   #    (Forgejo workspace repo) and Kestra picks it up via system.flow-sync.
   # ---------------------------------------------------------------------
   - id: fetch_all
-    type: io.kestra.plugin.core.flow.ForEach
+    type: io.kestra.plugin.core.flow.Loop
     values: "{{ inputs.urls }}"
     concurrencyLimit: 4
     tasks:
       # -----------------------------------------------------------------
-      # 2. Download this iteration's URL. taskrun.value is the current
-      #    URL string. Outputs are keyed by iteration value so we
-      #    reference them as `outputs.download[taskrun.value].uri`.
+      # 2. Download this iteration's URL. `item.value` is the current
+      #    URL string. Each iteration is its own sub-execution, so a
+      #    sibling output is referenced plainly as `outputs.download.uri`.
       # -----------------------------------------------------------------
       - id: download
         type: io.kestra.plugin.core.http.Download
-        uri: "{{ taskrun.value }}"
+        uri: "{{ item.value }}"
 
       # -----------------------------------------------------------------
       # 3. Upload to R2 under a key that includes the iteration index
@@ -120,8 +119,8 @@ tasks:
         accessKeyId: "{{ secret('R2_ACCESS_KEY') }}"
         secretKeyId: "{{ secret('R2_SECRET_KEY') }}"
         bucket: "{{ secret('R2_BUCKET') }}"
-        # The `taskrun.value | sha256 | substring(0,8)` derivation gives
-        # a stable 8-char slug per URL. The `taskrun.iteration`
+        # The `item.value | sha256 | slice(0,8)` derivation gives
+        # a stable 8-char slug per URL. The `item.index`
         # variable is each iteration's 0-based index, used as a unique
         # tag so two URLs that hash to the same prefix can't collide.
         # NOTE: index is NOT zero-padded — for >10 URLs the R2 listing
@@ -129,14 +128,18 @@ tasks:
         # acceptable for a teaching seed (default `urls` has 3 entries).
         # If you grow the input list past 9 URLs and need execution-
         # order listings, switch the `idx{{...}}` segment to a Pebble
-        # `string.format` like `{{ '%03d' | format(taskrun.iteration) }}`
+        # `string.format` like `{{ '%03d' | format(item.index) }}`
         # to get zero-padded `idx002`, `idx010`, etc.
         # Use `execution.startDate` (single stable per-execution
         # timestamp) instead of `now()` to avoid the dt= / hr= rollover
         # race; same fix as in http-fetch-to-r2.yaml — see that
         # sibling flow for the rationale.
-        key: "{{ inputs.r2_prefix }}/dt={{ execution.startDate | date('yyyy-MM-dd') }}/hr={{ execution.startDate | date('HH') }}/idx{{ taskrun.iteration }}-{{ taskrun.value | sha256 | substring(0,8) }}.json"
-        from: "{{ outputs.download[taskrun.value].uri }}"
+        key: "{{ inputs.r2_prefix }}/dt={{ execution.startDate | date('yyyy-MM-dd') }}/hr={{ execution.startDate | date('HH') }}/idx{{ item.index }}-{{ item.value | sha256 | slice(0,8) }}.json"
+        # Plain, not keyed: `Loop` runs each iteration as its own
+        # sub-execution, so a sibling output is already scoped to this
+        # iteration. The keyed form `ForEach` needed now fails outright --
+        # measured on 2.0: keyed -> FAILED, plain -> SUCCESS.
+        from: "{{ outputs.download.uri }}"
 
   # ---------------------------------------------------------------------
   # 4. Log a one-line summary so the student can verify the count.

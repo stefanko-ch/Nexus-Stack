@@ -693,10 +693,21 @@ class Orchestrator:
                 detail=f"unexpected ({type(exc).__name__})",
             )
         if not result.is_success:
+            # Name the flows that actually failed. Reporting only
+            # `execution=skipped` here described the one thing that was not
+            # the problem: three flows failing to register read exactly like
+            # "there was nothing to execute", and a register regression sat
+            # unnoticed in a green-ish deploy log for a full cycle.
+            broken = ", ".join(
+                f"{r.name} ({r.detail})" for r in result.flows if r.status == "failed"
+            )
             return PhaseResult(
                 name="kestra-register",
                 status="partial",
-                detail=f"execution={result.execution_state or 'skipped'}",
+                detail=(
+                    f"execution={result.execution_state or 'skipped'}"
+                    + (f" failed=[{broken}]" if broken else "")
+                ),
             )
         if result.execution_state is None and not trigger_onboarding:
             return PhaseResult(

@@ -150,6 +150,23 @@ def test_register_flow_post_422_then_put_200_returns_updated() -> None:
 
 
 @responses.activate
+def test_register_flow_post_409_then_put_200_returns_updated() -> None:
+    """Kestra 2.0 answers 409, not 422, when the flow already exists.
+
+    Measured against a live server: 1.0.60 returns 422 "Flow id already
+    exists", 2.0 returns 409. Treating only 422 as "exists" made every
+    re-register on 2.0 return `failed` without attempting the PUT, so flow
+    definitions never updated -- the deployed `system.flow-sync` sat at
+    revision 1 while its source had changed twice.
+    """
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/flows", status=409)
+    responses.add(responses.PUT, f"{BASE_URL}/api/v1/flows/system/flow-sync", status=200)
+    result = _client().register_flow("y", namespace="system", flow_id="flow-sync")
+    assert result.status == "updated"
+    assert "POST 409 → PUT 200" in result.detail
+
+
+@responses.activate
 def test_register_flow_post_422_then_put_4xx_returns_failed() -> None:
     responses.add(responses.POST, f"{BASE_URL}/api/v1/flows", status=422)
     responses.add(responses.PUT, f"{BASE_URL}/api/v1/flows/system/git-sync", status=400)

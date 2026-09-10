@@ -63,13 +63,13 @@ tasks:
   #    downloads would risk OOM at higher month counts.
   # ---------------------------------------------------------------------
   - id: bootstrap
-    type: io.kestra.plugin.core.flow.ForEach
+    type: io.kestra.plugin.core.flow.Loop
     values: ["01", "02"]
     concurrencyLimit: 1
     tasks:
       - id: download
         type: io.kestra.plugin.core.http.Download
-        uri: "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-{{ taskrun.value }}.parquet"
+        uri: "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2025-{{ item.value }}.parquet"
       - id: upload
         type: io.kestra.plugin.aws.s3.Upload
         endpointOverride: "{{ secret('R2_ENDPOINT') }}"
@@ -82,13 +82,14 @@ tasks:
         # ship with Nexus-Stack later — keeps the bucket root clean
         # and lets students reason about which dataset belongs to
         # which tutorial without scanning filenames.
-        key: "nexus-tutorials/NYC/yellow_tripdata_2025-{{ taskrun.value }}.parquet"
-        # Inside a `ForEach`, sibling-task outputs are keyed by the
-        # iteration value. `outputs.download.uri` (no key) returns
-        # nothing in Kestra v1.0+ → "Unable to find `uri`" Pebble error.
-        # Indexing with `[taskrun.value]` selects this iteration's
-        # download output.
-        from: "{{ outputs.download[taskrun.value].uri }}"
+        key: "nexus-tutorials/NYC/yellow_tripdata_2025-{{ item.value }}.parquet"
+        # Plain `outputs.download.uri`, not keyed by the iteration value.
+        # `Loop` runs each iteration as its OWN sub-execution, so a
+        # sibling's output is already scoped to this iteration -- there is
+        # nothing to disambiguate. The keyed form `outputs.download[...]`
+        # that `ForEach` needed now fails outright; measured on Kestra 2.0,
+        # keyed -> FAILED, plain -> SUCCESS.
+        from: "{{ outputs.download.uri }}"
 
   # ---------------------------------------------------------------------
   # 2. Aggregate stats over all bootstrapped monthly files at once.

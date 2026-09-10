@@ -1181,6 +1181,39 @@ def test_phase_kestra_register_ok(
     assert "execution=SUCCESS" in result.detail
 
 
+def test_phase_kestra_register_partial_names_the_failed_flows(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A partial register must say WHICH flows failed, and why.
+
+    The detail used to read `execution=skipped` and nothing else, which
+    describes the one thing that was not the problem: three flows failing
+    to register looked exactly like "there was nothing to execute". That is
+    how a register regression (POST 409 unhandled on Kestra 2.0) survived a
+    full deploy cycle in a log somebody read.
+    """
+    from nexus_deploy.kestra import RegisterResult, SystemFlowsResult
+
+    fake = SystemFlowsResult(
+        flows=(
+            RegisterResult(name="system.git-sync", status="created", detail="POST 201"),
+            RegisterResult(name="system.flow-sync", status="failed", detail="POST 409"),
+        ),
+        execution_state=None,
+        verify_skipped_reason=None,
+    )
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._kestra.run_register_system_flows",
+        lambda *_a, **_kw: fake,
+    )
+    result = orchestrator._phase_kestra_register(_ssh_with_tunnel())
+    assert result.status == "partial"
+    assert "system.flow-sync" in result.detail
+    assert "POST 409" in result.detail
+    # The flow that worked is not noise to report as broken.
+    assert "system.git-sync" not in result.detail
+
+
 def test_partial_user_identity_never_borrows_the_admin_password(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:

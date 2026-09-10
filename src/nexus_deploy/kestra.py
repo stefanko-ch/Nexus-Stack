@@ -14,7 +14,7 @@ against ``responses``-mocked HTTP without ever running ssh.
 API:
 
 - :class:`KestraClient` — basic-auth REST client. ``wait_ready``,
-  ``register_flow`` (POST 200/201 / 422 → PUT 200/201 / failed),
+  ``register_flow`` (POST 200/201 / 409/422 → PUT 200/201 / failed),
   ``execute_flow``, ``wait_for_execution``.
 - :func:`render_system_flow_yaml` — string-template YAML builder for
   the two system flows.
@@ -61,6 +61,10 @@ from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig
 _CONNECT_TIMEOUT_S: float = 3.0
 _READ_TIMEOUT_S: float = 15.0
 _HTTP_TIMEOUT: tuple[float, float] = (_CONNECT_TIMEOUT_S, _READ_TIMEOUT_S)
+
+# POST on an existing flow: 1.0.60 answers 422 "Flow id already exists",
+# 2.0 answers 409. Both mean the same thing, so both fall through to PUT.
+_FLOW_ALREADY_EXISTS: tuple[int, int] = (409, 422)
 
 
 def _http_timeout_for_deadline(deadline: float) -> tuple[float, float]:
@@ -231,13 +235,23 @@ class KestraClient:
         namespace: str,
         flow_id: str,
     ) -> RegisterResult:
-        """Idempotent register: POST first, fall back to PUT on 422.
+        """Idempotent register: POST first, fall back to PUT on 409/422.
 
-        Kestra v1.0 OSS does NOT have an upsert verb — POST is
-        create-only (returns 422 with ``"Flow id already exists"`` if
-        the flow is there) and PUT is update-only (returns 404 if the
-        flow doesn't exist). Neither alone covers re-runs, so we
-        chain them.
+        Kestra OSS has no upsert verb — POST is create-only and PUT is
+        update-only (404 if the flow doesn't exist). Neither alone covers
+        re-runs, so we chain them.
+
+        **Both 409 and 422 mean "already exists", and which one you get
+        depends on the version.** Measured against a live server:
+
+            1.0.60  POST on an existing flow -> 422 "Flow id already exists"
+            2.0     POST on an existing flow -> 409 "Entity already exists"
+
+        Accepting only 422 is what made this silent on 2.0: every re-register
+        returned `failed`, no PUT was attempted, and the flow stayed at its
+        original revision forever. A `failOnMissingDirectory` fix sat in the
+        repo for a full deploy cycle without ever reaching Kestra — the flow
+        read `revision: 1` while the source had changed twice.
         """
         full_name = f"{namespace}.{flow_id}"
         try:
@@ -259,14 +273,14 @@ class KestraClient:
             return RegisterResult(
                 name=full_name, status="created", detail=f"POST {post_resp.status_code}"
             )
-        if post_resp.status_code != 422:
+        if post_resp.status_code not in _FLOW_ALREADY_EXISTS:
             return RegisterResult(
                 name=full_name,
                 status="failed",
                 detail=f"POST {post_resp.status_code}",
             )
 
-        # POST 422 → exists → PUT to update
+        # POST 409/422 → exists → PUT to update
         try:
             put_resp = requests.put(
                 f"{self.base_url}/api/v1/flows/{namespace}/{flow_id}",
@@ -286,12 +300,12 @@ class KestraClient:
             return RegisterResult(
                 name=full_name,
                 status="updated",
-                detail=f"POST 422 → PUT {put_resp.status_code}",
+                detail=f"POST {post_resp.status_code} → PUT {put_resp.status_code}",
             )
         return RegisterResult(
             name=full_name,
             status="failed",
-            detail=f"POST 422 → PUT {put_resp.status_code}",
+            detail=f"POST {post_resp.status_code} → PUT {put_resp.status_code}",
         )
 
     def execute_flow(self, namespace: str, flow_id: str) -> str:
@@ -474,6 +488,25 @@ tasks:
     gitDirectory: nexus_seeds/kestra/workflows
 """
 
+# Two SyncFlows tasks, and only the second carries
+# `failOnMissingDirectory: false`.
+#
+# `kestra/flows` is where a student's OWN flows live, and git cannot store an
+# empty directory -- so on a fresh workspace it does not exist at all. The
+# task's default is to fail there, which turns a system flow red on every new
+# stack for a condition that is entirely normal. Observed on a live
+# deployment: sync-seeds SUCCESS, sync-user FAILED, "The directory
+# 'kestra/flows' was not found in the git repository." The seeds had arrived;
+# only the signal was wrong, which is the worst kind of red -- it teaches
+# people to ignore the colour.
+#
+# Deliberately NOT set on sync-seeds: `nexus_seeds/kestra/flows` is written by
+# the seeding phase, so its absence means seeding did not happen. That one
+# should stay loud.
+#
+# `failOnMissingDirectory` verified against Kestra 2.0 rather than assumed:
+# the flow registers with it (200), while an invented property is rejected
+# (422 "Unrecognized field"), so the acceptance means something.
 FLOW_SYNC_FLOW_TEMPLATE = """\
 id: flow-sync
 namespace: system
@@ -499,6 +532,7 @@ tasks:
     targetNamespace: my-flows
     includeChildNamespaces: true
     delete: true
+    failOnMissingDirectory: false
 """
 
 # Push direction: Kestra UI → Forgejo fork. Runs every 10 minutes
@@ -564,7 +598,7 @@ tasks:
     authorEmail: "kestra@nexus-stack.local"
 triggers:
   - id: schedule
-    type: io.kestra.core.models.triggers.types.Schedule
+    type: io.kestra.plugin.core.trigger.Schedule
     cron: "*/10 * * * *"
 """
 

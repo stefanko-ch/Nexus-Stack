@@ -547,7 +547,7 @@ services:
     website: "https://kestra.io"
     description: "Open-source orchestration and scheduling platform for data pipelines and workflows."
     long_description: "Kestra is an orchestration platform for scheduling and managing complex workflows. Define pipelines in YAML, use 500+ plugins for integrations, and orchestrate data pipelines, microservices, and business processes. Features a visual flow editor, real-time monitoring, and built-in secret management."
-    image: "kestra/kestra:v1.0"
+    image: "kestra/kestra:v2.0"
     support_images:
       kestra-postgres: "postgres:18-alpine"
 
