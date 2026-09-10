@@ -72,6 +72,29 @@ def test_header_accent_falls_back_to_the_panel_accent() -> None:
     )
 
 
+def test_the_accent_requires_a_label() -> None:
+    """`STACK_ACCENT` alone must change nothing.
+
+    #841 states it plainly: with `STACK_LABEL` unset, nothing changes
+    anywhere. Before that issue the property held for free — the only
+    element carrying the accent sat inside the label's own conditional — so
+    nothing tested it. Moving the accent up to `<header>` silently removed
+    that guarantee and let an operator recolour a panel that still has no
+    name on it, which is a stack that looks different for no stated reason:
+    worse than one that looks the same.
+    """
+    # Comment-stripped: the comment above the tag names `<header>` in prose,
+    # and a first-match scan would read the prose instead of the element.
+    # Caught here on the first run, exactly as the brand-green guard was.
+    header_tag = re.search(r"<header([^>]*)>", _header_code())
+    assert header_tag, "Header.astro has no <header> tag"
+    attrs = header_tag.group(1)
+    assert "stackAccent" in attrs, "the <header> must carry the accent"
+    assert "stackLabel" in attrs, (
+        "the accent must be gated on stackLabel too — found: " + attrs.strip()
+    )
+
+
 def test_the_heading_carries_the_stack_label() -> None:
     """The largest text on the page names the machine.
 

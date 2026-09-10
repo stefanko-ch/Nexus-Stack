@@ -18,7 +18,12 @@ const navItems = [
 ];
 ---
 
-<header style={stackAccent ? `--header-accent: ${stackAccent}` : undefined}>
+{/* Gated on both: an accent needs a label to belong to. #841 requires that
+    with STACK_LABEL unset nothing changes anywhere, and before it that held
+    for free — the only element carrying the accent lived inside the label's
+    own conditional. Hoisting the accent here would otherwise let
+    STACK_ACCENT alone recolour a panel that still has no name on it. */}
+<header style={stackLabel && stackAccent ? `--header-accent: ${stackAccent}` : undefined}>
   <img src="/nexus-logo-green.png" alt="Nexus Stack" class="logo">
   <h1>{stackLabel || 'NEXUS STACK'}</h1>
   <p class="tagline">
