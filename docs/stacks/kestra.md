@@ -33,8 +33,23 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 >
 > Under the default **rebuild** lifecycle this costs nothing — Kestra's Postgres
 > is not in the R2 persistence set and is recreated from migrations on every
-> spin-up, so a pin change is a fresh database either way. Under a **snapshot**
-> lifecycle the database survives, and the first 2.0 start migrates it for good.
+> spin-up, so a pin change is a fresh database either way.
+>
+> **Under a `snapshot` lifecycle, take a backup first.** `kestra-postgres-data`
+> is a named Docker volume, so the disk image preserves it, and the first
+> `v2.0` start migrates it irreversibly — there is no supported way back to a
+> 1.x image afterwards. Before the first spin-up carrying this change:
+>
+> ```bash
+> ssh nexus 'docker exec kestra-postgres pg_dump -U nexus-kestra kestra \
+>   | gzip > /mnt/nexus-data/kestra-pre-2.0.sql.gz && \
+>   ls -lh /mnt/nexus-data/kestra-pre-2.0.sql.gz'
+> ```
+>
+> That dump is only useful together with a 1.x image — restoring it into 2.0
+> would simply be re-migrated. Its purpose is to let you rebuild the old state
+> elsewhere if something about 2.0 turns out to be unacceptable, not to enable
+> an in-place rollback, which does not exist.
 >
 > What was checked against 2.0 before the bump, all by registering the actual
 > flows against a local 2.0 instance:
