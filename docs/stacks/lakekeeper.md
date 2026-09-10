@@ -279,9 +279,33 @@ helper takes it as `get_catalog("archive")`.
   hook did not create it. Search the spin-up log for
   `RESULT hook=lakekeeper`: `skipped-not-ready` means the deployment has no R2
   bucket configured, `failed` prints the HTTP status alongside it.
-- **PyIceberg raises a JSON parse error on connect** — you pointed it at
-  `https://lakekeeper.YOUR_DOMAIN`, and Cloudflare Access returned an HTML
-  login page. Use `http://lakekeeper:8181/catalog` from inside the network.
+- **PyIceberg fails with `Invalid JSON: … input_value='<!DOCTYPE html>…'`** —
+  something handed it Cloudflare Access's HTML login page instead of JSON.
+  Two different causes, and the second is the one that will fool you:
+
+  1. The client was pointed at `https://lakekeeper.YOUR_DOMAIN`. Use
+     `http://lakekeeper:8181/catalog` from inside the network.
+  2. **The client was pointed at the right URL and got redirected anyway.**
+     Lakekeeper returns `LAKEKEEPER__BASE_URI` to Iceberg clients as
+     `overrides.uri` in its `/v1/config` response, and PyIceberg honours it
+     for every call after the handshake. With BASE_URI set to the public
+     hostname, `load_catalog()` succeeds — the handshake goes over
+     app-network — and the *next* call lands on Access. The failure therefore
+     points at `list_namespaces` while the cause is in the config response.
+
+     Check what the server is advertising:
+
+     ```bash
+     ssh nexus 'docker exec marimo python -c "
+     import json, urllib.request
+     u = \"http://lakekeeper:8181/catalog/v1/config?warehouse=nexus\"
+     print(json.load(urllib.request.urlopen(u))[\"overrides\"])"'
+     ```
+
+     It must print an `http://lakekeeper:8181/...` uri. If it prints the
+     public hostname, `LAKEKEEPER__BASE_URI` is wrong — the shipped compose
+     sets it to the in-cluster address and gives the browser UI its own
+     `LAKEKEEPER__UI__LAKEKEEPER_URL`.
 - **`ModuleNotFoundError: No module named 's3fs'` on a write** — the client
   lacks `s3fs`, which remote signing needs. The Marimo image ships it; a
   hand-rolled client has to install it. Note the table has already been
