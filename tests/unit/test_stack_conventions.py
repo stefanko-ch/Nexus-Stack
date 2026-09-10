@@ -1262,3 +1262,36 @@ def test_kestra_flows_parse_as_yaml() -> None:
         assert isinstance(parsed, dict), f"{name} did not parse to a mapping"
         for key in ("id", "namespace", "tasks"):
             assert key in parsed, f"{name} has no `{key}`"
+
+
+def test_kestra_tasks_reach_the_api_internally() -> None:
+    """Tasks calling Kestra's own API must not go through the public hostname.
+
+    `git.PushFlows` and `git.SyncFlows` read and write flow definitions over
+    Kestra's REST API. Upstream resolves that URL as
+    `kestra.tasks.sdk.authentication.url`, then `kestra.url`, then
+    `http://localhost:8080`. This stack must set `kestra.url` for the UI's
+    absolute links, which means the last fallback is unreachable — so without
+    the explicit setting, internal tasks are handed the Cloudflare-Access
+    hostname and receive a `302` HTML page instead of JSON. Observed on a live
+    deployment: `Failed to export flows from Kestra for namespace <ns>`, with
+    an HTML body reading `302 Found ... cloudflare`.
+
+    Parsed from the embedded KESTRA_CONFIGURATION rather than grepped, so a
+    commented-out or mis-indented block fails rather than passes.
+    """
+    import yaml
+
+    compose = yaml.safe_load((REPO_ROOT / "stacks/kestra/docker-compose.yml").read_text())
+    cfg = yaml.safe_load(compose["services"]["kestra"]["environment"]["KESTRA_CONFIGURATION"])
+    auth = cfg["kestra"]["tasks"].get("sdk", {}).get("authentication", {})
+
+    assert auth.get("url") == "http://localhost:8080", (
+        f"tasks.sdk.authentication.url is {auth.get('url')!r}. Anything public "
+        "here routes internal API calls into Cloudflare Access."
+    )
+    # 2.0 also requires those calls to authenticate.
+    assert auth.get("username"), "tasks.sdk.authentication.username is unset"
+    assert auth.get("password"), "tasks.sdk.authentication.password is unset"
+    # The browser-facing URL stays public — the two must not be conflated.
+    assert cfg["kestra"]["url"] == "${KESTRA_URL}"

@@ -73,9 +73,18 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 > step could never have run on any version this stack has shipped. `slice`
 > is the filter that works on both.
 >
-> **Not verified:** whether the `git` tasks need explicit API credentials when
-> they *execute* — 2.0 requires that for tasks calling Kestra's own API. Flow
-> registration does not exercise it; the first real `system.flow-sync` run does.
+> **They did, and it broke on the first real run.** Both system flows failed
+> with `Failed to export flows from Kestra for namespace <ns>` and an HTML
+> body reading `302 Found … cloudflare`. `git.PushFlows` and `git.SyncFlows`
+> call Kestra's own REST API, and upstream resolves that URL as
+> `kestra.tasks.sdk.authentication.url` → `kestra.url` → `http://localhost:8080`.
+> This stack has to set `kestra.url` for the UI's absolute links, so the
+> working fallback was never reached and the tasks were handed the
+> Cloudflare-Access hostname.
+>
+> Fixed by setting `kestra.tasks.sdk.authentication` explicitly — internal URL
+> plus the basic-auth credentials 2.0 now requires for such calls. The two URLs
+> are deliberately different: `kestra.url` stays public for the browser.
 
 > ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. The `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` env vars are still rendered for forward-compat (Kestra EE / OIDC), but unused while basic-auth is off.
 

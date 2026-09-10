@@ -89,6 +89,33 @@ services:
           tasks:
             tmp-dir:
               path: /tmp/kestra-wd/tmp
+            # How tasks that call Kestra's OWN api reach it. `git.PushFlows`
+            # and `git.SyncFlows` both do, to read and write flow definitions.
+            #
+            # Without this they fall back to `kestra.url` below, which is the
+            # PUBLIC hostname behind Cloudflare Access. The task then gets
+            # Access's redirect instead of JSON and dies with a bare
+            #   Failed to export flows from Kestra for namespace <ns>
+            # whose only clue is an HTML body reading `302 Found ... cloudflare`.
+            # Observed on a live deployment; the stack trace points at
+            # PushFlows.fetchFlowsFromKestra.
+            #
+            # Upstream documents the resolution order as: this property, then
+            # `kestra.url`, then `http://localhost:8080`. That last fallback
+            # would have been right all along -- it is unreachable only because
+            # `kestra.url` is set, which it must be for the UI's own links.
+            #
+            # Credentials belong here too: Kestra 2.0 requires tasks calling its
+            # API to authenticate, and these are the basic-auth values the
+            # deploy already renders.
+            sdk:
+              authentication:
+                url: http://localhost:8080
+                username: ${KESTRA_ADMIN_USER}
+                password: ${KESTRA_ADMIN_PASSWORD}
+          # The BROWSER-facing URL: absolute links in the UI and in
+          # notifications. Deliberately NOT what internal tasks use -- see
+          # tasks.sdk.authentication.url above.
           url: ${KESTRA_URL}
     deploy:
       resources:
