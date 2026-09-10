@@ -27,16 +27,15 @@ description: |
   before rendering Pebble templates, so a `{{ inputs.X }}` value
   fails type-check as Integer.)
 
-  IMPORTANT: input URLs SHOULD be unique. Under `ForEach` this was a
-  correctness requirement — outputs were keyed by the loop value, so
-  duplicate URLs collided on one map entry. `Loop` gives each iteration
-  its own sub-execution and its own outputs, so duplicates no longer
-  overwrite each other. What remains is that they are pointless work:
-  the R2 keys stay distinct (each gets a unique `idx<N>-<hash>`
-  segment), so two identical URLs produce two R2 objects carrying the
-  SECOND download's payload. If your input list might contain
-  duplicates, dedupe it upstream (the task that emits `urls`) or
-  add a leading dedup task before this loop.
+  Input URLs SHOULD be unique — but only to avoid wasted work, not for
+  correctness. Under `ForEach` this WAS a correctness problem: outputs
+  were keyed by the loop value, so two identical URLs collided on one
+  map entry and the second overwrote the first. `Loop` gives each
+  iteration its own sub-execution and its own outputs, so nothing
+  collides any more. Two identical URLs now simply fetch the same
+  response twice and write it to two distinct R2 keys (each iteration
+  gets its own `idx<N>-<hash>` segment). Harmless, just pointless — one
+  extra request and one extra object. Dedupe upstream if you care.
 
   This file was seeded into your Forgejo workspace repo from
   `nexus-stack/examples/workspace-seeds/kestra/flows/parallel-http-fetch-to-r2.yaml`.

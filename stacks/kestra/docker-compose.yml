@@ -19,13 +19,20 @@ services:
   # ---------------------------------------------------------------------------
   # Kestra - Workflow Engine
   # ---------------------------------------------------------------------------
-  # Pinned to the current Kestra LTS (v1.0.x). Since Kestra v1.0 the default
-  # tag already bundles every official plugin — Databricks JDBC, Snowflake,
-  # Postgres, Trino, Redshift, and ~15 more — so no `-full` variant is
-  # needed. (The legacy `kestra/kestra:*-full` tags still exist on Docker
-  # Hub but were abandoned at Kestra 0.20.15 as of the 2026-04-23 check;
-  # do not use them.) For a core-only slim image override IMAGE_KESTRA to
+  # Pinned to the current Kestra LTS, which is v2.0 — the `v2.0`, `latest`
+  # and `latest-lts` tags all resolve to the same digest, checked on Docker
+  # Hub rather than assumed.
+  #
+  # The default tag bundles every official plugin — Databricks JDBC,
+  # Snowflake, Postgres, Trino, Redshift and the rest — so no `-full`
+  # variant is needed. Measured from 2.0's own startup log: 1543 plugins
+  # from 206 groups, up from 845/155 on v1.0.60. (The legacy
+  # `kestra/kestra:*-full` tags still exist on Docker Hub but were
+  # abandoned at Kestra 0.20.15 as of the 2026-04-23 check; do not use
+  # them.) For a core-only slim image override IMAGE_KESTRA to
   # `kestra/kestra:v2.0-no-plugins`.
+  #
+  # ⚠️ There is no way back to 1.x — see docs/stacks/kestra.md.
   kestra:
     image: ${IMAGE_KESTRA:-kestra/kestra:v2.0}
     container_name: kestra
