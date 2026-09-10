@@ -1128,3 +1128,28 @@ def test_lakekeeper_advertises_its_in_cluster_address() -> None:
         f"LAKEKEEPER__UI__LAKEKEEPER_URL is {ui}. Without it the browser UI "
         "inherits the in-cluster BASE_URI, which no browser can reach."
     )
+
+
+def test_marimo_disables_botocore_streaming_checksums() -> None:
+    """Writes through a remote-signing Iceberg warehouse need this on R2.
+
+    Lakekeeper signs the request it is shown; botocore then re-encodes the
+    body as `aws-chunked` with trailing checksums, so the body the signature
+    covers is not the body that arrives. R2 answers with
+    `The request signature we calculated does not match the signature you
+    provided`, or `MissingContentLength`.
+
+    Measured against the live warehouse, same table and code, only these two
+    variables added: without them the write fails, with them it returns rows.
+
+    Pinned because the failure is silent in the worst way -- it only appears
+    once remote signing itself works, so an unrelated signing bug masks it
+    completely, and removing these would look harmless in any environment
+    that is already broken further upstream.
+    """
+    compose = (REPO_ROOT / "stacks/marimo/docker-compose.yml").read_text()
+    for var in ("AWS_REQUEST_CHECKSUM_CALCULATION", "AWS_RESPONSE_CHECKSUM_VALIDATION"):
+        assert f"- {var}=when_required" in compose, (
+            f"{var} is not pinned to when_required in the Marimo stack. "
+            "Iceberg writes to R2 fail with a signature mismatch without it."
+        )

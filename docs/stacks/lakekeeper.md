@@ -310,6 +310,41 @@ helper takes it as `get_catalog("archive")`.
      public hostname, `LAKEKEEPER__BASE_URI` is wrong — the shipped compose
      sets it to the in-cluster address and gives the browser UI its own
      `LAKEKEEPER__UI__LAKEKEEPER_URL`.
+- **`SignError: Failed to sign request 400`** — Lakekeeper refused to sign an
+  S3 request. Look in `docker logs lakekeeper` for an `Authorization failed
+  event` with `action_name: write_data`, and at the `table-location` it
+  reports. If that location starts with the R2 **account id** instead of the
+  bucket — `s3://<account>/<bucket>/...` — the warehouse has
+  `remote-signing-url-style` on its `auto` default. `auto` reads
+  `<account>.r2.cloudflarestorage.com/<bucket>/<key>` as virtual-hosted and
+  takes the first host label for the bucket, which is wrong for R2.
+
+  The shipped hook sets `path` and repairs an existing warehouse that still
+  carries `auto`, so a spin-up fixes it. To check or fix by hand:
+
+  ```bash
+  # what the warehouse currently has
+  ssh nexus 'curl -s http://localhost:8195/management/v1/warehouse |
+    python3 -c "import json,sys; w=json.load(sys.stdin)[\"warehouses\"][0];
+    print(w[\"storage-profile\"].get(\"remote-signing-url-style\"))"'
+  ```
+
+  Lakekeeper also logs `This is a bug in the query engine. When using
+  PyIceberg, please update to versions > 0.9.1` alongside this. That message
+  is a red herring — it appears against PyIceberg 0.12.0 too.
+
+- **`The request signature we calculated does not match the signature you
+  provided`, or `MissingContentLength`, on a write** — botocore re-encoded the
+  body as `aws-chunked` with trailing checksums *after* Lakekeeper signed it,
+  so the signed body is not the body that arrives. The Marimo stack sets
+  `AWS_REQUEST_CHECKSUM_CALCULATION=when_required` and
+  `AWS_RESPONSE_CHECKSUM_VALIDATION=when_required` to prevent this; a
+  hand-rolled client needs the same two variables.
+
+  This one only becomes visible once signing itself works. A signing failure
+  masks it completely, which is worth knowing before concluding that a
+  checksum fix "did not help".
+
 - **`ModuleNotFoundError: No module named 's3fs'` on a write** — the client
   lacks `s3fs`, which remote signing needs. The Marimo image ships it; a
   hand-rolled client has to install it. Note the table has already been

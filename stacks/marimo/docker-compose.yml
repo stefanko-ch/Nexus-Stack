@@ -88,6 +88,27 @@ services:
       # the catalogue.
       - LAKEKEEPER_URI=http://lakekeeper:8181/catalog
       - LAKEKEEPER_WAREHOUSE=nexus
+      # Turn off botocore's newer streaming checksums. Without this, writes
+      # through a remote-signing Iceberg warehouse fail on Cloudflare R2 with
+      #   PermissionError: The request signature we calculated does not match
+      #   the signature you provided.
+      # and sometimes with `MissingContentLength` instead.
+      #
+      # The mechanism: Lakekeeper signs the request it is shown, and botocore
+      # THEN re-encodes the body as `aws-chunked` with trailing checksums
+      # (`X-Amz-Trailer: x-amz-checksum-crc32`,
+      # `X-Amz-Content-SHA256: STREAMING-UNSIGNED-PAYLOAD-TRAILER`). The body
+      # the signature covers is no longer the body that arrives, so R2 rejects
+      # it. `when_required` restores the pre-1.36 botocore behaviour of adding
+      # a checksum only where the API demands one.
+      #
+      # Measured against the live R2 warehouse, same table, same code, only
+      # these two variables added: without them the write fails, with them it
+      # returns 3 rows. Note this is invisible until remote signing itself
+      # works -- an earlier signing failure masks it entirely, which is how it
+      # was first mis-diagnosed as unrelated.
+      - AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+      - AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
       # NOTE: HETZNER_S3_* are intentionally NOT set here. They land
       # in `.infisical.env` via the secret-sync block in deploy.sh
       # and reach the container via env_file above. Listing them in

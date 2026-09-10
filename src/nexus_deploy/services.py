@@ -2362,6 +2362,24 @@ def render_lakekeeper_hook(config: NexusConfig, env: BootstrapEnv) -> str:
                 "path-style-access": True,
                 "sts-enabled": False,
                 "remote-signing-enabled": True,
+                # `path`, not the `auto` default, and this is what makes
+                # remote signing actually work against R2.
+                #
+                # Lakekeeper checks that the URL it is asked to sign belongs
+                # to the table. With `auto` it guesses the URL style, and for
+                # R2 it guesses wrong: `<account>.r2.cloudflarestorage.com/
+                # <bucket>/<key>` looks virtual-hosted, so it reads the
+                # ACCOUNT ID as the bucket. The audit log then shows a
+                # table-location of `s3://<account id>/<bucket>/...`, which
+                # matches no warehouse, and every write dies with
+                # `SignError: Failed to sign request 400`.
+                #
+                # Measured on a live deployment; the server's own warning is
+                # a red herring worth knowing about, because it blames the
+                # client: "This is a bug in the query engine. When using
+                # PyIceberg, please update to versions > 0.9.1" -- said to a
+                # PyIceberg 0.12.0 client.
+                "remote-signing-url-style": "path",
                 "key-prefix": LAKEKEEPER_KEY_PREFIX,
             },
         ),
@@ -2394,10 +2412,42 @@ lakekeeper_hook() {{
         esac
     fi
 
-    if curl -s --max-time 10 {shlex.quote(base + "/management/v1/warehouse")} 2>/dev/null \\
-        | jq -e --arg n {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
-          '[.warehouses[]? | select(.name == $n)] | length > 0' >/dev/null 2>&1; then
-        echo "RESULT hook=lakekeeper status=already-configured"
+    EXISTING=$(curl -s --max-time 10 {shlex.quote(base + "/management/v1/warehouse")} 2>/dev/null || echo '{{}}')
+    WH_ID=$(printf '%s' "$EXISTING" | jq -r --arg n {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
+        '[.warehouses[]? | select(.name == $n)][0]["warehouse-id"] // empty' 2>/dev/null || true)
+    if [ -n "$WH_ID" ]; then
+        # The warehouse is there, but a warehouse created before the
+        # remote-signing url-style was pinned carries `auto`, and against R2
+        # that setting makes every write fail. Repair it in place rather than
+        # reporting `already-configured` over a warehouse that cannot be
+        # written to. Recreating instead is not an option: it would discard
+        # the namespaces and table pointers while the Parquet stays in R2.
+        URL_STYLE=$(printf '%s' "$EXISTING" | jq -r --arg n {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
+            '[.warehouses[]? | select(.name == $n)][0]["storage-profile"]["remote-signing-url-style"] // "unset"' \\
+            2>/dev/null || echo "unset")
+        if [ "$URL_STYLE" = "path" ]; then
+            echo "RESULT hook=lakekeeper status=already-configured"
+            return 0
+        fi
+        FIX=$(NEXUS_AK={shlex.quote(access_key)} NEXUS_SK={shlex.quote(secret_key)} jq -n \\
+            --argjson profile {profile} \\
+            '{{"storage-profile": $profile,
+               "storage-credential": {{type: "s3", "credential-type": "access-key",
+                                      "access-key-id": env.NEXUS_AK,
+                                      "secret-access-key": env.NEXUS_SK}}}}')
+        FIX_CODE=$(printf '%s' "$FIX" | curl -s -o /dev/null -w '%{{http_code}}' \\
+            -X POST "{base}/management/v1/warehouse/$WH_ID/storage" \\
+            --max-time 60 -H 'Content-Type: application/json' --data-binary @- 2>/dev/null || true)
+        FIX_CODE=${{FIX_CODE:-000}}
+        case "$FIX_CODE" in
+            2??)
+                echo "RESULT hook=lakekeeper status=configured"
+                ;;
+            *)
+                echo "  ⚠ lakekeeper warehouse has remote-signing-url-style=$URL_STYLE and the repair returned HTTP $FIX_CODE — writes will fail with SignError 400" >&2
+                echo "RESULT hook=lakekeeper status=failed"
+                ;;
+        esac
         return 0
     fi
 

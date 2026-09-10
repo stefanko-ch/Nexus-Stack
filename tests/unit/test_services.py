@@ -2672,12 +2672,16 @@ def test_render_lakekeeper_hook_keeps_the_r2_secret_out_of_argv() -> None:
     script = render_lakekeeper_hook(_make_config(), _make_env())
     assert "env.NEXUS_SK" in script
     assert "env.NEXUS_AK" in script
-    # The value itself: present once, and only in the env assignment. This is
-    # the load-bearing assertion and it does not care about line layout -- a
-    # `--arg sk 'r2-sk'` moved onto a line of its own still fails it, because
-    # that line carries no `NEXUS_SK=`. Verified by mutation, both when the
-    # rogue --arg shares a line with another and when it sits alone.
-    assert script.count("r2-sk") == 1
+    # The value appears only inside env assignments. This is the load-bearing
+    # assertion and it does not care about line layout -- a `--arg sk 'r2-sk'`
+    # moved onto a line of its own still fails it, because that line carries
+    # no `NEXUS_SK=`. Verified by mutation, both when the rogue --arg shares a
+    # line with another and when it sits alone.
+    #
+    # Deliberately NOT an exact count. It was `== 1` until the hook grew a
+    # second jq call -- the in-place repair of an existing warehouse -- and
+    # the test failed on a change that was perfectly safe. A count pins the
+    # shape of the script; what matters is that no occurrence escapes argv.
     secret_lines = [line for line in script.splitlines() if "r2-sk" in line]
     assert secret_lines, "secret never rendered — this test would pass vacuously"
     assert all("NEXUS_SK=" in line for line in secret_lines), secret_lines
@@ -2699,9 +2703,40 @@ def test_render_lakekeeper_hook_storage_profile_matches_r2() -> None:
     assert profile["path-style-access"] is True
     assert profile["sts-enabled"] is False
     assert profile["remote-signing-enabled"] is True
+    # `path`, not the `auto` default. With `auto` Lakekeeper reads
+    # `<account>.r2.cloudflarestorage.com/<bucket>/<key>` as virtual-hosted
+    # and takes the ACCOUNT ID for the bucket, so the signing request is
+    # authorised against a warehouse that does not exist and every write
+    # fails with `SignError: Failed to sign request 400`. Measured on a live
+    # deployment, where the audit log showed the table-location as
+    # `s3://<account id>/<bucket>/...`.
+    assert profile["remote-signing-url-style"] == "path"
     # The shared data bucket is addressed at its root by Unity Catalog and
     # pg-ducklake, so the warehouse has to own a subtree rather than the top.
     assert profile["key-prefix"] == "lakekeeper"
+
+
+def test_render_lakekeeper_hook_repairs_a_stale_url_style() -> None:
+    """An existing warehouse with the wrong url-style is repaired, not accepted.
+
+    A warehouse created before `remote-signing-url-style` was pinned carries
+    `auto`, and against R2 that makes every write fail with
+    `SignError: Failed to sign request 400`. Reporting `already-configured`
+    over it would be a green line above a catalogue nothing can write to.
+
+    Recreating is not the alternative: it would discard the namespaces and
+    table pointers while the Parquet files stay in R2 -- the orphaning this
+    stack's docs warn about. So the hook POSTs the corrected storage profile
+    to the existing warehouse instead.
+    """
+    script = render_lakekeeper_hook(_make_config(), _make_env())
+    assert '"remote-signing-url-style"' in script
+    assert "/storage" in script
+    # already-configured is reached only when the style is already `path`.
+    before = script.split("status=already-configured")[0]
+    assert '[ "$URL_STYLE" = "path" ]' in before, (
+        "already-configured is reported without checking the url-style first"
+    )
 
 
 def test_render_lakekeeper_hook_skips_without_object_storage() -> None:
