@@ -13,8 +13,15 @@
  * finished `dist`, so Cloudflare's own `environment_variables` never reach
  * this build — and `wrangler pages deploy` deletes Terraform-managed ones
  * anyway (see the comment in tofu/control-plane/main.tf). Fetching it at
- * runtime would also make the badge arrive *after* the buttons are
+ * runtime would also make the label arrive *after* the buttons are
  * clickable, which defeats the point.
+ *
+ * The label takes the `h1` rather than sitting in a badge below it (#841).
+ * A badge lost: it was one small element inside a header that still said
+ * *Nexus Stack, in green* everywhere else — 360px logo, 2.5rem heading,
+ * green tagline — and the eye resolved the page before reaching it.
+ * Enlarging it did not help either, because a loud badge competes with the
+ * heading instead of replacing the signal.
  */
 
 /** Empty means "look exactly as before". */
@@ -26,6 +33,12 @@ export const stackLabel: string = (process.env.STACK_LABEL ?? '').trim();
  * keyword. Anything else is dropped and the panel keeps its own accent —
  * a wrong colour is a cosmetic problem, an unvalidated one is a stylesheet
  * an operator can write into every page.
+ *
+ * Since #841 the value lands on `--header-accent`, which cascades to the
+ * whole header rather than to a single badge. That widens what a bad value
+ * costs, not what an unvalidated one could do: the pattern below is the
+ * only thing standing between the environment variable and the attribute,
+ * and it is unchanged.
  *
  * The hex lengths are the four CSS actually defines — 3, 4, 6, 8 — not a
  * 3..8 range. Five or seven digits are not a colour, and letting one

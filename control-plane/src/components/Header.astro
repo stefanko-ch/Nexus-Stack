@@ -18,18 +18,12 @@ const navItems = [
 ];
 ---
 
-<header>
+<header style={stackAccent ? `--header-accent: ${stackAccent}` : undefined}>
   <img src="/nexus-logo-green.png" alt="Nexus Stack" class="logo">
-  <h1>NEXUS STACK</h1>
-  <p class="tagline">Control Panel &middot; <span id="version-tag" class="version-tag"></span></p>
-  {stackLabel && (
-    <p
-      class="stack-label"
-      style={stackAccent ? `--stack-label-accent: ${stackAccent}` : undefined}
-    >
-      {stackLabel}
-    </p>
-  )}
+  <h1>{stackLabel || 'NEXUS STACK'}</h1>
+  <p class="tagline">
+    {stackLabel && <>Nexus Stack &middot; </>}Control Panel &middot; <span id="version-tag" class="version-tag"></span>
+  </p>
   <nav class="nav-links">
     {navItems.map(item => (
       <a href={item.href} class={activeNav === item.id ? 'active' : ''}>
@@ -54,7 +48,17 @@ const navItems = [
 </script>
 
 <style>
+  /* Every brand-green in this header routes through one variable, so a
+     stack accent recolours the whole block rather than one badge. The
+     fallback is the panel's own accent, so with STACK_ACCENT unset every
+     rule below resolves to exactly what it was before.
+
+     `color-mix` replaces the previous `rgba(0, 255, 136, …)` literals:
+     a hex custom property cannot be alpha-composed directly, and the
+     alternative — carrying a companion `--header-accent-rgb` — would need
+     the operator to supply the colour twice, in two notations. */
   header {
+    --header-accent: var(--accent);
     text-align: center;
     border-bottom: none;
     margin-bottom: 2rem;
@@ -67,21 +71,32 @@ const navItems = [
     max-width: 100%;
     height: auto;
     margin: 0 auto 1.5rem;
-    filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.5));
+    /* ⚠️ The logo itself is a raster with the green baked in, so on a
+       recoloured panel only its glow follows the accent. Issue #841 tracks
+       the choice between a neutral logo variant and a hue-rotate. */
+    filter: drop-shadow(0 0 20px color-mix(in srgb, var(--header-accent) 50%, transparent));
   }
 
+  /* The largest text on the page names the machine. With STACK_LABEL unset
+     this is the literal "NEXUS STACK" it has always been; with it set, the
+     stack's own name takes the slot, and "Nexus Stack" moves down into the
+     tagline. Uppercasing is what keeps a lowercase label from looking like
+     a mistake next to the Orbitron letter-spacing. */
   h1 {
-    color: var(--accent);
+    color: var(--header-accent);
     font-family: 'Orbitron', sans-serif;
     font-size: 2.5rem;
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.8), 0 0 40px rgba(0, 255, 136, 0.4);
+    text-shadow:
+      0 0 10px color-mix(in srgb, var(--header-accent) 80%, transparent),
+      0 0 40px color-mix(in srgb, var(--header-accent) 40%, transparent);
     letter-spacing: 0.2em;
+    text-transform: uppercase;
     margin-bottom: 0.5rem;
   }
 
   .tagline {
     font-size: 0.85rem;
-    color: #00ff88;
+    color: var(--header-accent);
     text-transform: uppercase;
     letter-spacing: 0.3em;
     opacity: 0.7;
@@ -89,28 +104,9 @@ const navItems = [
 
   .version-tag {
     font-size: 0.75rem;
-    color: #00ff88;
+    color: var(--header-accent);
     opacity: 0.5;
     letter-spacing: 0.1em;
-  }
-
-  /* Deliberately loud: this is the one element that says which stack the
-     buttons below belong to. Falls back to the panel accent, so an
-     operator who sets STACK_LABEL without STACK_ACCENT still gets a
-     badge rather than an invisible one. */
-  .stack-label {
-    --stack-label-accent: var(--accent);
-    display: inline-block;
-    margin: 0.9rem auto 0;
-    padding: 0.3rem 1.1rem;
-    border: 2px solid var(--stack-label-accent);
-    border-radius: 4px;
-    color: var(--stack-label-accent);
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    font-weight: 700;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
   }
 
   .nav-links {
@@ -137,8 +133,8 @@ const navItems = [
   }
 
   .nav-links a.active {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: rgba(0, 255, 136, 0.08);
+    color: var(--header-accent);
+    border-color: var(--header-accent);
+    background: color-mix(in srgb, var(--header-accent) 8%, transparent);
   }
 </style>
