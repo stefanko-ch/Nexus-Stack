@@ -300,8 +300,15 @@ helper takes it as `get_catalog("archive")`.
      Check what the server is advertising:
 
      ```bash
-     ssh nexus 'docker exec marimo python -c "import json,urllib.request; print(json.load(urllib.request.urlopen(\"http://lakekeeper:8181/catalog/v1/config?warehouse=nexus\"))[\"overrides\"])"'
+     ssh nexus 'curl -s "http://localhost:8195/catalog/v1/config?warehouse=nexus" |
+       python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get(\"overrides\") or d)"'
      ```
+
+     Asked through the host-published port rather than from inside a
+     container, which gives the same answer here because BASE_URI is
+     pinned explicitly rather than derived from forwarded headers —
+     verified by asking both ways. Both forms print the API's own error
+     when the warehouse is absent, instead of a Python traceback.
 
      It must print an `http://lakekeeper:8181/...` uri. If it prints the
      public hostname, `LAKEKEEPER__BASE_URI` is wrong — the shipped compose
@@ -322,7 +329,7 @@ helper takes it as `get_catalog("archive")`.
   ```bash
   # what the warehouse currently has
   ssh nexus 'curl -s http://localhost:8195/management/v1/warehouse |
-    python3 -c "import json,sys; w=next(x for x in json.load(sys.stdin)[\"warehouses\"] if x[\"name\"]==\"nexus\"); print(w[\"storage-profile\"].get(\"remote-signing-url-style\"))"'
+    python3 -c "import json,sys; w=next((x for x in json.load(sys.stdin).get(\"warehouses\",[]) if x[\"name\"]==\"nexus\"), None); print(w[\"storage-profile\"].get(\"remote-signing-url-style\") if w else \"no warehouse named nexus — the hook never created one\")"'
   ```
 
   Selected by name rather than by `warehouses[0]`: a deployment that added a
