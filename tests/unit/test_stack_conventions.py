@@ -1146,10 +1146,21 @@ def test_marimo_disables_botocore_streaming_checksums() -> None:
     once remote signing itself works, so an unrelated signing bug masks it
     completely, and removing these would look harmless in any environment
     that is already broken further upstream.
+
+    Parsed from the YAML rather than grepped. The first version of this test
+    matched the raw text, and a mutation proved it worthless: commenting the
+    line out left the test passing. A check that accepts a disabled setting
+    is worse than no check, because it reports the opposite of the truth.
     """
-    compose = (REPO_ROOT / "stacks/marimo/docker-compose.yml").read_text()
+    import yaml
+
+    compose = yaml.safe_load((REPO_ROOT / "stacks/marimo/docker-compose.yml").read_text())
+    raw = compose["services"]["marimo"]["environment"]
+    # compose accepts either a list of "KEY=value" or a mapping
+    env = dict(item.split("=", 1) for item in raw) if isinstance(raw, list) else dict(raw)
+
     for var in ("AWS_REQUEST_CHECKSUM_CALCULATION", "AWS_RESPONSE_CHECKSUM_VALIDATION"):
-        assert f"- {var}=when_required" in compose, (
-            f"{var} is not pinned to when_required in the Marimo stack. "
-            "Iceberg writes to R2 fail with a signature mismatch without it."
+        assert env.get(var) == "when_required", (
+            f"{var} is {env.get(var)!r}, expected 'when_required'. Iceberg "
+            "writes to R2 fail with a signature mismatch without it."
         )

@@ -2682,9 +2682,17 @@ def test_render_lakekeeper_hook_keeps_the_r2_secret_out_of_argv() -> None:
     # second jq call -- the in-place repair of an existing warehouse -- and
     # the test failed on a change that was perfectly safe. A count pins the
     # shape of the script; what matters is that no occurrence escapes argv.
-    secret_lines = [line for line in script.splitlines() if "r2-sk" in line]
-    assert secret_lines, "secret never rendered — this test would pass vacuously"
-    assert all("NEXUS_SK=" in line for line in secret_lines), secret_lines
+    assert "r2-sk" in script, "secret never rendered — this test would pass vacuously"
+
+    # Strip the sanctioned occurrences, then require the secret to be gone.
+    # Stronger than checking each line that mentions it: this leaves nothing
+    # for a second, differently-shaped exposure to hide behind, and it does
+    # not care where line breaks fall.
+    remainder = re.sub(r"NEXUS_SK=(?:'[^']*'|\S+)", "NEXUS_SK=<redacted>", script)
+    assert "r2-sk" not in remainder, (
+        "the R2 secret appears outside a NEXUS_SK= env assignment:\n"
+        + "\n".join(line for line in remainder.splitlines() if "r2-sk" in line)
+    )
     assert "--arg" in script  # non-secret args legitimately use --arg
 
 

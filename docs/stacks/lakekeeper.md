@@ -325,9 +325,14 @@ helper takes it as `get_catalog("archive")`.
   ```bash
   # what the warehouse currently has
   ssh nexus 'curl -s http://localhost:8195/management/v1/warehouse |
-    python3 -c "import json,sys; w=json.load(sys.stdin)[\"warehouses\"][0];
-    print(w[\"storage-profile\"].get(\"remote-signing-url-style\"))"'
+    python3 -c "import json,sys
+w = next(x for x in json.load(sys.stdin)[\"warehouses\"] if x[\"name\"] == \"nexus\")
+print(w[\"storage-profile\"].get(\"remote-signing-url-style\"))"'
   ```
+
+  Selected by name rather than by `warehouses[0]`: a deployment that added a
+  second warehouse would otherwise read the wrong one and give a confidently
+  wrong answer.
 
   Lakekeeper also logs `This is a bug in the query engine. When using
   PyIceberg, please update to versions > 0.9.1` alongside this. That message
