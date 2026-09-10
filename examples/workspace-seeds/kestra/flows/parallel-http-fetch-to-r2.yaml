@@ -5,7 +5,7 @@ description: |
   each response into R2.
 
   Pattern, three tasks per iteration:
-    1. ForEach — iterate over the input URL list (`urls`).
+    1. Loop — iterate over the input URL list (`urls`).
     2. http.Download — GET the iteration's URL.
     3. s3.Upload — push the response body into R2, keyed by index +
        a sanitised slug derived from the URL so each iteration
@@ -23,7 +23,7 @@ description: |
   JSON responses, won't OOM the 4 GB Kestra container. Lower it for
   large payloads, raise it for many small ones by editing
   `concurrencyLimit:` in the `fetch_all` task. (Can't be a flow
-  input — Kestra parses the YAML for `ForEach.concurrencyLimit`
+  input — Kestra parses the YAML for `Loop.concurrencyLimit`
   before rendering Pebble templates, so a `{{ inputs.X }}` value
   fails type-check as Integer.)
 
@@ -78,12 +78,12 @@ inputs:
 
 tasks:
   # ---------------------------------------------------------------------
-  # 1. ForEach over the URL list. Each iteration runs `download` then
+  # 1. Loop over the URL list. Each iteration runs `download` then
   #    `upload` on its own URL.
   #
   #    `concurrencyLimit` is hard-coded (4) instead of bound to a flow
   #    input because Kestra deserialises the YAML BEFORE rendering
-  #    Pebble templates, and ForEach.concurrencyLimit is typed as a
+  #    Pebble templates, and Loop.concurrencyLimit is typed as a
   #    java.lang.Integer — a string-shaped ``{{ inputs.X }}`` value
   #    fails YAML deserialisation with
   #    ``Cannot deserialize value of type java.lang.Integer from String``.
@@ -91,7 +91,7 @@ tasks:
   #    (Forgejo workspace repo) and Kestra picks it up via system.flow-sync.
   # ---------------------------------------------------------------------
   - id: fetch_all
-    type: io.kestra.plugin.core.flow.ForEach
+    type: io.kestra.plugin.core.flow.Loop
     values: "{{ inputs.urls }}"
     concurrencyLimit: 4
     tasks:

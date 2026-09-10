@@ -63,7 +63,7 @@ tasks:
   #    downloads would risk OOM at higher month counts.
   # ---------------------------------------------------------------------
   - id: bootstrap
-    type: io.kestra.plugin.core.flow.ForEach
+    type: io.kestra.plugin.core.flow.Loop
     values: ["01", "02"]
     concurrencyLimit: 1
     tasks:
@@ -83,7 +83,7 @@ tasks:
         # and lets students reason about which dataset belongs to
         # which tutorial without scanning filenames.
         key: "nexus-tutorials/NYC/yellow_tripdata_2025-{{ taskrun.value }}.parquet"
-        # Inside a `ForEach`, sibling-task outputs are keyed by the
+        # Inside a `Loop`, sibling-task outputs are keyed by the
         # iteration value. `outputs.download.uri` (no key) returns
         # nothing in Kestra v1.0+ → "Unable to find `uri`" Pebble error.
         # Indexing with `[taskrun.value]` selects this iteration's

@@ -564,7 +564,7 @@ tasks:
     authorEmail: "kestra@nexus-stack.local"
 triggers:
   - id: schedule
-    type: io.kestra.core.models.triggers.types.Schedule
+    type: io.kestra.plugin.core.trigger.Schedule
     cron: "*/10 * * * *"
 """
 

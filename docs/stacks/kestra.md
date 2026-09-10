@@ -24,6 +24,39 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 | Website | [kestra.io](https://kestra.io) |
 | Source | [GitHub](https://github.com/kestra-io/kestra) |
 
+> ⚠️ **Kestra 2.0, and there is no way back.** The stack runs `kestra/kestra:v2.0`,
+> which is also the `latest-lts` tag (identical digest — checked). Upstream is
+> explicit that the upgrade is one-way: *"Several 2.0 migrations are
+> irreversible: in particular, the BasicAuth password rehash prevents rollback
+> to 1.x."* A database that has been through 2.0's Flyway migrations cannot be
+> served by a 1.x image again.
+>
+> Under the default **rebuild** lifecycle this costs nothing — Kestra's Postgres
+> is not in the R2 persistence set and is recreated from migrations on every
+> spin-up, so a pin change is a fresh database either way. Under a **snapshot**
+> lifecycle the database survives, and the first 2.0 start migrates it for good.
+>
+> What was checked against 2.0 before the bump, all by registering the actual
+> flows against a local 2.0 instance:
+>
+> | | |
+> |---|---|
+> | Flow registration (`POST /api/v1/flows`) | works — 200 |
+> | `git` plugin tasks this stack uses | all present: `SyncFlows`, `SyncNamespaceFiles`, `PushFlows` |
+> | Basic auth | still works; the generated password needs no special characters |
+> | Browser UI without credentials | still open (`/ui/` → 200), so the no-popup promise above still holds |
+> | Seeded + system flows | all six accepted by a fresh 2.0 |
+>
+> Two things had to change first, both in this repo rather than in Kestra:
+> `io.kestra.plugin.core.flow.ForEach` is removed (now `Loop`), and
+> `io.kestra.core.models.triggers.types.Schedule` is removed (now
+> `io.kestra.plugin.core.trigger.Schedule`). 1.0.60 accepted the old trigger
+> type and 2.0 rejects it with `422 Could not resolve type id`.
+>
+> **Not verified:** whether the `git` tasks need explicit API credentials when
+> they *execute* — 2.0 requires that for tasks calling Kestra's own API. Flow
+> registration does not exercise it; the first real `system.flow-sync` run does.
+
 > ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. The `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` env vars are still rendered for forward-compat (Kestra EE / OIDC), but unused while basic-auth is off.
 
 ### Architecture

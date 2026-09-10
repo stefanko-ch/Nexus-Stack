@@ -1164,3 +1164,48 @@ def test_marimo_disables_botocore_streaming_checksums() -> None:
             f"{var} is {env.get(var)!r}, expected 'when_required'. Iceberg "
             "writes to R2 fail with a signature mismatch without it."
         )
+
+
+def test_kestra_flows_use_no_removed_2x_constructs() -> None:
+    """Seeded flows and the rendered system flows must load on Kestra 2.x.
+
+    Two constructs were removed in 2.0 and both were in use here:
+
+    - `io.kestra.plugin.core.flow.ForEach` — gone; `Loop` replaces it and
+      takes the same `values` / `concurrencyLimit` / `tasks`, verified
+      against 2.0's own plugin schema.
+    - `io.kestra.core.models.triggers.types.Schedule` — gone. Kestra 1.0.60
+      still accepted it (HTTP 200 on POST) while 2.0 rejects it with
+      `422 Could not resolve type id`. The modern
+      `io.kestra.plugin.core.trigger.Schedule` is accepted by BOTH, which is
+      why this could be fixed without waiting for the version bump.
+
+    Asserted against the flow sources rather than a version string: the point
+    is what the flows contain, not which tag they happen to run on.
+    """
+    import re
+
+    from nexus_deploy.kestra import render_system_flows
+
+    sources = {
+        p.name: p.read_text()
+        for p in (REPO_ROOT / "examples/workspace-seeds/kestra/flows").glob("*.yaml")
+    }
+    assert sources, "no seeded Kestra flows found — this test would pass vacuously"
+    sources.update(
+        render_system_flows(
+            repo_owner="owner", repo_name="repo", branch="main", admin_username="a@b.c"
+        )
+    )
+
+    removed = {
+        "ForEach": r"io\.kestra\.plugin\.core\.flow\.ForEach\b",
+        "legacy Schedule trigger": r"io\.kestra\.core\.models\.triggers\.types\.Schedule\b",
+    }
+    offenders = [
+        f"{name}: {label}"
+        for name, body in sources.items()
+        for label, pat in removed.items()
+        if re.search(pat, body)
+    ]
+    assert not offenders, "flows use constructs removed in Kestra 2.0:\n  " + "\n  ".join(offenders)

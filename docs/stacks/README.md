@@ -48,7 +48,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (OpenMetadata DB) | `postgres` | `16-alpine` | Major |
 | Kafdrop | `obsidiandynamics/kafdrop` | `4.2.0` | Exact ¹ |
 | Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
-| Kestra | `kestra/kestra` | `v1.0` | Minor |
+| Kestra | `kestra/kestra` | `v2.0` | Minor |
 | PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | PostgreSQL (Infisical DB) | `postgres` | `18-alpine` | Major |
