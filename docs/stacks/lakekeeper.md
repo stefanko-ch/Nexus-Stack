@@ -300,16 +300,58 @@ helper takes it as `get_catalog("archive")`.
      Check what the server is advertising:
 
      ```bash
-     ssh nexus 'docker exec marimo python -c "
-     import json, urllib.request
-     u = \"http://lakekeeper:8181/catalog/v1/config?warehouse=nexus\"
-     print(json.load(urllib.request.urlopen(u))[\"overrides\"])"'
+     ssh nexus 'curl -s "http://localhost:8195/catalog/v1/config?warehouse=nexus" |
+       python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get(\"overrides\") or d)"'
      ```
+
+     Asked through the host-published port rather than from inside a
+     container, which gives the same answer here because BASE_URI is
+     pinned explicitly rather than derived from forwarded headers —
+     verified by asking both ways. Both forms print the API's own error
+     when the warehouse is absent, instead of a Python traceback.
 
      It must print an `http://lakekeeper:8181/...` uri. If it prints the
      public hostname, `LAKEKEEPER__BASE_URI` is wrong — the shipped compose
      sets it to the in-cluster address and gives the browser UI its own
      `LAKEKEEPER__UI__LAKEKEEPER_URL`.
+- **`SignError: Failed to sign request 400`** — Lakekeeper refused to sign an
+  S3 request. Look in `docker logs lakekeeper` for an `Authorization failed
+  event` with `action_name: write_data`, and at the `table-location` it
+  reports. If that location starts with the R2 **account id** instead of the
+  bucket — `s3://<account>/<bucket>/...` — the warehouse has
+  `remote-signing-url-style` on its `auto` default. `auto` reads
+  `<account>.r2.cloudflarestorage.com/<bucket>/<key>` as virtual-hosted and
+  takes the first host label for the bucket, which is wrong for R2.
+
+  The shipped hook sets `path` and repairs an existing warehouse that still
+  carries `auto`, so a spin-up fixes it. To check or fix by hand:
+
+  ```bash
+  # what the warehouse currently has
+  ssh nexus 'curl -s http://localhost:8195/management/v1/warehouse |
+    python3 -c "import json,sys; w=next((x for x in json.load(sys.stdin).get(\"warehouses\",[]) if x[\"name\"]==\"nexus\"), None); print(w[\"storage-profile\"].get(\"remote-signing-url-style\") if w else \"no warehouse named nexus — the hook never created one\")"'
+  ```
+
+  Selected by name rather than by `warehouses[0]`: a deployment that added a
+  second warehouse would otherwise read the wrong one and give a confidently
+  wrong answer.
+
+  Lakekeeper also logs `This is a bug in the query engine. When using
+  PyIceberg, please update to versions > 0.9.1` alongside this. That message
+  is a red herring — it appears against PyIceberg 0.12.0 too.
+
+- **`The request signature we calculated does not match the signature you
+  provided`, or `MissingContentLength`, on a write** — botocore re-encoded the
+  body as `aws-chunked` with trailing checksums *after* Lakekeeper signed it,
+  so the signed body is not the body that arrives. The Marimo stack sets
+  `AWS_REQUEST_CHECKSUM_CALCULATION=when_required` and
+  `AWS_RESPONSE_CHECKSUM_VALIDATION=when_required` to prevent this; a
+  hand-rolled client needs the same two variables.
+
+  This one only becomes visible once signing itself works. A signing failure
+  masks it completely, which is worth knowing before concluding that a
+  checksum fix "did not help".
+
 - **`ModuleNotFoundError: No module named 's3fs'` on a write** — the client
   lacks `s3fs`, which remote signing needs. The Marimo image ships it; a
   hand-rolled client has to install it. Note the table has already been
