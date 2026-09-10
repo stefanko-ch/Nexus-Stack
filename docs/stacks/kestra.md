@@ -101,7 +101,7 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 > plus the basic-auth credentials 2.0 now requires for such calls. The two URLs
 > are deliberately different: `kestra.url` stays public for the browser.
 
-> ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. The `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` env vars are still rendered for forward-compat (Kestra EE / OIDC), but unused while basic-auth is off.
+> ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. `enabled: false` turns off the **UI** prompt only — the REST API still demands authentication on 2.0. Measured on the running server: `GET /ui/` without credentials returns 200, `GET /api/v1/main/flows/...` returns 401, and 200 with them. So `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` are **not** spare forward-compat values: they are what `kestra.tasks.sdk.authentication` (above) hands to `git.PushFlows` / `git.SyncFlows`, and removing them breaks those tasks while leaving the UI working — a failure that looks unrelated to auth.
 
 ### Architecture
 
