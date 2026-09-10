@@ -285,13 +285,17 @@ helper takes it as `get_catalog("archive")`.
 
   1. The client was pointed at `https://lakekeeper.YOUR_DOMAIN`. Use
      `http://lakekeeper:8181/catalog` from inside the network.
-  2. **The client was pointed at the right URL and got redirected anyway.**
-     Lakekeeper returns `LAKEKEEPER__BASE_URI` to Iceberg clients as
-     `overrides.uri` in its `/v1/config` response, and PyIceberg honours it
-     for every call after the handshake. With BASE_URI set to the public
-     hostname, `load_catalog()` succeeds — the handshake goes over
-     app-network — and the *next* call lands on Access. The failure therefore
-     points at `list_namespaces` while the cause is in the config response.
+  2. **The client was pointed at the right URL and went somewhere else
+     anyway** — because Lakekeeper told it to. This is not an HTTP redirect,
+     and looking for a `3xx` will find nothing: the REST paths answer `404`
+     with no `Location` header. Lakekeeper *advertises* a different address.
+
+     It returns `LAKEKEEPER__BASE_URI` to Iceberg clients as `overrides.uri`
+     in its `/v1/config` response, and PyIceberg honours that for every call
+     after the handshake. With BASE_URI set to the public hostname,
+     `load_catalog()` succeeds — the handshake goes over app-network — and
+     the *next* call lands on Access. The failure therefore points at
+     `list_namespaces` while the cause is in the config response.
 
      Check what the server is advertising:
 
