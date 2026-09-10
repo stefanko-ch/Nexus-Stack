@@ -47,11 +47,31 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 > | Browser UI without credentials | still open (`/ui/` → 200), so the no-popup promise above still holds |
 > | Seeded + system flows | all six accepted by a fresh 2.0 |
 >
-> Two things had to change first, both in this repo rather than in Kestra:
+> **`Loop` is not a drop-in for `ForEach`.** It runs each iteration as its
+> own *sub-execution*, which changes the variables and the output shape.
+> Measured on 2.0 by executing flows, not merely registering them:
+>
+> | expression | result |
+> |---|---|
+> | `{{ taskrun.value }}` | FAILED — "Unable to find `value`" |
+> | `{{ item.value }}`, `{{ item.index }}` | SUCCESS |
+> | `{{ outputs.x[item.value].y }}` | FAILED |
+> | `{{ outputs.x.y }}` | SUCCESS — the iteration already scopes it |
+>
+> **Registering a flow does not validate it.** All six flows returned HTTP
+> 200 on `POST /api/v1/flows` while still carrying `taskrun.value`, which
+> only fails when an execution reaches the expression. Anything checked
+> against Kestra has to be *run*.
+>
+> Three things had to change first, all in this repo rather than in Kestra:
 > `io.kestra.plugin.core.flow.ForEach` is removed (now `Loop`), and
 > `io.kestra.core.models.triggers.types.Schedule` is removed (now
 > `io.kestra.plugin.core.trigger.Schedule`). 1.0.60 accepted the old trigger
-> type and 2.0 rejects it with `422 Could not resolve type id`.
+> type and 2.0 rejects it with `422 Could not resolve type id`. And the
+> `substring` Pebble filter in `parallel-http-fetch-to-r2.yaml` does not
+> exist — **not in 2.0 and not in 1.0.60 either**, so that flow's upload
+> step could never have run on any version this stack has shipped. `slice`
+> is the filter that works on both.
 >
 > **Not verified:** whether the `git` tasks need explicit API credentials when
 > they *execute* — 2.0 requires that for tasks calling Kestra's own API. Flow

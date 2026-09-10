@@ -1201,11 +1201,64 @@ def test_kestra_flows_use_no_removed_2x_constructs() -> None:
     removed = {
         "ForEach": r"io\.kestra\.plugin\.core\.flow\.ForEach\b",
         "legacy Schedule trigger": r"io\.kestra\.core\.models\.triggers\.types\.Schedule\b",
+        # `Loop` runs each iteration as its own sub-execution, so the
+        # iteration variables changed and outputs are no longer keyed.
+        # Measured on 2.0: `taskrun.value` -> FAILED, `item.value` -> SUCCESS;
+        # `outputs.x[item.value].y` -> FAILED, `outputs.x.y` -> SUCCESS.
+        "taskrun.* iteration variable": r"\{\{[^}]*\btaskrun\.(value|iteration)\b",
+        "output keyed by iteration": r"outputs\.\w+\[[^\]]+\]",
+        # Not a 2.0 removal -- `substring` does not exist in 1.0.60 either,
+        # so this flow's upload step could never have run. `slice` is the
+        # Pebble filter that works on both.
+        "substring filter": r"\|\s*substring\(",
     }
+
+    # Comment lines do not count. The flows explain what changed and why,
+    # which means they legitimately NAME the removed constructs in prose --
+    # and Kestra never sees a comment. Same distinction the SPARK_HADOOP
+    # check above draws, for the same reason.
+    def code_only(body: str) -> str:
+        return "\n".join(line for line in body.splitlines() if not line.lstrip().startswith("#"))
+
     offenders = [
         f"{name}: {label}"
         for name, body in sources.items()
         for label, pat in removed.items()
-        if re.search(pat, body)
+        if re.search(pat, code_only(body))
     ]
     assert not offenders, "flows use constructs removed in Kestra 2.0:\n  " + "\n  ".join(offenders)
+
+
+def test_kestra_flows_parse_as_yaml() -> None:
+    """Every seeded flow, and every rendered system flow, must be valid YAML.
+
+    Trivial, and it exists because nothing caught the obvious. Editing a
+    comment block in `parallel-http-fetch-to-r2.yaml` left one key indented
+    two spaces too far, which makes the file unparseable — and every other
+    check in this suite still passed, because they all matched substrings
+    rather than loading the document. Kestra would have rejected it at
+    registration time, i.e. during a deploy.
+    """
+    import yaml
+
+    from nexus_deploy.kestra import render_system_flows
+
+    docs = {
+        p.name: p.read_text()
+        for p in (REPO_ROOT / "examples/workspace-seeds/kestra/flows").glob("*.yaml")
+    }
+    assert docs, "no seeded Kestra flows found — this test would pass vacuously"
+    docs.update(
+        render_system_flows(
+            repo_owner="owner", repo_name="repo", branch="main", admin_username="a@b.c"
+        )
+    )
+
+    for name, body in docs.items():
+        try:
+            parsed = yaml.safe_load(body)
+        except yaml.YAMLError as exc:  # pragma: no cover - failure path
+            raise AssertionError(f"{name} is not valid YAML: {exc}") from exc
+        assert isinstance(parsed, dict), f"{name} did not parse to a mapping"
+        for key in ("id", "namespace", "tasks"):
+            assert key in parsed, f"{name} has no `{key}`"
