@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.79.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.78.0...v0.79.0) (2026-09-10)
+
+
+### 🚀 Features
+
+* **stacks:** Add PyIceberg to the Marimo image ([#829](https://github.com/stefanko-ch/Nexus-Stack/issues/829)) ([f308505](https://github.com/stefanko-ch/Nexus-Stack/commit/f30850565c6795a9b85454b4590eefcbfcecf937))
+* **stacks:** Make SFTPGo a core service ([#833](https://github.com/stefanko-ch/Nexus-Stack/issues/833)) ([4064266](https://github.com/stefanko-ch/Nexus-Stack/commit/40642665424064ea5f4d98ee597beb060efddbb0))
+* **stacks:** Wire Lakekeeper to R2 and reach it from Marimo ([#831](https://github.com/stefanko-ch/Nexus-Stack/issues/831)) ([94b0ad8](https://github.com/stefanko-ch/Nexus-Stack/commit/94b0ad87d2bf64f1e089c5611becc6ca4759aab4))
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Make Iceberg writes work against R2 — signing and checksums ([#838](https://github.com/stefanko-ch/Nexus-Stack/issues/838)) ([2d93fb1](https://github.com/stefanko-ch/Nexus-Stack/commit/2d93fb153a346ddb0a32a272d04f4b4f9bd3b0c1))
+* **stacks:** Point Lakekeeper's BASE_URI at its in-cluster address ([#837](https://github.com/stefanko-ch/Nexus-Stack/issues/837)) ([a8ff874](https://github.com/stefanko-ch/Nexus-Stack/commit/a8ff874f6a132e70374b9e75188e3230dd0fb964))
+* **stacks:** Write Unity Catalog tables under a unity-catalog/ prefix ([#835](https://github.com/stefanko-ch/Nexus-Stack/issues/835)) ([d216adf](https://github.com/stefanko-ch/Nexus-Stack/commit/d216adf68d2bf943c05237d5a96df8553fa2a118))
+
 ## [0.78.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.77.1...v0.78.0) (2026-09-09)
 
 
