@@ -1087,3 +1087,44 @@ def test_unity_catalog_writes_under_its_own_prefix() -> None:
         f"bucketPath no longer carries the prefix: {bucket_paths}. Writing to the "
         "bucket root puts Unity Catalog's schemas next to every other stack's data."
     )
+
+
+def test_lakekeeper_advertises_its_in_cluster_address() -> None:
+    """`LAKEKEEPER__BASE_URI` must be the in-cluster URL, not the public one.
+
+    Lakekeeper echoes BASE_URI to Iceberg clients as `overrides.uri` in its
+    `/v1/config` response, and PyIceberg honours it for every subsequent call.
+    Pointed at the Cloudflare-Access-gated hostname, the client fetches config
+    successfully over app-network, switches to the public URL, receives an
+    HTML login page and dies parsing it as JSON -- with `load_catalog()`
+    having succeeded, so the failure surfaces one call later than its cause.
+
+    Measured both ways against v0.13.3:
+        BASE_URI=https://lakekeeper.example.com -> overrides.uri = https://...
+        BASE_URI=http://lakekeeper:8181         -> overrides.uri = http://lakekeeper:8181/catalog
+
+    The UI keeps the public address through its own setting, which upstream
+    documents as defaulting to BASE_URI -- so narrowing one without setting
+    the other would point the browser inward instead.
+    """
+    compose = (REPO_ROOT / "stacks/lakekeeper/docker-compose.yml").read_text()
+
+    base = [
+        line.split(":", 1)[1].strip()
+        for line in compose.splitlines()
+        if line.strip().startswith("LAKEKEEPER__BASE_URI:")
+    ]
+    assert base == ["http://lakekeeper:8181"], (
+        f"LAKEKEEPER__BASE_URI is {base}. Anything public here is handed to "
+        "Iceberg clients as overrides.uri and routes them into Cloudflare Access."
+    )
+
+    ui = [
+        line.split(":", 1)[1].strip()
+        for line in compose.splitlines()
+        if line.strip().startswith("LAKEKEEPER__UI__LAKEKEEPER_URL:")
+    ]
+    assert ui == ["https://${LAKEKEEPER_DOMAIN}"], (
+        f"LAKEKEEPER__UI__LAKEKEEPER_URL is {ui}. Without it the browser UI "
+        "inherits the in-cluster BASE_URI, which no browser can reach."
+    )

@@ -73,7 +73,28 @@ services:
     environment:
       LAKEKEEPER__PG_DATABASE_URL_READ: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper
       LAKEKEEPER__PG_DATABASE_URL_WRITE: postgres://nexus-lakekeeper:${LAKEKEEPER_DB_PASSWORD}@lakekeeper-db:5432/lakekeeper
-      LAKEKEEPER__BASE_URI: https://${LAKEKEEPER_DOMAIN}
+      # The IN-CLUSTER address, not the public one, and this is load-bearing.
+      #
+      # Lakekeeper echoes BASE_URI back to Iceberg clients as `overrides.uri`
+      # in its /v1/config response, and PyIceberg honours that override for
+      # every call after the handshake. Pointed at the public hostname, the
+      # sequence is: config fetched successfully over app-network, client
+      # switches to https://lakekeeper.<domain>, Cloudflare Access answers the
+      # unauthenticated API client with an HTML login page, and PyIceberg dies
+      # parsing HTML as JSON. `load_catalog()` succeeds and the very next call
+      # fails, which is a confusing place to start debugging.
+      #
+      # Measured both ways against v0.13.3:
+      #   BASE_URI=https://lakekeeper.example.com -> overrides.uri = https://lakekeeper.example.com/catalog
+      #   BASE_URI=http://lakekeeper:8181         -> overrides.uri = http://lakekeeper:8181/catalog
+      LAKEKEEPER__BASE_URI: http://lakekeeper:8181
+      # The browser-facing address, which BASE_URI would otherwise have
+      # supplied -- upstream documents this as defaulting to BASE_URI, so
+      # narrowing BASE_URI without setting this would point the UI inward.
+      # The served HTML references only absolute paths (`/ui/assets/...`) and
+      # carries no host, so the SPA itself loads from whatever origin the
+      # browser used; this covers whatever the UI resolves at runtime.
+      LAKEKEEPER__UI__LAKEKEEPER_URL: https://${LAKEKEEPER_DOMAIN}
       # Auth disabled internally — CF Access at the edge is the gate.
       # Flip to "openid" + LAKEKEEPER__OPENID_PROVIDER_URI if you
       # later want fine-grained per-team table permissions inside

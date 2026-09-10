@@ -599,11 +599,18 @@ def _render_postgrest(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Lakekeeper: Iceberg REST Catalog. Needs dedicated Postgres
-    DSN + LAKEKEEPER__BASE_URI (double-underscore, that's Lakekeeper's
-    nested-config separator convention) for absolute-URL generation in the
-    catalog responses (Iceberg clients follow these to reach the
-    metadata endpoints).
+    """Lakekeeper: Iceberg REST Catalog. Needs a dedicated Postgres DSN, and
+    a hostname for the browser UI.
+
+    LAKEKEEPER_DOMAIN reaches the compose file as
+    ``LAKEKEEPER__UI__LAKEKEEPER_URL`` and **only** that. It used to feed
+    ``LAKEKEEPER__BASE_URI`` as well, which was wrong in a way that took a
+    while to see: Lakekeeper returns BASE_URI to Iceberg clients as
+    ``overrides.uri`` in its ``/v1/config`` response, and PyIceberg follows
+    that override for every later call. A public hostname there routes API
+    clients into Cloudflare Access, which answers with an HTML login page --
+    so ``load_catalog()`` works and the next call fails on unparseable JSON.
+    BASE_URI is now hardcoded to the in-cluster address in the compose file.
 
     Fail-fast guard (same pattern as Meilisearch / HedgeDoc): empty
     DB password crashes the Postgres init on first start with a
