@@ -1295,3 +1295,39 @@ def test_kestra_tasks_reach_the_api_internally() -> None:
     assert auth.get("password"), "tasks.sdk.authentication.password is unset"
     # The browser-facing URL stays public — the two must not be conflated.
     assert cfg["kestra"]["url"] == "${KESTRA_URL}"
+
+
+def test_flow_sync_tolerates_an_absent_user_directory() -> None:
+    """`sync-user` must not fail when the student has written no flows yet.
+
+    `kestra/flows` is where a student's own flows live. Git cannot store an
+    empty directory, so on a fresh workspace it does not exist — and
+    SyncFlows' default is to fail on a missing `gitDirectory`. That turns a
+    system flow red on every new stack for an entirely normal condition.
+    Observed on a live deployment: `sync-seeds` SUCCESS, `sync-user` FAILED,
+    "The directory 'kestra/flows' was not found in the git repository". The
+    seeds had arrived; only the signal was wrong.
+
+    `sync-seeds` deliberately does NOT get the flag: `nexus_seeds/kestra/flows`
+    is written by the seeding phase, so its absence means seeding did not
+    happen, and that should stay loud.
+    """
+    import yaml
+
+    from nexus_deploy.kestra import render_system_flows
+
+    flow = yaml.safe_load(
+        render_system_flows(
+            repo_owner="owner", repo_name="repo", branch="main", admin_username="a@b.c"
+        )["system.flow-sync"]
+    )
+    tasks = {t["id"]: t for t in flow["tasks"]}
+    assert set(tasks) == {"sync-seeds", "sync-user"}, sorted(tasks)
+
+    assert tasks["sync-user"].get("failOnMissingDirectory") is False, (
+        "sync-user fails on a fresh workspace without this — the student "
+        "directory does not exist until they write their first flow."
+    )
+    assert "failOnMissingDirectory" not in tasks["sync-seeds"], (
+        "sync-seeds must stay loud: a missing seed directory means seeding did not happen."
+    )

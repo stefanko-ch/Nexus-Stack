@@ -474,6 +474,25 @@ tasks:
     gitDirectory: nexus_seeds/kestra/workflows
 """
 
+# Two SyncFlows tasks, and only the second carries
+# `failOnMissingDirectory: false`.
+#
+# `kestra/flows` is where a student's OWN flows live, and git cannot store an
+# empty directory -- so on a fresh workspace it does not exist at all. The
+# task's default is to fail there, which turns a system flow red on every new
+# stack for a condition that is entirely normal. Observed on a live
+# deployment: sync-seeds SUCCESS, sync-user FAILED, "The directory
+# 'kestra/flows' was not found in the git repository." The seeds had arrived;
+# only the signal was wrong, which is the worst kind of red -- it teaches
+# people to ignore the colour.
+#
+# Deliberately NOT set on sync-seeds: `nexus_seeds/kestra/flows` is written by
+# the seeding phase, so its absence means seeding did not happen. That one
+# should stay loud.
+#
+# `failOnMissingDirectory` verified against Kestra 2.0 rather than assumed:
+# the flow registers with it (200), while an invented property is rejected
+# (422 "Unrecognized field"), so the acceptance means something.
 FLOW_SYNC_FLOW_TEMPLATE = """\
 id: flow-sync
 namespace: system
@@ -499,6 +518,7 @@ tasks:
     targetNamespace: my-flows
     includeChildNamespaces: true
     delete: true
+    failOnMissingDirectory: false
 """
 
 # Push direction: Kestra UI → Forgejo fork. Runs every 10 minutes
