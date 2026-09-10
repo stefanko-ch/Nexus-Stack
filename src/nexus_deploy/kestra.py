@@ -14,7 +14,7 @@ against ``responses``-mocked HTTP without ever running ssh.
 API:
 
 - :class:`KestraClient` — basic-auth REST client. ``wait_ready``,
-  ``register_flow`` (POST 200/201 / 422 → PUT 200/201 / failed),
+  ``register_flow`` (POST 200/201 / 409/422 → PUT 200/201 / failed),
   ``execute_flow``, ``wait_for_execution``.
 - :func:`render_system_flow_yaml` — string-template YAML builder for
   the two system flows.
@@ -61,6 +61,10 @@ from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig
 _CONNECT_TIMEOUT_S: float = 3.0
 _READ_TIMEOUT_S: float = 15.0
 _HTTP_TIMEOUT: tuple[float, float] = (_CONNECT_TIMEOUT_S, _READ_TIMEOUT_S)
+
+# POST on an existing flow: 1.0.60 answers 422 "Flow id already exists",
+# 2.0 answers 409. Both mean the same thing, so both fall through to PUT.
+_FLOW_ALREADY_EXISTS: tuple[int, int] = (409, 422)
 
 
 def _http_timeout_for_deadline(deadline: float) -> tuple[float, float]:
@@ -231,13 +235,23 @@ class KestraClient:
         namespace: str,
         flow_id: str,
     ) -> RegisterResult:
-        """Idempotent register: POST first, fall back to PUT on 422.
+        """Idempotent register: POST first, fall back to PUT on 409/422.
 
-        Kestra v1.0 OSS does NOT have an upsert verb — POST is
-        create-only (returns 422 with ``"Flow id already exists"`` if
-        the flow is there) and PUT is update-only (returns 404 if the
-        flow doesn't exist). Neither alone covers re-runs, so we
-        chain them.
+        Kestra OSS has no upsert verb — POST is create-only and PUT is
+        update-only (404 if the flow doesn't exist). Neither alone covers
+        re-runs, so we chain them.
+
+        **Both 409 and 422 mean "already exists", and which one you get
+        depends on the version.** Measured against a live server:
+
+            1.0.60  POST on an existing flow -> 422 "Flow id already exists"
+            2.0     POST on an existing flow -> 409 "Entity already exists"
+
+        Accepting only 422 is what made this silent on 2.0: every re-register
+        returned `failed`, no PUT was attempted, and the flow stayed at its
+        original revision forever. A `failOnMissingDirectory` fix sat in the
+        repo for a full deploy cycle without ever reaching Kestra — the flow
+        read `revision: 1` while the source had changed twice.
         """
         full_name = f"{namespace}.{flow_id}"
         try:
@@ -259,14 +273,14 @@ class KestraClient:
             return RegisterResult(
                 name=full_name, status="created", detail=f"POST {post_resp.status_code}"
             )
-        if post_resp.status_code != 422:
+        if post_resp.status_code not in _FLOW_ALREADY_EXISTS:
             return RegisterResult(
                 name=full_name,
                 status="failed",
                 detail=f"POST {post_resp.status_code}",
             )
 
-        # POST 422 → exists → PUT to update
+        # POST 409/422 → exists → PUT to update
         try:
             put_resp = requests.put(
                 f"{self.base_url}/api/v1/flows/{namespace}/{flow_id}",
@@ -286,12 +300,12 @@ class KestraClient:
             return RegisterResult(
                 name=full_name,
                 status="updated",
-                detail=f"POST 422 → PUT {put_resp.status_code}",
+                detail=f"POST {post_resp.status_code} → PUT {put_resp.status_code}",
             )
         return RegisterResult(
             name=full_name,
             status="failed",
-            detail=f"POST 422 → PUT {put_resp.status_code}",
+            detail=f"POST {post_resp.status_code} → PUT {put_resp.status_code}",
         )
 
     def execute_flow(self, namespace: str, flow_id: str) -> str:
