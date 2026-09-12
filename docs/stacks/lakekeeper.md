@@ -292,9 +292,11 @@ helper takes it as `get_catalog("archive")`.
   been captured for the R2 case yet. Until one is, do not assume the cause
   lies with R2, with PyIceberg, or with this stack's configuration.
 
-  What has been ruled out, so nobody re-chases it: a duplicated
+  Four causes were investigated and excluded **against MinIO** — a duplicated
   `Authorization` header, read-after-write visibility, a cold catalogue, and
-  `append` versus `overwrite` semantics. Details in the issue.
+  `append` versus `overwrite` semantics. None of those four has been retested
+  against R2, so they are a starting point for whoever picks this up, not a
+  list of things already eliminated here. Details in the issue.
 
 - **`NoSuchWarehouseException: A warehouse 'nexus' does not exist`** — the
   hook did not create it. Search the spin-up log for
