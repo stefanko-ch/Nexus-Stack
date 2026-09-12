@@ -102,10 +102,18 @@ def test_the_accent_requires_a_label() -> None:
     # on the first run, twice, in two different files.
     html_tag = re.search(r"<html([^>]*)>", _code(LAYOUT))
     assert html_tag, "Layout.astro has no <html> tag"
-    attrs = html_tag.group(1)
-    assert "stackAccent" in attrs, "the <html> element must carry the accent"
-    assert "stackLabel" in attrs, (
-        "the accent must be gated on stackLabel too — found: " + attrs.strip()
+
+    # Scoped to the expression that emits --accent, not to the whole tag.
+    # A substring check across all attributes would be satisfied by any other
+    # use of `stackLabel` on <html> — a lang switch, a data attribute — while
+    # the accent itself sat ungated. Raised in review.
+    style = re.search(r"style=\{([^}]*\{[^}]*\}[^}]*|[^}]*)\}", html_tag.group(1))
+    assert style, "the <html> tag has no style= expression — found: " + html_tag.group(1).strip()
+    expr = style.group(1)
+    assert "--accent:" in expr, "the style expression must set --accent — found: " + expr.strip()
+    assert "stackAccent" in expr, "the accent value must come from stackAccent"
+    assert "stackLabel" in expr, (
+        "the accent must be gated on stackLabel too — found: " + expr.strip()
     )
 
 
