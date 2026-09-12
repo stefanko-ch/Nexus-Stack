@@ -275,6 +275,27 @@ helper takes it as `get_catalog("archive")`.
 
 ### Troubleshooting
 
+- **A write occasionally fails with `OSError: [Errno 22] Authorization`** —
+  known, rare, and not something you did wrong. **Re-run the cell.**
+
+  Measured on this deployment: 39 of 40 runs of a long chain — `overwrite`,
+  `append`, four scans, `plan_files`, then time travel — completed cleanly.
+  The one failure hit `overwrite` and did not repeat. So roughly a 1-in-40
+  chance of one failed write during a long session, cleared by running it
+  again.
+
+  It is tracked in [#832](https://github.com/stefanko-ch/Nexus-Stack/issues/832),
+  which also records what is *not* yet known: whether this is the same defect
+  that shows up far more often against MinIO — up to 83 % of runs there, with
+  a different error — or a second, rarer one. An `OSError` from `s3fs` is a
+  different layer than the `botocore` 403 MinIO produces, and no traceback has
+  been captured for the R2 case yet. Until one is, do not assume the cause
+  lies with R2, with PyIceberg, or with this stack's configuration.
+
+  What has been ruled out, so nobody re-chases it: a duplicated
+  `Authorization` header, read-after-write visibility, a cold catalogue, and
+  `append` versus `overwrite` semantics. Details in the issue.
+
 - **`NoSuchWarehouseException: A warehouse 'nexus' does not exist`** — the
   hook did not create it. Search the spin-up log for
   `RESULT hook=lakekeeper`: `skipped-not-ready` means the deployment has no R2
