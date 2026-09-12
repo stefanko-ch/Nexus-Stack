@@ -206,13 +206,20 @@ def _(spark):
         ).coalesce(1).write.mode("overwrite").option("header", True).csv(sample_path)
         df_s3 = spark.read.csv(sample_path, header=True, inferSchema=True)
         result_msg = f"Read {df_s3.count()} rows back from {sample_path}"
-        df_s3
     else:
         result_msg = (
             "HETZNER_S3_BUCKET is not set — skipping S3 demo. "
             "Set it via Infisical (key HETZNER_S3_BUCKET) and re-run a spin-up "
             "to populate the Marimo container env."
         )
+    # Unnested deliberately. marimo renders the cell's last expression, but
+    # only when it is not inside a branch — a value on the last line of an
+    # `if` body is evaluated and discarded, which is what `marimo check`
+    # reports as branch-expression. Nothing crashed; the DataFrame simply
+    # never appeared, so a student saw no table after the S3 round-trip and
+    # no way to tell whether the cell had done anything (#817).
+    # `None` when the demo was skipped, which renders as nothing.
+    df_s3
     return bucket, df_s3, os, result_msg, sample_path
 
 

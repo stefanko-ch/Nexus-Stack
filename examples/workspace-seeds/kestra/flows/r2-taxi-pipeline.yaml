@@ -104,9 +104,14 @@ tasks:
     sql: |
       INSTALL httpfs;
       LOAD httpfs;
-      SET s3_endpoint          = '{{ secret('R2_ENDPOINT') | replace({'https://': ''}) }}';
-      SET s3_access_key_id     = '{{ secret('R2_ACCESS_KEY') }}';
-      SET s3_secret_access_key = '{{ secret('R2_SECRET_KEY') }}';
+      -- Each value is inlined into a SQL string literal, so an apostrophe in
+      -- any of them would close the literal early and the query would fail to
+      -- parse. replace({"'": "''"}) is SQL's own escape. Verified against a
+      -- live Kestra 2.0 with a deliberately hostile secret: abc'def rendered
+      -- as abc''def, and the two filters chain correctly (#664).
+      SET s3_endpoint          = '{{ secret('R2_ENDPOINT') | replace({'https://': ''}) | replace({"'": "''"}) }}';
+      SET s3_access_key_id     = '{{ secret('R2_ACCESS_KEY') | replace({"'": "''"}) }}';
+      SET s3_secret_access_key = '{{ secret('R2_SECRET_KEY') | replace({"'": "''"}) }}';
       SET s3_url_style         = 'path';
       SET s3_use_ssl           = true;
 
