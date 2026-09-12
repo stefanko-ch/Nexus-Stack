@@ -60,12 +60,20 @@ def test_header_hardcodes_no_brand_green() -> None:
 
 
 def test_header_accent_falls_back_to_the_panel_accent() -> None:
-    """With STACK_ACCENT unset the header must look exactly as before.
+    """With STACK_ACCENT unset, every colour resolves to its previous value.
 
     The fallback is a single declaration; without it, an unlabelled panel
     resolves `--header-accent` to nothing and loses its heading colour
     entirely. Asserted on the source because it is one line that a refactor
     can drop while every other rule still reads correctly.
+
+    Stated as *colours* deliberately, not as "looks exactly as before": the
+    glows and the active-nav tint now go through `color-mix`, which a browser
+    without support drops rather than approximates, leaving the header
+    correctly coloured but flat. That baseline is Chrome 111, Safari 16.2 and
+    Firefox 113 — all 2023 — for a panel behind Cloudflare Access, so the
+    trade was accepted rather than papered over with `rgba()` fallbacks that
+    would themselves be hardcoded greens on a recoloured panel.
     """
     assert re.search(r"--header-accent:\s*var\(--accent\)", _header()), (
         "header must declare `--header-accent: var(--accent)` as the fallback"
@@ -125,6 +133,29 @@ def test_the_tagline_keeps_the_product_name_when_a_label_takes_the_heading() -> 
     )
 
 
+def test_the_validator_combines_both_halves_case_insensitively() -> None:
+    """The hex test and the allowlist must both be consulted, and folded.
+
+    Asserted on the shape of the export because the Python helper above
+    cannot see it: that helper reads the two halves and joins them itself,
+    so a TypeScript change to the *join* is invisible to every value-based
+    test. Both such changes were tried and both passed, which is why this
+    exists.
+
+    `.toLowerCase()` is load-bearing rather than tidy: CSS keywords are
+    case-insensitive, so `ORANGE` is a colour an operator may reasonably
+    type, and without the fold it would be silently dropped.
+    """
+    src = IDENTITY.read_text(encoding="utf-8")
+    export = re.search(r"export const stackAccent[^;]+;", src, re.S)
+    assert export, "stackAccent export not found in stack-identity.ts"
+    body = export.group(0)
+    assert "HEX_PATTERN.test(rawAccent)" in body, "the hex half must be consulted"
+    assert "NAMED_COLOURS.has(rawAccent.toLowerCase())" in body, (
+        "the allowlist must be consulted, case-folded — found: " + " ".join(body.split())
+    )
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -132,12 +163,14 @@ def test_the_tagline_keeps_the_product_name_when_a_label_takes_the_heading() -> 
         "#fff",
         "#ff8800aa",
         "orange",
-        "rebeccapurple",
+        "rebeccapurple",  # CSS Color 4 added this one after the CSS3 147
+        "ORANGE",  # CSS keywords are case-insensitive
+        "DarkSlateGray",
     ],
 )
 def test_accent_pattern_admits_real_colours(value: str) -> None:
     """The colours an operator would plausibly type must survive validation."""
-    assert _accent_pattern().fullmatch(value), f"{value} should be accepted"
+    assert _accepts_accent(value), f"{value} should be accepted"
 
 
 @pytest.mark.parametrize(
@@ -149,6 +182,19 @@ def test_accent_pattern_admits_real_colours(value: str) -> None:
         "var(--accent)",
         "",
         "rgb(1,2,3)",
+        # Shape-valid words that are not colours. A bare /[a-z]{3,20}/ let
+        # these through, and the cost is not a wrong colour: CSS drops every
+        # declaration that reads an unrecognised custom property, so the
+        # header ends up with no colour at all.
+        "foobar",
+        "notacolor",
+        # Valid CSS, still not a colour an accent may be. `transparent` is
+        # the expensive one — it erases heading, glow, tagline, nav link and
+        # the masked logo at once, on the one stack that asked to stand out.
+        "transparent",
+        "currentcolor",
+        "inherit",
+        "unset",
     ],
 )
 def test_accent_pattern_rejects_everything_else(value: str) -> None:
@@ -161,16 +207,29 @@ def test_accent_pattern_rejects_everything_else(value: str) -> None:
     unchanged by #841; this pins it so the widened blast radius cannot
     quietly outlive it.
     """
-    assert not _accent_pattern().fullmatch(value), f"{value} should be rejected"
+    assert not _accepts_accent(value), f"{value} should be rejected"
 
 
-def _accent_pattern() -> re.Pattern[str]:
-    """Read ACCENT_PATTERN out of the TypeScript rather than restating it.
+def _accepts_accent(value: str) -> bool:
+    """Apply the validator's *data* — the hex regex and the colour set —
+    both read out of the TypeScript rather than restated here.
 
-    A copy here would pass while the real pattern drifted — the exact
-    failure these tests exist to prevent.
+    What this helper cannot check is how the two are combined, because it
+    combines them itself in Python. Mutation testing caught exactly that:
+    reverting the allowlist to a bare shape test, and dropping the
+    `.toLowerCase()`, both left every test below passing. The combination is
+    therefore pinned separately and structurally, by
+    `test_the_validator_combines_both_halves_case_insensitively`.
     """
     src = IDENTITY.read_text(encoding="utf-8")
-    m = re.search(r"const ACCENT_PATTERN = /\^(.+)\$/;", src)
-    assert m, "ACCENT_PATTERN not found in stack-identity.ts"
-    return re.compile(m.group(1))
+
+    m = re.search(r"const HEX_PATTERN = /\^(.+)\$/;", src)
+    assert m, "HEX_PATTERN not found in stack-identity.ts"
+    if re.compile(m.group(1)).fullmatch(value):
+        return True
+
+    block = re.search(r"const NAMED_COLOURS = new Set\(\[(.*?)\]\);", src, re.S)
+    assert block, "NAMED_COLOURS not found in stack-identity.ts"
+    names = set(re.findall(r"'([a-z]+)'", block.group(1)))
+    assert len(names) == 148, f"expected 148 CSS named colours, parsed {len(names)}"
+    return value.lower() in names
