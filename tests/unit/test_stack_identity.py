@@ -156,6 +156,74 @@ def test_the_validator_combines_both_halves_case_insensitively() -> None:
     )
 
 
+def _logo_rule() -> str:
+    """Just the body of the `.logo` CSS rule.
+
+    Every assertion about the logo has to be scoped to it. Scanning the whole
+    file passes as soon as *any* rule carries the declaration — so an
+    `aspect-ratio` added to an unrelated selector would satisfy the guard
+    while the masked logo collapses to zero height, which is the precise
+    failure that guard exists for. Raised in review on #843.
+    """
+    rule = re.search(r"\.logo\s*\{([^}]*)\}", _header_code(), re.S)
+    assert rule, "Header.astro has no .logo rule"
+    return rule.group(1)
+
+
+def test_the_logo_is_masked_rather_than_drawn() -> None:
+    """The logo takes the accent, and its asset exists.
+
+    A masked box is filled with `--header-accent` instead of showing a
+    coloured raster, which is what lets the logo recolour with the rest of
+    the header. Both halves are asserted because they fail differently: a
+    missing declaration leaves a solid rectangle, a missing file leaves an
+    invisible one, and neither breaks the build.
+    """
+    rule = _logo_rule()
+    assert re.search(r"-webkit-mask:\s*url\(/nexus-logo-mask\.png\)", rule), (
+        "the logo must be painted through a mask, not drawn as an image"
+    )
+    assert re.search(r"background-color:\s*var\(--header-accent\)", rule), (
+        "the masked box must be filled with the accent"
+    )
+    assert (CONTROL_PLANE / "public" / "nexus-logo-mask.png").is_file(), (
+        "control-plane/public/nexus-logo-mask.png is missing"
+    )
+
+
+def test_the_masked_logo_declares_its_own_aspect_ratio() -> None:
+    """Without `aspect-ratio` the logo collapses to nothing.
+
+    An `<img>` carries the intrinsic size of its file; a masked `<div>` has
+    none, so a box with a width and no ratio computes to zero height and the
+    logo silently disappears. The page still builds, every test that reads
+    the markup still passes, and the header just has a gap where the logo
+    was — which is exactly the kind of failure worth one assertion.
+    """
+    assert re.search(r"aspect-ratio:\s*\d+\s*/\s*\d+", _logo_rule()), (
+        ".logo must declare an aspect-ratio; a masked div has no intrinsic size"
+    )
+
+
+def test_no_reference_survives_to_the_removed_raster() -> None:
+    """`nexus-logo-green.png` is gone from the tree; nothing may still ask for it.
+
+    It lives on in git history — that is how the mask can be regenerated —
+    but a stale reference in the shipped panel is a 404 on every page load,
+    and a 404 for a background image is invisible in the console noise of a
+    working page.
+    """
+    stale = []
+    for path in CONTROL_PLANE.rglob("*"):
+        if not path.is_file() or "node_modules" in path.parts or "dist" in path.parts:
+            continue
+        if path.suffix not in {".astro", ".ts", ".js", ".css", ".html", ".json"}:
+            continue
+        if "nexus-logo-green" in path.read_text(encoding="utf-8", errors="ignore"):
+            stale.append(str(path.relative_to(CONTROL_PLANE)))
+    assert not stale, f"still reference the removed raster: {stale}"
+
+
 @pytest.mark.parametrize(
     "value",
     [

@@ -37,7 +37,7 @@ Web-based control plane to manage Nexus-Stack infrastructure via GitHub Actions.
 control-plane/
 ├── pages/
 │   ├── index.html              # Frontend UI
-│   ├── nexus-logo-green.png   # Logo
+│   ├── nexus-logo-mask.png    # Logo, as an alpha mask (see scripts/build-logo-mask.py)
 │   └── functions/              # Cloudflare Pages Functions (API)
 │       └── api/
 │           ├── spin-up.js      # POST /api/spin-up
