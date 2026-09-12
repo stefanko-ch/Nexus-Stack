@@ -205,6 +205,34 @@ def test_the_masked_logo_declares_its_own_aspect_ratio() -> None:
     )
 
 
+def test_the_mask_builder_clamps_the_background_to_transparent() -> None:
+    """A brightness floor, or the mask carries a veil instead of a silhouette.
+
+    Without one, a "black" ground that is really (1, 1, 1) to (3, 3, 3) maps
+    to alpha 1-3 rather than 0. Measured on the Nexus logo before the floor
+    existed: 41.8% of the mask sat at alpha 1-5 and only 4.8% was genuinely
+    transparent. At 2% opacity that is nearly invisible by itself — but
+    `filter: drop-shadow()` reads the alpha channel, so it glows the *box*
+    rather than the artwork. Raised in review on #843.
+
+    This asserts the script's shape, not the asset's pixels: checking the
+    PNG would mean adding Pillow to CI for one file that changes about never,
+    and the realistic regression is someone simplifying the script, not
+    someone hand-editing the mask.
+    """
+    src = (Path(__file__).resolve().parents[2] / "scripts" / "build-logo-mask.py").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(r"^GROUND_AT\s*=\s*\d+", src, re.M), (
+        "build-logo-mask.py must define a GROUND_AT brightness floor"
+    )
+    assert "v <= GROUND_AT" in src, "the floor must actually be applied to the alpha ramp"
+    assert re.search(r"\(v - GROUND_AT\)", src), (
+        "the ramp between floor and solid must be rescaled, not just clipped, "
+        "or anti-aliased edges stair-step"
+    )
+
+
 def test_no_reference_survives_to_the_removed_raster() -> None:
     """`nexus-logo-green.png` is gone from the tree; nothing may still ask for it.
 

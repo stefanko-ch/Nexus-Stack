@@ -40,10 +40,20 @@ except ImportError:  # pragma: no cover - the dependency is not a project one
 # 2x display without carrying resolution nothing renders.
 DEFAULT_WIDTH = 720
 
-# Pixels at or above this share of full brightness are treated as solid
-# artwork. Below it, alpha scales linearly, which keeps anti-aliased edges
-# smooth instead of stair-stepping them.
+# Pixels at or above this brightness are treated as solid artwork.
 SOLID_AT = 247
+
+# ...and at or below this one, as ground. Without a floor, a "black"
+# background that is really (1, 1, 1) to (3, 3, 3) maps to alpha 1-3 rather
+# than 0, and the mask carries a full-width veil instead of a silhouette.
+# Measured on the Nexus logo: 41.8% of the mask sat at alpha 1-5 and only
+# 4.8% was genuinely transparent. At 2% opacity the veil is nearly invisible
+# on its own — but `filter: drop-shadow()` reads the alpha channel, so it
+# glows the *box* rather than the artwork, which is not subtle at all.
+#
+# Between the two thresholds alpha scales linearly, which keeps anti-aliased
+# edges smooth instead of stair-stepping them.
+GROUND_AT = 8
 
 
 def build_mask(src_path: Path, dst_path: Path, width: int = DEFAULT_WIDTH) -> tuple[int, int]:
@@ -53,11 +63,17 @@ def build_mask(src_path: Path, dst_path: Path, width: int = DEFAULT_WIDTH) -> tu
 
     alpha = Image.new("L", (w, h))
     ap = alpha.load()
+    span = SOLID_AT - GROUND_AT
     for y in range(h):
         for x in range(w):
             r, g, b = pixels[x, y]
             v = max(r, g, b)
-            ap[x, y] = 255 if v >= SOLID_AT else v * 255 // SOLID_AT
+            if v >= SOLID_AT:
+                ap[x, y] = 255
+            elif v <= GROUND_AT:
+                ap[x, y] = 0
+            else:
+                ap[x, y] = (v - GROUND_AT) * 255 // span
 
     # White everywhere: the colour is irrelevant to a mask, and white keeps
     # the file legible if someone opens it expecting a picture.
