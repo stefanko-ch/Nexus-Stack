@@ -90,7 +90,7 @@ import Layout from '../layouts/Layout.astro';
   /* Service cards — :global() required because elements are created dynamically via innerHTML */
   :global(.fw-card) {
     background: rgba(26, 26, 46, 0.8);
-    border: 1px solid rgba(0, 255, 136, 0.15);
+    border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
     border-left: 4px solid var(--border);
     border-radius: 8px;
     margin-bottom: 1.5rem;
@@ -100,7 +100,7 @@ import Layout from '../layouts/Layout.astro';
   }
 
   :global(.fw-card:last-child) { margin-bottom: 0; }
-  :global(.fw-card:hover) { border-color: rgba(0, 255, 136, 0.3); }
+  :global(.fw-card:hover) { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
   :global(.fw-card.has-enabled) { border-left-color: var(--warning); }
   :global(.fw-card.has-pending) { border-left-color: #ffd700; }
 
@@ -109,8 +109,8 @@ import Layout from '../layouts/Layout.astro';
     align-items: center;
     justify-content: space-between;
     padding: 0.8rem 1.2rem;
-    background: rgba(0, 255, 136, 0.05);
-    border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   :global(.fw-card-name) {
@@ -161,7 +161,7 @@ import Layout from '../layouts/Layout.astro';
   }
 
   :global(.fw-rule:last-child) { border-bottom: none; }
-  :global(.fw-rule:hover) { background: rgba(0, 255, 136, 0.03); }
+  :global(.fw-rule:hover) { background: color-mix(in srgb, var(--accent) 3%, transparent); }
 
   :global(.fw-rule-info) {
     flex: 1;

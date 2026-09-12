@@ -36,19 +36,25 @@ export const stackLabel: string = (process.env.STACK_LABEL ?? '').trim();
  * colour, or one of the 148 CSS named colours. Anything else is dropped
  * and the panel keeps its own accent.
  *
- * Since #841 the value lands on `--header-accent`, which cascades to the
- * whole header rather than to a single badge. That widens what a bad value
- * costs, not what an unvalidated one could do: this is the only thing
- * standing between the environment variable and the attribute.
+ * Since #841 the value lands on `--accent` at the document root, so it
+ * cascades to the whole panel rather than to a single badge. That widens
+ * what a bad value costs, not what an unvalidated one could do: this is the
+ * only thing standing between the environment variable and the attribute.
+ *
+ * It deliberately does NOT reach `--status-ok`. A stack with a violet accent
+ * still shows green for healthy, because that green sits in a set with
+ * `--error` and `--warning`, and recolouring it would make the palette say
+ * something untrue.
  *
  * **A shape test is not enough, and the difference is not cosmetic.** A
  * custom property accepts any token sequence, so an unrecognised word is
  * stored happily and only fails where it is *used* — at which point
- * `color: var(--header-accent)` is invalid at computed-value time. CSS does
- * not then fall back to an earlier declaration; the property inherits or
- * resets. So `STACK_ACCENT=foobar` would leave the heading, tagline, glow
- * and masked logo with no colour at all rather than the panel's green, and
- * the setup guide's promise that invalid values are ignored would be false.
+ * `color: var(--accent)` is invalid at computed-value time. CSS does not
+ * then fall back to an earlier declaration; the property inherits or resets.
+ * So `STACK_ACCENT=foobar` would leave the heading, tagline, glow, masked
+ * logo and — since part A — every accented element on every page with no
+ * colour at all rather than the panel's green, and the setup guide's promise
+ * that invalid values are ignored would be false.
  *
  * The keyword list is therefore an allowlist, not a shape. It also settles
  * the keywords that *are* valid CSS and still wrong here — `transparent`

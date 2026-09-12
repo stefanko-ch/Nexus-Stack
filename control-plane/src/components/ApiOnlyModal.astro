@@ -61,7 +61,7 @@
   .api-only-modal {
     background: var(--bg-card);
     color: var(--text);
-    border: 1px solid rgba(0, 255, 136, 0.3);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
     border-radius: 4px;
     padding: 0;
     max-width: 600px;
@@ -127,7 +127,7 @@
     display: flex;
     align-items: stretch;
     background: rgba(0, 10, 5, 0.6);
-    border: 1px solid rgba(0, 255, 136, 0.15);
+    border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -143,9 +143,9 @@
   }
 
   .api-only-copy {
-    background: rgba(0, 255, 136, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
     border: none;
-    border-left: 1px solid rgba(0, 255, 136, 0.15);
+    border-left: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
     color: var(--text-muted);
     cursor: pointer;
     padding: 0 0.7rem;
@@ -153,7 +153,7 @@
     transition: all 0.15s;
   }
 
-  .api-only-copy:hover { background: rgba(0, 255, 136, 0.18); color: var(--accent); }
+  .api-only-copy:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
   .api-only-copy.copied { background: var(--accent); color: var(--bg-card); }
 
   .api-only-footer {

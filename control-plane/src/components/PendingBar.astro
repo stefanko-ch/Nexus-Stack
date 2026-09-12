@@ -53,7 +53,7 @@
     text-decoration: none;
     background: transparent;
     padding: 0.2rem 0.6rem;
-    border: 1px solid rgba(0, 255, 136, 0.3);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
     border-radius: 3px;
     font-size: 0.78rem;
     white-space: nowrap;
@@ -62,15 +62,15 @@
   }
 
   .pending-bar-action:hover {
-    background: rgba(0, 255, 136, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .pending-bar-action.primary {
-    background: rgba(0, 255, 136, 0.1);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .pending-bar-action.primary:hover:not(:disabled) {
-    background: rgba(0, 255, 136, 0.2);
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   .pending-bar-action:disabled {

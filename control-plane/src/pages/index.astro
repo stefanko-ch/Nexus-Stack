@@ -93,7 +93,7 @@ import RunProgress from '../components/RunProgress.astro';
   /* Status Panel */
   .status-panel {
     background: rgba(0, 20, 10, 0.8);
-    border: 1px solid rgba(0, 255, 136, 0.4);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
     padding: 2rem;
     margin-bottom: 2rem;
     text-align: center;
@@ -118,13 +118,13 @@ import RunProgress from '../components/RunProgress.astro';
 
   @keyframes statusPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-  .status-dot.deployed { background: #00ff88; }
+  .status-dot.deployed { background: var(--status-ok); }
   .status-dot.torn-down { background: #ffaa00; }
   .status-dot.destroyed { background: #ff4444; }
   .status-dot.running { background: #00aaff; }
   .status-dot.unknown { background: #666666; }
 
-  .status-text.deployed { color: #00ff88; }
+  .status-text.deployed { color: var(--status-ok); }
   .status-text.torn-down { color: #ffaa00; }
   .status-text.destroyed { color: #ff4444; }
   .status-text.running { color: #00aaff; }
@@ -146,8 +146,8 @@ import RunProgress from '../components/RunProgress.astro';
 
   .action-btn {
     background: rgba(0, 20, 10, 0.8);
-    border: 2px solid rgba(0, 255, 136, 0.4);
-    color: #00ff88;
+    border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    color: var(--accent);
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
     text-transform: uppercase;
@@ -166,15 +166,15 @@ import RunProgress from '../components/RunProgress.astro';
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
     transition: left 0.5s ease;
   }
 
   .action-btn:hover::before { left: 100%; }
 
   .action-btn:hover {
-    border-color: #00ff88;
-    box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+    border-color: var(--accent);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 30%, transparent);
     transform: translateY(-2px);
   }
 
@@ -253,8 +253,8 @@ import RunProgress from '../components/RunProgress.astro';
     justify-content: space-between;
     padding: 0.7rem 1.2rem;
     background: rgba(0, 20, 10, 0.8);
-    border: 1px solid rgba(0, 255, 136, 0.2);
-    color: #00ff88;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+    color: var(--accent);
     font-size: 0.85rem;
     font-weight: 600;
     font-family: 'JetBrains Mono', monospace;
@@ -263,9 +263,9 @@ import RunProgress from '../components/RunProgress.astro';
   }
 
   :global(.stack-chip:hover) {
-    border-color: #00ff88;
-    background: rgba(0, 255, 136, 0.1);
-    box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent);
   }
 
   :global(.stack-chip .arrow) {
