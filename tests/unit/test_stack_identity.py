@@ -156,6 +156,102 @@ def test_the_validator_combines_both_halves_case_insensitively() -> None:
     )
 
 
+def _logo_rule() -> str:
+    """Just the body of the `.logo` CSS rule.
+
+    Every assertion about the logo has to be scoped to it. Scanning the whole
+    file passes as soon as *any* rule carries the declaration — so an
+    `aspect-ratio` added to an unrelated selector would satisfy the guard
+    while the masked logo collapses to zero height, which is the precise
+    failure that guard exists for. Raised in review on #843.
+    """
+    rule = re.search(r"\.logo\s*\{([^}]*)\}", _header_code(), re.S)
+    assert rule, "Header.astro has no .logo rule"
+    return rule.group(1)
+
+
+def test_the_logo_is_masked_rather_than_drawn() -> None:
+    """The logo takes the accent, and its asset exists.
+
+    A masked box is filled with `--header-accent` instead of showing a
+    coloured raster, which is what lets the logo recolour with the rest of
+    the header. Both halves are asserted because they fail differently: a
+    missing declaration leaves a solid rectangle, a missing file leaves an
+    invisible one, and neither breaks the build.
+    """
+    rule = _logo_rule()
+    assert re.search(r"-webkit-mask:\s*url\(/nexus-logo-mask\.png\)", rule), (
+        "the logo must be painted through a mask, not drawn as an image"
+    )
+    assert re.search(r"background-color:\s*var\(--header-accent\)", rule), (
+        "the masked box must be filled with the accent"
+    )
+    assert (CONTROL_PLANE / "public" / "nexus-logo-mask.png").is_file(), (
+        "control-plane/public/nexus-logo-mask.png is missing"
+    )
+
+
+def test_the_masked_logo_declares_its_own_aspect_ratio() -> None:
+    """Without `aspect-ratio` the logo collapses to nothing.
+
+    An `<img>` carries the intrinsic size of its file; a masked `<div>` has
+    none, so a box with a width and no ratio computes to zero height and the
+    logo silently disappears. The page still builds, every test that reads
+    the markup still passes, and the header just has a gap where the logo
+    was — which is exactly the kind of failure worth one assertion.
+    """
+    assert re.search(r"aspect-ratio:\s*\d+\s*/\s*\d+", _logo_rule()), (
+        ".logo must declare an aspect-ratio; a masked div has no intrinsic size"
+    )
+
+
+def test_the_mask_builder_clamps_the_background_to_transparent() -> None:
+    """A brightness floor, or the mask carries a veil instead of a silhouette.
+
+    Without one, a "black" ground that is really (1, 1, 1) to (3, 3, 3) maps
+    to alpha 1-3 rather than 0. Measured on the Nexus logo before the floor
+    existed: 41.8% of the mask sat at alpha 1-5 and only 4.8% was genuinely
+    transparent. At 2% opacity that is nearly invisible by itself — but
+    `filter: drop-shadow()` reads the alpha channel, so it glows the *box*
+    rather than the artwork. Raised in review on #843.
+
+    This asserts the script's shape, not the asset's pixels: checking the
+    PNG would mean adding Pillow to CI for one file that changes about never,
+    and the realistic regression is someone simplifying the script, not
+    someone hand-editing the mask.
+    """
+    src = (Path(__file__).resolve().parents[2] / "scripts" / "build-logo-mask.py").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(r"^GROUND_AT\s*=\s*\d+", src, re.M), (
+        "build-logo-mask.py must define a GROUND_AT brightness floor"
+    )
+    assert "v <= GROUND_AT" in src, "the floor must actually be applied to the alpha ramp"
+    assert re.search(r"\(v - GROUND_AT\)", src), (
+        "the ramp between floor and solid must be rescaled, not just clipped, "
+        "or anti-aliased edges stair-step"
+    )
+
+
+def test_no_reference_survives_to_the_removed_raster() -> None:
+    """`nexus-logo-green.png` is gone from the tree; nothing may still ask for it.
+
+    It lives on in git history — that is how the mask can be regenerated —
+    but a stale reference in the shipped panel is a 404 on every page load,
+    and a 404 for a background image is invisible in the console noise of a
+    working page.
+    """
+    stale = []
+    for path in CONTROL_PLANE.rglob("*"):
+        if not path.is_file() or "node_modules" in path.parts or "dist" in path.parts:
+            continue
+        if path.suffix not in {".astro", ".ts", ".js", ".css", ".html", ".json"}:
+            continue
+        if "nexus-logo-green" in path.read_text(encoding="utf-8", errors="ignore"):
+            stale.append(str(path.relative_to(CONTROL_PLANE)))
+    assert not stale, f"still reference the removed raster: {stale}"
+
+
 @pytest.mark.parametrize(
     "value",
     [

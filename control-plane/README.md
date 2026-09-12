@@ -35,22 +35,26 @@ Web-based control plane to manage Nexus-Stack infrastructure via GitHub Actions.
 
 ```
 control-plane/
-├── pages/
-│   ├── index.html              # Frontend UI
-│   ├── nexus-logo-green.png   # Logo
-│   └── functions/              # Cloudflare Pages Functions (API)
-│       └── api/
-│           ├── spin-up.js      # POST /api/spin-up
-│           ├── teardown.js     # POST /api/teardown
-│           ├── services.js     # GET/POST /api/services
-│           ├── status.js       # GET /api/status
-│           ├── info.js         # GET /api/info
-│           ├── debug.js        # GET /api/debug
-│           ├── health.js       # GET /api/health
-│           └── send-credentials.js  # POST /api/send-credentials
-├── worker/
-│   └── src/
-│       └── index.js            # Scheduled teardown Worker (deployed via Terraform)
+├── src/                        # Astro source
+│   ├── pages/                  # One route per file (index, stacks, firewall, …)
+│   ├── components/             # Header, StackTable, RunProgress, Toast, …
+│   ├── layouts/Layout.astro    # Shared shell: <head>, nav, global styles
+│   ├── lib/                    # categories.ts, stack-identity.ts
+│   └── styles/global.css       # Design tokens (--accent, --bg-*, …)
+├── public/
+│   └── nexus-logo-mask.png     # Logo as an alpha mask, filled with the
+│                               # header accent (scripts/build-logo-mask.py)
+├── functions/api/              # Cloudflare Pages Functions — 20 endpoints
+│   ├── spin-up.js              # POST /api/spin-up
+│   ├── teardown.js             # POST /api/teardown
+│   ├── services.js             # GET/POST /api/services
+│   ├── firewall.js             # GET/POST /api/firewall
+│   ├── lifecycle.js            # Rebuild vs snapshot workflow selection
+│   ├── …                       # secrets, status, logs, databricks-*, …
+│   └── _utils/                 # Shared helpers (auth guards, logging, D1)
+├── worker/src/index.js         # Scheduled teardown Worker (via Terraform)
+├── schema.sql                  # D1 schema, applied on every deploy
+├── astro.config.mjs
 ├── README.md                   # This file
 ├── SECURITY.md                 # Security documentation
 └── DEPLOYMENT.md               # Deployment guide

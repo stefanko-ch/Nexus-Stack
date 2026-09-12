@@ -24,7 +24,7 @@ const navItems = [
     own conditional. Hoisting the accent here would otherwise let
     STACK_ACCENT alone recolour a panel that still has no name on it. */}
 <header style={stackLabel && stackAccent ? `--header-accent: ${stackAccent}` : undefined}>
-  <img src="/nexus-logo-green.png" alt="Nexus Stack" class="logo">
+  <div class="logo" role="img" aria-label="Nexus Stack"></div>
   <h1>{stackLabel || 'NEXUS STACK'}</h1>
   <p class="tagline">
     {stackLabel && <>Nexus Stack &middot; </>}Control Panel &middot; <span id="version-tag" class="version-tag"></span>
@@ -70,15 +70,28 @@ const navItems = [
     padding-bottom: 1rem;
   }
 
+  /* The logo is painted, not drawn: a box filled with the accent, masked to
+     the artwork's silhouette. So it recolours with the rest of the header
+     instead of staying green on a violet panel (#841).
+
+     The alternative in the issue was `filter: hue-rotate()`, which ties the
+     result to the source hue and degrades on accents far from the original
+     green; this is exact for any accent. The mask comes from the old raster
+     itself — bright green on a near-black ground, so its own brightness is
+     the silhouette — via scripts/build-logo-mask.py. As a side effect the
+     header stopped shipping 6.58 MB for a 360px image: the mask is 145 KB.
+
+     `aspect-ratio` replaces the intrinsic size an <img> used to supply; a
+     masked <div> has none, and without it the box collapses to zero height. */
   .logo {
     display: block;
     width: 360px;
     max-width: 100%;
-    height: auto;
+    aspect-ratio: 3168 / 1344;
     margin: 0 auto 1.5rem;
-    /* ⚠️ The logo itself is a raster with the green baked in, so on a
-       recoloured panel only its glow follows the accent. Issue #841 tracks
-       the choice between a neutral logo variant and a hue-rotate. */
+    background-color: var(--header-accent);
+    -webkit-mask: url(/nexus-logo-mask.png) center / contain no-repeat;
+    mask: url(/nexus-logo-mask.png) center / contain no-repeat;
     filter: drop-shadow(0 0 20px color-mix(in srgb, var(--header-accent) 50%, transparent));
   }
 
