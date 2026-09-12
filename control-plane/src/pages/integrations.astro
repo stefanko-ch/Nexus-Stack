@@ -62,8 +62,8 @@ import Layout from '../layouts/Layout.astro';
   }
 
   .integration-panel code {
-    background: rgba(0, 255, 136, 0.08);
-    border: 1px solid rgba(0, 255, 136, 0.2);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
     padding: 0.05rem 0.35rem;
     border-radius: 2px;
     font-size: 0.78rem;
@@ -133,7 +133,7 @@ import Layout from '../layouts/Layout.astro';
     color: var(--text-muted);
   }
 
-  .databricks-last-sync.status-success { color: #00ff88; }
+  .databricks-last-sync.status-success { color: var(--status-ok); }
   .databricks-last-sync.status-partial { color: #ffaa00; }
   .databricks-last-sync.status-failure { color: #ff6060; }
 
@@ -237,7 +237,7 @@ import Layout from '../layouts/Layout.astro';
         document.getElementById('databricks-host').value = data.host || '';
         if (data.configured) {
           document.getElementById('databricks-status').textContent = 'Configured';
-          document.getElementById('databricks-status').style.color = '#00ff88';
+          document.getElementById('databricks-status').style.color = 'var(--status-ok)';
         }
         // Sync-button gate. ``dbxBtn`` is bound below in this same
         // <script> block; this function runs after that binding is
@@ -280,7 +280,7 @@ import Layout from '../layouts/Layout.astro';
       const data = await res.json();
       if (data.success) {
         status.textContent = 'Configuration saved';
-        status.style.color = '#00ff88';
+        status.style.color = 'var(--status-ok)';
         document.getElementById('databricks-token').value = '';
         // Re-check the sync panel — button enables now that config
         // is valid, without requiring a page reload.

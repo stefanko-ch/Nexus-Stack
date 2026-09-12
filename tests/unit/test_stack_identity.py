@@ -21,6 +21,9 @@ import pytest
 CONTROL_PLANE = Path(__file__).resolve().parents[2] / "control-plane"
 HEADER = CONTROL_PLANE / "src" / "components" / "Header.astro"
 IDENTITY = CONTROL_PLANE / "src" / "lib" / "stack-identity.ts"
+LAYOUT = CONTROL_PLANE / "src" / "layouts" / "Layout.astro"
+GLOBAL_CSS = CONTROL_PLANE / "src" / "styles" / "global.css"
+SRC = CONTROL_PLANE / "src"
 
 # The brand green, in the two notations the codebase uses for it.
 BRAND_HEX = re.compile(r"#00ff88", re.IGNORECASE)
@@ -29,6 +32,15 @@ BRAND_RGBA = re.compile(r"rgba\(\s*0\s*,\s*255\s*,\s*136", re.IGNORECASE)
 
 def _header() -> str:
     return HEADER.read_text(encoding="utf-8")
+
+
+def _code(path: Path) -> str:
+    """Any source file with `/* … */` and `{/* … */}` comments removed.
+
+    Every rule here is about declarations, not prose — and three separate
+    guards in this file tripped on their own documentation before it existed.
+    """
+    return re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
 
 
 def _header_code() -> str:
@@ -43,7 +55,7 @@ def _header_code() -> str:
 
 
 def test_header_hardcodes_no_brand_green() -> None:
-    """Every brand colour in the header goes through `--header-accent`.
+    """Every brand colour in the header goes through `--accent`.
 
     A literal `#00ff88` or `rgba(0, 255, 136, …)` here is invisible in the
     default panel — it renders exactly like the variable — and only shows
@@ -52,32 +64,26 @@ def test_header_hardcodes_no_brand_green() -> None:
     develops against, wrong in the one it exists for.
     """
     src = _header_code()
-    assert not BRAND_HEX.search(src), "Header.astro hardcodes #00ff88; use var(--header-accent)"
+    assert not BRAND_HEX.search(src), "Header.astro hardcodes #00ff88; use var(--accent)"
     assert not BRAND_RGBA.search(src), (
         "Header.astro hardcodes rgba(0, 255, 136, …); use "
-        "color-mix(in srgb, var(--header-accent) N%, transparent)"
+        "color-mix(in srgb, var(--accent) N%, transparent)"
     )
 
 
-def test_header_accent_falls_back_to_the_panel_accent() -> None:
-    """With STACK_ACCENT unset, every colour resolves to its previous value.
+def test_the_accent_override_lands_on_the_document_root() -> None:
+    """Part A moved the override from the header onto `<html>`.
 
-    The fallback is a single declaration; without it, an unlabelled panel
-    resolves `--header-accent` to nothing and loses its heading colour
-    entirely. Asserted on the source because it is one line that a refactor
-    can drop while every other rule still reads correctly.
-
-    Stated as *colours* deliberately, not as "looks exactly as before": the
-    glows and the active-nav tint now go through `color-mix`, which a browser
-    without support drops rather than approximates, leaving the header
-    correctly coloured but flat. That baseline is Chrome 111, Safari 16.2 and
-    Firefox 113 — all 2023 — for a panel behind Cloudflare Access, so the
-    trade was accepted rather than papered over with `rgba()` fallbacks that
-    would themselves be hardcoded greens on a recoloured panel.
+    That single placement is what makes every `var(--accent)` on every page
+    follow the stack accent. On `<header>` it reached one component; on
+    `:root` it reaches the panel, which is the whole point of part A. The
+    local `--header-accent` indirection is gone with it — a variable pointing
+    at a variable, once the root one is the thing being overridden.
     """
-    assert re.search(r"--header-accent:\s*var\(--accent\)", _header()), (
-        "header must declare `--header-accent: var(--accent)` as the fallback"
-    )
+    html_tag = re.search(r"<html([^>]*)>", _code(LAYOUT))
+    assert html_tag, "Layout.astro has no <html> tag"
+    attrs = html_tag.group(1)
+    assert "--accent:" in attrs, "the accent override must land on <html> — found: " + attrs.strip()
 
 
 def test_the_accent_requires_a_label() -> None:
@@ -91,15 +97,23 @@ def test_the_accent_requires_a_label() -> None:
     name on it, which is a stack that looks different for no stated reason:
     worse than one that looks the same.
     """
-    # Comment-stripped: the comment above the tag names `<header>` in prose,
-    # and a first-match scan would read the prose instead of the element.
-    # Caught here on the first run, exactly as the brand-green guard was.
-    header_tag = re.search(r"<header([^>]*)>", _header_code())
-    assert header_tag, "Header.astro has no <header> tag"
-    attrs = header_tag.group(1)
-    assert "stackAccent" in attrs, "the <header> must carry the accent"
-    assert "stackLabel" in attrs, (
-        "the accent must be gated on stackLabel too — found: " + attrs.strip()
+    # Comment-stripped: comments near the tag name it in prose, and a
+    # first-match scan would read the prose instead of the element. Caught
+    # on the first run, twice, in two different files.
+    html_tag = re.search(r"<html([^>]*)>", _code(LAYOUT))
+    assert html_tag, "Layout.astro has no <html> tag"
+
+    # Scoped to the expression that emits --accent, not to the whole tag.
+    # A substring check across all attributes would be satisfied by any other
+    # use of `stackLabel` on <html> — a lang switch, a data attribute — while
+    # the accent itself sat ungated. Raised in review.
+    style = re.search(r"style=\{([^}]*\{[^}]*\}[^}]*|[^}]*)\}", html_tag.group(1))
+    assert style, "the <html> tag has no style= expression — found: " + html_tag.group(1).strip()
+    expr = style.group(1)
+    assert "--accent:" in expr, "the style expression must set --accent — found: " + expr.strip()
+    assert "stackAccent" in expr, "the accent value must come from stackAccent"
+    assert "stackLabel" in expr, (
+        "the accent must be gated on stackLabel too — found: " + expr.strip()
     )
 
 
@@ -130,6 +144,98 @@ def test_the_tagline_keeps_the_product_name_when_a_label_takes_the_heading() -> 
     assert tagline, "Header.astro has no .tagline"
     assert "Nexus Stack" in tagline.group(1), (
         "the tagline must carry 'Nexus Stack' when the heading is a label"
+    )
+
+
+# Rules whose green means "this is fine", not "this is Nexus Stack". Each
+# one was read individually before being listed: every entry has an --error
+# or --warning sibling in the same block, which is what makes it a status
+# colour rather than the brand.
+STATUS_RULES = {
+    ".run-progress.is-success",
+    ".is-success .rp-glyph",
+    ".is-success .rp-fill",
+    ":global(.rp-done .rp-mark)",
+    ".category-stats :global(.count-running)",
+    ".status-dot.deployed",
+    ".status-text.deployed",
+    ".databricks-last-sync.status-success",
+    ".enabled",
+    ":global(.history-item .status.success)",
+    ":global(.category-card-stats .running)",
+    ".stack-status-dot.status-running",
+    ".toast.success",
+}
+
+
+def test_status_colours_never_follow_the_stack_accent() -> None:
+    """A healthy stack is green whatever the accent is.
+
+    This is what part A of #841 is actually for. Recolouring the brand is the
+    visible half; separating it from status is the half that keeps the panel
+    honest. A violet "deployed" dot in a set whose siblings are `--error` red
+    and `--warning` amber does not read as a themed success — it reads as a
+    state nobody can name, and the one moment an operator most needs the
+    palette to be literal is while looking at a Teardown button.
+
+    Every rule below was read before being listed; each has an `--error` or
+    `--warning` sibling in its own block.
+    """
+    offenders = []
+    for path in sorted(SRC.rglob("*")):
+        if path.suffix not in {".astro", ".css"} or not path.is_file():
+            continue
+        selector = ""
+        for lineno, line in enumerate(_code(path).splitlines(), 1):
+            match = re.match(r"^\s*([.#:@a-zA-Z][^{}/\n]*?)\s*\{", line)
+            if match:
+                selector = match.group(1).strip()
+            if selector in STATUS_RULES and "var(--accent)" in line:
+                rel = path.relative_to(CONTROL_PLANE)
+                offenders.append(f"{rel}:{lineno} {selector}")
+    assert not offenders, (
+        "status colours must use var(--status-ok), not the brand accent: " + "; ".join(offenders)
+    )
+
+
+def test_the_status_token_is_defined_independently_of_the_accent() -> None:
+    """`--status-ok` must not be an alias for `--accent`.
+
+    Defining it as `var(--accent)` would satisfy every other test here while
+    quietly re-coupling the two: a stack accent would recolour success again,
+    and the separation would exist only in the names. The two are the same
+    green today, which is exactly why this needs asserting — nothing visible
+    changes when the link is restored.
+    """
+    css = _code(GLOBAL_CSS)
+    decl = re.search(r"--status-ok:\s*([^;]+);", css)
+    assert decl, "global.css must define --status-ok"
+    value = decl.group(1).strip()
+    assert "var(" not in value, (
+        f"--status-ok must be a literal colour, not derived from another token — found: {value}"
+    )
+
+
+def test_the_panel_hardcodes_no_brand_green_anywhere() -> None:
+    """Part B cleaned the header; part A extends the rule to the whole panel.
+
+    A literal green left behind renders identically in the default panel and
+    only shows up as a stray element on a stack that sets an accent — correct
+    in the configuration everyone develops against, wrong in the one it
+    exists for. The two token definitions in `global.css` are the exception,
+    because they are what every other site now points at.
+    """
+    offenders = []
+    for path in sorted(SRC.rglob("*")):
+        if path.suffix not in {".astro", ".css"} or not path.is_file():
+            continue
+        for lineno, line in enumerate(_code(path).splitlines(), 1):
+            if "--accent:" in line or "--status-ok:" in line:
+                continue  # the definitions themselves
+            if BRAND_HEX.search(line) or BRAND_RGBA.search(line):
+                offenders.append(f"{path.relative_to(CONTROL_PLANE)}:{lineno}")
+    assert not offenders, "hardcoded brand green outside the token definitions: " + ", ".join(
+        offenders
     )
 
 
@@ -173,7 +279,7 @@ def _logo_rule() -> str:
 def test_the_logo_is_masked_rather_than_drawn() -> None:
     """The logo takes the accent, and its asset exists.
 
-    A masked box is filled with `--header-accent` instead of showing a
+    A masked box is filled with `--accent` instead of showing a
     coloured raster, which is what lets the logo recolour with the rest of
     the header. Both halves are asserted because they fail differently: a
     missing declaration leaves a solid rectangle, a missing file leaves an
@@ -183,7 +289,7 @@ def test_the_logo_is_masked_rather_than_drawn() -> None:
     assert re.search(r"-webkit-mask:\s*url\(/nexus-logo-mask\.png\)", rule), (
         "the logo must be painted through a mask, not drawn as an image"
     )
-    assert re.search(r"background-color:\s*var\(--header-accent\)", rule), (
+    assert re.search(r"background-color:\s*var\(--accent\)", rule), (
         "the masked box must be filled with the accent"
     )
     assert (CONTROL_PLANE / "public" / "nexus-logo-mask.png").is_file(), (
@@ -296,9 +402,9 @@ def test_accent_pattern_admits_real_colours(value: str) -> None:
 def test_accent_pattern_rejects_everything_else(value: str) -> None:
     """The accent is interpolated into a style attribute, so it is constrained.
 
-    `--header-accent` now cascades to the whole header rather than to one
-    badge, which raises the cost of a bad value from a mis-coloured pill to
-    a mis-coloured block — and the cost of an *unvalidated* one to a
+    `--accent` now cascades to the whole panel rather than to one badge,
+    which raises the cost of a bad value from a mis-coloured pill to a
+    mis-coloured application — and the cost of an *unvalidated* one to a
     stylesheet an operator can write into every page. The pattern is
     unchanged by #841; this pins it so the widened blast radius cannot
     quietly outlive it.

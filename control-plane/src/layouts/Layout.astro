@@ -1,5 +1,5 @@
 ---
-import { stackLabel } from '../lib/stack-identity';
+import { stackLabel, stackAccent } from '../lib/stack-identity';
 import Header from '../components/Header.astro';
 import Toast from '../components/Toast.astro';
 import StacksShared from '../components/StacksShared.astro';
@@ -18,7 +18,14 @@ const { title, activeNav = '', narrow = false } = Astro.props;
 ---
 
 <!DOCTYPE html>
-<html lang="en">
+{/* The accent lands on <html>, so every `var(--accent)` in the panel
+    follows it — that is the whole point of part A of #841. Status colours
+    deliberately do NOT: they read `--status-ok`, which stays green so a
+    healthy stack looks healthy whatever the accent is.
+
+    Gated on the label for the same reason the header was: an accent with no
+    name on the panel is a stack that looks different for no stated reason. */}
+<html lang="en" style={stackLabel && stackAccent ? `--accent: ${stackAccent}` : undefined}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -1,5 +1,5 @@
 ---
-import { stackLabel, stackAccent } from '../lib/stack-identity';
+import { stackLabel } from '../lib/stack-identity';
 
 interface Props {
   activeNav?: string;
@@ -18,12 +18,7 @@ const navItems = [
 ];
 ---
 
-{/* Gated on both: an accent needs a label to belong to. #841 requires that
-    with STACK_LABEL unset nothing changes anywhere, and before it that held
-    for free — the only element carrying the accent lived inside the label's
-    own conditional. Hoisting the accent here would otherwise let
-    STACK_ACCENT alone recolour a panel that still has no name on it. */}
-<header style={stackLabel && stackAccent ? `--header-accent: ${stackAccent}` : undefined}>
+<header>
   <div class="logo" role="img" aria-label="Nexus Stack"></div>
   <h1>{stackLabel || 'NEXUS STACK'}</h1>
   <p class="tagline">
@@ -53,17 +48,16 @@ const navItems = [
 </script>
 
 <style>
-  /* Every brand-green in this header routes through one variable, so a
-     stack accent recolours the whole block rather than one badge. The
-     fallback is the panel's own accent, so with STACK_ACCENT unset every
-     rule below resolves to exactly what it was before.
+  /* Reads `--accent` directly. Part B of #841 introduced a local
+     `--header-accent` because only the header followed the stack accent;
+     part A moved the override onto `<html>`, so keeping it would be a
+     variable pointing at a variable.
 
-     `color-mix` replaces the previous `rgba(0, 255, 136, …)` literals:
-     a hex custom property cannot be alpha-composed directly, and the
-     alternative — carrying a companion `--header-accent-rgb` — would need
-     the operator to supply the colour twice, in two notations. */
+     `color-mix` rather than `rgba(0, 255, 136, …)`: a hex custom property
+     cannot be alpha-composed directly, and the alternative — a companion
+     `--accent-rgb` — would make the operator supply the colour twice, in
+     two notations. */
   header {
-    --header-accent: var(--accent);
     text-align: center;
     border-bottom: none;
     margin-bottom: 2rem;
@@ -79,7 +73,7 @@ const navItems = [
      green; this is exact for any accent. The mask comes from the old raster
      itself — bright green on a near-black ground, so its own brightness is
      the silhouette — via scripts/build-logo-mask.py. As a side effect the
-     header stopped shipping 6.58 MB for a 360px image: the mask is 145 KB.
+     header stopped shipping 6.58 MB for a 360px image: the mask is 107 KB.
 
      `aspect-ratio` replaces the intrinsic size an <img> used to supply; a
      masked <div> has none, and without it the box collapses to zero height. */
@@ -89,10 +83,10 @@ const navItems = [
     max-width: 100%;
     aspect-ratio: 3168 / 1344;
     margin: 0 auto 1.5rem;
-    background-color: var(--header-accent);
+    background-color: var(--accent);
     -webkit-mask: url(/nexus-logo-mask.png) center / contain no-repeat;
     mask: url(/nexus-logo-mask.png) center / contain no-repeat;
-    filter: drop-shadow(0 0 20px color-mix(in srgb, var(--header-accent) 50%, transparent));
+    filter: drop-shadow(0 0 20px color-mix(in srgb, var(--accent) 50%, transparent));
   }
 
   /* The largest text on the page names the machine. With STACK_LABEL unset
@@ -101,12 +95,12 @@ const navItems = [
      tagline. Uppercasing is what keeps a lowercase label from looking like
      a mistake next to the Orbitron letter-spacing. */
   h1 {
-    color: var(--header-accent);
+    color: var(--accent);
     font-family: 'Orbitron', sans-serif;
     font-size: 2.5rem;
     text-shadow:
-      0 0 10px color-mix(in srgb, var(--header-accent) 80%, transparent),
-      0 0 40px color-mix(in srgb, var(--header-accent) 40%, transparent);
+      0 0 10px color-mix(in srgb, var(--accent) 80%, transparent),
+      0 0 40px color-mix(in srgb, var(--accent) 40%, transparent);
     letter-spacing: 0.2em;
     text-transform: uppercase;
     margin-bottom: 0.5rem;
@@ -114,7 +108,7 @@ const navItems = [
 
   .tagline {
     font-size: 0.85rem;
-    color: var(--header-accent);
+    color: var(--accent);
     text-transform: uppercase;
     letter-spacing: 0.3em;
     opacity: 0.7;
@@ -122,7 +116,7 @@ const navItems = [
 
   .version-tag {
     font-size: 0.75rem;
-    color: var(--header-accent);
+    color: var(--accent);
     opacity: 0.5;
     letter-spacing: 0.1em;
   }
@@ -151,8 +145,8 @@ const navItems = [
   }
 
   .nav-links a.active {
-    color: var(--header-accent);
-    border-color: var(--header-accent);
-    background: color-mix(in srgb, var(--header-accent) 8%, transparent);
+    color: var(--accent);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
 </style>

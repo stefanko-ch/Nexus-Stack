@@ -56,7 +56,7 @@ import StackTable from '../components/StackTable.astro';
     width: 100%;
     padding: 0.8rem 1rem;
     background: rgba(0, 10, 5, 0.8);
-    border: 1px solid rgba(0, 255, 136, 0.3);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
     color: #c0d0c0;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
@@ -67,7 +67,7 @@ import StackTable from '../components/StackTable.astro';
   .search-input:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
   .search-input::placeholder { color: #607080; }
@@ -93,8 +93,8 @@ import StackTable from '../components/StackTable.astro';
   }
 
   :global(.category-card:hover) {
-    border-color: rgba(0, 255, 136, 0.3);
-    box-shadow: 0 0 15px rgba(0, 255, 136, 0.1);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   :global(.category-card-name) {
@@ -117,7 +117,7 @@ import StackTable from '../components/StackTable.astro';
     flex-wrap: wrap;
   }
 
-  :global(.category-card-stats .running)  { color: var(--accent); }
+  :global(.category-card-stats .running)  { color: var(--status-ok); }
   :global(.category-card-stats .pending)  { color: var(--warning); }
   :global(.category-card-stats .disabled) { color: var(--text-muted); }
 </style>

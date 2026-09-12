@@ -31,7 +31,7 @@
   .shortcuts-help {
     background: var(--bg-card);
     color: var(--text);
-    border: 1px solid rgba(0, 255, 136, 0.3);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
     border-radius: 4px;
     padding: 0;
     max-width: 420px;
@@ -93,8 +93,8 @@
   }
 
   .shortcuts-help kbd {
-    background: rgba(0, 255, 136, 0.08);
-    border: 1px solid rgba(0, 255, 136, 0.25);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     border-radius: 3px;
     padding: 0.1rem 0.4rem;
     font-family: 'JetBrains Mono', monospace;

@@ -56,7 +56,7 @@ import RunProgress from '../components/RunProgress.astro';
   }
 
   .category-stats :global(span) { color: var(--text-muted); }
-  .category-stats :global(.count-running) { color: var(--accent); }
+  .category-stats :global(.count-running) { color: var(--status-ok); }
   .category-stats :global(.count-pending) { color: var(--warning); }
 
   .card-name-section { flex: 1; }
@@ -194,7 +194,7 @@ import RunProgress from '../components/RunProgress.astro';
       const el = document.getElementById('service-' + anchor);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.4)';
+        el.style.boxShadow = '0 0 20px color-mix(in srgb, var(--accent) 40%, transparent)';
         setTimeout(function() { el.style.boxShadow = ''; }, 2000);
       }
     }

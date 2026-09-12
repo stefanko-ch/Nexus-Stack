@@ -48,13 +48,13 @@
     border-radius: 3px;
   }
   .run-progress[hidden] { display: none; }
-  .run-progress.is-success { background: rgba(0, 255, 136, 0.06); border-color: rgba(0, 255, 136, 0.35); }
+  .run-progress.is-success { background: color-mix(in srgb, var(--status-ok) 6%, transparent); border-color: color-mix(in srgb, var(--status-ok) 35%, transparent); }
   .run-progress.is-failure { background: rgba(255, 68, 68, 0.06); border-color: rgba(255, 68, 68, 0.35); }
   .run-progress.is-cancelled { background: rgba(102, 102, 102, 0.08); border-color: var(--border); }
 
   .rp-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
   .rp-glyph { font-family: 'JetBrains Mono', monospace; color: var(--info); }
-  .is-success .rp-glyph { color: var(--accent); }
+  .is-success .rp-glyph { color: var(--status-ok); }
   .is-failure .rp-glyph { color: var(--error); }
   .rp-glyph.is-spinning { animation: pulse 1.6s infinite; }
 
@@ -78,7 +78,7 @@
     height: 100%; width: 0%; background: var(--info);
     transition: width 0.4s ease;
   }
-  .is-success .rp-fill { background: var(--accent); }
+  .is-success .rp-fill { background: var(--status-ok); }
   .is-failure .rp-fill { background: var(--error); }
   .is-cancelled .rp-fill { background: var(--text-muted); }
 
@@ -142,7 +142,7 @@
   :global(.rp-name a:hover) { text-decoration: underline; }
   :global(.rp-dur) { color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 3rem; text-align: right; }
 
-  :global(.rp-done .rp-mark) { color: var(--accent); }
+  :global(.rp-done .rp-mark) { color: var(--status-ok); }
   :global(.rp-running .rp-mark) { color: var(--info); animation: pulse 1.6s infinite; }
   :global(.rp-running .rp-name) { font-weight: 700; }
   :global(.rp-pending .rp-name), :global(.rp-skipped .rp-name) { color: var(--text-secondary); }

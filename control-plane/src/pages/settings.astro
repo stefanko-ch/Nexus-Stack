@@ -123,14 +123,14 @@ import Layout from '../layouts/Layout.astro';
     gap: 0 1rem;
     padding: 0.6rem 0.8rem;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(0, 255, 136, 0.1);
+    border: 1px solid color-mix(in srgb, var(--accent) 10%, transparent);
     margin-bottom: 0.5rem;
     font-size: 0.8rem;
   }
 
   :global(.history-item .name) { color: var(--text-secondary); }
   :global(.history-item .status) { font-weight: 700; }
-  :global(.history-item .status.success) { color: var(--accent); }
+  :global(.history-item .status.success) { color: var(--status-ok); }
   :global(.history-item .status.failure) { color: var(--error); }
   :global(.history-item .status.in_progress) { color: var(--warning); }
   :global(.history-item .time) { color: var(--text-muted); font-size: 0.7rem; }
