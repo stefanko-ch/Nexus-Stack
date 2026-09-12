@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.81.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.80.0...v0.81.0) (2026-09-12)
+
+
+### 🚀 Features
+
+* **control-plane:** Let the heading name the stack, not a badge below it ([#842](https://github.com/stefanko-ch/Nexus-Stack/issues/842)) ([2a1f311](https://github.com/stefanko-ch/Nexus-Stack/commit/2a1f311622dbfd542f8424963f4077525d54ef2e))
+* **control-plane:** Paint the logo through a mask so it takes the accent ([#843](https://github.com/stefanko-ch/Nexus-Stack/issues/843)) ([3bf728f](https://github.com/stefanko-ch/Nexus-Stack/commit/3bf728fdc0cddc52928ebca556d73ddb18f3e5e3))
+* **control-plane:** Separate the brand accent from the status colours ([#845](https://github.com/stefanko-ch/Nexus-Stack/issues/845)) ([01eed37](https://github.com/stefanko-ch/Nexus-Stack/commit/01eed3749514809d6df2e591ef8086ca8dcb3f9f))
+
+
+### 🐛 Bug Fixes
+
+* **examples:** Escape inlined secrets and render the S3 DataFrame ([#846](https://github.com/stefanko-ch/Nexus-Stack/issues/846)) ([23a7bdb](https://github.com/stefanko-ch/Nexus-Stack/commit/23a7bdb80ce6c318b8bfbe670fde87c1d6883233))
+
 ## [0.80.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.79.0...v0.80.0) (2026-09-10)
 
 
