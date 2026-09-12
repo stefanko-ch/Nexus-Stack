@@ -109,6 +109,12 @@ tasks:
       -- parse. replace({"'": "''"}) is SQL's own escape. Verified against a
       -- live Kestra 2.0 with a deliberately hostile secret: abc'def rendered
       -- as abc''def, and the two filters chain correctly (#664).
+      --
+      -- The bucket name in the FROM clause below gets the same treatment. A
+      -- bucket name cannot contain an apostrophe, so it is unreachable today.
+      -- It is escaped anyway: leaving one of four inlines bare would read as
+      -- a considered exemption rather than an oversight, and the next person
+      -- would have to re-derive why.
       SET s3_endpoint          = '{{ secret('R2_ENDPOINT') | replace({'https://': ''}) | replace({"'": "''"}) }}';
       SET s3_access_key_id     = '{{ secret('R2_ACCESS_KEY') | replace({"'": "''"}) }}';
       SET s3_secret_access_key = '{{ secret('R2_SECRET_KEY') | replace({"'": "''"}) }}';
@@ -123,7 +129,7 @@ tasks:
         MIN(tpep_pickup_datetime)        AS earliest_pickup,
         MAX(tpep_pickup_datetime)        AS latest_pickup
       FROM read_parquet(
-        's3://{{ secret('R2_BUCKET') }}/nexus-tutorials/NYC/yellow_tripdata_2025-*.parquet'
+        's3://{{ secret('R2_BUCKET') | replace({"'": "''"}) }}/nexus-tutorials/NYC/yellow_tripdata_2025-*.parquet'
       );
     fetchType: FETCH_ONE
 
