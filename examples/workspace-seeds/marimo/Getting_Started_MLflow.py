@@ -123,11 +123,20 @@ def _(exp_id, mlflow):
 
             # An artifact: the fitted curve next to the data, as a CSV a
             # colleague can open without this notebook.
-            path = os.path.join(tempfile.mkdtemp(), f"fit_degree_{degree}.csv")
-            pd.DataFrame({"x": x, "observed": y, "predicted": predicted}).to_csv(
-                path, index=False
-            )
-            mlflow.log_artifact(path)
+            #
+            # `TemporaryDirectory` rather than `mkdtemp`, which leaves the
+            # directory behind. Three per "Run all", on a notebook students
+            # re-run through a class, on a container whose /tmp only clears
+            # when it restarts. The upload finishes inside the block, so the
+            # cleanup is safe -- measured: with the context the artifact is on
+            # the server and /tmp gains nothing, with `mkdtemp` it gains a
+            # directory per run.
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                path = os.path.join(tmp_dir, f"fit_degree_{degree}.csv")
+                pd.DataFrame({"x": x, "observed": y, "predicted": predicted}).to_csv(
+                    path, index=False
+                )
+                mlflow.log_artifact(path)
 
             return run.info.run_id
 
