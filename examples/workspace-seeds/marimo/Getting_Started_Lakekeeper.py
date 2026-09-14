@@ -50,11 +50,19 @@ def _(mo):
         Everything below is safe to run more than once — the table lands on
         the same six rows however often you hit **Run all**.
 
-        > **If a cell fails with `403 Forbidden` / `PermissionError`, just run
-        > it again.** Individual S3 requests occasionally come back 403 on this
-        > path, without a pattern anyone has pinned down yet — it is being
-        > tracked in issue #832, and a re-run succeeds. Nothing is corrupted
-        > when it happens: a write either commits or it does not.
+        > **If a cell fails on an S3 request, just run it again.** It happens
+        > rarely and without a pattern anyone has pinned down — 39 of 40 runs
+        > of this notebook's sequence completed cleanly when it was measured.
+        > Tracked in issue #832.
+        >
+        > The shape to expect here is `OSError: [Errno 22] Authorization`.
+        > Older notes describe a `403 Forbidden` / `PermissionError` instead;
+        > that is the same issue seen against MinIO rather than the Cloudflare
+        > R2 this deployment uses, and whether the two share a cause is exactly
+        > what is still open.
+        >
+        > Nothing is corrupted when it happens: a write either commits or it
+        > does not.
         """
     )
     return
