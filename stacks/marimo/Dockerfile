@@ -101,6 +101,29 @@ RUN pip install --no-cache-dir \
     "pyiceberg==0.12.0" \
     "s3fs==2026.7.0"
 
+# mlflow-skinny, not mlflow. This is the tracking CLIENT — it logs params,
+# metrics and artifacts to the mlflow stack, which runs the server half.
+#
+# The difference is not marginal. Measured on this base image:
+#
+#     + mlflow-skinny==3.16.0    +78 MB
+#     + mlflow==3.16.0          +465 MB
+#
+# Full MLflow declares `scikit-learn<2` and `scipy<2` as hard dependencies
+# and drags in matplotlib besides, because it bundles the server, the model
+# flavours and their training-time requirements. A notebook needs none of
+# that to log a run, and the image is already 1.1 GB before this line.
+#
+# What skinny gives up is the model flavours' *training* side: `mlflow.sklearn`
+# imports, but no scikit-learn exists to build a model with. Logging params,
+# metrics, artifacts, tags and registry entries all work — verified end to end
+# against a real server with a Postgres backend and a proxied artifact store.
+# Should a seeded notebook ever need to fit a real model, add scikit-learn
+# explicitly here rather than swapping in full mlflow; that keeps the reason
+# visible instead of hiding 400 MB inside a transitive dependency.
+RUN pip install --no-cache-dir \
+    "mlflow-skinny==3.16.0"
+
 # Stay as root — the entrypoint chowns the notebooks volume then drops
 # to appuser via gosu before exec'ing marimo. We can't drop here
 # because the chown needs root and the entrypoint is what handles

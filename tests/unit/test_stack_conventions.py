@@ -1166,6 +1166,157 @@ def test_marimo_disables_botocore_streaming_checksums() -> None:
         )
 
 
+def _mlflow_service() -> dict[str, object]:
+    """The `mlflow` service block, parsed from its compose file.
+
+    Parsed rather than grepped, for the reason spelled out on the Marimo
+    checksum test above: a substring scan happily matches a commented-out
+    line, and a check that accepts a disabled setting reports the opposite
+    of the truth.
+    """
+    import yaml
+
+    compose = yaml.safe_load((REPO_ROOT / "stacks/mlflow/docker-compose.yml").read_text())
+    return dict(compose["services"]["mlflow"])
+
+
+def _mlflow_command_value(flag: str) -> str:
+    """The argument following `flag` in the mlflow server command."""
+    command = _mlflow_service()["command"]
+    assert isinstance(command, list), "mlflow command must stay a list, not a shell string"
+    assert flag in command, f"{flag} missing from the mlflow server command: {command}"
+    return str(command[command.index(flag) + 1])
+
+
+def test_mlflow_writes_artifacts_under_its_own_prefix() -> None:
+    """The R2 data bucket is shared; MLflow may not address its root.
+
+    Lakekeeper owns `lakekeeper/` and Unity Catalog owns `unity-catalog/`.
+    A `--artifacts-destination` pointing at the bucket root would scatter run
+    artifacts among their table data, where nothing identifies which stack
+    wrote what -- and a later prefix-wide cleanup would take the wrong files.
+    """
+    destination = _mlflow_command_value("--artifacts-destination")
+    assert destination.endswith("/mlflow"), (
+        f"--artifacts-destination is {destination!r}; it must end in '/mlflow' "
+        "so artifacts stay inside this stack's own prefix"
+    )
+
+
+def test_mlflow_allows_both_hostnames_it_must_answer_to() -> None:
+    """MLflow 3.x rejects an unexpected Host header outright.
+
+    The response is `403 Invalid Host header - possible DNS rebinding attack
+    detected`, with no hint about what to change. Two names must be listed and
+    each covers a different caller:
+
+    - `mlflow:5000` -- Marimo and Jupyter on app-network
+    - `${MLFLOW_DOMAIN}` -- the browser, through the tunnel
+
+    Dropping either leaves a server that is healthy, answers /health, and
+    refuses half its clients. Measured: with this flag set, `mlflow:5000`
+    returns 200, an unlisted host returns 403 -- and so does
+    `localhost:5000`, because setting the flag REPLACES the built-in default
+    rather than extending it.
+    """
+    allowed = _mlflow_command_value("--allowed-hosts")
+    hosts = {h.strip() for h in allowed.split(",")}
+    assert "mlflow:5000" in hosts, (
+        f"--allowed-hosts is {allowed!r}; without 'mlflow:5000' every notebook "
+        "on app-network gets a 403"
+    )
+    assert "${MLFLOW_DOMAIN}" in hosts, (
+        f"--allowed-hosts is {allowed!r}; without '${{MLFLOW_DOMAIN}}' the "
+        "browser gets a 403 through the tunnel"
+    )
+
+
+def test_mlflow_disables_botocore_streaming_checksums() -> None:
+    """R2 has answered `MissingContentLength` to `aws-chunked` bodies.
+
+    Note this is NOT the failure that bit PyIceberg, and the distinction
+    matters so nobody removes these as cargo cult: there the cause was remote
+    signing specifically -- Lakekeeper signed, botocore then re-encoded the
+    body, and the signature covered something else. MLflow holds the
+    credentials and signs the final body itself.
+
+    They stay because the `aws-chunked` encoding has caused trouble against R2
+    independently of signing, and `when_required` restores the pre-1.36
+    botocore behaviour at no cost.
+    """
+    environment = _mlflow_service()["environment"]
+    assert isinstance(environment, dict), "mlflow environment must stay a mapping"
+    env = dict(environment)
+    for var in ("AWS_REQUEST_CHECKSUM_CALCULATION", "AWS_RESPONSE_CHECKSUM_VALIDATION"):
+        assert env.get(var) == "when_required", (
+            f"{var} is {env.get(var)!r}, expected 'when_required'."
+        )
+
+
+def test_mlflow_clients_install_the_skinny_package() -> None:
+    """Notebook images get the tracking client, not the whole server.
+
+    Measured on the Marimo base image: `mlflow-skinny` costs 78 MB,
+    `mlflow` costs 465 MB, because the full package declares `scikit-learn<2`
+    and `scipy<2` as hard dependencies and pulls matplotlib with them. None of
+    that is needed to log a run.
+
+    Asserted on both notebook stacks because they install it by different
+    mechanisms -- Marimo has a Dockerfile, Jupyter installs at container start
+    -- so a change to one does not surface in the other.
+    """
+    # Quote-independent: `mlflow==3.16.0`, `"mlflow==3.16.0"` and
+    # `'mlflow==3.16.0'` are the same install and must all be caught. An
+    # earlier version of this check keyed on the double quote alone, which a
+    # reviewer pointed out would wave through two of the three spellings.
+    # `\b` before the name keeps `mlflow-skinny==` from matching, since a
+    # hyphen is a word boundary — hence the explicit negative lookahead too.
+    full_mlflow = re.compile(r"\bmlflow(?!-skinny)\s*==")
+
+    for label, path in (
+        ("Marimo", "stacks/marimo/Dockerfile"),
+        ("Jupyter", "stacks/jupyter/docker-compose.yml"),
+    ):
+        # Whole comment lines dropped before scanning. Both files explain in
+        # prose why skinny was chosen, and that prose names `mlflow==3.16.0`
+        # as the thing not to install -- so a raw scan trips on its own
+        # documentation. Caught on the first run, which is the third time a
+        # guard in this file has done that; only full-line comments are
+        # removed, so nothing inside the Jupyter command block is touched.
+        source = "\n".join(
+            line
+            for line in (REPO_ROOT / path).read_text().splitlines()
+            if not line.lstrip().startswith("#")
+        )
+        assert "mlflow-skinny==" in source, f"{label} must install mlflow-skinny"
+        assert not full_mlflow.search(source), (
+            f"{label} installs full mlflow; that is +465 MB against skinny's "
+            "+78 MB, because full MLflow declares scikit-learn and scipy as "
+            "hard dependencies. If a seed genuinely needs scikit-learn, add "
+            "that package explicitly instead."
+        )
+
+
+def test_notebook_stacks_point_at_the_in_cluster_mlflow() -> None:
+    """The public hostname fails twice over, and neither failure names a URL.
+
+    Cloudflare Access answers an API client with an HTML login page, and
+    MLflow's own Host-header check refuses the name besides. Both notebook
+    stacks therefore carry the in-cluster address -- container port 5000, not
+    the host-published 5001.
+    """
+    import yaml
+
+    for stack, service in (("marimo", "marimo"), ("jupyter", "jupyter")):
+        compose = yaml.safe_load((REPO_ROOT / f"stacks/{stack}/docker-compose.yml").read_text())
+        raw = compose["services"][service]["environment"]
+        env = dict(item.split("=", 1) for item in raw) if isinstance(raw, list) else dict(raw)
+        assert env.get("MLFLOW_TRACKING_URI") == "http://mlflow:5000", (
+            f"{stack} has MLFLOW_TRACKING_URI={env.get('MLFLOW_TRACKING_URI')!r}; "
+            "it must be the in-cluster address http://mlflow:5000"
+        )
+
+
 def test_kestra_flows_use_no_removed_2x_constructs() -> None:
     """Seeded flows and the rendered system flows must load on Kestra 2.x.
 

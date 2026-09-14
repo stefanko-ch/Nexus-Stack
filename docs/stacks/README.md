@@ -99,6 +99,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
+| MLflow | `nexus-mlflow` (custom build) | `3.16.0` | Exact ¹ |
+| PostgreSQL (MLflow DB) | `postgres` | `17-alpine` | Major |
 | PostgreSQL (Standalone) | `postgres` | `18-alpine` | Major |
 | pg_ducklake | `pgducklake/pgducklake` | `18-main` | Rolling ⚠️ |
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
@@ -215,6 +217,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
+| **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |

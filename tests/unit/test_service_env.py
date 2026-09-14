@@ -78,6 +78,7 @@ def full_config() -> NexusConfig:
         litellm_salt_key="litellm-salt-32chars-xxxxxxxxxxx",
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
+        mlflow_db_password="mlflow-db-pw",
         questdb_pg_password="questdb-pg-pw",
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
@@ -952,6 +953,101 @@ def test_lakekeeper_raises_on_empty_db_password(
     config = full_config.model_copy(update={"lakekeeper_db_password": ""})
     with pytest.raises(ServiceEnvError, match="LAKEKEEPER_DB_PASSWORD"):
         _render_lakekeeper(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# MLflow — fail-fast guard, hostname, and the R2 block
+# ---------------------------------------------------------------------------
+
+
+def test_mlflow_raises_on_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Same failure shape as Lakekeeper: an empty password crashes the
+    dedicated Postgres init on first start with a cryptic auth-failed log,
+    and the tracking server then restart-loops against a database that never
+    came up. Abort at deploy time instead, pointing at the Tofu apply."""
+    from nexus_deploy.service_env import _render_mlflow
+
+    config = full_config.model_copy(update={"mlflow_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="MLFLOW_DB_PASSWORD"):
+        _render_mlflow(config, full_env)
+
+
+def test_mlflow_renders_domain_from_bootstrap_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """MLFLOW_DOMAIN is load-bearing, not cosmetic.
+
+    It reaches `--allowed-hosts`, and MLflow 3.x answers an unlisted Host with
+    a flat 403. An empty value there locks the browser out of a server that is
+    otherwise healthy, so this pins that the variable is actually composed.
+    """
+    from nexus_deploy.service_env import _render_mlflow
+
+    rendered = _render_mlflow(full_config, full_env)
+    assert rendered.env_vars["MLFLOW_DOMAIN"] == "mlflow.example.com"
+
+
+def test_mlflow_domain_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Multi-tenant forks use a flat subdomain, and the allow-list must match
+    whichever hostname the tunnel actually serves."""
+    from nexus_deploy.service_env import _render_mlflow
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_mlflow(full_config, env)
+    assert rendered.env_vars["MLFLOW_DOMAIN"] == "mlflow-example.com"
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["r2_data_endpoint", "r2_data_access_key", "r2_data_secret_key", "r2_data_bucket"],
+)
+def test_mlflow_raises_on_incomplete_r2(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str
+) -> None:
+    """Any one missing R2 value must stop the deploy, not render an empty one.
+
+    The failure this prevents is late and misattributed. An empty bucket gives
+    `--artifacts-destination s3:///mlflow`, which the tracking server accepts
+    at startup: /health answers, the UI loads, experiments and metrics work,
+    and only the first artifact upload fails -- by which time the deploy has
+    reported success and the notebook looks at fault.
+
+    Parametrised over all four because a guard that only checks the bucket
+    would pass this test while leaving the other three able to render empty.
+    """
+    from nexus_deploy.service_env import _render_mlflow
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match="R2"):
+        _render_mlflow(config, full_env)
+
+
+def test_mlflow_carries_the_r2_block(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Unlike Lakekeeper's, this renderer DOES put R2 in the env file.
+
+    Lakekeeper keeps its credentials out because a warehouse carries its own
+    storage profile, set over the management API by a hook. MLflow has no such
+    API -- it reads the artifact store at startup -- so the values must reach
+    the container through the env file, following the Unity Catalog pattern.
+
+    Asserted because the difference is easy to "tidy up" into consistency with
+    the neighbouring renderer, and the result would be a server that starts,
+    answers /health, and fails on the first artifact upload.
+    """
+    from nexus_deploy.service_env import _render_mlflow
+
+    rendered = _render_mlflow(full_config, full_env)
+    for key in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"):
+        assert rendered.env_vars.get(key), f"{key} missing from the MLflow env file"
 
 
 # ---------------------------------------------------------------------------

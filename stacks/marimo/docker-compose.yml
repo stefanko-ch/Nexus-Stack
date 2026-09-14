@@ -88,6 +88,18 @@ services:
       # the catalogue.
       - LAKEKEEPER_URI=http://lakekeeper:8181/catalog
       - LAKEKEEPER_WAREHOUSE=nexus
+      # Default MLflow tracking server, read by mlflow itself — the client
+      # library looks at MLFLOW_TRACKING_URI without being told to, so a
+      # notebook can call mlflow.start_run() with no setup at all.
+      #
+      # In-cluster again, and for a second reason on top of Cloudflare Access:
+      # MLflow 3.x validates the Host header, and the mlflow stack allows
+      # exactly `mlflow:5000` and its public hostname. Anything else gets a
+      # flat 403 reading "possible DNS rebinding attack detected", which does
+      # not look like a URL problem.
+      #
+      # Port 5000 is the container's, not the host's 5001.
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
       # Turn off botocore's newer streaming checksums. Without this, writes
       # through a remote-signing Iceberg warehouse fail on Cloudflare R2 with
       #   PermissionError: The request signature we calculated does not match

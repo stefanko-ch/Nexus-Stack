@@ -180,6 +180,9 @@ output "secrets" {
     # Lakekeeper (Iceberg REST Catalog)
     lakekeeper_db_password = random_password.lakekeeper_db_password.result
 
+    # MLflow (experiment tracking + model registry)
+    mlflow_db_password = random_password.mlflow_db_password.result
+
     # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
     unity_catalog_db_password = random_password.unity_catalog_db_password.result
 

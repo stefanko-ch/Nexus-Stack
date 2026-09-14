@@ -230,6 +230,13 @@ resource "random_password" "lakekeeper_db_password" {
   special = false
 }
 
+# MLflow Postgres password — dedicated DB. Holds experiments, runs,
+# metrics and the model registry; the artifacts themselves go to R2.
+resource "random_password" "mlflow_db_password" {
+  length  = 24
+  special = false
+}
+
 # Unity Catalog Postgres password — the metastore, not the data.
 # Table contents live in Cloudflare R2; this database holds the catalog
 # (catalogs, schemas, table pointers, credentials) and is what
