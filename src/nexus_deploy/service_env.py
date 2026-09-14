@@ -679,9 +679,17 @@ def _render_mlflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     Catalog pattern instead and the values reach the container through the
     env file.
 
-    Fail-fast on an empty DB password, same reasoning as Lakekeeper and
-    Meilisearch: an empty password crashes the Postgres init on first start
-    with a cryptic auth-failed log, and the useful place to say so is here.
+    Two fail-fast guards, both for the same reason: the failure they prevent
+    surfaces far from its cause.
+
+    An empty DB password crashes the Postgres init on first start with a
+    cryptic auth-failed log — same reasoning as Lakekeeper and Meilisearch.
+
+    An incomplete R2 block is the subtler one. Rendering it empty leaves
+    ``--artifacts-destination s3:///mlflow``, which the server accepts at
+    startup: it answers /health, the UI loads, experiments and metrics all
+    work, and only the first artifact upload fails. By then the deploy has
+    reported success and the notebook looks at fault.
     """
     if _empty(c.mlflow_db_password):
         raise ServiceEnvError(
@@ -692,15 +700,27 @@ def _render_mlflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "complete, so check both steps in this run's log. Aborting to "
             "avoid a restart-looping Postgres container with no auth.",
         )
+    r2 = {
+        "R2_ENDPOINT": c.r2_data_endpoint or "",
+        "R2_ACCESS_KEY": c.r2_data_access_key or "",
+        "R2_SECRET_KEY": c.r2_data_secret_key or "",
+        "R2_BUCKET": c.r2_data_bucket or "",
+    }
+    if missing := sorted(k for k, v in r2.items() if _empty(v)):
+        raise ServiceEnvError(
+            "MLflow enabled but the R2 data bucket is not fully configured — "
+            f"missing {', '.join(missing)}. Rendering these empty would leave "
+            "`--artifacts-destination s3:///mlflow`, which the tracking server "
+            "accepts at startup and only fails on at the first artifact "
+            "upload, long after the deploy reports success. Configure the R2 "
+            "data bucket or disable MLflow.",
+        )
     domain_host = service_host("mlflow", e.domain or "", e.subdomain_separator)
     return RenderedEnv(
         env_vars={
             "MLFLOW_DB_PASSWORD": c.mlflow_db_password or "",
             "MLFLOW_DOMAIN": domain_host,
-            "R2_ENDPOINT": c.r2_data_endpoint or "",
-            "R2_ACCESS_KEY": c.r2_data_access_key or "",
-            "R2_SECRET_KEY": c.r2_data_secret_key or "",
-            "R2_BUCKET": c.r2_data_bucket or "",
+            **r2,
         },
     )
 

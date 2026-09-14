@@ -69,6 +69,8 @@ import os
 from typing import Optional
 
 import mlflow
+from mlflow.exceptions import MlflowException
+from mlflow.protos.databricks_pb2 import RESOURCE_ALREADY_EXISTS, ErrorCode
 from mlflow.tracking import MlflowClient
 
 # Mirrors stacks/marimo/docker-compose.yml, so a notebook works unchanged on a
@@ -106,9 +108,32 @@ def experiment(name: str) -> str:
     makes a notebook cell fail on its second run for no useful reason. This is
     the idempotent form, and it also activates the experiment so a following
     ``mlflow.start_run()`` lands in it.
+
+    The look-then-create is not atomic, and on a shared tracking server that
+    gap is reachable rather than theoretical: a class starting the same
+    notebook at the same time has several clients checking for the same
+    missing experiment within the same second. The loser of that race gets
+    ``RESOURCE_ALREADY_EXISTS``, which is not an error here — somebody else
+    created exactly what this call wanted. Look it up again and carry on.
     """
     client = get_client()
     existing = client.get_experiment_by_name(name)
-    exp_id = existing.experiment_id if existing else client.create_experiment(name)
+    if existing is not None:
+        exp_id = existing.experiment_id
+    else:
+        try:
+            exp_id = client.create_experiment(name)
+        except MlflowException as exc:
+            # `exc.error_code` is the NAME, not the number. Measured against
+            # 3.16.0: the attribute is the string 'RESOURCE_ALREADY_EXISTS'
+            # while the imported constant is the int 3001, so comparing them
+            # directly is always unequal and this handler would re-raise every
+            # time while looking correct.
+            if exc.error_code != ErrorCode.Name(RESOURCE_ALREADY_EXISTS):
+                raise
+            raced = client.get_experiment_by_name(name)
+            if raced is None:  # pragma: no cover - would mean it vanished again
+                raise
+            exp_id = raced.experiment_id
     mlflow.set_experiment(experiment_id=exp_id)
     return str(exp_id)

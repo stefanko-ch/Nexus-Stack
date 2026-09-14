@@ -1265,15 +1265,36 @@ def test_mlflow_clients_install_the_skinny_package() -> None:
     mechanisms -- Marimo has a Dockerfile, Jupyter installs at container start
     -- so a change to one does not surface in the other.
     """
-    marimo = (REPO_ROOT / "stacks/marimo/Dockerfile").read_text()
-    assert "mlflow-skinny==" in marimo, "Marimo must install mlflow-skinny"
-    assert '"mlflow==' not in marimo, (
-        "Marimo installs full mlflow; that is +465 MB against skinny's +78 MB. "
-        "If a seed genuinely needs scikit-learn, add it explicitly instead."
-    )
+    # Quote-independent: `mlflow==3.16.0`, `"mlflow==3.16.0"` and
+    # `'mlflow==3.16.0'` are the same install and must all be caught. An
+    # earlier version of this check keyed on the double quote alone, which a
+    # reviewer pointed out would wave through two of the three spellings.
+    # `\b` before the name keeps `mlflow-skinny==` from matching, since a
+    # hyphen is a word boundary — hence the explicit negative lookahead too.
+    full_mlflow = re.compile(r"\bmlflow(?!-skinny)\s*==")
 
-    jupyter = (REPO_ROOT / "stacks/jupyter/docker-compose.yml").read_text()
-    assert "mlflow-skinny==" in jupyter, "Jupyter must install mlflow-skinny"
+    for label, path in (
+        ("Marimo", "stacks/marimo/Dockerfile"),
+        ("Jupyter", "stacks/jupyter/docker-compose.yml"),
+    ):
+        # Whole comment lines dropped before scanning. Both files explain in
+        # prose why skinny was chosen, and that prose names `mlflow==3.16.0`
+        # as the thing not to install -- so a raw scan trips on its own
+        # documentation. Caught on the first run, which is the third time a
+        # guard in this file has done that; only full-line comments are
+        # removed, so nothing inside the Jupyter command block is touched.
+        source = "\n".join(
+            line
+            for line in (REPO_ROOT / path).read_text().splitlines()
+            if not line.lstrip().startswith("#")
+        )
+        assert "mlflow-skinny==" in source, f"{label} must install mlflow-skinny"
+        assert not full_mlflow.search(source), (
+            f"{label} installs full mlflow; that is +465 MB against skinny's "
+            "+78 MB, because full MLflow declares scikit-learn and scipy as "
+            "hard dependencies. If a seed genuinely needs scikit-learn, add "
+            "that package explicitly instead."
+        )
 
 
 def test_notebook_stacks_point_at_the_in_cluster_mlflow() -> None:

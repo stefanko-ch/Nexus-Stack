@@ -146,6 +146,14 @@ The client pin in `stacks/marimo/Dockerfile` and the `pip install` line in `stac
 ### Troubleshooting
 
 - **`403 Invalid Host header`** — see [Host-header validation](#host-header-validation). The name you connected under is not in `--allowed-hosts`.
+
+  This also bites when debugging from the server itself: `curl http://localhost:5001/api/2.0/mlflow/experiments/search` sends `Host: localhost:5001`, which is not on the list. Pass a name that is, rather than widening the list:
+
+  ```bash
+  curl -H "Host: mlflow:5000" http://localhost:5001/api/2.0/mlflow/experiments/search?max_results=5
+  ```
+
+  `/health` is exempt from the check and answers 200 under any name — measured, and it is why the container's own healthcheck works without `localhost` being allow-listed.
 - **The UI loads but a notebook cannot connect** — check the notebook is using `http://mlflow:5000` and not the public hostname. The public one goes through Cloudflare Access, which answers an API client with an HTML login page.
 - **`ModuleNotFoundError: No module named 'sklearn'`** — expected; the client is `mlflow-skinny`. See [The client is mlflow-skinny](#the-client-is-mlflow-skinny-not-mlflow).
 - **Runs are there but artifacts 404** — the artifact half is R2. Check the spin-up log for the `mlflow` stack's `.env`: an empty `R2_BUCKET` leaves `--artifacts-destination s3:///mlflow`, which the server accepts at startup and fails on at upload time.

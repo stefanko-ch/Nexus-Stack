@@ -1006,6 +1006,31 @@ def test_mlflow_domain_respects_subdomain_separator(
     assert rendered.env_vars["MLFLOW_DOMAIN"] == "mlflow-example.com"
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["r2_data_endpoint", "r2_data_access_key", "r2_data_secret_key", "r2_data_bucket"],
+)
+def test_mlflow_raises_on_incomplete_r2(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str
+) -> None:
+    """Any one missing R2 value must stop the deploy, not render an empty one.
+
+    The failure this prevents is late and misattributed. An empty bucket gives
+    `--artifacts-destination s3:///mlflow`, which the tracking server accepts
+    at startup: /health answers, the UI loads, experiments and metrics work,
+    and only the first artifact upload fails -- by which time the deploy has
+    reported success and the notebook looks at fault.
+
+    Parametrised over all four because a guard that only checks the bucket
+    would pass this test while leaving the other three able to render empty.
+    """
+    from nexus_deploy.service_env import _render_mlflow
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match="R2"):
+        _render_mlflow(config, full_env)
+
+
 def test_mlflow_carries_the_r2_block(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
     """Unlike Lakekeeper's, this renderer DOES put R2 in the env file.
 
