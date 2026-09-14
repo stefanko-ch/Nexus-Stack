@@ -265,6 +265,11 @@
       'TEMPORAL_DB_PASSWORD': 'temporal_db_password-VALUE',
       'TEMPORAL_DB_USERNAME': 'nexus-temporal',
     }),
+    'timescaledb': dict({
+      'TIMESCALEDB_DATABASE': 'timescaledb',
+      'TIMESCALEDB_PASSWORD': 'timescaledb-pw',
+      'TIMESCALEDB_USERNAME': 'nexus-timescaledb',
+    }),
     'unity-catalog': dict({
       'UNITY_CATALOG_DB_PASSWORD': 'unity_catalog_db_password-VALUE',
     }),

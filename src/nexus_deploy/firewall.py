@@ -89,6 +89,9 @@ REDPANDA_RENDERED_PATH = "config/redpanda-firewall.yaml"
 ASYMMETRIC_PORT_MAPPINGS: dict[tuple[str, int], int] = {
     ("clickhouse", 9004): 9000,
     ("rustfs", 9003): 9000,
+    # Host 5433 because the shared `postgres` stack's rule binds host 5432;
+    # TimescaleDB itself listens on the PostgreSQL default inside.
+    ("timescaledb", 5433): 5432,
 }
 
 # Suffix-strip regex: ``-<digits>`` at end of key, e.g. ``redpanda-1`` → ``redpanda``.

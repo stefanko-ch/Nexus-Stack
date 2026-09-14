@@ -315,6 +315,10 @@ def _make_synthetic_stacks(root: Path, *, with_redpanda_template: bool = True) -
     (root / "stacks" / "rustfs" / "docker-compose.yml").write_text(
         "services:\n  rustfs:\n    image: rustfs/rustfs:1.0.0-alpha\n",
     )
+    (root / "stacks" / "timescaledb").mkdir(parents=True)
+    (root / "stacks" / "timescaledb" / "docker-compose.yml").write_text(
+        "services:\n  timescaledb:\n    image: timescale/timescaledb:2.30.0-pg18\n",
+    )
     if with_redpanda_template:
         (root / "stacks" / "redpanda" / REDPANDA_TEMPLATE_PATH).write_text(
             "advertised_kafka_api: " + REDPANDA_TEMPLATE_TOKEN + "\n",
@@ -414,6 +418,24 @@ def test_compile_overrides_rustfs_asymmetric_s3_api_port(tmp_path: Path) -> None
     yaml_content = result.compiled[0].yaml_content
     assert "9003:9000" in yaml_content
     assert "9003:9003" not in yaml_content
+
+
+def test_compile_overrides_timescaledb_asymmetric_postgres_port(tmp_path: Path) -> None:
+    """TimescaleDB is advertised on host 5433 (the shared `postgres` rule
+    binds host 5432) but listens on the PostgreSQL default 5432 inside
+    the container. Without the table entry the override would emit
+    '5433:5433' and a client would reach a closed port."""
+    _make_synthetic_stacks(tmp_path, with_redpanda_template=False)
+    json_str = json.dumps({"timescaledb-1": {"port": 5433}})
+    result = compile_overrides(
+        firewall_json=json_str,
+        stacks_dir=tmp_path,
+        domain="example.com",
+    )
+    assert len(result.compiled) == 1
+    yaml_content = result.compiled[0].yaml_content
+    assert "5433:5432" in yaml_content
+    assert "5433:5433" not in yaml_content
 
 
 def test_compile_overrides_non_asymmetric_port_stays_identity(tmp_path: Path) -> None:

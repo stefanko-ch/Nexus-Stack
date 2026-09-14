@@ -1116,6 +1116,22 @@ services:
     long_description: "Telegraf is a plugin-driven metrics collection agent. Collect system metrics (CPU, memory, disk), database statistics (PostgreSQL, ClickHouse), and application metrics from 300+ input plugins. Output to Prometheus, Grafana, InfluxDB, and other monitoring systems."
     image: "telegraf:1.38.2"
 
+  timescaledb:
+    # Host port 5433, not 5432: the shared `postgres` stack's firewall rule
+    # binds host 5432. The container still listens on 5432, so clients on
+    # app-network use `timescaledb:5432`; the 5433 → 5432 mapping lives in
+    # ASYMMETRIC_PORT_MAPPINGS (src/nexus_deploy/firewall.py).
+    port: 5433
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.tigerdata.com/timescaledb"
+    description: "PostgreSQL with the TimescaleDB extension — hypertables, continuous aggregates and compression for time-series."
+    long_description: "TimescaleDB turns PostgreSQL into a time-series database: hypertables partition by time automatically, continuous aggregates keep rollups current as data arrives, and native columnar compression shrinks old chunks. It sits beside QuestDB and InfluxDB on purpose — those are purpose-built engines with their own storage model, while TimescaleDB keeps time-series in a real PostgreSQL database, so it JOINs against relational tables and every Postgres client in the stack (pgAdmin, CloudBeaver, Adminer, Superset, Grafana) connects unchanged. No web UI; superuser credentials generated per deployment."
+    image: "timescale/timescaledb:2.30.0-pg18"
+    tcp_ports:
+      timescaledb: 5433
+
   trino:
     subdomain: "trino"
     port: 8060

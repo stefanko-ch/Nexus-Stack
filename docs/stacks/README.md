@@ -148,6 +148,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
 | PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |
+| TimescaleDB | `timescale/timescaledb` | `2.30.0-pg18` | Exact ¹ |
 | Temporal Server | `temporalio/server` | `1.32.0` | Exact ⁶ |
 | Temporal Admin Tools | `temporalio/admin-tools` | `1.32.0` | Exact ⁶ |
 | Temporal UI | `temporalio/ui` | `2.54.1` | Exact ¹ |
@@ -271,6 +272,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |
+| **TimescaleDB** | PostgreSQL with time-series hypertables, continuous aggregates and compression | [timescaledb.md](timescaledb.md) |
 | **Temporal** | Durable workflow execution engine | [temporal.md](temporal.md) |
 | **Trino** | Distributed SQL query engine | [trino.md](trino.md) |
 | **Unity Catalog** | Catalog for Delta & Iceberg tables, volumes and AI assets | [unity-catalog.md](unity-catalog.md) |
@@ -318,6 +320,7 @@ OpenTofu creates inbound Hetzner firewall rules for every enabled toggle. **DNS 
 | **RustFS** (S3 API) | 9003 | — ¹ | S3/HTTP |
 | **RisingWave** (PostgreSQL) | 4566 | — ¹ | PostgreSQL |
 | **SeaweedFS** (S3 API) | 8333 | — ¹ | S3/HTTP |
+| **TimescaleDB** | 5433 | — ¹ | PostgreSQL |
 
 ¹ No auto-provisioned DNS record. Auto-DNS is currently only wired for **MinIO**, **PostgreSQL**, **RedPanda** (all listeners), and **Redpanda Connect** in `.github/scripts/sync-firewall-rules.sh`. For the other rows, enable the Firewall rule + Spin Up, then connect to the server IP directly (`<server-ip>:<port>`). Adding a stack to the auto-DNS map is a separate change.
 
