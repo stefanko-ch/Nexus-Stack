@@ -86,6 +86,7 @@ TCP_PORTS_ALLOWED = {
     "garage",
     "lakefs",
     "minio",
+    "mongodb",  # wire protocol; authenticates as nexus-mongodb
     "pg-ducklake",
     "postgres",
     "redpanda",
@@ -1516,6 +1517,69 @@ def test_keycloak_hostname_is_a_full_https_url() -> None:
     assert env.get("KC_PROXY_HEADERS") == "xforwarded", (
         "without KC_PROXY_HEADERS=xforwarded the backchannel endpoints are "
         "advertised as http:// for requests arriving through the tunnel"
+    )
+
+
+def _mongodb_compose() -> dict[str, Any]:
+    """stacks/mongodb/docker-compose.yml, parsed rather than grepped, so a
+    commented-out setting cannot satisfy a check."""
+    return dict(yaml.safe_load((STACKS_DIR / "mongodb" / "docker-compose.yml").read_text()))
+
+
+def test_mongodb_is_the_first_service_so_the_firewall_rule_lands_on_it() -> None:
+    """The `tcp_ports` override is applied to the FIRST service in the file.
+
+    `firewall.get_compose_first_service` picks the target of the generated
+    docker-compose.firewall.yml. Reordering the file so mongo-express comes
+    first would publish 27017 on the UI container, where nothing listens:
+    the firewall rule opens, the port answers nothing, and the stack looks
+    healthy throughout.
+    """
+    from nexus_deploy.firewall import get_compose_first_service
+
+    first = get_compose_first_service(STACKS_DIR / "mongodb" / "docker-compose.yml")
+    assert first == "mongodb", (
+        f"the first service in stacks/mongodb/docker-compose.yml is {first!r}; "
+        "it must be `mongodb`, or the firewall override publishes 27017 on the wrong container"
+    )
+
+
+def test_mongodb_does_not_publish_the_wire_port_itself() -> None:
+    """27017 is published only by the firewall override (#488).
+
+    A `ports:` entry for it in the base file would collide with the override
+    on the same host port after the merge, and would also bind the port with
+    no firewall toggle behind it.
+    """
+    ports = _mongodb_compose()["services"]["mongodb"].get("ports") or []
+    assert not any("27017" in str(p) for p in ports), (
+        f"mongodb publishes {ports!r}; 27017 belongs to the firewall override only"
+    )
+
+
+def test_mongodb_express_has_no_default_login_and_no_shared_network() -> None:
+    """mongo-express's image turns basic auth ON with `admin` / `pass`.
+
+    The stack turns it off -- Cloudflare Access is the gate -- which is only
+    safe while two things hold: the setting is explicitly `false` (leaving it
+    to the image yields the documented default login), and the UI is not on
+    app-network, where any container in any stack could drive a root-connected
+    UI with no login at all.
+    """
+    service = _mongodb_compose()["services"]["mongodb-express"]
+    env = service["environment"]
+    assert str(env.get("ME_CONFIG_BASICAUTH")).lower() == "false", (
+        "ME_CONFIG_BASICAUTH must be set explicitly to false; the image defaults "
+        "it to true with the credentials admin/pass"
+    )
+    assert "app-network" not in (service.get("networks") or []), (
+        "mongodb-express must stay on mongodb-internal only"
+    )
+    assert str(env.get("ME_CONFIG_SITE_SESSIONSECRET", "")).startswith(
+        "${MONGODB_EXPRESS_SESSION_SECRET:?"
+    ), (
+        "ME_CONFIG_SITE_SESSIONSECRET must come from the generated secret; "
+        "the image default is the literal string `secret`"
     )
 
 

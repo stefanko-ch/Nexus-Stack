@@ -845,6 +845,24 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "mongodb",
+            _filter_empty(
+                {
+                    # Username alongside the password: a reader holding only
+                    # the password would otherwise try `root` or `admin`,
+                    # the guessable defaults the `nexus-` rule exists to stop.
+                    "MONGODB_ROOT_USERNAME": "nexus-mongodb",
+                    "MONGODB_ROOT_PASSWORD": config.mongodb_root_password,
+                    # Not a login. Stored with the stack's other secret, as
+                    # hedgedoc's session secret is, so every generated value
+                    # for a stack is visible in one folder.
+                    "MONGODB_EXPRESS_SESSION_SECRET": config.mongodb_express_session_secret,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

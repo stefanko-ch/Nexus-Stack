@@ -99,6 +99,8 @@ def full_config() -> NexusConfig:
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
         nussknacker_admin_password="nussknacker-admin-pw",
+        mongodb_root_password="mongodb-root-pw",
+        mongodb_express_session_secret="mongodb-express-session-secret",
         opensearch_admin_password="opensearch-admin-pw",
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
@@ -3463,3 +3465,46 @@ def test_spark_conf_hash_moves_when_the_catalog_block_appears(
     with_uc = _env_settings((tmp_path / "spark" / ".env").read_text())["SPARK_CONF_HASH"]
 
     assert without != with_uc
+
+
+def test_mongodb_renders_both_secrets(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Root password and session secret, and nothing else.
+
+    The username is set in the compose file rather than rendered here, so
+    the key set stays at two. Pinned so a third secret cannot arrive
+    without a fail-fast guard beside it.
+    """
+    from nexus_deploy.service_env import _render_mongodb
+
+    rendered = _render_mongodb(full_config, full_env)
+    assert rendered.env_vars == {
+        "MONGODB_ROOT_PASSWORD": "mongodb-root-pw",
+        "MONGODB_EXPRESS_SESSION_SECRET": "mongodb-express-session-secret",
+    }
+
+
+def test_mongodb_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """0o600: the file holds the MongoDB root password in cleartext."""
+    from nexus_deploy.service_env import _render_mongodb
+
+    assert _render_mongodb(full_config, full_env).mode == 0o600
+
+
+@pytest.mark.parametrize(
+    ("field", "env_var"),
+    [
+        ("mongodb_root_password", "MONGODB_ROOT_PASSWORD"),
+        ("mongodb_express_session_secret", "MONGODB_EXPRESS_SESSION_SECRET"),
+    ],
+)
+def test_mongodb_raises_on_empty_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str, env_var: str
+) -> None:
+    """The compose file uses `${VAR:?}`, so an empty value stops the stack --
+    but failing here names the tofu output, while failing there produces a
+    compose interpolation error the operator has to trace back."""
+    from nexus_deploy.service_env import _render_mongodb
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match=env_var):
+        _render_mongodb(config, full_env)

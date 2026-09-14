@@ -1117,6 +1117,40 @@ def _render_influxdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_mongodb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """MongoDB + mongo-express. Two secrets, and both are required.
+
+    The root password is the wire-protocol credential for `nexus-mongodb`
+    and is also embedded in mongo-express's connection URL. The session
+    secret signs mongo-express's session cookie; the image's own default
+    is the literal string `secret`.
+
+    Fail-fast on either being empty. The compose file uses `${VAR:?...}`
+    for both, so an empty value would stop the stack rather than start it
+    wrong -- but failing here names the tofu output, while failing there
+    produces a compose interpolation error the operator has to trace back.
+    """
+    if _empty(c.mongodb_root_password):
+        raise ServiceEnvError(
+            "MongoDB enabled but MONGODB_ROOT_PASSWORD is empty -- "
+            "it comes from the tofu output `mongodb_root_password`."
+        )
+    if _empty(c.mongodb_express_session_secret):
+        raise ServiceEnvError(
+            "MongoDB enabled but MONGODB_EXPRESS_SESSION_SECRET is empty -- "
+            "it comes from the tofu output `mongodb_express_session_secret`."
+        )
+    return RenderedEnv(
+        env_vars={
+            "MONGODB_ROOT_PASSWORD": c.mongodb_root_password or "",
+            "MONGODB_EXPRESS_SESSION_SECRET": c.mongodb_express_session_secret or "",
+        },
+        # 0o600: the file holds the root password in cleartext, the same
+        # reason _render_influxdb and _render_sftpgo restrict their own.
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -2371,6 +2405,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
+    EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),
     EnvSpec("opensearch", _is_enabled("opensearch"), _render_opensearch),
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),
