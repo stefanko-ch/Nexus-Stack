@@ -697,6 +697,28 @@ services:
     tcp_ports:
       s3-api: 9000
 
+  mongodb:
+    subdomain: "mongodb"
+    # The port is mongo-express, the web UI (host 8105 → container 8081).
+    # MongoDB's own wire protocol is never routed through the tunnel; it is
+    # reachable as mongodb:27017 on app-network, and externally only through
+    # the tcp_ports rule below.
+    port: 8105
+    public: false
+    category: "databases"
+    website: "https://www.mongodb.com"
+    description: "Document database (NoSQL) with the mongo-express web UI."
+    long_description: "MongoDB is the most widely used document database: schema-flexible JSON-like documents, rich queries and aggregation pipelines, secondary and text indexes. It closes the document/NoSQL gap next to the relational, columnar, time-series and vector stores already here, and it is what a lot of application code and tutorials expect to find. Ships with mongo-express for browsing databases, collections and documents in the browser, behind Cloudflare Access. Notebooks and pipelines connect to mongodb:27017 on the internal network as `nexus-mongodb`, with a password generated per deployment and stored in Infisical; external clients such as Compass reach port 27017 once the firewall rule is enabled in the Control Plane."
+    # Major release line (8.0, five-year lifecycle), not the newest minor
+    # (8.3). MongoDB stops patching a minor release as soon as the next one
+    # ships and allows no skipping between minors, so a data directory on a
+    # minor would need a sequential upgrade on every bump.
+    image: "mongo:8.0.30"
+    support_images:
+      mongodb-express: "mongo-express:1.0.2-20-alpine3.19"
+    tcp_ports:
+      wire: 27017
+
   n8n:
     subdomain: "n8n"
     port: 5678

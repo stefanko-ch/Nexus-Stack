@@ -155,6 +155,11 @@
       'MLFLOW_DB_PASSWORD': 'mlflow_db_password-VALUE',
       'MLFLOW_DB_USERNAME': 'nexus-mlflow',
     }),
+    'mongodb': dict({
+      'MONGODB_EXPRESS_SESSION_SECRET': 'mongodb-express-session-secret',
+      'MONGODB_ROOT_PASSWORD': 'mongodb-root-pw',
+      'MONGODB_ROOT_USERNAME': 'nexus-mongodb',
+    }),
     'n8n': dict({
       'N8N_PASSWORD': 'n8n_admin_password-VALUE',
       'N8N_USERNAME': 'admin@snapshot.test',
