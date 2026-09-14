@@ -278,11 +278,15 @@ helper takes it as `get_catalog("archive")`.
 - **A write occasionally fails with `OSError: [Errno 22] Authorization`** —
   known, rare, and not something you did wrong. **Re-run the cell.**
 
-  Measured on this deployment: 39 of 40 runs of a long chain — `overwrite`,
-  `append`, four scans, `plan_files`, then time travel — completed cleanly.
-  The one failure hit `overwrite` and did not repeat. So roughly a 1-in-40
-  chance of one failed write during a long session, cleared by running it
-  again.
+  Measured on this deployment: 39 of 40 runs of one long chain — `overwrite`,
+  `append`, four scans, `plan_files`, `snapshots`, then time travel —
+  completed cleanly. The one failure hit `overwrite` and did not repeat.
+
+  That is the observed rate **for that chain**, and it does not convert into a
+  per-write or per-session probability: the experiment ran one fixed sequence
+  per process, so it says nothing about a session containing more chains, or
+  fewer, or different operations. What it does establish is that the failure
+  is rare here and that a re-run clears it.
 
   It is tracked in [#832](https://github.com/stefanko-ch/Nexus-Stack/issues/832),
   which also records what is *not* yet known: whether this is the same defect
