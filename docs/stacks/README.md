@@ -16,6 +16,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 |---------|-------|-----|----------|
 | AKHQ | `tchiotludo/akhq` | `0.27.0` | Exact ¹ |
 | Adminer | `adminer` | `latest` | Latest ² |
+| Apache Airflow | `apache/airflow` | `3.3.1` | Exact ¹ |
+| PostgreSQL (Airflow DB) | `postgres` | `17-alpine` | Major |
 | Appsmith | `appsmith/appsmith-ce` | `v1.98` | Minor |
 | Big-AGI | `ghcr.io/enricoros/big-agi` | `v2.0.4` | Exact ¹ |
 | Budibase | `budibase/budibase` | `v3.43.0` | Exact ¹ |
@@ -179,6 +181,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 |-------|-------------|------|
 | **AKHQ** | Kafka/Redpanda management GUI | [akhq.md](akhq.md) |
 | **Adminer** | Lightweight database management tool | [adminer.md](adminer.md) |
+| **Apache Airflow** | DAG-based workflow orchestration | [airflow.md](airflow.md) |
 | **Apache Spark** | Distributed data processing engine | [spark.md](spark.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |

@@ -198,6 +198,13 @@ output "secrets" {
     langfuse_public_key          = "pk-lf-${random_uuid.langfuse_public_key.result}"
     langfuse_secret_key          = "sk-lf-${random_uuid.langfuse_secret_key.result}"
 
+    # Apache Airflow (workflow orchestration)
+    airflow_admin_password = random_password.airflow_admin.result
+    airflow_db_password    = random_password.airflow_db.result
+    airflow_jwt_secret     = random_password.airflow_jwt_secret.result
+    airflow_api_secret_key = random_password.airflow_api_secret_key.result
+    airflow_fernet_key     = random_id.airflow_fernet_key.b64_std
+
     # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
     unity_catalog_db_password = random_password.unity_catalog_db_password.result
 
