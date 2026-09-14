@@ -33,6 +33,17 @@ services:
       # meltano already binds 5000.
       - "5001:5000"
     command:
+      # `mlflow` first, explicitly. The image has no ENTRYPOINT and its CMD is
+      # `["python3"]`, so a command list starting with `server` asks Docker to
+      # execute a binary of that name and the container never starts --
+      # measured, after shipping it: `compose up failed (rc=1)` with the
+      # container left in STATE:created and nothing in its log, because it had
+      # not begun running.
+      #
+      # Every local rehearsal of this stack passed `--entrypoint mlflow`, which
+      # supplied exactly the piece the compose file was missing. The tested
+      # configuration and the shipped one were not the same thing.
+      - mlflow
       - server
       - --host
       - "0.0.0.0"

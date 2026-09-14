@@ -1188,6 +1188,33 @@ def _mlflow_command_value(flag: str) -> str:
     return str(command[command.index(flag) + 1])
 
 
+def test_mlflow_command_names_the_executable() -> None:
+    """The image declares no ENTRYPOINT, so the command must start with one.
+
+    `ghcr.io/mlflow/mlflow:v3.16.0` has `ENTRYPOINT: null` and
+    `CMD: ["python3"]`. A command list beginning with `server` therefore asks
+    Docker to execute a binary of that name, and the container never starts:
+    `compose up failed (rc=1)`, the container left in STATE:created, and
+    nothing in `docker logs` because it had not begun running.
+
+    This shipped. Every local rehearsal passed `--entrypoint mlflow` on the
+    `docker run` line, which supplied exactly the piece the compose file was
+    missing -- so the tested configuration and the shipped one differed by the
+    one thing that mattered, and every test passed.
+
+    Hence a guard on the compose file itself rather than on a container that
+    was started some other way.
+    """
+    command = _mlflow_service()["command"]
+    assert isinstance(command, list), "mlflow command must stay a list, not a shell string"
+    assert command, "mlflow command must not be empty"
+    assert command[0] == "mlflow", (
+        f"the mlflow command starts with {command[0]!r}; the image has no "
+        "ENTRYPOINT, so the first element must be the executable"
+    )
+    assert command[1] == "server", f"expected `mlflow server`, got `mlflow {command[1]}`"
+
+
 def test_mlflow_writes_artifacts_under_its_own_prefix() -> None:
     """The R2 data bucket is shared; MLflow may not address its root.
 
