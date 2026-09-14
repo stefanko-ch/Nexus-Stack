@@ -717,6 +717,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             ),
         )
     )
+
+    folders.append(
+        FolderSpec(
+            "mlflow",
+            _filter_empty(
+                {
+                    # MLflow has no user management of its own -- Cloudflare
+                    # Access is its only gate -- so the username names the
+                    # database role behind it rather than a login.
+                    "MLFLOW_DB_USERNAME": "nexus-mlflow",
+                    "MLFLOW_DB_PASSWORD": config.mlflow_db_password,
+                }
+            ),
+        )
+    )
     folders.append(
         FolderSpec(
             "unity-catalog",

@@ -1,0 +1,146 @@
+# =============================================================================
+# MLflow - Experiment tracking, model registry
+# https://mlflow.${DOMAIN}
+# =============================================================================
+# The piece every notebook stack in here was missing. Jupyter, Marimo, Spark,
+# Dagster, Prefect and Kestra all exist already and had nowhere to log to.
+#
+# Two halves, and both outlive the server:
+#   - run metadata (experiments, params, metrics, the registry) in a dedicated
+#     PostgreSQL, backed up and restored by s3_restore's PostgresDumpTarget
+#   - artifacts in the R2 data bucket under the `mlflow/` prefix, which is
+#     outside the server entirely
+#
+# No setup hook. Unlike Lakekeeper, which needs a bootstrap call and a
+# warehouse created over its management API, MLflow migrates its own schema on
+# first start — measured against an empty database: 59 tables plus the
+# alembic_version row, with no intervention.
+# =============================================================================
+
+services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_MLFLOW:-nexus-mlflow:3.16.0}
+    container_name: mlflow
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # Host 5001 → container 5000. MLflow's own default is 5000 and stays
+      # that way inside the container; the host side is shifted because
+      # meltano already binds 5000.
+      - "5001:5000"
+    command:
+      - server
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - "postgresql://nexus-mlflow:${MLFLOW_DB_PASSWORD}@mlflow-db:5432/mlflow"
+      # Artifacts are proxied, not handed out. `--serve-artifacts` is upstream's
+      # default and routes every upload and download through this server, so a
+      # notebook needs no R2 credentials of its own — only this container holds
+      # them. The `mlflow/` prefix matters because the data bucket is shared:
+      # Lakekeeper owns `lakekeeper/`, Unity Catalog owns `unity-catalog/`.
+      - --artifacts-destination
+      - "s3://${R2_BUCKET}/mlflow"
+      - --serve-artifacts
+      # ⚠️ Load-bearing, and the failure is a flat 403 with no hint.
+      #
+      # MLflow 3.x validates the Host header and answers anything unexpected
+      # with `Invalid Host header - possible DNS rebinding attack detected`.
+      # The first end-to-end test of this stack failed on exactly that.
+      #
+      # Two entries, both required: the in-cluster name for Marimo and Jupyter
+      # on app-network, the public hostname for the browser through the tunnel.
+      #
+      # Setting this REPLACES the built-in default rather than extending it.
+      # The `--help` text reads "Default allows: localhost (all ports)", which
+      # invites the assumption that localhost keeps working. Measured with this
+      # flag set: `mlflow:5000` → 200, `boeser.host` → 403, and
+      # `localhost:5000` → 403. Anything that must reach this server belongs in
+      # this list explicitly.
+      #
+      # Deliberately NOT solved with `strict_host_check` in services.yaml.
+      # That rewrites the header in the tunnel and exists for origins offering
+      # no way to allow a hostname — Evidence regenerates its vite config on
+      # every start. MLflow offers one, so per CLAUDE.md the flag is the wrong
+      # reach here, and using it would also disable a protection that works.
+      - --allowed-hosts
+      - "mlflow:5000,${MLFLOW_DOMAIN}"
+    environment:
+      # R2 as the artifact store. MLflow's S3ArtifactRepository is plain
+      # boto3 — it calls upload_file and put_object and reads the endpoint
+      # from MLFLOW_S3_ENDPOINT_URL.
+      MLFLOW_S3_ENDPOINT_URL: ${R2_ENDPOINT}
+      AWS_ACCESS_KEY_ID: ${R2_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${R2_SECRET_KEY}
+      AWS_DEFAULT_REGION: auto
+      # Turn off botocore's newer streaming checksums, for the same reason
+      # stacks/marimo/docker-compose.yml does.
+      #
+      # The mechanism that broke PyIceberg does NOT apply here, and the
+      # difference is worth stating so nobody removes these as cargo cult:
+      # there the failure was specific to remote signing — Lakekeeper signed
+      # the request, botocore then re-encoded the body as `aws-chunked`, and
+      # the signature no longer covered the body that arrived. MLflow holds
+      # the credentials and signs the final body itself, so that cannot
+      # happen.
+      #
+      # They stay because R2 has separately answered `MissingContentLength`
+      # to `aws-chunked` bodies, and `when_required` restores the pre-1.36
+      # behaviour at no cost.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    depends_on:
+      mlflow-db:
+        condition: service_healthy
+    healthcheck:
+      # python, not curl or wget: the official image has neither. Measured —
+      # `--entrypoint curl` fails with "executable file not found".
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys;
+          urllib.request.urlopen('http://localhost:5000/health').close()"
+          || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+      - mlflow-internal
+
+  mlflow-db:
+    image: ${IMAGE_MLFLOW_DB:-postgres:17-alpine}
+    container_name: mlflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-mlflow
+      POSTGRES_PASSWORD: ${MLFLOW_DB_PASSWORD}
+      POSTGRES_DB: mlflow
+    volumes:
+      # Bind mount under /mnt/nexus-data rather than a named volume, matching
+      # lakekeeper-db / forgejo-db / unity-catalog-db. The snapshot lifecycle
+      # images the disk, and s3_restore's PostgresDumpTarget for mlflow-db
+      # needs the database at a predictable place across a rebuild.
+      - /mnt/nexus-data/mlflow/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-mlflow -d mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      # Internal only. Nothing outside this stack talks to the metadata
+      # database, and the tracking server is the single door in.
+      - mlflow-internal
+
+networks:
+  app-network:
+    external: true
+  mlflow-internal:
+    driver: bridge

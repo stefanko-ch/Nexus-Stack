@@ -396,6 +396,16 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             database="lakekeeper",
             user="nexus-lakekeeper",
         ),
+        # MLflow's run metadata: experiments, params, metrics and the model
+        # registry. The artifacts live in R2 under the `mlflow/` prefix and
+        # return on their own; this database is what gives them names and
+        # tells you which run produced which file. Restoring only one half
+        # leaves either orphaned objects or an empty experiment list.
+        _s3.PostgresDumpTarget(
+            container="mlflow-db",
+            database="mlflow",
+            user="nexus-mlflow",
+        ),
     )
     rsync = (
         _s3.RsyncTarget(

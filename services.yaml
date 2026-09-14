@@ -604,6 +604,22 @@ services:
     long_description: "Meilisearch is a single-binary search engine written in Rust. Schema-less, sub-100ms typo-tolerant search with faceting, geo, and highlighting. The 'Algolia you self-host'. In Nexus-Stack: pairs with Crawl4AI (scrape → index) and Big-AGI/Dify (hybrid keyword + vector search alongside Chroma) for RAG workflows; classroom doc-search for student-uploaded course materials. Auth via auto-generated master key (Infisical → folder `meilisearch` → key `MEILISEARCH_MASTER_KEY`)."
     image: "getmeili/meilisearch:v1.43.1"
 
+  mlflow:
+    subdomain: "mlflow"
+    # Host 5001; the container keeps MLflow's own default 5000. 5000 on the
+    # host belongs to meltano.
+    port: 5001
+    public: false
+    category: "ai-ml"
+    website: "https://mlflow.org"
+    description: "Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place."
+    long_description: "MLflow is the open-source standard for the machine-learning lifecycle: log parameters, metrics and artifacts from a training run, compare runs side by side, and register the models worth keeping. In Nexus-Stack it is the piece the notebook stacks were missing — Jupyter, Marimo, Spark, Dagster, Prefect and Kestra all existed with nowhere to log to. Run metadata lives in a dedicated PostgreSQL that is dumped and restored across a teardown; artifacts go to the R2 data bucket under the `mlflow/` prefix, so they outlive the server entirely. Clients need no object-storage credentials: the tracking server proxies every artifact upload and download itself."
+    # Custom build — the official image ships neither psycopg2 nor boto3, so
+    # it can only run against SQLite and a local directory. See the Dockerfile.
+    image: "nexus-mlflow:3.16.0"
+    support_images:
+      mlflow-db: "postgres:17-alpine"
+
   meltano:
     port: 5000
     public: false

@@ -26,6 +26,7 @@ services:
     command: >
       bash -c "
         pip show sparksql-magic >/dev/null 2>&1 || pip install -q sparksql-magic==0.0.3 || echo '[jupyter] Warning: Failed to install sparksql-magic' >&2;
+        pip show mlflow-skinny >/dev/null 2>&1 || pip install -q mlflow-skinny==3.16.0 || echo '[jupyter] Warning: Failed to install mlflow-skinny' >&2;
         mkdir -p /home/jovyan/.ipython/profile_default/startup;
         cat > /home/jovyan/.ipython/profile_default/startup/00-sparksql.py << 'PYEOF'
       try:
@@ -78,6 +79,15 @@ services:
       # this env would propagate to local-mode runs (when
       # SPARK_MASTER falls back to local[*]) and break them.
       SPARK_MASTER: ${SPARK_MASTER:-local[*]}
+      # Default MLflow tracking server. The client library reads this name
+      # on its own, so a notebook calls mlflow.start_run() with no setup.
+      #
+      # In-cluster, and not only because of Cloudflare Access: MLflow 3.x
+      # validates the Host header and the mlflow stack allows exactly
+      # `mlflow:5000` plus its public hostname. Anything else is a flat 403
+      # reading "possible DNS rebinding attack detected", which does not
+      # look like a URL problem. Port 5000 is the container's, not 5001.
+      MLFLOW_TRACKING_URI: http://mlflow:5000
       # S3 (Hetzner Object Storage) for Spark access.
       #
       # These three names look like Spark configuration and are not: the

@@ -658,6 +658,53 @@ def _render_lakekeeper(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_mlflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """MLflow: dedicated Postgres, R2 as the artifact store, plus a hostname.
+
+    ``MLFLOW_DOMAIN`` is load-bearing rather than cosmetic. MLflow 3.x
+    validates the Host header and answers anything unexpected with ``403
+    Invalid Host header - possible DNS rebinding attack detected``, so the
+    compose file passes this into ``--allowed-hosts`` alongside the in-cluster
+    name. An empty value there silently locks the browser out of a server that
+    is otherwise healthy.
+
+    Composed via ``service_host`` so multi-tenant forks with
+    ``subdomain_separator='-'`` get the flat hostname, exactly as Lakekeeper
+    does.
+
+    **The R2 block IS passed here, unlike Lakekeeper's.** That stack keeps its
+    credentials out of the .env because a warehouse carries its own storage
+    profile, set over the management API by a hook. MLflow has no such API --
+    it reads the artifact store at startup -- so this follows the Unity
+    Catalog pattern instead and the values reach the container through the
+    env file.
+
+    Fail-fast on an empty DB password, same reasoning as Lakekeeper and
+    Meilisearch: an empty password crashes the Postgres init on first start
+    with a cryptic auth-failed log, and the useful place to say so is here.
+    """
+    if _empty(c.mlflow_db_password):
+        raise ServiceEnvError(
+            "MLflow enabled but MLFLOW_DB_PASSWORD is empty — "
+            "`tofu apply` in tofu/stack generates "
+            "random_password.mlflow_db_password and the same run pushes it to "
+            "Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log. Aborting to "
+            "avoid a restart-looping Postgres container with no auth.",
+        )
+    domain_host = service_host("mlflow", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "MLFLOW_DB_PASSWORD": c.mlflow_db_password or "",
+            "MLFLOW_DOMAIN": domain_host,
+            "R2_ENDPOINT": c.r2_data_endpoint or "",
+            "R2_ACCESS_KEY": c.r2_data_access_key or "",
+            "R2_SECRET_KEY": c.r2_data_secret_key or "",
+            "R2_BUCKET": c.r2_data_bucket or "",
+        },
+    )
+
+
 def _render_unity_catalog(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Unity Catalog: Postgres metastore, plus R2 for the credential generator.
 
@@ -2067,6 +2114,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("postgrest", _is_enabled("postgrest"), _render_postgrest),
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
+    EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),

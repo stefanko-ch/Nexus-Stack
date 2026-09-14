@@ -131,6 +131,10 @@
       'MINIO_ROOT_PASSWORD': 'minio_root_password-VALUE',
       'MINIO_ROOT_USER': 'nexus-minio',
     }),
+    'mlflow': dict({
+      'MLFLOW_DB_PASSWORD': 'mlflow_db_password-VALUE',
+      'MLFLOW_DB_USERNAME': 'nexus-mlflow',
+    }),
     'n8n': dict({
       'N8N_PASSWORD': 'n8n_admin_password-VALUE',
       'N8N_USERNAME': 'admin@snapshot.test',
