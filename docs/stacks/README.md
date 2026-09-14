@@ -130,6 +130,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | InfluxDB | `influxdb` | `2.9.1` | Exact ¹ |
 | Nussknacker | `touk/nussknacker` | `1.18.1_scala-2.12` | Exact ¹ |
 | Weaviate | `cr.weaviate.io/semitechnologies/weaviate` | `1.34.0` | Exact ¹ |
+| Qdrant | `qdrant/qdrant` | `v1.19.1` | Exact ¹ |
 | Neo4j | `neo4j` | `2026.08.1-community` | Exact |
 | nginx (Neo4j proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
@@ -257,6 +258,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema | [postgrest.md](postgrest.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
+| **Qdrant** | Vector database with a built-in web dashboard | [qdrant.md](qdrant.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **QuestDB** | Time-series database with web console | [questdb.md](questdb.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |

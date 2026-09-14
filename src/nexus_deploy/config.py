@@ -99,6 +99,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("AIRFLOW_API_SECRET_KEY", "airflow_api_secret_key", ""),
     ("AIRFLOW_FERNET_KEY", "airflow_fernet_key", ""),
     ("UNITY_CATALOG_DB_PASS", "unity_catalog_db_password", ""),
+    ("QDRANT_API_KEY", "qdrant_api_key", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -256,6 +257,7 @@ class NexusConfig(BaseModel):
     airflow_api_secret_key: str | None = None
     airflow_fernet_key: str | None = None
     unity_catalog_db_password: str | None = None
+    qdrant_api_key: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None
