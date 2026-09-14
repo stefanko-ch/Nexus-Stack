@@ -94,6 +94,7 @@ TCP_PORTS_ALLOWED = {
     "rustfs",
     "seaweedfs-filer",
     "sftpgo",
+    "timescaledb",  # Postgres wire, same as `postgres` and `pg-ducklake`
 }
 
 # Services whose UI has no login of its own — Cloudflare Access at the edge is
@@ -666,7 +667,14 @@ def test_postgres_containers_keep_their_data_inside_the_volume(stack: str) -> No
     compose = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
     for name, svc in (compose.get("services") or {}).items():
         image = str(svc.get("image", ""))
-        if "postgres" not in image or "postgrest" in image or "ducklake" in image:
+        # TimescaleDB is built on the official postgres image and inherits
+        # its PGDATA/VOLUME layout (verified on 2.30.0-pg18), but its name
+        # contains no "postgres", so it has to be named here or it would
+        # skip the check entirely.
+        is_timescale = "timescale/timescaledb" in image
+        if not is_timescale and (
+            "postgres" not in image or "postgrest" in image or "ducklake" in image
+        ):
             continue
 
         mounts = [
@@ -686,7 +694,9 @@ def test_postgres_containers_keep_their_data_inside_the_volume(stack: str) -> No
             )
 
         if pgdata is None:
-            major_match = re.search(r"postgres:(\d+)", image)
+            major_match = re.search(r"postgres:(\d+)", image) or re.search(
+                r"timescaledb:[^-]+-pg(\d+)", image
+            )
             assert major_match, (
                 f"{stack}/{name} sets no PGDATA and its image {image!r} carries "
                 f"no readable major, so the effective data directory cannot be "
