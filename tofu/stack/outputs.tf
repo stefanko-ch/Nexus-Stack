@@ -201,6 +201,9 @@ output "secrets" {
     # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
     unity_catalog_db_password = random_password.unity_catalog_db_password.result
 
+    # Qdrant (vector database)
+    qdrant_api_key = random_password.qdrant_api_key.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

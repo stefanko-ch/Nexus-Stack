@@ -856,6 +856,19 @@ services:
     support_images:
       prefect-postgres: "postgres:16-alpine"
 
+  qdrant:
+    subdomain: "qdrant"
+    # REST API + dashboard. gRPC (6334) is reachable only as qdrant:6334 on
+    # app-network and is deliberately not published on the host.
+    port: 6333
+    public: false
+    category: "ai-ml"
+    website: "https://qdrant.tech"
+    description: "Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs."
+    long_description: "Qdrant is a vector database written in Rust, with a web dashboard for browsing collections, inspecting points and running queries from the browser. It is the third vector store here, and each answers a different question: Chroma is the small embedded-style store tutorials start with, Weaviate is schema-first with hybrid BM25 + vector search and no UI, Qdrant is the one you can look inside — with payload filters applied during the search and quantization for when memory starts to matter. REST and gRPC, well supported by LangChain and LlamaIndex. Unlike its two neighbours it runs with its own API key, generated per deployment (Infisical → folder `qdrant` → key `QDRANT_API_KEY`); the dashboard asks for it once."
+    image: "qdrant/qdrant:v1.19.1"
+    landing_path: "/dashboard"   # / answers a JSON version banner; the web UI lives at /dashboard
+
   quickwit:
     subdomain: "quickwit"
     port: 8092

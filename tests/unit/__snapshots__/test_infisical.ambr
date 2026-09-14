@@ -205,6 +205,9 @@
     'prefect': dict({
       'PREFECT_DB_PASSWORD': 'prefect_db_password-VALUE',
     }),
+    'qdrant': dict({
+      'QDRANT_API_KEY': 'qdrant-api-key',
+    }),
     'questdb': dict({
       'QUESTDB_PG_PASSWORD': 'questdb_pg_password-VALUE',
       'QUESTDB_PG_USERNAME': 'nexus-questdb',
