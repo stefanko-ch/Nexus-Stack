@@ -26,8 +26,10 @@
 x-airflow-common: &airflow-common
   image: ${IMAGE_AIRFLOW:-apache/airflow:3.3.1}
   restart: unless-stopped
-  env_file:
-    - .env
+  # No `env_file`. Every value below is interpolated from .env by Compose,
+  # so a container receives only the Airflow settings it needs. With the
+  # LocalExecutor, task processes inherit the scheduler's environment, and
+  # an `env_file` here would hand every DAG the admin password.
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     # Airflow 3's default is the SimpleAuthManager, which upstream documents
@@ -69,6 +71,12 @@ services:
     # One-shot. `restart: unless-stopped` from the anchor would restart a
     # container that exited 0 by design.
     restart: "no"
+    environment:
+      <<: *airflow-common-env
+      # The admin identity reaches this container only.
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:?must be set in .env (rendered by service_env._render_airflow)}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_airflow)}
+      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_airflow)}
     # Not the image's `_AIRFLOW_DB_MIGRATE` / `_AIRFLOW_WWW_USER_CREATE`
     # switches: its entrypoint runs both as `airflow db migrate || true` and
     # `airflow users create ... || true`, so a failed migration still exits 0
