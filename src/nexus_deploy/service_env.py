@@ -1189,6 +1189,9 @@ def _render_mongodb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 _NEO4J_PASSWORD_RE = re.compile(r"[A-Za-z0-9]+")
+# Neo4j's `dbms.security.auth_minimum_password_length` default, read with
+# SHOW SETTINGS on neo4j:2026.08.1-community.
+_NEO4J_MIN_PASSWORD_LENGTH = 8
 
 
 def _render_neo4j(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
@@ -1216,6 +1219,16 @@ def _render_neo4j(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "it comes from the tofu output `neo4j_admin_password`."
         )
     password = c.neo4j_admin_password or ""
+    if len(password) < _NEO4J_MIN_PASSWORD_LENGTH:
+        # Measured on the pinned image: NEO4J_AUTH with a 7-character
+        # password exits the container with "Invalid value for password.
+        # The minimum password length is 8 characters." Failing here names
+        # the cause before a deploy reports a crash-looping container.
+        raise ServiceEnvError(
+            f"Neo4j enabled but NEO4J_ADMIN_PASSWORD is shorter than "
+            f"{_NEO4J_MIN_PASSWORD_LENGTH} characters -- Neo4j refuses it at startup "
+            "(dbms.security.auth_minimum_password_length)."
+        )
     if not _NEO4J_PASSWORD_RE.fullmatch(password):
         raise ServiceEnvError(
             "Neo4j enabled but NEO4J_ADMIN_PASSWORD contains characters other "

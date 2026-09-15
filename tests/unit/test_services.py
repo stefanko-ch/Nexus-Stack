@@ -2803,7 +2803,11 @@ args="$*"
 echo "$args" >> "$FAKE_LOG"
 case "$args" in
   *wget*) exit 0 ;;
-  *"SHOW CURRENT USER"*) echo "sign-in refused (fake)"; exit "$SIGNIN_RC" ;;
+  *"SHOW CURRENT USER"*)
+    echo "sign-in refused (fake)"
+    if grep -q "SHOW CURRENT USER" "$FAKE_LOG.seen" 2>/dev/null; then exit "$SIGNIN_RETRY_RC"; fi
+    echo "SHOW CURRENT USER" >> "$FAKE_LOG.seen"
+    exit "$SIGNIN_RC" ;;
   *"DROP USER"*) echo "drop refused (fake)"; exit "$DROP_RC" ;;
   "exec -i neo4j sh")
     cat > "$FAKE_STDIN"
@@ -2816,7 +2820,12 @@ exit 99
 
 
 def _run_neo4j_hook(
-    tmp_path: Path, *, signin_rc: int, create_rc: int = 0, drop_rc: int = 0
+    tmp_path: Path,
+    *,
+    signin_rc: int,
+    create_rc: int = 0,
+    drop_rc: int = 0,
+    signin_retry_rc: int | None = None,
 ) -> tuple[str, list[str], str]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -2832,6 +2841,7 @@ def _run_neo4j_hook(
         "FAKE_LOG": str(log),
         "FAKE_STDIN": str(stdin_capture),
         "SIGNIN_RC": str(signin_rc),
+        "SIGNIN_RETRY_RC": str(signin_rc if signin_retry_rc is None else signin_retry_rc),
         "CREATE_RC": str(create_rc),
         "DROP_RC": str(drop_rc),
         # Set on the HOST side only. The create statement must reference the
@@ -2899,6 +2909,18 @@ def test_neo4j_hook_fails_when_neither_account_works(tmp_path: Path) -> None:
     assert "CREATE-ERROR-QUOTING-THE-STATEMENT" not in out
     assert "sign-in refused (fake)" in out
     assert not any("DROP USER" in c for c in calls)
+
+
+def test_neo4j_hook_asks_again_when_the_create_loses_a_race(tmp_path: Path) -> None:
+    """spin-up.yml has no concurrency group (#801). A second deploy can find
+    nexus-neo4j missing, then fail to create it because the first deploy has
+    dropped `neo4j` in between. nexus-neo4j signing in on the second ask is
+    success, not `failed`."""
+    out, calls, _ = _run_neo4j_hook(tmp_path, signin_rc=1, create_rc=1, signin_retry_rc=0)
+    assert "RESULT hook=neo4j status=already-configured" in out
+    assert "status=failed" not in out
+    assert sum("SHOW CURRENT USER" in c for c in calls) == 2
+    assert any("DROP USER" in c for c in calls)
 
 
 def test_neo4j_hook_fails_when_the_drop_fails(tmp_path: Path) -> None:
