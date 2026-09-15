@@ -2333,6 +2333,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
+    EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),

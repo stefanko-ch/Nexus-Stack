@@ -248,6 +248,10 @@ resource "random_password" "keycloak_db_password" {
 # created, i.e. on the first start against an empty database; Keycloak
 # ignores it on every later start.
 resource "random_password" "keycloak_admin_password" {
+  length  = 24
+  special = false
+}
+
 # Temporal Postgres password — dedicated DB. Holds workflow executions,
 # history and the visibility index the Web UI queries.
 resource "random_password" "temporal_db_password" {
