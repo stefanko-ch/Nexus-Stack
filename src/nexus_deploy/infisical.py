@@ -752,6 +752,20 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "temporal",
+            _filter_empty(
+                {
+                    # Neither the Temporal Web UI nor its gRPC frontend has a
+                    # login here -- Cloudflare Access is the only gate -- so,
+                    # as for MLflow, the username names the database role.
+                    "TEMPORAL_DB_USERNAME": "nexus-temporal",
+                    "TEMPORAL_DB_PASSWORD": config.temporal_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "langfuse",
             _filter_empty(
                 {

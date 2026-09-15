@@ -1,0 +1,205 @@
+# =============================================================================
+# Temporal - Durable workflow execution engine (server + Web UI)
+# https://temporal.${DOMAIN}
+# =============================================================================
+# Workflows as code that survive crashes, restarts and deploys: the server
+# persists every step's result, so a worker that dies mid-workflow resumes
+# where it stopped instead of starting over.
+#
+# Five containers, three of them long-running:
+#   - temporal-db:               dedicated PostgreSQL 17 (executions + visibility)
+#   - temporal-schema-setup:     one-shot, creates/migrates both databases
+#   - temporal:                  the server, all roles in one process, gRPC :7233
+#   - temporal-create-namespace: one-shot, creates `default` if missing
+#   - temporal-ui:               Web UI, published on host port 8107
+#
+# NOT `temporalio/auto-setup`. Upstream deprecated that image in the v1.30.1
+# release notes ("will no longer receive updates") and has published no tag
+# for it beyond 1.29.x; temporalio/docker-compose, which used it, is archived.
+# The replacement upstream ships in temporalio/samples-server/compose is the
+# plain `temporalio/server` image with schema setup run from `admin-tools`
+# beforehand -- the shape used here.
+#
+# Auth: none of its own. The Web UI has no login (its OIDC support is off by
+# default and not configured here) and the gRPC frontend accepts any client.
+# Cloudflare Access at the edge gates the browser route; on app-network any
+# container can reach temporal:7233 and start, signal or terminate any
+# workflow. Same boundary as Lakekeeper and Marquez -- see docs/stacks/temporal.md.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Temporal server
+  # ---------------------------------------------------------------------------
+  temporal:
+    image: ${IMAGE_TEMPORAL:-temporalio/server:1.32.0}
+    container_name: temporal
+    restart: unless-stopped
+    ports:
+      # gRPC frontend, loopback only. Workers inside the stack use
+      # `temporal:7233` over app-network and do not need this. It exists so a
+      # worker running on a laptop can reach the server through
+      # `ssh -N -L 7233:localhost:7233 nexus` -- the tunnel carries HTTP to the
+      # Web UI, not gRPC. Bound to 127.0.0.1 so the Hetzner firewall is not the
+      # only thing between an unauthenticated frontend and the internet (#742).
+      - "127.0.0.1:7233:7233"
+    environment:
+      DB: postgres12
+      DB_PORT: "5432"
+      POSTGRES_SEEDS: temporal-db
+      POSTGRES_USER: nexus-temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?must be set in .env (rendered by service_env._render_temporal)}
+      # Without this the entrypoint binds to the container's own IP only, and
+      # nothing on localhost -- including the healthcheck below -- can reach
+      # the frontend. With a wildcard bind the entrypoint derives
+      # TEMPORAL_BROADCAST_ADDRESS from the container hostname for cluster
+      # membership (/etc/temporal/entrypoint.sh in the image).
+      BIND_ON_IP: 0.0.0.0
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/dynamicconfig.yaml
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+      temporal-schema-setup:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # The frontend's HTTP API (port 7243, the embedded config template's
+      # default) answers once the frontend is serving, which is later than
+      # the gRPC port opening. wget, not curl: the image ships wget and no
+      # curl, verified with `command -v` inside it.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7243/api/v1/cluster-info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - app-network
+      - temporal-internal
+
+  # ---------------------------------------------------------------------------
+  # One-shot: schema create + migrate
+  # ---------------------------------------------------------------------------
+  temporal-schema-setup:
+    image: ${IMAGE_TEMPORAL_ADMIN_TOOLS:-temporalio/admin-tools:1.32.0}
+    container_name: temporal-schema-setup
+    restart: "no"
+    environment:
+      POSTGRES_SEEDS: temporal-db
+      DB_PORT: "5432"
+      POSTGRES_USER: nexus-temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?must be set in .env (rendered by service_env._render_temporal)}
+    volumes:
+      - ./scripts:/scripts:ro
+    entrypoint: ["/bin/sh"]
+    command: ["/scripts/setup-schema.sh"]
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      - temporal-internal
+
+  # ---------------------------------------------------------------------------
+  # One-shot: create the `default` namespace
+  # ---------------------------------------------------------------------------
+  temporal-create-namespace:
+    image: ${IMAGE_TEMPORAL_ADMIN_TOOLS:-temporalio/admin-tools:1.32.0}
+    container_name: temporal-create-namespace
+    restart: "no"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      DEFAULT_NAMESPACE: default
+    volumes:
+      - ./scripts:/scripts:ro
+    entrypoint: ["/bin/sh"]
+    command: ["/scripts/create-namespace.sh"]
+    depends_on:
+      temporal:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      - temporal-internal
+
+  # ---------------------------------------------------------------------------
+  # Web UI
+  # ---------------------------------------------------------------------------
+  temporal-ui:
+    image: ${IMAGE_TEMPORAL_UI:-temporalio/ui:2.54.1}
+    container_name: temporal-ui
+    restart: unless-stopped
+    ports:
+      # Host 8107 -> container 8080. 8080 is taken on the host by it-tools.
+      # Loopback only: cloudflared reaches it over localhost either way.
+      - "127.0.0.1:8107:8080"
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_DEFAULT_NAMESPACE: default
+    depends_on:
+      # Waiting on the namespace job, not just the server, is deliberate: it
+      # makes `docker compose up` wait for that job and fail if it failed,
+      # instead of the deploy reporting success over a UI with no namespace.
+      temporal-create-namespace:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    healthcheck:
+      # wget: the image ships wget and no curl (verified with `command -v`).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - temporal-internal
+
+  # ---------------------------------------------------------------------------
+  # Dedicated PostgreSQL
+  # ---------------------------------------------------------------------------
+  temporal-db:
+    image: ${IMAGE_TEMPORAL_DB:-postgres:17-alpine}
+    container_name: temporal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:?must be set in .env (rendered by service_env._render_temporal)}
+      # The image creates `temporal` on first init; temporal-schema-setup
+      # creates `temporal_visibility` and loads both schemas. Its `create`
+      # step for `temporal` then finds the database present and exits 0.
+      POSTGRES_DB: temporal
+    volumes:
+      # Bind mount under /mnt/nexus-data, matching mlflow-db / lakekeeper-db,
+      # so the snapshot lifecycle's disk image carries it. NOT covered by
+      # s3_restore: under the rebuild lifecycle this database starts empty
+      # on every spin-up. See docs/stacks/temporal.md, "Persistence".
+      - /mnt/nexus-data/temporal/db:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-temporal -d temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      # Internal only: the server and the schema job are its only clients.
+      - temporal-internal
+
+networks:
+  app-network:
+    external: true
+  temporal-internal:
+    driver: bridge

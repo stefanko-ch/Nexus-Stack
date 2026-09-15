@@ -186,6 +186,8 @@ output "secrets" {
     # Keycloak (identity provider; admin password is first-start only)
     keycloak_db_password    = random_password.keycloak_db_password.result
     keycloak_admin_password = random_password.keycloak_admin_password.result
+    # Temporal (durable workflow engine)
+    temporal_db_password = random_password.temporal_db_password.result
 
     # Langfuse (LLM observability)
     langfuse_db_password         = random_password.langfuse_db_password.result

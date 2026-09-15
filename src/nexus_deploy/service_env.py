@@ -885,6 +885,43 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_temporal(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Temporal: one secret, the dedicated Postgres password.
+
+    It reaches three containers from one ``.env``: ``temporal-db`` sets it as
+    the superuser password on first init, ``temporal-schema-setup`` uses it
+    to create and migrate both databases, and ``temporal`` connects with it.
+
+    Fail-fast on an empty value. The compose file reads it as
+    ``${TEMPORAL_DB_PASSWORD:?...}``, so an empty one would already stop
+    ``docker compose up`` -- but with a compose interpolation error the
+    operator has to trace back, where this names the tofu output.
+
+    0o600: the file holds a database superuser password in cleartext.
+
+    No domain is rendered. The Web UI calls its own server on the same origin
+    it was loaded from, and its CSRF middleware only consults the CORS
+    allow-list for cross-site requests (``server/server/csrf/sec_fetch_site.go``
+    in temporalio/ui v2.54.1), so the public hostname never needs to be
+    configured. Measured against a local stack: a POST to the terminate
+    endpoint with ``Host``/``Origin`` set to a public hostname and
+    ``Sec-Fetch-Site: same-origin`` returned 200 and closed the workflow; the
+    same request marked ``cross-site`` from another origin returned 403.
+    """
+    if _empty(c.temporal_db_password):
+        raise ServiceEnvError(
+            "Temporal enabled but TEMPORAL_DB_PASSWORD is empty — "
+            "`tofu apply` in tofu/stack generates "
+            "random_password.temporal_db_password and the same run pushes it "
+            "to Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log.",
+        )
+    return RenderedEnv(
+        env_vars={"TEMPORAL_DB_PASSWORD": c.temporal_db_password or ""},
+        mode=0o600,
+    )
+
+
 def _render_unity_catalog(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Unity Catalog: Postgres metastore, plus R2 for the credential generator.
 
