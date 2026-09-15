@@ -246,6 +246,11 @@
       'SUPERSET_SECRET_KEY': 'superset_secret_key-VALUE',
       'SUPERSET_USERNAME': 'admin',
     }),
+    'timescaledb': dict({
+      'TIMESCALEDB_DATABASE': 'timescaledb',
+      'TIMESCALEDB_PASSWORD': 'timescaledb-pw',
+      'TIMESCALEDB_USERNAME': 'nexus-timescaledb',
+    }),
     'unity-catalog': dict({
       'UNITY_CATALOG_DB_PASSWORD': 'unity_catalog_db_password-VALUE',
     }),

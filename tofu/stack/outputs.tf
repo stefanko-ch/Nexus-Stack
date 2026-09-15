@@ -252,6 +252,9 @@ output "secrets" {
     pgducklake_password          = random_password.pgducklake.result
     hetzner_s3_bucket_pgducklake = var.hetzner_s3_bucket_pgducklake
 
+    # TimescaleDB
+    timescaledb_password = random_password.timescaledb.result
+
     # pgAdmin
     pgadmin_password = random_password.pgadmin.result
 

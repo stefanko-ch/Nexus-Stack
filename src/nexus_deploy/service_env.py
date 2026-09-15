@@ -1420,6 +1420,34 @@ SELECT pg_reload_conf();
     )
 
 
+def _render_timescaledb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """TimescaleDB: one secret, the ``nexus-timescaledb`` superuser password.
+
+    Fail-fast on an empty value. The compose file reads it as
+    ``${TIMESCALEDB_PASSWORD:?...}``, so an empty value would stop the
+    container rather than start it wrong -- but failing here names the
+    cause, while failing there produces a compose error the operator has
+    to trace back. Without either guard, initdb would create a superuser
+    with an empty password on a database every stack on app-network can
+    reach.
+
+    The password only takes effect on first init. Once the volume holds a
+    cluster, the image's entrypoint skips initdb and ignores
+    ``POSTGRES_PASSWORD``, exactly as for the shared ``postgres`` stack.
+    """
+    if _empty(c.timescaledb_password):
+        raise ServiceEnvError(
+            "TimescaleDB enabled but TIMESCALEDB_PASSWORD is empty -- "
+            "it comes from the tofu output `timescaledb_password`."
+        )
+    return RenderedEnv(
+        env_vars={"TIMESCALEDB_PASSWORD": c.timescaledb_password or ""},
+        # 0o600: the file holds a superuser password in cleartext, the same
+        # reason _render_influxdb restricts its own.
+        mode=0o600,
+    )
+
+
 def _render_pgadmin(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """pgAdmin .env + a sidecar ``pgpass`` file consumed by the
     pre-configured Nexus PostgreSQL server (servers.json references
@@ -2313,6 +2341,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("soda", _is_enabled("soda"), _render_soda),
     EnvSpec("postgres", _is_enabled("postgres"), _render_postgres),
     EnvSpec("pg-ducklake", _is_enabled("pg-ducklake"), _render_pg_ducklake),
+    EnvSpec("timescaledb", _is_enabled("timescaledb"), _render_timescaledb),
     EnvSpec("pgadmin", _is_enabled("pgadmin"), _render_pgadmin),
     EnvSpec("prefect", _is_enabled("prefect"), _render_prefect),
     EnvSpec("windmill", _is_enabled("windmill"), _render_windmill),

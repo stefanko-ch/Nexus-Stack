@@ -120,6 +120,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("POSTGRES_PASS", "postgres_password", ""),
     ("PG_DUCKLAKE_PASS", "pgducklake_password", ""),
     ("HETZNER_S3_BUCKET_PGDUCKLAKE", "hetzner_s3_bucket_pgducklake", ""),
+    ("TIMESCALEDB_PASS", "timescaledb_password", ""),
     ("PGADMIN_PASS", "pgadmin_password", ""),
     ("PREFECT_DB_PASS", "prefect_db_password", ""),
     ("RUSTFS_ROOT_PASS", "rustfs_root_password", ""),
@@ -267,6 +268,7 @@ class NexusConfig(BaseModel):
     postgres_password: str | None = None
     pgducklake_password: str | None = None
     hetzner_s3_bucket_pgducklake: str | None = None
+    timescaledb_password: str | None = None
     pgadmin_password: str | None = None
     prefect_db_password: str | None = None
     rustfs_root_password: str | None = None

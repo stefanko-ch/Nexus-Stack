@@ -1082,6 +1082,22 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "timescaledb",
+            _filter_empty(
+                {
+                    # Username and database alongside the password, as the
+                    # pg-ducklake folder does: a reader holding only the
+                    # password would otherwise try `postgres`, which is the
+                    # default the `nexus-` rule exists to stop.
+                    "TIMESCALEDB_USERNAME": "nexus-timescaledb",
+                    "TIMESCALEDB_PASSWORD": config.timescaledb_password,
+                    "TIMESCALEDB_DATABASE": "timescaledb",
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "pgadmin",
             _filter_empty(
                 {

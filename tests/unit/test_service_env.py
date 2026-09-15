@@ -112,6 +112,7 @@ def full_config() -> NexusConfig:
         postgres_password="pg-pw",
         pgducklake_password="ducklake-pw",
         hetzner_s3_bucket_pgducklake="ducklake-bucket",
+        timescaledb_password="timescaledb-pw",
         pgadmin_password="pgadmin-pw",
         prefect_db_password="prefect-pw",
         rustfs_root_password="rustfs-pw",
@@ -3334,3 +3335,51 @@ def test_spark_conf_hash_moves_when_the_catalog_block_appears(
     with_uc = _env_settings((tmp_path / "spark" / ".env").read_text())["SPARK_CONF_HASH"]
 
     assert without != with_uc
+
+
+def test_timescaledb_renders_only_its_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """One secret, and nothing else.
+
+    Username, database, telemetry and tuning are fixed in the compose file
+    rather than rendered here. Pinned so a second secret cannot arrive
+    without a fail-fast guard beside it.
+    """
+    from nexus_deploy.service_env import _render_timescaledb
+
+    rendered = _render_timescaledb(full_config, full_env)
+    assert rendered.env_vars == {"TIMESCALEDB_PASSWORD": "timescaledb-pw"}
+
+
+def test_timescaledb_env_file_is_owner_only(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """0o600: the file holds a superuser password in cleartext."""
+    from nexus_deploy.service_env import _render_timescaledb
+
+    assert _render_timescaledb(full_config, full_env).mode == 0o600
+
+
+@pytest.mark.parametrize("value", ["", None])
+def test_timescaledb_raises_on_missing_password(
+    full_config: NexusConfig, full_env: BootstrapEnv, value: str | None
+) -> None:
+    """initdb would otherwise create a superuser with an empty password on
+    a database every container on app-network can reach."""
+    from nexus_deploy.service_env import _render_timescaledb
+
+    config = full_config.model_copy(update={"timescaledb_password": value})
+    with pytest.raises(ServiceEnvError, match="TIMESCALEDB_PASSWORD"):
+        _render_timescaledb(config, full_env)
+
+
+def test_timescaledb_is_dispatched_when_enabled(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """The renderer only matters if the spec table reaches it: without the
+    EnvSpec entry, no .env is written and compose stops on the `:?` guard."""
+    render_all_env_files(full_config, full_env, ["timescaledb"], stacks_dir=tmp_path)
+    env_file = tmp_path / "timescaledb" / ".env"
+    assert env_file.exists()
+    assert "TIMESCALEDB_PASSWORD" in env_file.read_text()

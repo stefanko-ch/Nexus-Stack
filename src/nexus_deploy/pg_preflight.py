@@ -57,6 +57,16 @@ _REMOTE_STACKS_DIR = "/opt/docker-server/stacks"
 # data directory, and would be reported as an unparseable major forever.
 _POSTGRES_IMAGE = re.compile(r"\bpostgres:(\d+)")
 
+# TimescaleDB is a PostgreSQL server with the same data-directory layout
+# (the image is built on the official postgres one; verified on
+# 2.30.0-pg18: PGDATA=/var/lib/postgresql/18/docker, VOLUME
+# /var/lib/postgresql), so a snapshot restore meets the same wall when its
+# PG major moves. Its tag leads with the extension version, though, and
+# names the PG major only as a `-pg<N>` suffix — so it gets its own
+# anchored pattern rather than a looser one above, which would read `2`
+# from `2.30.0` as the major and report a mismatch against every cluster.
+_TIMESCALE_IMAGE = re.compile(r"\btimescale/timescaledb:[^\s:}-]+-pg(\d+)\b")
+
 # Candidate locations of PG_VERSION inside the mounted volume, relative to
 # its root. Order matters only for reporting; at most one exists.
 _PG_VERSION_CANDIDATES = (
@@ -202,7 +212,8 @@ def discover_pg_containers(stacks_dir: Path) -> list[PgContainer]:
         for service, spec in services.items():
             if not isinstance(spec, dict):
                 continue
-            match = _POSTGRES_IMAGE.search(str(spec.get("image", "")))
+            image = str(spec.get("image", ""))
+            match = _POSTGRES_IMAGE.search(image) or _TIMESCALE_IMAGE.search(image)
             if match is None:
                 continue
             mount = _data_mount_for(spec)

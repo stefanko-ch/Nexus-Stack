@@ -1,0 +1,109 @@
+# =============================================================================
+# TimescaleDB - PostgreSQL with the TimescaleDB time-series extension
+# =============================================================================
+# PostgreSQL 18 with TimescaleDB preinstalled: hypertables (automatic time
+# partitioning), continuous aggregates and native columnar compression, all
+# behind the ordinary PostgreSQL wire protocol. Every Postgres client in the
+# stack — pgAdmin, CloudBeaver, Adminer, Superset, Grafana, psycopg — talks to
+# it unchanged.
+#
+# Why next to QuestDB and InfluxDB: those two are purpose-built engines with
+# their own storage model. TimescaleDB is the one where time-series data sits
+# in a real PostgreSQL database, so it can be JOINed against relational
+# tables, constrained with foreign keys and queried with full SQL.
+#
+# No web UI, so no subdomain and no tunnel ingress (`internal_only` in
+# services.yaml), the same shape as `postgres` and `pg-ducklake`.
+#
+# Internal Access: timescaledb:5432 (from other containers on app-network)
+# External Access: host port 5433 → container 5432, ONLY when the
+#                  `timescaledb` firewall rule is enabled in the Control Plane
+# Default User:    nexus-timescaledb
+# Default DB:      timescaledb
+# Docs: https://github.com/timescale/timescaledb-docker (image and its env vars)
+# =============================================================================
+
+services:
+  timescaledb:
+    # The non-`-oss` variant on purpose. `-oss` is the Apache-2.0-only build,
+    # which leaves out compression and continuous aggregates — two of the
+    # three reasons to run TimescaleDB at all. The default build carries the
+    # Timescale License (TSL) community features, free to self-host.
+    image: ${IMAGE_TIMESCALEDB:-timescale/timescaledb:2.30.0-pg18}
+    container_name: timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-timescaledb
+      # `:?` rather than a bare reference: Compose substitutes an empty
+      # string for an unset variable, and initdb would then set up the
+      # superuser with an empty password. service_env._render_timescaledb
+      # already aborts on an empty value, but only on the deploy path —
+      # this also covers a `docker compose up` run by hand on the server.
+      POSTGRES_PASSWORD: ${TIMESCALEDB_PASSWORD:?must be set in .env (rendered by service_env._render_timescaledb)}
+      # Set explicitly. The image's 000_install_timescaledb.sh creates the
+      # extension in `postgres`, `template1` and POSTGRES_DB — but only when
+      # POSTGRES_DB is set to something other than `postgres`. Left unset,
+      # the database would default to the user name and ship without the
+      # extension installed.
+      POSTGRES_DB: timescaledb
+      # Read by 000_install_timescaledb.sh: writes
+      # `timescaledb.telemetry_level=off` to postgresql.conf and unschedules
+      # the telemetry job. Without it the level is `basic`, which reports
+      # usage data to Timescale.
+      TIMESCALEDB_TELEMETRY: "off"
+      # Read by 001_timescaledb_tune.sh, which runs timescaledb-tune against
+      # postgresql.conf. Pinned to the memory limit below rather than left to
+      # the script's cgroup detection, so the two cannot drift apart silently
+      # if one is edited without the other.
+      TS_TUNE_MEMORY: 2GB
+      # Without this the script sees no CPU quota (none is set) and tunes
+      # parallel workers for all 8 host vCPUs — which this container shares
+      # with every other stack on the server.
+      TS_TUNE_NUM_CPUS: "2"
+      # timescaledb-tune derives max_connections from memory when this is
+      # unset, and for 2GB that is 25 (measured on 2.30.0-pg18) — too few
+      # once pgAdmin, Grafana, Superset and a class of notebooks connect.
+      # 100 is the PostgreSQL default; tune lowers work_mem to match
+      # (32MB at 25 connections, 8MB at 100, also measured).
+      TS_TUNE_MAX_CONNS: "100"
+    # ⚠️ Both init scripts — telemetry and tuning — live in
+    # /docker-entrypoint-initdb.d, so they run ONCE, when the data volume is
+    # empty. Changing TS_TUNE_* or TIMESCALEDB_TELEMETRY later does nothing
+    # to an existing volume; re-run `timescaledb-tune` or edit
+    # postgresql.conf inside the container instead.
+    #
+    # No `ports:` here. The host binding is added by the generated
+    # docker-compose.firewall.yml as 5433:5432 when an operator enables the
+    # firewall rule (ASYMMETRIC_PORT_MAPPINGS in src/nexus_deploy/firewall.py).
+    # Listing it here too would collide with that override on host port 5433
+    # (#488). Not 5432:5432, because host port 5432 is what the shared
+    # `postgres` stack's own firewall rule binds.
+    volumes:
+      # Mounted at /var/lib/postgresql with PGDATA left at the image default
+      # (/var/lib/postgresql/18/docker) — the layout docker-library/postgres
+      # recommends from 18 on, and the one this image declares as its VOLUME.
+      # Mounting /var/lib/postgresql/data instead would leave the cluster
+      # outside this named volume;
+      # test_postgres_containers_keep_their_data_inside_the_volume checks it.
+      - timescaledb-data:/var/lib/postgresql
+    deploy:
+      resources:
+        limits:
+          # Matches TS_TUNE_MEMORY above and the other database stacks.
+          memory: 2g
+    healthcheck:
+      # pg_isready ships in the image (verified with `which`); curl does not.
+      test: ["CMD-SHELL", "pg_isready -U nexus-timescaledb -d timescaledb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  timescaledb-data:
+
+networks:
+  app-network:
+    external: true
