@@ -1188,6 +1188,68 @@ def _mlflow_command_value(flag: str) -> str:
     return str(command[command.index(flag) + 1])
 
 
+def _neo4j_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "neo4j" / "docker-compose.yml").read_text()))
+
+
+def test_neo4j_container_gets_no_unknown_neo4j_variable() -> None:
+    """The image turns every NEO4J_* variable into a neo4j.conf setting.
+
+    An unknown one stops the server before it starts -- measured with
+    NEO4J_PASSWORD: "Unrecognized setting. No declared setting with name:
+    PASSWORD". Two ways to walk into that: an `env_file` (which hands the
+    container every key in .env), or a NEO4J_* key that is not a setting. So
+    no env_file at all, and only the NEO4J_* keys the stack deliberately sets.
+    """
+    neo4j = _neo4j_compose()["services"]["neo4j"]
+    assert "env_file" not in neo4j, (
+        "stacks/neo4j must not use env_file: the image reads every NEO4J_* "
+        "variable as a setting and refuses to start on an unknown one"
+    )
+    allowed = {
+        "NEO4J_AUTH",
+        "NEO4J_server_memory_heap_initial__size",
+        "NEO4J_server_memory_heap_max__size",
+        "NEO4J_server_memory_pagecache_size",
+        "NEO4J_dbms_usage__report_enabled",
+    }
+    unexpected = {k for k in neo4j["environment"] if k.startswith("NEO4J_")} - allowed
+    assert not unexpected, (
+        f"unexpected NEO4J_* variables {sorted(unexpected)}: each becomes a "
+        "neo4j.conf setting. Verify the setting exists in the pinned version, "
+        "then add it here."
+    )
+
+
+def test_neo4j_tunnel_origin_is_the_proxy_that_routes_bolt() -> None:
+    """Neo4j Browser runs queries over a Bolt WebSocket, not over the HTTP port.
+
+    The tunnel maps neo4j.<domain> to one local port. That port has to be
+    neo4j-proxy, which sends WebSocket upgrades to Bolt (7687) and the rest to
+    HTTP (7474). Pointing services.yaml's port at Neo4j's own HTTP port
+    instead would give a Browser page that loads and never connects.
+    """
+    compose = _neo4j_compose()
+    port = SERVICES["neo4j"]["port"]
+    proxy_ports = compose["services"]["neo4j-proxy"]["ports"]
+    assert any(str(p).startswith(f"127.0.0.1:{port}:") for p in proxy_ports), (
+        f"services.yaml sends the tunnel to localhost:{port}, but neo4j-proxy "
+        f"publishes {proxy_ports}"
+    )
+    neo4j_ports = compose["services"]["neo4j"].get("ports", [])
+    assert not any(f":{port}:" in str(p) for p in neo4j_ports), (
+        "neo4j must not publish the tunnel port itself; the proxy owns it"
+    )
+
+    conf = (STACKS_DIR / "neo4j" / "nginx.conf").read_text()
+    assert re.search(r'"~\*\^websocket\$"\s+"neo4j:7687";', conf), (
+        "nginx.conf must route WebSocket upgrades to neo4j:7687"
+    )
+    assert re.search(r'default\s+"neo4j:7474";', conf), (
+        "nginx.conf must route ordinary requests to neo4j:7474"
+    )
+
+
 def test_mlflow_command_names_the_executable() -> None:
     """The image declares no ENTRYPOINT, so the command must start with one.
 
