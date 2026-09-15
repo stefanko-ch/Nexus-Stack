@@ -81,6 +81,15 @@ def full_config() -> NexusConfig:
         mlflow_db_password="mlflow-db-pw",
         keycloak_db_password="keycloak-db-pw",
         keycloak_admin_password="keycloak-admin-pw",
+        langfuse_db_password="langfuse-db-pw",
+        langfuse_clickhouse_password="langfuse-ch-pw",
+        langfuse_redis_password="langfuse-redis-pw",
+        langfuse_nextauth_secret="langfuse-nextauth-secret",
+        langfuse_salt="langfuse-salt",
+        langfuse_encryption_key="0123456789abcdef" * 4,
+        langfuse_admin_password="langfuse-admin-pw",
+        langfuse_public_key="pk-lf-00000000-0000-0000-0000-000000000001",
+        langfuse_secret_key="sk-lf-00000000-0000-0000-0000-000000000002",
         questdb_pg_password="questdb-pg-pw",
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
@@ -1050,6 +1059,167 @@ def test_mlflow_carries_the_r2_block(full_config: NexusConfig, full_env: Bootstr
     rendered = _render_mlflow(full_config, full_env)
     for key in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"):
         assert rendered.env_vars.get(key), f"{key} missing from the MLflow env file"
+
+
+# ---------------------------------------------------------------------------
+# Langfuse — fail-fast guards, key shape, public URL, R2 block, file mode
+# ---------------------------------------------------------------------------
+
+_LANGFUSE_SECRET_FIELDS = [
+    ("langfuse_db_password", "LANGFUSE_DB_PASSWORD"),
+    ("langfuse_clickhouse_password", "LANGFUSE_CLICKHOUSE_PASSWORD"),
+    ("langfuse_redis_password", "LANGFUSE_REDIS_PASSWORD"),
+    ("langfuse_nextauth_secret", "LANGFUSE_NEXTAUTH_SECRET"),
+    ("langfuse_salt", "LANGFUSE_SALT"),
+    ("langfuse_encryption_key", "LANGFUSE_ENCRYPTION_KEY"),
+    ("langfuse_admin_password", "LANGFUSE_ADMIN_PASSWORD"),
+    ("langfuse_public_key", "LANGFUSE_PUBLIC_KEY"),
+    ("langfuse_secret_key", "LANGFUSE_SECRET_KEY"),
+]
+
+
+@pytest.mark.parametrize(("field", "env_name"), _LANGFUSE_SECRET_FIELDS)
+def test_langfuse_raises_on_any_empty_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str, env_name: str
+) -> None:
+    """Every one of the nine must stop the deploy, named in the message.
+
+    Parametrised over all of them because a guard over a hand-picked subset
+    passes a single-field test while the rest can still render empty -- and
+    each empty value fails somewhere far from here: a store's first-start
+    init, the web env schema, or an initialiser that silently creates no
+    admin on a stack with sign-up disabled.
+    """
+    from nexus_deploy.service_env import _render_langfuse
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match=env_name):
+        _render_langfuse(config, full_env)
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    [
+        "0123456789abcdef" * 3,  # 48 chars: right alphabet, wrong length
+        "0123456789abcdef" * 4 + "0",  # 65 chars
+        "g" * 64,  # right length, not hex
+        "0123456789ABCDEF" * 4,  # upper case: not what random_id.hex emits
+    ],
+)
+def test_langfuse_rejects_a_malformed_encryption_key(
+    full_config: NexusConfig, full_env: BootstrapEnv, bad_key: str
+) -> None:
+    """Langfuse validates ENCRYPTION_KEY at startup (exactly 64 characters,
+    documented as 256-bit hex). A value of any other shape did not come from
+    `random_id.langfuse_encryption_key.hex`, so fail here with that pointer
+    rather than let the web container exit on its own schema."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    config = full_config.model_copy(update={"langfuse_encryption_key": bad_key})
+    with pytest.raises(ServiceEnvError, match="LANGFUSE_ENCRYPTION_KEY"):
+        _render_langfuse(config, full_env)
+
+
+def test_langfuse_encryption_key_error_does_not_echo_the_value(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The message lands in a public workflow log; a near-miss key is still
+    most of a real key."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    bad_key = "abcdef0123456789" * 3
+    config = full_config.model_copy(update={"langfuse_encryption_key": bad_key})
+    with pytest.raises(ServiceEnvError) as excinfo:
+        _render_langfuse(config, full_env)
+    assert bad_key[:16] not in str(excinfo.value)
+
+
+def test_langfuse_raises_on_empty_admin_email(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The admin email is LANGFUSE_INIT_USER_EMAIL. Without it the initialiser
+    creates no user, and with AUTH_DISABLE_SIGNUP=true nobody can make one."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "admin_email": "",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="admin email"):
+        _render_langfuse(full_config, env)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["r2_data_endpoint", "r2_data_access_key", "r2_data_secret_key", "r2_data_bucket"],
+)
+def test_langfuse_raises_on_incomplete_r2(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str
+) -> None:
+    """LANGFUSE_S3_EVENT_UPLOAD_BUCKET is mandatory upstream and ingestion
+    writes each event batch to blob storage before the worker processes it,
+    so an empty R2 value gives a UI that loads and traces that never arrive."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match="R2"):
+        _render_langfuse(config, full_env)
+
+
+def test_langfuse_renders_the_full_key_set(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Pinned exactly, so a new value cannot arrive without a guard beside it
+    and a compose reference cannot silently lose its source."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    rendered = _render_langfuse(full_config, full_env)
+    assert rendered.env_vars == {
+        "LANGFUSE_DB_PASSWORD": "langfuse-db-pw",
+        "LANGFUSE_CLICKHOUSE_PASSWORD": "langfuse-ch-pw",
+        "LANGFUSE_REDIS_PASSWORD": "langfuse-redis-pw",
+        "LANGFUSE_NEXTAUTH_SECRET": "langfuse-nextauth-secret",
+        "LANGFUSE_SALT": "langfuse-salt",
+        "LANGFUSE_ENCRYPTION_KEY": "0123456789abcdef" * 4,
+        "LANGFUSE_ADMIN_PASSWORD": "langfuse-admin-pw",
+        "LANGFUSE_PUBLIC_KEY": "pk-lf-00000000-0000-0000-0000-000000000001",
+        "LANGFUSE_SECRET_KEY": "sk-lf-00000000-0000-0000-0000-000000000002",
+        "LANGFUSE_ADMIN_EMAIL": "admin@example.com",
+        "LANGFUSE_ADMIN_NAME": "admin",
+        "LANGFUSE_URL": "https://langfuse.example.com",
+        "R2_ENDPOINT": "https://r2.cloudflare.com/account",
+        "R2_ACCESS_KEY": "r2-access",
+        "R2_SECRET_KEY": "r2-secret",
+        "R2_BUCKET": "r2-bucket",
+    }
+
+
+def test_langfuse_url_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """NEXTAUTH_URL must be the hostname the tunnel actually serves, or login
+    callbacks and links point somewhere else on multi-tenant forks."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_langfuse(full_config, env)
+    assert rendered.env_vars["LANGFUSE_URL"] == "https://langfuse-example.com"
+
+
+def test_langfuse_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """0o600: an admin password, a project secret key and R2 credentials in
+    cleartext -- the default 0o644 would leave them readable by every account
+    on the server."""
+    from nexus_deploy.service_env import _render_langfuse
+
+    assert _render_langfuse(full_config, full_env).mode == 0o600
 
 
 # ---------------------------------------------------------------------------

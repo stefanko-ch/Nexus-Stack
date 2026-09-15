@@ -97,6 +97,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
+| Langfuse | `langfuse/langfuse` | `3.225.7` | Exact ⁶ |
+| Langfuse Worker | `langfuse/langfuse-worker` | `3.225.7` | Exact ⁶ |
+| PostgreSQL (Langfuse DB) | `postgres` | `17-alpine` | Major |
+| ClickHouse (Langfuse) | `clickhouse/clickhouse-server` | `26.3.33.24` | Exact |
+| Redis (Langfuse) | `redis` | `7-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
@@ -158,6 +163,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 
 ⁵ No version tags published at all — only `latest`, `lowa`, `trial` and commit SHAs, and the SHA tags are single-arch. Pinned to the digest of the multi-arch manifest list, which keeps amd64 and arm64. Holds state in a volume, so `latest` was not an option.
 
+⁶ Held on the v3 line deliberately: upstream is at v4, whose default write mode rejects the legacy ingestion API that older Langfuse SDKs use. v3 receives security patches until end of January 2027. See [langfuse.md](langfuse.md#why-langfuse-v3).
+
 **Strategies:**
 - **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
 - **Minor** (e.g., `:v0.58`) - Auto-patches within minor version
@@ -212,6 +219,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |
 | **LakeFS** | Git-like version control for data lakes | [lakefs.md](lakefs.md) |
 | **Lakekeeper** | Iceberg REST Catalog (Rust) for multi-engine lakehouse | [lakekeeper.md](lakekeeper.md) |
+| **Langfuse** | LLM observability: tracing, evaluations, prompt management | [langfuse.md](langfuse.md) |
 | **LiteLLM Proxy** | Unified OpenAI-compatible proxy for 100+ LLM providers | [litellm.md](litellm.md) |
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |

@@ -1,0 +1,21 @@
+<!--
+  Langfuse's ClickHouse, sized for a 16 GB host shared with many other stacks.
+
+  The container's 2g memory limit in docker-compose.yml is the hard ceiling,
+  and ClickHouse derives its server-wide cap from it
+  (max_server_memory_usage_to_ram_ratio of the memory it can see). What that
+  cap does NOT bound is how large the caches are allowed to grow toward it:
+  ClickHouse's defaults size the mark cache in gigabytes, appropriate for a
+  dedicated analytics server and not for one tenant of many. Capping them
+  leaves the memory inside the limit for queries and merges.
+
+  A lower ratio than the default keeps headroom between ClickHouse's own
+  refusal (MEMORY_LIMIT_EXCEEDED, which fails one query) and the kernel's
+  OOM killer (which takes the whole server down mid-ingestion).
+-->
+<clickhouse>
+    <max_server_memory_usage_to_ram_ratio>0.75</max_server_memory_usage_to_ram_ratio>
+    <mark_cache_size>268435456</mark_cache_size>
+    <index_mark_cache_size>67108864</index_mark_cache_size>
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+</clickhouse>

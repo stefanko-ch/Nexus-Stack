@@ -725,6 +725,105 @@ def _render_mlflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+_HEX_64 = re.compile(r"[0-9a-f]{64}")
+
+
+def _render_langfuse(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Langfuse: LLM observability. Four dedicated stores, R2 for blobs.
+
+    Everything the web and worker containers need arrives through this file:
+    the three store passwords (Postgres, ClickHouse, Redis), the three
+    application secrets (NEXTAUTH_SECRET, SALT, ENCRYPTION_KEY), the headless
+    initialisation of admin user + org + project + API key pair, the public
+    URL, and the R2 block.
+
+    **Why every value is fail-fast rather than rendered empty.** Each empty
+    value fails somewhere other than here, and most of them late:
+
+    - An empty store password crashes that store's first-start init, and the
+      web container then restart-loops on its migrations.
+    - ``SALT`` is a required string in Langfuse's web env schema
+      (``web/src/env.mjs``), which is validated when the server starts.
+    - ``LANGFUSE_INIT_USER_EMAIL`` or ``_PASSWORD`` empty: the initialiser
+      logs a warning and creates no user. With sign-up disabled, which this
+      stack does, that is a Langfuse with no way in at all.
+    - An incomplete R2 block: ``LANGFUSE_S3_EVENT_UPLOAD_BUCKET`` is mandatory
+      upstream, and ingestion writes every event there before processing it.
+
+    **ENCRYPTION_KEY is checked for shape, not only presence.** Langfuse
+    validates exactly 64 characters and documents 256-bit hex; the Tofu
+    resource is ``random_id.langfuse_encryption_key.hex``, which produces
+    lower-case hex. Anything else here means the value came from somewhere
+    other than that resource, and the container would refuse to start.
+
+    ``mode=0o600``: the file carries an admin password, a project secret key
+    and R2 credentials in cleartext -- the same reason _render_influxdb
+    restricts its own.
+    """
+    required = {
+        "LANGFUSE_DB_PASSWORD": c.langfuse_db_password,
+        "LANGFUSE_CLICKHOUSE_PASSWORD": c.langfuse_clickhouse_password,
+        "LANGFUSE_REDIS_PASSWORD": c.langfuse_redis_password,
+        "LANGFUSE_NEXTAUTH_SECRET": c.langfuse_nextauth_secret,
+        "LANGFUSE_SALT": c.langfuse_salt,
+        "LANGFUSE_ENCRYPTION_KEY": c.langfuse_encryption_key,
+        "LANGFUSE_ADMIN_PASSWORD": c.langfuse_admin_password,
+        "LANGFUSE_PUBLIC_KEY": c.langfuse_public_key,
+        "LANGFUSE_SECRET_KEY": c.langfuse_secret_key,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Langfuse enabled but {', '.join(missing)} empty — `tofu apply` in "
+            "tofu/stack generates these (random_password.langfuse_* / "
+            "random_id.langfuse_encryption_key / random_uuid.langfuse_*) and "
+            "the same run pushes them to Infisical /langfuse; an empty value "
+            "here means one of those did not complete, so check both steps in "
+            "this run's log. Aborting to avoid a Langfuse whose stores fail "
+            "their first-start init.",
+        )
+    if not _HEX_64.fullmatch(c.langfuse_encryption_key or ""):
+        # Deliberately says nothing about the value itself -- not its length,
+        # not a prefix -- because this message lands in a public workflow log.
+        raise ServiceEnvError(
+            "Langfuse enabled but LANGFUSE_ENCRYPTION_KEY is not 64 lower-case "
+            "hex characters. Langfuse validates this at startup and the web "
+            "container would exit. The value should come from "
+            "random_id.langfuse_encryption_key.hex in tofu/stack.",
+        )
+    if _empty(e.admin_email):
+        raise ServiceEnvError(
+            "Langfuse enabled but the admin email is empty — it becomes "
+            "LANGFUSE_INIT_USER_EMAIL. Langfuse's initialiser creates no user "
+            "without it, and with sign-up disabled that leaves no way to log "
+            "in. Set admin_email in config.tfvars.",
+        )
+    r2 = {
+        "R2_ENDPOINT": c.r2_data_endpoint or "",
+        "R2_ACCESS_KEY": c.r2_data_access_key or "",
+        "R2_SECRET_KEY": c.r2_data_secret_key or "",
+        "R2_BUCKET": c.r2_data_bucket or "",
+    }
+    if missing_r2 := sorted(k for k, v in r2.items() if _empty(v)):
+        raise ServiceEnvError(
+            "Langfuse enabled but the R2 data bucket is not fully configured — "
+            f"missing {', '.join(missing_r2)}. Langfuse writes every ingested "
+            "event to blob storage before processing it, so without a bucket "
+            "the UI would load and every trace would fail to ingest. Configure "
+            "the R2 data bucket or disable Langfuse.",
+        )
+    domain_host = service_host("langfuse", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in required.items()},
+            "LANGFUSE_ADMIN_EMAIL": e.admin_email or "",
+            "LANGFUSE_ADMIN_NAME": c.admin_username or DEFAULT_ADMIN_USERNAME,
+            "LANGFUSE_URL": f"https://{domain_host}",
+            **r2,
+        },
+        mode=0o600,
+    )
+
+
 def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Keycloak: dedicated Postgres, a bootstrap admin, and the public hostname.
 
@@ -2197,6 +2296,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
+    EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),

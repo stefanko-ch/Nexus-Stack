@@ -83,6 +83,15 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("LAKEKEEPER_DB_PASS", "lakekeeper_db_password", ""),
     ("MLFLOW_DB_PASS", "mlflow_db_password", ""),
     ("KEYCLOAK_DB_PASS", "keycloak_db_password", ""),
+    ("LANGFUSE_DB_PASS", "langfuse_db_password", ""),
+    ("LANGFUSE_CLICKHOUSE_PASS", "langfuse_clickhouse_password", ""),
+    ("LANGFUSE_REDIS_PASS", "langfuse_redis_password", ""),
+    ("LANGFUSE_NEXTAUTH_SECRET", "langfuse_nextauth_secret", ""),
+    ("LANGFUSE_SALT", "langfuse_salt", ""),
+    ("LANGFUSE_ENCRYPTION_KEY", "langfuse_encryption_key", ""),
+    ("LANGFUSE_ADMIN_PASS", "langfuse_admin_password", ""),
+    ("LANGFUSE_PUBLIC_KEY", "langfuse_public_key", ""),
+    ("LANGFUSE_SECRET_KEY", "langfuse_secret_key", ""),
     ("KEYCLOAK_ADMIN_PASS", "keycloak_admin_password", ""),
     ("UNITY_CATALOG_DB_PASS", "unity_catalog_db_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
@@ -221,6 +230,15 @@ class NexusConfig(BaseModel):
     lakekeeper_db_password: str | None = None
     mlflow_db_password: str | None = None
     keycloak_db_password: str | None = None
+    langfuse_db_password: str | None = None
+    langfuse_clickhouse_password: str | None = None
+    langfuse_redis_password: str | None = None
+    langfuse_nextauth_secret: str | None = None
+    langfuse_salt: str | None = None
+    langfuse_encryption_key: str | None = None
+    langfuse_admin_password: str | None = None
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
     keycloak_admin_password: str | None = None
     unity_catalog_db_password: str | None = None
     questdb_pg_password: str | None = None

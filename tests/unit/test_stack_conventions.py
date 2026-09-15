@@ -1344,6 +1344,123 @@ def test_notebook_stacks_point_at_the_in_cluster_mlflow() -> None:
         )
 
 
+def _langfuse_services() -> dict[str, dict[str, Any]]:
+    """The Langfuse compose file's services, parsed.
+
+    Parsed rather than grepped for the reason given on the Marimo checksum
+    test: a substring scan matches a commented-out line. PyYAML's safe_load
+    resolves the `<<: *langfuse-env` merge key, so the shared block is seen
+    in each service exactly as Compose sees it.
+    """
+    compose = yaml.safe_load((REPO_ROOT / "stacks/langfuse/docker-compose.yml").read_text())
+    return {name: dict(svc) for name, svc in compose["services"].items()}
+
+
+def _langfuse_env(service: str) -> dict[str, str]:
+    raw = _langfuse_services()[service].get("environment") or {}
+    assert isinstance(raw, dict), f"langfuse/{service} environment must stay a mapping"
+    return {str(k): str(v) for k, v in raw.items()}
+
+
+@pytest.mark.parametrize("service", ["langfuse", "langfuse-worker"])
+def test_langfuse_runs_clickhouse_migrations_without_on_cluster(service: str) -> None:
+    """Langfuse's env schema defaults CLICKHOUSE_CLUSTER_ENABLED to `true`.
+
+    That runs every ClickHouse migration `ON CLUSTER`, which a single node
+    does not have. Upstream's configuration reference says to set it to
+    `false` for single-container setups -- this stack is one.
+    """
+    assert _langfuse_env(service).get("CLICKHOUSE_CLUSTER_ENABLED") == "false"
+
+
+@pytest.mark.parametrize("service", ["langfuse", "langfuse-worker"])
+def test_langfuse_binds_to_all_interfaces(service: str) -> None:
+    """Both containers bind to $HOSTNAME, which Docker sets to the container id.
+
+    Measured on the worker without the override: it logged
+    `Listening: http://<container-id>:3030` and the healthcheck against
+    127.0.0.1 was refused, while the worker itself ran fine -- a container
+    that would sit `unhealthy` forever and hold back nothing but its status.
+    """
+    assert _langfuse_env(service).get("HOSTNAME") == "0.0.0.0"  # noqa: S104 - asserting config, not binding
+
+
+@pytest.mark.parametrize("service", ["langfuse", "langfuse-worker"])
+def test_langfuse_writes_blobs_under_its_own_prefix(service: str) -> None:
+    """The R2 data bucket is shared; Langfuse may not address its root.
+
+    Lakekeeper owns `lakekeeper/`, Unity Catalog `unity-catalog/`, MLflow
+    `mlflow/`. An empty prefix is upstream's default and would scatter event
+    files among their data. Upstream also requires a prefix to end in `/`.
+    """
+    env = _langfuse_env(service)
+    for var in ("LANGFUSE_S3_EVENT_UPLOAD_PREFIX", "LANGFUSE_S3_MEDIA_UPLOAD_PREFIX"):
+        prefix = env.get(var, "")
+        assert prefix.startswith("langfuse/"), (
+            f"langfuse/{service} has {var}={prefix!r}; it must start with 'langfuse/'"
+        )
+        assert prefix.endswith("/"), (
+            f"langfuse/{service} has {var}={prefix!r}; upstream requires a trailing '/'"
+        )
+
+
+def test_langfuse_disables_sign_up_and_telemetry() -> None:
+    """Sign-up off: the only account is the headlessly initialised admin, who
+    invites anyone else. Telemetry off: upstream's default sends usage data."""
+    env = _langfuse_env("langfuse")
+    assert env.get("AUTH_DISABLE_SIGNUP") == "true"
+    assert env.get("TELEMETRY_ENABLED") == "false"
+
+
+def test_langfuse_initialises_an_admin_it_can_log_in_with() -> None:
+    """With sign-up disabled, a missing init user is a Langfuse nobody can
+    enter. The initialiser needs BOTH email and password, and does nothing
+    at all without an org id -- it only logs a warning."""
+    env = _langfuse_env("langfuse")
+    for var in (
+        "LANGFUSE_INIT_ORG_ID",
+        "LANGFUSE_INIT_PROJECT_ID",
+        "LANGFUSE_INIT_USER_EMAIL",
+        "LANGFUSE_INIT_USER_PASSWORD",
+        "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+        "LANGFUSE_INIT_PROJECT_SECRET_KEY",
+    ):
+        assert env.get(var), f"langfuse is missing {var}"
+
+
+def _to_bytes(size: str) -> int:
+    units = {"k": 1024, "m": 1024**2, "g": 1024**3}
+    size = size.strip().lower().rstrip("b")
+    return int(float(size[:-1]) * units[size[-1]]) if size[-1] in units else int(size)
+
+
+def test_every_langfuse_container_has_a_memory_limit() -> None:
+    """Six containers on a 16 GB host shared by dozens of stacks.
+
+    Each is bounded, and the web container is bounded at no less than 2g:
+    at 1536m it died on startup with `JavaScript heap out of memory` three
+    times in a row, because Node sizes its heap from the cgroup limit. Its
+    healthcheck passed between the crashes, so nothing else would show it.
+    """
+    services = _langfuse_services()
+    for name, svc in services.items():
+        limit = ((svc.get("deploy") or {}).get("resources") or {}).get("limits", {}).get("memory")
+        assert limit, f"langfuse/{name} has no deploy.resources.limits.memory"
+    web_limit = services["langfuse"]["deploy"]["resources"]["limits"]["memory"]
+    assert _to_bytes(str(web_limit)) >= 2 * 1024**3, (
+        f"langfuse web memory limit is {web_limit}; below 2g it crash-loops on heap OOM"
+    )
+
+
+def test_langfuse_redis_never_evicts() -> None:
+    """Langfuse's ingestion queues live in this Redis. An evicted key is a job
+    that silently never runs, so the policy must be `noeviction`."""
+    command = _langfuse_services()["langfuse-redis"]["command"]
+    assert isinstance(command, list), "langfuse-redis command must stay a list"
+    assert "--maxmemory-policy" in command
+    assert command[command.index("--maxmemory-policy") + 1] == "noeviction"
+
+
 def _keycloak_service() -> dict[str, Any]:
     compose = yaml.safe_load((STACKS_DIR / "keycloak" / "docker-compose.yml").read_text())
     return dict(compose["services"]["keycloak"])

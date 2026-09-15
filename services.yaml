@@ -564,6 +564,23 @@ services:
     support_images:
       kestra-postgres: "postgres:18-alpine"
 
+  langfuse:
+    subdomain: "langfuse"
+    # Host 3008; the container keeps Langfuse's own default 3000, which on the
+    # host belongs to metabase.
+    port: 3008
+    public: false
+    category: "ai-ml"
+    website: "https://langfuse.com"
+    description: "LLM observability — traces, evaluations and prompt management for every model call."
+    long_description: "Langfuse records what an LLM application actually did: every call with its prompt, response, latency, token usage and cost, nested into traces you can inspect step by step. On top of that it adds evaluations and scores, datasets for experiments, and versioned prompt management. In Nexus-Stack it is the observability layer for the ai-ml stacks, reachable in-cluster at `http://langfuse:3000` for the Langfuse SDKs and OpenTelemetry. Headless setup creates the admin user, an organisation, a `Default` project and its API key pair on first start (Infisical → folder `langfuse`); public sign-up is disabled. Dedicated PostgreSQL, ClickHouse and Redis; raw events and media go to the R2 data bucket under the `langfuse/` prefix."
+    image: "langfuse/langfuse:3.225.7"
+    support_images:
+      langfuse-worker: "langfuse/langfuse-worker:3.225.7"
+      langfuse-db: "postgres:17-alpine"
+      langfuse-clickhouse: "clickhouse/clickhouse-server:26.3.33.24"
+      langfuse-redis: "redis:7-alpine"
+
   litellm:
     subdomain: "litellm"
     port: 4000
