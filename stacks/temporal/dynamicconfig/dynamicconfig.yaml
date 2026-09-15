@@ -1,0 +1,14 @@
+# Temporal dynamic config — read by the server at startup and re-polled
+# every 60s (`dynamicConfigClient.pollInterval` in the server's embedded
+# config template), so a change here takes effect without a restart.
+#
+# limit.maxIDLength: the PostgreSQL schema declares workflow_id,
+# workflow_type_name and the other identifier columns as VARCHAR(255). The
+# server's own default limit is higher, so an ID longer than 255 characters
+# would pass the frontend's validation and then fail at the database insert.
+# Capping it here makes the frontend reject it up front with a clear
+# message. Same value upstream's temporalio/samples-server PostgreSQL compose
+# uses.
+limit.maxIDLength:
+  - value: 255
+    constraints: {}

@@ -101,6 +101,7 @@ def full_config() -> NexusConfig:
         nussknacker_admin_password="nussknacker-admin-pw",
         mongodb_root_password="mongodb-root-pw",
         mongodb_express_session_secret="mongodb-express-session-secret",
+        temporal_db_password="temporal-db-pw",
         opensearch_admin_password="opensearch-admin-pw",
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
@@ -971,6 +972,53 @@ def test_lakekeeper_raises_on_empty_db_password(
     config = full_config.model_copy(update={"lakekeeper_db_password": ""})
     with pytest.raises(ServiceEnvError, match="LAKEKEEPER_DB_PASSWORD"):
         _render_lakekeeper(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# Temporal — one secret, fail-fast, owner-only file
+# ---------------------------------------------------------------------------
+
+
+def test_temporal_renders_only_the_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """One key. The compose file reads exactly TEMPORAL_DB_PASSWORD, in three
+    containers; pinned so a second value cannot arrive without its own guard."""
+    from nexus_deploy.service_env import _render_temporal
+
+    rendered = _render_temporal(full_config, full_env)
+    assert rendered.env_vars == {"TEMPORAL_DB_PASSWORD": "temporal-db-pw"}
+
+
+def test_temporal_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """0o600: the value is the superuser password of temporal-db."""
+    from nexus_deploy.service_env import _render_temporal
+
+    assert _render_temporal(full_config, full_env).mode == 0o600
+
+
+def test_temporal_raises_on_empty_db_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The compose's `${TEMPORAL_DB_PASSWORD:?}` would stop the stack too, but
+    with an interpolation error; failing here names the tofu output."""
+    from nexus_deploy.service_env import _render_temporal
+
+    config = full_config.model_copy(update={"temporal_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="TEMPORAL_DB_PASSWORD"):
+        _render_temporal(config, full_env)
+
+
+def test_temporal_is_registered_for_env_rendering() -> None:
+    """A renderer nobody dispatches never writes the .env, and every
+    container in the stack then refuses to start on the `:?` guard."""
+    from nexus_deploy.service_env import _SPECS, _render_temporal
+
+    specs = {spec.service_name: spec for spec in _SPECS}
+    assert "temporal" in specs
+    assert specs["temporal"].render is _render_temporal
+    assert specs["temporal"].enabled_check(["temporal"]) is True
+    assert specs["temporal"].enabled_check(["mlflow"]) is False
 
 
 # ---------------------------------------------------------------------------

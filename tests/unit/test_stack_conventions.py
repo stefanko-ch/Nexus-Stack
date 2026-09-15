@@ -105,6 +105,7 @@ NO_OWN_AUTH = {
     "lakekeeper",
     "marquez",
     "questdb",  # the console has none; its Postgres wire protocol does
+    "temporal",  # neither the Web UI nor the gRPC frontend authenticates
     "unity-catalog",
 }
 
@@ -1343,6 +1344,57 @@ def test_notebook_stacks_point_at_the_in_cluster_mlflow() -> None:
             f"{stack} has MLFLOW_TRACKING_URI={env.get('MLFLOW_TRACKING_URI')!r}; "
             "it must be the in-cluster address http://mlflow:5000"
         )
+
+
+def _temporal_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "temporal" / "docker-compose.yml").read_text()))
+
+
+def test_temporal_publishes_every_port_on_loopback_only() -> None:
+    """Neither Temporal port authenticates, so neither may bind every interface.
+
+    The gRPC frontend on 7233 accepts any client that can reach it and lets
+    that client start, signal or terminate any workflow; the Web UI has no
+    login. `tcp_ports` is already kept away from this stack by
+    NO_OWN_AUTH, but that only governs the Hetzner firewall rule. A bare
+    `"7233:7233"` in the compose file would still listen on the public
+    interface, leaving the firewall as the single control -- #742 is the
+    backlog of stacks in exactly that state, and this one should not join it.
+
+    Loopback costs nothing: cloudflared reaches the UI over localhost, and
+    the documented laptop-worker path is `ssh -N -L 7233:localhost:7233`.
+    """
+    offenders = [
+        f"{name}: {port}"
+        for name, svc in (_temporal_compose().get("services") or {}).items()
+        for port in (svc.get("ports") or [])
+        if not str(port).startswith("127.0.0.1:")
+    ]
+    assert not offenders, (
+        f"stacks/temporal publishes ports on every interface: {offenders}. "
+        "Prefix each with 127.0.0.1: -- neither the frontend nor the UI "
+        "has authentication of its own."
+    )
+
+
+def test_temporal_ui_waits_for_the_namespace_job() -> None:
+    """`docker compose up -d` only waits for what something depends on.
+
+    Nothing else depends on `temporal-create-namespace`, so without this edge
+    the job runs detached: `up` returns 0, the deploy's `docker ps` check
+    finds `temporal` running and reports success, and a failed namespace
+    creation surfaces only as `Namespace default is not found` in the first
+    SDK call. The mechanism was measured on the sibling edge from `temporal`
+    to `temporal-schema-setup`: run against a wrong database password, the
+    one-shot exits 1 and `docker compose up -d` exits 1 with
+    `service "temporal-schema-setup" didn't complete successfully: exit 1`.
+    """
+    ui = _temporal_compose()["services"]["temporal-ui"]
+    condition = (ui.get("depends_on") or {}).get("temporal-create-namespace", {}).get("condition")
+    assert condition == "service_completed_successfully", (
+        "temporal-ui must depend on temporal-create-namespace with "
+        f"condition service_completed_successfully, got {condition!r}"
+    )
 
 
 def _langfuse_services() -> dict[str, dict[str, Any]]:

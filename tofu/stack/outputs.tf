@@ -205,6 +205,9 @@ output "secrets" {
     airflow_api_secret_key = random_password.airflow_api_secret_key.result
     airflow_fernet_key     = random_id.airflow_fernet_key.b64_std
 
+    # Temporal (durable workflow engine)
+    temporal_db_password = random_password.temporal_db_password.result
+
     # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
     unity_catalog_db_password = random_password.unity_catalog_db_password.result
 
