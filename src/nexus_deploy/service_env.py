@@ -897,10 +897,17 @@ def _render_airflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     container: the JWT secret signs the tokens the scheduler's task processes
     present to the api-server's Execution API, the API secret key signs
     sessions, and the Fernet key encrypts every connection password stored
-    in the metadata database. All components read the same ``.env``.
+    in the metadata database. No container reads this ``.env``: Compose
+    interpolates it at ``up`` time and injects the values into the shared
+    container environment, which is why a changed value needs the whole stack
+    recreated rather than one container restarted.
 
     ``AIRFLOW_BASE_URL`` is composed via ``service_host`` so a fork with
     ``subdomain_separator='-'`` gets the hostname its tunnel actually serves.
+    The empty-domain guard below exists because ``service_host`` returns the
+    bare prefix in that case. ``https://airflow`` is non-empty, so the compose
+    file's ``:?`` would not catch it — the same hole ``_render_keycloak``
+    guards for its issuer.
 
     ``AIRFLOW_ADMIN_EMAIL`` is required because FAB's ``users create`` takes
     no user without one, and ``airflow-init`` would then exit non-zero and
@@ -928,6 +935,13 @@ def _render_airflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "Airflow enabled but ADMIN_EMAIL is empty — the FAB admin user "
             "cannot be created without an email, so airflow-init would fail "
             "and no Airflow component would start.",
+        )
+    if _empty(e.domain):
+        raise ServiceEnvError(
+            "Airflow enabled but DOMAIN is empty — AIRFLOW__API__BASE_URL would "
+            "render as `https://airflow`, which the API server accepts at startup "
+            "and then writes into every link it builds and every redirect it "
+            "issues, so the UI comes up healthy and unusable from a browser.",
         )
     base_host = service_host("airflow", e.domain or "", e.subdomain_separator)
     return RenderedEnv(

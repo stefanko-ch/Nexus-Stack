@@ -1116,6 +1116,23 @@ def test_airflow_raises_on_empty_admin_email(
         _render_airflow(full_config, env)
 
 
+def test_airflow_raises_on_empty_domain(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """`service_host` returns the bare prefix for an empty domain, so the base
+    URL would render as `https://airflow`. That is non-empty, so the compose
+    file's `:?` accepts it and the API server starts healthy — with every link
+    and redirect it builds pointing at a hostname no browser resolves."""
+    from nexus_deploy.service_env import _render_airflow
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "domain": "",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="DOMAIN"):
+        _render_airflow(full_config, env)
+
+
 def test_airflow_renders_every_variable_the_compose_file_requires(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
