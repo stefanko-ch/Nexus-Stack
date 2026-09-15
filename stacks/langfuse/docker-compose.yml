@@ -15,17 +15,15 @@
 #
 # `langfuse-clickhouse` is deliberately NOT the `clickhouse` stack. That one is
 # a general-purpose analytics database; this one holds a schema Langfuse owns
-# and migrates on every start. 26.3 is an LTS line and also clears Langfuse
-# v4's ClickHouse minimum (25.12), so the later v3 → v4 bump does not need a
-# ClickHouse bump in the same step.
+# and migrates on every start. 26.3 is an LTS line and clears Langfuse v4's
+# ClickHouse minimum of 25.12 (upstream's v3-to-v4 upgrade guide).
 #
-# Why v3 and not v4, which is upstream's current major: see
-# docs/stacks/langfuse.md, "Why Langfuse v3". In short, v4's default write
-# mode rejects the legacy ingestion API that the Langfuse SDK inside this
-# repo's Dify (langfuse~=2.51) uses, and v3 receives security patches until
-# end of January 2027.
+# Ingestion runs in v4's default write mode, `events_only`, which is not set
+# here because it is the default. It rejects the legacy
+# /api/public/ingestion event types that pre-OTel SDKs send — see
+# docs/stacks/langfuse.md, "Which clients can send traces".
 #
-# Upstream reference: docker-compose.yml at the v3.225.7 tag of
+# Upstream reference: docker-compose.yml at the v4.36.0 tag of
 # github.com/langfuse/langfuse, from which the variable names below are taken.
 # =============================================================================
 
@@ -74,7 +72,7 @@ x-langfuse-env: &langfuse-env
   #
   # No AWS_*_CHECKSUM_* variables, unlike MLflow: Langfuse's StorageService
   # constructs its S3 client with requestChecksumCalculation and
-  # responseChecksumValidation both set to WHEN_REQUIRED in code (v3.225.7).
+  # responseChecksumValidation both set to WHEN_REQUIRED in code (v4.36.0).
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${R2_BUCKET:?must be set in .env (rendered by service_env._render_langfuse)}
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "langfuse/events/"
   LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
@@ -95,7 +93,7 @@ x-langfuse-env: &langfuse-env
 
 services:
   langfuse:
-    image: ${IMAGE_LANGFUSE:-langfuse/langfuse:3.225.7}
+    image: ${IMAGE_LANGFUSE:-langfuse/langfuse:4.36.0}
     container_name: langfuse
     restart: unless-stopped
     ports:
@@ -140,20 +138,17 @@ services:
     deploy:
       resources:
         limits:
-          # ⚠️ Not lower. Node sizes its heap from the cgroup limit, and at
-          # 1536m the web container died on startup with `JavaScript heap out
-          # of memory` at a ~750 MB heap — three times in a row, each time
-          # after migrations had already completed, so it is the steady
-          # startup and not the first-run schema. Measured stable at 2g:
-          # ~880 MiB resident, no restarts.
-          #
-          # The healthcheck passed between those crashes, so a green
-          # container status alone does not rule this out — check the
-          # restart count.
+          # ⚠️ Headroom, deliberately. Node sizes its heap from the cgroup
+          # limit. On 3.225.7 at 1536m the web container died on startup with
+          # `JavaScript heap out of memory` at a ~750 MB heap, three times in
+          # a row, and its healthcheck passed between the crashes. On 4.36.0
+          # the same 1536m limit started without a restart (idle, ~90 s,
+          # ~815 MiB resident) — close enough to that ceiling that 2g stays.
+          # Measured at 2g on 4.36.0: ~750 MiB resident, no restarts.
           memory: 2g
     healthcheck:
       # wget, not curl: the image ships wget and no curl (checked with
-      # `command -v` inside langfuse/langfuse:3.225.7).
+      # `command -v` inside langfuse/langfuse:4.36.0).
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/public/health || exit 1"]
       interval: 30s
       timeout: 10s
@@ -167,7 +162,7 @@ services:
       - langfuse-internal
 
   langfuse-worker:
-    image: ${IMAGE_LANGFUSE_WORKER:-langfuse/langfuse-worker:3.225.7}
+    image: ${IMAGE_LANGFUSE_WORKER:-langfuse/langfuse-worker:4.36.0}
     container_name: langfuse-worker
     restart: unless-stopped
     environment:

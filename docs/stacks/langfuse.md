@@ -18,8 +18,8 @@ Langfuse records what an LLM application actually did: every model call with its
 | Public Access | No (Cloudflare Access via email OTP) |
 | Website | [langfuse.com](https://langfuse.com) |
 | Source | [GitHub](https://github.com/langfuse/langfuse) |
-| Docker images | `langfuse/langfuse:3.225.7`, `langfuse/langfuse-worker:3.225.7` |
-| Backing stores | Dedicated PostgreSQL 17, ClickHouse 26.3 LTS and Redis 7 |
+| Docker images | `langfuse/langfuse:4.36.0`, `langfuse/langfuse-worker:4.36.0` |
+| Backing stores | Dedicated PostgreSQL 17, ClickHouse 26.3 LTS and Redis 7 — above v4's minimums of PostgreSQL 15, ClickHouse 25.12 and Redis 7.0 |
 | Blob storage | Cloudflare R2 data bucket, under the `langfuse/` prefix |
 
 ### What runs
@@ -55,42 +55,30 @@ The first start creates, without anyone clicking through a wizard:
 
 #### Sending traces
 
-From a container on `app-network` — a notebook, a Kestra task, LiteLLM — use the in-cluster URL and the project key pair from Infisical:
+From a container on `app-network` — a notebook, a Kestra task, LiteLLM — use the in-cluster URL `http://langfuse:3000` and the project key pair from Infisical (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`), with an SDK recent enough for v4 — see [Which clients can send traces](#which-clients-can-send-traces).
 
-```python
-import os
-from langfuse import Langfuse
+Plain OpenTelemetry works too: the OTLP/HTTP endpoint is `http://langfuse:3000/api/public/otel` (exporters append `/v1/traces`), authenticated with HTTP basic auth of `public_key:secret_key`. This is the path used when the stack was verified locally.
 
-langfuse = Langfuse(
-    host="http://langfuse:3000",
-    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-)
-```
-
-Plain OpenTelemetry works too: the OTLP/HTTP endpoint is `http://langfuse:3000/api/public/otel`, authenticated with HTTP basic auth of `public_key:secret_key`.
+**Reading data back uses the v2 APIs.** In `events_only` mode `GET /api/public/traces` answers *"This endpoint is not available on deployments running in Langfuse v4 events_only mode"*; `GET /api/public/v2/observations` returned the ingested span.
 
 **Not the public hostname.** `https://langfuse.YOUR_DOMAIN` sits behind Cloudflare Access, which answers an SDK with an HTML login page rather than an error the SDK understands. A client outside the server would need a Cloudflare Access service token; none is provisioned for this stack.
 
-### Why Langfuse v3
+### Which clients can send traces
 
-Upstream's current major is v4. This stack pins **v3.225.7** on purpose, and the reason is compatibility rather than caution.
+This stack runs Langfuse **v4** in its default ingestion write mode, `events_only`. The mode is not set anywhere in `stacks/langfuse/docker-compose.yml`; it is the default of `LANGFUSE_MIGRATION_V4_WRITE_MODE` in Langfuse's env schema at `4.36.0`.
 
-Langfuse v4's default write mode, `events_only`, rejects the legacy ingestion API. Measured on `4.36.0` with a `trace-create` event, the kind older SDKs send:
+In that mode the legacy `/api/public/ingestion` event types are refused. Measured on `4.36.0` with a `trace-create` event:
 
 ```
 Event type "trace-create" is not accepted by /api/public/ingestion when
 LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only.
 ```
 
-The Dify stack in this repository is on `1.13.0`, whose API declares `langfuse~=2.51.3` — exactly such a client. On v3, both the legacy API and OpenTelemetry ingestion were measured to work.
+Upstream's [v3-to-v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4) states which clients that affects: Python SDK v2 and older and JS/TS SDK v3 and older are rejected at ingestion; Python SDK v4 and JS/TS SDK v5 write directly, and so does OpenTelemetry — the guide names the `x-langfuse-ingestion-version: 4` header for that; a plain OTLP span sent *without* the header was also accepted and became readable in the local verification.
 
-v4 does offer `dual` and `legacy` write modes that accept older clients, but its own upgrade guide says they will be removed in an upcoming major, and `dual` delays older SDKs' data by around fifteen minutes.
+**What this means in this repository.** The Dify stack is on `langgenius/dify-api:1.13.0`, whose `api/pyproject.toml` declares `langfuse~=2.51.3` — a v2 SDK. Dify is not wired to Langfuse here, but if someone configures Dify's Langfuse tracing against this stack, its traces will be rejected until Dify moves to an OTel-based Langfuse SDK. The same holds for any other client still on the legacy ingestion API.
 
-**v3 receives security patches until end of January 2027**, per upstream's v3-to-v4 upgrade guide. Moving to v4 before then is expected. Two things make it cheaper here than it would otherwise be:
-
-- `langfuse-clickhouse` is already on 26.3, above v4's ClickHouse minimum of 25.12.
-- On the rebuild lifecycle the databases are new on every spin-up (see [Persistence](#persistence)), so there is no data to migrate — the bump is the two image tags.
+**The setting that would accept them, and why it is not used.** `LANGFUSE_MIGRATION_V4_WRITE_MODE=dual` (or `legacy`), set on both `langfuse` and `langfuse-worker`, re-enables the legacy ingestion path. The upgrade guide calls both *transition modes that will be removed in an upcoming major version*: `legacy` gives up v4's performance improvements, and `dual` doubles write load and storage. They are deliberately left at the default.
 
 ### Blob storage in R2
 
@@ -107,7 +95,7 @@ The data bucket is shared — Lakekeeper, Unity Catalog and MLflow each own a pr
 
 Langfuse builds its S3 client with `requestChecksumCalculation` and `responseChecksumValidation` set to `WHEN_REQUIRED` in its own code, so the `AWS_*_CHECKSUM_*` variables the MLflow stack sets are not needed here.
 
-What has **not** been verified: media upload and preview against the live R2 bucket. The ingestion path was exercised end to end against S3-compatible storage locally, not against R2 itself. If media previews fail in the browser while traces work, check the browser console first: a CORS rejection from the R2 endpoint would point at the bucket's CORS rules, which this project does not manage. That is a candidate, not a diagnosis — it has not been observed.
+What has **not** been verified: media upload and preview against the live R2 bucket. The ingestion path was exercised end to end on 4.36.0 against S3-compatible storage locally (an OTLP span wrote a file under `langfuse/events/otel/`, rows into ClickHouse's `events_core` and `events_full`, and came back through `/api/public/v2/observations`), not against R2 itself. If media previews fail in the browser while traces work, check the browser console first: a CORS rejection from the R2 endpoint would point at the bucket's CORS rules, which this project does not manage. That is a candidate, not a diagnosis — it has not been observed.
 
 ### Auth model
 
@@ -165,16 +153,16 @@ The `langfuse-clickhouse` container is limited to 2 GiB, and `stacks/langfuse/cl
 
 The version appears in four places that must move together: `image` and `support_images.langfuse-worker` in `services.yaml`, and the two `${IMAGE_LANGFUSE…:-…}` fallbacks in `stacks/langfuse/docker-compose.yml`. `test_compose_fallbacks_match_the_declared_version` catches a mismatch between each pair; keep web and worker on the same version.
 
-For v4, read upstream's v3-to-v4 upgrade guide first, and decide on a write mode before bumping — see [Why Langfuse v3](#why-langfuse-v3).
+Before a bump, check upstream's release notes for changed infrastructure minimums; for 4.36.0 they are PostgreSQL 15, ClickHouse 25.12 and Redis 7.0, all met here. The web container runs both PostgreSQL and ClickHouse migrations on start, so there is no separate migration step.
 
 ### Troubleshooting
 
-- **`langfuse` keeps restarting, logs end in `JavaScript heap out of memory`** — the container's memory limit is below 2 GiB. Node sizes its heap from the cgroup limit, and at 1.5 GiB the web container crash-looped on start. Its healthcheck passes between crashes, so look at the restart count (`docker inspect langfuse --format '{{.RestartCount}}'`), not only the status.
+- **`langfuse` keeps restarting, logs end in `JavaScript heap out of memory`** — check the container's memory limit is still 2 GiB. Node sizes its heap from the cgroup limit; at 1.5 GiB the web container crash-looped on start under Langfuse 3.225.7, and on 4.36.0 it started but idled at ~815 MiB, close to that ceiling. The healthcheck passes between crashes, so look at the restart count (`docker inspect langfuse --format '{{.RestartCount}}'`), not only the status.
 - **Web healthy, worker `unhealthy`** — check `HOSTNAME: "0.0.0.0"` is still set. Without it the worker listens on the container's network address only and its loopback healthcheck is refused, while it otherwise works.
 - **ClickHouse migrations fail on start** — check `CLICKHOUSE_CLUSTER_ENABLED` is still `false`. Upstream's default is `true`, which runs migrations `ON CLUSTER`, and upstream's configuration reference says to set it to `false` for a single-container setup like this one.
 - **Login rejects the password from Infisical** — on the snapshot lifecycle, see [Persistence](#persistence): someone changed it in the UI.
 - **An SDK reports HTML or a redirect instead of JSON** — it is using the public hostname. Use `http://langfuse:3000`.
-- **Traces from an older SDK do not appear after a v4 upgrade** — the v4 default write mode rejects them; see [Why Langfuse v3](#why-langfuse-v3).
+- **Ingestion responses list errors with status 400 and `Event type "trace-create" is not accepted …`** — it uses the legacy ingestion API, which v4's default write mode refuses; see [Which clients can send traces](#which-clients-can-send-traces).
 
 ### Related
 

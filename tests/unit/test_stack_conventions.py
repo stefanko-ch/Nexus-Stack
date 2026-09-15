@@ -1437,10 +1437,12 @@ def _to_bytes(size: str) -> int:
 def test_every_langfuse_container_has_a_memory_limit() -> None:
     """Six containers on a 16 GB host shared by dozens of stacks.
 
-    Each is bounded, and the web container is bounded at no less than 2g:
-    at 1536m it died on startup with `JavaScript heap out of memory` three
-    times in a row, because Node sizes its heap from the cgroup limit. Its
-    healthcheck passed between the crashes, so nothing else would show it.
+    Each is bounded, and the web container is bounded at no less than 2g.
+    Node sizes its heap from the cgroup limit: on Langfuse 3.225.7 at 1536m
+    the web container died on startup with `JavaScript heap out of memory`
+    three times in a row, its healthcheck passing between the crashes. On
+    4.36.0 the same limit started cleanly but idled at ~815 MiB resident,
+    too close to that ceiling to drop the headroom.
     """
     services = _langfuse_services()
     for name, svc in services.items():

@@ -97,8 +97,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
-| Langfuse | `langfuse/langfuse` | `3.225.7` | Exact ⁶ |
-| Langfuse Worker | `langfuse/langfuse-worker` | `3.225.7` | Exact ⁶ |
+| Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
+| Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
 | PostgreSQL (Langfuse DB) | `postgres` | `17-alpine` | Major |
 | ClickHouse (Langfuse) | `clickhouse/clickhouse-server` | `26.3.33.24` | Exact |
 | Redis (Langfuse) | `redis` | `7-alpine` | Major |
@@ -162,8 +162,6 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 ⚠️ **Rolling** — the tag moves, and upstream publishes nothing narrower to pin to. Accepted only where no alternative exists, and only for stacks whose data survives an image change. Each of these needs a compatibility check before a deliberate refresh, because a rolling tag can cross a major without the name changing.
 
 ⁵ No version tags published at all — only `latest`, `lowa`, `trial` and commit SHAs, and the SHA tags are single-arch. Pinned to the digest of the multi-arch manifest list, which keeps amd64 and arm64. Holds state in a volume, so `latest` was not an option.
-
-⁶ Held on the v3 line deliberately: upstream is at v4, whose default write mode rejects the legacy ingestion API that older Langfuse SDKs use. v3 receives security patches until end of January 2027. See [langfuse.md](langfuse.md#why-langfuse-v3).
 
 **Strategies:**
 - **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
