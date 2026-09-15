@@ -252,6 +252,13 @@ resource "random_password" "keycloak_admin_password" {
   special = false
 }
 
+# Temporal Postgres password — dedicated DB. Holds workflow executions,
+# history and the visibility index the Web UI queries.
+resource "random_password" "temporal_db_password" {
+  length  = 24
+  special = false
+}
+
 # Langfuse (LLM observability). Four stores, all dedicated to this stack,
 # and each gets its own credential so none of them doubles as another.
 #

@@ -1038,6 +1038,24 @@ services:
     support_images:
       spark-worker: "nexus-spark:4.2.0-python3.13"
 
+  temporal:
+    subdomain: "temporal"
+    # Host 8107 is the Web UI (container 8080; host 8080 belongs to it-tools).
+    # The gRPC frontend on 7233 is NOT listed here on purpose: it is published
+    # to 127.0.0.1 only, for SSH port-forwarding, and a `tcp_ports` entry
+    # would open the Hetzner firewall to a frontend with no authentication.
+    port: 8107
+    public: false
+    category: "orchestration"
+    website: "https://temporal.io"
+    description: "Durable workflow execution engine — workflows as code that survive crashes, restarts and deploys."
+    long_description: "Temporal runs workflows written as ordinary code in Python, Go, Java, TypeScript or .NET, and persists the result of every step, so a worker that dies mid-workflow resumes where it stopped instead of starting over. Retries, timeouts, heartbeats and long sleeps are platform features rather than code you write. It sits next to Prefect, Dagster and Kestra on purpose: those schedule pipelines, Temporal makes a single long-running process reliable — sagas, human-in-the-loop approvals, processes that wait days for a signal. The server keeps its state in a dedicated PostgreSQL; workers on app-network connect to `temporal:7233`, and the Web UI shows every execution's full event history. No login of its own: Cloudflare Access is the gate for the UI."
+    image: "temporalio/server:1.32.0"
+    support_images:
+      temporal-ui: "temporalio/ui:2.54.1"
+      temporal-admin-tools: "temporalio/admin-tools:1.32.0"
+      temporal-db: "postgres:17-alpine"
+
   telegraf:
     port: 9273
     public: false

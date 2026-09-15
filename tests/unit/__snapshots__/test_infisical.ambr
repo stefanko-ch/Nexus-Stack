@@ -246,6 +246,10 @@
       'SUPERSET_SECRET_KEY': 'superset_secret_key-VALUE',
       'SUPERSET_USERNAME': 'admin',
     }),
+    'temporal': dict({
+      'TEMPORAL_DB_PASSWORD': 'temporal_db_password-VALUE',
+      'TEMPORAL_DB_USERNAME': 'nexus-temporal',
+    }),
     'unity-catalog': dict({
       'UNITY_CATALOG_DB_PASSWORD': 'unity_catalog_db_password-VALUE',
     }),
