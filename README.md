@@ -64,7 +64,7 @@ back up in the morning, keep the data.
 
 - **[Hetzner Cloud](https://console.hetzner.cloud/) account** - For the server
 - **[Cloudflare](https://cloudflare.com) account** - Free tier is sufficient
-- **[Resend](https://resend.com) account** - For email notifications (credentials, status updates)
+- **[Resend](https://resend.com) account** *(optional)* - For email notifications (credentials, status updates)
 - **A domain** - Must be [added to Cloudflare](https://developers.cloudflare.com/fundamentals/setup/manage-domains/add-site/) (Cloudflare manages DNS)
 - **[Docker Hub](https://hub.docker.com) account** *(optional)* - Increases pull rate limits for Docker images
 
@@ -296,19 +296,19 @@ gh workflow run initial-setup.yaml -f enabled_services="n8n,kestra"
 
 This setup achieves **zero open ports** after deployment:
 
-1. During initial setup, SSH (port 22) is temporarily open
-2. OpenTofu installs the Cloudflare Tunnel via SSH
-3. After tunnel is running, SSH port is **automatically closed** via Hetzner API
-4. All future SSH access goes through Cloudflare Tunnel
+1. During every spin-up, a temporary Hetzner firewall opens SSH (port 22)
+2. The spin-up workflow installs the Cloudflare Tunnel over that SSH connection
+3. The workflow then detaches the temporary firewall via the Hetzner API, closing port 22. That step runs even when an earlier step failed; if the detach cannot run or the API call fails, it logs a warning rather than failing the run
+4. All other SSH access, including the deployment itself, goes through the Cloudflare Tunnel
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
 
-> **Firewall Management:** For TCP-based services (Kafka, PostgreSQL, MinIO S3 API), the Control Plane provides a Firewall Management page to selectively open ports. DNS A records are created pointing directly to the server IP (`proxied = false`). All firewall rules are automatically reset on every Teardown for security.
+> **Firewall Management:** For TCP-based services (Kafka, PostgreSQL, MinIO S3 API), the Control Plane provides a Firewall Management page to selectively open ports. Rules that carry a DNS name get an A record pointing directly to the server IP (`proxied = false`). Every Teardown resets all firewall rules to disabled, and fails if that reset fails; the one exception is a teardown that cannot read the D1 database name from the Control Plane state, which skips the reset with a warning.
 
 ![Security Flow](docs/assets/architecture-security.svg)
 
 - Services are protected by Cloudflare Access (email OTP)
-- Set `public = true` in config if you want a service publicly accessible (bypasses Zero Trust)
+- Set `public: true` on a service in `services.yaml` if you want it publicly accessible (no Cloudflare Access application is created for it)
 
 ## Documentation
 
