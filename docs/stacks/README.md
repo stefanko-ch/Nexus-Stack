@@ -108,6 +108,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | MLflow | `nexus-mlflow` (custom build) | `3.16.0` | Exact ¹ |
 | PostgreSQL (MLflow DB) | `postgres` | `17-alpine` | Major |
+| MongoDB | `mongo` | `8.0.30` | Exact ¹ |
+| mongo-express (MongoDB) | `mongo-express` | `1.0.2-20-alpine3.19` | Exact ¹ |
 | PostgreSQL (Standalone) | `postgres` | `18-alpine` | Major |
 | pg_ducklake | `pgducklake/pgducklake` | `18-main` | Rolling ⚠️ |
 | pgAdmin | `dpage/pgadmin4` | `9` | Major |
@@ -228,6 +230,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
+| **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
@@ -293,6 +296,7 @@ OpenTofu creates inbound Hetzner firewall rules for every enabled toggle. **DNS 
 | **Garage** (S3 API) | 3900 | — ¹ | S3/HTTP |
 | **LakeFS** (S3 Gateway) | 8000 | — ¹ | S3/HTTP |
 | **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
+| **MongoDB** (wire protocol) | 27017 | — ¹ | MongoDB |
 | **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
 | **RedPanda** (Kafka) | 9092 | `redpanda-kafka.<domain>` | Kafka |
 | **RedPanda** (Schema Registry) | 18081 | `redpanda-schema-registry.<domain>` | HTTP |
