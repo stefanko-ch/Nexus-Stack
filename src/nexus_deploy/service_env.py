@@ -885,6 +885,76 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_airflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Apache Airflow: dedicated Postgres, FAB admin login, shared keys.
+
+    Every value is required, and the compose file reads each with
+    ``${VAR:?...}``, so an empty one would stop ``docker compose up`` rather
+    than start Airflow wrong. Failing here instead names the tofu output the
+    value comes from, where the compose error only names the variable.
+
+    The three keys are not interchangeable with a fresh random value per
+    container: the JWT secret signs the tokens the scheduler's task processes
+    present to the api-server's Execution API, the API secret key signs
+    sessions, and the Fernet key encrypts every connection password stored
+    in the metadata database. No container reads this ``.env``: Compose
+    interpolates it at ``up`` time and injects the values into the shared
+    container environment, which is why a changed value needs the whole stack
+    recreated rather than one container restarted.
+
+    ``AIRFLOW_BASE_URL`` is composed via ``service_host`` so a fork with
+    ``subdomain_separator='-'`` gets the hostname its tunnel actually serves.
+    The empty-domain guard below exists because ``service_host`` returns the
+    bare prefix in that case. ``https://airflow`` is non-empty, so the compose
+    file's ``:?`` would not catch it — the same hole ``_render_keycloak``
+    guards for its issuer.
+
+    ``AIRFLOW_ADMIN_EMAIL`` is required because FAB's ``users create`` takes
+    no user without one, and ``airflow-init`` would then exit non-zero and
+    hold back the whole stack.
+
+    Mode 0o600: the file holds the admin password and the Fernet key in
+    cleartext.
+    """
+    required = {
+        "AIRFLOW_ADMIN_PASSWORD": ("airflow_admin_password", c.airflow_admin_password),
+        "AIRFLOW_DB_PASSWORD": ("airflow_db_password", c.airflow_db_password),
+        "AIRFLOW_JWT_SECRET": ("airflow_jwt_secret", c.airflow_jwt_secret),
+        "AIRFLOW_API_SECRET_KEY": ("airflow_api_secret_key", c.airflow_api_secret_key),
+        "AIRFLOW_FERNET_KEY": ("airflow_fernet_key", c.airflow_fernet_key),
+    }
+    if missing := [f"{k} (tofu output `{out}`)" for k, (out, v) in required.items() if _empty(v)]:
+        raise ServiceEnvError(
+            f"Airflow enabled but {', '.join(missing)} empty — `tofu apply` in "
+            "tofu/stack generates these; an empty value means that step did not "
+            "complete in this run. Refusing to write an .env the compose file "
+            "would reject.",
+        )
+    if _empty(e.admin_email):
+        raise ServiceEnvError(
+            "Airflow enabled but ADMIN_EMAIL is empty — the FAB admin user "
+            "cannot be created without an email, so airflow-init would fail "
+            "and no Airflow component would start.",
+        )
+    if _empty(e.domain):
+        raise ServiceEnvError(
+            "Airflow enabled but DOMAIN is empty — AIRFLOW__API__BASE_URL would "
+            "render as `https://airflow`, which the API server accepts at startup "
+            "and then writes into every link it builds and every redirect it "
+            "issues, so the UI comes up healthy and unusable from a browser.",
+        )
+    base_host = service_host("airflow", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, (_, v) in required.items()},
+            "AIRFLOW_ADMIN_USERNAME": c.admin_username or DEFAULT_ADMIN_USERNAME,
+            "AIRFLOW_ADMIN_EMAIL": e.admin_email or "",
+            "AIRFLOW_BASE_URL": f"https://{base_host}",
+        },
+        mode=0o600,
+    )
+
+
 def _render_unity_catalog(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Unity Catalog: Postgres metastore, plus R2 for the credential generator.
 
@@ -2297,6 +2367,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
+    EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),

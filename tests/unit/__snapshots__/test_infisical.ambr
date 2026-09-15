@@ -1,6 +1,12 @@
 # serializer version: 1
 # name: test_compute_folders_full_snapshot
   dict({
+    'airflow': dict({
+      'AIRFLOW_DB_PASSWORD': 'airflow_db_password-VALUE',
+      'AIRFLOW_DB_USERNAME': 'nexus-airflow',
+      'AIRFLOW_PASSWORD': 'airflow_admin_password-VALUE',
+      'AIRFLOW_USERNAME': 'nexus-test-user',
+    }),
     'appsmith': dict({
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',

@@ -79,10 +79,11 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (88)
+## Available Stacks (89)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
+[![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
@@ -174,6 +175,7 @@ After deployment you'll have:
 |-------|-------------|--------|
 | **AKHQ** | Kafka/Redpanda management GUI for topics, consumer groups, schema registry, and Kafka Connect | [akhq.io](https://akhq.io) |
 | **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
+| **Airflow** | Apache Airflow — DAG-based workflow orchestration with the largest operator and provider ecosystem | [airflow.apache.org](https://airflow.apache.org) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
