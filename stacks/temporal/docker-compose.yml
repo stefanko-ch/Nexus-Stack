@@ -87,6 +87,9 @@ services:
   temporal-schema-setup:
     image: ${IMAGE_TEMPORAL_ADMIN_TOOLS:-temporalio/admin-tools:1.32.0}
     container_name: temporal-schema-setup
+    # "no", not unless-stopped: Docker's unless-stopped restarts a container
+    # whatever its exit code, so a job that finished would be run again in a
+    # loop. Same as lakekeeper-bootstrap. Also applies to the namespace job.
     restart: "no"
     environment:
       POSTGRES_SEEDS: temporal-db

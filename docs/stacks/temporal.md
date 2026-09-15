@@ -10,7 +10,9 @@ title: "Temporal"
 
 Temporal runs workflows written as ordinary code — Python, Go, Java, TypeScript, .NET — and records the result of every step in its database. A worker that crashes halfway through a workflow is replaced, and the workflow continues from the last completed step instead of starting over. Retries, timeouts, heartbeats and sleeps that last for days are features of the platform rather than code you write.
 
-It sits next to Prefect, Dagster and Kestra on purpose, and it is not a fourth pipeline scheduler. Those decide *when* a pipeline runs. Temporal makes one long-running process *reliable*: a saga that must compensate when step four fails, an approval that waits a week for a human, a payment that must never be sent twice.
+It sits next to Prefect, Dagster and Kestra on purpose, and it is not a fourth pipeline scheduler. Those decide *when* a pipeline runs. Temporal makes one long-running process *reliable*: a saga that must compensate when step four fails, an approval that waits a week for a human, a backfill that must survive the worker being restarted halfway through.
+
+**The workflow is durable; the side effects are at-least-once.** Temporal records an activity as done only once its result is back, so an activity whose worker dies mid-call — or which times out, or fails and is retried — runs again. For anything with an external effect that must not repeat, such as charging a card or sending an email, pass an idempotency key to the external system (the workflow ID plus the activity ID is the usual choice), or give that activity a retry policy with a maximum of one attempt — which still does not rule out a repeat when a worker dies after the effect but before reporting it, which is why the key is the real fix.
 
 | Setting | Value |
 |---------|-------|
@@ -171,4 +173,4 @@ Upstream does publish minor tags (`1.32`); exact tags are used because a moving 
 ### Related
 
 - [Temporal documentation](https://docs.temporal.io) · [Python SDK](https://docs.temporal.io/develop/python)
-- [kestra.md](./kestra.md), [prefect.md](./prefect.md), [dagster.md](./dagster.md) — the pipeline orchestrators in the same category. Reach for those to schedule data pipelines; reach for Temporal when a single process must survive failure and run exactly once.
+- [kestra.md](./kestra.md), [prefect.md](./prefect.md), [dagster.md](./dagster.md) — the pipeline orchestrators in the same category. Reach for those to schedule data pipelines; reach for Temporal when a single long-running process must survive failure and pick up where it stopped.
