@@ -79,7 +79,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (88)
+## Available Stacks (89)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -144,6 +144,7 @@ After deployment you'll have:
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![PostgREST](https://img.shields.io/badge/PostgREST-2C3E50?logo=postgresql&logoColor=white)](https://postgrest.org)
 [![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)](https://www.prefect.io)
+[![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![QuestDB](https://img.shields.io/badge/QuestDB-D14671?logo=questdb&logoColor=white)](https://questdb.com)
 [![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
@@ -235,6 +236,7 @@ After deployment you'll have:
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included | [postgrest.org](https://postgrest.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
+| **Qdrant** | Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs | [qdrant.tech](https://qdrant.tech) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
 | **QuestDB** | Time-series database with web console — speaks PostgreSQL wire & InfluxDB line protocols | [questdb.com](https://questdb.com) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |

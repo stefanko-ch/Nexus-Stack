@@ -1047,6 +1047,32 @@ def _render_influxdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_qdrant(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Qdrant: vector database. One secret -- the API key that gates every
+    REST and gRPC endpoint except the health probes.
+
+    Fail-fast guard, and a stricter one than most: an empty key is not an
+    error to Qdrant. Measured on v1.19.1, ``QDRANT__SERVICE__API_KEY=""``
+    logs a warning, is treated as unset, and the instance then answers
+    without authentication. The compose file's ``${QDRANT_API_KEY:?}``
+    would also stop it, but failing here names the tofu output instead of
+    leaving a compose interpolation error to trace back.
+    """
+    if _empty(c.qdrant_api_key):
+        raise ServiceEnvError(
+            "Qdrant enabled but QDRANT_API_KEY is empty -- it comes from the "
+            "tofu output `qdrant_api_key` (random_password.qdrant_api_key). "
+            "Aborting rather than starting Qdrant, which treats an empty key "
+            "as no authentication at all.",
+        )
+    return RenderedEnv(
+        env_vars={"QDRANT_API_KEY": c.qdrant_api_key or ""},
+        # 0o600: the file holds the only credential in front of every
+        # collection, in cleartext -- same reason as _render_influxdb.
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -2300,6 +2326,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
+    EnvSpec("qdrant", _is_enabled("qdrant"), _render_qdrant),
     EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),
     EnvSpec("opensearch", _is_enabled("opensearch"), _render_opensearch),
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),

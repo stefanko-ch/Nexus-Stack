@@ -81,6 +81,7 @@ def full_config() -> NexusConfig:
         mlflow_db_password="mlflow-db-pw",
         keycloak_db_password="keycloak-db-pw",
         keycloak_admin_password="keycloak-admin-pw",
+        qdrant_api_key="qdrant-api-key",
         langfuse_db_password="langfuse-db-pw",
         langfuse_clickhouse_password="langfuse-ch-pw",
         langfuse_redis_password="langfuse-redis-pw",
@@ -3000,6 +3001,54 @@ def test_influxdb_raises_on_empty_token(full_config: NexusConfig, full_env: Boot
     config = full_config.model_copy(update={"influxdb_admin_token": ""})
     with pytest.raises(ServiceEnvError, match="INFLUXDB_ADMIN_TOKEN"):
         _render_influxdb(config, full_env)
+
+
+def test_qdrant_renders_only_the_api_key(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """One secret, under the name the compose file interpolates.
+
+    `stacks/qdrant/docker-compose.yml` reads `${QDRANT_API_KEY:?}` and hands
+    it to `QDRANT__SERVICE__API_KEY`; a renamed key here would stop the
+    container at interpolation rather than silently misconfigure it.
+    """
+    from nexus_deploy.service_env import _render_qdrant
+
+    rendered = _render_qdrant(full_config, full_env)
+    assert rendered.env_vars == {"QDRANT_API_KEY": "qdrant-api-key"}
+
+
+def test_qdrant_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """0o600: the key is the only credential in front of every collection."""
+    from nexus_deploy.service_env import _render_qdrant
+
+    assert _render_qdrant(full_config, full_env).mode == 0o600
+
+
+@pytest.mark.parametrize("empty", ["", None])
+def test_qdrant_raises_on_empty_api_key(
+    full_config: NexusConfig, full_env: BootstrapEnv, empty: str | None
+) -> None:
+    """Stricter than a courtesy: Qdrant treats an empty key as no key.
+
+    Measured on v1.19.1 -- `QDRANT__SERVICE__API_KEY=""` logs a warning and
+    `/collections` then answers 200 without authentication. Rendering the
+    empty value would not fail anywhere visible; it would open the store.
+    """
+    from nexus_deploy.service_env import _render_qdrant
+
+    config = full_config.model_copy(update={"qdrant_api_key": empty})
+    with pytest.raises(ServiceEnvError, match="QDRANT_API_KEY"):
+        _render_qdrant(config, full_env)
+
+
+def test_qdrant_is_registered_in_specs() -> None:
+    """The renderer only runs if a spec dispatches it."""
+    from nexus_deploy.service_env import _SPECS, _render_qdrant
+
+    specs = [s for s in _SPECS if s.service_name == "qdrant"]
+    assert len(specs) == 1
+    assert specs[0].render is _render_qdrant
+    assert specs[0].enabled_check(["qdrant"]) is True
+    assert specs[0].enabled_check(["weaviate"]) is False
 
 
 def test_nussknacker_renders_users_conf_with_the_generated_password(
