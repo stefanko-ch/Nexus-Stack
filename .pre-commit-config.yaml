@@ -206,4 +206,10 @@ repos:
         name: OpenTofu fmt (syntax; validate runs in CI)
         entry: tofu fmt -check -diff -no-color
         language: system
-        files: ^tofu/.*\.tf$
+        # Both of OpenTofu's native extensions. Nothing in this repository is
+        # named `.tofu` today, but `tofu fmt` does process them — measured: on
+        # a directory holding one badly and one well formatted `.tofu`, it
+        # names the bad one and exits non-zero. A `\.tf$` filter would have
+        # let the first such file past the hook while CI, which runs `tofu fmt`
+        # against the whole directory, failed on it.
+        files: ^tofu/.*\.(tf|tofu)$

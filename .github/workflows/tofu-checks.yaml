@@ -68,6 +68,13 @@ jobs:
         dir: [tofu/stack, tofu/control-plane]
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `tofu init` downloads and executes provider plugins — third-party
+          # binaries, on a job that a pull request can reach. By default
+          # checkout leaves the job token in `.git/config`, where such a
+          # binary could read it. No step below needs authenticated Git
+          # access: the checkout is the only Git operation in the job.
+          persist-credentials: false
 
       - name: Install OpenTofu
         uses: opentofu/setup-opentofu@v2
