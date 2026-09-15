@@ -94,7 +94,7 @@ There is deliberately no `tcp_ports` entry. Opening Bolt through the Hetzner fir
 The image can only seed a user called `neo4j`, which is the guessable default the `nexus-` naming rule exists to prevent. Community Edition cannot rename or suspend a user — `ALTER USER neo4j SET STATUS SUSPENDED` is refused with *"'SET STATUS' is not supported in community edition"* — but it can create one user and drop another. So:
 
 1. On first start the image seeds `neo4j` from `NEO4J_AUTH`, with the generated password.
-2. The admin-setup hook (`render_neo4j_hook` in `src/nexus_deploy/services.py`) signs in as `neo4j`, creates `nexus-neo4j` with the same password, then signs in as `nexus-neo4j` and drops `neo4j`.
+2. The admin-setup hook (`render_neo4j_hook` in `src/nexus_deploy/services.py`) signs in as `neo4j`, creates `nexus-neo4j` with the same password, then signs in as `nexus-neo4j` and drops `neo4j`. If the create fails, it tries `nexus-neo4j` once more before reporting `failed` — two spin-ups can run at once (#801), and the second then finds `neo4j` already dropped by the first.
 3. On every later spin-up the hook finds that `nexus-neo4j` already signs in, and repeats only the `DROP USER neo4j IF EXISTS`.
 
 Verified against the pinned image: a fresh database ends `configured` with `nexus-neo4j` as the only user, a second run ends `already-configured`, and after a restart `neo4j` stays dropped — `NEO4J_AUTH` only seeds an empty database. Between the container starting and the hook running, `neo4j` exists with the generated password; there is no window with a default password.

@@ -3030,9 +3030,33 @@ def test_neo4j_raises_on_empty_password(full_config: NexusConfig, full_env: Boot
         _render_neo4j(config, full_env)
 
 
+def test_neo4j_rejects_a_password_neo4j_would_refuse(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Seven characters: the container exits at startup with "The minimum
+    password length is 8 characters". Eight is accepted."""
+    from nexus_deploy.service_env import _render_neo4j
+
+    short = full_config.model_copy(update={"neo4j_admin_password": "abc1234"})
+    with pytest.raises(ServiceEnvError, match="shorter than 8") as excinfo:
+        _render_neo4j(short, full_env)
+    assert "abc1234" not in str(excinfo.value)
+
+    eight = full_config.model_copy(update={"neo4j_admin_password": "abcd1234"})
+    assert _render_neo4j(eight, full_env).env_vars == {"NEXUS_NEO4J_PASSWORD": "abcd1234"}
+
+
 @pytest.mark.parametrize(
     "password",
-    ['abc"def', "abc'def", "abc\\def", "abc def", "abc`def", "abc$def", "abc\ndef"],
+    [
+        'abcd"efgh',
+        "abcd'efgh",
+        "abcd\\efgh",
+        "abcd efgh",
+        "abcd`efgh",
+        "abcd$efgh",
+        "abcd\nefgh",
+    ],
 )
 def test_neo4j_rejects_a_password_the_hook_cannot_quote(
     full_config: NexusConfig, full_env: BootstrapEnv, password: str

@@ -2500,7 +2500,10 @@ def render_neo4j_hook(config: NexusConfig, env: BootstrapEnv) -> str:
        ``Remote interface available``, so HTTP answering implies Bolt does.
     2. Sign in as ``nexus-neo4j``. Success means an earlier run already
        created it -- ``already-configured`` unless step 4 has work to do.
-    3. Otherwise sign in as ``neo4j`` and create ``nexus-neo4j``.
+    3. Otherwise sign in as ``neo4j`` and create ``nexus-neo4j``. If that
+       fails, ask step 2 again before reporting ``failed``: a concurrent
+       deploy may have created ``nexus-neo4j`` and dropped ``neo4j`` in
+       between (#801).
     4. Sign in as ``nexus-neo4j`` and ``DROP USER neo4j IF EXISTS``.
 
     Both accounts use the one generated password, ``NEXUS_NEO4J_PASSWORD``,
@@ -2551,12 +2554,23 @@ neo4j_hook() {
         2>&1) || SIGNIN_FAILED=true
 
     if [ "$SIGNIN_FAILED" = "true" ]; then
-        if ! docker exec -i neo4j sh >/dev/null 2>&1 <<'NEXUS_NEO4J_CREATE_EOF'
+        if docker exec -i neo4j sh >/dev/null 2>&1 <<'NEXUS_NEO4J_CREATE_EOF'
 printf 'CREATE USER `nexus-neo4j` IF NOT EXISTS SET PLAINTEXT PASSWORD "%s" CHANGE NOT REQUIRED;\\n' "$NEXUS_NEO4J_PASSWORD" \\
     | NEO4J_USERNAME=neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system
 NEXUS_NEO4J_CREATE_EOF
         then
-            # Which of the two sign-ins was refused, and why, cannot be told
+            NEO4J_STATUS=configured
+        elif SIGNIN_OUTPUT=$(docker exec neo4j sh -c \\
+                'NEO4J_USERNAME=nexus-neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system "SHOW CURRENT USER"' \\
+                2>&1); then
+            # The create failed, but nexus-neo4j signs in now. Two deploys can
+            # reach this hook at once -- spin-up.yml has no concurrency group
+            # (#801) -- and the loser finds `neo4j` already dropped by the
+            # winner. Asking again is also the honest answer to a first
+            # sign-in that failed for a reason that has since passed.
+            NEO4J_STATUS=already-configured
+        else
+            # Which of the sign-ins was refused, and why, cannot be told
             # apart from here: both could be a wrong password on a database
             # that outlived a credential change, or `neo4j` already dropped.
             echo "  ⚠ neo4j: could not sign in as nexus-neo4j, and could not create it as neo4j either" >&2
@@ -2565,7 +2579,6 @@ NEXUS_NEO4J_CREATE_EOF
             echo "RESULT hook=neo4j status=failed"
             return 0
         fi
-        NEO4J_STATUS=configured
     fi
 
     DROP_FAILED=false
