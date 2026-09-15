@@ -1,0 +1,95 @@
+# =============================================================================
+# tofu-checks — the syntax and semantic gate for the OpenTofu configuration
+# =============================================================================
+# Terraform was the only file type in this repository without a syntax check.
+# Python has ruff and mypy, YAML/JSON/TOML have pre-commit, shell has
+# shellcheck, workflows have actionlint — and `tofu/**/*.tf` had nothing, so a
+# malformed configuration reached a spin-up before anything noticed.
+#
+# It happened: a rebase left two `random_password` blocks without a body,
+#
+#   resource "random_password" "keycloak_db_password" {
+#   # Apache Airflow — admin login, dedicated Postgres, …
+#   resource "random_password" "airflow_admin" {
+#
+# and every check in the repository stayed green. A reviewer found it by
+# reading the diff. `tofu validate` reports it in one line:
+#
+#   Error: Unclosed configuration block
+#     on main.tf line 242, in resource "random_password" "keycloak_db_password":
+#
+# Closes #720.
+#
+# Two steps, and the split is measured rather than assumed:
+#
+#   - `tofu fmt -check` catches parse errors on its own, with no providers and
+#     no network — exit 2 on the block above. It is therefore also the
+#     pre-commit hook, where a provider download would be unwelcome.
+#   - `tofu validate` additionally catches semantic faults that parse fine:
+#     an undeclared variable, a provider argument that does not exist, a
+#     reference to a resource nobody declared. It needs providers, hence the
+#     `init` before it.
+#
+# `-backend=false` is what keeps this runnable without credentials. The real
+# backend is R2 and needs secrets; validation does not care about state, so it
+# is skipped. Measured: 5 seconds for the init, no credentials required.
+# =============================================================================
+
+name: "CI: OpenTofu"
+
+on:
+  pull_request:
+    paths:
+      - "tofu/**"
+      - ".github/workflows/tofu-checks.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "tofu/**"
+      - ".github/workflows/tofu-checks.yaml"
+
+concurrency:
+  group: tofu-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tofu:
+    name: OpenTofu (fmt + validate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # Both roots are checked, and a failure in one must not hide the other —
+      # they drift independently and are applied by different workflows.
+      fail-fast: false
+      matrix:
+        dir: [tofu/stack, tofu/control-plane]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v2
+        with:
+          # Pinned, and deliberately the same version the deploy workflows
+          # install. A checker on a different version than the applier can
+          # pass what the applier rejects, which is worse than no check.
+          tofu_version: 1.10.0
+
+      - name: tofu fmt -check
+        working-directory: ${{ matrix.dir }}
+        # Also the pre-commit hook. Listed first because it needs nothing:
+        # a parse error fails here before a single provider is downloaded.
+        run: tofu fmt -check -diff -no-color .
+
+      - name: tofu init -backend=false
+        working-directory: ${{ matrix.dir }}
+        # Providers only. The R2 backend needs credentials this job does not
+        # have and validation does not read state, so it is skipped rather
+        # than stubbed.
+        run: tofu init -backend=false -no-color -input=false
+
+      - name: tofu validate
+        working-directory: ${{ matrix.dir }}
+        run: tofu validate -no-color
