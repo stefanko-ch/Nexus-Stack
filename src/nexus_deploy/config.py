@@ -82,6 +82,8 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("LITELLM_DB_PASS", "litellm_db_password", ""),
     ("LAKEKEEPER_DB_PASS", "lakekeeper_db_password", ""),
     ("MLFLOW_DB_PASS", "mlflow_db_password", ""),
+    ("KEYCLOAK_DB_PASS", "keycloak_db_password", ""),
+    ("KEYCLOAK_ADMIN_PASS", "keycloak_admin_password", ""),
     ("UNITY_CATALOG_DB_PASS", "unity_catalog_db_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
@@ -218,6 +220,8 @@ class NexusConfig(BaseModel):
     litellm_db_password: str | None = None
     lakekeeper_db_password: str | None = None
     mlflow_db_password: str | None = None
+    keycloak_db_password: str | None = None
+    keycloak_admin_password: str | None = None
     unity_catalog_db_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None

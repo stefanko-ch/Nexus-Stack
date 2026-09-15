@@ -461,6 +461,19 @@ services:
     long_description: "Jupyter Notebook provides an interactive computing environment for Python and PySpark. Write and execute code in cells, visualize data inline, and connect to your Spark cluster for distributed processing. Pre-configured with PySpark, pandas, and common data science libraries."
     image: "quay.io/jupyter/pyspark-notebook:python-3.13"
 
+  keycloak:
+    subdomain: "keycloak"
+    # Host 8106 (loopback only); the container keeps Keycloak's own 8080.
+    port: 8106
+    public: false
+    category: "dev-tools"
+    website: "https://www.keycloak.org"
+    description: "Identity and access management — OpenID Connect, OAuth 2.0 and SAML single sign-on for your own applications."
+    long_description: "Keycloak is the open-source identity provider: realms, clients, users, groups and roles, with OpenID Connect, OAuth 2.0 and SAML 2.0 on top, plus identity brokering and user federation. In Nexus-Stack it is a self-contained IdP to build and test SSO against — it does not replace Cloudflare Access, which still gates the admin console like every other stack. Runs in production mode against a dedicated PostgreSQL; the master realm's bootstrap admin is created on first start (Infisical → folder `keycloak`). No other stack is wired to it yet."
+    image: "quay.io/keycloak/keycloak:26.7.3"
+    support_images:
+      keycloak-db: "postgres:17-alpine"
+
   kafdrop:
     subdomain: "kafdrop"
     port: 8095

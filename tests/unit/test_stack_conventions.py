@@ -1344,6 +1344,62 @@ def test_notebook_stacks_point_at_the_in_cluster_mlflow() -> None:
         )
 
 
+def _keycloak_service() -> dict[str, Any]:
+    compose = yaml.safe_load((STACKS_DIR / "keycloak" / "docker-compose.yml").read_text())
+    return dict(compose["services"]["keycloak"])
+
+
+def test_keycloak_runs_in_production_mode() -> None:
+    """`start`, never `start-dev`.
+
+    The image's entrypoint is kc.sh, so the command list is kc.sh's arguments.
+    `start-dev` would switch to the development profile, whose defaults
+    `kc.sh start --help-all` describes as different from production's (HTTP
+    and a local cache enabled by default). Upstream does not support it for
+    production use, and a container started that way still turns healthy, so
+    nothing downstream would notice.
+    """
+    command = _keycloak_service()["command"]
+    assert isinstance(command, list), "keycloak command must stay a list"
+    assert command, "keycloak command must not be empty"
+    assert command[0] == "start", (
+        f"keycloak command is {command!r}; it must begin with `start` "
+        "(production mode), not `start-dev`"
+    )
+
+
+def test_keycloak_does_not_publish_the_management_port() -> None:
+    """Only the HTTP listener reaches the host; 9000 stays inside Docker.
+
+    The management interface serves /health (and /metrics, if ever enabled).
+    cloudflared routes to exactly one host port per service, so publishing
+    9000 would add nothing for the tunnel and only widen the host surface.
+    """
+    ports = [str(p) for p in _keycloak_service().get("ports") or []]
+    assert ports == ["127.0.0.1:8106:8080"], (
+        f"keycloak publishes {ports!r}; expected only 127.0.0.1:8106:8080"
+    )
+
+
+def test_keycloak_hostname_is_a_full_https_url() -> None:
+    """KC_HOSTNAME must carry the scheme, not only the host.
+
+    With a bare hostname Keycloak resolves scheme and port from the request,
+    and the container only ever sees plain HTTP on 8080. A full URL fixes the
+    issuer to https. It is also a precondition for
+    KC_HOSTNAME_BACKCHANNEL_DYNAMIC, which the stack sets.
+    """
+    env = _keycloak_service()["environment"]
+    assert str(env.get("KC_HOSTNAME", "")).startswith("https://"), (
+        f"KC_HOSTNAME is {env.get('KC_HOSTNAME')!r}; it must be a full https:// URL"
+    )
+    assert str(env.get("KC_HOSTNAME_BACKCHANNEL_DYNAMIC")) == "true"
+    assert env.get("KC_PROXY_HEADERS") == "xforwarded", (
+        "without KC_PROXY_HEADERS=xforwarded the backchannel endpoints are "
+        "advertised as http:// for requests arriving through the tunnel"
+    )
+
+
 def test_kestra_flows_use_no_removed_2x_constructs() -> None:
     """Seeded flows and the rendered system flows must load on Kestra 2.x.
 

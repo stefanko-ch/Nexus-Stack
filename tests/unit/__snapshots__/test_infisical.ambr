@@ -97,6 +97,12 @@
       'KESTRA_PASSWORD': 'has spaces and\trabs',
       'KESTRA_USERNAME': 'admin@snapshot.test',
     }),
+    'keycloak': dict({
+      'KEYCLOAK_ADMIN_PASSWORD': 'keycloak_admin_password-VALUE',
+      'KEYCLOAK_ADMIN_USERNAME': 'nexus-test-user',
+      'KEYCLOAK_DB_PASSWORD': 'keycloak_db_password-VALUE',
+      'KEYCLOAK_DB_USERNAME': 'nexus-keycloak',
+    }),
     'lakefs': dict({
       'LAKEFS_ACCESS_KEY_ID': 'lakefs_admin_access_key-VALUE',
       'LAKEFS_DB_PASSWORD': 'lakefs_db_password-VALUE',

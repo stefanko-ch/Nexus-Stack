@@ -725,6 +725,67 @@ def _render_mlflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Keycloak: dedicated Postgres, a bootstrap admin, and the public hostname.
+
+    ``KEYCLOAK_DOMAIN`` becomes ``KC_HOSTNAME=https://<host>`` in the compose
+    file, which is the ``iss`` claim of every token this server signs and the
+    base of every redirect it issues. Composed via ``service_host`` so
+    multi-tenant forks with ``subdomain_separator='-'`` get the flat hostname,
+    as Lakekeeper and MLflow do.
+
+    ``KEYCLOAK_ADMIN_USERNAME`` follows the project's ``ADMIN_USERNAME``
+    rather than upstream's ``temp-admin``, with the same fallback every other
+    renderer uses.
+
+    Three fail-fast guards. The compose file uses ``${VAR:?...}`` for all of
+    these, so an empty value would stop the container rather than start it
+    wrong -- but failing here names the cause, while failing there produces a
+    compose error the operator has to trace back.
+
+    The domain guard exists because ``service_host`` returns the bare prefix
+    for an empty domain. That is non-empty, so ``:?`` would not catch it, and
+    Keycloak would start with ``https://keycloak`` as its issuer: healthy,
+    and wrong in every token and redirect.
+
+    The .env is ``0o600``: it holds the admin and database passwords in
+    cleartext, the same reason ``_render_influxdb`` restricts its own.
+    """
+    missing = [
+        name
+        for name, value in (
+            ("KEYCLOAK_DB_PASSWORD", c.keycloak_db_password),
+            ("KEYCLOAK_ADMIN_PASSWORD", c.keycloak_admin_password),
+        )
+        if _empty(value)
+    ]
+    if missing:
+        raise ServiceEnvError(
+            f"Keycloak enabled but {', '.join(missing)} empty — "
+            "`tofu apply` in tofu/stack generates "
+            "random_password.keycloak_db_password and "
+            "random_password.keycloak_admin_password, and the same run pushes "
+            "them to Infisical; an empty value here means one of those did not "
+            "complete, so check both steps in this run's log.",
+        )
+    if _empty(e.domain):
+        raise ServiceEnvError(
+            "Keycloak enabled but DOMAIN is empty — the hostname would render "
+            "as `https://keycloak`, which Keycloak accepts at startup and then "
+            "writes into the issuer of every token it signs.",
+        )
+    domain_host = service_host("keycloak", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "KEYCLOAK_DB_PASSWORD": c.keycloak_db_password or "",
+            "KEYCLOAK_ADMIN_USERNAME": c.admin_username or DEFAULT_ADMIN_USERNAME,
+            "KEYCLOAK_ADMIN_PASSWORD": c.keycloak_admin_password or "",
+            "KEYCLOAK_DOMAIN": domain_host,
+        },
+        mode=0o600,
+    )
+
+
 def _render_unity_catalog(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Unity Catalog: Postgres metastore, plus R2 for the credential generator.
 
@@ -2135,6 +2196,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
+    EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
