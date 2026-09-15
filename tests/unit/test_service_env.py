@@ -79,6 +79,8 @@ def full_config() -> NexusConfig:
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
         mlflow_db_password="mlflow-db-pw",
+        keycloak_db_password="keycloak-db-pw",
+        keycloak_admin_password="keycloak-admin-pw",
         questdb_pg_password="questdb-pg-pw",
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
@@ -1048,6 +1050,105 @@ def test_mlflow_carries_the_r2_block(full_config: NexusConfig, full_env: Bootstr
     rendered = _render_mlflow(full_config, full_env)
     for key in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"):
         assert rendered.env_vars.get(key), f"{key} missing from the MLflow env file"
+
+
+# ---------------------------------------------------------------------------
+# Keycloak — two secrets, the admin username, and the issuer hostname
+# ---------------------------------------------------------------------------
+
+
+def test_keycloak_renders_exactly_its_four_keys(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Pinned so a new value cannot arrive without a guard beside it.
+
+    The admin username is the project's ADMIN_USERNAME, not upstream's
+    `temp-admin`; the fixture sets it to `admin` explicitly.
+    """
+    from nexus_deploy.service_env import _render_keycloak
+
+    rendered = _render_keycloak(full_config, full_env)
+    assert rendered.env_vars == {
+        "KEYCLOAK_DB_PASSWORD": "keycloak-db-pw",
+        "KEYCLOAK_ADMIN_USERNAME": "admin",
+        "KEYCLOAK_ADMIN_PASSWORD": "keycloak-admin-pw",
+        "KEYCLOAK_DOMAIN": "keycloak.example.com",
+    }
+
+
+def test_keycloak_admin_username_falls_back_to_the_project_default(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """An empty admin_username must fall back to DEFAULT_ADMIN_USERNAME, the
+    same constant every other renderer uses -- never to `admin` or to
+    Keycloak's `temp-admin` (#780)."""
+    from nexus_deploy.config import DEFAULT_ADMIN_USERNAME
+    from nexus_deploy.service_env import _render_keycloak
+
+    config = full_config.model_copy(update={"admin_username": None})
+    rendered = _render_keycloak(config, full_env)
+    assert rendered.env_vars["KEYCLOAK_ADMIN_USERNAME"] == DEFAULT_ADMIN_USERNAME
+
+
+def test_keycloak_domain_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The domain becomes KC_HOSTNAME and so the `iss` of every token; it must
+    be whichever hostname the tunnel actually serves."""
+    from nexus_deploy.service_env import _render_keycloak
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    assert _render_keycloak(full_config, env).env_vars["KEYCLOAK_DOMAIN"] == (
+        "keycloak-example.com"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "var"),
+    [
+        ("keycloak_db_password", "KEYCLOAK_DB_PASSWORD"),
+        ("keycloak_admin_password", "KEYCLOAK_ADMIN_PASSWORD"),
+    ],
+)
+def test_keycloak_raises_on_empty_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str, var: str
+) -> None:
+    """Each secret on its own must stop the deploy, and the message must name
+    which one -- a guard that only checked the DB password would pass a
+    single-case test while an empty bootstrap password went through."""
+    from nexus_deploy.service_env import _render_keycloak
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match=var):
+        _render_keycloak(config, full_env)
+
+
+def test_keycloak_raises_on_empty_domain(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """`service_host` returns the bare prefix for an empty domain, which is
+    non-empty, so the compose file's `${KEYCLOAK_DOMAIN:?}` would not catch it
+    and Keycloak would start with `https://keycloak` as its issuer."""
+    from nexus_deploy.service_env import _render_keycloak
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "domain": "",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="DOMAIN"):
+        _render_keycloak(full_config, env)
+
+
+def test_keycloak_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """0o600: the file holds the admin and database passwords in cleartext."""
+    from nexus_deploy.service_env import _render_keycloak
+
+    assert _render_keycloak(full_config, full_env).mode == 0o600
 
 
 # ---------------------------------------------------------------------------

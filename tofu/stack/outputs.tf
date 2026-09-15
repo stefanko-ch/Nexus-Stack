@@ -183,6 +183,10 @@ output "secrets" {
     # MLflow (experiment tracking + model registry)
     mlflow_db_password = random_password.mlflow_db_password.result
 
+    # Keycloak (identity provider; admin password is first-start only)
+    keycloak_db_password    = random_password.keycloak_db_password.result
+    keycloak_admin_password = random_password.keycloak_admin_password.result
+
     # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
     unity_catalog_db_password = random_password.unity_catalog_db_password.result
 

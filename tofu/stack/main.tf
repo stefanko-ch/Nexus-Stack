@@ -237,6 +237,21 @@ resource "random_password" "mlflow_db_password" {
   special = false
 }
 
+# Keycloak Postgres password — dedicated DB. Holds realms, clients, users
+# and sessions.
+resource "random_password" "keycloak_db_password" {
+  length  = 24
+  special = false
+}
+
+# Keycloak bootstrap admin password. Used only when the master realm is
+# created, i.e. on the first start against an empty database; Keycloak
+# ignores it on every later start.
+resource "random_password" "keycloak_admin_password" {
+  length  = 24
+  special = false
+}
+
 # Unity Catalog Postgres password — the metastore, not the data.
 # Table contents live in Cloudflare R2; this database holds the catalog
 # (catalogs, schemas, table pointers, credentials) and is what

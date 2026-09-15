@@ -56,6 +56,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Mailpit | `axllent/mailpit` | `v1.28` | Minor |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
 | Jupyter PySpark | `quay.io/jupyter/pyspark-notebook` | `python-3.13` | Minor |
+| Keycloak | `quay.io/keycloak/keycloak` | `26.7.3` | Exact |
+| PostgreSQL (Keycloak DB) | `postgres` | `17-alpine` | Major |
 | Excalidraw | `excalidraw/excalidraw` | `latest` | Latest ² |
 | Evidence | `evidencedev/devenv` | `latest` | Latest ² |
 | Filestash | `machines/filestash` | `@sha256:68171bf3…` | Digest ⁵ |
@@ -204,6 +206,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **InfluxDB** | Time-series database with retention and downsampling tasks | [influxdb.md](influxdb.md) |
 | **IT-Tools** | Developer tools collection | [it-tools.md](it-tools.md) |
 | **Jupyter PySpark** | Interactive PySpark notebook | [jupyter.md](jupyter.md) |
+| **Keycloak** | Identity provider (OIDC, OAuth 2.0, SAML) | [keycloak.md](keycloak.md) |
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI | [kafdrop.md](kafdrop.md) |
 | **Kafka-UI** | Kafka/Redpanda management UI | [kafka-ui.md](kafka-ui.md) |
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |

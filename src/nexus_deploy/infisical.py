@@ -732,6 +732,24 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             ),
         )
     )
+
+    folders.append(
+        FolderSpec(
+            "keycloak",
+            _filter_empty(
+                {
+                    # The bootstrap admin of the master realm. Keycloak reads
+                    # this only when it creates that realm -- the first start
+                    # against an empty database -- so these are the values
+                    # that were current then. See docs/stacks/keycloak.md.
+                    "KEYCLOAK_ADMIN_USERNAME": admin_username,
+                    "KEYCLOAK_ADMIN_PASSWORD": config.keycloak_admin_password,
+                    "KEYCLOAK_DB_USERNAME": "nexus-keycloak",
+                    "KEYCLOAK_DB_PASSWORD": config.keycloak_db_password,
+                }
+            ),
+        )
+    )
     folders.append(
         FolderSpec(
             "unity-catalog",

@@ -1,0 +1,159 @@
+# =============================================================================
+# Keycloak - Identity and access management (OIDC, OAuth 2.0, SAML)
+# https://keycloak.${DOMAIN}
+# =============================================================================
+# A self-contained identity provider for applications that need SSO of their
+# own. It does not replace Cloudflare Access, which stays in front of the
+# public hostname like every other stack here — see docs/stacks/keycloak.md
+# for what that means for an OIDC client.
+#
+# Production mode (`start`, not `start-dev`), dedicated `keycloak-db`
+# Postgres, plain HTTP inside the container because TLS terminates at
+# Cloudflare. No other stack is wired to it.
+#
+# No setup hook. The master realm and a temporary admin are created on the
+# first start against an empty database from the KC_BOOTSTRAP_ADMIN_* values
+# below; on every later start those values are ignored.
+# =============================================================================
+
+services:
+  keycloak:
+    image: ${IMAGE_KEYCLOAK:-quay.io/keycloak/keycloak:26.7.3}
+    container_name: keycloak
+    restart: unless-stopped
+    # `start` without `--optimized`. The image's entrypoint is kc.sh, so the
+    # command list is kc.sh's arguments.
+    #
+    # KC_DB, KC_HEALTH_ENABLED and KC_CACHE are build-time options, so this
+    # start runs Keycloak's re-augmentation step before booting. Measured on
+    # 26.7.3: "Quarkus augmentation completed in 2896ms" on a first start and
+    # 3090ms after a --force-recreate, with the server itself up about 2s
+    # later. A custom image built with `kc.sh build` and started with
+    # `--optimized` would save those ~3s per start, at the price of a
+    # Dockerfile to build on the server and keep in step with every version
+    # bump. Not worth it for a single node.
+    command: ["start"]
+    ports:
+      # Host 8106 → container 8080. Bound to 127.0.0.1: cloudflared reaches
+      # it over `http://localhost:<port>` (tofu/stack/main.tf), and #742
+      # tracks doing the same for the stacks that predate this.
+      #
+      # The management port 9000 (health) is deliberately NOT published.
+      - "127.0.0.1:8106:8080"
+    environment:
+      # --- Database -----------------------------------------------------------
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: nexus-keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?must be set in .env (rendered by service_env._render_keycloak)}
+
+      # --- Hostname and proxy (hostname v2, the only one in 26.x) ------------
+      # A full URL rather than a bare hostname, so scheme and port are fixed
+      # instead of guessed from the request: the browser always arrives over
+      # https on 443 at Cloudflare, while the container only ever sees http
+      # on 8080. This is also the value every token's `iss` claim carries.
+      KC_HOSTNAME: https://${KEYCLOAK_DOMAIN:?must be set in .env (rendered by service_env._render_keycloak)}
+      # Backchannel endpoints (token, userinfo, jwks) follow the URL the
+      # request arrived on, so a client on app-network can call
+      # http://keycloak:8080 while the issuer stays the public URL. Requires
+      # KC_HOSTNAME to be a full URL, which it is.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # TLS terminates at Cloudflare; the tunnel speaks plain HTTP to us.
+      KC_HTTP_ENABLED: "true"
+      # Cloudflare documents setting X-Forwarded-For / X-Forwarded-Proto on
+      # origin requests. Measured locally with a request shaped like the
+      # tunnel's (Host: the public name): WITH `X-Forwarded-Proto: https` the
+      # discovery document advertises an https token_endpoint; WITHOUT it,
+      # `http://keycloak.<domain>/...` — the backchannel follows the scheme
+      # it believes the request used. The issuer is https either way,
+      # because KC_HOSTNAME fixes it.
+      #
+      # Trade-off: every address is trusted (no KC_PROXY_TRUSTED_ADDRESSES),
+      # so a container on app-network can claim any client IP in these
+      # headers, and Keycloak records whatever address it is handed. The
+      # docker bridge address cloudflared's traffic arrives from is not a
+      # stable value to pin here.
+      KC_PROXY_HEADERS: xforwarded
+
+      # --- Single node -----------------------------------------------------------
+      # Production mode defaults to a clustered Infinispan cache with
+      # jdbc-ping discovery. One container has nobody to cluster with.
+      KC_CACHE: local
+
+      # --- Health ----------------------------------------------------------------
+      # /health/* is served on the management port 9000, not on 8080
+      # (measured: 8080/health/ready → 404). 9000 is not published, so the
+      # tunnel cannot reach it; containers on app-network can
+      # (keycloak:9000/health/ready → 200). Metrics stay off.
+      KC_HEALTH_ENABLED: "true"
+
+      # --- Bootstrap admin (first start only) ------------------------------------
+      # Creates a TEMPORARY admin in the master realm when the realm does not
+      # exist yet. The username follows the project's ADMIN_USERNAME rather
+      # than upstream's `temp-admin`.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?must be set in .env (rendered by service_env._render_keycloak)}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_keycloak)}
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      # No curl and no wget in this image (verified by listing /usr/bin).
+      # bash is there, and /bin/sh in this image handles /dev/tcp, so the
+      # probe is a raw HTTP request against the management port.
+      #
+      # The status line is matched for " 200 " rather than "something
+      # answered": while Keycloak is still initialising, /health/ready
+      # answers "DOWN". Measured both ways from the container's own health
+      # log — exit 1 with "Connection refused" before the listener, exit 1
+      # while the check reported DOWN, exit 0 once ready.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          head -n 1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - app-network
+      - keycloak-internal
+
+  keycloak-db:
+    image: ${IMAGE_KEYCLOAK_DB:-postgres:17-alpine}
+    container_name: keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?must be set in .env (rendered by service_env._render_keycloak)}
+      POSTGRES_DB: keycloak
+    volumes:
+      # Bind mount under /mnt/nexus-data, matching lakekeeper-db and
+      # mlflow-db. The snapshot lifecycle images the disk, so this survives
+      # a snapshot teardown. Keycloak is NOT in s3_restore's target list, so
+      # under the rebuild lifecycle this database — realms, clients, users —
+      # is gone after a teardown. See docs/stacks/keycloak.md, "Persistence".
+      - /mnt/nexus-data/keycloak/db:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      # Internal only: Keycloak is the database's single client.
+      - keycloak-internal
+
+networks:
+  app-network:
+    external: true
+  keycloak-internal:
+    driver: bridge
