@@ -111,6 +111,20 @@
     'lakekeeper': dict({
       'LAKEKEEPER_DB_PASSWORD': 'lakekeeper_db_password-VALUE',
     }),
+    'langfuse': dict({
+      'LANGFUSE_CLICKHOUSE_PASSWORD': 'langfuse_clickhouse_password-VALUE',
+      'LANGFUSE_CLICKHOUSE_USERNAME': 'nexus-langfuse',
+      'LANGFUSE_DB_PASSWORD': 'langfuse_db_password-VALUE',
+      'LANGFUSE_DB_USERNAME': 'nexus-langfuse',
+      'LANGFUSE_ENCRYPTION_KEY': 'langfuse_encryption_key-VALUE',
+      'LANGFUSE_NEXTAUTH_SECRET': 'langfuse_nextauth_secret-VALUE',
+      'LANGFUSE_PASSWORD': 'langfuse_admin_password-VALUE',
+      'LANGFUSE_PUBLIC_KEY': 'langfuse_public_key-VALUE',
+      'LANGFUSE_REDIS_PASSWORD': 'langfuse_redis_password-VALUE',
+      'LANGFUSE_SALT': 'langfuse_salt-VALUE',
+      'LANGFUSE_SECRET_KEY': 'langfuse_secret_key-VALUE',
+      'LANGFUSE_USERNAME': 'admin@snapshot.test',
+    }),
     'litellm': dict({
     }),
     'mage': dict({

@@ -187,6 +187,17 @@ output "secrets" {
     keycloak_db_password    = random_password.keycloak_db_password.result
     keycloak_admin_password = random_password.keycloak_admin_password.result
 
+    # Langfuse (LLM observability)
+    langfuse_db_password         = random_password.langfuse_db_password.result
+    langfuse_clickhouse_password = random_password.langfuse_clickhouse_password.result
+    langfuse_redis_password      = random_password.langfuse_redis_password.result
+    langfuse_nextauth_secret     = random_password.langfuse_nextauth_secret.result
+    langfuse_salt                = random_password.langfuse_salt.result
+    langfuse_encryption_key      = random_id.langfuse_encryption_key.hex
+    langfuse_admin_password      = random_password.langfuse_admin.result
+    langfuse_public_key          = "pk-lf-${random_uuid.langfuse_public_key.result}"
+    langfuse_secret_key          = "sk-lf-${random_uuid.langfuse_secret_key.result}"
+
     # Unity Catalog (Delta/Iceberg catalog; metastore only, data lives in R2)
     unity_catalog_db_password = random_password.unity_catalog_db_password.result
 

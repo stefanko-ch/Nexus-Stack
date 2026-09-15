@@ -79,7 +79,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (87)
+## Available Stacks (88)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -120,6 +120,7 @@ After deployment you'll have:
 [![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)](https://kestra.io)
 [![LakeFS](https://img.shields.io/badge/LakeFS-00B4D8?logo=git&logoColor=white)](https://lakefs.io)
 [![Lakekeeper](https://img.shields.io/badge/Lakekeeper-B7410E?logo=rust&logoColor=white)](https://lakekeeper.io)
+[![Langfuse](https://img.shields.io/badge/Langfuse-0A0A0A?logo=opentelemetry&logoColor=white)](https://langfuse.com)
 [![LiteLLM](https://img.shields.io/badge/LiteLLM-00BFFF?logo=openai&logoColor=white)](https://www.litellm.ai)
 [![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)](https://mage.ai)
 [![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)](https://mailpit.axllent.org)
@@ -210,6 +211,7 @@ After deployment you'll have:
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
 | **LakeFS** | Git-like version control for data lakes (Hetzner Object Storage backend) | [lakefs.io](https://lakefs.io) |
 | **Lakekeeper** | Modern Iceberg REST Catalog (Rust) — Spark / Trino / DuckDB / PyIceberg share Iceberg tables on the existing object storage | [lakekeeper.io](https://lakekeeper.io) |
+| **Langfuse** | LLM observability — traces, evaluations and prompt management for every model call | [langfuse.com](https://langfuse.com) |
 | **LiteLLM** | Unified OpenAI-compatible proxy for 100+ LLM providers (Ollama, OpenAI, Anthropic, Mistral, ...) — single SDK, per-key budgets, cost tracking | [litellm.ai](https://www.litellm.ai) |
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |

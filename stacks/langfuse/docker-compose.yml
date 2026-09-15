@@ -1,0 +1,293 @@
+# =============================================================================
+# Langfuse - LLM observability: tracing, evaluation, prompt management
+# https://langfuse.${DOMAIN}
+# =============================================================================
+# Six containers, and every store is this stack's own (CLAUDE.md: no sharing):
+#
+#   langfuse             web UI + public API, runs the Postgres and ClickHouse
+#                        migrations on every start, then the headless init
+#   langfuse-worker      queue consumer: turns ingested events into ClickHouse
+#                        rows, runs evaluations and exports
+#   langfuse-db          PostgreSQL — users, orgs, projects, API keys, prompts
+#   langfuse-clickhouse  traces, observations, scores
+#   langfuse-redis       BullMQ queues and caches
+#   (R2)                 raw event payloads and media, under `langfuse/`
+#
+# `langfuse-clickhouse` is deliberately NOT the `clickhouse` stack. That one is
+# a general-purpose analytics database; this one holds a schema Langfuse owns
+# and migrates on every start. 26.3 is an LTS line and clears Langfuse v4's
+# ClickHouse minimum of 25.12 (upstream's v3-to-v4 upgrade guide).
+#
+# Ingestion runs in v4's default write mode, `events_only`, which is not set
+# here because it is the default. It rejects the legacy
+# /api/public/ingestion event types that pre-OTel SDKs send — see
+# docs/stacks/langfuse.md, "Which clients can send traces".
+#
+# Upstream reference: docker-compose.yml at the v4.36.0 tag of
+# github.com/langfuse/langfuse, from which the variable names below are taken.
+# =============================================================================
+
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: "postgresql://nexus-langfuse:${LANGFUSE_DB_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}@langfuse-db:5432/langfuse"
+  NEXTAUTH_URL: ${LANGFUSE_URL:?must be set in .env (rendered by service_env._render_langfuse)}
+  SALT: ${LANGFUSE_SALT:?must be set in .env (rendered by service_env._render_langfuse)}
+  # 64 hex characters, validated by Langfuse at startup and by the renderer
+  # before this file is ever written.
+  ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?must be set in .env (rendered by service_env._render_langfuse)}
+  # Upstream's default is true: usage statistics sent to Langfuse.
+  TELEMETRY_ENABLED: "false"
+  LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+  # ⚠️ Both containers bind to $HOSTNAME (the worker's env schema, and
+  # `process.env.HOSTNAME || '0.0.0.0'` in the web image's server.js), and
+  # Docker sets that to the container id, which resolves to the container's
+  # network address only — not loopback. Measured on the worker: without
+  # this it logs `Listening: http://<container-id>:3030` and the healthcheck
+  # against 127.0.0.1 is refused while the worker itself runs fine.
+  HOSTNAME: "0.0.0.0"
+
+  # --- ClickHouse -------------------------------------------------------------
+  CLICKHOUSE_MIGRATION_URL: "clickhouse://langfuse-clickhouse:9000"
+  CLICKHOUSE_URL: "http://langfuse-clickhouse:8123"
+  CLICKHOUSE_USER: nexus-langfuse
+  CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}
+  # ⚠️ Upstream's schema default is `true`, which runs every migration
+  # `ON CLUSTER` and fails against a single node. Set to false for exactly
+  # this reason in Langfuse's own configuration reference.
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+
+  # --- Redis ------------------------------------------------------------------
+  REDIS_HOST: langfuse-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}
+
+  # --- Blob storage: the R2 data bucket, under this stack's own prefix --------
+  # The bucket is shared: Lakekeeper owns `lakekeeper/`, Unity Catalog
+  # `unity-catalog/`, MLflow `mlflow/`. Langfuse gets `langfuse/`, split
+  # into events and media. Upstream requires a prefix to end in `/`.
+  #
+  # R2 rather than an in-stack MinIO because of the media path: Langfuse hands
+  # SDKs and browsers PRESIGNED URLs for this endpoint, so it must be reachable
+  # from outside the Docker network. R2's endpoint is; a MinIO sidecar would
+  # need a second public hostname of its own.
+  #
+  # No AWS_*_CHECKSUM_* variables, unlike MLflow: Langfuse's StorageService
+  # constructs its S3 client with requestChecksumCalculation and
+  # responseChecksumValidation both set to WHEN_REQUIRED in code (v4.36.0).
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${R2_BUCKET:?must be set in .env (rendered by service_env._render_langfuse)}
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "langfuse/events/"
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: ${R2_ENDPOINT:?must be set in .env (rendered by service_env._render_langfuse)}
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${R2_ACCESS_KEY:?must be set in .env (rendered by service_env._render_langfuse)}
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${R2_SECRET_KEY:?must be set in .env (rendered by service_env._render_langfuse)}
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: ${R2_BUCKET}
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "langfuse/media/"
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${R2_ENDPOINT}
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${R2_ACCESS_KEY}
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${R2_SECRET_KEY}
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  # Batch exports stay at upstream's default (off). Turning them on needs an
+  # externally reachable endpoint decision of its own.
+  LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+
+services:
+  langfuse:
+    image: ${IMAGE_LANGFUSE:-langfuse/langfuse:4.36.0}
+    container_name: langfuse
+    restart: unless-stopped
+    ports:
+      # Host 3008 → container 3000. Langfuse keeps its own default inside the
+      # container; 3000 on the host belongs to metabase. Clients on
+      # app-network use `langfuse:3000`. Bound to 127.0.0.1: cloudflared
+      # reaches it over localhost either way, as for stacks/influxdb.
+      - "127.0.0.1:3008:3000"
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?must be set in .env (rendered by service_env._render_langfuse)}
+
+      # Nobody signs up. The only account is the one initialised below;
+      # further users are invited from the UI by that admin.
+      AUTH_DISABLE_SIGNUP: "true"
+
+      # --- Headless initialisation --------------------------------------------
+      # Runs in the web container on every start and is idempotent: org and
+      # project are upserted by id, the API key is created only if its public
+      # key is not already present, and the user only if the email is new.
+      #
+      # Consequence worth knowing: an EXISTING user's password is never
+      # updated. On the rebuild lifecycle the database is new every time, so
+      # the password in Infisical is always the one that works. See
+      # docs/stacks/langfuse.md for the snapshot-lifecycle caveat.
+      LANGFUSE_INIT_ORG_ID: nexus
+      LANGFUSE_INIT_ORG_NAME: "Nexus Stack"
+      LANGFUSE_INIT_PROJECT_ID: nexus-default
+      LANGFUSE_INIT_PROJECT_NAME: "Default"
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?must be set in .env (rendered by service_env._render_langfuse)}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?must be set in .env (rendered by service_env._render_langfuse)}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_langfuse)}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_ADMIN_NAME:?must be set in .env (rendered by service_env._render_langfuse)}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          # ⚠️ Headroom, deliberately. Node sizes its heap from the cgroup
+          # limit. On 3.225.7 at 1536m the web container died on startup with
+          # `JavaScript heap out of memory` at a ~750 MB heap, three times in
+          # a row, and its healthcheck passed between the crashes. On 4.36.0
+          # the same 1536m limit started without a restart (idle, ~90 s,
+          # ~815 MiB resident) — close enough to that ceiling that 2g stays.
+          # Measured at 2g on 4.36.0: ~750 MiB resident, no restarts.
+          memory: 2g
+    healthcheck:
+      # wget, not curl: the image ships wget and no curl (checked with
+      # `command -v` inside langfuse/langfuse:4.36.0).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/public/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # Generous: the web container applies Postgres and ClickHouse
+      # migrations before it starts listening, and on a first start that is
+      # the whole schema.
+      start_period: 180s
+    networks:
+      - app-network
+      - langfuse-internal
+
+  langfuse-worker:
+    image: ${IMAGE_LANGFUSE_WORKER:-langfuse/langfuse-worker:4.36.0}
+    container_name: langfuse-worker
+    restart: unless-stopped
+    environment:
+      <<: *langfuse-env
+    depends_on:
+      # The web container owns the migrations; waiting for it to be healthy
+      # means the worker never meets a half-migrated schema.
+      langfuse:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3030/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      # Internal only: nothing outside this stack calls the worker. Outbound
+      # traffic (R2, LLM providers for evaluations) still works over the
+      # bridge network.
+      - langfuse-internal
+
+  langfuse-db:
+    image: ${IMAGE_LANGFUSE_DB:-postgres:17-alpine}
+    container_name: langfuse-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}
+      POSTGRES_DB: langfuse
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - langfuse-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-langfuse -d langfuse"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - langfuse-internal
+
+  langfuse-clickhouse:
+    image: ${IMAGE_LANGFUSE_CLICKHOUSE:-clickhouse/clickhouse-server:26.3.33.24}
+    container_name: langfuse-clickhouse
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: nexus-langfuse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+      # Caches sized for a shared host; see the file for what each bounds.
+      - ./clickhouse-memory.xml:/etc/clickhouse-server/config.d/nexus-memory.xml:ro
+    deploy:
+      resources:
+        limits:
+          # The cgroup limit is the hard ceiling. ClickHouse also reads it and
+          # derives its own server-wide memory cap from it, so queries fail
+          # with MEMORY_LIMIT_EXCEEDED before the kernel OOM-kills the process.
+          memory: 2g
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - langfuse-internal
+
+  langfuse-redis:
+    image: ${IMAGE_LANGFUSE_REDIS:-redis:7-alpine}
+    container_name: langfuse-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${LANGFUSE_REDIS_PASSWORD:?must be set in .env (rendered by service_env._render_langfuse)}
+      # noeviction is required: Langfuse's queues live here, and an evicted
+      # job is a trace that silently never arrives. With maxmemory set, a
+      # full Redis refuses writes with an error instead of dropping data,
+      # and stays below the container limit rather than being OOM-killed.
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - langfuse-redis-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+    healthcheck:
+      # REDISCLI_AUTH rather than `-a`, which makes redis-cli print an
+      # insecure-password warning on every probe.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$LANGFUSE_REDIS_PASSWORD\" redis-cli ping | grep -qx PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      LANGFUSE_REDIS_PASSWORD: ${LANGFUSE_REDIS_PASSWORD}
+    networks:
+      - langfuse-internal
+
+volumes:
+  langfuse-db-data:
+  langfuse-clickhouse-data:
+  langfuse-clickhouse-logs:
+  langfuse-redis-data:
+
+networks:
+  app-network:
+    external: true
+  langfuse-internal:
+    driver: bridge

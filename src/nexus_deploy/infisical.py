@@ -752,6 +752,36 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "langfuse",
+            _filter_empty(
+                {
+                    # Langfuse signs in by email, not by username -- the same
+                    # shape as Planka -- so the "username" a reader needs is
+                    # the admin email the headless initialiser was given.
+                    "LANGFUSE_USERNAME": env.admin_email,
+                    "LANGFUSE_PASSWORD": config.langfuse_admin_password,
+                    # The project API key pair SDK clients present. Created by
+                    # LANGFUSE_INIT_PROJECT_* on first start of the web
+                    # container, so it works without a UI visit.
+                    "LANGFUSE_PUBLIC_KEY": config.langfuse_public_key,
+                    "LANGFUSE_SECRET_KEY": config.langfuse_secret_key,
+                    "LANGFUSE_DB_USERNAME": "nexus-langfuse",
+                    "LANGFUSE_DB_PASSWORD": config.langfuse_db_password,
+                    "LANGFUSE_CLICKHOUSE_USERNAME": "nexus-langfuse",
+                    "LANGFUSE_CLICKHOUSE_PASSWORD": config.langfuse_clickhouse_password,
+                    "LANGFUSE_REDIS_PASSWORD": config.langfuse_redis_password,
+                    "LANGFUSE_NEXTAUTH_SECRET": config.langfuse_nextauth_secret,
+                    "LANGFUSE_SALT": config.langfuse_salt,
+                    # Kept alongside the rest: upstream documents it as the
+                    # key that encrypts sensitive data Langfuse stores, so
+                    # an operator restoring a database needs this value too.
+                    "LANGFUSE_ENCRYPTION_KEY": config.langfuse_encryption_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "unity-catalog",
             _filter_empty(
                 {

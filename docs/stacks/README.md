@@ -97,6 +97,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
+| Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
+| Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
+| PostgreSQL (Langfuse DB) | `postgres` | `17-alpine` | Major |
+| ClickHouse (Langfuse) | `clickhouse/clickhouse-server` | `26.3.33.24` | Exact |
+| Redis (Langfuse) | `redis` | `7-alpine` | Major |
 | LiteLLM Proxy | `litellm/litellm-database` | `v1.85.1` | Exact ¹ |
 | PostgreSQL (LiteLLM DB) | `postgres` | `16-alpine` | Major |
 | Meltano | `meltano/meltano` | `v4.0` | Minor |
@@ -212,6 +217,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |
 | **LakeFS** | Git-like version control for data lakes | [lakefs.md](lakefs.md) |
 | **Lakekeeper** | Iceberg REST Catalog (Rust) for multi-engine lakehouse | [lakekeeper.md](lakekeeper.md) |
+| **Langfuse** | LLM observability: tracing, evaluations, prompt management | [langfuse.md](langfuse.md) |
 | **LiteLLM Proxy** | Unified OpenAI-compatible proxy for 100+ LLM providers | [litellm.md](litellm.md) |
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |

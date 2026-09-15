@@ -252,6 +252,65 @@ resource "random_password" "keycloak_admin_password" {
   special = false
 }
 
+# Langfuse (LLM observability). Four stores, all dedicated to this stack,
+# and each gets its own credential so none of them doubles as another.
+#
+# `special = false` throughout, and for the ClickHouse password it is not
+# only house style: Langfuse's web entrypoint interpolates
+# CLICKHOUSE_PASSWORD into a migration URL query string and warns that
+# `& = # ? % + @` and spaces break it. The Postgres password likewise goes
+# into a DATABASE_URL, where Prisma needs `@ : / % # ?` percent-encoded.
+resource "random_password" "langfuse_db_password" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "langfuse_clickhouse_password" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "langfuse_redis_password" {
+  length  = 24
+  special = false
+}
+
+# NEXTAUTH_SECRET signs session cookies; SALT hashes API keys.
+resource "random_password" "langfuse_nextauth_secret" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "langfuse_salt" {
+  length  = 32
+  special = false
+}
+
+# ENCRYPTION_KEY: random_id rather than random_password because the format
+# is fixed. Langfuse validates it as exactly 64 characters and documents it
+# as 256 bits of hex (`openssl rand -hex 32`); 32 bytes rendered as hex is
+# precisely that. A random_password would be rejected at startup.
+resource "random_id" "langfuse_encryption_key" {
+  byte_length = 32
+}
+
+# The web UI login for the headlessly initialised admin user. Langfuse's
+# initialiser only requires 8+ characters (isValidPassword in
+# credentialsServerUtils.ts); the sign-up form's complexity rule does not
+# apply to it, and sign-up is disabled on this stack anyway.
+resource "random_password" "langfuse_admin" {
+  length  = 24
+  special = false
+}
+
+# A project API key pair, created by the headless initialiser, so SDK
+# clients have credentials without anyone clicking through the UI. The
+# `pk-lf-` / `sk-lf-` + UUID shape is exactly what Langfuse's own
+# generateKeySet() produces.
+resource "random_uuid" "langfuse_public_key" {}
+
+resource "random_uuid" "langfuse_secret_key" {}
+
 # Unity Catalog Postgres password — the metastore, not the data.
 # Table contents live in Cloudflare R2; this database holds the catalog
 # (catalogs, schemas, table pointers, credentials) and is what
