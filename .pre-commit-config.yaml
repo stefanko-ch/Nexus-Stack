@@ -176,3 +176,40 @@ repos:
     hooks:
       - id: actionlint
         files: ^\.github/workflows/.*\.ya?ml$
+
+  # ---------------------------------------------------------------------------
+  # OpenTofu — the syntax half of #720.
+  #
+  # `tofu fmt -check` parses the file, so it catches a malformed block rather
+  # than only indentation. Measured against the real defect that motivated
+  # this — two `random_password` resources left without a body by a rebase:
+  #
+  #     tofu fmt -check   ->  exit 2, "Error: Unclosed configuration block"
+  #
+  # It needs neither providers nor network, which is what makes it suitable
+  # here; `tofu validate` would want a `tofu init` on every commit.
+  #
+  # ⚠️ This hook is fast local feedback, NOT the gate — the same way actionlint
+  # above is not. `fmt` sees syntax only: an undeclared variable, a provider
+  # argument that does not exist, a reference to a resource nobody declared,
+  # all parse cleanly and pass here. `tofu validate` catches those, and runs
+  # in `.github/workflows/tofu-checks.yaml` on every push and PR touching
+  # `tofu/`, on a runner that can spend the five seconds on
+  # `tofu init -backend=false`.
+  #
+  # `language: system` because tofu is installed on the machine rather than by
+  # pre-commit — the same trade shellcheck makes.
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: tofu-fmt
+        name: OpenTofu fmt (syntax; validate runs in CI)
+        entry: tofu fmt -check -diff -no-color
+        language: system
+        # Both of OpenTofu's native extensions. Nothing in this repository is
+        # named `.tofu` today, but `tofu fmt` does process them — measured: on
+        # a directory holding one badly and one well formatted `.tofu`, it
+        # names the bad one and exits non-zero. A `\.tf$` filter would have
+        # let the first such file past the hook while CI, which runs `tofu fmt`
+        # against the whole directory, failed on it.
+        files: ^tofu/.*\.(tf|tofu)$
