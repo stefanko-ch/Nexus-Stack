@@ -44,6 +44,7 @@ from nexus_deploy.services import (
     render_lakekeeper_hook,
     render_metabase_hook,
     render_n8n_hook,
+    render_neo4j_hook,
     render_openmetadata_hook,
     render_pg_ducklake_hook,
     render_portainer_hook,
@@ -140,6 +141,8 @@ def test_supported_hooks_contains_all_specs() -> None:
         "sftpgo",
         # pg-ducklake bootstrap-SQL re-apply
         "pg-ducklake",
+        # Creates `nexus-neo4j` and drops the image's built-in `neo4j` user.
+        "neo4j",
     }
 
 
@@ -2785,3 +2788,144 @@ def test_unity_catalog_hook_is_registered() -> None:
     from nexus_deploy.services import _HOOK_REGISTRY
 
     assert _HOOK_REGISTRY["unity-catalog"] is render_unity_catalog_hook
+
+
+# ---------------------------------------------------------------------------
+# Neo4j — replace the built-in `neo4j` user with `nexus-neo4j`
+# ---------------------------------------------------------------------------
+
+# A stand-in for `docker` that answers each of the hook's four calls from
+# environment variables, logs the order they arrived in, and keeps whatever
+# the create step received on stdin. The hook's control flow is then
+# exercised by bash itself rather than by reading the rendered text.
+_FAKE_DOCKER = """#!/usr/bin/env bash
+args="$*"
+echo "$args" >> "$FAKE_LOG"
+case "$args" in
+  *wget*) exit 0 ;;
+  *"SHOW CURRENT USER"*)
+    echo "sign-in refused (fake)"
+    if grep -q "SHOW CURRENT USER" "$FAKE_LOG.seen" 2>/dev/null; then exit "$SIGNIN_RETRY_RC"; fi
+    echo "SHOW CURRENT USER" >> "$FAKE_LOG.seen"
+    exit "$SIGNIN_RC" ;;
+  *"DROP USER"*) echo "drop refused (fake)"; exit "$DROP_RC" ;;
+  "exec -i neo4j sh")
+    cat > "$FAKE_STDIN"
+    echo "CREATE-ERROR-QUOTING-THE-STATEMENT" >&2
+    exit "$CREATE_RC" ;;
+esac
+echo "unexpected docker call: $args" >&2
+exit 99
+"""
+
+
+def _run_neo4j_hook(
+    tmp_path: Path,
+    *,
+    signin_rc: int,
+    create_rc: int = 0,
+    drop_rc: int = 0,
+    signin_retry_rc: int | None = None,
+) -> tuple[str, list[str], str]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker = bin_dir / "docker"
+    docker.write_text(_FAKE_DOCKER)
+    docker.chmod(0o755)
+    log = tmp_path / "calls.log"
+    stdin_capture = tmp_path / "create-stdin"
+    script = render_neo4j_hook(_make_config(), _make_env())
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_LOG": str(log),
+        "FAKE_STDIN": str(stdin_capture),
+        "SIGNIN_RC": str(signin_rc),
+        "SIGNIN_RETRY_RC": str(signin_rc if signin_retry_rc is None else signin_retry_rc),
+        "CREATE_RC": str(create_rc),
+        "DROP_RC": str(drop_rc),
+        # Set on the HOST side only. The create statement must reference the
+        # container's variable, so this value must never reach the pipe.
+        "NEXUS_NEO4J_PASSWORD": "HOST-SIDE-VALUE-MUST-NOT-EXPAND",
+    }
+    done = subprocess.run(
+        ["bash", "-s"], input=script, capture_output=True, text=True, env=env, check=False
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    stdin_seen = stdin_capture.read_text() if stdin_capture.exists() else ""
+    return done.stdout + done.stderr, calls, stdin_seen
+
+
+def test_neo4j_hook_is_registered() -> None:
+    """Without it the stack runs with the image's built-in `neo4j` account,
+    the guessable default the `nexus-` naming rule exists to prevent."""
+    from nexus_deploy.services import _HOOK_REGISTRY
+
+    assert _HOOK_REGISTRY["neo4j"] is render_neo4j_hook
+
+
+def test_neo4j_hook_renders_no_secret() -> None:
+    """The password is read from the container's environment, so a config
+    value must not appear anywhere in the script sent over SSH."""
+    canary = "NEO4JCANARY0123456789"
+    script = render_neo4j_hook(_make_config(neo4j_admin_password=canary), _make_env())
+    assert canary not in script
+
+
+def test_neo4j_hook_fresh_database_creates_then_drops(tmp_path: Path) -> None:
+    """Sign-in as nexus-neo4j refused -> create it as neo4j -> drop neo4j.
+
+    The drop must come after the create: dropping first would leave a
+    database with no account at all.
+    """
+    out, calls, stdin_seen = _run_neo4j_hook(tmp_path, signin_rc=1)
+    assert "RESULT hook=neo4j status=configured" in out
+    kinds = [
+        "signin" if "SHOW CURRENT USER" in c else "drop" if "DROP USER" in c else "create"
+        for c in calls
+        if "wget" not in c
+    ]
+    assert kinds == ["signin", "create", "drop"]
+    assert "CREATE USER `nexus-neo4j` IF NOT EXISTS" in stdin_seen
+    assert '"$NEXUS_NEO4J_PASSWORD"' in stdin_seen
+    assert "HOST-SIDE-VALUE-MUST-NOT-EXPAND" not in stdin_seen
+
+
+def test_neo4j_hook_second_run_is_already_configured(tmp_path: Path) -> None:
+    """nexus-neo4j signs in, so nothing is created; the drop still runs, and
+    is idempotent server-side (`DROP USER neo4j IF EXISTS`)."""
+    out, calls, _ = _run_neo4j_hook(tmp_path, signin_rc=0)
+    assert "RESULT hook=neo4j status=already-configured" in out
+    assert not any(c == "exec -i neo4j sh" for c in calls)
+    assert any("DROP USER" in c for c in calls)
+
+
+def test_neo4j_hook_fails_when_neither_account_works(tmp_path: Path) -> None:
+    """Both refused is `failed`, not `configured` -- and the create step's own
+    output is never shown, because a Cypher error can quote the statement
+    and the statement holds the password."""
+    out, calls, _ = _run_neo4j_hook(tmp_path, signin_rc=1, create_rc=1)
+    assert "RESULT hook=neo4j status=failed" in out
+    assert "CREATE-ERROR-QUOTING-THE-STATEMENT" not in out
+    assert "sign-in refused (fake)" in out
+    assert not any("DROP USER" in c for c in calls)
+
+
+def test_neo4j_hook_asks_again_when_the_create_loses_a_race(tmp_path: Path) -> None:
+    """spin-up.yml has no concurrency group (#801). A second deploy can find
+    nexus-neo4j missing, then fail to create it because the first deploy has
+    dropped `neo4j` in between. nexus-neo4j signing in on the second ask is
+    success, not `failed`."""
+    out, calls, _ = _run_neo4j_hook(tmp_path, signin_rc=1, create_rc=1, signin_retry_rc=0)
+    assert "RESULT hook=neo4j status=already-configured" in out
+    assert "status=failed" not in out
+    assert sum("SHOW CURRENT USER" in c for c in calls) == 2
+    assert any("DROP USER" in c for c in calls)
+
+
+def test_neo4j_hook_fails_when_the_drop_fails(tmp_path: Path) -> None:
+    """A created nexus-neo4j with `neo4j` still present is not done."""
+    out, _, _ = _run_neo4j_hook(tmp_path, signin_rc=1, drop_rc=1)
+    assert "RESULT hook=neo4j status=failed" in out
+    assert "status=configured" not in out
+    assert "drop refused (fake)" in out
