@@ -742,6 +742,21 @@ services:
     long_description: "n8n is a workflow automation platform with 400+ integrations. Connect apps, automate tasks, and build complex workflows with a visual editor. Supports webhooks, scheduled triggers, conditional logic, and custom JavaScript/Python code nodes. Self-hosted for full data control."
     image: "n8nio/n8n:1.123.75"
 
+  neo4j:
+    subdomain: "neo4j"
+    # The tunnel's origin is neo4j-proxy, not Neo4j itself: the proxy sends
+    # WebSocket upgrades to Bolt (7687) and everything else to the HTTP port,
+    # so Neo4j Browser and the Bolt connection it opens share this hostname.
+    port: 7474
+    public: false
+    category: "databases"
+    website: "https://neo4j.com"
+    description: "Graph database with the Cypher query language and Neo4j Browser for exploring nodes and relationships."
+    long_description: "Neo4j is a widely used open-source graph database: data is stored as nodes and relationships with properties, and queried with Cypher, a pattern-matching language that reads like the graph it describes. It fills the graph gap next to the relational, columnar, time-series and vector stores already here — paths, recommendations, fraud rings and knowledge graphs are one MATCH away rather than a chain of self-joins. Community Edition, single instance. Neo4j Browser is served at the stack URL and runs queries over Bolt through the same hostname; notebooks and pipelines on the internal network connect to bolt://neo4j:7687. The admin account is nexus-neo4j, with a password generated per deployment (Infisical → folder `neo4j`)."
+    image: "neo4j:2026.08.1-community"
+    support_images:
+      neo4j-proxy: "nginx:1.30.4-alpine"
+
   nocodb:
     subdomain: "nocodb"
     port: 8091

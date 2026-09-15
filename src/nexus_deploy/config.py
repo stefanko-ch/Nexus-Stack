@@ -102,6 +102,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
+    ("NEO4J_ADMIN_PASSWORD", "neo4j_admin_password", ""),
     ("NUSSKNACKER_ADMIN_PASSWORD", "nussknacker_admin_password", ""),
     ("MONGODB_ROOT_PASSWORD", "mongodb_root_password", ""),
     ("MONGODB_EXPRESS_SESSION_SECRET", "mongodb_express_session_secret", ""),
@@ -257,6 +258,7 @@ class NexusConfig(BaseModel):
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None
+    neo4j_admin_password: str | None = None
     nussknacker_admin_password: str | None = None
     mongodb_root_password: str | None = None
     mongodb_express_session_secret: str | None = None

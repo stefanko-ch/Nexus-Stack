@@ -221,6 +221,9 @@ output "secrets" {
     mongodb_root_password          = random_password.mongodb_root.result
     mongodb_express_session_secret = random_password.mongodb_express_session.result
 
+    # Neo4j (graph database; the password of `nexus-neo4j`)
+    neo4j_admin_password = random_password.neo4j_admin.result
+
     # OpenSearch (standalone search + Dashboards)
     opensearch_admin_password = random_password.opensearch_admin.result
 

@@ -170,6 +170,10 @@
       'N8N_PASSWORD': 'n8n_admin_password-VALUE',
       'N8N_USERNAME': 'admin@snapshot.test',
     }),
+    'neo4j': dict({
+      'NEO4J_PASSWORD': 'neo4jAdminPw0123456789',
+      'NEO4J_USERNAME': 'nexus-neo4j',
+    }),
     'nocodb': dict({
       'NOCODB_DB_PASSWORD': 'nocodb_db_password-VALUE',
       'NOCODB_JWT_SECRET': 'nocodb_jwt_secret-VALUE',

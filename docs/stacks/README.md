@@ -130,6 +130,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | InfluxDB | `influxdb` | `2.9.1` | Exact ¹ |
 | Nussknacker | `touk/nussknacker` | `1.18.1_scala-2.12` | Exact ¹ |
 | Weaviate | `cr.weaviate.io/semitechnologies/weaviate` | `1.34.0` | Exact ¹ |
+| Neo4j | `neo4j` | `2026.08.1-community` | Exact |
+| nginx (Neo4j proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -241,6 +243,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
+| **Neo4j** | Graph database with Cypher and Neo4j Browser | [neo4j.md](neo4j.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |

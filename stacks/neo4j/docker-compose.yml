@@ -1,0 +1,108 @@
+# =============================================================================
+# Neo4j (Community Edition) - Graph database with the Cypher query language
+# https://neo4j.${DOMAIN}
+# =============================================================================
+# Two containers:
+#   - neo4j        the database. Other stacks on app-network use
+#                  bolt://neo4j:7687 (or neo4j://neo4j:7687) directly.
+#   - neo4j-proxy  nginx in front of the HTTP port, so that Neo4j Browser and
+#                  the Bolt WebSocket it opens share one tunnel hostname.
+#                  See nginx.conf for why that is needed and how it splits.
+#
+# The admin account is `nexus-neo4j`, not the built-in `neo4j`. Community
+# Edition cannot rename or suspend a user (`SET STATUS` is Enterprise-only,
+# measured: "'SET STATUS' is not supported in community edition"), but it can
+# create one and drop another. The image only knows how to seed `neo4j`, so
+# `neo4j` is created from NEO4J_AUTH on first start and the admin-setup hook
+# (`render_neo4j_hook` in src/nexus_deploy/services.py) creates `nexus-neo4j`
+# and drops `neo4j`. Measured across a restart: the dropped user stays
+# dropped, NEO4J_AUTH only seeds an empty database.
+#
+# Docs: https://neo4j.com/docs/operations-manual/current/docker/
+# =============================================================================
+
+services:
+  neo4j:
+    image: ${IMAGE_NEO4J:-neo4j:2026.08.1-community}
+    container_name: neo4j
+    restart: unless-stopped
+    # No env_file, deliberately. The image turns every NEO4J_* variable into a
+    # neo4j.conf setting and refuses to start on one it does not know —
+    # measured with NEO4J_PASSWORD set: "Unrecognized setting. No declared
+    # setting with name: PASSWORD". The .env is read for interpolation only,
+    # and the password key in it is NEXUS_-prefixed for the same reason.
+    ports:
+      # Bolt, loopback only. Not needed by the tunnel (Browser reaches Bolt
+      # through neo4j-proxy) — it is here so an operator can forward it over
+      # SSH and point a local driver or cypher-shell at localhost:7687.
+      - "127.0.0.1:7687:7687"
+    environment:
+      # Seeds the built-in `neo4j` user on an empty database only. The hook
+      # replaces it with `nexus-neo4j` carrying the same password.
+      NEO4J_AUTH: neo4j/${NEXUS_NEO4J_PASSWORD:?must be set in .env (rendered by service_env._render_neo4j)}
+      # Read by the admin-setup hook inside the container, so the password
+      # never has to appear in a `docker exec` argument list.
+      NEXUS_NEO4J_PASSWORD: ${NEXUS_NEO4J_PASSWORD:?must be set in .env (rendered by service_env._render_neo4j)}
+      # Memory set explicitly. Left alone, Neo4j sizes heap and page cache
+      # from the machine's RAM, not from the container limit below — on a
+      # 16 GB server that is far more than a 2 GB limit allows.
+      # 1 GiB heap + 512 MiB page cache leaves ~0.5 GiB for the JVM's
+      # off-heap use (metaspace, threads, Netty buffers).
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+      # No usage telemetry to Neo4j, Inc. from a teaching deployment.
+      NEO4J_dbms_usage__report_enabled: "false"
+    volumes:
+      - neo4j_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # wget, not curl: this image ships wget and no curl (`command -v`).
+      # `/` answers 200 with the discovery document without authentication,
+      # so wget's non-2xx failure is exactly right here (#783).
+      test: ["CMD-SHELL", "wget -q -T 5 -O /dev/null http://localhost:7474/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+      - neo4j-internal
+
+  neo4j-proxy:
+    image: ${IMAGE_NEO4J_PROXY:-nginx:1.30.4-alpine}
+    container_name: neo4j-proxy
+    restart: unless-stopped
+    ports:
+      # The tunnel's origin: neo4j.<domain> -> http://localhost:7474. Loopback
+      # only, because cloudflared connects over localhost either way (#742).
+      - "127.0.0.1:7474:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 5 -O /dev/null http://127.0.0.1:8080/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      # Only needs to reach `neo4j`; nothing on app-network talks to the proxy.
+      - neo4j-internal
+
+volumes:
+  neo4j_data:
+
+networks:
+  app-network:
+    external: true
+  neo4j-internal:
+    driver: bridge

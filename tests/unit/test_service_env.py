@@ -98,6 +98,7 @@ def full_config() -> NexusConfig:
         questdb_pg_password="questdb-pg-pw",
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
+        neo4j_admin_password="neo4jAdminPw0123456789",
         nussknacker_admin_password="nussknacker-admin-pw",
         mongodb_root_password="mongodb-root-pw",
         mongodb_express_session_secret="mongodb-express-session-secret",
@@ -3179,6 +3180,51 @@ def test_influxdb_raises_on_empty_token(full_config: NexusConfig, full_env: Boot
     config = full_config.model_copy(update={"influxdb_admin_token": ""})
     with pytest.raises(ServiceEnvError, match="INFLUXDB_ADMIN_TOKEN"):
         _render_influxdb(config, full_env)
+
+
+def test_neo4j_renders_one_nexus_prefixed_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """One key, and not NEO4J_-prefixed.
+
+    The image turns every NEO4J_* variable into a neo4j.conf setting and
+    refuses to start on an unknown one -- measured with NEO4J_PASSWORD:
+    "Unrecognized setting. No declared setting with name: PASSWORD".
+    """
+    from nexus_deploy.service_env import _render_neo4j
+
+    rendered = _render_neo4j(full_config, full_env)
+    assert rendered.env_vars == {"NEXUS_NEO4J_PASSWORD": "neo4jAdminPw0123456789"}
+    assert not any(key.startswith("NEO4J_") for key in rendered.env_vars)
+    assert rendered.mode == 0o600
+
+
+def test_neo4j_raises_on_empty_password(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """The compose file's `${VAR:?}` would stop the container too, but only
+    this names the tofu output the value comes from."""
+    from nexus_deploy.service_env import _render_neo4j
+
+    config = full_config.model_copy(update={"neo4j_admin_password": ""})
+    with pytest.raises(ServiceEnvError, match="NEO4J_ADMIN_PASSWORD is empty"):
+        _render_neo4j(config, full_env)
+
+
+@pytest.mark.parametrize(
+    "password",
+    ['abc"def', "abc'def", "abc\\def", "abc def", "abc`def", "abc$def", "abc\ndef"],
+)
+def test_neo4j_rejects_a_password_the_hook_cannot_quote(
+    full_config: NexusConfig, full_env: BootstrapEnv, password: str
+) -> None:
+    """The admin-setup hook embeds the password in a double-quoted Cypher
+    literal, which is safe only for letters and digits. The error names the
+    rule and never the value."""
+    from nexus_deploy.service_env import _render_neo4j
+
+    config = full_config.model_copy(update={"neo4j_admin_password": password})
+    with pytest.raises(ServiceEnvError, match="letters and digits") as excinfo:
+        _render_neo4j(config, full_env)
+    assert password not in str(excinfo.value)
 
 
 def test_nussknacker_renders_users_conf_with_the_generated_password(
