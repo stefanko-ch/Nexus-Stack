@@ -70,6 +70,19 @@ services:
     long_description: "Adminer is a full-featured, single-file database management tool written in PHP. It supports PostgreSQL, MySQL, MariaDB, SQLite, MS SQL, Oracle, and MongoDB. Run SQL queries, browse tables, import/export data, and manage database structure - all in a lightweight web interface."
     image: "adminer:latest"
 
+  airflow:
+    subdomain: "airflow"
+    # Host 8104 → the api-server's 8080 inside the container.
+    port: 8104
+    public: false
+    category: "orchestration"
+    website: "https://airflow.apache.org"
+    description: "Apache Airflow — the industry-standard DAG-based workflow orchestrator, with the largest operator and provider ecosystem."
+    long_description: "Apache Airflow defines workflows as Python DAGs and schedules, runs and monitors them from a web UI. It is the orchestrator most job postings and most community DAGs assume, which is why it sits next to Dagster, Kestra, Prefect and Windmill rather than replacing any of them. In Nexus-Stack it runs Airflow 3 with the LocalExecutor — api-server, scheduler, DAG processor and triggerer as separate containers, tasks executed inside the scheduler — against a dedicated PostgreSQL. Login is Airflow's own admin user on top of Cloudflare Access, with the password generated per deployment and stored in Infisical under `airflow`. DAGs live in a Docker volume; nothing syncs them from Git yet."
+    image: "apache/airflow:3.3.1"
+    support_images:
+      airflow-db: "postgres:17-alpine"
+
   appsmith:
     subdomain: "appsmith"
     port: 8098

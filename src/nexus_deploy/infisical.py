@@ -782,6 +782,25 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "airflow",
+            _filter_empty(
+                {
+                    # The web login. The JWT secret, API secret key and
+                    # Fernet key are deliberately not pushed: nobody signs in
+                    # with them, and the Fernet key decrypts every stored
+                    # connection password, so it stays in the tofu output and
+                    # the stack's 0600 .env rather than in a folder that
+                    # Kestra's secret sync copies wholesale.
+                    "AIRFLOW_USERNAME": admin_username,
+                    "AIRFLOW_PASSWORD": config.airflow_admin_password,
+                    "AIRFLOW_DB_USERNAME": "nexus-airflow",
+                    "AIRFLOW_DB_PASSWORD": config.airflow_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "unity-catalog",
             _filter_empty(
                 {

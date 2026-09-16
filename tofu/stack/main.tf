@@ -311,6 +311,39 @@ resource "random_uuid" "langfuse_public_key" {}
 
 resource "random_uuid" "langfuse_secret_key" {}
 
+# Apache Airflow — admin login, dedicated Postgres, and three keys every
+# Airflow component must share. Left unset, each container generates its own
+# JWT secret and API secret key (checked: two fresh containers of the pinned
+# image report different values), and a token signed in one is not
+# verifiable in another.
+resource "random_password" "airflow_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "airflow_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "airflow_jwt_secret" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "airflow_api_secret_key" {
+  length  = 48
+  special = false
+}
+
+# Fernet key for connection and variable encryption: base64 of 32 random
+# bytes, the same shape as openmetadata_fernet_key. Airflow's Fernet decodes
+# with urlsafe_b64decode, which accepts the standard alphabet too — checked
+# against the pinned image with a key containing both `+` and `/`.
+resource "random_id" "airflow_fernet_key" {
+  byte_length = 32
+}
+
 # Unity Catalog Postgres password — the metastore, not the data.
 # Table contents live in Cloudflare R2; this database holds the catalog
 # (catalogs, schemas, table pointers, credentials) and is what

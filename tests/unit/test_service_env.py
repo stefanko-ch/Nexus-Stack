@@ -79,6 +79,11 @@ def full_config() -> NexusConfig:
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
         mlflow_db_password="mlflow-db-pw",
+        airflow_admin_password="airflow-admin-pw",
+        airflow_db_password="airflow-db-pw",
+        airflow_jwt_secret="airflow-jwt-secret",
+        airflow_api_secret_key="airflow-api-secret-key",
+        airflow_fernet_key="airflow-fernet-key",
         keycloak_db_password="keycloak-db-pw",
         keycloak_admin_password="keycloak-admin-pw",
         langfuse_db_password="langfuse-db-pw",
@@ -1059,6 +1064,130 @@ def test_mlflow_carries_the_r2_block(full_config: NexusConfig, full_env: Bootstr
     rendered = _render_mlflow(full_config, full_env)
     for key in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"):
         assert rendered.env_vars.get(key), f"{key} missing from the MLflow env file"
+
+
+# ---------------------------------------------------------------------------
+# Airflow — required secrets, admin identity, base URL, file mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "airflow_admin_password",
+        "airflow_db_password",
+        "airflow_jwt_secret",
+        "airflow_api_secret_key",
+        "airflow_fernet_key",
+    ],
+)
+def test_airflow_raises_on_each_empty_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str
+) -> None:
+    """Each of the five must stop the deploy on its own.
+
+    Parametrised because a guard that only checked the password would pass a
+    single test while letting an empty JWT secret through — and an empty JWT
+    secret is the one that fails late: Airflow starts, the UI works, and only
+    the first task is rejected by the Execution API.
+    """
+    from nexus_deploy.service_env import _render_airflow
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match=field):
+        _render_airflow(config, full_env)
+
+
+def test_airflow_raises_on_empty_admin_email(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """FAB's `users create` requires an email, so airflow-init would exit
+    non-zero and `service_completed_successfully` would hold back every other
+    Airflow container. Fail at render time with the cause instead."""
+    from nexus_deploy.service_env import _render_airflow
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "admin_email": "",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="ADMIN_EMAIL"):
+        _render_airflow(full_config, env)
+
+
+def test_airflow_raises_on_empty_domain(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """`service_host` returns the bare prefix for an empty domain, so the base
+    URL would render as `https://airflow`. That is non-empty, so the compose
+    file's `:?` accepts it and the API server starts healthy — with every link
+    and redirect it builds pointing at a hostname no browser resolves."""
+    from nexus_deploy.service_env import _render_airflow
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "domain": "",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="DOMAIN"):
+        _render_airflow(full_config, env)
+
+
+def test_airflow_renders_every_variable_the_compose_file_requires(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The compose file reads these with `${VAR:?}` or inside airflow-init's
+    script; a renamed key here would stop `docker compose up` on the server.
+    Asserted against the compose file itself so the two cannot drift."""
+    import re
+    from pathlib import Path
+
+    from nexus_deploy.service_env import _render_airflow
+
+    compose = (
+        Path(__file__).resolve().parents[2] / "stacks" / "airflow" / "docker-compose.yml"
+    ).read_text()
+    read_by_compose = set(re.findall(r"\$\$?\{?(AIRFLOW_[A-Z_]+)", compose))
+    rendered = _render_airflow(full_config, full_env)
+    assert read_by_compose, "no AIRFLOW_* variables found in the compose file"
+    missing = read_by_compose - set(rendered.env_vars)
+    assert not missing, f"compose reads {sorted(missing)} but _render_airflow does not write them"
+    assert all(rendered.env_vars[k] for k in read_by_compose)
+
+
+def test_airflow_admin_identity_and_base_url(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Username follows ADMIN_USERNAME, the same value Infisical shows under
+    `airflow/AIRFLOW_USERNAME`; the base URL is the public https hostname."""
+    from nexus_deploy.service_env import _render_airflow
+
+    rendered = _render_airflow(full_config, full_env)
+    assert rendered.env_vars["AIRFLOW_ADMIN_USERNAME"] == "admin"
+    assert rendered.env_vars["AIRFLOW_ADMIN_EMAIL"] == "admin@example.com"
+    assert rendered.env_vars["AIRFLOW_BASE_URL"] == "https://airflow.example.com"
+
+
+def test_airflow_base_url_respects_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_airflow
+
+    env = BootstrapEnv(
+        **{
+            **{k: getattr(full_env, k) for k in full_env.__dataclass_fields__},
+            "subdomain_separator": "-",
+        }
+    )
+    rendered = _render_airflow(full_config, env)
+    assert rendered.env_vars["AIRFLOW_BASE_URL"] == "https://airflow-example.com"
+
+
+def test_airflow_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """The file holds the admin password and the Fernet key in cleartext."""
+    from nexus_deploy.service_env import _render_airflow
+
+    assert _render_airflow(full_config, full_env).mode == 0o600
 
 
 # ---------------------------------------------------------------------------
