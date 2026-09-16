@@ -58,17 +58,38 @@ Measured: data written by `mongo:8.2.12` (FCV 8.2), then started with `mongo:7.0
 
 **Moving such data here.** Community Edition has no binary downgrade from 8.x to 7.0, and a dump is no way around that: MongoDB supports `mongorestore` only between deployments of [the same major version or the same feature compatibility version](https://www.mongodb.com/docs/database-tools/mongorestore/mongorestore-behavior-access-usage/), which an 8.x dump and this 7.0 server are not. Do not read a clean run as permission — a `mongodump` from 8.2.12 restored into 7.0.43 finished with exit 0 in the same test, which is exactly why an unsupported path is dangerous: nothing tells you if it went wrong.
 
-Export at the document level instead, with the old server still running:
+Export at the document level instead, with the old server still running. The commands below run **on the server** (`ssh nexus`) and **inside the `mongodb` container**: port `27017` is not published unless the firewall rule is on, so a tool on the host has nothing to connect to. The container already holds `nexus-mongodb`'s credentials in `MONGO_INITDB_ROOT_USERNAME` / `MONGO_INITDB_ROOT_PASSWORD`. Each command reads them from there, so the password never appears in a command line. `printf` is a shell builtin, and the tools take it from a `--config` file that exists only for the duration of the call.
+
+If the old data is this same stack on another server, the container and variable names are the same there. Otherwise, use that deployment's own address and credentials.
 
 ```bash
-# on the old server, per collection; note the indexes first
-mongosh --quiet --eval 'db.getSiblingDB("shop").orders.getIndexes()'
-mongoexport --db shop --collection orders --jsonFormat=canonical --out orders.json
+# 1. On the OLD server: list the indexes, they do not travel
+docker exec mongodb mongosh --quiet --norc --eval '
+  db.getSiblingDB("admin").auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD);
+  printjson(db.getSiblingDB("shop").orders.getIndexes())'
 
-# into this stack
-mongoimport --db shop --collection orders --file orders.json
-# then recreate each index from the list above
+# 2. On the OLD server: export one collection as canonical Extended JSON
+#    (no -i: the export reads nothing, and -i would swallow the rest of a
+#    script this is pasted into)
+docker exec mongodb sh -c '
+  umask 077
+  printf "password: %s\n" "$MONGO_INITDB_ROOT_PASSWORD" > /tmp/migrate.yaml
+  mongoexport --config /tmp/migrate.yaml --username "$MONGO_INITDB_ROOT_USERNAME" \
+    --authenticationDatabase admin --db shop --collection orders --jsonFormat=canonical
+  rc=$?; rm -f /tmp/migrate.yaml; exit $rc' > orders.json
+
+# 3. Copy orders.json to this server, then import it into this stack
+docker exec -i mongodb sh -c '
+  umask 077
+  printf "password: %s\n" "$MONGO_INITDB_ROOT_PASSWORD" > /tmp/migrate.yaml
+  mongoimport --config /tmp/migrate.yaml --username "$MONGO_INITDB_ROOT_USERNAME" \
+    --authenticationDatabase admin --db shop --collection orders
+  rc=$?; rm -f /tmp/migrate.yaml; exit $rc' < orders.json
+
+# 4. Recreate each index from step 1, e.g. with createIndex() in mongosh
 ```
+
+Steps 1 to 3 were run as written against this stack, into a scratch database. Export and import both exited 0, the documents arrived with their `Decimal128` values, the secondary index did not, and no config file was left in the container. The same import without the credentials exits 1.
 
 `--jsonFormat=canonical` is what keeps BSON types intact. Measured from 8.2.12 into 7.0.43: `ObjectId`, `Date`, `Decimal128` (`19.99`) and a `Long` above 2⁵³ (`9007199254740993`) all arrived as the same types and values. **Indexes do not travel** — the collection arrived with only `_id_` — and neither do users or roles, which this stack creates itself.
 
