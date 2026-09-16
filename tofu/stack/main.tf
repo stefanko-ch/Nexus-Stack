@@ -390,6 +390,22 @@ resource "random_password" "influxdb_token" {
   special = false
 }
 
+# MongoDB root password for `nexus-mongodb`, plus mongo-express's session
+# secret. `special = false` on the password is load-bearing rather than a
+# preference: it is embedded verbatim in mongo-express's connection URL
+# (`mongodb://nexus-mongodb:<pw>@mongodb:27017/`), where `@`, `:`, `/` and `%`
+# would need percent-encoding. The session secret replaces the image's
+# default of the literal string `secret`.
+resource "random_password" "mongodb_root" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "mongodb_express_session" {
+  length  = 48
+  special = false
+}
+
 resource "random_password" "questdb_pg" {
   length  = 24
   special = false

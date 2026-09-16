@@ -214,6 +214,10 @@ output "secrets" {
     nussknacker_admin_password = random_password.nussknacker_admin.result
     influxdb_admin_token       = random_password.influxdb_token.result
 
+    # MongoDB (document database) + mongo-express
+    mongodb_root_password          = random_password.mongodb_root.result
+    mongodb_express_session_secret = random_password.mongodb_express_session.result
+
     # OpenSearch (standalone search + Dashboards)
     opensearch_admin_password = random_password.opensearch_admin.result
 
