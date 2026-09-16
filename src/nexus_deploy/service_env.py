@@ -2665,7 +2665,31 @@ def render_all_env_files(
     Returns counts (rendered, skipped, failed). Hard-fail conditions
     (SFTPGo with empty password) raise :class:`ServiceEnvError` —
     the caller (CLI) maps to rc=2.
+
+    An empty ``env.domain`` is refused here, once, rather than in each
+    renderer. ``service_host`` returns the bare prefix for an empty domain
+    -- deliberately, and pinned by tests in ``test_config.py`` -- so a
+    renderer would write ``https://kestra`` or ``https://langfuse``. That
+    value is non-empty, so the compose files' ``${VAR:?}`` accepts it and
+    the container starts healthy with every link, redirect and issuer
+    pointing at a hostname no browser resolves.
+
+    Both entry points already require DOMAIN (``run_pipeline`` and the
+    ``service-env`` CLI), so this rejects nothing either of them accepts.
+    What it closes is every other caller, and the orchestrator phase, whose
+    own protection is a check two layers up in ``run_pipeline``. A new
+    renderer does not need its own DOMAIN guard; ``_render_keycloak`` and
+    ``_render_airflow`` keep theirs because their error messages name the
+    stack-specific consequence (#863).
     """
+    if _empty(env.domain) and any(spec.enabled_check(enabled) for spec in _SPECS):
+        raise ServiceEnvError(
+            "DOMAIN is empty — every service URL would render as a bare name "
+            "such as `https://kestra`, which the containers accept at startup "
+            "and then use in every link and redirect. Set DOMAIN before "
+            "rendering service env files.",
+        )
+
     results: list[ServiceRenderResult] = []
     spark_enabled = "spark" in enabled
     # Spark only names the Unity Catalog server when that stack is actually
