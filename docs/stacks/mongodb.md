@@ -49,7 +49,12 @@ Measured on a deployed server (`7.0.0-30-generic`), each image started in an iso
 
 This was found by a real spin-up, not by a local run: the stack passed every local test on a different kernel, then went into a restart loop on the server with `MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility with this version of MongoDB.`
 
-**A data directory from a newer MongoDB is refused, not opened.** None can exist on a server this project deploys, since 8.x never started there, but one could be copied in. Measured: data written by `mongo:8.2.12` (FCV 8.2), then started with `mongo:7.0.43`, stops with exit 62 and `UPGRADE PROBLEM: Found an invalid featureCompatibilityVersion document`, and leaves the files as they were. To move such data here, `mongodump` it with the version that wrote it and `mongorestore` it into this stack.
+**A data directory from a newer MongoDB is refused, not opened.** On the default image none can exist, because 8.x never started there. There are two ways one could:
+
+- data copied in from elsewhere, or
+- a server built with `server_image` set to an image whose kernel MongoDB 8.0 accepts (`ubuntu-24.04`, say), with MongoDB enabled during the hours `mongo:8.0.30` was the pinned version (2026-09-16), and the volume then kept by the `snapshot` lifecycle — a `rebuild` teardown destroys it (see [What survives a teardown](#what-survives-a-teardown)).
+
+Measured: data written by `mongo:8.2.12` (FCV 8.2), then started with `mongo:7.0.43`, stops with exit 62 and `UPGRADE PROBLEM: Found an invalid featureCompatibilityVersion document`, and leaves the files as they were. The spin-up's smoke check reports the container as exited. Community Edition has no direct downgrade from 8.0 to 7.0, so move such data with `mongodump` run by the MongoDB that wrote it, then `mongorestore` into a fresh volume of this stack.
 
 **Before moving to 8.x**, check `uname -r` on a deployed server. It needs to report 7.0.14 or later — which on Ubuntu means a newer kernel line, not a newer build of `7.0.0`.
 
