@@ -54,7 +54,23 @@ This was found by a real spin-up, not by a local run: the stack passed every loc
 - data copied in from elsewhere, or
 - a server built with `server_image` set to an image whose kernel MongoDB 8.0 accepts (`ubuntu-24.04`, say), with MongoDB enabled during the hours `mongo:8.0.30` was the pinned version (2026-09-16), and the volume then kept by the `snapshot` lifecycle — a `rebuild` teardown destroys it (see [What survives a teardown](#what-survives-a-teardown)).
 
-Measured: data written by `mongo:8.2.12` (FCV 8.2), then started with `mongo:7.0.43`, stops with exit 62 and `UPGRADE PROBLEM: Found an invalid featureCompatibilityVersion document`, and leaves the files as they were. The spin-up's smoke check reports the container as exited. Community Edition has no direct downgrade from 8.0 to 7.0, so move such data with `mongodump` run by the MongoDB that wrote it, then `mongorestore` into a fresh volume of this stack.
+Measured: data written by `mongo:8.2.12` (FCV 8.2), then started with `mongo:7.0.43`, stops with exit 62 and `UPGRADE PROBLEM: Found an invalid featureCompatibilityVersion document`, and leaves the files as they were. The spin-up's smoke check reports the container as exited.
+
+**Moving such data here.** Community Edition has no binary downgrade from 8.x to 7.0, and a dump is no way around that: MongoDB supports `mongorestore` only between deployments of [the same major version or the same feature compatibility version](https://www.mongodb.com/docs/database-tools/mongorestore/mongorestore-behavior-access-usage/), which an 8.x dump and this 7.0 server are not. Do not read a clean run as permission — a `mongodump` from 8.2.12 restored into 7.0.43 finished with exit 0 in the same test, which is exactly why an unsupported path is dangerous: nothing tells you if it went wrong.
+
+Export at the document level instead, with the old server still running:
+
+```bash
+# on the old server, per collection; note the indexes first
+mongosh --quiet --eval 'db.getSiblingDB("shop").orders.getIndexes()'
+mongoexport --db shop --collection orders --jsonFormat=canonical --out orders.json
+
+# into this stack
+mongoimport --db shop --collection orders --file orders.json
+# then recreate each index from the list above
+```
+
+`--jsonFormat=canonical` is what keeps BSON types intact. Measured from 8.2.12 into 7.0.43: `ObjectId`, `Date`, `Decimal128` (`19.99`) and a `Long` above 2⁵³ (`9007199254740993`) all arrived as the same types and values. **Indexes do not travel** — the collection arrived with only `_id_` — and neither do users or roles, which this stack creates itself.
 
 **Before moving to 8.x**, check `uname -r` on a deployed server. It needs to report 7.0.14 or later — which on Ubuntu means a newer kernel line, not a newer build of `7.0.0`.
 
