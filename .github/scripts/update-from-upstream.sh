@@ -5,7 +5,10 @@
 # Called by .github/workflows/update-from-upstream.yml, from a checkout of
 # this instance's main with full history.
 #
-# Usage: update-from-upstream.sh <upstream-git-url> <tag>
+# Usage: update-from-upstream.sh <upstream-git-url> <tag> <expected-commit>
+#
+# <expected-commit> is the commit the caller validated for the release. The
+# fetched tag must resolve to it, or nothing is pushed.
 #
 # Only ever fast-forwards. The instance's main moves to the tag's commit when,
 # and only when, the tag's commit contains everything main has:
@@ -25,12 +28,13 @@
 # =============================================================================
 set -euo pipefail
 
-if [ "$#" -ne 2 ]; then
-  echo "❌ usage: $0 <upstream-git-url> <tag>" >&2
+if [ "$#" -ne 3 ]; then
+  echo "❌ usage: $0 <upstream-git-url> <tag> <expected-commit>" >&2
   exit 1
 fi
 UPSTREAM_URL="$1"
 TAG="$2"
+EXPECTED="$3"
 
 # Release tags only. The value ends up in a refspec, so it is checked before
 # it is used, not only for tidiness.
@@ -46,6 +50,11 @@ output() {
 }
 
 CURRENT=$(git rev-parse --verify HEAD)
+if ! [[ "$EXPECTED" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "❌ '$EXPECTED' is not a full commit SHA." >&2
+  exit 1
+fi
+
 output from "$CURRENT"
 output moved false
 
@@ -55,6 +64,12 @@ if ! git fetch --no-tags --quiet "$UPSTREAM_URL" "refs/tags/$TAG"; then
 fi
 TARGET=$(git rev-parse --verify "FETCH_HEAD^{commit}")
 output to "$TARGET"
+
+if [ "$TARGET" != "$EXPECTED" ]; then
+  echo "❌ $TAG resolves to $TARGET, but the release was validated at $EXPECTED." >&2
+  echo "   The tag moved during this run. Nothing was pushed." >&2
+  exit 1
+fi
 
 short() { git rev-parse --short "$1"; }
 

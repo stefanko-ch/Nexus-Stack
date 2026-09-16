@@ -109,7 +109,30 @@ jobs:
             echo "❌ $UPSTREAM_REPOSITORY has no published release $TAG."
             exit 1
           fi
+
+          # The commit this release names, recorded now. The fast-forward
+          # fetches the tag separately and must arrive at the same commit;
+          # a tag moved in between is refused rather than pushed.
+          if ! OBJ=$(gh api "repos/$UPSTREAM_REPOSITORY/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha'); then
+            echo "❌ Could not read the tag $TAG of $UPSTREAM_REPOSITORY."
+            exit 1
+          fi
+          read -r TYPE SHA <<< "$OBJ"
+          # An annotated tag points at a tag object; peel it (bounded).
+          for _ in 1 2 3; do
+            [ "$TYPE" = "tag" ] || break
+            if ! OBJ=$(gh api "repos/$UPSTREAM_REPOSITORY/git/tags/$SHA" --jq '.object.type + " " + .object.sha'); then
+              echo "❌ Could not read the tag object $SHA."
+              exit 1
+            fi
+            read -r TYPE SHA <<< "$OBJ"
+          done
+          if [ "$TYPE" != "commit" ] || ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "❌ The tag $TAG does not resolve to a commit ($TYPE $SHA)."
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "📦 Target: $UPSTREAM_REPOSITORY $TAG"
           echo "   Release notes: https://github.com/$UPSTREAM_REPOSITORY/releases/tag/$TAG"
 
@@ -171,9 +194,10 @@ jobs:
         id: update
         env:
           TAG: ${{ steps.resolve.outputs.tag }}
+          SHA: ${{ steps.resolve.outputs.sha }}
         run: |
           bash .github/scripts/update-from-upstream.sh \
-            "https://github.com/$UPSTREAM_REPOSITORY.git" "$TAG"
+            "https://github.com/$UPSTREAM_REPOSITORY.git" "$TAG" "$SHA"
 
       - name: Update the Control Plane
         id: control_plane
@@ -191,9 +215,13 @@ jobs:
           # is exactly this dispatch, never one found by time or commit.
           # Documented in github/rest-api-description for
           # actions/create-workflow-dispatch.
+          #
+          # expected_sha makes the dispatched run stop in its first step if
+          # `main` resolved to anything but the release commit, before it
+          # touches a secret. The head_sha check below then reports it.
           if ! RESPONSE=$(gh api -X POST \
                  "repos/$REPO/actions/workflows/setup-control-plane.yaml/dispatches" \
-                 -f ref=main -F return_run_details=true); then
+                 -f ref=main -f "inputs[expected_sha]=$TARGET" -F return_run_details=true); then
             echo "❌ Could not dispatch Setup: Control Plane (see the error above)."
             echo "   main is updated. Run Setup: Control Plane by hand before spinning up."
             exit 1

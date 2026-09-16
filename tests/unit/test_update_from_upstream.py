@@ -106,10 +106,20 @@ class _Repos:
     def origin_main(self) -> str:
         return self.git(self.origin, "rev-parse", "refs/heads/main")
 
-    def run(self, tag: str) -> subprocess.CompletedProcess[str]:
+    def run(self, tag: str, expected: str | None = None) -> subprocess.CompletedProcess[str]:
+        """`expected` defaults to what the tag really resolves to upstream."""
+        if expected is None:
+            probe = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}^{{commit}}"],
+                cwd=self.upstream,
+                env=self.env,
+                capture_output=True,
+                text=True,
+            )
+            expected = probe.stdout.strip() or "0" * 40
         self.output.write_text("")
         return subprocess.run(
-            ["bash", str(UPDATE_SCRIPT), str(self.upstream), tag],
+            ["bash", str(UPDATE_SCRIPT), str(self.upstream), tag, expected],
             cwd=self.instance,
             env={**self.env, "GITHUB_OUTPUT": str(self.output)},
             capture_output=True,
@@ -185,6 +195,29 @@ def test_a_template_copy_is_refused_with_a_pointer_to_the_docs(repos: _Repos) ->
     assert "share no history" in result.stderr
     assert "Updating to a new" in result.stderr
     assert repos.origin_main() == before
+
+
+def test_a_tag_that_moved_since_validation_is_not_pushed(repos: _Repos) -> None:
+    """The caller validated v1.1.0 at one commit; the fetch finds another."""
+    repos.make_instance(at=repos.v100)
+
+    result = repos.run("v1.1.0", expected=repos.v100)
+
+    assert result.returncode == 1
+    assert "The tag moved during this run" in result.stderr
+    assert repos.origin_main() == repos.v100
+    assert repos.outputs()["moved"] == "false"
+
+
+@pytest.mark.parametrize("expected", ["", "abc123", "v1.1.0"])
+def test_an_expected_commit_that_is_not_a_full_sha_is_refused(repos: _Repos, expected: str) -> None:
+    repos.make_instance(at=repos.v100)
+
+    result = repos.run("v1.1.0", expected=expected)
+
+    assert result.returncode == 1
+    assert "not a full commit SHA" in result.stderr
+    assert repos.origin_main() == repos.v100
 
 
 def test_a_refused_push_leaves_main_and_says_so(repos: _Repos) -> None:
@@ -438,6 +471,33 @@ def test_the_control_plane_run_is_the_one_this_dispatch_created() -> None:
     # And the run is on the release commit.
     assert step["env"]["TARGET"] == "${{ steps.update.outputs.to }}"
     assert '[ "$RUN_SHA" != "$TARGET" ]' in run
+
+
+def test_the_validated_release_commit_reaches_the_fast_forward() -> None:
+    _, resolve = _step("Resolve the release")
+    assert 'echo "sha=$SHA" >> "$GITHUB_OUTPUT"' in resolve["run"]
+    assert "git/ref/tags/$TAG" in resolve["run"]
+    _, update = _step("Fast-forward main")
+    assert update["env"]["SHA"] == "${{ steps.resolve.outputs.sha }}"
+    assert '"$TAG" "$SHA"' in update["run"]
+
+
+def test_the_dispatched_setup_run_checks_its_commit_first() -> None:
+    """The guard has to run inside the dispatched run, before any secret is
+    read: the caller's head_sha check only notices after the fact."""
+    _, update = _step("Update the Control Plane")
+    assert '-f "inputs[expected_sha]=$TARGET"' in update["run"]
+
+    setup = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "setup-control-plane.yaml").read_text()
+    )
+    triggers = setup["on"] if "on" in setup else setup[True]
+    assert "expected_sha" in triggers["workflow_dispatch"]["inputs"]
+    first = setup["jobs"]["deploy"]["steps"][0]
+    assert first["if"] == "inputs.expected_sha != ''"
+    assert first["env"] == {"EXPECTED": "${{ inputs.expected_sha }}", "ACTUAL": "${{ github.sha }}"}
+    assert 'if [ "$EXPECTED" != "$ACTUAL" ]' in first["run"]
+    assert "exit 1" in first["run"]
 
 
 def test_a_missing_workflow_is_skipped_by_file_not_by_error_text() -> None:
