@@ -105,6 +105,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("NUSSKNACKER_ADMIN_PASSWORD", "nussknacker_admin_password", ""),
     ("MONGODB_ROOT_PASSWORD", "mongodb_root_password", ""),
     ("MONGODB_EXPRESS_SESSION_SECRET", "mongodb_express_session_secret", ""),
+    ("TEMPORAL_DB_PASS", "temporal_db_password", ""),
     ("OPENSEARCH_ADMIN_PASS", "opensearch_admin_password", ""),
     ("MARQUEZ_DB_PASS", "marquez_db_password", ""),
     ("MARQUEZ_OPENSEARCH_PASS", "marquez_opensearch_password", ""),
@@ -259,6 +260,7 @@ class NexusConfig(BaseModel):
     nussknacker_admin_password: str | None = None
     mongodb_root_password: str | None = None
     mongodb_express_session_secret: str | None = None
+    temporal_db_password: str | None = None
     opensearch_admin_password: str | None = None
     marquez_db_password: str | None = None
     marquez_opensearch_password: str | None = None

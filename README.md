@@ -79,7 +79,7 @@ After deployment you'll have:
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
 
-## Available Stacks (90)
+## Available Stacks (91)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -162,6 +162,7 @@ After deployment you'll have:
 [![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org)
 [![Superset](https://img.shields.io/badge/Apache_Superset-20A6A4?logo=apachesuperset&logoColor=white)](https://superset.apache.org)
 [![Telegraf](https://img.shields.io/badge/Telegraf-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/time-series-platform/telegraf/)
+[![Temporal](https://img.shields.io/badge/Temporal-000000?logo=temporal&logoColor=white)](https://temporal.io)
 [![Trino](https://img.shields.io/badge/Trino-DD00A1?logo=trino&logoColor=white)](https://trino.io)
 [![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)](https://uptime.kuma.pet)
 [![Unity Catalog](https://img.shields.io/badge/Unity%20Catalog-FF3621?logo=databricks&logoColor=white)](https://www.unitycatalog.io)
@@ -255,6 +256,7 @@ After deployment you'll have:
 | **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |
 | **Superset** | Modern data exploration and visualization platform with SQL Lab | [superset.apache.org](https://superset.apache.org) |
 | **Telegraf** | Metrics collection agent with 300+ plugins (CLI-only, no web UI) | [influxdata.com](https://www.influxdata.com/time-series-platform/telegraf/) |
+| **Temporal** | Durable workflow execution engine — workflows as code that survive crashes and restarts, with a Web UI for every execution's history | [temporal.io](https://temporal.io) |
 | **Trino** | Distributed SQL query engine for querying data across multiple sources | [trino.io](https://trino.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Unity Catalog** | Open-source catalog for Delta & Iceberg tables, volumes and AI assets | [unitycatalog.io](https://www.unitycatalog.io) |

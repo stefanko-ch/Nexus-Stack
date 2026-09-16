@@ -344,6 +344,13 @@ resource "random_id" "airflow_fernet_key" {
   byte_length = 32
 }
 
+# Temporal Postgres password — dedicated DB. Holds workflow executions,
+# history and the visibility index the Web UI queries.
+resource "random_password" "temporal_db_password" {
+  length  = 24
+  special = false
+}
+
 # Unity Catalog Postgres password — the metastore, not the data.
 # Table contents live in Cloudflare R2; this database holds the catalog
 # (catalogs, schemas, table pointers, credentials) and is what

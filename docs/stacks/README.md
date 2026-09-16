@@ -146,6 +146,10 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
 | PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |
+| Temporal Server | `temporalio/server` | `1.32.0` | Exact ⁶ |
+| Temporal Admin Tools | `temporalio/admin-tools` | `1.32.0` | Exact ⁶ |
+| Temporal UI | `temporalio/ui` | `2.54.1` | Exact ¹ |
+| PostgreSQL (Temporal DB) | `postgres` | `17-alpine` | Major |
 | Trino | `trinodb/trino` | `479` | Exact ¹ |
 | Unity Catalog | built locally from `unitycatalog/unitycatalog` | `v0.6.0` | Exact ¹ |
 | PostgreSQL (Unity Catalog metastore) | `postgres` | `16-alpine` | Major |
@@ -166,6 +170,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 ⚠️ **Rolling** — the tag moves, and upstream publishes nothing narrower to pin to. Accepted only where no alternative exists, and only for stacks whose data survives an image change. Each of these needs a compatibility check before a deliberate refresh, because a rolling tag can cross a major without the name changing.
 
 ⁵ No version tags published at all — only `latest`, `lowa`, `trial` and commit SHAs, and the SHA tags are single-arch. Pinned to the digest of the multi-arch manifest list, which keeps amd64 and arm64. Holds state in a volume, so `latest` was not an option.
+
+⁶ Upstream does publish minor tags (`1.32`), and they are not used on purpose. Temporal Server is upgraded one minor version at a time, with the database schema migrated *before* the new server starts — `temporal-schema-setup` does that migration with the admin-tools image, so the server and admin-tools tags must move together and deliberately. A moving tag would let the running version change on a re-pull without anyone deciding to upgrade. See [temporal.md](temporal.md#upgrading).
 
 **Strategies:**
 - **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
@@ -262,6 +268,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |
+| **Temporal** | Durable workflow execution engine | [temporal.md](temporal.md) |
 | **Trino** | Distributed SQL query engine | [trino.md](trino.md) |
 | **Unity Catalog** | Catalog for Delta & Iceberg tables, volumes and AI assets | [unity-catalog.md](unity-catalog.md) |
 | **Uptime Kuma** | Self-hosted monitoring tool | [uptime-kuma.md](uptime-kuma.md) |
