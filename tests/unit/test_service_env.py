@@ -3634,7 +3634,6 @@ def test_timescaledb_is_dispatched_when_enabled(
     assert "TIMESCALEDB_PASSWORD" in env_file.read_text()
 
 
-
 def test_mongodb_renders_both_secrets(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
     """Root password and session secret, and nothing else.
 
