@@ -14,7 +14,7 @@ The stack ships two containers:
 
 | Container | Image | Role |
 |-----------|-------|------|
-| `mongodb` | `mongo:8.0.30` | The server. Wire protocol on `27017`, authentication on |
+| `mongodb` | `mongo:7.0.43` | The server. Wire protocol on `27017`, authentication on |
 | `mongodb-express` | `mongo-express:1.0.2-20-alpine3.19` | Web UI for browsing databases, collections and documents |
 
 | Setting | Value |
@@ -30,9 +30,26 @@ The stack ships two containers:
 | Website | [mongodb.com](https://www.mongodb.com) |
 | Source | [GitHub](https://github.com/mongodb/mongo), [mongo-express](https://github.com/mongo-express/mongo-express) |
 
-### Why version 8.0 and not 8.3
+### Why version 7.0
 
-8.0 is a MongoDB **major** release, with a five-year lifecycle. The newer 8.2 and 8.3 are **minor** releases: MongoDB stops patching one as soon as the next ships, and minor releases cannot be skipped on upgrade. A data directory that survives spin-ups (snapshot mode) would need a sequential upgrade on every bump, so the stack tracks the major line.
+**MongoDB 8.x does not run on the servers this project deploys.** MongoDB's release notes state that Linux kernels 6.19 through 7.0.13 are incompatible with the TCMalloc it vendors, and that MongoDB "detects these kernel versions and stops during startup" ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)). The fix is kernel 7.0.14. Ubuntu 26.04 reports its kernel as `7.0.0-<build>` and keeps that base version for the life of the release, so MongoDB's check will keep refusing it even after Ubuntu backports the fix.
+
+Measured on a deployed server (`7.0.0-30-generic`), each image started in an isolated container:
+
+| Image | Result | Allocator |
+|---|---|---|
+| `mongo:8.0.30`, `mongo:8.0.32` | exits at startup | – |
+| `mongo:8.3.11` | exits at startup | – |
+| `mongo:8.2.12` | runs | `tcmalloc-google`, `usingPerCPUCaches: true` |
+| `mongo:7.0.43` | runs | `tcmalloc`, no per-CPU caches |
+
+8.2 is not the way out, even though it starts. Its per-CPU caches are the mechanism the startup check exists to keep away from these kernels — 8.2 simply lacks the check. It is also past its end of life (31 July 2026).
+
+7.0 uses the older TCMalloc, which does not use per-CPU caches, so it is outside the incompatibility rather than past a check. It is a **major** release, supported until 31 August 2027.
+
+This was found by a real spin-up, not by a local run: the stack passed every local test on a different kernel, then went into a restart loop on the server with `MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility with this version of MongoDB.`
+
+**Before moving to 8.x**, check `uname -r` on a deployed server. It needs to report 7.0.14 or later — which on Ubuntu means a newer kernel line, not a newer build of `7.0.0`.
 
 ### Credentials
 

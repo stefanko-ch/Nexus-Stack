@@ -47,7 +47,12 @@ services:
   # targets the first key under `services:` (firewall.get_compose_first_service).
   # ---------------------------------------------------------------------------
   mongodb:
-    image: ${IMAGE_MONGODB:-mongo:8.0.30}
+    # 7.0, not 8.x: MongoDB 8.0 and 8.3 refuse to start on Linux kernels 6.19
+    # through 7.0.13 (SERVER-121912), and Ubuntu 26.04 reports 7.0.0. 8.2 has
+    # no such check but still runs the per-CPU TCMalloc caches the check exists
+    # for, and is past end of life. See "Why version 7.0" in
+    # docs/stacks/mongodb.md before bumping this.
+    image: ${IMAGE_MONGODB:-mongo:7.0.43}
     container_name: mongodb
     restart: unless-stopped
     # Arguments starting with `--` are appended to `mongod` by the image's

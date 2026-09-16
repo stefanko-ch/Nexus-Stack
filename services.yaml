@@ -726,7 +726,7 @@ services:
     # (8.3). MongoDB stops patching a minor release as soon as the next one
     # ships and allows no skipping between minors, so a data directory on a
     # minor would need a sequential upgrade on every bump.
-    image: "mongo:8.0.30"
+    image: "mongo:7.0.43"
     support_images:
       mongodb-express: "mongo-express:1.0.2-20-alpine3.19"
     tcp_ports:

@@ -110,7 +110,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Meltano DB) | `postgres` | `16-alpine` | Major |
 | MLflow | `nexus-mlflow` (custom build) | `3.16.0` | Exact ¹ |
 | PostgreSQL (MLflow DB) | `postgres` | `17-alpine` | Major |
-| MongoDB | `mongo` | `8.0.30` | Exact ¹ |
+| MongoDB | `mongo` | `7.0.43` | Exact ¹ |
 | mongo-express (MongoDB) | `mongo-express` | `1.0.2-20-alpine3.19` | Exact ¹ |
 | PostgreSQL (Standalone) | `postgres` | `18-alpine` | Major |
 | pg_ducklake | `pgducklake/pgducklake` | `18-main` | Rolling ⚠️ |
