@@ -892,6 +892,19 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "qdrant",
+            _filter_empty(
+                {
+                    # No username: Qdrant has no accounts, only this key.
+                    # It goes in the `api-key` header (or the dashboard's
+                    # "Set API Key" dialog) and gates REST and gRPC alike.
+                    "QDRANT_API_KEY": config.qdrant_api_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

@@ -365,6 +365,17 @@ resource "random_password" "unity_catalog_db_password" {
   special = false
 }
 
+# Qdrant API key — the only credential in front of every collection, over
+# REST and gRPC alike. Qdrant treats an EMPTY key as no key and starts
+# unauthenticated, so the renderer and the compose file both refuse one.
+# 32 characters, the same as the Meilisearch master key it resembles;
+# `special = false` because it travels through a compose .env and an HTTP
+# header, and gains nothing from the extra character class.
+resource "random_password" "qdrant_api_key" {
+  length  = 32
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other
