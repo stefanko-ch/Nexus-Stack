@@ -722,10 +722,12 @@ services:
     website: "https://www.mongodb.com"
     description: "Document database (NoSQL) with the mongo-express web UI."
     long_description: "MongoDB is the most widely used document database: schema-flexible JSON-like documents, rich queries and aggregation pipelines, secondary and text indexes. It closes the document/NoSQL gap next to the relational, columnar, time-series and vector stores already here, and it is what a lot of application code and tutorials expect to find. Ships with mongo-express for browsing databases, collections and documents in the browser, behind Cloudflare Access. Notebooks and pipelines connect to mongodb:27017 on the internal network as `nexus-mongodb`, with a password generated per deployment and stored in Infisical; external clients such as Compass reach port 27017 once the firewall rule is enabled in the Control Plane."
-    # Major release line (8.0, five-year lifecycle), not the newest minor
-    # (8.3). MongoDB stops patching a minor release as soon as the next one
-    # ships and allows no skipping between minors, so a data directory on a
-    # minor would need a sequential upgrade on every bump.
+    # 7.0, a major release line (supported to 2027-08-31). MongoDB 8.0 and 8.3
+    # refuse to start on Ubuntu 26.04's 7.0.0 kernel (SERVER-121912); 8.2
+    # starts only because it lacks that check, and is past end of life. A
+    # minor release would also need a sequential upgrade on every bump.
+    # Measurements and the check to run before moving to 8.x:
+    # docs/stacks/mongodb.md, "Why version 7.0".
     image: "mongo:7.0.43"
     support_images:
       mongodb-express: "mongo-express:1.0.2-20-alpine3.19"

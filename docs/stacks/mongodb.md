@@ -49,6 +49,8 @@ Measured on a deployed server (`7.0.0-30-generic`), each image started in an iso
 
 This was found by a real spin-up, not by a local run: the stack passed every local test on a different kernel, then went into a restart loop on the server with `MongoDB cannot start: Linux kernel versions 6.19 and newer has a known incompatibility with this version of MongoDB.`
 
+**A data directory from a newer MongoDB is refused, not opened.** None can exist on a server this project deploys, since 8.x never started there, but one could be copied in. Measured: data written by `mongo:8.2.12` (FCV 8.2), then started with `mongo:7.0.43`, stops with exit 62 and `UPGRADE PROBLEM: Found an invalid featureCompatibilityVersion document`, and leaves the files as they were. To move such data here, `mongodump` it with the version that wrote it and `mongorestore` it into this stack.
+
 **Before moving to 8.x**, check `uname -r` on a deployed server. It needs to report 7.0.14 or later — which on Ubuntu means a newer kernel line, not a newer build of `7.0.0`.
 
 ### Credentials
