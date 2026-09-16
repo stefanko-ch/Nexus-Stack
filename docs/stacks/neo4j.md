@@ -41,7 +41,7 @@ The form pre-fills something else, and it will not connect. Neo4j fills it from 
 
 To skip retyping, open the Browser with the URL already set:
 
-```
+```text
 https://neo4j.YOUR_DOMAIN/browser/?dbms=bolt%2Bs://neo4j.YOUR_DOMAIN:443
 ```
 
@@ -103,7 +103,7 @@ Community Edition has no roles, so every user is effectively an administrator. T
 
 ### Credentials
 
-```
+```text
 Infisical → neo4j → NEO4J_USERNAME   nexus-neo4j
                     NEO4J_PASSWORD   (generated)
 ```
@@ -132,7 +132,12 @@ To align the database with the current password while keeping the data, start th
 ```bash
 ssh nexus
 docker stop neo4j
-docker run -d --rm --name neo4j-recover -v neo4j_neo4j_data:/data \
+# `--network none` is load-bearing: this container runs with authentication
+# switched off, and without it the container joins Docker's default bridge
+# where anything else on that bridge could read and write the database. Every
+# command below reaches it through `docker exec`, which enters the container's
+# own namespace, so loopback still works.
+docker run -d --rm --network none --name neo4j-recover -v neo4j_neo4j_data:/data \
   -e NEO4J_dbms_security_auth__enabled=false neo4j:2026.08.1-community
 # wait until `docker exec neo4j-recover wget -q -O /dev/null http://localhost:7474/` succeeds, then:
 PW=$(sed -n 's/^NEXUS_NEO4J_PASSWORD=//p' /opt/docker-server/stacks/neo4j/.env)
