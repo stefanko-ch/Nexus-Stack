@@ -156,15 +156,27 @@ def test_the_rule_above_sees_the_jobs_it_is_meant_for() -> None:
     assert {"spin-up.yml", "teardown.yml", "destroy-all.yml", "tofu-checks.yaml"} <= jobs
 
 
+def _pinned_version() -> str:
+    pinned = re.search(r'^PINNED_VERSION="([^"]+)"$', SCRIPT.read_text(), re.M)
+    assert pinned, "PINNED_VERSION not found"
+    return pinned.group(1)
+
+
 def test_pinned_checksums_are_well_formed() -> None:
     text = SCRIPT.read_text()
-    pinned = re.search(r'^PINNED_VERSION="([^"]+)"$', text, re.M)
-    assert pinned, "PINNED_VERSION not found"
-    version = re.escape(pinned.group(1))
+    version = _pinned_version()
     for arch in ("amd64", "arm64"):
-        assert re.search(rf'{version}/{arch}\) echo "[0-9a-f]{{64}}"', text), (
-            f"no 64-hex checksum pinned for {pinned.group(1)}/{arch}"
+        assert re.search(rf'{re.escape(version)}/{arch}\) echo "[0-9a-f]{{64}}"', text), (
+            f"no 64-hex checksum pinned for {version}/{arch}"
         )
+
+
+def test_only_the_pinned_version_has_checksums() -> None:
+    """A leftover line for an old version is dead code that reads like a
+    supported choice; the header says to replace the lines, not add to them."""
+    text = SCRIPT.read_text()
+    versions = set(re.findall(r"^\s+([0-9][^/\s]*)/(?:amd64|arm64)\) echo", text, re.M))
+    assert versions == {_pinned_version()}
 
 
 # ---------------------------------------------------------------------------
@@ -245,9 +257,10 @@ def test_script_refuses_an_archive_that_does_not_match_the_pin(tmp_path: Path, a
     expected_arch = {"x86_64": "amd64", "aarch64": "arm64"}[arch]
     assert rc == 1, err
     assert "Checksum mismatch" in err
+    version = _pinned_version()
     assert urls == [
         "https://github.com/opentofu/opentofu/releases/download/"
-        f"v1.10.0/tofu_1.10.0_linux_{expected_arch}.tar.gz"
+        f"v{version}/tofu_{version}_linux_{expected_arch}.tar.gz"
     ]
     assert hashlib.sha256(b"not the real archive").hexdigest() in err
     assert gh_path == ""

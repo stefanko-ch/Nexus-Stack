@@ -18,18 +18,25 @@
 # The checksums are pinned, not fetched. Downloading SHA256SUMS next to the
 # archive would catch a broken download but not a replaced one, since both
 # would come from the same place. The values below were taken from
-# tofu_1.10.0_SHA256SUMS after verifying that file with cosign, the way
+# tofu_1.12.6_SHA256SUMS after verifying that file with cosign, the way
 # https://opentofu.org/docs/intro/install/standalone/ documents:
 #
 #   cosign verify-blob \
-#     --certificate-identity "https://github.com/opentofu/opentofu/.github/workflows/release.yml@refs/heads/v1.10" \
+#     --certificate-identity "https://github.com/opentofu/opentofu/.github/workflows/release.yml@refs/heads/v1.12" \
 #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-#     --signature tofu_1.10.0_SHA256SUMS.sig --certificate tofu_1.10.0_SHA256SUMS.pem \
-#     tofu_1.10.0_SHA256SUMS
-#   -> Verified OK   (and the same command with a wrong identity is refused)
+#     --signature tofu_1.12.6_SHA256SUMS.sig --certificate tofu_1.12.6_SHA256SUMS.pem \
+#     tofu_1.12.6_SHA256SUMS
+#   -> Verified OK   (and the same command with the v1.11 identity is refused)
 #
-# To move to another version: run that check for its SHA256SUMS, add its two
-# `linux_*.tar.gz` lines to expected_sha256, and change PINNED_VERSION.
+# The identity names the release branch, v<major>.<minor>, so it changes with
+# the minor version.
+#
+# To move to another version: run that check for its SHA256SUMS, replace the
+# two `linux_*.tar.gz` lines in expected_sha256, and change PINNED_VERSION.
+#
+# Why 1.12: 1.10 does not receive the fix for GHSA-q7j3-v8qv-22vq (#873), and
+# 1.11.14 is announced as the last planned patch release of 1.11. Stay on a
+# series that still receives patches.
 #
 # The .tar.gz rather than the .zip: `tar` is in every runner image, including
 # the Forgejo runner's node:22-bookworm; `unzip` is not a given.
@@ -41,12 +48,12 @@
 # =============================================================================
 set -euo pipefail
 
-PINNED_VERSION="1.10.0"
+PINNED_VERSION="1.12.6"
 
 expected_sha256() {
   case "$1/$2" in
-    1.10.0/amd64) echo "9f4e7473608f55bbc8eb64178228569a14af6463f5332607deecdf3f9bf31e8b" ;;
-    1.10.0/arm64) echo "df4d875ab635390caf54fb07f3e2b5fdd2c88b06bf04f601da1df63bb0da7e95" ;;
+    1.12.6/amd64) echo "50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec" ;;
+    1.12.6/arm64) echo "9bd0228a81bcd0c88f7045c74378f45a815779f19897191dff7d9efba9976b9e" ;;
     *) return 1 ;;
   esac
 }
