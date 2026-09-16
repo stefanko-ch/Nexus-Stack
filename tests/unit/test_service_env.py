@@ -19,6 +19,7 @@ from syrupy.assertion import SnapshotAssertion
 from nexus_deploy.config import NexusConfig
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.service_env import (
+    _SPECS,
     ForgejoWorkspaceConfig,
     ServiceEnvError,
     _atomic_write,
@@ -3724,3 +3725,72 @@ def test_mongodb_raises_on_empty_secret(
     config = full_config.model_copy(update={field: ""})
     with pytest.raises(ServiceEnvError, match=env_var):
         _render_mongodb(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# Empty DOMAIN is refused once, in the dispatcher (#863)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("domain", ["", None])
+@pytest.mark.parametrize("service", sorted(spec.service_name for spec in _SPECS))
+def test_render_all_refuses_an_empty_domain_for_every_stack(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    tmp_path: Path,
+    service: str,
+    domain: str | None,
+) -> None:
+    """Parametrised over the spec table itself rather than a list of the
+    stacks known to build a URL.
+
+    Before #863 only Keycloak and Airflow guarded this, each in its own
+    renderer, and thirteen renderers that call ``service_host`` did not. A
+    hand-kept list of "stacks that need a domain" would be the same gap
+    waiting for the next stack; deriving the cases from ``_SPECS`` means a
+    new stack is covered the moment it is registered.
+    """
+    import dataclasses
+
+    env = dataclasses.replace(full_env, domain=domain)
+    with pytest.raises(ServiceEnvError, match="DOMAIN is empty"):
+        render_all_env_files(full_config, env, [service], stacks_dir=tmp_path)
+
+
+def test_render_all_writes_nothing_when_the_domain_is_empty(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """The guard runs before the loop, so a refusal leaves no partial state.
+
+    Checked with every stack enabled at once: had the guard sat inside the
+    loop, the stacks ahead of the first URL-building one would already have
+    written their .env files.
+
+    Grafana and LiteLLM are left out on purpose. Both load a template from
+    ``stacks_dir`` before the loop and raise ``ServiceEnvError`` when it is
+    missing -- which it is, in ``tmp_path``. With them enabled, removing the
+    DOMAIN guard still made this test pass: the template error satisfied
+    ``pytest.raises``, the loop never ran, and no file could be written
+    either way. The ``match=`` is the second half of the same fix.
+    """
+    import dataclasses
+
+    env = dataclasses.replace(full_env, domain="")
+    needs_template = {"grafana", "litellm"}
+    enabled = [spec.service_name for spec in _SPECS if spec.service_name not in needs_template]
+    with pytest.raises(ServiceEnvError, match="DOMAIN is empty"):
+        render_all_env_files(full_config, env, enabled, stacks_dir=tmp_path)
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_render_all_with_nothing_enabled_ignores_an_empty_domain(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """Nothing to render, nothing to protect: an empty ``enabled`` list stays a
+    no-op rather than an error, so the guard refuses only calls that would
+    actually write a bare hostname."""
+    import dataclasses
+
+    env = dataclasses.replace(full_env, domain="")
+    result = render_all_env_files(full_config, env, [], stacks_dir=tmp_path)
+    assert {r.status for r in result.services} == {"skipped-not-enabled"}
