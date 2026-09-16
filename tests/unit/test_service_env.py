@@ -87,6 +87,7 @@ def full_config() -> NexusConfig:
         airflow_fernet_key="airflow-fernet-key",
         keycloak_db_password="keycloak-db-pw",
         keycloak_admin_password="keycloak-admin-pw",
+        keycloak_bootstrap_password="keycloak-bootstrap-pw",
         langfuse_db_password="langfuse-db-pw",
         langfuse_clickhouse_password="langfuse-ch-pw",
         langfuse_redis_password="langfuse-redis-pw",
@@ -1406,41 +1407,40 @@ def test_langfuse_env_file_is_owner_only(full_config: NexusConfig, full_env: Boo
 
 
 # ---------------------------------------------------------------------------
-# Keycloak — two secrets, the admin username, and the issuer hostname
+# Keycloak — database and bootstrap secrets, and the issuer hostname
 # ---------------------------------------------------------------------------
 
 
-def test_keycloak_renders_exactly_its_four_keys(
+def test_keycloak_renders_exactly_its_three_keys(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Pinned so a new value cannot arrive without a guard beside it.
-
-    The admin username is the project's ADMIN_USERNAME, not upstream's
-    `temp-admin`; the fixture sets it to `admin` explicitly.
-    """
+    """Pinned so a new value cannot arrive without a guard beside it."""
     from nexus_deploy.service_env import _render_keycloak
 
     rendered = _render_keycloak(full_config, full_env)
     assert rendered.env_vars == {
         "KEYCLOAK_DB_PASSWORD": "keycloak-db-pw",
-        "KEYCLOAK_ADMIN_USERNAME": "admin",
-        "KEYCLOAK_ADMIN_PASSWORD": "keycloak-admin-pw",
+        "KEYCLOAK_BOOTSTRAP_PASSWORD": "keycloak-bootstrap-pw",
         "KEYCLOAK_DOMAIN": "keycloak.example.com",
     }
 
 
-def test_keycloak_admin_username_falls_back_to_the_project_default(
+def test_keycloak_env_file_never_holds_the_admin_password(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """An empty admin_username must fall back to DEFAULT_ADMIN_USERNAME, the
-    same constant every other renderer uses -- never to `admin` or to
-    Keycloak's `temp-admin` (#780)."""
-    from nexus_deploy.config import DEFAULT_ADMIN_USERNAME
+    """The password Infisical lists must not reach the container.
+
+    Keycloak keeps ``KC_BOOTSTRAP_ADMIN_*`` in the container environment for
+    its whole lifetime, which is why the bootstrap account is a throwaway the
+    services hook deletes. Rendering the permanent admin's password into this
+    file -- which Compose interpolates into that environment -- would undo it.
+    Checked by value as well as by name, so a renamed key cannot slip it in.
+    """
     from nexus_deploy.service_env import _render_keycloak
 
-    config = full_config.model_copy(update={"admin_username": None})
-    rendered = _render_keycloak(config, full_env)
-    assert rendered.env_vars["KEYCLOAK_ADMIN_USERNAME"] == DEFAULT_ADMIN_USERNAME
+    rendered = _render_keycloak(full_config, full_env)
+    assert not any("ADMIN" in key for key in rendered.env_vars)
+    assert full_config.keycloak_admin_password not in rendered.env_vars.values()
 
 
 def test_keycloak_domain_respects_subdomain_separator(
@@ -1466,6 +1466,7 @@ def test_keycloak_domain_respects_subdomain_separator(
     [
         ("keycloak_db_password", "KEYCLOAK_DB_PASSWORD"),
         ("keycloak_admin_password", "KEYCLOAK_ADMIN_PASSWORD"),
+        ("keycloak_bootstrap_password", "KEYCLOAK_BOOTSTRAP_PASSWORD"),
     ],
 )
 def test_keycloak_raises_on_empty_secret(
@@ -1473,7 +1474,11 @@ def test_keycloak_raises_on_empty_secret(
 ) -> None:
     """Each secret on its own must stop the deploy, and the message must name
     which one -- a guard that only checked the DB password would pass a
-    single-case test while an empty bootstrap password went through."""
+    single-case test while an empty bootstrap password went through.
+
+    The admin password is required although it is not rendered: without it
+    the hook cannot create the permanent admin, and a fresh realm would be left
+    with only the bootstrap account."""
     from nexus_deploy.service_env import _render_keycloak
 
     config = full_config.model_copy(update={field: ""})
@@ -1498,7 +1503,7 @@ def test_keycloak_raises_on_empty_domain(full_config: NexusConfig, full_env: Boo
 
 
 def test_keycloak_env_file_is_owner_only(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
-    """0o600: the file holds the admin and database passwords in cleartext."""
+    """0o600: the file holds the database and bootstrap passwords in cleartext."""
     from nexus_deploy.service_env import _render_keycloak
 
     assert _render_keycloak(full_config, full_env).mode == 0o600

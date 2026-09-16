@@ -1625,6 +1625,33 @@ def test_keycloak_does_not_publish_the_management_port() -> None:
     )
 
 
+def test_keycloak_bootstraps_the_throwaway_account_only() -> None:
+    """The container gets the bootstrap pair and nothing else admin-related.
+
+    Keycloak keeps ``KC_BOOTSTRAP_ADMIN_*`` in the container environment for
+    as long as it runs. The services hook deletes the account those values
+    create, so they unlock nothing afterwards -- which holds only if the
+    username is the one the hook deletes, and only if the permanent admin's
+    password never reaches this environment.
+    """
+    from nexus_deploy.services import KEYCLOAK_BOOTSTRAP_USERNAME
+
+    env = _keycloak_service()["environment"]
+    assert env.get("KC_BOOTSTRAP_ADMIN_USERNAME") == KEYCLOAK_BOOTSTRAP_USERNAME, (
+        f"KC_BOOTSTRAP_ADMIN_USERNAME is {env.get('KC_BOOTSTRAP_ADMIN_USERNAME')!r}; the "
+        f"services hook deletes {KEYCLOAK_BOOTSTRAP_USERNAME!r}, so any other name "
+        "would leave a temporary admin behind"
+    )
+    assert "${KEYCLOAK_BOOTSTRAP_PASSWORD:?" in str(env.get("KC_BOOTSTRAP_ADMIN_PASSWORD")), (
+        "KC_BOOTSTRAP_ADMIN_PASSWORD must come from the throwaway bootstrap password"
+    )
+    compose = (STACKS_DIR / "keycloak" / "docker-compose.yml").read_text()
+    code = "\n".join(line.split("#", 1)[0] for line in compose.splitlines())
+    assert "KEYCLOAK_ADMIN" not in code, (
+        "the permanent admin's credentials must not reach the Keycloak container"
+    )
+
+
 def test_keycloak_hostname_is_a_full_https_url() -> None:
     """KC_HOSTNAME must carry the scheme, not only the host.
 

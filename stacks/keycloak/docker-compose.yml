@@ -11,9 +11,12 @@
 # Postgres, plain HTTP inside the container because TLS terminates at
 # Cloudflare. No other stack is wired to it.
 #
-# No setup hook. The master realm and a temporary admin are created on the
-# first start against an empty database from the KC_BOOTSTRAP_ADMIN_* values
-# below; on every later start those values are ignored.
+# Admin account in two steps. On the first start against an empty database
+# Keycloak creates the master realm and a *temporary* admin, `nexus-bootstrap`,
+# from the KC_BOOTSTRAP_ADMIN_* values below; on every later start it ignores
+# them. The keycloak services hook (render_keycloak_hook) then creates the
+# permanent admin with the password Infisical lists and deletes
+# `nexus-bootstrap`. That password is never in this file or the container.
 # =============================================================================
 
 services:
@@ -89,10 +92,14 @@ services:
 
       # --- Bootstrap admin (first start only) ------------------------------------
       # Creates a TEMPORARY admin in the master realm when the realm does not
-      # exist yet. The username follows the project's ADMIN_USERNAME rather
-      # than upstream's `temp-admin`.
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?must be set in .env (rendered by service_env._render_keycloak)}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_keycloak)}
+      # exist yet. Keycloak keeps these two values in the container environment
+      # for as long as the container runs, which is why they are a throwaway
+      # account and not the admin anyone signs in with: the services hook
+      # deletes `nexus-bootstrap` once the permanent admin exists, so this
+      # password unlocks nothing afterwards. `nexus-` prefixed rather than
+      # upstream's `temp-admin`, per the naming rule.
+      KC_BOOTSTRAP_ADMIN_USERNAME: nexus-bootstrap
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_PASSWORD:?must be set in .env (rendered by service_env._render_keycloak)}
     deploy:
       resources:
         limits:

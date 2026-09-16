@@ -183,9 +183,11 @@ output "secrets" {
     # MLflow (experiment tracking + model registry)
     mlflow_db_password = random_password.mlflow_db_password.result
 
-    # Keycloak (identity provider; admin password is first-start only)
-    keycloak_db_password    = random_password.keycloak_db_password.result
-    keycloak_admin_password = random_password.keycloak_admin_password.result
+    # Keycloak (identity provider). The bootstrap password unlocks only a
+    # throwaway account that the services hook deletes.
+    keycloak_db_password        = random_password.keycloak_db_password.result
+    keycloak_admin_password     = random_password.keycloak_admin_password.result
+    keycloak_bootstrap_password = random_password.keycloak_bootstrap_password.result
 
     # Langfuse (LLM observability)
     langfuse_db_password         = random_password.langfuse_db_password.result

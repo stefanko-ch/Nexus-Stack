@@ -738,10 +738,11 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "keycloak",
             _filter_empty(
                 {
-                    # The bootstrap admin of the master realm. Keycloak reads
-                    # this only when it creates that realm -- the first start
-                    # against an empty database -- so these are the values
-                    # that were current then. See docs/stacks/keycloak.md.
+                    # The permanent admin of the master realm, created by the
+                    # keycloak services hook. The throwaway bootstrap account
+                    # (`nexus-bootstrap`) and its password are deliberately
+                    # not listed: the hook deletes that account, so the value
+                    # would unlock nothing. See docs/stacks/keycloak.md.
                     "KEYCLOAK_ADMIN_USERNAME": admin_username,
                     "KEYCLOAK_ADMIN_PASSWORD": config.keycloak_admin_password,
                     "KEYCLOAK_DB_USERNAME": "nexus-keycloak",
