@@ -2597,6 +2597,267 @@ neo4j_hook
 """
 
 
+KEYCLOAK_BOOTSTRAP_USERNAME = "nexus-bootstrap"
+"""The throwaway admin Keycloak creates from ``KC_BOOTSTRAP_ADMIN_*``.
+
+Pinned in ``stacks/keycloak/docker-compose.yml`` as a literal, and here, so the
+hook and the container agree without a rendered value.
+"""
+
+
+def render_keycloak_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Keycloak: replace the temporary bootstrap admin with a permanent one.
+
+    Keycloak creates its first admin from ``KC_BOOTSTRAP_ADMIN_*``, marks it
+    temporary (user attribute ``is_temporary_admin``) and shows *"You are
+    logged in as a temporary admin user"* until a permanent admin exists. The
+    marking has a reason: those two values stay in the container environment
+    for its whole lifetime. So the container gets a throwaway account,
+    ``nexus-bootstrap``, and this hook hands over to the account Infisical
+    lists:
+
+    1. Sign in as ``nexus-bootstrap`` -- a fresh realm -- and install the
+       permanent admin with ``keycloak_admin_password``: create it, or reset
+       its password if an earlier run stopped half-way, grant the master
+       realm's ``admin`` role, then prove it by signing in as it and making an
+       admin-only request with its token. Any failure keeps
+       ``nexus-bootstrap``, so a half-finished run never locks the realm.
+    2. Delete ``nexus-bootstrap``.
+
+    A run whose permanent admin can already administer the realm skips step
+    1. "Can administer" is probed, not assumed: the password grant issues a
+    token to any enabled account, so an admin created by an earlier run whose
+    role grant failed signs in fine and then gets 403 on every admin request.
+    Such a run takes step 1 again, through ``nexus-bootstrap``, which that
+    earlier run deliberately kept.
+    If that admin is itself still flagged temporary -- deployments from before
+    this hook bootstrapped the permanent username directly -- the flag cannot
+    simply be cleared: measured on 26.7.3, a ``PUT`` of the user without
+    ``is_temporary_admin`` answers ``204`` and keeps the attribute. The hook
+    then hands over the way Keycloak's own banner recommends: install
+    ``nexus-bootstrap`` as that admin, sign in as it, delete the temporary
+    account, install the permanent one again, and continue at step 2. The
+    recreated account has a new user id, so anything attached to the old one
+    (an OTP device, group memberships) does not carry over.
+
+    Every intermediate state is one a later run recognises -- temporary admin
+    plus bootstrap, bootstrap alone, permanent admin plus bootstrap -- so an
+    interrupted run is finished by the next one. If neither account signs in,
+    the permanent admin is asked once more before ``failed``: two spin-ups can
+    run at once (#801), and the loser finds ``nexus-bootstrap`` already
+    deleted by the winner.
+
+    Transport follows R4 throughout. Form and JSON bodies are built by ``jq``
+    from environment variables and piped to ``curl --data-binary @-``; the
+    bearer token goes into a mode-600 ``curl --config`` file written by the
+    ``printf`` builtin. No ``curl`` or ``jq`` argv carries a password or a
+    token. The file is removed by the wrapper rather than a ``RETURN`` trap:
+    the body calls nested helper functions while the file is in use.
+
+    Only HTTP status codes and usernames are printed. Keycloak's error
+    bodies can echo the request, and the create request holds the password.
+    """
+    del env  # not used; signature uniform across hooks
+    username = config.admin_username or DEFAULT_ADMIN_USERNAME
+    password = config.keycloak_admin_password or ""
+    bootstrap_password = config.keycloak_bootstrap_password or ""
+    if not password or not bootstrap_password:
+        return 'echo "RESULT hook=keycloak status=skipped-not-ready"\n'
+    admin_u_q = shlex.quote(username)
+    admin_p_q = shlex.quote(password)
+    boot_u_q = shlex.quote(KEYCLOAK_BOOTSTRAP_USERNAME)
+    boot_p_q = shlex.quote(bootstrap_password)
+    wait = _render_wait_healthy(
+        name="keycloak",
+        url="http://localhost:8106/realms/master",
+        timeout_seconds=180,
+        interval_seconds=3,
+    )
+    return f"""
+kc_token() {{
+    # -j, not -r: -r ends the output with a newline, and in a form body that
+    # newline becomes part of the last value -- the password. Keycloak then
+    # answers `invalid_grant` for credentials that are correct. A JSON body
+    # tolerates the trailing newline; this one does not.
+    NEXUS_KC_U="$1" NEXUS_KC_P="$2" jq -jn \\
+        '"grant_type=password&client_id=admin-cli&username=\\(env.NEXUS_KC_U|@uri)&password=\\(env.NEXUS_KC_P|@uri)"' \\
+      | curl -s --max-time 10 -X POST "$KC/realms/master/protocol/openid-connect/token" \\
+          -H 'Content-Type: application/x-www-form-urlencoded' --data-binary @- 2>/dev/null \\
+      | jq -r '.access_token // empty' 2>/dev/null
+}}
+kc_auth() {{
+    printf 'header = "Authorization: Bearer %s"\\nheader = "Content-Type: application/json"\\n' "$1" > "$KC_CFG"
+}}
+kc_get() {{
+    curl -s --max-time 10 --config "$KC_CFG" "$KC$1" 2>/dev/null || true
+}}
+kc_status() {{
+    local code
+    code=$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 --config "$KC_CFG" "$KC$1" 2>/dev/null || true)
+    printf '%s' "${{code:-000}}"
+}}
+kc_send() {{
+    local code
+    code=$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 --config "$KC_CFG" \\
+        -X "$1" "$KC$2" --data-binary @- 2>/dev/null || true)
+    printf '%s' "${{code:-000}}"
+}}
+kc_delete() {{
+    local code
+    code=$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 --config "$KC_CFG" \\
+        -X DELETE "$KC$1" 2>/dev/null || true)
+    printf '%s' "${{code:-000}}"
+}}
+# kc_user USERNAME -- prints that user's JSON, or nothing if there is none.
+# Returns 1 when the lookup itself failed (not 200, or not a JSON array), so a
+# caller never mistakes "could not tell" for "absent" or "not temporary".
+kc_user() {{
+    local resp code
+    resp=$(curl -s --max-time 10 --config "$KC_CFG" -w '\\n%{{http_code}}' \\
+        "$KC/admin/realms/master/users?exact=true&briefRepresentation=false&username=$(jq -rn --arg u "$1" '$u|@uri')" \\
+        2>/dev/null || true)
+    code=${{resp##*$'\\n'}}
+    resp=${{resp%$'\\n'*}}
+    [ "$code" = "200" ] || return 1
+    printf '%s' "$resp" | jq -e 'type == "array"' >/dev/null 2>&1 || return 1
+    printf '%s' "$resp" | jq -c '.[0] // empty'
+}}
+kc_fail() {{
+    echo "  ⚠ keycloak: $1" >&2
+    echo "RESULT hook=keycloak status=failed"
+}}
+# kc_install USER PASS NOTE -- needs an admin token in $KC_CFG. Creates USER as
+# a permanent admin, or resets its password if it exists, then proves it: signs
+# in as USER and makes an admin-only request. On success $KC_CFG holds USER's
+# token, so the caller is acting as USER from then on. Prints nothing on
+# success; on failure reports through kc_fail, with NOTE appended to say which
+# account still works, and returns 1.
+kc_install() {{
+    local u="$1" pw="$2" note="$3" code id role t ujson
+    code=$(NEXUS_KC_U="$u" NEXUS_KC_P="$pw" jq -n \\
+        '{{username: env.NEXUS_KC_U, enabled: true,
+          credentials: [{{type: "password", value: env.NEXUS_KC_P, temporary: false}}]}}' \\
+        | kc_send POST /admin/realms/master/users)
+    if ! ujson=$(kc_user "$u"); then
+        kc_fail "could not look up $u$note"; return 1
+    fi
+    id=$(printf '%s' "$ujson" | jq -r '.id // empty' 2>/dev/null || true)
+    if [ "$code" = "409" ] && [ -n "$id" ]; then
+        code=$(NEXUS_KC_P="$pw" jq -n '{{type: "password", value: env.NEXUS_KC_P, temporary: false}}' \\
+            | kc_send PUT "/admin/realms/master/users/$id/reset-password")
+        [ "$code" = "204" ] && code=201
+    fi
+    if [ "$code" != "201" ] || [ -z "$id" ]; then
+        kc_fail "creating $u returned HTTP $code$note"; return 1
+    fi
+    role=$(kc_get /admin/realms/master/roles/admin | jq -c 'select(.id and .name == "admin")' 2>/dev/null || true)
+    if [ -z "$role" ]; then
+        kc_fail "could not read the master realm's admin role$note"; return 1
+    fi
+    code=$(printf '[%s]' "$role" | kc_send POST "/admin/realms/master/users/$id/role-mappings/realm")
+    if [ "$code" != "204" ]; then
+        kc_fail "granting admin to $u returned HTTP $code$note"; return 1
+    fi
+    t=$(kc_token "$u" "$pw")
+    if [ -z "$t" ]; then
+        kc_fail "$u was set up but cannot sign in$note"; return 1
+    fi
+    kc_auth "$t"
+    code=$(kc_status "/admin/realms/master/users?max=1")
+    if [ "$code" != "200" ]; then
+        kc_fail "$u signs in but its admin request returned HTTP $code$note"; return 1
+    fi
+    return 0
+}}
+# kc_admin_token USER PASS -- a token for USER only if it can administer the
+# realm, else nothing. The password grant issues a token to any enabled user,
+# admin or not, so a signed-in account is not yet a usable one: an earlier run
+# that created the admin but failed to grant its role leaves exactly that. The
+# probe sends such a run down the bootstrap path, which can finish the grant,
+# instead of failing on the account's first 403 every time.
+kc_admin_token() {{
+    local t code
+    t=$(kc_token "$1" "$2")
+    [ -n "$t" ] || return 0
+    kc_auth "$t"
+    code=$(kc_status "/admin/realms/master/users?max=1")
+    [ "$code" = "200" ] && printf '%s' "$t"
+    return 0
+}}
+keycloak_hook_body() {{
+    local ADMIN_U={admin_u_q} ADMIN_P={admin_p_q}
+    local BOOT_U={boot_u_q} BOOT_P={boot_p_q}
+    local STATUS=already-configured TOKEN CODE USER_JSON USER_ID
+
+    TOKEN=$(kc_admin_token "$ADMIN_U" "$ADMIN_P")
+    if [ -n "$TOKEN" ]; then
+        kc_auth "$TOKEN"
+        if ! USER_JSON=$(kc_user "$ADMIN_U"); then
+            kc_fail "could not read $ADMIN_U to check whether it is still temporary"
+            return 0
+        fi
+        if printf '%s' "$USER_JSON" | jq -e '.attributes.is_temporary_admin' >/dev/null 2>&1; then
+            # Bootstrapped directly under this name, before this hook existed.
+            # Keycloak will not clear the flag: a PUT without it answers 204
+            # and keeps it. So hand over the way Keycloak recommends -- through
+            # $BOOT_U, delete, recreate.
+            USER_ID=$(printf '%s' "$USER_JSON" | jq -r '.id')
+            kc_install "$BOOT_U" "$BOOT_P" " — the temporary $ADMIN_U is unchanged" || return 0
+            CODE=$(kc_delete "/admin/realms/master/users/$USER_ID")
+            if [ "$CODE" != "204" ]; then
+                kc_fail "deleting the temporary $ADMIN_U returned HTTP $CODE — $BOOT_U kept"
+                return 0
+            fi
+            kc_install "$ADMIN_U" "$ADMIN_P" " — $BOOT_U kept" || return 0
+            STATUS=configured
+        fi
+    else
+        TOKEN=$(kc_token "$BOOT_U" "$BOOT_P")
+        if [ -n "$TOKEN" ]; then
+            kc_auth "$TOKEN"
+            kc_install "$ADMIN_U" "$ADMIN_P" " — $BOOT_U kept" || return 0
+            STATUS=configured
+        else
+            # A concurrent deploy (#801) may have finished the hand-over
+            # between the two sign-ins; ask once more before failing.
+            TOKEN=$(kc_admin_token "$ADMIN_U" "$ADMIN_P")
+            if [ -z "$TOKEN" ]; then
+                kc_fail "neither $ADMIN_U nor $BOOT_U can administer the master realm — see 'The admin account' in docs/stacks/keycloak.md"
+                return 0
+            fi
+            kc_auth "$TOKEN"
+        fi
+    fi
+    unset TOKEN
+
+    # $KC_CFG now holds the permanent admin's token.
+    if ! USER_JSON=$(kc_user "$BOOT_U"); then
+        kc_fail "could not look up $BOOT_U to delete it"
+        return 0
+    fi
+    USER_ID=$(printf '%s' "$USER_JSON" | jq -r '.id // empty' 2>/dev/null || true)
+    if [ -n "$USER_ID" ]; then
+        CODE=$(kc_delete "/admin/realms/master/users/$USER_ID")
+        case "$CODE" in
+            204|404) STATUS=configured ;;
+            *) kc_fail "deleting $BOOT_U returned HTTP $CODE"; return 0 ;;
+        esac
+    fi
+
+    echo "RESULT hook=keycloak status=$STATUS"
+}}
+keycloak_hook() {{
+    {wait}
+    local KC='http://localhost:8106'
+    local KC_CFG
+    KC_CFG=$(mktemp); chmod 600 "$KC_CFG"
+    keycloak_hook_body
+    rm -f "$KC_CFG"
+}}
+keycloak_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -2625,6 +2886,9 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # Creates `nexus-neo4j` and drops the built-in `neo4j` user, which is the
     # only account the image can seed.
     "neo4j": render_neo4j_hook,
+    # Hands the master realm from the throwaway `nexus-bootstrap` admin to the
+    # permanent one Infisical lists, then deletes `nexus-bootstrap`.
+    "keycloak": render_keycloak_hook,
     # pg-ducklake bootstrap re-apply (handles cred rotation on
     # persistent-volume deploys where the entrypoint-initdb scripts
     # only ran on first init).

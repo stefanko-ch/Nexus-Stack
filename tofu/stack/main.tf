@@ -244,10 +244,20 @@ resource "random_password" "keycloak_db_password" {
   special = false
 }
 
-# Keycloak bootstrap admin password. Used only when the master realm is
-# created, i.e. on the first start against an empty database; Keycloak
-# ignores it on every later start.
+# Keycloak admin password — the permanent admin of the master realm. The
+# keycloak services hook creates that account and sets this password on it;
+# it is pushed to Infisical and never reaches the Keycloak container.
 resource "random_password" "keycloak_admin_password" {
+  length  = 24
+  special = false
+}
+
+# Keycloak bootstrap password. Keycloak creates the throwaway `nexus-bootstrap`
+# admin from it on the first start against an empty database; the services
+# hook then creates the permanent admin and deletes that account. This value
+# therefore unlocks nothing once the hook has run, which is why it is the only
+# admin credential the container sees — and why it is not pushed to Infisical.
+resource "random_password" "keycloak_bootstrap_password" {
   length  = 24
   special = false
 }

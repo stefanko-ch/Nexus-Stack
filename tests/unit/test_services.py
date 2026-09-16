@@ -40,6 +40,7 @@ from nexus_deploy.services import (
     render_dify_hook,
     render_garage_hook,
     render_hedgedoc_hook,
+    render_keycloak_hook,
     render_lakefs_hook,
     render_lakekeeper_hook,
     render_metabase_hook,
@@ -95,6 +96,8 @@ def _make_config(**overrides: Any) -> NexusConfig:
         "r2_data_endpoint": "https://r2.example.com",
         "r2_data_access_key": "r2-ak",
         "r2_data_secret_key": "r2-sk",
+        "keycloak_admin_password": "KcAdminPw123",
+        "keycloak_bootstrap_password": "KcBootPw456",
     }
     defaults.update(overrides)
     return NexusConfig.from_secrets_json(json.dumps(defaults))
@@ -143,6 +146,8 @@ def test_supported_hooks_contains_all_specs() -> None:
         "pg-ducklake",
         # Creates `nexus-neo4j` and drops the image's built-in `neo4j` user.
         "neo4j",
+        # Hands the master realm from `nexus-bootstrap` to the permanent admin.
+        "keycloak",
     }
 
 
@@ -2929,3 +2934,411 @@ def test_neo4j_hook_fails_when_the_drop_fails(tmp_path: Path) -> None:
     assert "RESULT hook=neo4j status=failed" in out
     assert "status=configured" not in out
     assert "drop refused (fake)" in out
+
+
+# ---------------------------------------------------------------------------
+# Keycloak — hand the master realm from the bootstrap admin to a permanent one
+# ---------------------------------------------------------------------------
+
+_KC_ADMIN_PW = "KcAdminPw123"
+_KC_BOOT_PW = "KcBootPw456"
+
+# A stand-in for `curl` that plays a small Keycloak with state in a JSON file.
+# It mirrors what the pinned 26.7.3 was measured to do, including the two
+# behaviours the hook was rebuilt around: a password with a trailing newline
+# is refused, and (not used by the hook, kept as a reminder) a user PUT does
+# not clear `is_temporary_admin`. Every call's argv is logged so the tests can
+# check that no password or token ever appears there.
+_FAKE_KEYCLOAK_CURL = r"""
+import json, os, sys, urllib.parse
+
+args = sys.argv[1:]
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write(" ".join(args) + "\n")
+
+method, url, cfg, out, fmt, data = "GET", "", None, None, None, None
+i = 0
+while i < len(args):
+    a = args[i]
+    if a == "-X": method = args[i + 1]; i += 1
+    elif a == "--config": cfg = args[i + 1]; i += 1
+    elif a == "-o": out = args[i + 1]; i += 1
+    elif a == "-w": fmt = args[i + 1]; i += 1
+    elif a == "--data-binary": data = sys.stdin.read(); i += 1
+    elif a in ("-H", "--max-time", "--connect-timeout"): i += 1
+    elif a.startswith("http"): url = a
+    i += 1
+
+state_path = os.environ["FAKE_STATE"]
+state = json.load(open(state_path))
+users = state["users"]
+flags = state.get("flags", {})
+parsed = urllib.parse.urlsplit(url)
+path, query = parsed.path, urllib.parse.parse_qs(parsed.query)
+
+def respond(code, body=""):
+    if out is None:
+        sys.stdout.write(body)
+    if fmt:
+        # curl expands \\n in -w itself; the shell passes it through literally.
+        sys.stdout.write(fmt.replace("\\n", "\n").replace("%{http_code}", str(code)))
+    json.dump(state, open(state_path, "w"))
+    sys.exit(0)
+
+def rep(name):
+    u = users[name]
+    r = {"id": u["id"], "username": name, "enabled": True}
+    if u["temporary"]:
+        r["attributes"] = {"is_temporary_admin": ["true"]}
+    return r
+
+def caller():
+    if not cfg:
+        return None
+    for line in open(cfg):
+        if "Authorization: Bearer tok-" in line:
+            name = line.split("Bearer tok-", 1)[1].rsplit('"', 1)[0]
+            return name if name in users else None
+    return None
+
+def by_id(uid):
+    return next((n for n, u in users.items() if u["id"] == uid), None)
+
+if path == "/realms/master" and method == "GET":
+    respond(200, "{}")
+
+if path.endswith("/protocol/openid-connect/token"):
+    form = urllib.parse.parse_qs(data, keep_blank_values=True)
+    name = form.get("username", [""])[0]
+    pw = form.get("password", [""])[0]
+    if name == os.environ.get("FAKE_FAIL_FIRST_SIGNIN_OF", "") and not flags.get("failed_once"):
+        flags["failed_once"] = True
+        state["flags"] = flags
+        respond(401, '{"error":"invalid_grant"}')
+    if name in users and users[name]["password"] == pw:
+        respond(200, json.dumps({"access_token": "tok-" + name}))
+    respond(401, '{"error":"invalid_grant"}')
+
+who = caller()
+if who is None:
+    respond(401, "")
+if "admin" not in users[who]["roles"]:
+    respond(403, "")
+
+if path == "/admin/realms/master/users" and method == "GET":
+    if "username" in query and os.environ.get("FAKE_USER_LOOKUP_FAILS"):
+        respond(500, "")
+    if "username" in query:
+        name = query["username"][0]
+        respond(200, json.dumps([rep(name)] if name in users else []))
+    respond(200, json.dumps([rep(n) for n in users][: int(query.get("max", ["100"])[0])]))
+
+if path == "/admin/realms/master/users" and method == "POST":
+    body = json.loads(data)
+    name = body["username"]
+    if name in users:
+        respond(409, "")
+    state["next_id"] = state.get("next_id", 100) + 1
+    users[name] = {"id": "id-%d" % state["next_id"], "password": body["credentials"][0]["value"],
+                   "temporary": False, "roles": ["default-roles-master"]}
+    respond(201, "")
+
+if path == "/admin/realms/master/roles/admin":
+    respond(200, json.dumps({"id": "role-admin", "name": "admin", "composite": True}))
+
+parts = path.split("/")
+if len(parts) >= 6 and parts[4] == "users":
+    name = by_id(parts[5])
+    if name is None:
+        respond(404, "")
+    tail = "/".join(parts[6:])
+    if tail == "reset-password" and method == "PUT":
+        users[name]["password"] = json.loads(data)["value"]
+        respond(204, "")
+    if tail == "role-mappings/realm" and method == "POST":
+        if not os.environ.get("FAKE_ROLE_GRANT_NOOP") and any(r.get("name") == "admin" for r in json.loads(data)):
+            if "admin" not in users[name]["roles"]:
+                users[name]["roles"].append("admin")
+        respond(204, "")
+    if tail == "" and method == "DELETE":
+        del users[name]
+        respond(204, "")
+    if tail == "" and method == "PUT":
+        respond(204, "")   # measured: accepted, and is_temporary_admin kept
+
+sys.stderr.write("unexpected fake keycloak call: %s %s\n" % (method, url))
+respond(500, "")
+"""
+
+
+def _kc_user(password: str, *, temporary: bool, admin: bool = True, uid: str) -> dict[str, Any]:
+    roles = ["default-roles-master"] + (["admin"] if admin else [])
+    return {"id": uid, "password": password, "temporary": temporary, "roles": roles}
+
+
+def _kc_fresh() -> dict[str, Any]:
+    return {"nexus-bootstrap": _kc_user(_KC_BOOT_PW, temporary=True, uid="id-boot")}
+
+
+def _kc_done() -> dict[str, Any]:
+    return {"nexus": _kc_user(_KC_ADMIN_PW, temporary=False, uid="id-perm")}
+
+
+def _run_keycloak_hook(
+    tmp_path: Path,
+    users: dict[str, Any],
+    *,
+    admin_pw: str = _KC_ADMIN_PW,
+    boot_pw: str = _KC_BOOT_PW,
+    extra_env: dict[str, str] | None = None,
+) -> tuple[str, list[str], dict[str, Any]]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    curl = bin_dir / "curl"
+    curl.write_text(f"#!{sys.executable}\n{_FAKE_KEYCLOAK_CURL}")
+    curl.chmod(0o755)
+    # jq is real, but wrapped so its argv is logged too: a password passed as
+    # `jq --arg` would never show up in curl's argv.
+    real_jq = subprocess.run(["which", "jq"], capture_output=True, text=True).stdout.strip()
+    jq = bin_dir / "jq"
+    jq.write_text(
+        f'#!/usr/bin/env bash\nprintf "jq %s\\n" "$*" >> "$FAKE_LOG"\nexec {real_jq} "$@"\n'
+    )
+    jq.chmod(0o755)
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"users": users}))
+    log = tmp_path / "calls.log"
+    script = render_keycloak_hook(
+        _make_config(
+            admin_username="nexus",
+            keycloak_admin_password=admin_pw,
+            keycloak_bootstrap_password=boot_pw,
+        ),
+        _make_env(),
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_LOG": str(log),
+        "FAKE_STATE": str(state),
+        **(extra_env or {}),
+    }
+    done = subprocess.run(
+        ["bash", "-s"],
+        input="set -u\n" + script,
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    return done.stdout + done.stderr, calls, json.loads(state.read_text())["users"]
+
+
+def _kc_summary(users: dict[str, Any]) -> dict[str, tuple[bool, bool]]:
+    """username -> (temporary, has admin)"""
+    return {n: (u["temporary"], "admin" in u["roles"]) for n, u in users.items()}
+
+
+_needs_jq = pytest.mark.skipif(
+    subprocess.run(["which", "jq"], capture_output=True).returncode != 0,
+    reason="the keycloak hook builds its request bodies with jq",
+)
+
+
+def test_keycloak_hook_is_registered() -> None:
+    """Without it every deployment keeps Keycloak's temporary bootstrap admin,
+    and the admin console says so on every page."""
+    from nexus_deploy.services import _HOOK_REGISTRY
+
+    assert _HOOK_REGISTRY["keycloak"] is render_keycloak_hook
+
+
+@pytest.mark.parametrize("missing", ["keycloak_admin_password", "keycloak_bootstrap_password"])
+def test_keycloak_hook_skips_without_either_password(missing: str) -> None:
+    script = render_keycloak_hook(_make_config(**{missing: ""}), _make_env())
+    assert script.strip() == 'echo "RESULT hook=keycloak status=skipped-not-ready"'
+
+
+def test_keycloak_hook_admin_username_falls_back_to_the_project_default() -> None:
+    """An empty admin_username must fall back to DEFAULT_ADMIN_USERNAME, the
+    same constant every other hook uses -- never to `admin` or to Keycloak's
+    `temp-admin` (#780)."""
+    from nexus_deploy.config import DEFAULT_ADMIN_USERNAME
+
+    script = render_keycloak_hook(_make_config(admin_username=None), _make_env())
+    assert f"local ADMIN_U={shlex.quote(DEFAULT_ADMIN_USERNAME)} " in script
+
+
+@_needs_jq
+def test_keycloak_hook_fresh_realm_installs_admin_and_deletes_bootstrap(tmp_path: Path) -> None:
+    """A fresh realm has only `nexus-bootstrap`; afterwards only the permanent,
+    non-temporary admin is left. Also the case the form-body newline broke:
+    with `jq -r` the password arrived with a trailing newline and was refused."""
+    out, _, users = _run_keycloak_hook(tmp_path, _kc_fresh())
+    assert "RESULT hook=keycloak status=configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+    assert users["nexus"]["password"] == _KC_ADMIN_PW
+
+
+@_needs_jq
+def test_keycloak_hook_second_run_changes_nothing(tmp_path: Path) -> None:
+    out, calls, users = _run_keycloak_hook(tmp_path, _kc_done())
+    assert "RESULT hook=keycloak status=already-configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+    assert not any(re.search(r"-X (PUT|DELETE)|/users --data-binary", c) for c in calls)
+
+
+@_needs_jq
+def test_keycloak_hook_replaces_a_temporary_admin_from_an_older_deploy(tmp_path: Path) -> None:
+    """Before this hook the permanent username was bootstrapped directly and
+    stays flagged temporary. Keycloak will not clear that flag, so the account
+    is replaced -- a new id is the proof it was recreated, not edited."""
+    legacy = {"nexus": _kc_user(_KC_ADMIN_PW, temporary=True, uid="id-legacy")}
+    out, _, users = _run_keycloak_hook(tmp_path, legacy)
+    assert "RESULT hook=keycloak status=configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+    assert users["nexus"]["id"] != "id-legacy"
+    assert users["nexus"]["password"] == _KC_ADMIN_PW
+
+
+@_needs_jq
+def test_keycloak_hook_finishes_an_interrupted_replacement(tmp_path: Path) -> None:
+    """Interrupted after installing `nexus-bootstrap`, before deleting the
+    temporary admin: both exist, and the next run completes the hand-over."""
+    half = {
+        "nexus": _kc_user(_KC_ADMIN_PW, temporary=True, uid="id-legacy"),
+        "nexus-bootstrap": _kc_user(_KC_BOOT_PW, temporary=False, uid="id-boot"),
+    }
+    out, _, users = _run_keycloak_hook(tmp_path, half)
+    assert "RESULT hook=keycloak status=configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+
+
+@_needs_jq
+def test_keycloak_hook_repairs_an_admin_left_half_created(tmp_path: Path) -> None:
+    """The permanent account exists with a stale password and no admin role,
+    and the bootstrap account is still there: reset, grant, then delete."""
+    partial = {
+        **_kc_fresh(),
+        "nexus": _kc_user("StalePw000", temporary=False, admin=False, uid="id-stale"),
+    }
+    out, _, users = _run_keycloak_hook(tmp_path, partial)
+    assert "RESULT hook=keycloak status=configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+    assert users["nexus"]["password"] == _KC_ADMIN_PW
+
+
+@_needs_jq
+def test_keycloak_hook_recovers_an_admin_that_signs_in_but_has_no_role(tmp_path: Path) -> None:
+    """An earlier run created the admin with the right password, then its role
+    grant failed, so it kept `nexus-bootstrap`. The admin now signs in -- the
+    password grant does not require the role -- and gets 403 on every admin
+    request. Without probing that, each run failed on the 403 and never used
+    the bootstrap account that could finish the grant (#871 review)."""
+    stuck = {
+        **_kc_fresh(),
+        "nexus": _kc_user(_KC_ADMIN_PW, temporary=False, admin=False, uid="id-norole"),
+    }
+    out, _, users = _run_keycloak_hook(tmp_path, stuck)
+    assert "RESULT hook=keycloak status=configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+
+
+@_needs_jq
+def test_keycloak_hook_fails_without_touching_anything_when_no_account_signs_in(
+    tmp_path: Path,
+) -> None:
+    out, calls, users = _run_keycloak_hook(
+        tmp_path, _kc_done(), admin_pw="WrongAdmin9", boot_pw="WrongBoot9"
+    )
+    assert "RESULT hook=keycloak status=failed" in out
+    assert "status=configured" not in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+    assert not any("/admin/" in c for c in calls)
+
+
+@_needs_jq
+def test_keycloak_hook_asks_again_when_a_concurrent_deploy_finished_first(
+    tmp_path: Path,
+) -> None:
+    """Two spin-ups can run at once (#801). The loser's first admin sign-in
+    comes before the winner created the account, its bootstrap sign-in after
+    the winner deleted that one; the retry finds the job done."""
+    out, _, users = _run_keycloak_hook(
+        tmp_path, _kc_done(), extra_env={"FAKE_FAIL_FIRST_SIGNIN_OF": "nexus"}
+    )
+    assert "RESULT hook=keycloak status=already-configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+
+
+@_needs_jq
+def test_keycloak_hook_keeps_bootstrap_when_the_new_admin_has_no_rights(tmp_path: Path) -> None:
+    """The role grant answered 204 but did nothing. The new account signs in,
+    its admin request is refused -- so the only working admin must survive."""
+    out, _, users = _run_keycloak_hook(
+        tmp_path, _kc_fresh(), extra_env={"FAKE_ROLE_GRANT_NOOP": "1"}
+    )
+    assert "RESULT hook=keycloak status=failed" in out
+    assert "nexus-bootstrap kept" in out
+    assert "nexus-bootstrap" in users
+
+
+@_needs_jq
+@pytest.mark.parametrize("start", ["done", "legacy"])
+def test_keycloak_hook_fails_when_it_cannot_read_the_accounts(tmp_path: Path, start: str) -> None:
+    """The admin signs in, then every user lookup answers 500.
+
+    Before the lookup reported its own failure, an unreadable answer looked
+    exactly like "not temporary" and "bootstrap already gone", and the hook
+    said `already-configured` about accounts it had never seen. A temporary
+    admin would have stayed temporary behind a success line.
+    """
+    users = (
+        _kc_done()
+        if start == "done"
+        else {"nexus": _kc_user(_KC_ADMIN_PW, temporary=True, uid="id-legacy")}
+    )
+    out, _, after = _run_keycloak_hook(tmp_path, users, extra_env={"FAKE_USER_LOOKUP_FAILS": "1"})
+    assert "RESULT hook=keycloak status=failed" in out
+    assert "already-configured" not in out
+    assert "could not read nexus" in out
+    assert after == users
+
+
+_KC_ALL_STARTS: dict[str, Callable[[], dict[str, Any]]] = {
+    "fresh": _kc_fresh,
+    "done": _kc_done,
+    "legacy": lambda: {"nexus": _kc_user(_KC_ADMIN_PW, temporary=True, uid="id-legacy")},
+    "interrupted": lambda: {
+        "nexus": _kc_user(_KC_ADMIN_PW, temporary=True, uid="id-legacy"),
+        "nexus-bootstrap": _kc_user(_KC_BOOT_PW, temporary=False, uid="id-boot"),
+    },
+    "half-created": lambda: {
+        **_kc_fresh(),
+        "nexus": _kc_user("StalePw000", temporary=False, admin=False, uid="id-stale"),
+    },
+    "no-role": lambda: {
+        **_kc_fresh(),
+        "nexus": _kc_user(_KC_ADMIN_PW, temporary=False, admin=False, uid="id-norole"),
+    },
+}
+
+
+@_needs_jq
+@pytest.mark.parametrize("start", sorted(_KC_ALL_STARTS))
+def test_keycloak_hook_puts_no_credential_in_any_argv(tmp_path: Path, start: str) -> None:
+    """R4: neither password nor any bearer token may appear in a process
+    argument list -- curl's or jq's.
+
+    Run from every starting state, because the branches differ: the password
+    reset only runs when the account already exists, so a check on one path
+    would miss a password leaked there. That happened: with the check on the
+    legacy path alone, a `jq --arg` in the reset branch went unnoticed.
+    """
+    _, calls, _ = _run_keycloak_hook(tmp_path, _KC_ALL_STARTS[start]())
+    assert any(c.startswith("jq ") for c in calls), "the jq wrapper logged nothing"
+    assert any(not c.startswith("jq ") for c in calls), "the fake curl logged nothing"
+    joined = "\n".join(calls)
+    for secret in (_KC_ADMIN_PW, _KC_BOOT_PW, "StalePw000", "tok-"):
+        assert secret not in joined, f"{secret!r} reached an argv ({start})"

@@ -239,7 +239,7 @@ def test_compute_folders_public_repo_url_falls_back_to_default_repo_name() -> No
 def test_compute_folders_full_snapshot(snapshot: SnapshotAssertion) -> None:
     """Lock the entire folder list + ordering + per-folder keys.
 
-    Uses the ``secrets_full.json`` fixture (124 fields populated) so any
+    Uses the ``secrets_full.json`` fixture (125 fields populated) so any
     accidental reordering or skipped key surfaces as a snapshot diff.
     """
     raw = (FIXTURES / "secrets_full.json").read_text()
@@ -1128,6 +1128,25 @@ def test_forgejo_runner_secret_is_never_published_to_infisical() -> None:
     for folder in folders:
         assert "FORGEJO_RUNNER_SECRET" not in folder.secrets, folder.name
         assert "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678" not in folder.secrets.values()
+
+
+def test_keycloak_bootstrap_password_is_never_published_to_infisical() -> None:
+    """It unlocks `nexus-bootstrap`, which the keycloak services hook deletes.
+    Published, it would be a dead value in Infisical and -- through
+    `secret_sync` -- in every Kestra flow's environment."""
+    config = NexusConfig(
+        admin_username="nexus-admin",
+        keycloak_admin_password="kc-admin-pw",
+        keycloak_db_password="kc-db-pw",
+        keycloak_bootstrap_password="kc-bootstrap-pw-must-not-appear",
+    )
+    folders = compute_folders(config, BootstrapEnv(domain="example.com"))
+
+    keycloak = next(f for f in folders if f.name == "keycloak")
+    assert keycloak.secrets["KEYCLOAK_ADMIN_PASSWORD"] == "kc-admin-pw"
+    for folder in folders:
+        assert not any("BOOTSTRAP" in key for key in folder.secrets), folder.name
+        assert "kc-bootstrap-pw-must-not-appear" not in folder.secrets.values()
 
 
 def test_forgejo_folder_drops_unset_credentials() -> None:

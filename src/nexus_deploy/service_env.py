@@ -862,7 +862,7 @@ def _render_langfuse(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Keycloak: dedicated Postgres, a bootstrap admin, and the public hostname.
+    """Keycloak: dedicated Postgres, a throwaway bootstrap admin, the hostname.
 
     ``KEYCLOAK_DOMAIN`` becomes ``KC_HOSTNAME=https://<host>`` in the compose
     file, which is the ``iss`` claim of every token this server signs and the
@@ -870,12 +870,22 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     multi-tenant forks with ``subdomain_separator='-'`` get the flat hostname,
     as Lakekeeper and MLflow do.
 
-    ``KEYCLOAK_ADMIN_USERNAME`` follows the project's ``ADMIN_USERNAME``
-    rather than upstream's ``temp-admin``, with the same fallback every other
-    renderer uses.
+    **The admin password is deliberately not rendered.** Keycloak creates a
+    *temporary* admin from ``KC_BOOTSTRAP_ADMIN_*`` and keeps those values in
+    the container environment for its whole lifetime. So the container gets
+    ``KEYCLOAK_BOOTSTRAP_PASSWORD`` for the throwaway ``nexus-bootstrap``
+    account, and :func:`nexus_deploy.services.render_keycloak_hook` creates the
+    permanent admin with ``keycloak_admin_password`` and deletes the bootstrap
+    account. The password Infisical lists is then never in the container, and
+    the one that is unlocks an account that no longer exists.
 
-    Three fail-fast guards. The compose file uses ``${VAR:?...}`` for all of
-    these, so an empty value would stop the container rather than start it
+    ``keycloak_admin_password`` is still required here even though it is not
+    written: without it the hook cannot create the permanent admin, and a fresh
+    realm would be left with only an account whose password is in no vault.
+    Failing before ``compose up`` keeps Keycloak from bootstrapping at all.
+
+    Four fail-fast guards. The compose file uses ``${VAR:?...}`` for the values
+    it reads, so an empty one would stop the container rather than start it
     wrong -- but failing here names the cause, while failing there produces a
     compose error the operator has to trace back.
 
@@ -884,7 +894,7 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     Keycloak would start with ``https://keycloak`` as its issuer: healthy,
     and wrong in every token and redirect.
 
-    The .env is ``0o600``: it holds the admin and database passwords in
+    The .env is ``0o600``: it holds the database and bootstrap passwords in
     cleartext, the same reason ``_render_influxdb`` restricts its own.
     """
     missing = [
@@ -892,6 +902,7 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         for name, value in (
             ("KEYCLOAK_DB_PASSWORD", c.keycloak_db_password),
             ("KEYCLOAK_ADMIN_PASSWORD", c.keycloak_admin_password),
+            ("KEYCLOAK_BOOTSTRAP_PASSWORD", c.keycloak_bootstrap_password),
         )
         if _empty(value)
     ]
@@ -899,10 +910,10 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         raise ServiceEnvError(
             f"Keycloak enabled but {', '.join(missing)} empty — "
             "`tofu apply` in tofu/stack generates "
-            "random_password.keycloak_db_password and "
-            "random_password.keycloak_admin_password, and the same run pushes "
-            "them to Infisical; an empty value here means one of those did not "
-            "complete, so check both steps in this run's log.",
+            "random_password.keycloak_db_password, "
+            "random_password.keycloak_admin_password and "
+            "random_password.keycloak_bootstrap_password; an empty value here "
+            "means that step did not complete, so check it in this run's log.",
         )
     if _empty(e.domain):
         raise ServiceEnvError(
@@ -914,8 +925,7 @@ def _render_keycloak(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(
         env_vars={
             "KEYCLOAK_DB_PASSWORD": c.keycloak_db_password or "",
-            "KEYCLOAK_ADMIN_USERNAME": c.admin_username or DEFAULT_ADMIN_USERNAME,
-            "KEYCLOAK_ADMIN_PASSWORD": c.keycloak_admin_password or "",
+            "KEYCLOAK_BOOTSTRAP_PASSWORD": c.keycloak_bootstrap_password or "",
             "KEYCLOAK_DOMAIN": domain_host,
         },
         mode=0o600,
