@@ -31,12 +31,58 @@ title: "Forgejo Runner"
 |---|---|
 | `forgejo-runner` | Polls Forgejo for jobs and drives the daemon below |
 | `forgejo-dind` | The Docker daemon those jobs actually run in |
+| `forgejo-git-proxy` | Forwards port 3000 from the CI network to the forge, so jobs can clone |
 
-The runner is the only container on both `app-network` (to reach the
-forge, which lives in the other stack) and `forgejo-ci` (to reach the
-job daemon). That is what makes it the sole path between the two, and
-it is why `forgejo-dind` is not on `app-network` with the other forty
-services.
+The runner drives `forgejo-dind` through a **unix socket** in a volume
+that only those two containers mount. `forgejo-dind` has no TCP
+listener.
+
+`forgejo-dind` is not on `app-network` with the other stacks. It sits
+on `forgejo-ci`, a bridge with the fixed subnet `10.213.0.0/24`. Job
+traffic leaves the daemon through that network. Two addresses on it are
+fixed because jobs are told about them:
+
+| Address | Container | What a job uses it for |
+|---|---|---|
+| `10.213.0.10` | `forgejo-git-proxy` | `forgejo:3000`: clone, API, artifacts |
+| `10.213.0.11` | `forgejo-runner` | the Actions cache (`ACTIONS_CACHE_URL`) |
+
+The subnet lies outside Docker's default address pools (`172.17–31.x`,
+`192.168.x`). Both the host and `forgejo-dind` allocate networks from
+those pools. A job network inside `forgejo-dind` with the same range
+would capture the traffic meant for these addresses.
+
+### How a job reaches the forge
+
+The runner is registered with `http://forgejo:3000` and passes that
+address to every job. `actions/checkout` clones from it.
+
+A job container runs on a network that `forgejo-dind` creates, where the
+name `forgejo` does not exist. The first Conductor deploy failed exactly
+there (#679):
+
+```text
+fatal: unable to access 'http://forgejo:3000/…/': Could not resolve host: forgejo
+```
+
+`runner-config.yml` therefore adds `--add-host=forgejo:10.213.0.10` to
+every job container, and `forgejo-git-proxy` forwards that port to the
+real forge over `app-network`. The registered address stays the same,
+so an existing runner keeps its `.runner` file.
+
+Verified on 2026-09-16 with a real job, on a stack first brought up
+from the previous revision and then updated in place:
+
+| Check from inside the job | Result |
+|---|---|
+| `getent hosts forgejo` | `10.213.0.10` |
+| `actions/checkout@v5` | the repository's files are present |
+| `actions/cache@v4` | `Cache saved successfully` via `http://10.213.0.11:…` |
+| `GET /version` on port 2375 at the job's gateway and at `10.213.0.1`–`.5` | no connection |
+| `/run/dind` | does not exist |
+
+The in-place update needed nothing by hand. `docker compose up -d`
+recreated `forgejo-ci` with the new subnet and restarted the containers.
 
 ### How the runner registers itself
 
@@ -80,24 +126,6 @@ Put them in **`.forgejo/workflows/*.yaml`**. If that directory does not
 exist, Forgejo falls back to `.github/workflows/`, so a repository
 copied from GitHub will often just run — but prefer the Forgejo path
 for anything written here, so it is obvious which system executes it.
-
-> ⚠️ **One thing here is unverified, and it is this stack's wiring —
-> not Forgejo.** Forgejo Actions is stable, released software; nothing
-> below is a caveat about it.
->
-> What has not been tested is whether a job container can reach the
-> forge *in this particular topology*. Jobs run inside `forgejo-dind`,
-> a separate Docker daemon from the host's, on networks that daemon
-> creates. Those networks have no route to `forgejo-internal` where the
-> forge lives, and dind's embedded DNS does not know the name
-> `forgejo`. So `actions/checkout` against `http://forgejo:3000` — the
-> address baked into the runner's registration — may not resolve.
->
-> That is a consequence of choosing dind for isolation rather than
-> mounting the host Docker socket, which is what this repo's Woodpecker
-> agent does. The stricter choice is the reason the question exists.
-> It is answerable with one real job run, and is being settled rather
-> than lived with.
 
 Three labels are declared, all pointing at the same image. With offline
 registration they are set by the **server-side** `forgejo-cli actions
@@ -181,38 +209,33 @@ it is what self-hosted CI is.
 For a class stack it means every student with commit rights has a code
 execution primitive.
 
-Three things bound the blast radius:
+What bounds the blast radius:
 
-1. `forgejo-dind` sits alone with the runner on a second internal
-   network, `forgejo-ci`, and publishes no port. Of the four
-   containers, only `forgejo-runner` is attached to it — deliberately
-   *not* the web container or the database, which live on
-   `forgejo-internal`. An earlier revision put all four on one network,
-   which would have let a compromise of the web container drive a
-   privileged Docker daemon.
+1. **Jobs cannot reach the Docker daemon.** `forgejo-dind` listens on a
+   unix socket in a volume shared only with the runner. An earlier
+   revision listened on `tcp://0.0.0.0:2375`, and a job could drive
+   that daemon through its own gateway: `GET /version` returned `200`
+   from inside a job. Since the daemon runs as root with
+   `privileged: true`, that was a way out of the sandbox. With the
+   socket, the same probe gets no connection (see the table above).
+2. **`forgejo-dind` is not on `app-network`.** Jobs cannot open
+   connections to the addresses of containers on `app-network`
+   (measured). `forgejo-ci` carries only `forgejo-dind`, the runner and
+   `forgejo-git-proxy`, which forwards one port to one destination.
+3. **No socket, no host paths.** `runner-config.yml` keeps
+   `container.docker_host: "-"` and `valid_volumes: []`, so the runner
+   does not hand a job container a Docker socket and a workflow may not
+   name host paths to bind-mount.
 
-   This is a statement about the four stack containers. It says nothing
-   about *job* containers, which are a separate matter — see the limit
-   noted under point 3.
-3. `runner-config.yml` keeps `container.docker_host: "-"` and
-   `valid_volumes: []`, so the runner does not hand a job container a
-   Docker socket and a workflow may not name host paths to bind-mount.
-
-**A limit of point 3, stated because it was raised in review and is not
-yet settled.** `forgejo-dind` listens unauthenticated on
-`0.0.0.0:2375`, and job containers are created *by that same daemon*,
-on networks it owns. A job may therefore be able to reach the daemon
-through its bridge gateway and drive the Docker API directly,
-regardless of what the runner chose not to mount. It is a weaker
-boundary than "jobs cannot reach the daemon", which is what an earlier
-version of this page implied — and since that daemon runs as root, the
-consequence is correspondingly larger.
-
-Binding the daemon to a unix socket shared only with the runner would
-close it. That is not done here because it needs a live test of the
-socket path and the uid split between the two containers, and shipping
-an untested isolation change is worse than an accurately described
-one.
+**What jobs can still reach: ports the host publishes on all
+interfaces.** A job can connect to any port the host publishes on
+`0.0.0.0`, through the `forgejo-ci` gateway (`10.213.0.1`) or the
+server's public address. Measured on 2026-09-16: MLflow's `5001`
+answered `200` from inside a job container. Such a request bypasses
+Cloudflare Access, which sits only in front of the tunnel. Stacks that
+publish on `127.0.0.1` are not reachable this way. Moving the rest to
+loopback is #742. Until then, treat anything a stack publishes on
+`0.0.0.0` as reachable by everyone who can push a workflow.
 
 **Resource ceilings.** `forgejo-dind` carries `mem_limit: 4g` and
 `cpus: 2.0`, and job containers are its children, so the limit applies
