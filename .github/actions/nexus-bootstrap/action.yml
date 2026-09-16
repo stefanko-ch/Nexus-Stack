@@ -53,10 +53,6 @@ inputs:
       of surfacing later as a connection timeout.
     required: false
     default: 'false'
-  tofu_version:
-    description: OpenTofu version.
-    required: false
-    default: '1.10.0'
   uv_version:
     description: uv version. Keep in step with python-tests.yml.
     required: false
@@ -66,9 +62,12 @@ runs:
   using: composite
   steps:
     - name: Install OpenTofu
-      uses: opentofu/setup-opentofu@v2
-      with:
-        tofu_version: ${{ inputs.tofu_version }}
+      # A script, not opentofu/setup-opentofu: a Forgejo runner cannot resolve
+      # that action (#872). It takes no version -- version and checksums are
+      # pinned in the script, which is why this action no longer has a
+      # `tofu_version` input.
+      shell: bash
+      run: bash "$GITHUB_WORKSPACE/.github/scripts/install-opentofu.sh"
 
     - name: Install uv
       uses: astral-sh/setup-uv@v3

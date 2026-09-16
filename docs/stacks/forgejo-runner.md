@@ -126,7 +126,49 @@ Other known differences from GitHub Actions:
   which this stack pins to `https://data.forgejo.org`. So
   `uses: actions/checkout@v4` fetches from data.forgejo.org, not
   github.com — deliberately, so CI does not depend on GitHub being
-  reachable.
+  reachable. See the next section for what that mirror does not carry.
+
+### Actions that data.forgejo.org does not mirror
+
+data.forgejo.org mirrors many GitHub actions, not all of them. A workflow
+that uses a missing one fails at that step with `repository … not found`.
+That is how a Conductor tenant fork found out: its first deploy stopped at
+`opentofu/setup-opentofu` (#872). Nexus-Stack's own workflows now install
+OpenTofu with `.github/scripts/install-opentofu.sh` instead, which needs no
+action at all.
+
+Every `uses:` in this repository, checked against data.forgejo.org on
+2026-09-16. A tag was checked with `git ls-remote`; a commit SHA by fetching
+that commit, since `ls-remote` cannot see it:
+
+| Action | On data.forgejo.org | Used by |
+|---|---|---|
+| `actions/checkout` (`@v5` and a pinned SHA) | yes | most workflows |
+| `actions/cache` (pinned SHA) | yes | the lifecycle workflows, `initial-setup`, `changelog-parse`, `toggle-silent-mode` |
+| `actions/setup-node` (`@v5` and a pinned SHA) | yes | `setup-control-plane`, `spin-up`, `changelog-parse` |
+| `actions/upload-artifact@v4` | yes | `python-tests` |
+| `astral-sh/setup-uv@v3` | yes | `nexus-bootstrap`, the lifecycle workflows, `python-tests` |
+| `opentofu/setup-opentofu` | **no** — no longer used | — |
+| `raven-actions/actionlint` | **no** | `validate-workflows` |
+| `googleapis/release-please-action` | **no** | `release-please` |
+| `codecov/codecov-action` | **no** | `python-tests` |
+| `MishaKav/pytest-coverage-comment` | **no** | `python-tests` |
+
+So every `uses:` in the lifecycle workflows (deploy, spin-up, teardown,
+destroy) resolves on a Forgejo runner. That is a statement about action
+resolution only — a full lifecycle run on Forgejo is verified by running one.
+The four missing actions are used only by CI workflows, which matter only if
+a fork runs its CI on Forgejo too.
+
+For a workflow of your own, either pick an action from the list above, write
+it as a plain `run:` step, or give the full URL
+(`uses: https://github.com/owner/repo@ref`). Forgejo accepts a full URL;
+GitHub Actions does not, so a workflow that must run on both cannot use it.
+To check an action before relying on it:
+
+```bash
+git ls-remote https://data.forgejo.org/<owner>/<repo> <tag>
+```
 
 ### Security — read this before enabling on a shared stack
 

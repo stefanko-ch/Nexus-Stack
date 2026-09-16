@@ -104,9 +104,9 @@ jobs:
             npm-${{ runner.os }}-
 
       - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@v2
-        with:
-          tofu_version: 1.10.0
+        # A script, not opentofu/setup-opentofu: a Forgejo runner cannot
+        # resolve that action (#872). Version and checksums are pinned there.
+        run: bash .github/scripts/install-opentofu.sh
 
       - name: Install uv
         # Needed by the Hetzner snapshot cleanup at the end of this
