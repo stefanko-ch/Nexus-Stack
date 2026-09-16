@@ -185,25 +185,39 @@ jobs:
         run: |
           # Dispatched rather than called: a called workflow is taken from
           # this run's commit, which is the version before the update.
-          SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          gh workflow run setup-control-plane.yaml --repo "$REPO" --ref main
-
-          RUN_ID=""
-          for _ in $(seq 1 30); do
-            # Created after the dispatch AND on the release commit, so a run
-            # someone else dispatched on the old main is not mistaken for it.
-            RUN_ID=$(gh run list --repo "$REPO" --workflow setup-control-plane.yaml \
-                       --event workflow_dispatch --json databaseId,createdAt,headSha \
-                       --jq "[.[] | select(.createdAt >= \"$SINCE\" and .headSha == \"$TARGET\")] | sort_by(.createdAt) | first | .databaseId // empty")
-            [ -n "$RUN_ID" ] && break
-            sleep 5
-          done
-          if [ -z "$RUN_ID" ]; then
-            echo "❌ Setup: Control Plane was dispatched, but its run did not appear"
-            echo "   within 150 s. main is updated. Check the Actions tab, and run"
-            echo "   Setup: Control Plane by hand if it is not there."
+          #
+          # return_run_details makes GitHub answer with the id of the run it
+          # created (200) instead of an empty 204, so the run watched below
+          # is exactly this dispatch, never one found by time or commit.
+          # Documented in github/rest-api-description for
+          # actions/create-workflow-dispatch.
+          if ! RESPONSE=$(gh api -X POST \
+                 "repos/$REPO/actions/workflows/setup-control-plane.yaml/dispatches" \
+                 -f ref=main -F return_run_details=true); then
+            echo "❌ Could not dispatch Setup: Control Plane (see the error above)."
+            echo "   main is updated. Run Setup: Control Plane by hand before spinning up."
             exit 1
           fi
+          RUN_ID=$(jq -r '.workflow_run_id // empty' <<< "$RESPONSE")
+          if ! [[ "$RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "❌ Setup: Control Plane was dispatched, but GitHub returned no run id."
+            echo "   main is updated. Find the run in the Actions tab and wait for it"
+            echo "   before spinning up."
+            exit 1
+          fi
+
+          # `ref=main` resolves when the run is created. Anything but the
+          # release commit means main moved again in between.
+          if ! RUN_SHA=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .head_sha); then
+            echo "❌ Could not read Setup: Control Plane run $RUN_ID (see the error above)."
+            exit 1
+          fi
+          if [ "$RUN_SHA" != "$TARGET" ]; then
+            echo "❌ Setup: Control Plane run $RUN_ID is on ${RUN_SHA:0:8}, not on the"
+            echo "   release commit ${TARGET:0:8}: main changed during this update."
+            exit 1
+          fi
+
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "▶ Setup: Control Plane: https://github.com/$REPO/actions/runs/$RUN_ID"
           if ! gh run watch "$RUN_ID" --repo "$REPO" --exit-status --interval 30 > /dev/null; then

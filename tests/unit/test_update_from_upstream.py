@@ -390,6 +390,7 @@ def test_it_never_starts_a_spin_up_or_a_teardown() -> None:
     text = WORKFLOW.read_text()
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     dispatched = set(re.findall(r"gh workflow run\s+(\S+)", code))
+    dispatched |= set(re.findall(r"actions/workflows/([^/\s]+)/dispatches", code))
     assert dispatched == {"setup-control-plane.yaml"}
 
 
@@ -423,11 +424,20 @@ def test_the_control_plane_is_updated_only_after_a_move_on_a_torn_down_stack() -
     assert "steps.state.outputs.state == 'torn-down'" in condition
 
 
-def test_the_control_plane_run_is_matched_by_its_commit() -> None:
-    """A run found by start time alone could be someone else's dispatch."""
+def test_the_control_plane_run_is_the_one_this_dispatch_created() -> None:
+    """The dispatch returns its run id; nothing is looked up by time.
+
+    A lookup by start time can pick a run someone else dispatched just
+    before, and report its result as this update's.
+    """
     _, step = _step("Update the Control Plane")
+    run = step["run"]
+    assert "-F return_run_details=true" in run
+    assert "RUN_ID=$(jq -r '.workflow_run_id // empty'" in run
+    assert "gh run list" not in run
+    # And the run is on the release commit.
     assert step["env"]["TARGET"] == "${{ steps.update.outputs.to }}"
-    assert '.headSha == \\"$TARGET\\"' in step["run"]
+    assert '[ "$RUN_SHA" != "$TARGET" ]' in run
 
 
 def test_a_missing_workflow_is_skipped_by_file_not_by_error_text() -> None:
