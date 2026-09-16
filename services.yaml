@@ -339,9 +339,9 @@ services:
     # Required by the schema validator, and inert for this service. A
     # runner listens on nothing — it polls Forgejo outbound — and the
     # tunnel, DNS and Access resources all key off `subdomain`, which
-    # an internal_only service does not have. 2375 is the dind API
-    # port the runner talks to inside the stack; it is never published
-    # and never routed.
+    # an internal_only service does not have. 2375 is Docker's API port
+    # by convention only: forgejo-dind listens on a unix socket, not on
+    # TCP, and nothing is published or routed.
     port: 2375
     public: false
     category: "ci-cd"
@@ -351,6 +351,7 @@ services:
     image: "data.forgejo.org/forgejo/runner:13.0.0"
     support_images:
       forgejo-dind: "docker:29.7.2-dind"
+      forgejo-git-proxy: "nginx:1.30.4-alpine"
 
   garage:
     subdomain: "garage"

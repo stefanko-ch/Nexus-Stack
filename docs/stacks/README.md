@@ -69,6 +69,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Forgejo DB) | `postgres` | `17-alpine` | Major |
 | Forgejo Runner | `data.forgejo.org/forgejo/runner` | `13.0.0` | Exact ¹ |
 | Docker-in-Docker (Forgejo) | `docker` | `29.7.2-dind` | Exact ¹ |
+| nginx (Forgejo Runner git proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | Garage | `dxflrs/garage` | `v2.2.0` | Minor |
 | Garage WebUI | `khairul169/garage-webui` | `latest` | Latest ² |
 | Git Proxy | `nginx` | `alpine` | Latest ² |

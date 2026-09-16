@@ -49,12 +49,25 @@ cache:
   # $HOME/.cache/actcache, and HOME for uid 1001 is not guaranteed
   # writable in this image.
   dir: /data/.cache
+  # The address jobs are told to reach the cache at (ACTIONS_CACHE_URL):
+  # the runner's fixed address on forgejo-ci, set in docker-compose.yml.
+  # Left empty, the runner guesses one of its own addresses, and its
+  # app-network address is not reachable from a job.
+  host: "10.213.0.11"
 
 container:
-  # Empty = the runner creates a per-job network. Job containers are
-  # therefore isolated from app-network and cannot reach the other
-  # stacks on this server.
+  # Empty = the runner creates a per-job network inside forgejo-dind.
+  # Job containers cannot open connections to app-network addresses.
+  # They can still reach ports the host publishes on 0.0.0.0 — see
+  # docs/stacks/forgejo-runner.md.
   network: ""
+
+  # Jobs clone from http://forgejo:3000, the address the runner is
+  # registered with, and that name does not exist on a job's network
+  # (#679). This maps it to forgejo-git-proxy's fixed address on
+  # forgejo-ci, which forwards to the forge. The address is set in
+  # docker-compose.yml.
+  options: "--add-host=forgejo:10.213.0.10"
 
   # Task containers stay unprivileged. Only forgejo-dind is privileged,
   # and that is the boundary — jobs run against it, not as it.
@@ -63,7 +76,8 @@ container:
   # "-" means no Docker socket is mounted into the job container. This
   # is the runner's own default and we keep it deliberately: a job that
   # could talk to the daemon directly could start a privileged sibling
-  # container and walk straight out of its sandbox.
+  # container and walk straight out of its sandbox. That is also why
+  # forgejo-dind has no TCP listener a job could reach instead.
   docker_host: "-"
 
   # No host paths may be bind-mounted by a workflow. An empty list is

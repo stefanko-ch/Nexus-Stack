@@ -1974,3 +1974,120 @@ def test_flow_sync_tolerates_an_absent_user_directory() -> None:
     assert "failOnMissingDirectory" not in tasks["sync-seeds"], (
         "sync-seeds must stay loud: a missing seed directory means seeding did not happen."
     )
+
+
+# ---------------------------------------------------------------------------
+# Forgejo Runner: how jobs reach the forge, and what they must not reach (#679)
+# ---------------------------------------------------------------------------
+
+
+def _runner_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "forgejo-runner" / "docker-compose.yml").read_text()))
+
+
+def _runner_config() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "forgejo-runner" / "runner-config.yml").read_text()))
+
+
+def _ci_address(service: dict[str, Any]) -> str:
+    return str(service["networks"]["forgejo-ci"]["ipv4_address"])
+
+
+def test_forgejo_dind_has_no_tcp_listener() -> None:
+    """A job container could drive a TCP listener through its own gateway.
+
+    Measured before the fix: `GET /version` on port 2375 returned 200 from
+    inside a job, against a daemon that runs as root with `privileged: true`.
+    `dockerd` has to be the first argument: given flags alone, the image's
+    entrypoint prepends its default hosts, which include tcp://0.0.0.0:2375.
+    """
+    dind = _runner_compose()["services"]["forgejo-dind"]
+    command = dind["command"]
+
+    assert command[0] == "dockerd", "without `dockerd` first, the entrypoint adds a TCP host"
+    hosts = [arg.split("=", 1)[1] for arg in command if arg.startswith("--host=")]
+    assert hosts, "dockerd needs an explicit --host, or it falls back to its default"
+    assert all(h.startswith("unix://") for h in hosts), hosts
+    assert not [arg for arg in command if "tcp://" in arg]
+    assert "unix://" in " ".join(dind["healthcheck"]["test"])
+
+
+def test_forgejo_runner_and_dind_share_the_socket_and_nobody_else_does() -> None:
+    services = _runner_compose()["services"]
+    dind_host = next(
+        a.split("=", 1)[1] for a in services["forgejo-dind"]["command"] if a.startswith("--host=")
+    )
+    socket_dir = str(Path(dind_host.removeprefix("unix://")).parent)
+
+    assert services["forgejo-runner"]["environment"]["DOCKER_HOST"] == dind_host
+
+    holders = {
+        name
+        for name, spec in services.items()
+        for volume in spec.get("volumes") or []
+        if isinstance(volume, str) and volume.split(":")[1] == socket_dir
+    }
+    assert holders == {"forgejo-dind", "forgejo-runner"}
+    # The runner runs as 1001; the socket is group-owned by that gid.
+    assert services["forgejo-runner"]["user"] == "1001:1001"
+    assert "--group=1001" in services["forgejo-dind"]["command"]
+
+
+def test_forgejo_jobs_resolve_the_forge_to_the_proxy() -> None:
+    """Jobs clone from the address the runner is registered with.
+
+    That name does not exist on a job's network — the first Conductor
+    deploy failed with `Could not resolve host: forgejo`. The runner maps it
+    to forgejo-git-proxy, and the proxy must listen on the registered port
+    and forward to the forge.
+    """
+    from nexus_deploy.config import NexusConfig
+    from nexus_deploy.infisical import BootstrapEnv
+    from nexus_deploy.service_env import _render_forgejo_runner
+
+    services = _runner_compose()["services"]
+    options = _runner_config()["container"]["options"]
+
+    rendered = _render_forgejo_runner(NexusConfig(forgejo_runner_secret="0" * 40), BootstrapEnv())
+    url = rendered.env_vars["FORGEJO_INSTANCE_URL"]
+    match = re.fullmatch(r"http://([a-z0-9-]+):(\d+)", url)
+    assert match, url
+    name, port = match.groups()
+
+    assert f"--add-host={name}:{_ci_address(services['forgejo-git-proxy'])}" in options.split()
+
+    conf = (STACKS_DIR / "forgejo-runner" / "git-proxy.conf").read_text()
+    code = "\n".join(line.split("#", 1)[0] for line in conf.splitlines())
+    assert re.search(rf"^\s*listen\s+{port};", code, re.M)
+    assert re.search(rf"set\s+\$forge\s+{name}:{port};", code)
+    assert "app-network" in services["forgejo-git-proxy"]["networks"]
+
+
+def test_forgejo_jobs_are_told_the_runners_ci_address_for_the_cache() -> None:
+    """Left to guess, the runner may advertise its app-network address,
+    which a job cannot reach."""
+    services = _runner_compose()["services"]
+    assert _runner_config()["cache"]["host"] == _ci_address(services["forgejo-runner"])
+
+
+def test_forgejo_ci_subnet_holds_the_fixed_addresses_and_avoids_dockers_pools() -> None:
+    """A job network inside forgejo-dind is allocated from Docker's default
+    pools. If forgejo-ci overlapped one, a job would route the proxy's
+    address into its own network."""
+    import ipaddress
+
+    compose = _runner_compose()
+    subnet = ipaddress.ip_network(compose["networks"]["forgejo-ci"]["ipam"]["config"][0]["subnet"])
+    for pool in ("172.16.0.0/12", "192.168.0.0/16"):
+        assert not subnet.overlaps(ipaddress.ip_network(pool)), f"{subnet} overlaps {pool}"
+
+    fixed = [
+        ipaddress.ip_address(_ci_address(compose["services"][name]))
+        for name in ("forgejo-git-proxy", "forgejo-runner")
+    ]
+    assert all(address in subnet for address in fixed)
+    assert len(set(fixed)) == len(fixed)
+
+
+def test_forgejo_dind_stays_off_app_network() -> None:
+    assert _runner_compose()["services"]["forgejo-dind"]["networks"] == ["forgejo-ci"]
