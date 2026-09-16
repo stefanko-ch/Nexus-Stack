@@ -21,6 +21,23 @@ This guide walks you through the complete setup of Nexus Stack.
 - [ ] **Domain on Cloudflare** — DNS must be managed by Cloudflare
 - [ ] **GitHub Account** — Repository for the project
 
+### Your Own Repository
+
+Every stack deploys from its own copy of this repository, and updates reach
+it only through that copy. Create it in one of two ways, both of which keep
+the history of Nexus-Stack:
+
+| You want | Do this |
+|---|---|
+| A public repository | **Fork** `stefanko-ch/Nexus-Stack`. A fork of a public repository cannot be made private. Actions are off in a new fork until you enable them under the **Actions** tab. |
+| A private repository | **Import** it: [github.com/new/import](https://github.com/new/import), source URL `https://github.com/stefanko-ch/Nexus-Stack.git`, visibility *Private*. |
+
+Do not create it by copying the files into a new repository. Such a copy
+shares no history with Nexus-Stack and cannot be updated by the
+[update workflow](#updating-to-a-new-release) until it has adopted that
+history once. Older copies created with GitHub's former "Use this template"
+button are in exactly this state.
+
 ### Optional Accounts
 
 - [ ] **[Resend](https://resend.com)** — For email notifications (credentials, status updates)
@@ -312,6 +329,7 @@ is why the answer is a second token rather than a tighter first one.
 | `RESEND_API_KEY` | Email notifications via Resend |
 | `DOCKERHUB_USERNAME` | Docker Hub username (higher pull limits) |
 | `DOCKERHUB_TOKEN` | Docker Hub access token |
+| `UPSTREAM_UPDATE_TOKEN` | Only for [updating to a new release](#updating-to-a-new-release): a fine-grained token on this repository with *Contents* and *Workflows* read/write |
 
 #### What each role may do in the Control Plane
 
@@ -371,6 +389,7 @@ Optional secrets (only set if you want to override defaults):
 | `SNAPSHOT_LIMIT` | `30` | Only relevant on the snapshot lifecycle. Hetzner's snapshot cap, counted **per customer across every project** — splitting stacks across projects adds no headroom. The default of 30 allows roughly 15 stacks at two retained generations; larger fleets must have it raised first via [Hetzner Cloud Console](https://console.hetzner.cloud/) → **Limits → Request change → Limit increase**. Set this variable to whatever Hetzner granted, otherwise the pre-flight check keeps warning against the old default. See [Snapshot Lifecycle](./snapshot-lifecycle.md). |
 | `ENABLE_FORGEJO_SERVICE_TOKEN` | *(unset — off)* | Set to `true` only when an external management plane (e.g. Nexus-Conductor) calls this stack's Forgejo API server-to-server. OpenTofu then mints a Cloudflare Access service token for the Forgejo application and attaches a `non_identity` policy for it, so the caller gets the API instead of Access's login redirect. The client ID and secret land in Infisical under the `forgejo` folder — never in the workflow log. Leave unset otherwise: the forge holds every user repo, and a stack nobody manages externally should not carry a credential that bypasses its email gate. See [Forgejo](../stacks/forgejo.md). |
 | `STACK_LABEL` | *(unset — panel reads "NEXUS STACK")* | Name shown as the panel's main heading, in place of "NEXUS STACK", and prefixed to the browser tab title as `[LABEL]`. "Nexus Stack" moves down into the tagline, so the product name is still on the page. Two Nexus-Stack panels are otherwise pixel-identical — same logo, same header, same buttons, one of which is **Teardown** — so with two stacks open in neighbouring tabs the only thing left to tell them apart would be the URL, which is not what you look at while reaching for a button. Set it on every stack that is not the one you think of as "the" stack, e.g. `CONDUCTOR-STACK`. Baked in at build time, so it is visible before any button is clickable. Unset leaves the panel exactly as it looks today. |
+| `UPSTREAM_REPOSITORY` | `stefanko-ch/Nexus-Stack` | The repository the [update workflow](#updating-to-a-new-release) takes releases from. Change it only if your stack follows a fork of Nexus-Stack rather than Nexus-Stack itself. |
 | `STACK_ACCENT` | *(unset — panel accent)* | Accent colour for the **whole panel** — heading, logo, glows, links, buttons, borders and highlights on every page: a CSS hex value (`#ff8800`) or one of the 148 CSS named colours (`orange`). A word that is not a named colour — a typo, or `transparent` — is rejected rather than passed through, because CSS would then drop every declaration that uses it and leave the header with no colour at all instead of its green. Anything else is ignored and the header keeps the panel's own green. The logo follows too — it is painted through an alpha mask rather than drawn as a coloured image. Status colours deliberately do **not**: a deployed stack stays green whatever the accent is, because that green sits alongside the red and amber of failure and warning, and recolouring it would make the palette say something untrue. Has no effect without `STACK_LABEL`. |
 
 > **Note:** Hetzner server availability fluctuates per region and instance type — both ARM (`cax*`) and x86 (`cx*` / `cpx*`) can hit `resource_unavailable` during capacity crunches. The spin-up workflow's `Select Hetzner capacity` step already walks a 15-pair fallback list (`cx43`, `cx53`, `cpx42`, `cpx52`, `cpx62` across `hel1`/`fsn1`/`nbg1` — see [hetzner_capacity.py](../../src/nexus_deploy/hetzner_capacity.py)), so a typical capacity crunch is handled automatically. If even those 15 combinations are dry, check the [Hetzner Cloud Console](https://console.hetzner.cloud/) → **Add Server** UI for what's currently green and override `SERVER_PREFERENCES` (repo variable) accordingly. Common availability: `hel1` (Helsinki) and `fsn1` (Falkenstein) usually have the best stock for `cx43`; `nbg1` (Nuremberg) and `ash` (US-East) can be alternatives.
@@ -479,6 +498,7 @@ Use the Control Plane to view or email credentials:
 | Spin Up | `gh workflow run spin-up.yml` | None | Re-create infrastructure after teardown |
 | Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
 | Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
+| Update from Upstream | `gh workflow run update-from-upstream.yml [-f ref=vX.Y.Z]` | None | Move a torn-down stack's code to a release; see [Updating to a new release](#updating-to-a-new-release) |
 
 ### Control Plane
 
@@ -488,6 +508,97 @@ Manage your infrastructure via the web interface at `https://control.YOUR_DOMAIN
 - 🧩 **Services** - Enable/disable services dynamically
 - ⏰ **Scheduled Teardown** - Auto-shutdown to save costs
 - 📧 **Email Credentials** - Send login credentials to your inbox
+
+### Updating to a new release
+
+A stack runs the code of its own repository. To move it to a newer
+Nexus-Stack release, you tear the stack down, update the code, and spin it
+up again. A running stack is never updated in place.
+
+**Before you start**, read the release notes of every release between your
+version and the target, on the
+[releases page](https://github.com/stefanko-ch/Nexus-Stack/releases). A
+release can change a stack in a way that matters for your data. Deciding
+whether to update, and when, is yours; the workflow does not interpret the
+notes.
+
+**Once:** create the secret `UPSTREAM_UPDATE_TOKEN`:
+
+1. **GitHub** → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
+2. **Repository access**: only this stack's repository
+3. **Repository permissions**: **Contents** → *Read and write*, **Workflows** → *Read and write*
+4. Save it as the repository secret `UPSTREAM_UPDATE_TOKEN`
+
+It needs *Workflows* because every release changes files under
+`.github/workflows/`, which GitHub does not let the default workflow token
+change. The same permission lets its holder rewrite any workflow, and
+through that reach every secret of the repository, so keep it in this one
+secret and do not reuse it elsewhere.
+
+**Each update:**
+
+1. Run **Lifecycle: Teardown** and wait for it to succeed.
+2. Run **Ops: Update from Upstream**. Leave *ref* empty for the latest
+   release, or give a tag such as `v0.81.1`. The workflow:
+   - refuses unless the most recent lifecycle run is a successful teardown
+     (or destroy-all);
+   - moves `main` to the release by a fast-forward. It never merges,
+     rebases or force-pushes;
+   - runs **Setup: Control Plane** on the new code and waits for it. That
+     brings the Worker, the D1 schema and the list of stacks up to date.
+     After a destroy-all it only moves the code, and the next Initial Setup
+     builds the Control Plane from it.
+3. Run **Lifecycle: Spin Up** when you are ready.
+
+The workflow stops with a message, and changes nothing, when:
+
+| Message | Meaning |
+|---|---|
+| *The stack is running* | Tear it down first. |
+| *main has commits that … does not contain* | Your repository has its own changes. Changes of your own are yours to carry: merge them yourself, or remove them. |
+| *main and … share no history* | Your repository was created as a copy. See below. |
+| *The push was refused* | `main` changed during the run, or the token lacks *Workflows* write. |
+
+An older release than the one you run is never applied: the workflow
+reports that `main` already contains it.
+
+**The first update.** The workflow exists in your repository only from the
+release that introduced it on. If your repository is older, fast-forward it
+by hand once, with the stack torn down:
+
+```bash
+git clone https://github.com/<you>/<your-repo>.git && cd <your-repo>
+git fetch --no-tags https://github.com/stefanko-ch/Nexus-Stack.git tag vX.Y.Z
+git merge --ff-only FETCH_HEAD
+git push origin main
+```
+
+Then run **Setup: Control Plane**, and spin up.
+
+**A repository created as a copy** (for example with the former "Use this
+template" button) starts with a commit of its own and shares no history
+with Nexus-Stack. It has to adopt that history once. This replaces `main`,
+so do it with the stack torn down, and only if `main` holds nothing of your
+own that you want to keep:
+
+```bash
+git clone https://github.com/<you>/<your-repo>.git && cd <your-repo>
+git log --oneline            # check: nothing of your own you still need
+git fetch --no-tags https://github.com/stefanko-ch/Nexus-Stack.git tag vX.Y.Z
+git push --force origin "vX.Y.Z^{commit}:refs/heads/main"
+```
+
+The `^{commit}` matters: a release tag is an annotated tag, and a branch
+can only point at the commit behind it.
+
+Branch protection on `main` refuses the forced push; lift it for this one
+step. Secrets, variables and past Actions runs are settings of the
+repository and are not affected. Then run **Setup: Control Plane**, and spin
+up. From then on the update workflow works.
+
+The workflow runs on GitHub only. A stack whose repository lives on a
+Forgejo instance, as Nexus-Conductor's user stacks do, is updated by the
+system that manages it.
 
 ---
 

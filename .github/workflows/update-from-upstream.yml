@@ -1,0 +1,239 @@
+name: "Ops: Update from Upstream"
+
+# =============================================================================
+# Move this stack's code to a Nexus-Stack release.
+# =============================================================================
+# For instance repositories (forks and imports of Nexus-Stack), not for
+# Nexus-Stack itself. The whole sequence is an operator's decision, and so
+# are its two ends:
+#
+#   1. the operator tears the stack down            (Lifecycle: Teardown)
+#   2. the operator dispatches this workflow, which
+#        - refuses unless the stack is torn down or destroyed
+#        - fast-forwards main to the release tag; never merges, never forces
+#        - runs Setup: Control Plane on the new main, if the Control Plane
+#          exists, and waits for it
+#   3. the operator spins the stack up              (Lifecycle: Spin Up)
+#
+# There is no schedule and no push trigger, and this workflow never starts a
+# spin-up. A running stack is never updated in place.
+#
+# Setup: Control Plane runs on every update rather than only when a release
+# changed control-plane files. It is what brings the Worker, the D1 schema
+# and the list of stacks up to date, and it re-applies the Control Plane's
+# settings from the repository's existing secrets.
+#
+# Read the release notes before updating. This workflow links them; it does
+# not interpret them.
+#
+# Requires the secret UPSTREAM_UPDATE_TOKEN: a fine-grained token on this
+# repository with Contents and Workflows read/write. Every release changes
+# files under .github/workflows/, and GitHub refuses those changes from the
+# default GITHUB_TOKEN. See "Updating to a new release" in
+# docs/admin-guides/setup-guide.md.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Release tag to move to, e.g. v0.81.1. Empty = the latest release.'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+# The group the teardowns, the snapshot spin-up, Initial Setup and
+# destroy-all use, so none of them overlaps an update. spin-up.yml declares
+# no group (#801); the state check below refuses while one runs.
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPOSITORY: ${{ vars.UPSTREAM_REPOSITORY || 'stefanko-ch/Nexus-Stack' }}
+
+jobs:
+  update:
+    name: Update
+    # Never in the upstream repository itself: there is nothing to update
+    # it from.
+    if: github.repository != (vars.UPSTREAM_REPOSITORY || 'stefanko-ch/Nexus-Stack')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Check the runner and the token
+        env:
+          UPSTREAM_UPDATE_TOKEN: ${{ secrets.UPSTREAM_UPDATE_TOKEN }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          # Everything below uses the GitHub API through `gh`. A
+          # Forgejo-hosted fork has neither, so it stops here with a reason
+          # rather than half-way.
+          if [ "$SERVER_URL" != "https://github.com" ]; then
+            echo "❌ This workflow runs on GitHub only (this run: $SERVER_URL)."
+            exit 1
+          fi
+          if [ -z "$UPSTREAM_UPDATE_TOKEN" ]; then
+            echo "❌ The secret UPSTREAM_UPDATE_TOKEN is not set."
+            echo "   Create a fine-grained token for this repository with"
+            echo "   Contents: Read and write, and Workflows: Read and write."
+            echo "   See 'Updating to a new release' in docs/admin-guides/setup-guide.md."
+            exit 1
+          fi
+
+      - name: Resolve the release
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED: ${{ inputs.ref }}
+        run: |
+          if [ -n "$REQUESTED" ]; then
+            TAG="$REQUESTED"
+          elif ! TAG=$(gh api "repos/$UPSTREAM_REPOSITORY/releases/latest" --jq .tag_name); then
+            echo "❌ Could not read the latest release of $UPSTREAM_REPOSITORY."
+            exit 1
+          fi
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ '$TAG' is not a release tag (expected vMAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+          # Published releases only: the release notes are what an operator
+          # reads before updating, and a bare tag has none.
+          if ! gh api "repos/$UPSTREAM_REPOSITORY/releases/tags/$TAG" --jq .tag_name >/dev/null; then
+            echo "❌ $UPSTREAM_REPOSITORY has no published release $TAG."
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "📦 Target: $UPSTREAM_REPOSITORY $TAG"
+          echo "   Release notes: https://github.com/$UPSTREAM_REPOSITORY/releases/tag/$TAG"
+
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          # The fast-forward push below needs this token, including its
+          # Workflows permission.
+          token: ${{ secrets.UPSTREAM_UPDATE_TOKEN }}
+
+      - name: Require a torn-down stack
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The newest run of each lifecycle workflow, as one runs list.
+          RUNS='[]'
+          for wf in spin-up.yml spin-up-snapshot.yml initial-setup.yaml \
+                    teardown.yml teardown-snapshot.yml destroy-all.yml; do
+            if ! out=$(gh api "repos/$REPO/actions/workflows/$wf/runs?per_page=1" --jq '.workflow_runs' 2>&1); then
+              case "$out" in
+                *"HTTP 404"*) continue ;;  # this repository does not have that workflow
+                *) echo "❌ Could not read the runs of $wf: $out"; exit 1 ;;
+              esac
+            fi
+            RUNS=$(jq -c --argjson add "$out" '. + $add' <<< "$RUNS")
+          done
+          STATE=$(jq -c '{workflow_runs: .}' <<< "$RUNS" | bash .github/scripts/lifecycle-state.sh)
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+
+          case "$STATE" in
+            torn-down)
+              echo "✅ The stack is torn down." ;;
+            destroyed)
+              echo "✅ The stack is destroyed. Only the code is updated; the next"
+              echo "   Initial Setup builds the Control Plane from it." ;;
+            deployed)
+              echo "❌ The stack is running. Tear it down first, then run this again."
+              echo "   A running stack is never updated in place."
+              exit 1 ;;
+            busy)
+              echo "❌ A lifecycle run is in progress. Wait for it to finish."
+              exit 1 ;;
+            *)
+              echo "❌ Cannot tell whether the stack is torn down: there is no"
+              echo "   lifecycle run, or the most recent one did not succeed."
+              echo "   Run a teardown that succeeds, then run this again."
+              exit 1 ;;
+          esac
+
+      - name: Fast-forward main
+        id: update
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          bash .github/scripts/update-from-upstream.sh \
+            "https://github.com/$UPSTREAM_REPOSITORY.git" "$TAG"
+
+      - name: Update the Control Plane
+        id: control_plane
+        if: steps.update.outputs.moved == 'true' && steps.state.outputs.state == 'torn-down'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Dispatched rather than called: a called workflow is taken from
+          # this run's commit, which is the version before the update.
+          SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          gh workflow run setup-control-plane.yaml --repo "$REPO" --ref main
+
+          RUN_ID=""
+          for _ in $(seq 1 30); do
+            RUN_ID=$(gh run list --repo "$REPO" --workflow setup-control-plane.yaml \
+                       --event workflow_dispatch --json databaseId,createdAt \
+                       --jq "[.[] | select(.createdAt >= \"$SINCE\")] | sort_by(.createdAt) | first | .databaseId // empty")
+            [ -n "$RUN_ID" ] && break
+            sleep 5
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "❌ Setup: Control Plane was dispatched, but its run did not appear"
+            echo "   within 150 s. main is updated. Check the Actions tab, and run"
+            echo "   Setup: Control Plane by hand if it is not there."
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "▶ Setup: Control Plane: https://github.com/$REPO/actions/runs/$RUN_ID"
+          if ! gh run watch "$RUN_ID" --repo "$REPO" --exit-status --interval 30 > /dev/null; then
+            echo "❌ Setup: Control Plane failed. main is updated; see the run above,"
+            echo "   and do not spin up until it succeeds."
+            exit 1
+          fi
+          echo "✅ Control Plane updated."
+
+      - name: Summary
+        if: always() && steps.resolve.outputs.tag != ''
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+          STATE: ${{ steps.state.outputs.state }}
+          FROM: ${{ steps.update.outputs.from }}
+          TO: ${{ steps.update.outputs.to }}
+          MOVED: ${{ steps.update.outputs.moved }}
+          CP_RUN: ${{ steps.control_plane.outputs.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "## Update from upstream"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Release | [$TAG](https://github.com/$UPSTREAM_REPOSITORY/releases/tag/$TAG) — read the notes before spinning up |"
+            echo "| Stack state | ${STATE:-not read} |"
+            echo "| main before | \`${FROM:0:8}\` |"
+            echo "| Release commit | \`${TO:0:8}\` |"
+            echo "| main moved | ${MOVED:-no} |"
+            if [ -n "$CP_RUN" ]; then
+              echo "| Setup: Control Plane | [run $CP_RUN](https://github.com/$REPO/actions/runs/$CP_RUN) |"
+            fi
+            echo ""
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "Next: read the release notes, then spin the stack up when you are ready."
+            else
+              echo "This run did not finish. Do not spin up before the failure above is resolved."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

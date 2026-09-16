@@ -65,6 +65,7 @@ Nexus-Stack/
 │       ├── spin-up-snapshot.yml # Spin-up restoring from a Hetzner disk snapshot
 │       ├── teardown-snapshot.yml # Teardown that snapshots the disk first
 │       ├── destroy-all.yml     # Destroy workflow (full cleanup)
+│       ├── update-from-upstream.yml # Moves a torn-down instance to a release
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── backend.hcl             # Shared R2 backend configuration
