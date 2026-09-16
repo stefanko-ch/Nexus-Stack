@@ -9,7 +9,8 @@
 #   deployed    the most recent lifecycle run is a successful spin-up or setup
 #   torn-down   the most recent lifecycle run is a successful teardown
 #   destroyed   the most recent lifecycle run is a successful destroy-all
-#   unknown     no lifecycle run at all, or the most recent one did not succeed
+#   unknown     no lifecycle run at all, the most recent one did not succeed,
+#               or runs of different kinds share the most recent start time
 #
 # The inputs are those of the Control Plane's checkInfraStatus
 # (control-plane/worker/src/index.js). The mapping is stricter: that
@@ -37,6 +38,10 @@ jq -r '
     else
       ($runs | sort_by(.created_at) | last) as $last
       | if $last == null then "unknown"
+        # Two families started in the same second: which came last is not
+        # knowable from the list, so neither answer is trusted.
+        elif ([$runs[] | select(.created_at == $last.created_at) | .family] | unique | length) > 1
+          then "unknown"
         elif $last.conclusion != "success" then "unknown"
         else $last.family end
     end

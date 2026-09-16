@@ -114,7 +114,9 @@ jobs:
           echo "   Release notes: https://github.com/$UPSTREAM_REPOSITORY/releases/tag/$TAG"
 
       - name: Checkout main
-        uses: actions/checkout@v5
+        # Pinned: this checkout receives a token that can rewrite workflows.
+        # Repository-wide pinning is #652.
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: main
           fetch-depth: 0
@@ -129,14 +131,16 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # The newest run of each lifecycle workflow, as one runs list.
+          # A workflow file this repository does not have is skipped by
+          # looking at the checkout, not by reading an API error, so every
+          # API failure stops the run.
           RUNS='[]'
           for wf in spin-up.yml spin-up-snapshot.yml initial-setup.yaml \
                     teardown.yml teardown-snapshot.yml destroy-all.yml; do
-            if ! out=$(gh api "repos/$REPO/actions/workflows/$wf/runs?per_page=1" --jq '.workflow_runs' 2>&1); then
-              case "$out" in
-                *"HTTP 404"*) continue ;;  # this repository does not have that workflow
-                *) echo "❌ Could not read the runs of $wf: $out"; exit 1 ;;
-              esac
+            [ -f ".github/workflows/$wf" ] || continue
+            if ! out=$(gh api "repos/$REPO/actions/workflows/$wf/runs?per_page=1" --jq '.workflow_runs'); then
+              echo "❌ Could not read the runs of $wf (see the error above)."
+              exit 1
             fi
             RUNS=$(jq -c --argjson add "$out" '. + $add' <<< "$RUNS")
           done
@@ -177,6 +181,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          TARGET: ${{ steps.update.outputs.to }}
         run: |
           # Dispatched rather than called: a called workflow is taken from
           # this run's commit, which is the version before the update.
@@ -185,9 +190,11 @@ jobs:
 
           RUN_ID=""
           for _ in $(seq 1 30); do
+            # Created after the dispatch AND on the release commit, so a run
+            # someone else dispatched on the old main is not mistaken for it.
             RUN_ID=$(gh run list --repo "$REPO" --workflow setup-control-plane.yaml \
-                       --event workflow_dispatch --json databaseId,createdAt \
-                       --jq "[.[] | select(.createdAt >= \"$SINCE\")] | sort_by(.createdAt) | first | .databaseId // empty")
+                       --event workflow_dispatch --json databaseId,createdAt,headSha \
+                       --jq "[.[] | select(.createdAt >= \"$SINCE\" and .headSha == \"$TARGET\")] | sort_by(.createdAt) | first | .databaseId // empty")
             [ -n "$RUN_ID" ] && break
             sleep 5
           done

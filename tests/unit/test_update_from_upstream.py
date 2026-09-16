@@ -317,6 +317,29 @@ def _state(runs: list[dict[str, Any]]) -> str:
             ],
             "busy",
         ),
+        # Same start second, different kinds: order unknowable, in both list orders.
+        (
+            [
+                _run("spin-up.yml", "2026-09-16T11:00:00Z"),
+                _run("teardown.yml", "2026-09-16T11:00:00Z"),
+            ],
+            "unknown",
+        ),
+        (
+            [
+                _run("teardown.yml", "2026-09-16T11:00:00Z"),
+                _run("spin-up.yml", "2026-09-16T11:00:00Z"),
+            ],
+            "unknown",
+        ),
+        # Same second, same kind: still clear.
+        (
+            [
+                _run("teardown.yml", "2026-09-16T11:00:00Z"),
+                _run("teardown-snapshot.yml", "2026-09-16T11:00:00Z"),
+            ],
+            "torn-down",
+        ),
         (
             [
                 _run("teardown.yml", "2026-09-16T10:00:00Z"),
@@ -398,6 +421,26 @@ def test_the_control_plane_is_updated_only_after_a_move_on_a_torn_down_stack() -
     condition = step["if"]
     assert "steps.update.outputs.moved == 'true'" in condition
     assert "steps.state.outputs.state == 'torn-down'" in condition
+
+
+def test_the_control_plane_run_is_matched_by_its_commit() -> None:
+    """A run found by start time alone could be someone else's dispatch."""
+    _, step = _step("Update the Control Plane")
+    assert step["env"]["TARGET"] == "${{ steps.update.outputs.to }}"
+    assert '.headSha == \\"$TARGET\\"' in step["run"]
+
+
+def test_a_missing_workflow_is_skipped_by_file_not_by_error_text() -> None:
+    """Every API failure has to stop the run; only an absent file may skip."""
+    _, step = _step("Require a torn-down stack")
+    assert '[ -f ".github/workflows/$wf" ] || continue' in step["run"]
+    assert "404" not in step["run"]
+
+
+def test_checkouts_that_receive_the_update_token_are_pinned() -> None:
+    for step in _steps():
+        if "UPSTREAM_UPDATE_TOKEN" in str(step.get("with", {})):
+            assert re.fullmatch(r"actions/checkout@[0-9a-f]{40}", step["uses"]), step["uses"]
 
 
 def test_the_push_token_is_the_dedicated_secret() -> None:
