@@ -42,11 +42,13 @@ on:
     paths:
       - "tofu/**"
       - ".github/workflows/tofu-checks.yaml"
+      - ".github/scripts/install-opentofu.sh"
   push:
     branches: [main]
     paths:
       - "tofu/**"
       - ".github/workflows/tofu-checks.yaml"
+      - ".github/scripts/install-opentofu.sh"
 
 concurrency:
   group: tofu-checks-${{ github.ref }}
@@ -77,12 +79,12 @@ jobs:
           persist-credentials: false
 
       - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@v2
-        with:
-          # Pinned, and deliberately the same version the deploy workflows
-          # install. A checker on a different version than the applier can
-          # pass what the applier rejects, which is worse than no check.
-          tofu_version: 1.10.0
+        # The same script, with no version argument, that every deploy
+        # workflow runs -- so the checker cannot drift from the applier. A
+        # checker on a different version than the applier can pass what the
+        # applier rejects, which is worse than no check. A script rather than
+        # opentofu/setup-opentofu, which a Forgejo runner cannot resolve (#872).
+        run: bash .github/scripts/install-opentofu.sh
 
       - name: tofu fmt -check
         working-directory: ${{ matrix.dir }}
