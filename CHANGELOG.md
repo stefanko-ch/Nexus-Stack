@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.82.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.81.1...v0.82.0) (2026-09-16)
+
+
+### 🚀 Features
+
+* **ops:** Update a torn-down stack to a new release with one dispatch ([#880](https://github.com/stefanko-ch/Nexus-Stack/issues/880)) ([a6b1eae](https://github.com/stefanko-ch/Nexus-Stack/commit/a6b1eaed76414ced352cacae46ea7b778d711b61))
+
 ## [0.81.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.81.0...v0.81.1) (2026-09-16)
 
 
