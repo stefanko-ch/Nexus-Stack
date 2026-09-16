@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.81.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.81.0...v0.81.1) (2026-09-16)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Move OpenTofu from 1.10.0 to 1.12.6 ([#877](https://github.com/stefanko-ch/Nexus-Stack/issues/877)) ([f05c4f0](https://github.com/stefanko-ch/Nexus-Stack/commit/f05c4f07d6b8132af14b13e0dcef65c3cbc0f245))
+* **stacks:** Let Forgejo Actions jobs reach the forge, and not the daemon ([#876](https://github.com/stefanko-ch/Nexus-Stack/issues/876)) ([484a20e](https://github.com/stefanko-ch/Nexus-Stack/commit/484a20effcbfb8a8561d09434ec60e7b8e115b0f))
+
 ## [0.81.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.80.0...v0.81.0) (2026-09-16)
 
 
