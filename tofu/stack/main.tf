@@ -556,6 +556,15 @@ resource "random_password" "pgducklake" {
   special = false
 }
 
+# TimescaleDB superuser password (nexus-timescaledb). Dedicated instance, not
+# the shared postgres. `special = false` because it travels through a compose
+# .env and an Infisical payload, and a libpq connection string breaks on
+# unescaped `@`, `:` or `/`.
+resource "random_password" "timescaledb" {
+  length  = 24
+  special = false
+}
+
 # RedPanda SASL admin password (for external Kafka access)
 resource "random_password" "redpanda_admin" {
   length  = 24

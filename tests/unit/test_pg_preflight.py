@@ -23,6 +23,7 @@ import pytest
 
 from nexus_deploy.pg_preflight import (
     _POSTGRES_IMAGE,
+    _TIMESCALE_IMAGE,
     Mismatch,
     PgContainer,
     discover_pg_containers,
@@ -218,6 +219,39 @@ def test_the_image_pattern_matches_a_server_and_nothing_adjacent(
     match = _POSTGRES_IMAGE.search(image)
 
     assert (match.group(1) if match else None) == expected
+
+
+@pytest.mark.parametrize(
+    ("image", "expected"),
+    [
+        ("timescale/timescaledb:2.30.0-pg18", "18"),
+        ("${IMAGE_TIMESCALEDB:-timescale/timescaledb:2.30.0-pg18}", "18"),
+        ("timescale/timescaledb:2.14.2-pg16", "16"),
+        # The Apache-only build carries a suffix after the major.
+        ("timescale/timescaledb:2.30.0-pg18-oss", "18"),
+        # A rolling tag still names the major, and that is all it needs.
+        ("timescale/timescaledb:latest-pg18", "18"),
+        ("postgres:18-alpine", None),
+    ],
+)
+def test_the_timescale_pattern_reads_the_pg_major_not_the_extension_version(
+    image: str, expected: str | None
+) -> None:
+    """The PG major is the `-pg<N>` suffix. `2` from `2.30.0` is the
+    extension version, and reading it as the major would report every real
+    cluster as a mismatch."""
+    match = _TIMESCALE_IMAGE.search(image)
+
+    assert (match.group(1) if match else None) == expected
+
+
+def test_timescaledb_is_discovered_as_a_database() -> None:
+    """A PostgreSQL server under another image name, with a named volume."""
+    by_stack = {c.stack: c for c in discover_pg_containers(Path("stacks"))}
+
+    assert "timescaledb" in by_stack
+    assert by_stack["timescaledb"].expected_major == 18
+    assert by_stack["timescaledb"].qualified_volume == "timescaledb_timescaledb-data"
 
 
 def test_postgrest_is_not_discovered_as_a_database() -> None:
