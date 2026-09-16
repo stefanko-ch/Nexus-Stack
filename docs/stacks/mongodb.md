@@ -68,17 +68,23 @@ docker exec mongodb mongosh --quiet --norc --eval '
   db.getSiblingDB("admin").auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD);
   printjson(db.getSiblingDB("shop").orders.getIndexes())'
 
-# 2. On the OLD server: export one collection as canonical Extended JSON
-#    (no -i: the export reads nothing, and -i would swallow the rest of a
-#    script this is pasted into)
+# 2. On the OLD server: export one collection as canonical Extended JSON.
+#    Written to a .part file and renamed only if the export succeeded, so a
+#    failed or interrupted export never leaves an orders.json behind -- and
+#    an old one is removed first, so it cannot be mistaken for this run's.
+#    (No -i: the export reads nothing, and -i would swallow the rest of a
+#    script this is pasted into.)
+rm -f orders.json orders.json.part
 docker exec mongodb sh -c '
   umask 077
   printf "password: %s\n" "$MONGO_INITDB_ROOT_PASSWORD" > /tmp/migrate.yaml
   mongoexport --config /tmp/migrate.yaml --username "$MONGO_INITDB_ROOT_USERNAME" \
     --authenticationDatabase admin --db shop --collection orders --jsonFormat=canonical
-  rc=$?; rm -f /tmp/migrate.yaml; exit $rc' > orders.json
+  rc=$?; rm -f /tmp/migrate.yaml; exit $rc' > orders.json.part \
+  && mv orders.json.part orders.json
 
-# 3. Copy orders.json to this server, then import it into this stack
+# 3. Only if orders.json exists -- it does only after a successful step 2 --
+#    copy it to this server, then import it into this stack
 docker exec -i mongodb sh -c '
   umask 077
   printf "password: %s\n" "$MONGO_INITDB_ROOT_PASSWORD" > /tmp/migrate.yaml
