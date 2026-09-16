@@ -3232,7 +3232,6 @@ def test_qdrant_is_registered_in_specs() -> None:
     assert specs[0].enabled_check(["weaviate"]) is False
 
 
-
 def test_neo4j_renders_one_nexus_prefixed_secret(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
