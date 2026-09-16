@@ -35,17 +35,32 @@ This is **Community Edition**, single instance: one database (`neo4j`) plus the 
 
 1. Enable **Neo4j** in the Control Plane → Spin Up.
 2. Open `https://neo4j.YOUR_DOMAIN` → Cloudflare Access email OTP → Neo4j Browser.
-3. In the connect form, set the connection URL to **`bolt+s://neo4j.YOUR_DOMAIN:443`**, user `nexus-neo4j`, and the password from Infisical.
+3. Sign in as **`nexus-neo4j`** with the password from Infisical. The connection URL is pre-filled as `bolt+s://neo4j.YOUR_DOMAIN:443`.
 
-The form pre-fills something else, and it will not connect. Neo4j fills it from its discovery document, which names the Bolt port `7687` — a port the tunnel does not carry. Use `443`, the port the page itself came from, and `bolt+s`: the page is HTTPS, so the WebSocket has to be encrypted too. `bolt+s` rather than `neo4j+s` because it connects directly, with no routing-table round trip.
+**If the form shows `:7687` instead**, replace it once with `bolt+s://neo4j.YOUR_DOMAIN:443`. The Browser remembers the last URL it used, so a browser that visited before this was fixed can still offer the old one.
 
-To skip retyping, open the Browser with the URL already set:
+#### Why the pre-filled URL is right
+
+Neo4j Browser takes its connection URL from Neo4j's discovery document, and Neo4j builds that from the request's hostname plus its own Bolt port: `neo4j://neo4j.YOUR_DOMAIN:7687`. The tunnel carries nothing on 7687, so a login with that URL waited until the browser gave up. That is what the first spin-up of this stack showed.
+
+`neo4j-proxy` therefore rewrites both Bolt URLs in the discovery document to `bolt+s://neo4j.YOUR_DOMAIN:443` — the port the page itself came from. `bolt+s` because the page is HTTPS, so its WebSocket has to be encrypted too; `bolt+s` rather than `neo4j+s` because a routing scheme asks the server for a routing table, and that names Neo4j's own advertised address, which a browser cannot reach either.
+
+Only traffic through the proxy is rewritten, and only the tunnel uses the proxy. Containers on `app-network` query `neo4j:7474` directly and get the document exactly as Neo4j wrote it.
+
+Measured on a deployed server with the pinned nginx and Neo4j:
+
+| Request through the proxy | Result |
+|---|---|
+| `GET /`, `Accept: application/json` | `bolt_routing` and `bolt_direct` both `bolt+s://neo4j.<domain>:443`; `query` and `transaction` unchanged |
+| `GET /`, `Accept: text/html` | `303` to `/browser/`, unchanged |
+| `GET /browser/` | `200`, unchanged |
+| WebSocket upgrade on `/` | `101`; Bolt answers behind it, byte-identical to the proxy before this change |
+
+To force the URL regardless of what the Browser remembers, open it with the URL set:
 
 ```text
 https://neo4j.YOUR_DOMAIN/browser/?dbms=bolt%2Bs://neo4j.YOUR_DOMAIN:443
 ```
-
-The `dbms` parameter was verified to pre-fill the protocol and host in the pinned version.
 
 ### How Browser reaches Bolt
 
@@ -150,7 +165,7 @@ docker start neo4j
 
 The same sequence was run locally against a volume whose password had diverged: the `ALTER USER` succeeded and a node written before the divergence was still readable with the new password. The volume name assumes the compose project is named after the stack directory, which is how `compose_runner` starts it (`cd stacks/neo4j && docker compose up`); check with `docker volume ls` if it differs. If the data does not matter, removing the volume and re-running spin-up is simpler.
 
-**Browser loads but will not connect.** Check the connection URL first: `bolt+s://neo4j.YOUR_DOMAIN:443`, not the pre-filled `:7687`. Then check the proxy is healthy (`docker ps --filter name=neo4j-proxy`) — it only starts once `neo4j` itself is healthy.
+**Browser loads but the login hangs.** Check the connection URL first: it must be `bolt+s://neo4j.YOUR_DOMAIN:443`. A `:7687` there is either a URL the Browser remembered from an earlier visit, or a proxy that is not rewriting discovery — `ssh nexus "curl -s -H 'Host: neo4j.YOUR_DOMAIN' -H 'Accept: application/json' http://127.0.0.1:7474/"` should show `bolt+s://…:443` twice. Then check the proxy is healthy (`docker ps --filter name=neo4j-proxy`) — it only starts once `neo4j` itself is healthy.
 
 **Quick check from the server:**
 

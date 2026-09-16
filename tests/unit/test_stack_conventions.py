@@ -1262,6 +1262,42 @@ def test_neo4j_tunnel_origin_is_the_proxy_that_routes_bolt() -> None:
     )
 
 
+def test_neo4j_proxy_points_browser_discovery_at_443() -> None:
+    """Neo4j Browser connects to the Bolt URL its discovery document names.
+
+    Neo4j writes ``neo4j://<host>:7687`` there, and the tunnel serves nothing
+    on 7687: the first spin-up of this stack loaded the Browser fine and then
+    hung on every login. The proxy rewrites both Bolt URLs to
+    ``bolt+s://<host>:443``, which it does serve.
+
+    Checked in the ``location = /`` block specifically, because that is the
+    only path discovery is fetched from; a rewrite in the catch-all block
+    would also work today, but would scan every response the Browser loads.
+    """
+    conf = (STACKS_DIR / "neo4j" / "nginx.conf").read_text()
+    block = re.search(r"location = / \{(.*?)\n        \}", conf, re.S)
+    assert block, "nginx.conf needs a `location = /` block for discovery"
+    body = "\n".join(line.split("#", 1)[0] for line in block.group(1).splitlines())
+
+    assert "proxy_pass http://$neo4j_upstream;" in body, (
+        "`location = /` must keep the Upgrade-based upstream: the Browser opens "
+        "its WebSocket on `/` too, and that has to reach Bolt"
+    )
+    assert re.search(r"sub_filter_types\s+application/json;", body), (
+        "only the JSON discovery document may be rewritten"
+    )
+    assert re.search(r"sub_filter_once\s+off;", body), (
+        "discovery names Bolt twice (bolt_routing, bolt_direct); both need rewriting"
+    )
+    assert re.search(r'proxy_set_header\s+Accept-Encoding\s+"";', body), (
+        "sub_filter cannot rewrite a compressed body"
+    )
+    for scheme in ("neo4j", "bolt"):
+        assert re.search(
+            rf'sub_filter\s+"{scheme}://\$host:7687"\s+"bolt\+s://\$host:443";', body
+        ), f"discovery's `{scheme}://<host>:7687` must become `bolt+s://<host>:443`"
+
+
 def test_mlflow_command_names_the_executable() -> None:
     """The image declares no ENTRYPOINT, so the command must start with one.
 
