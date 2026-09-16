@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.81.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.80.0...v0.81.0) (2026-09-16)
+
+
+### 🚀 Features
+
+* **ci:** Check the OpenTofu configuration, in pre-commit and in CI ([#862](https://github.com/stefanko-ch/Nexus-Stack/issues/862)) ([fa0bcfd](https://github.com/stefanko-ch/Nexus-Stack/commit/fa0bcfd2a1ad646e080781a4bb66849206fbf812))
+* **control-plane:** Let the heading name the stack, not a badge below it ([#842](https://github.com/stefanko-ch/Nexus-Stack/issues/842)) ([2a1f311](https://github.com/stefanko-ch/Nexus-Stack/commit/2a1f311622dbfd542f8424963f4077525d54ef2e))
+* **control-plane:** Paint the logo through a mask so it takes the accent ([#843](https://github.com/stefanko-ch/Nexus-Stack/issues/843)) ([3bf728f](https://github.com/stefanko-ch/Nexus-Stack/commit/3bf728fdc0cddc52928ebca556d73ddb18f3e5e3))
+* **control-plane:** Separate the brand accent from the status colours ([#845](https://github.com/stefanko-ch/Nexus-Stack/issues/845)) ([01eed37](https://github.com/stefanko-ch/Nexus-Stack/commit/01eed3749514809d6df2e591ef8086ca8dcb3f9f))
+* **stacks:** Add Apache Airflow workflow orchestration ([#855](https://github.com/stefanko-ch/Nexus-Stack/issues/855)) ([7487fc1](https://github.com/stefanko-ch/Nexus-Stack/commit/7487fc1669126eb5dda98d2680972b5b14b3fa0d))
+* **stacks:** Add Keycloak identity provider ([#854](https://github.com/stefanko-ch/Nexus-Stack/issues/854)) ([debd45d](https://github.com/stefanko-ch/Nexus-Stack/commit/debd45d6c940647d33ba7eae79c23b0af0594f18))
+* **stacks:** Add Langfuse LLM observability ([#856](https://github.com/stefanko-ch/Nexus-Stack/issues/856)) ([dca3440](https://github.com/stefanko-ch/Nexus-Stack/commit/dca3440ebdc0936ff79931175af013aea3449e86))
+* **stacks:** Add MLflow, and wire the notebook stacks to it ([#850](https://github.com/stefanko-ch/Nexus-Stack/issues/850)) ([d117d24](https://github.com/stefanko-ch/Nexus-Stack/commit/d117d24ce8e476b0624f334f38b5beec3eba79d7))
+* **stacks:** Add MongoDB with mongo-express as its web UI ([#857](https://github.com/stefanko-ch/Nexus-Stack/issues/857)) ([1907e98](https://github.com/stefanko-ch/Nexus-Stack/commit/1907e98a708b502bbcfc08d48a05c3aaa4d087a8))
+* **stacks:** Add Neo4j Community Edition with a Bolt-routing proxy ([#858](https://github.com/stefanko-ch/Nexus-Stack/issues/858)) ([e1c76dc](https://github.com/stefanko-ch/Nexus-Stack/commit/e1c76dc29c0788f7e0bd4e07d90347d0eed2253f))
+* **stacks:** Add Qdrant vector database ([#859](https://github.com/stefanko-ch/Nexus-Stack/issues/859)) ([7c12051](https://github.com/stefanko-ch/Nexus-Stack/commit/7c12051f6630c4afedf3b6ea158b65e3ad3a37c6))
+* **stacks:** Add Temporal durable workflow engine with Web UI ([#860](https://github.com/stefanko-ch/Nexus-Stack/issues/860)) ([d5e73a9](https://github.com/stefanko-ch/Nexus-Stack/commit/d5e73a90967702fd3de2cc66e7fb059b9e4a5d5c))
+* **stacks:** Add TimescaleDB time-series database ([#861](https://github.com/stefanko-ch/Nexus-Stack/issues/861)) ([389b6a1](https://github.com/stefanko-ch/Nexus-Stack/commit/389b6a187aa3204e78f3b92cf4d881a762a9516b))
+* **stacks:** Replace Keycloak's temporary admin with a permanent one ([#871](https://github.com/stefanko-ch/Nexus-Stack/issues/871)) ([d27a9c9](https://github.com/stefanko-ch/Nexus-Stack/commit/d27a9c93d692145637422cff5183e9cd0ff6b33d))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Install OpenTofu with a pinned script instead of setup-opentofu ([#874](https://github.com/stefanko-ch/Nexus-Stack/issues/874)) ([ae1a14a](https://github.com/stefanko-ch/Nexus-Stack/commit/ae1a14a3e896d10e44e2bb03a4c6da093be6a166))
+* **deploy:** Refuse an empty DOMAIN once, in the env-file dispatcher ([#868](https://github.com/stefanko-ch/Nexus-Stack/issues/868)) ([095874b](https://github.com/stefanko-ch/Nexus-Stack/commit/095874b32b29abca6a29668e084937fb8b5db98d))
+* **examples:** Escape inlined secrets and render the S3 DataFrame ([#846](https://github.com/stefanko-ch/Nexus-Stack/issues/846)) ([23a7bdb](https://github.com/stefanko-ch/Nexus-Stack/commit/23a7bdb80ce6c318b8bfbe670fde87c1d6883233))
+* **stacks:** Name the executable in MLflow's command ([#853](https://github.com/stefanko-ch/Nexus-Stack/issues/853)) ([2b0b2fb](https://github.com/stefanko-ch/Nexus-Stack/commit/2b0b2fb50a764a9bb1812efd92c335ed26feac30))
+* **stacks:** Point Neo4j Browser at the port the tunnel serves ([#870](https://github.com/stefanko-ch/Nexus-Stack/issues/870)) ([0bc0975](https://github.com/stefanko-ch/Nexus-Stack/commit/0bc0975af3be22898bda9abf1658174ccfadf0b4))
+* **stacks:** Run MongoDB 7.0, which starts on the kernel we deploy ([#869](https://github.com/stefanko-ch/Nexus-Stack/issues/869)) ([bea2f64](https://github.com/stefanko-ch/Nexus-Stack/commit/bea2f647da42d50afa8b7b555e834f3199fc1580))
+
+
+### 📚 Documentation
+
+* **stacks:** Record the rare Lakekeeper write failure where users meet it ([#849](https://github.com/stefanko-ch/Nexus-Stack/issues/849)) ([8df5f1f](https://github.com/stefanko-ch/Nexus-Stack/commit/8df5f1ff87d22ca6245768ba1fe8514f47686ec1))
+
 ## [0.80.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.79.0...v0.80.0) (2026-09-10)
 
 
