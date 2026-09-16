@@ -2,6 +2,12 @@ name: "Setup: Control Plane"
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Stop unless this run is on this commit. Set by Ops: Update from Upstream; leave empty otherwise.'
+        required: false
+        default: ''
+        type: string
   workflow_call:
     outputs:
       r2_access_key_id:
@@ -70,6 +76,23 @@ jobs:
       TF_VAR_external_s3_label: ${{ secrets.EXTERNAL_S3_LABEL }}
 
     steps:
+      # First, before anything reads a secret or changes state. The update
+      # workflow dispatches this on `main` right after moving it, and `main`
+      # resolves when the run is created: if it moved again in between, this
+      # run would set up code nobody validated.
+      - name: Check the commit this run was dispatched for
+        if: inputs.expected_sha != ''
+        env:
+          EXPECTED: ${{ inputs.expected_sha }}
+          ACTUAL: ${{ github.sha }}
+        run: |
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "❌ This run is on $ACTUAL, but was dispatched for $EXPECTED."
+            echo "   main changed during the update. Nothing was set up."
+            exit 1
+          fi
+          echo "✅ Running on the expected commit ${ACTUAL:0:8}."
+
       - name: Check the Cloudflare token split
         env:
           HAS_ACTIONS_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN != '' }}
