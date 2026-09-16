@@ -1130,6 +1130,25 @@ def test_forgejo_runner_secret_is_never_published_to_infisical() -> None:
         assert "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678" not in folder.secrets.values()
 
 
+def test_keycloak_bootstrap_password_is_never_published_to_infisical() -> None:
+    """It unlocks `nexus-bootstrap`, which the keycloak services hook deletes.
+    Published, it would be a dead value in Infisical and -- through
+    `secret_sync` -- in every Kestra flow's environment."""
+    config = NexusConfig(
+        admin_username="nexus-admin",
+        keycloak_admin_password="kc-admin-pw",
+        keycloak_db_password="kc-db-pw",
+        keycloak_bootstrap_password="kc-bootstrap-pw-must-not-appear",
+    )
+    folders = compute_folders(config, BootstrapEnv(domain="example.com"))
+
+    keycloak = next(f for f in folders if f.name == "keycloak")
+    assert keycloak.secrets["KEYCLOAK_ADMIN_PASSWORD"] == "kc-admin-pw"
+    for folder in folders:
+        assert not any("BOOTSTRAP" in key for key in folder.secrets), folder.name
+        assert "kc-bootstrap-pw-must-not-appear" not in folder.secrets.values()
+
+
 def test_forgejo_folder_drops_unset_credentials() -> None:
     """Skip-empty preserves operator edits made in the Infisical UI
     (issue #504) — an unset value must not overwrite one."""

@@ -2980,7 +2980,8 @@ def respond(code, body=""):
     if out is None:
         sys.stdout.write(body)
     if fmt:
-        sys.stdout.write(fmt.replace("%{http_code}", str(code)))
+        # curl expands \\n in -w itself; the shell passes it through literally.
+        sys.stdout.write(fmt.replace("\\n", "\n").replace("%{http_code}", str(code)))
     json.dump(state, open(state_path, "w"))
     sys.exit(0)
 
@@ -3025,6 +3026,8 @@ if "admin" not in users[who]["roles"]:
     respond(403, "")
 
 if path == "/admin/realms/master/users" and method == "GET":
+    if "username" in query and os.environ.get("FAKE_USER_LOOKUP_FAILS"):
+        respond(500, "")
     if "username" in query:
         name = query["username"][0]
         respond(200, json.dumps([rep(name)] if name in users else []))
@@ -3263,6 +3266,28 @@ def test_keycloak_hook_keeps_bootstrap_when_the_new_admin_has_no_rights(tmp_path
     assert "RESULT hook=keycloak status=failed" in out
     assert "nexus-bootstrap kept" in out
     assert "nexus-bootstrap" in users
+
+
+@_needs_jq
+@pytest.mark.parametrize("start", ["done", "legacy"])
+def test_keycloak_hook_fails_when_it_cannot_read_the_accounts(tmp_path: Path, start: str) -> None:
+    """The admin signs in, then every user lookup answers 500.
+
+    Before the lookup reported its own failure, an unreadable answer looked
+    exactly like "not temporary" and "bootstrap already gone", and the hook
+    said `already-configured` about accounts it had never seen. A temporary
+    admin would have stayed temporary behind a success line.
+    """
+    users = (
+        _kc_done()
+        if start == "done"
+        else {"nexus": _kc_user(_KC_ADMIN_PW, temporary=True, uid="id-legacy")}
+    )
+    out, _, after = _run_keycloak_hook(tmp_path, users, extra_env={"FAKE_USER_LOOKUP_FAILS": "1"})
+    assert "RESULT hook=keycloak status=failed" in out
+    assert "already-configured" not in out
+    assert "could not read nexus" in out
+    assert after == users
 
 
 _KC_ALL_STARTS: dict[str, Callable[[], dict[str, Any]]] = {

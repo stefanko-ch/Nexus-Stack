@@ -30,7 +30,9 @@ thirteenth open port should require editing this file and saying why.
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -1650,6 +1652,43 @@ def test_keycloak_bootstraps_the_throwaway_account_only() -> None:
     assert "KEYCLOAK_ADMIN" not in code, (
         "the permanent admin's credentials must not reach the Keycloak container"
     )
+
+
+def test_credentials_bundle_leaves_out_what_infisical_leaves_out() -> None:
+    """spin-up.yml stores the tofu `secrets` output as the CREDENTIALS_JSON
+    Pages secret, minus a list of keys. Anything kept out of Infisical on
+    purpose has to be on that list, or the bundle undoes the exclusion.
+
+    The filter is taken from the workflow and run with jq, so this checks
+    what the step does rather than what its text looks like.
+    """
+    import shutil
+
+    if shutil.which("jq") is None:
+        pytest.skip("jq is needed to run the workflow's filter")
+    workflow = (REPO_ROOT / ".github" / "workflows" / "spin-up.yml").read_text()
+    match = re.search(r"""CREDENTIALS=\$\(echo "\$SECRETS_JSON" \| jq -c '([^']*)'\)""", workflow)
+    assert match, "spin-up.yml no longer builds CREDENTIALS_JSON with the expected jq filter"
+    sample = {
+        "infisical_admin_password": "keep-me",
+        "keycloak_admin_password": "keep-me-too",
+        "keycloak_bootstrap_password": "drop",
+        "forgejo_runner_secret": "drop",
+        "forgejo_service_token_id": "drop",
+        "forgejo_service_token_secret": "drop",
+        "empty_value": "",
+    }
+    out = subprocess.run(
+        ["jq", "-c", match.group(1)],
+        input=json.dumps(sample),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(out.stdout) == {
+        "infisical_admin_password": "keep-me",
+        "keycloak_admin_password": "keep-me-too",
+    }
 
 
 def test_keycloak_hostname_is_a_full_https_url() -> None:

@@ -2703,9 +2703,19 @@ kc_delete() {{
         -X DELETE "$KC$1" 2>/dev/null || true)
     printf '%s' "${{code:-000}}"
 }}
+# kc_user USERNAME -- prints that user's JSON, or nothing if there is none.
+# Returns 1 when the lookup itself failed (not 200, or not a JSON array), so a
+# caller never mistakes "could not tell" for "absent" or "not temporary".
 kc_user() {{
-    kc_get "/admin/realms/master/users?exact=true&briefRepresentation=false&username=$(jq -rn --arg u "$1" '$u|@uri')" \\
-      | jq -c '.[0] // empty' 2>/dev/null || true
+    local resp code
+    resp=$(curl -s --max-time 10 --config "$KC_CFG" -w '\\n%{{http_code}}' \\
+        "$KC/admin/realms/master/users?exact=true&briefRepresentation=false&username=$(jq -rn --arg u "$1" '$u|@uri')" \\
+        2>/dev/null || true)
+    code=${{resp##*$'\\n'}}
+    resp=${{resp%$'\\n'*}}
+    [ "$code" = "200" ] || return 1
+    printf '%s' "$resp" | jq -e 'type == "array"' >/dev/null 2>&1 || return 1
+    printf '%s' "$resp" | jq -c '.[0] // empty'
 }}
 kc_fail() {{
     echo "  ⚠ keycloak: $1" >&2
@@ -2718,12 +2728,15 @@ kc_fail() {{
 # success; on failure reports through kc_fail, with NOTE appended to say which
 # account still works, and returns 1.
 kc_install() {{
-    local u="$1" pw="$2" note="$3" code id role t
+    local u="$1" pw="$2" note="$3" code id role t ujson
     code=$(NEXUS_KC_U="$u" NEXUS_KC_P="$pw" jq -n \\
         '{{username: env.NEXUS_KC_U, enabled: true,
           credentials: [{{type: "password", value: env.NEXUS_KC_P, temporary: false}}]}}' \\
         | kc_send POST /admin/realms/master/users)
-    id=$(kc_user "$u" | jq -r '.id // empty' 2>/dev/null || true)
+    if ! ujson=$(kc_user "$u"); then
+        kc_fail "could not look up $u$note"; return 1
+    fi
+    id=$(printf '%s' "$ujson" | jq -r '.id // empty' 2>/dev/null || true)
     if [ "$code" = "409" ] && [ -n "$id" ]; then
         code=$(NEXUS_KC_P="$pw" jq -n '{{type: "password", value: env.NEXUS_KC_P, temporary: false}}' \\
             | kc_send PUT "/admin/realms/master/users/$id/reset-password")
@@ -2759,7 +2772,10 @@ keycloak_hook_body() {{
     TOKEN=$(kc_token "$ADMIN_U" "$ADMIN_P")
     if [ -n "$TOKEN" ]; then
         kc_auth "$TOKEN"
-        USER_JSON=$(kc_user "$ADMIN_U")
+        if ! USER_JSON=$(kc_user "$ADMIN_U"); then
+            kc_fail "could not read $ADMIN_U to check whether it is still temporary"
+            return 0
+        fi
         if printf '%s' "$USER_JSON" | jq -e '.attributes.is_temporary_admin' >/dev/null 2>&1; then
             # Bootstrapped directly under this name, before this hook existed.
             # Keycloak will not clear the flag: a PUT without it answers 204
@@ -2795,7 +2811,11 @@ keycloak_hook_body() {{
     unset TOKEN
 
     # $KC_CFG now holds the permanent admin's token.
-    USER_ID=$(kc_user "$BOOT_U" | jq -r '.id // empty' 2>/dev/null || true)
+    if ! USER_JSON=$(kc_user "$BOOT_U"); then
+        kc_fail "could not look up $BOOT_U to delete it"
+        return 0
+    fi
+    USER_ID=$(printf '%s' "$USER_JSON" | jq -r '.id // empty' 2>/dev/null || true)
     if [ -n "$USER_ID" ]; then
         CODE=$(kc_delete "/admin/realms/master/users/$USER_ID")
         case "$CODE" in

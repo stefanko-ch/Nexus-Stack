@@ -948,9 +948,9 @@ jobs:
 
           # Store CREDENTIALS_JSON for email credentials feature (send-credentials.js)
           if [ "$SECRETS_JSON" != "{}" ]; then
-            # Three keys are dropped deliberately. This bundle is stored as a
+            # Four keys are dropped deliberately. This bundle is stored as a
             # Pages secret for send-credentials.js, whose subject is credentials
-            # a human logs in with. All three are machine-to-machine and have no
+            # a human logs in with. None of the four is one, and none has a
             # consumer in the bundle:
             #
             #   forgejo_runner_secret — the deploy pipeline takes it from the
@@ -960,6 +960,10 @@ jobs:
             #   forgejo_service_token_{id,secret} — the operator reads them from
             #     Infisical and copies them into the management plane's secret
             #     store. Nothing reads them from here.
+            #   keycloak_bootstrap_password — unlocks the throwaway
+            #     `nexus-bootstrap` account, which the keycloak services hook
+            #     deletes. Kept out of Infisical for that reason; as with the
+            #     runner secret, this line is what keeps that exclusion intact.
             #
             # On what send-credentials.js does with this bundle: it interpolates
             # `credentials.infisical_admin_password` and nothing else, then points
@@ -968,7 +972,7 @@ jobs:
             # reviewer reasonably drew the wrong conclusion from it. The bundle is
             # still a Pages secret, and a credential nothing reads from it does not
             # belong in it.
-            CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'del(.forgejo_runner_secret, .forgejo_service_token_id, .forgejo_service_token_secret) | to_entries | map(select(.value != null and .value != "")) | from_entries')
+            CREDENTIALS=$(echo "$SECRETS_JSON" | jq -c 'del(.forgejo_runner_secret, .forgejo_service_token_id, .forgejo_service_token_secret, .keycloak_bootstrap_password) | to_entries | map(select(.value != null and .value != "")) | from_entries')
             if echo "$CREDENTIALS" | npx wrangler@4.129.0 pages secret put CREDENTIALS_JSON --project-name "$PAGES_PROJECT" 2>/dev/null; then
               echo "  ✅ CREDENTIALS_JSON stored"
             else
