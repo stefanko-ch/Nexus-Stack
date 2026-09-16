@@ -1188,6 +1188,61 @@ def _render_mongodb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+_NEO4J_PASSWORD_RE = re.compile(r"[A-Za-z0-9]+")
+# Neo4j's `dbms.security.auth_minimum_password_length` default, read with
+# SHOW SETTINGS on neo4j:2026.08.1-community.
+_NEO4J_MIN_PASSWORD_LENGTH = 8
+
+
+def _render_neo4j(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Neo4j: one secret, the password of ``nexus-neo4j``.
+
+    The key is ``NEXUS_NEO4J_PASSWORD`` rather than anything ``NEO4J_*``.
+    The official image turns every ``NEO4J_*`` variable it sees into a
+    ``neo4j.conf`` setting and refuses to start on one it does not know --
+    measured with ``NEO4J_PASSWORD``: ``Unrecognized setting. No declared
+    setting with name: PASSWORD``. The compose file reads this key for
+    interpolation only, and has no ``env_file``, so the name is doubly safe.
+
+    Fail-fast on an empty value, and on anything other than letters and
+    digits. :func:`nexus_deploy.services.render_neo4j_hook` builds a
+    ``CREATE USER`` statement with the password inside a Cypher string
+    literal; ``random_password.neo4j_admin`` has ``special = false``, so a
+    quote or backslash cannot arrive from OpenTofu -- this check makes that
+    an enforced property instead of an assumption about another file. The
+    message names the rule, never the value.
+    """
+    del e
+    if _empty(c.neo4j_admin_password):
+        raise ServiceEnvError(
+            "Neo4j enabled but NEO4J_ADMIN_PASSWORD is empty -- "
+            "it comes from the tofu output `neo4j_admin_password`."
+        )
+    password = c.neo4j_admin_password or ""
+    if len(password) < _NEO4J_MIN_PASSWORD_LENGTH:
+        # Measured on the pinned image: NEO4J_AUTH with a 7-character
+        # password exits the container with "Invalid value for password.
+        # The minimum password length is 8 characters." Failing here names
+        # the cause before a deploy reports a crash-looping container.
+        raise ServiceEnvError(
+            f"Neo4j enabled but NEO4J_ADMIN_PASSWORD is shorter than "
+            f"{_NEO4J_MIN_PASSWORD_LENGTH} characters -- Neo4j refuses it at startup "
+            "(dbms.security.auth_minimum_password_length)."
+        )
+    if not _NEO4J_PASSWORD_RE.fullmatch(password):
+        raise ServiceEnvError(
+            "Neo4j enabled but NEO4J_ADMIN_PASSWORD contains characters other "
+            "than letters and digits -- the admin-setup hook embeds it in a "
+            "Cypher string literal. `random_password.neo4j_admin` must keep "
+            "`special = false`."
+        )
+    return RenderedEnv(
+        env_vars={"NEXUS_NEO4J_PASSWORD": password},
+        # 0o600: the file holds the database admin password in cleartext.
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -2442,6 +2497,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("unity-catalog", _is_enabled("unity-catalog"), _render_unity_catalog),
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
+    EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),
     EnvSpec("questdb", _is_enabled("questdb"), _render_questdb),

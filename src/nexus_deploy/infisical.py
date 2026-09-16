@@ -860,6 +860,20 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "neo4j",
+            _filter_empty(
+                {
+                    # `nexus-neo4j`, not the image's built-in `neo4j`: the
+                    # admin-setup hook creates this account and drops that
+                    # one, so `neo4j` with this password is refused.
+                    "NEO4J_USERNAME": "nexus-neo4j",
+                    "NEO4J_PASSWORD": config.neo4j_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "mongodb",
             _filter_empty(
                 {

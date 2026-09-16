@@ -2487,6 +2487,116 @@ lakekeeper_hook
 """
 
 
+def render_neo4j_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Neo4j: replace the built-in ``neo4j`` user with ``nexus-neo4j``.
+
+    The official image can only seed a user called ``neo4j`` (from
+    ``NEO4J_AUTH``), which is exactly the guessable default the ``nexus-``
+    naming rule exists to prevent. Community Edition cannot suspend a user
+    (``SET STATUS`` is Enterprise-only) but it can create one and drop
+    another, so this hook does that:
+
+    1. Wait for the HTTP port. Neo4j logs ``Bolt enabled`` before
+       ``Remote interface available``, so HTTP answering implies Bolt does.
+    2. Sign in as ``nexus-neo4j``. Success means an earlier run already
+       created it -- ``already-configured`` unless step 4 has work to do.
+    3. Otherwise sign in as ``neo4j`` and create ``nexus-neo4j``. If that
+       fails, ask step 2 again before reporting ``failed``: a concurrent
+       deploy may have created ``nexus-neo4j`` and dropped ``neo4j`` in
+       between (#801).
+    4. Sign in as ``nexus-neo4j`` and ``DROP USER neo4j IF EXISTS``.
+
+    Both accounts use the one generated password, ``NEXUS_NEO4J_PASSWORD``,
+    read from the container's own environment rather than from this script.
+    Nothing secret is rendered here and nothing secret reaches a ``docker
+    exec`` argument list: the Cypher is built inside the container by the
+    ``printf`` builtin and piped to ``cypher-shell``, which takes its
+    credentials from ``NEO4J_USERNAME`` / ``NEO4J_PASSWORD``. Those two are set
+    per command, not on the container -- the image turns any container-level
+    ``NEO4J_*`` variable into a config setting and refuses to start on
+    ``NEO4J_PASSWORD``.
+
+    The password is embedded in a double-quoted Cypher string literal. That
+    is safe only because ``random_password.neo4j_admin`` has
+    ``special = false``; :func:`nexus_deploy.service_env._render_neo4j`
+    refuses anything but ``[A-Za-z0-9]`` so the assumption is enforced
+    rather than hoped for.
+
+    The output of the create step is never printed: a Cypher error can quote
+    the statement, and the statement holds the password. The sign-in and
+    drop steps carry no secret, so their output is forwarded on failure.
+
+    Verified against ``neo4j:2026.08.1-community``: fresh database ->
+    ``configured``; second run -> ``already-configured``; a restart keeps
+    ``neo4j`` dropped.
+    """
+    del config, env  # the password is read inside the container
+    return """
+neo4j_hook() {
+    READY=false
+    SECONDS=0
+    while [ "$SECONDS" -lt 180 ]; do
+        if docker exec neo4j wget -T 5 -q -O /dev/null http://localhost:7474/ 2>/dev/null; then
+            READY=true; break
+        fi
+        sleep 3
+    done
+    if [ "$READY" != "true" ]; then
+        echo "  ⚠ neo4j not ready after 180s — skipping admin setup" >&2
+        echo "RESULT hook=neo4j status=skipped-not-ready"
+        return 0
+    fi
+
+    NEO4J_STATUS=already-configured
+    SIGNIN_FAILED=false
+    SIGNIN_OUTPUT=$(docker exec neo4j sh -c \\
+        'NEO4J_USERNAME=nexus-neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system "SHOW CURRENT USER"' \\
+        2>&1) || SIGNIN_FAILED=true
+
+    if [ "$SIGNIN_FAILED" = "true" ]; then
+        if docker exec -i neo4j sh >/dev/null 2>&1 <<'NEXUS_NEO4J_CREATE_EOF'
+printf 'CREATE USER `nexus-neo4j` IF NOT EXISTS SET PLAINTEXT PASSWORD "%s" CHANGE NOT REQUIRED;\\n' "$NEXUS_NEO4J_PASSWORD" \\
+    | NEO4J_USERNAME=neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system
+NEXUS_NEO4J_CREATE_EOF
+        then
+            NEO4J_STATUS=configured
+        elif SIGNIN_OUTPUT=$(docker exec neo4j sh -c \\
+                'NEO4J_USERNAME=nexus-neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system "SHOW CURRENT USER"' \\
+                2>&1); then
+            # The create failed, but nexus-neo4j signs in now. Two deploys can
+            # reach this hook at once -- spin-up.yml has no concurrency group
+            # (#801) -- and the loser finds `neo4j` already dropped by the
+            # winner. Asking again is also the honest answer to a first
+            # sign-in that failed for a reason that has since passed.
+            NEO4J_STATUS=already-configured
+        else
+            # Which of the sign-ins was refused, and why, cannot be told
+            # apart from here: both could be a wrong password on a database
+            # that outlived a credential change, or `neo4j` already dropped.
+            echo "  ⚠ neo4j: could not sign in as nexus-neo4j, and could not create it as neo4j either" >&2
+            echo "    nexus-neo4j sign-in said: ${SIGNIN_OUTPUT:-(no output)}" >&2
+            echo "    See 'Troubleshooting' in docs/stacks/neo4j.md" >&2
+            echo "RESULT hook=neo4j status=failed"
+            return 0
+        fi
+    fi
+
+    DROP_FAILED=false
+    DROP_OUTPUT=$(docker exec neo4j sh -c \\
+        'printf "DROP USER neo4j IF EXISTS;\\n" | NEO4J_USERNAME=nexus-neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system' \\
+        2>&1) || DROP_FAILED=true
+    if [ "$DROP_FAILED" = "true" ]; then
+        echo "  ⚠ neo4j: nexus-neo4j exists, but dropping the built-in neo4j user failed" >&2
+        echo "    cypher-shell said: ${DROP_OUTPUT:-(no output)}" >&2
+        echo "RESULT hook=neo4j status=failed"
+        return 0
+    fi
+    echo "RESULT hook=neo4j status=$NEO4J_STATUS"
+}
+neo4j_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -2512,6 +2622,9 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # A fresh Lakekeeper has neither, and without both the catalogue answers
     # /health while holding nothing an Iceberg client can open.
     "lakekeeper": render_lakekeeper_hook,
+    # Creates `nexus-neo4j` and drops the built-in `neo4j` user, which is the
+    # only account the image can seed.
+    "neo4j": render_neo4j_hook,
     # pg-ducklake bootstrap re-apply (handles cred rotation on
     # persistent-volume deploys where the entrypoint-initdb scripts
     # only ran on first init).

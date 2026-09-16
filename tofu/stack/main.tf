@@ -397,6 +397,16 @@ resource "random_password" "influxdb_token" {
   special = false
 }
 
+# Neo4j admin password, for `nexus-neo4j`. The image seeds the built-in
+# `neo4j` user with it, and the admin-setup hook then creates `nexus-neo4j`
+# with the same value and drops `neo4j`. `special = false` is load-bearing:
+# the hook embeds the value in a Cypher string literal, and
+# service_env._render_neo4j refuses anything but letters and digits.
+resource "random_password" "neo4j_admin" {
+  length  = 24
+  special = false
+}
+
 # MongoDB root password for `nexus-mongodb`, plus mongo-express's session
 # secret. `special = false` on the password is load-bearing rather than a
 # preference: it is embedded verbatim in mongo-express's connection URL
