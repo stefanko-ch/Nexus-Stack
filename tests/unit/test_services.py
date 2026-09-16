@@ -3230,6 +3230,22 @@ def test_keycloak_hook_repairs_an_admin_left_half_created(tmp_path: Path) -> Non
 
 
 @_needs_jq
+def test_keycloak_hook_recovers_an_admin_that_signs_in_but_has_no_role(tmp_path: Path) -> None:
+    """An earlier run created the admin with the right password, then its role
+    grant failed, so it kept `nexus-bootstrap`. The admin now signs in -- the
+    password grant does not require the role -- and gets 403 on every admin
+    request. Without probing that, each run failed on the 403 and never used
+    the bootstrap account that could finish the grant (#871 review)."""
+    stuck = {
+        **_kc_fresh(),
+        "nexus": _kc_user(_KC_ADMIN_PW, temporary=False, admin=False, uid="id-norole"),
+    }
+    out, _, users = _run_keycloak_hook(tmp_path, stuck)
+    assert "RESULT hook=keycloak status=configured" in out
+    assert _kc_summary(users) == {"nexus": (False, True)}
+
+
+@_needs_jq
 def test_keycloak_hook_fails_without_touching_anything_when_no_account_signs_in(
     tmp_path: Path,
 ) -> None:
@@ -3301,6 +3317,10 @@ _KC_ALL_STARTS: dict[str, Callable[[], dict[str, Any]]] = {
     "half-created": lambda: {
         **_kc_fresh(),
         "nexus": _kc_user("StalePw000", temporary=False, admin=False, uid="id-stale"),
+    },
+    "no-role": lambda: {
+        **_kc_fresh(),
+        "nexus": _kc_user(_KC_ADMIN_PW, temporary=False, admin=False, uid="id-norole"),
     },
 }
 

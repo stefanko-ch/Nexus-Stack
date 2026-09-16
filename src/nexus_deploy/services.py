@@ -2624,7 +2624,12 @@ def render_keycloak_hook(config: NexusConfig, env: BootstrapEnv) -> str:
        ``nexus-bootstrap``, so a half-finished run never locks the realm.
     2. Delete ``nexus-bootstrap``.
 
-    A run that signs in as the permanent admin straight away skips step 1.
+    A run whose permanent admin can already administer the realm skips step
+    1. "Can administer" is probed, not assumed: the password grant issues a
+    token to any enabled account, so an admin created by an earlier run whose
+    role grant failed signs in fine and then gets 403 on every admin request.
+    Such a run takes step 1 again, through ``nexus-bootstrap``, which that
+    earlier run deliberately kept.
     If that admin is itself still flagged temporary -- deployments from before
     this hook bootstrapped the permanent username directly -- the flag cannot
     simply be cleared: measured on 26.7.3, a ``PUT`` of the user without
@@ -2764,12 +2769,27 @@ kc_install() {{
     fi
     return 0
 }}
+# kc_admin_token USER PASS -- a token for USER only if it can administer the
+# realm, else nothing. The password grant issues a token to any enabled user,
+# admin or not, so a signed-in account is not yet a usable one: an earlier run
+# that created the admin but failed to grant its role leaves exactly that. The
+# probe sends such a run down the bootstrap path, which can finish the grant,
+# instead of failing on the account's first 403 every time.
+kc_admin_token() {{
+    local t code
+    t=$(kc_token "$1" "$2")
+    [ -n "$t" ] || return 0
+    kc_auth "$t"
+    code=$(kc_status "/admin/realms/master/users?max=1")
+    [ "$code" = "200" ] && printf '%s' "$t"
+    return 0
+}}
 keycloak_hook_body() {{
     local ADMIN_U={admin_u_q} ADMIN_P={admin_p_q}
     local BOOT_U={boot_u_q} BOOT_P={boot_p_q}
     local STATUS=already-configured TOKEN CODE USER_JSON USER_ID
 
-    TOKEN=$(kc_token "$ADMIN_U" "$ADMIN_P")
+    TOKEN=$(kc_admin_token "$ADMIN_U" "$ADMIN_P")
     if [ -n "$TOKEN" ]; then
         kc_auth "$TOKEN"
         if ! USER_JSON=$(kc_user "$ADMIN_U"); then
@@ -2800,9 +2820,9 @@ keycloak_hook_body() {{
         else
             # A concurrent deploy (#801) may have finished the hand-over
             # between the two sign-ins; ask once more before failing.
-            TOKEN=$(kc_token "$ADMIN_U" "$ADMIN_P")
+            TOKEN=$(kc_admin_token "$ADMIN_U" "$ADMIN_P")
             if [ -z "$TOKEN" ]; then
-                kc_fail "neither $ADMIN_U nor $BOOT_U can sign in to the master realm — see 'The admin account' in docs/stacks/keycloak.md"
+                kc_fail "neither $ADMIN_U nor $BOOT_U can administer the master realm — see 'The admin account' in docs/stacks/keycloak.md"
                 return 0
             fi
             kc_auth "$TOKEN"
