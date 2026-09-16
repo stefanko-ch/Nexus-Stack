@@ -39,8 +39,15 @@ services:
       # gRPC frontend, loopback only. Workers inside the stack use
       # `temporal:7233` over app-network and do not need this. It exists so a
       # worker running on a laptop can reach the server through
-      # `ssh -N -L 7233:localhost:7233 nexus` -- the tunnel carries HTTP to the
-      # Web UI, not gRPC. Bound to 127.0.0.1 so the Hetzner firewall is not the
+      # `ssh -N -L 7233:localhost:7233 nexus`, which forwards this gRPC port.
+      #
+      # The SSH forward is needed because the CLOUDFLARE tunnel cannot carry
+      # gRPC -- it serves HTTP, which is how the Web UI (127.0.0.1:8107 below)
+      # is reached in a browser through Cloudflare Access. Forwarding the UI
+      # over SSH would be `-L 8107:localhost:8107`, but there is no reason to:
+      # the browser path already works.
+      #
+      # Bound to 127.0.0.1 so the Hetzner firewall is not the
       # only thing between an unauthenticated frontend and the internet (#742).
       - "127.0.0.1:7233:7233"
     environment:
