@@ -30,8 +30,30 @@ from nexus_deploy.s3_persistence import S3Endpoint, render_restore_script, rende
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = sorted((REPO_ROOT / ".github" / "scripts").glob("*.sh"))
 
-# A pipe into a reader that may stop before its input ends.
-_EARLY_READER = re.compile(r"\|\s*(head\b|grep\s+-[a-zA-Z]*q)")
+# A pipe into a reader that may stop before its input ends: head, or grep
+# with -q/--quiet anywhere among its options (`grep -E -q`, `grep -qx`).
+_EARLY_READER = re.compile(
+    r"\|\s*(head\b|grep\b[^|;&]*?\s(-[a-zA-Z]*q[a-zA-Z]*|--quiet|--silent)\b)"
+)
+
+
+def _logical_lines(text: str) -> list[tuple[int, str]]:
+    """Comment-stripped shell lines with continuations joined, so a pipe
+    split across a trailing backslash, or continued on a line that starts
+    with `|`, is one pipeline. Returns (first line number, joined text)."""
+    out: list[tuple[int, str]] = []
+    continued = False
+    for n, raw in enumerate(text.splitlines(), 1):
+        code = raw.split("#", 1)[0].strip()
+        joins = out and (continued or code.startswith("|"))
+        continued = code.endswith("\\")
+        code = code.removesuffix("\\").strip()
+        if joins:
+            out[-1] = (out[-1][0], f"{out[-1][1]} {code}")
+        else:
+            out.append((n, code))
+    return out
+
 
 # Two lines as two separate writes, the second after the reader has had
 # time to exit.
@@ -64,11 +86,32 @@ def test_scripts_do_not_pipe_into_an_early_reader(script: Path) -> None:
     """Every script here runs under pipefail or may one day; the rule is
     cheap to keep everywhere."""
     offenders = [
-        f"{n}: {line.strip()}"
-        for n, line in enumerate(script.read_text().splitlines(), 1)
-        if _EARLY_READER.search(line.split("#", 1)[0])
+        f"{n}: {line}"
+        for n, line in _logical_lines(script.read_text())
+        if _EARLY_READER.search(line)
     ]
     assert not offenders, offenders
+
+
+@pytest.mark.parametrize(
+    ("snippet", "flagged"),
+    [
+        ("X=$(tofu version | head -n 1)", True),
+        ('if echo "$R" | grep -q ok; then', True),
+        ('if echo "$R" | grep -E -q "^ok"; then', True),
+        ('if echo "$R" | grep --quiet ok; then', True),
+        ('if echo "$R" | grep -qxF -- "$B"; then', True),
+        ("long_command --flag \\\n  | grep -q ok", True),
+        ("long_command --flag\n  | head -1", True),
+        ('if grep -qxF -- "$B" <<< "$LIST"; then', False),
+        ('echo "$R" | grep -E "^[-*]" >/dev/null', False),
+        ('git log --oneline -20 "$A..$B" >&2', False),
+        ("echo x | grep -c .  # head -1 in a comment", False),
+    ],
+)
+def test_the_early_reader_rule_itself(snippet: str, flagged: bool) -> None:
+    lines = _logical_lines(snippet)
+    assert any(_EARLY_READER.search(line) for _, line in lines) is flagged, lines
 
 
 def test_install_opentofu_reads_the_version_without_a_pipe(tmp_path: Path) -> None:
