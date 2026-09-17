@@ -30,6 +30,10 @@
 
 name: "CI: Python Tests"
 
+# The tests also guard files outside src/: the lifecycle workflows and
+# actions (test_job_toolchain.py, test_install_opentofu.py) and the scripts
+# under .github/scripts/. A pull request that changes only those must run
+# them too.
 on:
   pull_request:
     paths:
@@ -40,7 +44,9 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
-      - ".github/workflows/python-tests.yml"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/scripts/**"
       - "scripts/*.sh"
   push:
     branches: [main]
@@ -52,7 +58,9 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".python-version"
-      - ".github/workflows/python-tests.yml"
+      - ".github/workflows/**"
+      - ".github/actions/**"
+      - ".github/scripts/**"
       - "scripts/*.sh"
 
 # Cancel previous runs of this workflow on the same ref. The CI is fast

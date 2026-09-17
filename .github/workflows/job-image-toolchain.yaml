@@ -1,0 +1,106 @@
+name: "CI: Job image toolchain"
+
+# =============================================================================
+# The lifecycle toolchain, installed inside the Forgejo runner's job image.
+# =============================================================================
+# A Conductor tenant fork runs the lifecycle workflows on a Forgejo runner
+# whose job image is node:22-bookworm (stacks/forgejo-runner/runner-config.yml).
+# That image has no sudo, jq or AWS CLI (#884), so every lifecycle job
+# installs them itself. This job runs those installs in the same image on
+# GitHub, so a change that breaks them fails here, on the pull request, and
+# not in a tenant's first deploy.
+#
+# It installs; it does not deploy. Whether a whole lifecycle run gets
+# through is only shown by one, on a fork.
+# =============================================================================
+
+on:
+  pull_request:
+    paths:
+      - ".github/scripts/install-tool.sh"
+      - ".github/scripts/install-opentofu.sh"
+      - ".github/actions/**"
+      - ".github/workflows/job-image-toolchain.yaml"
+      - "stacks/forgejo-runner/runner-config.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: job-image-toolchain-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  toolchain:
+    name: Toolchain in node:22-bookworm
+    runs-on: ubuntu-latest
+    # Must match the image the runner maps its labels to;
+    # tests/unit/test_job_toolchain.py keeps the two in step.
+    container:
+      image: node:22-bookworm
+    # A container job on GitHub defaults to `sh`; the Forgejo runner runs
+    # these steps with bash, and so does this job.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        # Pinned as #652 asks for added `uses:` lines. The same commit is on
+        # data.forgejo.org, which a Forgejo runner resolves actions from.
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: What the image lacks
+        # Informational: the reason the steps below exist.
+        run: |
+          for tool in sudo jq aws cloudflared tofu uv; do
+            if command -v "$tool" >/dev/null; then
+              echo "  $tool: present in the image"
+            else
+              echo "  $tool: missing from the image"
+            fi
+          done
+          echo "  running as uid $(id -u)"
+
+      - name: Install jq
+        run: bash .github/scripts/install-tool.sh jq
+
+      - name: Install cloudflared
+        run: bash .github/scripts/install-tool.sh cloudflared
+
+      - name: Install AWS CLI
+        run: bash .github/scripts/install-tool.sh awscli
+
+      - name: Install OpenTofu
+        run: bash .github/scripts/install-opentofu.sh
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: Sync nexus_deploy runtime deps
+        run: |
+          uv sync --frozen --no-dev
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Every tool answers from PATH
+        run: |
+          set -euo pipefail
+          jq --version
+          cloudflared --version
+          aws --version
+          tofu version
+          uv --version
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
+          # The script the lifecycle workflows run with python3 and PyYAML.
+          # Rendering the real services.yaml, not only importing the module.
+          export ENABLED_SERVICES="forgejo,grafana" FIREWALL_RULES=""
+          mkdir -p tofu/stack && : > tofu/stack/config.tfvars
+          python3 .github/scripts/generate-services-tfvars.py
+          grep -q '^services = {' tofu/stack/config.tfvars

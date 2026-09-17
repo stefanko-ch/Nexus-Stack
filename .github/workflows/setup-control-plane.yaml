@@ -150,6 +150,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install jq
+        # The job image of a Forgejo runner has no jq (#884); GitHub's has an
+        # unpinned one. Pinned here, before the first step that parses JSON.
+        run: bash .github/scripts/install-tool.sh jq
+
       - name: Cache the npm store
         # `npm ci` and every Wrangler invocation download through
         # ~/.npm, and on a cold runner that is the single largest cost here:
@@ -184,10 +189,30 @@ jobs:
         run: bash .github/scripts/install-opentofu.sh
 
       - name: Install cloudflared
+        # Pinned, and without sudo: a Forgejo job image has none (#884).
+        run: bash .github/scripts/install-tool.sh cloudflared
+
+      - name: Install AWS CLI
+        # Validates the R2 credentials and cleans up buckets below. The
+        # official v2 installer, pinned and without root (#884).
+        run: bash .github/scripts/install-tool.sh awscli
+
+      - name: Install uv
+        # sync-deployed-state.sh and sync-firewall-rules.sh import PyYAML;
+        # the project environment provides it (#884). Pinned as #652 asks for
+        # added `uses:` lines; the commit is also on data.forgejo.org.
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
+        with:
+          version: "0.11.7"
+          enable-cache: true
+
+      - name: Sync nexus_deploy runtime deps
         run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-          sudo mv cloudflared /usr/local/bin/
+          uv sync --frozen --no-dev
+          # The project environment has PyYAML, which the tfvars and D1 sync
+          # scripts import with `python3`. First on PATH, it serves them on
+          # any job image, not only on GitHub's (#884).
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Generate SSH key for server access
         id: ssh_key

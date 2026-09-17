@@ -146,6 +146,40 @@ That is **not** GitHub's large `ubuntu` runner image. A workflow that
 assumes Python, Go, Docker CLI or the AWS CLI is preinstalled will need
 to install them first.
 
+### What the job image contains
+
+Probed on 2026-09-17 inside the stack's own daemon:
+
+| Present | Missing |
+|---|---|
+| `bash`, `curl`, `wget`, `git`, `ssh`, `ssh-keygen`, `python3`, `unzip`, `tar`, `node`, `npm` | `sudo`, `jq`, `aws`, `gh`, `pip` |
+
+Jobs run as root, so nothing needs `sudo`, and nothing may use it.
+
+Nexus-Stack's own lifecycle workflows (Initial Setup, Setup Control
+Plane, Spin Up, Teardown, Destroy All and the snapshot pair) install what
+they need beyond that list themselves, so they run unchanged on GitHub
+and on this runner (#884):
+
+| Tool | Installed by |
+|---|---|
+| OpenTofu | `.github/scripts/install-opentofu.sh` |
+| jq, cloudflared, AWS CLI v2 | `.github/scripts/install-tool.sh <jq\|cloudflared\|awscli>`, pinned versions and checksums, into `$RUNNER_TEMP`, without root |
+| uv | `astral-sh/setup-uv` |
+| PyYAML | the project environment: after `uv sync`, `.venv/bin` goes first on `PATH`, so `python3` finds it |
+
+Two checks keep it that way:
+
+- `tests/unit/test_job_toolchain.py` fails when a lifecycle job uses one
+  of these tools before a step of the same job installed it, or uses
+  `sudo` or `apt-get` at all. It follows local actions and the scripts a
+  step calls.
+- `.github/workflows/job-image-toolchain.yaml` runs the installs in
+  `node:22-bookworm` on every pull request that touches them.
+
+Neither proves that a whole lifecycle run passes on this runner. Only a
+real run on a fork shows that.
+
 Other known differences from GitHub Actions:
 
 - `permissions:` and `continue-on-error:` on a job are ignored.
