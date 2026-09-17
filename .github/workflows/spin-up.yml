@@ -1212,7 +1212,9 @@ jobs:
             # "could not reach the server" would be a guess. Newlines are
             # folded out because a multi-line ::warning payload silently
             # truncates at the first one.
-            SSH_ERR=$(tr '\n\r' '  ' < /tmp/smoke-ssh.err 2>/dev/null | head -c 300)
+            # head reads the file and tr consumes all of head's output, so
+            # no stage can die of SIGPIPE under pipefail (#883).
+            SSH_ERR=$(head -c 300 /tmp/smoke-ssh.err 2>/dev/null | tr '\n\r' '  ')
             echo "::warning title=smoke-check::No service check ran: ssh exited non-zero, which means either the server was unreachable or the probe itself failed on it. stderr: ${SSH_ERR:-(empty)}"
             exit 0
           fi
@@ -1221,7 +1223,7 @@ jobs:
             # ssh succeeded but nothing came back. `docker ps` keeps its
             # stderr now, so if the daemon is down its message is in the
             # captured file — quote it rather than assert an empty list.
-            EMPTY_ERR=$(tr '\n\r' '  ' < /tmp/smoke-ssh.err 2>/dev/null | head -c 300)
+            EMPTY_ERR=$(head -c 300 /tmp/smoke-ssh.err 2>/dev/null | tr '\n\r' '  ')
             echo "::warning title=smoke-check::The server was reachable but the probe returned nothing. Docker reported: ${EMPTY_ERR:-(nothing on stderr, so it genuinely listed no containers)}"
             exit 0
           fi

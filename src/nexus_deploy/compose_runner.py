@@ -343,16 +343,22 @@ for i in "${{!PIDS[@]}}"; do
     pid=${{PIDS[$i]}}
     name=${{NAMES[$i]}}
     if wait "$pid"; then
-        # `docker ps --format '{{{{.Names}}}}' | grep -qFx -- "$name"`:
-        # -F treats $name as a fixed string (so a hypothetical future
-        # stack name with regex metacharacters like `.`, `[`, `*`
-        # can't false-match), -x requires the entire line to match,
-        # and `--` terminates options so a name starting with `-`
-        # doesn't get parsed as a flag. Equivalent semantic to
-        # `^name$` regex but safe for arbitrary inputs. Verified by
-        # R4 exec'd-bash test against substring-trap + regex-meta
-        # inputs.
-        if docker ps --format '{{{{.Names}}}}' | grep -qFx -- "$name"; then
+        # `grep -qFx -- "$name"` on the `docker ps --format '{{{{.Names}}}}'`
+        # listing: -F treats $name as a fixed string (so a hypothetical
+        # future stack name with regex metacharacters like `.`, `[`, `*`
+        # can't false-match), -x requires the entire line to match, and
+        # `--` terminates options so a name starting with `-` doesn't get
+        # parsed as a flag. Equivalent semantic to `^name$` regex but safe
+        # for arbitrary inputs. Verified by R4 exec'd-bash test against
+        # substring-trap + regex-meta inputs.
+        #
+        # The listing is captured first and matched from a here-string.
+        # Piped straight into `grep -q` under pipefail, docker ps can die
+        # of SIGPIPE once grep has its match, and a running container
+        # would be counted as failed (#883). A failing `docker ps` still
+        # counts as not running, as before.
+        if RUNNING=$(docker ps --format '{{{{.Names}}}}') \
+           && grep -qFx -- "$name" <<< "$RUNNING"; then
             STARTED=$((STARTED+1))
             echo "  ✓ $name started and running"
         else

@@ -96,7 +96,9 @@ if ! git merge-base --is-ancestor "$CURRENT" "$TARGET"; then
   echo "❌ main has commits that $TAG does not contain, so it cannot be fast-forwarded." >&2
   echo "   This workflow never merges or rebases on your behalf. Commits on main" >&2
   echo "   that are not in upstream:" >&2
-  git log --oneline "$TARGET..$CURRENT" | head -20 >&2
+  # -20 rather than `| head -20`: under pipefail, git dies of SIGPIPE
+  # when head stops reading, and the script would exit 141 (#883).
+  git log --oneline -20 "$TARGET..$CURRENT" >&2
   exit 1
 fi
 

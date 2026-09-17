@@ -112,7 +112,13 @@ mkdir -p "$DEST"
 install -m 0755 "$WORK/extract/tofu" "$DEST/tofu"
 
 # Read back what was installed rather than assuming it.
-INSTALLED=$("$DEST/tofu" version | head -n 1)
+#
+# The whole output first, then its first line, without a pipe. `tofu
+# version` prints its lines as separate writes; `| head -n 1` exits after
+# the first, a later write then hits a closed pipe, tofu dies of SIGPIPE,
+# and under pipefail the script ended with exit 141 and no message (#883).
+INSTALLED=$("$DEST/tofu" version)
+INSTALLED=${INSTALLED%%$'\n'*}
 if [ "$INSTALLED" != "OpenTofu v$VERSION" ]; then
   echo "❌ Installed binary reports '$INSTALLED', expected 'OpenTofu v$VERSION'." >&2
   exit 1

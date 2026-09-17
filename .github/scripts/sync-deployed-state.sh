@@ -264,7 +264,9 @@ PYEOF
     # Show which services will be inserted
     echo "  Services to insert:"
     while IFS= read -r sql; do
-      SERVICE_NAME=$(echo "$sql" | sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p" | head -1)
+      # First match via sed's own `q`, not `| head -1`: under pipefail an
+      # early-exiting reader can kill the writer with SIGPIPE (#883).
+      SERVICE_NAME=$(sed -n "s/.*VALUES ('\([^']*\)'.*/\1/p;T;q" <<< "$sql")
       echo "    - $SERVICE_NAME"
     done < /tmp/init_services.sql
 

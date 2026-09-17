@@ -817,7 +817,10 @@ def render_snapshot_script(
             '  rclone check "$src" "$dst" '
             '--one-way --combined - 2>"$LOG_DIR/rclone-check.err" '
             '| tee "$LOG_DIR/rclone-check.out" '
-            '| grep -qE "^[-*]"',
+            # Not -q: grep must read everything. With -q it exits at the
+            # first drift line, tee and rclone die of SIGPIPE, and drift is
+            # reported as "rclone check errored" with a truncated log (#883).
+            '| grep -E "^[-*]" >/dev/null',
             # CRITICAL: copy PIPESTATUS to a local array IMMEDIATELY,
             # in ONE command. Every subsequent command (including the
             # ``local`` builtin) overwrites PIPESTATUS with its own
@@ -1018,7 +1021,11 @@ def render_restore_script(
         '  echo "  (auth / network / bucket policy — see rclone error above)" >&2',
         "  exit 2",
         "fi",
-        'if ! printf "%s\\n" "$SNAPSHOT_LISTING" | grep -qxF "latest.txt"; then',
+        # Here-string, not `printf | grep -q`: grep exits at the first
+        # match, and a long listing written in several chunks would kill
+        # printf with SIGPIPE. Under pipefail the condition then reads
+        # "no latest.txt", and the restore would start empty (#883).
+        'if ! grep -qxF "latest.txt" <<< "$SNAPSHOT_LISTING"; then',
         '  echo "fresh-start: no snapshot in S3, leaving local state empty"',
         "  exit 0",
         "fi",
