@@ -98,6 +98,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install jq
+        # The job image of a Forgejo runner has no jq (#884); GitHub's has an
+        # unpinned one. Pinned here, before the first step that parses JSON.
+        run: bash .github/scripts/install-tool.sh jq
+
       - name: Cache the npm store
         # `npm ci` and every Wrangler invocation download through
         # ~/.npm, and on a cold runner that is the single largest cost here:

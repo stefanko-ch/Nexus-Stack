@@ -78,16 +78,19 @@ runs:
     - name: Sync nexus_deploy runtime deps
       # --no-dev: ruff/mypy/pytest are not needed at deploy time.
       shell: bash
-      run: uv sync --frozen --no-dev
+      run: |
+        uv sync --frozen --no-dev
+        # The project environment has PyYAML, which the tfvars and D1 sync
+        # scripts import with `python3`. First on PATH, it serves them on
+        # any job image, not only on GitHub's (#884).
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
     - name: Install cloudflared
       # Needed wherever SSH goes over Cloudflare Access, i.e. anything
       # calling nexus_deploy.setup.configure_ssh.
+      # Pinned, and without sudo: a Forgejo job image has none (#884).
       shell: bash
-      run: |
-        curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-        chmod +x cloudflared
-        sudo mv cloudflared /usr/local/bin/
+      run: bash "$GITHUB_WORKSPACE/.github/scripts/install-tool.sh" cloudflared
 
     - name: Install SSH key
       shell: bash

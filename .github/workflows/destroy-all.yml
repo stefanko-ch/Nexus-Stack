@@ -81,6 +81,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install jq
+        # The job image of a Forgejo runner has no jq (#884); GitHub's has an
+        # unpinned one. Pinned here, before the first step that parses JSON.
+        run: bash .github/scripts/install-tool.sh jq
+
+      - name: Install AWS CLI
+        # Deletes the R2 buckets when delete_data=DESTROY. The official v2
+        # installer, pinned and without root (#884).
+        run: bash .github/scripts/install-tool.sh awscli
+
       - name: Cache the npm store
         # `npm ci` and every Wrangler invocation download through
         # ~/.npm, and on a cold runner that is the single largest cost here:
@@ -119,7 +129,12 @@ jobs:
 
       - name: Sync nexus_deploy runtime deps
         # --no-dev: ruff/mypy/pytest are not needed here.
-        run: uv sync --frozen --no-dev
+        run: |
+          uv sync --frozen --no-dev
+          # The project environment has PyYAML, which the tfvars and D1 sync
+          # scripts import with `python3`. First on PATH, it serves them on
+          # any job image, not only on GitHub's (#884).
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Generate SSH key for OpenTofu
         run: |

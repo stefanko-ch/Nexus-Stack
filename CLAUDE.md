@@ -317,6 +317,18 @@ harmless, because the value is only compared against a success code; in a hook
 that *prints* the code or branches on it with `case`, it is not. The answer
 usually reveals that your case differs.
 
+### Tools in lifecycle workflows
+
+The lifecycle workflows also run on a Forgejo runner whose job image is
+`node:22-bookworm`: root, no `sudo`, no `jq`, no AWS CLI (#884). So a
+lifecycle job installs every tool beyond that image in an earlier step:
+OpenTofu with `.github/scripts/install-opentofu.sh`; jq, cloudflared and the
+AWS CLI with `.github/scripts/install-tool.sh <tool>`; uv with
+`astral-sh/setup-uv`. PyYAML comes from the project environment, whose
+`.venv/bin` goes onto `PATH` after `uv sync`. Never `sudo`, never `apt-get`.
+`tests/unit/test_job_toolchain.py` enforces it, and
+`docs/stacks/forgejo-runner.md` lists what the image contains.
+
 ### Service Account Naming Convention
 
 All service accounts MUST use the `nexus-` prefix to prevent default username guessing:

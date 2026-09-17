@@ -152,6 +152,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Install jq
+        # The job image of a Forgejo runner has no jq (#884); GitHub's has an
+        # unpinned one. Pinned here, before the first step that parses JSON.
+        run: bash .github/scripts/install-tool.sh jq
+
       - name: Cache the npm store
         # `npm ci` and every Wrangler invocation download through
         # ~/.npm, and on a cold runner that is the single largest cost here:
@@ -229,13 +234,16 @@ jobs:
         # match pyproject.toml (which CI's python-tests already
         # enforces); `--no-dev` skips ruff/mypy/pytest etc. since we
         # only need runtime here.
-        run: uv sync --frozen --no-dev
+        run: |
+          uv sync --frozen --no-dev
+          # The project environment has PyYAML, which the tfvars and D1 sync
+          # scripts import with `python3`. First on PATH, it serves them on
+          # any job image, not only on GitHub's (#884).
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Install cloudflared
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-          sudo mv cloudflared /usr/local/bin/
+        # Pinned, and without sudo: a Forgejo job image has none (#884).
+        run: bash .github/scripts/install-tool.sh cloudflared
 
       - name: Setup SSH key for server access
         run: |
