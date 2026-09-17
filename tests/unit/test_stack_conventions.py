@@ -2250,6 +2250,47 @@ def test_the_ci_certificate_names_the_host_the_runner_registers_with() -> None:
     assert re.search(rf"cat {re.escape(system_store)} \"\$CI_TLS/proxy.crt\"", script)
 
 
+def test_the_ci_certificate_is_replaced_when_its_key_is_gone_or_does_not_match() -> None:
+    """nginx refuses to start on a mismatched pair, and the certificate
+    alone looks fine — so checking only its expiry would leave the proxy
+    dead with nothing regenerating it.
+
+    Reachable from the script itself: the two files are renamed one
+    after the other, so a crash in between leaves a new key beside the
+    old certificate.
+    """
+    script = _ensure_data_dirs_script()
+    decision = script.split('if [ "$NEED_CERT" -eq 1 ]')[0]
+
+    assert '-s "$CI_TLS/proxy.key"' in decision, "a missing key must force a new pair"
+    assert "-pubkey" in decision, "the certificate's public key is never read"
+    assert "-pubout" in decision, "the key's public half is never read"
+    assert '"$CRT_PUB" != "$KEY_PUB"' in decision
+
+
+def test_the_ci_trust_bundle_is_rebuilt_on_every_run() -> None:
+    """The system CA store is not static: an update adds roots and
+    withdraws others. On the snapshot lifecycle this directory outlives
+    many such updates, so a bundle kept merely because it exists is a
+    trust store frozen at whenever CI was first enabled."""
+    script = _ensure_data_dirs_script()
+
+    guards = [
+        line
+        for line in script.splitlines()
+        if line.strip().startswith(("if ", "elif ")) and "bundle.crt" in line
+    ]
+    assert not guards, guards
+
+    # Written to a temporary name and renamed, so no reader ever sees a
+    # half-written trust store.
+    assert (
+        'cat /etc/ssl/certs/ca-certificates.crt "$CI_TLS/proxy.crt" > "$CI_TLS/bundle.crt.tmp"'
+        in (script)
+    )
+    assert 'mv "$CI_TLS/bundle.crt.tmp" "$CI_TLS/bundle.crt"' in script
+
+
 def test_the_runner_rewrites_its_credentials_when_the_instance_url_changes() -> None:
     """.runner records the address it was written for and the daemon uses
     that, not the environment. /data outlives the container, so an

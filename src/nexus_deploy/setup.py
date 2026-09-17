@@ -570,11 +570,32 @@ chmod 0755 "$CI_TLS"
 # container reads the certificate at startup, and every spin-up
 # recreates the containers, so a renewal here is picked up without any
 # further step.
+# Three ways to need a new one, and the third is the one that is easy
+# to miss: a certificate whose key is gone or does not belong to it.
+# nginx refuses to start on that pair ("key values mismatch"), and the
+# certificate alone looks perfectly good. It is reachable from here,
+# too — the two files are renamed one after the other, so a crash
+# between the renames leaves a new key beside the old certificate. This
+# check makes that state repair itself on the next run.
+#
 # `-checkend` prints "Certificate will not expire" on stdout in the
 # common case, so both streams go nowhere and only the exit status is
 # read. The deploy log says something when a certificate is written,
 # not on every spin-up that finds a good one.
+NEED_CERT=0
 if ! openssl x509 -checkend 2592000 -noout -in "$CI_TLS/proxy.crt" >/dev/null 2>&1; then
+  NEED_CERT=1
+elif [ ! -s "$CI_TLS/proxy.key" ]; then
+  NEED_CERT=1
+else
+  CRT_PUB=$(openssl x509 -noout -pubkey -in "$CI_TLS/proxy.crt" 2>/dev/null || true)
+  KEY_PUB=$(openssl pkey -pubout -in "$CI_TLS/proxy.key" 2>/dev/null || true)
+  if [ -z "$CRT_PUB" ] || [ "$CRT_PUB" != "$KEY_PUB" ]; then
+    NEED_CERT=1
+  fi
+fi
+
+if [ "$NEED_CERT" -eq 1 ]; then
   openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \\
     -keyout "$CI_TLS/proxy.key.tmp" -out "$CI_TLS/proxy.crt.tmp" \\
     -subj "/CN=forgejo-tls" \\
@@ -589,24 +610,31 @@ if ! openssl x509 -checkend 2592000 -noout -in "$CI_TLS/proxy.crt" >/dev/null 2>
   mv "$CI_TLS/proxy.key.tmp" "$CI_TLS/proxy.key"
   mv "$CI_TLS/proxy.crt.tmp" "$CI_TLS/proxy.crt"
   echo "  generated a CI TLS certificate for forgejo-tls (valid 10 years)" >&2
-  rm -f "$CI_TLS/bundle.crt"
 fi
 
 # The trust bundle the runner and every job container get: the system
 # CAs FIRST, then ours. Both halves are needed — the runner fetches
 # actions from data.forgejo.org over public TLS with this same bundle,
-# so a bundle holding only our certificate would break every
-# `uses:` step.
-if [ ! -s "$CI_TLS/bundle.crt" ]; then
-  if [ ! -r /etc/ssl/certs/ca-certificates.crt ]; then
-    echo "❌ ERROR: no system CA bundle at /etc/ssl/certs/ca-certificates.crt" >&2
-    echo "   Forgejo Actions jobs would trust the CI proxy and nothing else." >&2
-    exit 1
-  fi
-  cat /etc/ssl/certs/ca-certificates.crt "$CI_TLS/proxy.crt" > "$CI_TLS/bundle.crt.tmp"
-  chmod 0644 "$CI_TLS/bundle.crt.tmp"
-  mv "$CI_TLS/bundle.crt.tmp" "$CI_TLS/bundle.crt"
+# and a job's CURL_CA_BUNDLE replaces the system store rather than
+# adding to it, so a bundle holding only our certificate would break
+# every `uses:` step and every public HTTPS call a job makes.
+if [ ! -r /etc/ssl/certs/ca-certificates.crt ]; then
+  echo "❌ ERROR: no system CA bundle at /etc/ssl/certs/ca-certificates.crt" >&2
+  echo "   Forgejo Actions jobs would trust the CI proxy and nothing else." >&2
+  exit 1
 fi
+
+# Rebuilt on every run rather than only when missing. The system store
+# is not static: a package update adds roots and withdraws others, and
+# on the snapshot lifecycle this directory outlives many such updates,
+# so a bundle kept because it exists is a trust store frozen at
+# whenever CI was first enabled. Rebuilding costs copying 200 KB. The
+# rename is atomic, so nothing ever reads a half-written bundle — and a
+# container already running keeps the file it started with until it is
+# next recreated, which a spin-up does.
+cat /etc/ssl/certs/ca-certificates.crt "$CI_TLS/proxy.crt" > "$CI_TLS/bundle.crt.tmp"
+chmod 0644 "$CI_TLS/bundle.crt.tmp"
+mv "$CI_TLS/bundle.crt.tmp" "$CI_TLS/bundle.crt"
 
 # --- Dify bind-mount sources --------------------------------------
 # dify-db is postgres:15-alpine (uid 70). dify-redis is redis:6-
