@@ -452,7 +452,9 @@ jobs:
             # match ``nexus-foo-data``), ``-F`` treats the bucket
             # name literally (so dots/hyphens aren't regex
             # metacharacters).
-            if printf '%s\n' "$EXISTING_BUCKETS" | grep -qxF "$BUCKET"; then
+            # Here-string, not a pipe: grep -q exits at the first match, and
+            # under pipefail a writer still writing would die of SIGPIPE (#883).
+            if grep -qxF -- "$BUCKET" <<< "$EXISTING_BUCKETS"; then
               echo "  → wiping $BUCKET ..."
               # `s3 rb --force` empties then removes the bucket.
               if ! aws --endpoint-url="$ENDPOINT" s3 rb "s3://$BUCKET" --force; then

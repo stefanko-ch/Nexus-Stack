@@ -185,6 +185,22 @@ def test_own_commits_stop_the_update_and_are_listed(repos: _Repos) -> None:
     assert repos.outputs()["moved"] == "false"
 
 
+def test_many_own_commits_exit_1_and_list_twenty(repos: _Repos) -> None:
+    """#883: the listing is capped with `git log -20`, not `| head -20`,
+    whose SIGPIPE turned the refusal into exit 141 under pipefail."""
+    repos.make_instance(at=repos.v100)
+    for i in range(25):
+        repos.git(repos.instance, "commit", "-q", "--allow-empty", "-m", f"own-{i:02d}")
+    repos.git(repos.instance, "push", "-q", "origin", "main")
+
+    result = repos.run("v1.1.0")
+
+    assert result.returncode == 1, result.stderr
+    listed = [ln for ln in result.stderr.splitlines() if " own-" in ln]
+    assert len(listed) == 20
+    assert "own-24" in listed[0]
+
+
 def test_a_template_copy_is_refused_with_a_pointer_to_the_docs(repos: _Repos) -> None:
     repos.make_template_copy()
     before = repos.origin_main()

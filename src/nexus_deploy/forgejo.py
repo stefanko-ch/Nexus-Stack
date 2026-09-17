@@ -116,7 +116,7 @@ if ! RUNNING=$(docker ps --format '{{{{.Names}}}}' 2>&1); then
     echo "docker ps failed: $RUNNING" >&2
     exit 1
 fi
-if ! printf '%s\\n' "$RUNNING" | grep -qx "$CONTAINER"; then
+if ! grep -qx -- "$CONTAINER" <<< "$RUNNING"; then
     echo "container $CONTAINER is not running" >&2
     exit {EXIT_NO_CONTAINER}
 fi
