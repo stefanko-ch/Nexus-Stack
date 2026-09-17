@@ -146,19 +146,33 @@ def _jobs() -> list[tuple[str, str, list[dict[str, Any]]]]:
     return jobs
 
 
+def _is_installer_line(line: str) -> bool:
+    return any(name in line for name in INSTALLERS)
+
+
 def _violations(steps: list[dict[str, Any]]) -> list[str]:
+    """Walk each step line by line, so a tool used before the line that
+    installs it is caught within one step too. An installer line only
+    provides; its arguments are not uses."""
     available: set[str] = set()
     problems = []
     for index, step in enumerate(steps):
-        available |= _provides(step)
         label = step.get("name") or step.get("uses") or f"step {index}"
-        for source, tool in sorted(_uses(step)):
-            if (source, tool) in EXEMPT:
-                continue
-            if tool in FORBIDDEN:
-                problems.append(f"{label}: {tool} ({source}) is never available")
-            elif tool not in available:
-                problems.append(f"{label}: {tool} ({source}) used before it is installed")
+        run = str(step.get("run", ""))
+        # A step-level provider (setup-uv) is available to its own step.
+        available |= _provides({"uses": step.get("uses", "")})
+        for line in run.splitlines():
+            if not _is_installer_line(line):
+                for source, tool in sorted(_uses({"run": line})):
+                    if (source, tool) in EXEMPT:
+                        continue
+                    if tool in FORBIDDEN:
+                        problems.append(f"{label}: {tool} ({source}) is never available")
+                    elif tool not in available:
+                        problems.append(f"{label}: {tool} ({source}) used before it is installed")
+            available |= _provides({"run": line})
+            if ".venv/bin" in line and "GITHUB_PATH" in line and "uv sync" in run:
+                available.add("python-yaml")
     return problems
 
 
@@ -195,6 +209,18 @@ def test_the_rule_sees_the_tools_it_is_about() -> None:
         ([{"run": ".github/scripts/log-to-d1.sh info x"}], ["jq"]),
         ([{"run": "bash .github/scripts/install-tool.sh awscli"}, {"run": "aws s3 ls"}], []),
         ([{"run": "echo 'use jq-style filters'  # jq in a comment"}], []),
+        ([{"run": "jq . f\nbash .github/scripts/install-tool.sh jq"}], ["jq"]),
+        ([{"run": "bash .github/scripts/install-tool.sh jq\njq . f"}], []),
+        (
+            [
+                {
+                    "run": "python3 .github/scripts/generate-services-tfvars.py\n"
+                    "uv sync --frozen\n"
+                    'echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"'
+                }
+            ],
+            ["python-yaml"],
+        ),
         ([{"run": "uv run python -m nexus_deploy s3-snapshot"}], ["cloudflared"]),
         ([{"run": "ssh -o BatchMode=yes nexus true"}], ["cloudflared"]),
         (
