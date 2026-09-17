@@ -266,3 +266,14 @@ def test_the_ci_job_installs_what_the_lifecycle_jobs_install() -> None:
     ci_steps = _load(WORKFLOWS / "job-image-toolchain.yaml")["jobs"]["toolchain"]["steps"]
     ci_installed = set().union(*(_provides(s) for s in ci_steps))
     assert installed <= ci_installed, installed - ci_installed
+
+
+def test_python_tests_run_when_the_guarded_files_change() -> None:
+    """These tests guard workflows, actions and scripts. If CI skipped
+    them for a pull request that touches only those, the guard would not
+    run for exactly the changes it exists for."""
+    wf: dict[Any, Any] = _load(WORKFLOWS / "python-tests.yml")
+    triggers = wf["on"] if "on" in wf else wf[True]  # PyYAML reads `on` as True
+    for event in ("pull_request", "push"):
+        paths = set(triggers[event]["paths"])
+        assert {".github/workflows/**", ".github/actions/**", ".github/scripts/**"} <= paths, event
