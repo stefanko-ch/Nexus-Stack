@@ -43,6 +43,26 @@ runner:
     - "ubuntu-latest:docker://node:22-bookworm"
     - "ubuntu-22.04:docker://node:22-bookworm"
 
+  # Handed to every job container. The forge's CI address is TLS with a
+  # certificate this server generated (#888), so each client a lifecycle
+  # workflow uses has to be told where to find the trust bundle —
+  # there is no single variable all of them read. The file is the
+  # system CAs plus ours, so public HTTPS keeps working through the
+  # same setting.
+  #
+  #   git        clones and fetches from the forge
+  #   curl       scripts/repo-secret.sh, the step #888 is about
+  #   node       actions/checkout and every other JS action
+  #   python     PyYAML-era scripts do not fetch, but boto3/requests in
+  #              a workflow would
+  #   Go         anything the job builds or runs that talks to the forge
+  envs:
+    GIT_SSL_CAINFO: /nexus-ci/ca-bundle.crt
+    CURL_CA_BUNDLE: /nexus-ci/ca-bundle.crt
+    NODE_EXTRA_CA_CERTS: /nexus-ci/ca-bundle.crt
+    REQUESTS_CA_BUNDLE: /nexus-ci/ca-bundle.crt
+    SSL_CERT_FILE: /nexus-ci/ca-bundle.crt
+
 cache:
   enabled: true
   # Explicit path inside the bind mount. Left empty it would default to
@@ -62,12 +82,18 @@ container:
   # docs/stacks/forgejo-runner.md.
   network: ""
 
-  # Jobs clone from http://forgejo:3000, the address the runner is
+  # Jobs clone from https://forgejo-tls:3443, the address the runner is
   # registered with, and that name does not exist on a job's network
   # (#679). This maps it to forgejo-git-proxy's fixed address on
-  # forgejo-ci, which forwards to the forge. The address is set in
-  # docker-compose.yml.
-  options: "--add-host=forgejo:10.213.0.10"
+  # forgejo-ci, which terminates TLS and forwards to the forge, and
+  # mounts the trust bundle at the path `runner.envs` above names. The
+  # address is set in docker-compose.yml.
+  #
+  # The mount's source is resolved by forgejo-dind, not by the host, so
+  # the path is the one docker-compose.yml puts the bundle at inside
+  # THAT container. It is the public certificate and the public CA
+  # store; the proxy's private key is not in this container at all.
+  options: "--add-host=forgejo-tls:10.213.0.10 -v /nexus-ci/ca-bundle.crt:/nexus-ci/ca-bundle.crt:ro"
 
   # Task containers stay unprivileged. Only forgejo-dind is privileged,
   # and that is the boundary — jobs run against it, not as it.
@@ -80,6 +106,32 @@ container:
   # forgejo-dind has no TCP listener a job could reach instead.
   docker_host: "-"
 
-  # No host paths may be bind-mounted by a workflow. An empty list is
-  # the closed default; '**' would be the open one.
-  valid_volumes: []
+  # The CI trust bundle, and nothing else. An empty list is the closed
+  # default and '**' the open one; this is one exact path, not a glob.
+  #
+  # It has to be listed, and that is not a style choice: this list
+  # governs the volumes in `options` above as well, so with an empty
+  # list the runner silently drops the mount and every job gets the
+  # variables in `runner.envs` pointing at a file that is not there —
+  # measured, as `Ignoring extra certs from /nexus-ci/ca-bundle.crt,
+  # load failed: No such file or directory` and a failed checkout. The
+  # runner's own generate-config says as much: "If the sequence is
+  # empty, no volumes can be mounted", and its example for this pair
+  # is the same shape, `--volume /etc/ssl/certs:/etc/ssl/certs:ro`.
+  #
+  # What a workflow gains by naming it: read access to a public
+  # certificate store, which every job already has mounted anyway.
+  # What it does not gain is write access. forgejo-dind holds this
+  # file through a read-only bind of its own, so a job asking for
+  # `:rw` is refused by the kernel, not by policy — measured: `can't
+  # create /nexus-ci/ca-bundle.crt: Read-only file system`, with the
+  # host file unchanged. That matters, because the file it would
+  # otherwise be writing to is the trust store of every later job and
+  # of the runner itself.
+  #
+  # Widening this list is how a workflow gets to name host paths, which
+  # is the thing the closed default exists to prevent. One file whose
+  # contents are public and whose mount is read-only is the narrowest
+  # opening that makes TLS work at all.
+  valid_volumes:
+    - /nexus-ci/ca-bundle.crt

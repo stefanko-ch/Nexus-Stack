@@ -34,7 +34,10 @@ Public surface:
   Gitea: ``gitea/{repos,lfs}`` (uid 1000) + ``gitea/db`` (uid 70).
   Forgejo: same shape as Gitea. The Actions runner gets its own
   tree at ``forgejo-runner`` (uid 1001, the upstream image's user)
-  because it is a separate, opt-in stack.
+  because it is a separate, opt-in stack, plus the CI proxy's TLS
+  certificate and trust bundle at ``forgejo-ci-tls`` — generated
+  here because nginx needs the files to exist before compose up
+  (#888).
   Dify: ``dify/db`` (uid 70 for postgres-alpine) + ``dify/redis``
   (uid 999 for redis-alpine) + ``dify/{storage,weaviate,plugins}``
   (mkdir only — those containers run as root). Called by the
@@ -542,6 +545,69 @@ chown -R 70:70 "$MOUNT_POINT/forgejo/db"
 mkdir -p "$MOUNT_POINT/forgejo-runner"
 chown -R 1001:1001 "$MOUNT_POINT/forgejo-runner"
 
+# --- Forgejo Actions runner: TLS material for the CI git proxy ------
+# A job's GITHUB_API_URL is the address the runner registered with, and
+# scripts/repo-secret.sh refuses to send a repository-write token to a
+# cleartext URL that is not loopback (#888). So forgejo-git-proxy
+# listens with TLS, and this is where its certificate comes from.
+#
+# Generated here, not in the container, because it must exist before
+# compose up: nginx exits on a missing ssl_certificate, and a bind
+# mount of a file that is absent on the host makes Docker create a
+# DIRECTORY in its place, which nginx then cannot read either.
+#
+# Self-signed and its own trust anchor. Nothing outside this box ever
+# sees it: the name it certifies, `forgejo-tls`, resolves only on the
+# forgejo-ci network, and no public CA would certify it in any case.
+#
+# Created unconditionally, like the runner's own directory above: the
+# stack is opt-in, and 3 files nobody reads cost nothing.
+CI_TLS="$MOUNT_POINT/forgejo-ci-tls"
+mkdir -p "$CI_TLS"
+chmod 0755 "$CI_TLS"
+
+# Regenerate when absent, unreadable, or inside its last 30 days. A
+# container reads the certificate at startup, and every spin-up
+# recreates the containers, so a renewal here is picked up without any
+# further step.
+# `-checkend` prints "Certificate will not expire" on stdout in the
+# common case, so both streams go nowhere and only the exit status is
+# read. The deploy log says something when a certificate is written,
+# not on every spin-up that finds a good one.
+if ! openssl x509 -checkend 2592000 -noout -in "$CI_TLS/proxy.crt" >/dev/null 2>&1; then
+  openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \\
+    -keyout "$CI_TLS/proxy.key.tmp" -out "$CI_TLS/proxy.crt.tmp" \\
+    -subj "/CN=forgejo-tls" \\
+    -addext "subjectAltName=DNS:forgejo-tls,IP:10.213.0.10" \\
+    -addext "basicConstraints=critical,CA:TRUE,pathlen:0" \\
+    -addext "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign" \\
+    -addext "extendedKeyUsage=serverAuth" 2>/dev/null
+  chmod 0600 "$CI_TLS/proxy.key.tmp"
+  chmod 0644 "$CI_TLS/proxy.crt.tmp"
+  # Renamed only once both halves exist, so a failed openssl cannot
+  # leave a certificate behind that no key matches.
+  mv "$CI_TLS/proxy.key.tmp" "$CI_TLS/proxy.key"
+  mv "$CI_TLS/proxy.crt.tmp" "$CI_TLS/proxy.crt"
+  echo "  generated a CI TLS certificate for forgejo-tls (valid 10 years)" >&2
+  rm -f "$CI_TLS/bundle.crt"
+fi
+
+# The trust bundle the runner and every job container get: the system
+# CAs FIRST, then ours. Both halves are needed — the runner fetches
+# actions from data.forgejo.org over public TLS with this same bundle,
+# so a bundle holding only our certificate would break every
+# `uses:` step.
+if [ ! -s "$CI_TLS/bundle.crt" ]; then
+  if [ ! -r /etc/ssl/certs/ca-certificates.crt ]; then
+    echo "❌ ERROR: no system CA bundle at /etc/ssl/certs/ca-certificates.crt" >&2
+    echo "   Forgejo Actions jobs would trust the CI proxy and nothing else." >&2
+    exit 1
+  fi
+  cat /etc/ssl/certs/ca-certificates.crt "$CI_TLS/proxy.crt" > "$CI_TLS/bundle.crt.tmp"
+  chmod 0644 "$CI_TLS/bundle.crt.tmp"
+  mv "$CI_TLS/bundle.crt.tmp" "$CI_TLS/bundle.crt"
+fi
+
 # --- Dify bind-mount sources --------------------------------------
 # dify-db is postgres:15-alpine (uid 70). dify-redis is redis:6-
 # alpine which uses uid 999. The other three Dify mounts (storage,
@@ -558,7 +624,7 @@ mkdir -p "$MOUNT_POINT/dify/db" "$MOUNT_POINT/dify/redis" "$MOUNT_POINT/dify/sto
 chown -R 70:70 "$MOUNT_POINT/dify/db"
 chown -R 999:999 "$MOUNT_POINT/dify/redis"
 
-echo "  ensured data-dir ownership under $MOUNT_POINT/{gitea,forgejo,dify}" >&2
+echo "  ensured data-dir ownership under $MOUNT_POINT/{gitea,forgejo,forgejo-runner,dify}" >&2
 """
 
 

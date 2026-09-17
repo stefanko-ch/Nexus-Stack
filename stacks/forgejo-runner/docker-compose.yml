@@ -37,22 +37,43 @@
 #      `valid_volumes: []`, so the runner does not hand a job container
 #      a Docker socket and a workflow may not name host paths.
 #
-# HOW A JOB REACHES THE FORGE (#679):
-# The runner is registered with http://forgejo:3000 and passes that
-# address to every job, which clones from it. A job container lives on a
-# network that forgejo-dind creates, where the name `forgejo` does not
-# exist — measured on the first Conductor deploy: `Could not resolve
-# host: forgejo`. So:
+# HOW A JOB REACHES THE FORGE (#679, #888):
+# The runner is registered with https://forgejo-tls:3443 and passes that
+# address to every job, which clones from it and reads it as
+# GITHUB_API_URL. A job container lives on a network that forgejo-dind
+# creates, where the forge's own name does not exist — measured on the
+# first Conductor deploy: `Could not resolve host: forgejo`. So:
 #   - forgejo-ci has a fixed subnet, and forgejo-git-proxy a fixed
-#     address on it;
-#   - runner-config.yml adds `--add-host=forgejo:<that address>` to every
-#     job container;
-#   - forgejo-git-proxy forwards port 3000 to the real forge over
-#     app-network.
-# The address the runner registered with does not change, so an
-# existing .runner stays valid. Job traffic leaves forgejo-dind through
-# its interface on forgejo-ci, which is why these fixed addresses are
-# reachable from a job at all.
+#     address on it, with the network alias `forgejo-tls`;
+#   - runner-config.yml adds `--add-host=forgejo-tls:<that address>` to
+#     every job container;
+#   - forgejo-git-proxy terminates TLS on 3443 and forwards to the real
+#     forge over app-network.
+# The address the runner registered with does not change between
+# deploys, so an existing .runner stays valid — and when it does change,
+# the entrypoint below notices and rewrites the file.
+# Job traffic leaves forgejo-dind through its interface on forgejo-ci,
+# which is why these fixed addresses are reachable from a job at all.
+#
+# WHY TLS RATHER THAN PLAIN HTTP (#888):
+# That URL is also what scripts/repo-secret.sh gets as GITHUB_API_URL,
+# and it refuses to send a repository-write token to a cleartext URL
+# that is not loopback. This is not loopback: the connection crosses
+# two Docker bridges, and a container on either of them can watch it.
+# The alternative — an opt-in flag that switches the refusal off — is
+# a promise rather than a protection, so the proxy speaks TLS instead
+# and the guard stays as written.
+#
+# The certificate is self-signed, names `forgejo-tls` only, and is
+# generated per server by nexus_deploy.setup (ensure_data_dirs), which
+# runs before compose up. Three containers use the result:
+#   - forgejo-git-proxy serves proxy.crt/proxy.key;
+#   - forgejo-runner trusts bundle.crt (system CAs + ours), so it can
+#     both poll the forge and still fetch actions from data.forgejo.org;
+#   - forgejo-dind holds bundle.crt at a path runner-config.yml mounts
+#     into every job container. A job's bind mounts are resolved by
+#     THAT daemon's filesystem, not the host's, which is why the file
+#     has to be in this container at all.
 #
 # NOT mitigated, and the reason this stack is separable in the first
 # place: forgejo-dind runs `privileged: true` with dockerd as root.
@@ -117,6 +138,11 @@ services:
     volumes:
       - forgejo-dind-data:/var/lib/docker
       - forgejo-dind-socket:/run/dind
+      # The CI trust bundle, at the path runner-config.yml mounts into
+      # each job container. Only the bundle: the proxy's private key
+      # sits in the same host directory and has no business in the
+      # daemon that runs untrusted code.
+      - /mnt/nexus-data/forgejo-ci-tls/bundle.crt:/nexus-ci/ca-bundle.crt:ro
     networks:
       # The network job traffic leaves through. Its address is not
       # fixed; nothing connects to it.
@@ -128,18 +154,24 @@ services:
       retries: 5
       start_period: 30s
 
-  # The forge, as seen from a job: port 3000 on a fixed address that
-  # runner-config.yml maps the name `forgejo` to. A TCP forward and
-  # nothing more, so clone, API and artifact uploads all pass unchanged.
+  # The forge, as seen from a job: TLS on port 3443 at a fixed address
+  # that runner-config.yml maps the name `forgejo-tls` to. A TCP forward
+  # and nothing more, so clone, API and artifact uploads all pass
+  # unchanged.
   forgejo-git-proxy:
     image: ${IMAGE_FORGEJO_GIT_PROXY:-nginx:1.30.4-alpine}
     container_name: forgejo-git-proxy
     restart: unless-stopped
     volumes:
       - ./git-proxy.conf:/etc/nginx/nginx.conf:ro
+      # Read-only, and the whole directory rather than two files: nginx
+      # reads the key as root before dropping privileges, and a
+      # regenerated certificate replaces the files by rename, which a
+      # single-file bind mount would not follow.
+      - /mnt/nexus-data/forgejo-ci-tls:/etc/nginx/tls:ro
     mem_limit: 64m
     healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 3000 || exit 1"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 3443 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -148,6 +180,16 @@ services:
       app-network: {}
       forgejo-ci:
         ipv4_address: 10.213.0.10
+        # The name the certificate is issued for. The runner resolves
+        # it through Docker's DNS; a job container gets it as an
+        # --add-host entry, because it is on neither of these networks.
+        #
+        # Deliberately NOT `forgejo`: the runner is also on
+        # app-network, where that name is the forge itself. One name
+        # with two answers, picked per lookup, is the kind of fault
+        # that shows up once a month.
+        aliases:
+          - forgejo-tls
 
   forgejo-runner:
     image: ${IMAGE_FORGEJO_RUNNER:-data.forgejo.org/forgejo/runner:13.0.0}
@@ -162,6 +204,12 @@ services:
       # else in this stack should see the registration secret.
       FORGEJO_INSTANCE_URL: ${FORGEJO_INSTANCE_URL}
       FORGEJO_RUNNER_SECRET: ${FORGEJO_RUNNER_SECRET}
+      # The runner is a Go program, and Go reads SSL_CERT_FILE. It
+      # needs this for both directions of its work: the forge, whose
+      # certificate is ours, and data.forgejo.org, where it fetches
+      # actions from — which is why the bundle carries the system CAs
+      # as well and not only our certificate.
+      SSL_CERT_FILE: /nexus-ci/ca-bundle.crt
     # Offline registration: OpenTofu generates one 40-hex secret and both
     # sides receive it, so no human ever pastes a single-use token out of
     # the web UI. `create-runner-file` is deterministic — same secret in,
@@ -176,15 +224,25 @@ services:
     command:
       - |
         set -e
-        # Only on first boot. `create-runner-file` is deterministic —
-        # same secret in, same .runner out — so re-running it changes
-        # nothing, and skipping it keeps the secret out of argv on
-        # every restart after the first.
+        # On first boot, and again whenever the instance URL changed.
+        # `create-runner-file` is deterministic — same secret in, same
+        # .runner out — so re-running it changes nothing else, and
+        # skipping it keeps the secret out of argv on every restart in
+        # between.
         #
-        # It cannot be kept out of argv entirely: `create-runner-file`
-        # accepts the secret only as `--secret <value>`, with no stdin
-        # or file variant. The server-side half has both and uses them.
-        if [ ! -f /data/.runner ]; then
+        # The URL check is what makes #888 deployable: .runner records
+        # the address it was written for, the daemon uses that address
+        # and not the environment, so an existing file would keep the
+        # runner on the old http URL for as long as the file survives —
+        # and /data is a bind mount that outlives the container.
+        # `grep -F` on a file, not a pipe: no early reader, no SIGPIPE
+        # under a future `pipefail` (#883).
+        #
+        # The secret cannot be kept out of argv entirely:
+        # `create-runner-file` accepts it only as `--secret <value>`,
+        # with no stdin or file variant. The server-side half has both
+        # and uses them.
+        if [ ! -f /data/.runner ] || ! grep -qF "\"$${FORGEJO_INSTANCE_URL}\"" /data/.runner; then
           forgejo-runner create-runner-file \
             --instance "$${FORGEJO_INSTANCE_URL}" \
             --name nexus-runner \
@@ -206,6 +264,11 @@ services:
       - /mnt/nexus-data/forgejo-runner:/data
       - ./runner-config.yml:/data/runner-config.yml:ro
       - forgejo-dind-socket:/run/dind
+      # The trust bundle only. The proxy's private key lives in the
+      # same host directory, and the runner has no use for it. A
+      # renewed certificate reaches this container when the container
+      # is recreated, which is every spin-up.
+      - /mnt/nexus-data/forgejo-ci-tls/bundle.crt:/nexus-ci/ca-bundle.crt:ro
     networks:
       # app-network to reach the forge, which lives in the `forgejo`
       # stack. forgejo-ci only for the cache server the runner starts

@@ -2985,14 +2985,26 @@ def test_forgejo_renders_every_key_the_compose_reads(
 def test_forgejo_runner_instance_url_is_in_cluster_not_public(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """The runner reaches the forge over app-network — they are separate
-    stacks. A public URL would route it through the tunnel and
-    Cloudflare Access, which it cannot satisfy."""
+    """The runner reaches the forge through the CI proxy in its own
+    stack. A public URL would route it through the tunnel and
+    Cloudflare Access, which it cannot satisfy.
+
+    TLS to a name only this server resolves, and both halves matter
+    (#888): the runner hands this URL to every job as GITHUB_API_URL,
+    and repo-secret.sh refuses to send a repository-write token to a
+    cleartext URL that is not loopback."""
     from nexus_deploy.service_env import _render_forgejo_runner
 
     rendered = _render_forgejo_runner(full_config, full_env)
-    assert rendered.env_vars["FORGEJO_INSTANCE_URL"] == "http://forgejo:3000"
-    assert "https://" not in rendered.env_vars["FORGEJO_INSTANCE_URL"]
+    url = rendered.env_vars["FORGEJO_INSTANCE_URL"]
+    assert url == "https://forgejo-tls:3443"
+    # The two properties the URL is chosen for, stated rather than
+    # implied by the literal above: scheme, and a host that is neither
+    # public nor the forge's own name on app-network.
+    assert url.startswith("https://")
+    assert full_env.domain, "the fixture must carry a domain for this to mean anything"
+    assert full_env.domain not in url
+    assert "//forgejo:" not in url
 
 
 def test_forgejo_runner_env_carries_only_what_the_runner_needs(

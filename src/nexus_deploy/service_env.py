@@ -1822,9 +1822,21 @@ def _render_forgejo_runner(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     while its CI can never work.
 
     ``FORGEJO_INSTANCE_URL`` is the in-cluster address, not the public
-    one. The runner reaches the forge over ``app-network`` — the two
-    live in different stacks — and must not depend on the tunnel or on
-    satisfying Cloudflare Access, which it cannot do.
+    one. The runner reaches the forge through the CI proxy in its own
+    stack, and must not depend on the tunnel or on satisfying
+    Cloudflare Access, which it cannot do.
+
+    It is ``https`` to a name only this server resolves, and both
+    halves are load-bearing (#888). The runner hands this exact URL to
+    every job as ``GITHUB_SERVER_URL`` and ``GITHUB_API_URL``, and
+    ``scripts/repo-secret.sh`` refuses to send a repository-write
+    token to a cleartext URL that is not loopback — so a job on a
+    Forgejo runner could not store the R2 credentials its own
+    first-time setup generates. ``forgejo-tls`` rather than ``forgejo``
+    because the runner sits on two networks and the latter name is
+    already the forge itself on one of them; the certificate, issued
+    for this name by ``setup.ensure_data_dirs``, would not match it
+    either.
 
     0600 because the file holds the registration credential in
     cleartext, the same reason SFTPGo's env is.
@@ -1834,7 +1846,7 @@ def _render_forgejo_runner(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(
         env_vars={
             "FORGEJO_RUNNER_SECRET": c.forgejo_runner_secret or "",
-            "FORGEJO_INSTANCE_URL": "http://forgejo:3000",
+            "FORGEJO_INSTANCE_URL": "https://forgejo-tls:3443",
         },
         mode=0o600,
     )
