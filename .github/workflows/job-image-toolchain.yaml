@@ -41,9 +41,16 @@ jobs:
     # tests/unit/test_job_toolchain.py keeps the two in step.
     container:
       image: node:22-bookworm
+    # A container job on GitHub defaults to `sh`; the Forgejo runner runs
+    # these steps with bash, and so does this job.
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        # Pinned as #652 asks for added `uses:` lines. The same commit is on
+        # data.forgejo.org, which a Forgejo runner resolves actions from.
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
 
@@ -72,7 +79,7 @@ jobs:
         run: bash .github/scripts/install-opentofu.sh
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
         with:
           version: "0.11.7"
           enable-cache: true

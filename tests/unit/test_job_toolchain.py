@@ -253,6 +253,9 @@ def test_the_ci_job_uses_the_runners_job_image() -> None:
     assert len(images) == 1, images
     ci = _load(WORKFLOWS / "job-image-toolchain.yaml")
     assert ci["jobs"]["toolchain"]["container"]["image"] == images.pop()
+    # A container job defaults to `sh` on GitHub; the Forgejo runner uses
+    # bash, and `set -o pipefail` needs it (the first run failed on that).
+    assert ci["jobs"]["toolchain"]["defaults"]["run"]["shell"] == "bash"
 
 
 def test_the_ci_job_installs_what_the_lifecycle_jobs_install() -> None:

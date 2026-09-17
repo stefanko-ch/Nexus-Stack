@@ -199,8 +199,9 @@ jobs:
 
       - name: Install uv
         # sync-deployed-state.sh and sync-firewall-rules.sh import PyYAML;
-        # the project environment provides it (#884).
-        uses: astral-sh/setup-uv@v3
+        # the project environment provides it (#884). Pinned as #652 asks for
+        # added `uses:` lines; the commit is also on data.forgejo.org.
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
         with:
           version: "0.11.7"
           enable-cache: true
