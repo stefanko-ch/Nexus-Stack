@@ -37,6 +37,22 @@ _EARLY_READER = re.compile(
 )
 
 
+def _strip_comment(line: str) -> str:
+    """Drop a shell comment: a `#` outside quotes that starts a word.
+    A `#` inside quotes, or inside a word such as `${#x}` or `a#b`, is
+    code, and what follows it must still be checked."""
+    quote = ""
+    for i, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "#" and (i == 0 or line[i - 1] in " \t;|&("):
+            return line[:i]
+    return line
+
+
 def _logical_lines(text: str) -> list[tuple[int, str]]:
     """Comment-stripped shell lines with continuations joined, so a pipe
     split across a trailing backslash, or continued on a line that starts
@@ -44,7 +60,7 @@ def _logical_lines(text: str) -> list[tuple[int, str]]:
     out: list[tuple[int, str]] = []
     continued = False
     for n, raw in enumerate(text.splitlines(), 1):
-        code = raw.split("#", 1)[0].strip()
+        code = _strip_comment(raw).strip()
         joins = out and (continued or code.startswith("|"))
         continued = code.endswith("\\")
         code = code.removesuffix("\\").strip()
@@ -107,6 +123,11 @@ def test_scripts_do_not_pipe_into_an_early_reader(script: Path) -> None:
         ('echo "$R" | grep -E "^[-*]" >/dev/null', False),
         ('git log --oneline -20 "$A..$B" >&2', False),
         ("echo x | grep -c .  # head -1 in a comment", False),
+        ('curl -H "X-Tag: #1" "$U" | head -n 1', True),
+        ("printf '%s' '#x' | grep -q x", True),
+        ('echo "${#ARR[@]}" | head -1', True),
+        ("# echo x | head -1", False),
+        ("x=1  # comment with 'an odd quote", False),
     ],
 )
 def test_the_early_reader_rule_itself(snippet: str, flagged: bool) -> None:
