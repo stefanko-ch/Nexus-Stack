@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.82.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.82.0...v0.82.1) (2026-09-17)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Install every lifecycle tool the job image may lack ([#886](https://github.com/stefanko-ch/Nexus-Stack/issues/886)) ([7860833](https://github.com/stefanko-ch/Nexus-Stack/commit/7860833849f0abe778d21b88fefd765d76b2016a))
+* **ci:** Keep early-exiting readers off pipes under pipefail ([#885](https://github.com/stefanko-ch/Nexus-Stack/issues/885)) ([7dbd206](https://github.com/stefanko-ch/Nexus-Stack/commit/7dbd206a960c87527196e8a0951358d979f1a4cf))
+
 ## [0.82.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.81.1...v0.82.0) (2026-09-16)
 
 
