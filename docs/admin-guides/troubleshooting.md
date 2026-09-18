@@ -377,6 +377,53 @@ updated. Deleting by marker rather than by hostname also leaves alone any
 mapping for the same host that was there for another reason and that you did
 not put there.
 
+## A workflow on a Forgejo runner refuses to store a secret
+
+A lifecycle run on a Forgejo-hosted fork stops with:
+
+```text
+repo-secret.sh: refusing to send GH_TOKEN in cleartext to http://forgejo:3000/api/v1
+repo-secret.sh: use https, or point GITHUB_API_URL at loopback if the forge runs on this host
+```
+
+The step is doing the right thing. `GITHUB_API_URL` inside a Forgejo job
+is the address the runner registered with, and that token may write every
+repository secret, so the script will not put it on a cleartext
+connection that is not loopback. A first-time Setup Control Plane run
+hits this while storing the R2 credentials it has just minted.
+
+**Cause:** the runner is registered with the old plaintext address. Since
+#888 the CI proxy serves TLS on `https://forgejo-tls:3443` and the
+runner registers with that.
+
+**Fix:** run a spin-up on a release that contains #888. Nothing has to be
+done by hand — `ensure_data_dirs` writes the certificate before the
+containers start, and the runner's entrypoint notices that its `.runner`
+file still names the old address and rewrites it. The token stays the
+same, so the registration on the forge remains valid.
+
+**To confirm afterwards**, from a job or from the runner:
+
+```bash
+ssh nexus "docker exec forgejo-runner cat /data/.runner" | grep address
+ssh nexus "docker logs forgejo-runner --tail 5"          # expect: declared successfully
+```
+
+If the runner instead restart-loops with a TLS error, check that the
+certificate and bundle exist and that the proxy is serving:
+
+```bash
+ssh nexus "ls -l /mnt/nexus-data/forgejo-ci-tls/"        # proxy.crt, proxy.key, bundle.crt
+ssh nexus "docker logs forgejo-git-proxy --tail 20"
+```
+
+`bundle.crt` is the system CA store with our certificate appended, so it
+is a few hundred kilobytes rather than a few. A server with no system
+store does not get a narrower bundle: the deploy stops at
+`no system CA bundle at /etc/ssl/certs/ca-certificates.crt`, because
+jobs would otherwise fail on every public HTTPS call. Deleting the three
+files and re-running the spin-up regenerates them.
+
 ## General Tips
 
 ### SSH Access Issues

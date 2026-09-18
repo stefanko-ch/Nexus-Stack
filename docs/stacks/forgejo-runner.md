@@ -31,7 +31,7 @@ title: "Forgejo Runner"
 |---|---|
 | `forgejo-runner` | Polls Forgejo for jobs and drives the daemon below |
 | `forgejo-dind` | The Docker daemon those jobs actually run in |
-| `forgejo-git-proxy` | Forwards port 3000 from the CI network to the forge, so jobs can clone |
+| `forgejo-git-proxy` | Terminates TLS on the CI network and forwards to the forge, so jobs can clone |
 
 The runner drives `forgejo-dind` through a **unix socket** in a volume
 that only those two containers mount. `forgejo-dind` has no TCP
@@ -44,7 +44,7 @@ fixed because jobs are told about them:
 
 | Address | Container | What a job uses it for |
 |---|---|---|
-| `10.213.0.10` | `forgejo-git-proxy` | `forgejo:3000`: clone, API, artifacts |
+| `10.213.0.10` | `forgejo-git-proxy` | `forgejo-tls:3443`: clone, API, artifacts |
 | `10.213.0.11` | `forgejo-runner` | the Actions cache (`ACTIONS_CACHE_URL`) |
 
 The subnet lies outside Docker's default address pools (`172.17–31.x`,
@@ -54,28 +54,87 @@ would capture the traffic meant for these addresses.
 
 ### How a job reaches the forge
 
-The runner is registered with `http://forgejo:3000` and passes that
-address to every job. `actions/checkout` clones from it.
+The runner is registered with `https://forgejo-tls:3443` and passes that
+address to every job, as `GITHUB_SERVER_URL` and `GITHUB_API_URL`.
+`actions/checkout` clones from it.
 
 A job container runs on a network that `forgejo-dind` creates, where the
-name `forgejo` does not exist. The first Conductor deploy failed exactly
-there (#679):
+forge's own name does not exist. The first Conductor deploy failed
+exactly there (#679):
 
 ```text
 fatal: unable to access 'http://forgejo:3000/…/': Could not resolve host: forgejo
 ```
 
-`runner-config.yml` therefore adds `--add-host=forgejo:10.213.0.10` to
-every job container, and `forgejo-git-proxy` forwards that port to the
-real forge over `app-network`. The registered address stays the same,
-so an existing runner keeps its `.runner` file.
+`runner-config.yml` therefore adds `--add-host=forgejo-tls:10.213.0.10`
+to every job container, and `forgejo-git-proxy` terminates TLS there and
+forwards to the real forge over `app-network`.
 
-Verified on 2026-09-16 with a real job, on a stack first brought up
-from the previous revision and then updated in place:
+The name is `forgejo-tls`, not `forgejo`, for one reason: the runner is
+on `app-network` as well, where `forgejo` is the forge itself. One name
+with two answers, resolved per lookup, is a fault that surfaces once a
+month.
+
+#### Why TLS, on one host
+
+That URL is also what `scripts/repo-secret.sh` receives as
+`GITHUB_API_URL`, and it refuses to send a repository-write token to a
+cleartext URL that is not loopback. This is not loopback — the
+connection crosses two Docker bridges, and any container on either can
+watch it — so a first-time deploy on a Forgejo runner stopped when it
+tried to store the R2 credentials it had just minted (#888):
+
+```text
+repo-secret.sh: refusing to send GH_TOKEN in cleartext to http://forgejo:3000/api/v1
+```
+
+The alternative, a flag that switches the refusal off, is a promise
+rather than a protection. So the proxy speaks TLS and the guard stays
+as written.
+
+The certificate is **self-signed**, names `forgejo-tls` and
+`10.213.0.10` only, is valid for ten years, and never leaves the
+server. `nexus_deploy.setup.ensure_data_dirs` generates it into
+`/mnt/nexus-data/forgejo-ci-tls/` before the containers start — nginx
+exits on a missing `ssl_certificate`, and Docker turns an absent bind
+source into a directory, so a container could not create it for
+itself. It is regenerated when it is missing or inside its last 30
+days; the containers read it at startup, and every spin-up recreates
+them.
+
+Three containers use the result:
+
+| Container | Gets | For |
+|---|---|---|
+| `forgejo-git-proxy` | the directory, read-only | serving `proxy.crt` with `proxy.key` |
+| `forgejo-runner` | `bundle.crt` only, as `SSL_CERT_FILE` | polling the forge, and fetching actions from data.forgejo.org |
+| `forgejo-dind` | `bundle.crt` only, read-only | the path it mounts into every job container |
+
+`bundle.crt` is the **system CA store plus our certificate**. Both
+halves are needed: a job's `CURL_CA_BUNDLE` replaces the system store
+rather than adding to it, so a bundle holding only our certificate
+would break every public HTTPS call a job makes. A server without
+`/etc/ssl/certs/ca-certificates.crt` fails the deploy rather than
+getting a narrower bundle.
+
+A job container is told where the bundle is through five variables,
+because no single one covers every client:
+`GIT_SSL_CAINFO`, `CURL_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`,
+`REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE`.
+
+The forge's own hop, from the proxy to `forgejo:3000` over
+`app-network`, stays plaintext. That is the hop every other stack uses
+to reach the forge, and it is not what the guard is about: from the job
+to the proxy the token is encrypted, and past the proxy the traffic is
+indistinguishable from Kestra's or Woodpecker's.
+
+#### Measured
+
+Verified on 2026-09-16 with a real job on the server, on a stack first
+brought up from the previous revision and then updated in place:
 
 | Check from inside the job | Result |
 |---|---|
-| `getent hosts forgejo` | `10.213.0.10` |
 | `actions/checkout@v5` | the repository's files are present |
 | `actions/cache@v4` | `Cache saved successfully` via `http://10.213.0.11:…` |
 | `GET /version` on port 2375 at the job's gateway and at `10.213.0.1`–`.5` | no connection |
@@ -83,6 +142,33 @@ from the previous revision and then updated in place:
 
 The in-place update needed nothing by hand. `docker compose up -d`
 recreated `forgejo-ci` with the new subnet and restarted the containers.
+
+The TLS half was rehearsed on 2026-09-17 against a local copy of the
+whole stack — the real compose file, proxy config and runner config,
+a real forge, a real runner and a real job:
+
+| Check | Result |
+|---|---|
+| runner registers and polls over TLS | `declared successfully`, `[poller] launched` |
+| `GITHUB_SERVER_URL` / `GITHUB_API_URL` in the job | `https://forgejo-tls:3443`, `…/api/v1` |
+| `getent hosts forgejo-tls` | `10.213.0.10` |
+| `actions/checkout@v5` over TLS | the repository's files are present |
+| `curl "$GITHUB_API_URL/version"` | `200` |
+| `node` https to the same URL | `200` |
+| `repo-secret.sh set` + `delete` | both succeed — the step #888 is about |
+| public HTTPS from the job with `CURL_CA_BUNDLE` set (github.com, Cloudflare API, `install-tool.sh jq`) | `200`, answered, jq installed and checksum-verified |
+| a job mounting the bundle `:rw` and writing to it | refused, host file unchanged |
+| `.runner` holding the previous `http://forgejo:3000` | rewritten on start, same token, runner registered immediately |
+
+That last row is the upgrade path: `.runner` records the address it was
+written for and the daemon uses that, not the environment, and `/data`
+outlives the container. The entrypoint therefore rewrites the file when
+the two disagree. `create-runner-file` is deterministic — the same
+secret yields the same token — so the server-side registration stays
+valid and nothing has to be re-registered by hand.
+
+What the rehearsal does not show: a full lifecycle run. Only one on a
+fork does that.
 
 ### How the runner registers itself
 
@@ -256,10 +342,19 @@ What bounds the blast radius:
    connections to the addresses of containers on `app-network`
    (measured). `forgejo-ci` carries only `forgejo-dind`, the runner and
    `forgejo-git-proxy`, which forwards one port to one destination.
-3. **No socket, no host paths.** `runner-config.yml` keeps
-   `container.docker_host: "-"` and `valid_volumes: []`, so the runner
-   does not hand a job container a Docker socket and a workflow may not
-   name host paths to bind-mount.
+3. **No socket, and one host path.** `runner-config.yml` keeps
+   `container.docker_host: "-"`, so the runner never hands a job
+   container a Docker socket. `valid_volumes` holds exactly one entry,
+   `/nexus-ci/ca-bundle.crt` — the CI trust bundle, which every job
+   already has mounted. It has to be listed: that list governs the
+   volumes the runner's own `container.options` adds as well, so an
+   empty list drops the mount silently and every job gets `Ignoring
+   extra certs … No such file or directory`. A workflow naming it gains
+   read access to a public certificate store and nothing else:
+   `forgejo-dind` holds the file through a read-only bind of its own, so
+   a job asking for `:rw` is refused by the kernel — measured as `can't
+   create /nexus-ci/ca-bundle.crt: Read-only file system`, with the host
+   file unchanged. No other host path may be bind-mounted.
 
 **What jobs can still reach: ports the host publishes on all
 interfaces.** A job can connect to any port the host publishes on

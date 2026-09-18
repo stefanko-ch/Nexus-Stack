@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -1993,6 +1994,24 @@ def _ci_address(service: dict[str, Any]) -> str:
     return str(service["networks"]["forgejo-ci"]["ipv4_address"])
 
 
+def _ensure_data_dirs_script() -> str:
+    from nexus_deploy.setup import _ENSURE_DATA_DIRS_SCRIPT
+
+    return _ENSURE_DATA_DIRS_SCRIPT
+
+
+def _ci_tls_dir() -> str:
+    """Where the CI certificate lives, read from the script that writes
+    it rather than repeated here — so renaming it there without moving
+    the mounts fails the tests below."""
+    script = _ensure_data_dirs_script()
+    mount = re.search(r"^MOUNT_POINT=(\S+)", script, re.M)
+    tls = re.search(r'^CI_TLS="\$MOUNT_POINT/(\S+?)"', script, re.M)
+    assert mount, "ensure_data_dirs no longer declares MOUNT_POINT"
+    assert tls, "ensure_data_dirs no longer declares the CI TLS directory"
+    return f"{mount.group(1)}/{tls.group(1)}"
+
+
 def test_forgejo_dind_has_no_tcp_listener() -> None:
     """A job container could drive a TCP listener through its own gateway.
 
@@ -2033,34 +2052,257 @@ def test_forgejo_runner_and_dind_share_the_socket_and_nobody_else_does() -> None
     assert "--group=1001" in services["forgejo-dind"]["command"]
 
 
+def _runner_instance_url() -> str:
+    from nexus_deploy.config import NexusConfig
+    from nexus_deploy.infisical import BootstrapEnv
+    from nexus_deploy.service_env import _render_forgejo_runner
+
+    rendered = _render_forgejo_runner(NexusConfig(forgejo_runner_secret="0" * 40), BootstrapEnv())
+    return str(rendered.env_vars["FORGEJO_INSTANCE_URL"])
+
+
+def _proxy_conf_code() -> str:
+    conf = (STACKS_DIR / "forgejo-runner" / "git-proxy.conf").read_text()
+    return "\n".join(line.split("#", 1)[0] for line in conf.splitlines())
+
+
+def _volume_specs(service: dict[str, Any]) -> dict[str, tuple[str, str]]:
+    """``{container path: (host path, mode)}`` for one service's binds."""
+    out = {}
+    for volume in service.get("volumes") or []:
+        if not isinstance(volume, str):
+            continue
+        parts = volume.split(":")
+        out[parts[1]] = (parts[0], parts[2] if len(parts) > 2 else "rw")
+    return out
+
+
+# The variables a job gets, one per client that has to be told where the
+# trust store is. There is no single variable all of them read, which is
+# why this is a list and not a value.
+_CA_ENV_VARS = (
+    "GIT_SSL_CAINFO",
+    "CURL_CA_BUNDLE",
+    "NODE_EXTRA_CA_CERTS",
+    "REQUESTS_CA_BUNDLE",
+    "SSL_CERT_FILE",
+)
+
+
 def test_forgejo_jobs_resolve_the_forge_to_the_proxy() -> None:
     """Jobs clone from the address the runner is registered with.
 
     That name does not exist on a job's network — the first Conductor
     deploy failed with `Could not resolve host: forgejo`. The runner maps it
-    to forgejo-git-proxy, and the proxy must listen on the registered port
-    and forward to the forge.
+    to forgejo-git-proxy, and the proxy must listen on the registered port,
+    with TLS (#888), and forward to the forge.
     """
-    from nexus_deploy.config import NexusConfig
-    from nexus_deploy.infisical import BootstrapEnv
-    from nexus_deploy.service_env import _render_forgejo_runner
-
     services = _runner_compose()["services"]
     options = _runner_config()["container"]["options"]
 
-    rendered = _render_forgejo_runner(NexusConfig(forgejo_runner_secret="0" * 40), BootstrapEnv())
-    url = rendered.env_vars["FORGEJO_INSTANCE_URL"]
-    match = re.fullmatch(r"http://([a-z0-9-]+):(\d+)", url)
+    url = _runner_instance_url()
+    match = re.fullmatch(r"https://([a-z0-9-]+):(\d+)", url)
     assert match, url
     name, port = match.groups()
 
     assert f"--add-host={name}:{_ci_address(services['forgejo-git-proxy'])}" in options.split()
+    # The runner is on this network too and resolves the name through
+    # Docker's DNS rather than an --add-host entry.
+    assert name in services["forgejo-git-proxy"]["networks"]["forgejo-ci"]["aliases"]
 
-    conf = (STACKS_DIR / "forgejo-runner" / "git-proxy.conf").read_text()
-    code = "\n".join(line.split("#", 1)[0] for line in conf.splitlines())
-    assert re.search(rf"^\s*listen\s+{port};", code, re.M)
-    assert re.search(rf"set\s+\$forge\s+{name}:{port};", code)
+    code = _proxy_conf_code()
+    # `ssl` on the listener, not merely the port: without it the
+    # certificate below is configuration nobody reads, and every client
+    # would be talking cleartext to a port it believes is TLS.
+    assert re.search(rf"^\s*listen\s+{port}\s+ssl;", code, re.M)
+    assert re.search(r"set\s+\$forge\s+forgejo:3000;", code)
     assert "app-network" in services["forgejo-git-proxy"]["networks"]
+    # The healthcheck has to watch the port that is actually served.
+    assert port in services["forgejo-git-proxy"]["healthcheck"]["test"][-1]
+
+
+def test_the_ci_proxy_does_not_answer_for_the_forges_own_name() -> None:
+    """One name with two answers, resolved per lookup.
+
+    The runner sits on app-network as well, where `forgejo` is the forge
+    itself. Giving the proxy that alias on forgejo-ci would leave the
+    runner's own lookups to chance — and the certificate, issued for the
+    CI name, would not match half the answers.
+    """
+    proxy = _runner_compose()["services"]["forgejo-git-proxy"]
+    aliases = proxy["networks"]["forgejo-ci"]["aliases"]
+
+    assert "forgejo" not in aliases
+    host = re.sub(r"^https://|:\d+$", "", _runner_instance_url())
+    assert host != "forgejo"
+    # The forge's own name still has to be resolvable from the proxy —
+    # that is what it forwards to, over app-network.
+    assert re.search(r"set\s+\$forge\s+forgejo:", _proxy_conf_code())
+
+
+def test_every_job_gets_the_trust_bundle_its_environment_points_at() -> None:
+    """The env vars and the mount are one mechanism, in two files.
+
+    Set without the mount, every job gets variables naming a file that is
+    not there — measured, as `Ignoring extra certs from
+    /nexus-ci/ca-bundle.crt, load failed: No such file or directory`
+    followed by a failed checkout, because `valid_volumes` had not been
+    widened and the runner dropped the mount without a word.
+    """
+    config = _runner_config()
+    services = _runner_compose()["services"]
+
+    # KeyError here is the point: a client whose variable went missing
+    # falls back to the system store, which does not hold our certificate.
+    paths = {config["runner"]["envs"][var] for var in _CA_ENV_VARS}
+    assert len(paths) == 1, paths
+    (bundle_in_job,) = paths
+
+    tokens = shlex.split(config["container"]["options"])
+    volumes = [tokens[i + 1] for i, token in enumerate(tokens) if token == "-v"]
+    assert len(volumes) == 1, volumes
+    source, destination, mode = volumes[0].split(":")
+    assert destination == bundle_in_job
+    assert mode == "ro"
+
+    # `valid_volumes` governs the volumes in `options` as well, so an
+    # empty list silently drops this mount.
+    assert config["container"]["valid_volumes"] == [source]
+
+    # The mount's source is resolved by forgejo-dind, not by the host,
+    # so that container must hold the file at exactly this path — and
+    # read-only, which is what stops a job that asks for `:rw` from
+    # rewriting the trust store every later job and the runner use.
+    dind = _volume_specs(services["forgejo-dind"])
+    assert source in dind, sorted(dind)
+    host_path, dind_mode = dind[source]
+    assert dind_mode == "ro"
+    assert host_path.endswith("/bundle.crt")
+
+
+def test_the_runner_trusts_the_bundle_it_hands_to_jobs() -> None:
+    """Both directions of the runner's own work need it: the forge, whose
+    certificate is ours, and data.forgejo.org, where it fetches actions
+    from. Go reads SSL_CERT_FILE."""
+    runner = _runner_compose()["services"]["forgejo-runner"]
+
+    bundle = runner["environment"]["SSL_CERT_FILE"]
+    assert bundle in _volume_specs(runner)
+    host_path, mode = _volume_specs(runner)[bundle]
+    assert host_path.endswith("/bundle.crt")
+    assert mode == "ro"
+
+
+def test_only_the_ci_proxy_gets_the_private_key() -> None:
+    """The key belongs to the process that serves the certificate.
+
+    forgejo-dind runs untrusted code, and the runner has no use for it;
+    both get the bundle as a single file, from the same directory.
+    """
+    services = _runner_compose()["services"]
+    tls_dir = _ci_tls_dir()
+
+    for name in ("forgejo-dind", "forgejo-runner"):
+        for host_path, _mode in _volume_specs(services[name]).values():
+            if host_path.startswith(tls_dir):
+                assert host_path == f"{tls_dir}/bundle.crt", (name, host_path)
+
+    proxy = _volume_specs(services["forgejo-git-proxy"])
+    code = _proxy_conf_code()
+    for kind in ("ssl_certificate", "ssl_certificate_key"):
+        match = re.search(rf"^\s*{kind}\s+(\S+);", code, re.M)
+        assert match, kind
+        mountpoint, filename = match.group(1).rsplit("/", 1)
+        assert mountpoint in proxy, match.group(1)
+        host_dir, mode = proxy[mountpoint]
+        assert (host_dir, mode) == (tls_dir, "ro")
+        # And the file nginx names is one the script actually writes,
+        # under the variable it holds that directory in.
+        assert f'"$CI_TLS/{filename}"' in _ensure_data_dirs_script()
+
+
+def test_the_ci_certificate_names_the_host_the_runner_registers_with() -> None:
+    """A certificate for the wrong name fails every client at once, and
+    the material has to exist before compose up: nginx exits on a missing
+    ssl_certificate, and Docker turns an absent bind source into a
+    directory."""
+    script = _ensure_data_dirs_script()
+    services = _runner_compose()["services"]
+
+    host = re.sub(r"^https://|:\d+$", "", _runner_instance_url())
+    assert f"DNS:{host}" in script
+    # The proxy's fixed address as well, for a client that has only the
+    # address — the runner's `--add-host` gives jobs the name, but
+    # nothing stops a future caller from using the address.
+    assert f"IP:{_ci_address(services['forgejo-git-proxy'])}" in script
+
+    # System CAs first, ours appended. A bundle holding only our
+    # certificate would break every `uses:` step and every public HTTPS
+    # call a job makes, so its absence is fatal rather than a warning.
+    system_store = "/etc/ssl/certs/ca-certificates.crt"
+    assert system_store in script
+    # Anchored on a line that is only `fi`: an unanchored one matches the
+    # "fi" inside "ca-certificates" and reads the wrong block, which is
+    # how this assertion first failed against code that was correct.
+    fatal = re.search(rf"! -r {re.escape(system_store)} \]; then(.*?)^\s*fi$", script, re.S | re.M)
+    assert fatal, "the missing-system-store branch is gone"
+    assert "exit 1" in fatal.group(1)
+    assert re.search(rf"cat {re.escape(system_store)} \"\$CI_TLS/proxy.crt\"", script)
+
+
+def test_the_ci_certificate_is_replaced_when_its_key_is_gone_or_does_not_match() -> None:
+    """nginx refuses to start on a mismatched pair, and the certificate
+    alone looks fine — so checking only its expiry would leave the proxy
+    dead with nothing regenerating it.
+
+    Reachable from the script itself: the two files are renamed one
+    after the other, so a crash in between leaves a new key beside the
+    old certificate.
+    """
+    script = _ensure_data_dirs_script()
+    decision = script.split('if [ "$NEED_CERT" -eq 1 ]')[0]
+
+    assert '-s "$CI_TLS/proxy.key"' in decision, "a missing key must force a new pair"
+    assert "-pubkey" in decision, "the certificate's public key is never read"
+    assert "-pubout" in decision, "the key's public half is never read"
+    assert '"$CRT_PUB" != "$KEY_PUB"' in decision
+
+
+def test_the_ci_trust_bundle_is_rebuilt_on_every_run() -> None:
+    """The system CA store is not static: an update adds roots and
+    withdraws others. On the snapshot lifecycle this directory outlives
+    many such updates, so a bundle kept merely because it exists is a
+    trust store frozen at whenever CI was first enabled."""
+    script = _ensure_data_dirs_script()
+
+    guards = [
+        line
+        for line in script.splitlines()
+        if line.strip().startswith(("if ", "elif ")) and "bundle.crt" in line
+    ]
+    assert not guards, guards
+
+    # Written to a temporary name and renamed, so no reader ever sees a
+    # half-written trust store.
+    assert (
+        'cat /etc/ssl/certs/ca-certificates.crt "$CI_TLS/proxy.crt" > "$CI_TLS/bundle.crt.tmp"'
+        in (script)
+    )
+    assert 'mv "$CI_TLS/bundle.crt.tmp" "$CI_TLS/bundle.crt"' in script
+
+
+def test_the_runner_rewrites_its_credentials_when_the_instance_url_changes() -> None:
+    """.runner records the address it was written for and the daemon uses
+    that, not the environment. /data outlives the container, so an
+    existing file would keep a server on the old http URL indefinitely —
+    which is the upgrade path for every stack that already has CI."""
+    command = "".join(_runner_compose()["services"]["forgejo-runner"]["command"])
+
+    guard = next(line for line in command.splitlines() if "/data/.runner" in line and "if " in line)
+    assert "FORGEJO_INSTANCE_URL" in guard
+    # grep reading a file, not a pipe: no early reader to close one (#883).
+    assert "|" not in guard.replace("||", "")
+    assert "create-runner-file" in command
 
 
 def test_forgejo_jobs_are_told_the_runners_ci_address_for_the_cache() -> None:
