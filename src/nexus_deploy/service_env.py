@@ -4,8 +4,9 @@
 :class:`BootstrapEnv` into the per-service ``stacks/<svc>/.env``
 files (plus the occasional sidecar config — ``garage.toml``,
 ``s3.json``, the pg-ducklake bootstrap SQL, etc.). Each renderer is a
-pure function with snapshot-tested output; the only subprocess shells
-out to ``htpasswd -nbB`` for Filestash's bcrypt admin password.
+pure function with snapshot-tested output, and no renderer shells out
+to anything: Filestash's bcrypt admin password is hashed in-process with
+the ``bcrypt`` library, which a job image cannot be missing (#898).
 
 Architecture:
 
@@ -190,7 +191,21 @@ def _bcrypt_password(plaintext: str) -> str:
     escape, since that is a transport-format concern rather than a hash
     concern.
     """
-    hashed = bcrypt.hashpw(plaintext.encode(), bcrypt.gensalt(rounds=10, prefix=b"2b"))
+    # bcrypt takes at most 72 bytes, and the library refuses a longer one
+    # rather than truncating. htpasswd truncated silently — measured: a
+    # 100-character password produced a hash and exit 0 — so a value over
+    # the limit used to authenticate on its first 72 bytes and now does
+    # not work at all. Refusing is the better half of that trade, but only
+    # if it says so: the raw ValueError names bcrypt and not the field.
+    # In practice unreachable, because the value is
+    # `random_password.filestash_admin` at 24 characters.
+    password = plaintext.encode()
+    if len(password) > 72:
+        raise ServiceEnvError(
+            f"filestash_admin_password is {len(password)} bytes; bcrypt hashes at most 72. "
+            "Shorten it — a longer value would silently authenticate on its first 72 bytes."
+        )
+    hashed = bcrypt.hashpw(password, bcrypt.gensalt(rounds=10, prefix=b"2b"))
     _, _, remainder = hashed.decode().partition("$2b$")
     return f"$2y${remainder}"
 
@@ -2011,8 +2026,9 @@ def _render_filestash(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     base64.
 
     Special handling:
-    - If admin password is set, run ``htpasswd -nbBC 10`` to generate
-      bcrypt hash. Escape ``$`` → ``$$`` for docker-compose env parsing.
+    - If admin password is set, hash it with :func:`_bcrypt_password`
+      (bcrypt, cost 10, ``$2y$`` format). Escape ``$`` → ``$$`` for
+      docker-compose env parsing.
     - Each S3 backend (R2 / Hetzner / External) gates on
       endpoint+access+secret+bucket — empty bucket disables that
       connection (mirrors legacy ``[ -n "$X_BUCKET" ]`` guards).

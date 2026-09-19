@@ -1906,6 +1906,21 @@ def test_bcrypt_password_needs_no_external_binary() -> None:
     assert result.startswith("$2y$10$")
 
 
+def test_bcrypt_password_refuses_more_than_bcrypt_can_hash() -> None:
+    """bcrypt takes 72 bytes. The library refuses a longer value; htpasswd
+    truncated silently — measured, a 100-character password produced a hash
+    and exit 0 — so such a value used to authenticate on its first 72 bytes.
+    Refusing is better, but the message has to name the field rather than
+    the algorithm."""
+    with pytest.raises(ServiceEnvError, match="filestash_admin_password"):
+        _bcrypt_password("x" * 73)
+
+    # The boundary itself still works, and in bytes rather than characters.
+    assert _bcrypt_password("x" * 72).startswith("$2y$")
+    with pytest.raises(ServiceEnvError):
+        _bcrypt_password("ä" * 37)  # 74 bytes as UTF-8, 37 characters
+
+
 def test_bcrypt_password_salts_each_call() -> None:
     """A fixed salt would make two stacks with the same password share a
     hash, and make the hash a lookup key across deployments."""
