@@ -2693,7 +2693,7 @@ def render_all_env_files(
     stack-specific consequence (#863).
     """
     enabled_services = [spec.service_name for spec in _SPECS if spec.enabled_check(enabled)]
-    if (_empty(env.domain) or not env.domain.strip()) and enabled_services:
+    if not (env.domain or "").strip() and enabled_services:
         if len(enabled_services) == 1:
             svc = enabled_services[0]
             raise ServiceEnvError(
