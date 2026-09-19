@@ -446,6 +446,18 @@ def test_destroy_all_removes_the_preserved_token() -> None:
     assert destroy < purge, "purge must run after the destroy that may remove it"
 
 
+def test_the_purge_step_does_not_depend_on_the_opentofu_backend() -> None:
+    """`SKIP_TOFU_DESTROY` means the state could not be reached — no R2
+    credentials, or a bucket that is already gone. A preserved token is not
+    in the state, so that flag says nothing about it; gating on it would skip
+    the cleanup in exactly the case where nothing else can do it."""
+    text = (WORKFLOWS / "destroy-all.yml").read_text()
+    step = text[text.index("- name: Remove a preserved Forgejo service token") :]
+    step = step[: step.index("forgejo-service-token.sh")]
+
+    assert "if:" not in step, step
+
+
 def test_the_snapshot_teardown_needs_no_preservation() -> None:
     """It destroys one target, so the token was never at risk there. If that
     ever widens to an untargeted destroy, this fails and the preserve step
