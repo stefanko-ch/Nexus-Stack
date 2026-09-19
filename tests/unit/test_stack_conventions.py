@@ -2366,6 +2366,36 @@ def test_cube_reaches_cube_store_by_its_service_name() -> None:
     assert env["CUBEJS_CUBESTORE_HOST"] in services, env["CUBEJS_CUBESTORE_HOST"]
 
 
+def test_cube_does_not_run_the_authentication_bypass() -> None:
+    """Cube's Playground is served only in development mode, and upstream
+    calls that mode an authentication bypass: it "switches off JWT
+    verification on the REST (JSON) and GraphQL APIs", with "use it only on
+    a local development machine, never in production".
+
+    Access guards the browser route and never sees in-cluster traffic, so
+    dev mode here would mean any container on app-network querying without
+    a token — on a server that also hosts CI.
+    """
+    env = _cube_compose()["services"]["cube"]["environment"]
+
+    assert env["CUBEJS_DEV_MODE"] == "false", (
+        "development mode is an authentication bypass; the Playground is not "
+        "worth it on a server that runs other people's code"
+    )
+
+
+def test_cube_reads_its_model_from_the_repository_read_only() -> None:
+    """A model that lives only in a volume drifts on one server and exists
+    nowhere else. stack-sync copies stacks/cube/ on every spin-up, so the
+    semantic layer is versioned with the deployment that serves it."""
+    cube = _cube_compose()["services"]["cube"]
+    mounts = [v for v in cube["volumes"] if isinstance(v, str)]
+
+    model = [v for v in mounts if v.endswith("/cube/conf/model:ro")]
+    assert model == ["./model:/cube/conf/model:ro"], mounts
+    assert (STACKS_DIR / "cube" / "model").is_dir()
+
+
 def test_cube_carries_no_secret_of_its_own() -> None:
     """Both values come from the rendered .env — the compose file names
     them and never holds one."""

@@ -271,7 +271,7 @@ services:
     category: "analytics"
     website: "https://cube.dev"
     description: "Semantic layer — define a metric once, query it from every BI tool."
-    long_description: "Cube sits between the warehouse and the tools that read it. A metric is defined once in its data model and then served over SQL, REST and GraphQL, so Superset, Metabase and Evidence answer with the same number instead of each carrying its own definition. In Nexus-Stack it reads the shared PostgreSQL, and its Playground generates a first data model from the tables it finds there. Pre-aggregations, cache and queue live in Cube Store, which ships alongside it. The data model is the user's work and lives in a named volume, so keep anything worth keeping in the workspace repository."
+    long_description: "Cube sits between the warehouse and the tools that read it. A metric is defined once in its data model and then served over SQL, REST and GraphQL, so Superset, Metabase and Evidence answer with the same number instead of each carrying its own definition. In Nexus-Stack it reads the shared PostgreSQL, and its data model lives in the repository under stacks/cube/model — versioned and reviewed like the rest of the deployment, and copied to the server on every spin-up. Cache, query queue and materialised pre-aggregations live in Cube Store, which ships alongside it. There is no Playground: that UI exists only in Cube's development mode, which upstream calls an authentication bypass and says never to run in production, so this stack serves a token-authenticated API instead."
     image: "cubejs/cube:v1.7.42"
     support_images:
       cube-store: "cubejs/cubestore:v1.7.42"

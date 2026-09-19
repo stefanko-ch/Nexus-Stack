@@ -21,11 +21,15 @@
 # data model, which is the intended starting point — the Playground generates
 # cubes from the tables it finds.
 #
-# WHAT DOES NOT SURVIVE A TEARDOWN: the data model. It lives in the
-# `cube-conf` named volume, the same trade-off `meltano` already makes for a
-# user's project. Keep models worth keeping in the workspace repository and
-# copy them in, or say so in an issue and they can move to
-# /mnt/nexus-data with an R2 target like Forgejo's.
+# THE DATA MODEL LIVES IN THIS REPOSITORY, under stacks/cube/model/, and is
+# mounted read-only. stack-sync copies it to the server on every spin-up, so
+# there is nothing to persist and nothing to lose: the semantic layer is
+# reviewed and versioned like the rest of the deployment.
+#
+# NO PLAYGROUND. Cube serves its UI only in development mode, which upstream
+# describes as an authentication bypass and tells you never to run in
+# production. This stack runs with it off; see docs/stacks/cube.md for how to
+# query the API and how to author a model.
 # =============================================================================
 
 services:
@@ -41,18 +45,21 @@ services:
       # already binds 4000.
       - "4001:4000"
     environment:
-      # The Playground — the whole reason this stack has a UI — exists only in
-      # development mode. Upstream is blunt about what that costs:
-      # "Development mode is an authentication bypass", switching off JWT
-      # verification on the REST and GraphQL APIs.
+      # Explicitly off, and stated rather than left to the image default.
       #
-      # That is the same bargain every other stack here makes: no application
-      # login, Cloudflare Access at the edge. The part worth knowing is that
-      # it also applies to callers INSIDE app-network, which Access never
-      # sees — any container on this network can query the API without a
-      # token. See docs/stacks/cube.md; it is stated there rather than only
-      # here, because it is a property of the deployment and not of this file.
-      CUBEJS_DEV_MODE: "true"
+      # Development mode is what serves Cube's Playground UI, and upstream
+      # says plainly what it costs: "Development mode is an authentication
+      # bypass ... switches off JWT verification on the REST (JSON) and
+      # GraphQL APIs", followed by "Use it only on a local development
+      # machine, never in production."
+      #
+      # So this stack has no Playground. It is an API that BI tools query
+      # with a token signed by CUBE_API_SECRET, and the data model is a set
+      # of files in this directory rather than something clicked together.
+      # The image already ships NODE_ENV=production; writing the variable
+      # anyway means an upstream default flip cannot quietly turn the bypass
+      # on, and a test pins it.
+      CUBEJS_DEV_MODE: "false"
       CUBEJS_DB_TYPE: postgres
       CUBEJS_DB_HOST: postgres
       CUBEJS_DB_PORT: "5432"
@@ -68,11 +75,18 @@ services:
       # Cube writes its telemetry to the console on every start otherwise.
       CUBEJS_TELEMETRY: "false"
     volumes:
-      # /cube/conf is where Cube reads the data model and its configuration.
-      # A named volume rather than a bind mount: nothing here runs as a fixed
-      # uid we would have to chown on the host, and the Playground writes into
-      # this directory itself.
-      - cube-conf:/cube/conf
+      # The data model, from this directory, read-only.
+      #
+      # Cube reads its model from /cube/conf/model, and stack-sync copies
+      # stacks/cube/ to the server on every spin-up — so the semantic layer
+      # is version-controlled in the repository that deploys it, reviewed
+      # like any other change, and identical on every stack built from this
+      # fork. Nothing to back up, and nothing lost in a teardown.
+      #
+      # Read-only because the alternative is a model that drifts on one
+      # server and exists nowhere else. Ad-hoc experiments belong in a
+      # branch, not in a container's filesystem.
+      - ./model:/cube/conf/model:ro
     mem_limit: 1g
     depends_on:
       cube-store:
@@ -114,9 +128,6 @@ services:
       - app-network
 
 volumes:
-  # The data model and Cube's configuration. Named, so it survives a container
-  # recreate and not a teardown — see the header.
-  cube-conf:
   # Cache, queue state and materialised pre-aggregations. Rebuildable by
   # definition: everything in here is derived from the warehouse.
   cube-store-data:
