@@ -328,7 +328,15 @@ jobs:
       # is not in the state; it is an object in the Cloudflare account, and
       # this step needs only the API. So the case where the flag is set is
       # precisely the case where nothing else will ever remove it.
+      #
+      # `!cancelled()` rather than no condition at all: a step without one
+      # carries an implicit `success()`, so a destroy that FAILED would skip
+      # this and leave the token behind — the very state this step exists for.
+      # And `!cancelled()` rather than `always()`, which GitHub's own
+      # documentation advises against because it also runs after a human
+      # cancels the run; a cancelled destroy-all should change nothing.
       - name: Remove a preserved Forgejo service token
+        if: ${{ !cancelled() }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

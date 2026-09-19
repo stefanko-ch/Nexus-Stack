@@ -446,16 +446,28 @@ def test_destroy_all_removes_the_preserved_token() -> None:
     assert destroy < purge, "purge must run after the destroy that may remove it"
 
 
-def test_the_purge_step_does_not_depend_on_the_opentofu_backend() -> None:
-    """`SKIP_TOFU_DESTROY` means the state could not be reached — no R2
-    credentials, or a bucket that is already gone. A preserved token is not
-    in the state, so that flag says nothing about it; gating on it would skip
-    the cleanup in exactly the case where nothing else can do it."""
+def test_the_purge_step_runs_in_every_case_that_still_wants_a_cleanup() -> None:
+    """Two ways to skip it, both of which leave a live credential behind.
+
+    `SKIP_TOFU_DESTROY` means the state could not be reached — no R2
+    credentials, or a bucket that is already gone. A preserved token is not in
+    the state, so that flag says nothing about it.
+
+    And a step with no condition carries an implicit `success()` ("A default
+    status check of success() is applied unless you include one of these
+    functions" — GitHub's expressions reference), so a destroy that failed
+    would skip the cleanup too. `always()` would over-correct: GitHub advises
+    against it because it also runs after a human cancels the run.
+    """
     text = (WORKFLOWS / "destroy-all.yml").read_text()
     step = text[text.index("- name: Remove a preserved Forgejo service token") :]
     step = step[: step.index("forgejo-service-token.sh")]
+    condition = re.search(r"^\s*if:(.*)$", step, re.M)
 
-    assert "if:" not in step, step
+    assert condition, "no condition at all means an implicit success()"
+    assert "SKIP_TOFU_DESTROY" not in condition.group(1)
+    assert "cancelled()" in condition.group(1)
+    assert "always()" not in condition.group(1)
 
 
 def test_the_snapshot_teardown_needs_no_preservation() -> None:
