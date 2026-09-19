@@ -15,7 +15,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TOFU_DIR="$PROJECT_ROOT/tofu"
+# tofu/stack: `domain` lives in the stack half since the root was split.
+TOFU_DIR="$PROJECT_ROOT/tofu/stack"
 
 # Colors
 RED='\033[0;31m'

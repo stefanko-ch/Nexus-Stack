@@ -292,7 +292,6 @@ Manage your Nexus-Stack infrastructure via web interface at `https://control.YOU
 | **Spin Up** | Re-create infrastructure after teardown |
 | **Teardown** | Teardown infrastructure (keeps state) |
 | **Destroy All** | Delete everything |
-| **Cleanup Orphaned Resources** | Manual cleanup of orphaned Cloudflare resources |
 
 **Pre-select services during Initial Setup:**
 ```bash
