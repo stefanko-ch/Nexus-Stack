@@ -264,6 +264,18 @@ services:
     long_description: "Excalidraw is a virtual whiteboard that produces hand-drawn style diagrams. Perfect for architecture sketches, brainstorming, wireframes, and technical illustrations. Supports real-time collaboration, a library of reusable components, and export to PNG/SVG."
     image: "excalidraw/excalidraw:latest"
 
+  cube:
+    subdomain: "cube"
+    port: 4001
+    public: false
+    category: "analytics"
+    website: "https://cube.dev"
+    description: "Semantic layer — define a metric once, query it from every BI tool."
+    long_description: "Cube sits between the warehouse and the tools that read it. A metric is defined once in its data model and then served over SQL, REST and GraphQL, so Superset, Metabase and Evidence answer with the same number instead of each carrying its own definition. In Nexus-Stack it reads the shared PostgreSQL, and its Playground generates a first data model from the tables it finds there. Pre-aggregations, cache and queue live in Cube Store, which ships alongside it. The data model is the user's work and lives in a named volume, so keep anything worth keeping in the workspace repository."
+    image: "cubejs/cube:v1.7.42"
+    support_images:
+      cube-store: "cubejs/cubestore:v1.7.42"
+
   evidence:
     subdomain: "evidence"
     port: 3007

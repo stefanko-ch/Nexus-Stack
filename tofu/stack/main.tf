@@ -237,6 +237,16 @@ resource "random_password" "mlflow_db_password" {
   special = false
 }
 
+# Cube API secret — signs and verifies the JWTs of Cube's REST, GraphQL and
+# SQL APIs. Not a login: Cube has no user management, and Cloudflare Access
+# is what keeps people out. This is what a BI tool outside the stack presents
+# when it connects, which is why it is generated rather than left to a
+# default and pushed to Infisical for the operator to copy out.
+resource "random_password" "cube_api_secret" {
+  length  = 48
+  special = false
+}
+
 # Keycloak Postgres password — dedicated DB. Holds realms, clients, users
 # and sessions.
 resource "random_password" "keycloak_db_password" {

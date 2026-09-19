@@ -2333,3 +2333,59 @@ def test_forgejo_ci_subnet_holds_the_fixed_addresses_and_avoids_dockers_pools() 
 
 def test_forgejo_dind_stays_off_app_network() -> None:
     assert _runner_compose()["services"]["forgejo-dind"]["networks"] == ["forgejo-ci"]
+
+
+# ---------------------------------------------------------------------------
+# Cube: semantic layer over the shared postgres, plus its own storage layer
+# ---------------------------------------------------------------------------
+
+
+def _cube_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "cube" / "docker-compose.yml").read_text()))
+
+
+def test_cube_and_cube_store_are_pinned_in_lockstep() -> None:
+    """Upstream ships the two together. A version skew between them is a
+    protocol mismatch rather than a feature difference, and it surfaces as
+    a query that hangs instead of an image that fails to pull."""
+    services = _cube_compose()["services"]
+
+    versions = {}
+    for name, key in (("cube", "IMAGE_CUBE"), ("cube-store", "IMAGE_CUBE_STORE")):
+        match = re.fullmatch(rf"\$\{{{key}:-[^:]+:(v[0-9.]+)\}}", services[name]["image"])
+        assert match, services[name]["image"]
+        versions[name] = match.group(1)
+
+    assert versions["cube"] == versions["cube-store"], versions
+
+
+def test_cube_reaches_cube_store_by_its_service_name() -> None:
+    services = _cube_compose()["services"]
+    env = services["cube"]["environment"]
+
+    assert env["CUBEJS_CUBESTORE_HOST"] in services, env["CUBEJS_CUBESTORE_HOST"]
+
+
+def test_cube_carries_no_secret_of_its_own() -> None:
+    """Both values come from the rendered .env — the compose file names
+    them and never holds one."""
+    services = _cube_compose()["services"]
+    env = services["cube"]["environment"]
+
+    assert env["CUBEJS_DB_PASS"] == "${POSTGRES_PASSWORD}"
+    assert env["CUBEJS_API_SECRET"] == "${CUBE_API_SECRET}"
+    assert "env_file" in services["cube"]
+
+
+def test_cube_reads_the_shared_postgres_stack() -> None:
+    """It describes tables that already exist; it creates none. The host is
+    the shared stack's container name, not a sidecar of its own."""
+    services = _cube_compose()["services"]
+    env = services["cube"]["environment"]
+
+    assert env["CUBEJS_DB_TYPE"] == "postgres"
+    assert env["CUBEJS_DB_HOST"] == "postgres"
+    assert env["CUBEJS_DB_USER"] == "nexus-postgres"
+    assert "postgres" not in {n for n in services if n != "cube"}, (
+        "cube must not bring its own postgres — it reads the shared stack"
+    )

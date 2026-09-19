@@ -24,6 +24,9 @@
       'ADMIN_USERNAME': 'nexus-test-user',
       'DOMAIN': 'snapshot.test',
     }),
+    'cube': dict({
+      'CUBE_API_SECRET': 'cube_api_secret-VALUE',
+    }),
     'dagster': dict({
       'DAGSTER_DB_PASSWORD': 'dagster_db_password-VALUE',
     }),

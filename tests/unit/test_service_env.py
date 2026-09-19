@@ -79,6 +79,7 @@ def full_config() -> NexusConfig:
         litellm_db_password="litellm-db-pw",
         lakekeeper_db_password="lakekeeper-db-pw",
         mlflow_db_password="mlflow-db-pw",
+        cube_api_secret="cube-api-secret",
         airflow_admin_password="airflow-admin-pw",
         airflow_db_password="airflow-db-pw",
         airflow_jwt_secret="airflow-jwt-secret",
@@ -3884,3 +3885,41 @@ def test_render_all_empty_domain_error_lists_multiple_enabled_services(
         render_all_env_files(full_config, env, ["planka", "kestra"], stacks_dir=tmp_path)
     err = str(exc_info.value)
     assert "Services are enabled (kestra, planka) but DOMAIN is empty" in err
+
+
+# ---------------------------------------------------------------------------
+# Cube — shared postgres password + its own API secret
+# ---------------------------------------------------------------------------
+
+
+def test_cube_renders_exactly_what_the_compose_file_reads(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_cube
+
+    rendered = _render_cube(full_config, full_env)
+
+    assert set(rendered.env_vars) == {"POSTGRES_PASSWORD", "CUBE_API_SECRET"}
+    assert rendered.env_vars["POSTGRES_PASSWORD"] == full_config.postgres_password
+    assert rendered.env_vars["CUBE_API_SECRET"] == full_config.cube_api_secret
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("postgres_password", "POSTGRES_PASSWORD"),
+        ("cube_api_secret", "CUBE_API_SECRET"),
+    ],
+)
+def test_cube_refuses_to_render_without_either_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv, field: str, expected: str
+) -> None:
+    """Failing here names the missing value. Failing later — at compose-up —
+    names a container that cannot reach the warehouse it exists to describe,
+    three phases away from the cause."""
+    from nexus_deploy.service_env import _render_cube
+
+    config = full_config.model_copy(update={field: ""})
+
+    with pytest.raises(ServiceEnvError, match=expected):
+        _render_cube(config, full_env)
