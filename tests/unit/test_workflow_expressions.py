@@ -535,3 +535,66 @@ def test_the_expansion_check_accepts_and_rejects_the_right_forms(line: str, acce
     if accepted and not found:
         ok = True  # nothing to guard on this line
     assert ok is accepted, f"expansions found: {found}"
+
+
+# ---------------------------------------------------------------------------
+# Steps that write to the pull request must exempt forks
+# ---------------------------------------------------------------------------
+#
+# A workflow run for a pull request from a fork gets a read-only token,
+# whatever `permissions:` declares. A step that comments on the PR therefore
+# fails with `HttpError: Resource not accessible by integration`, turning the
+# job red on every external contribution — while the tests it reports on
+# passed. On #867 that read as the contributor's tests failing.
+
+# Actions whose whole purpose is to write to the pull request. Keyed by the
+# `uses:` prefix, because a step's name is free text and changes.
+_PR_WRITING_ACTIONS = ("MishaKav/pytest-coverage-comment",)
+
+_SAME_REPO = "github.event.pull_request.head.repo.full_name == github.repository"
+
+
+def _steps_with_uses(workflow: dict[str, Any]) -> list[dict[str, Any]]:
+    steps = []
+    for job in (workflow.get("jobs") or {}).values():
+        for step in job.get("steps") or []:
+            if isinstance(step, dict) and step.get("uses"):
+                steps.append(step)
+    return steps
+
+
+@pytest.mark.parametrize("path", _WORKFLOWS, ids=lambda p: p.name)
+def test_a_step_that_comments_on_the_pr_is_skipped_for_forks(path: Path) -> None:
+    workflow = yaml.safe_load(path.read_text()) or {}
+    for step in _steps_with_uses(workflow):
+        if not any(str(step["uses"]).startswith(a) for a in _PR_WRITING_ACTIONS):
+            continue
+        condition = " ".join(str(step.get("if", "")).split())
+        where = f"{path.name}: step {step.get('name')!r} writes to the pull request"
+
+        # Presence of the comparison is not enough. `A || B` contains the
+        # same text as `A && B` and runs the step for a fork anyway, so the
+        # substring check alone would pass a workflow that still fails on
+        # every external contribution.
+        assert _SAME_REPO in condition, (
+            f"{where} but does not exempt forks, so it fails the job on every external contribution"
+        )
+        assert "||" not in condition, (
+            f"{where} and its condition uses `||`, which lets a fork through "
+            f"whenever the other side is true: {condition}"
+        )
+        assert re.search(
+            rf"&&\s*{re.escape(_SAME_REPO)}|{re.escape(_SAME_REPO)}\s*&&", condition
+        ), f"{where}; the fork check must be conjoined with `&&`: {condition}"
+
+
+def test_the_fork_check_is_looking_at_a_real_step() -> None:
+    """Otherwise the parametrised test above passes by finding nothing —
+    which is how it would read the day someone renames the action."""
+    found = [
+        step
+        for path in _WORKFLOWS
+        for step in _steps_with_uses(yaml.safe_load(path.read_text()) or {})
+        if any(str(step["uses"]).startswith(a) for a in _PR_WRITING_ACTIONS)
+    ]
+    assert found, "no PR-writing step found — update _PR_WRITING_ACTIONS"
