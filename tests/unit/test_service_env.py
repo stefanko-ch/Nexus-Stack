@@ -3749,7 +3749,7 @@ def test_mongodb_raises_on_empty_secret(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("domain", ["", None])
+@pytest.mark.parametrize("domain", ["", None, "   "])
 @pytest.mark.parametrize("service", sorted(spec.service_name for spec in _SPECS))
 def test_render_all_refuses_an_empty_domain_for_every_stack(
     full_config: NexusConfig,
@@ -3774,8 +3774,9 @@ def test_render_all_refuses_an_empty_domain_for_every_stack(
         render_all_env_files(full_config, env, [service], stacks_dir=tmp_path)
 
 
+@pytest.mark.parametrize("domain", ["", "   "])
 def test_render_all_writes_nothing_when_the_domain_is_empty(
-    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path, domain: str
 ) -> None:
     """The guard runs before the loop, so a refusal leaves no partial state.
 
@@ -3792,7 +3793,7 @@ def test_render_all_writes_nothing_when_the_domain_is_empty(
     """
     import dataclasses
 
-    env = dataclasses.replace(full_env, domain="")
+    env = dataclasses.replace(full_env, domain=domain)
     needs_template = {"grafana", "litellm"}
     enabled = [spec.service_name for spec in _SPECS if spec.service_name not in needs_template]
     with pytest.raises(ServiceEnvError, match="DOMAIN is empty"):
@@ -3811,3 +3812,28 @@ def test_render_all_with_nothing_enabled_ignores_an_empty_domain(
     env = dataclasses.replace(full_env, domain="")
     result = render_all_env_files(full_config, env, [], stacks_dir=tmp_path)
     assert {r.status for r in result.services} == {"skipped-not-enabled"}
+
+
+def test_render_all_empty_domain_error_names_single_enabled_service(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """When a single service is enabled, the error message names it directly."""
+    import dataclasses
+
+    env = dataclasses.replace(full_env, domain="")
+    with pytest.raises(ServiceEnvError) as exc_info:
+        render_all_env_files(full_config, env, ["kestra"], stacks_dir=tmp_path)
+    assert "kestra enabled but DOMAIN is empty" in str(exc_info.value)
+
+
+def test_render_all_empty_domain_error_lists_multiple_enabled_services(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """When multiple services are enabled, the error message lists them in sorted order."""
+    import dataclasses
+
+    env = dataclasses.replace(full_env, domain="   ")
+    with pytest.raises(ServiceEnvError) as exc_info:
+        render_all_env_files(full_config, env, ["planka", "kestra"], stacks_dir=tmp_path)
+    err = str(exc_info.value)
+    assert "Services are enabled (kestra, planka) but DOMAIN is empty" in err

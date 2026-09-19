@@ -2704,11 +2704,21 @@ def render_all_env_files(
     ``_render_airflow`` keep theirs because their error messages name the
     stack-specific consequence (#863).
     """
-    if _empty(env.domain) and any(spec.enabled_check(enabled) for spec in _SPECS):
+    enabled_services = [spec.service_name for spec in _SPECS if spec.enabled_check(enabled)]
+    if not (env.domain or "").strip() and enabled_services:
+        if len(enabled_services) == 1:
+            svc = enabled_services[0]
+            raise ServiceEnvError(
+                f"{svc} enabled but DOMAIN is empty — service URLs would render as "
+                f"a bare name such as `https://{svc}`, which the containers accept at startup "
+                "and then use in every link and redirect. Set DOMAIN before "
+                "rendering service env files.",
+            )
+        services_str = ", ".join(sorted(enabled_services))
         raise ServiceEnvError(
-            "DOMAIN is empty — every service URL would render as a bare name "
-            "such as `https://kestra`, which the containers accept at startup "
-            "and then use in every link and redirect. Set DOMAIN before "
+            f"Services are enabled ({services_str}) but DOMAIN is empty — service URLs "
+            "would render as bare names such as `https://<service>`, which the containers "
+            "accept at startup and then use in every link and redirect. Set DOMAIN before "
             "rendering service env files.",
         )
 
