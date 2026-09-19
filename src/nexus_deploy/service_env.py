@@ -33,12 +33,13 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+import bcrypt
 
 from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
 from nexus_deploy.infisical import BootstrapEnv
@@ -163,26 +164,35 @@ def _escape_sql(value: str) -> str:
 
 
 def _bcrypt_password(plaintext: str) -> str:
-    """bcrypt-hash a password via the system ``htpasswd -nbBC 10``
-    binary. ``htpasswd`` is provided by ``apache2-utils`` on the
-    deploy runner; the binary path is not
-    parameterised because every CI runner that runs this code has
-    apache2-utils installed.
+    """bcrypt-hash a password, cost 10, in the ``$2y$`` format.
 
-    Returns the bcrypt hash with ``$`` characters un-escaped; the
-    caller (Filestash render) handles the docker-compose-specific
-    ``$$`` escape since that's a transport-format concern, not a
-    hash concern.
+    This used to shell out to ``htpasswd -nbBC 10``, on the stated
+    assumption that "every CI runner that runs this code has
+    apache2-utils installed". That stopped being true: a Forgejo
+    runner's job image has no ``htpasswd``, so the render died on a
+    missing binary the first time a tenant enabled Filestash (#898) —
+    the same shape as #897, where the missing binary was rsync.
+
+    ``bcrypt`` is used instead, and costs nothing to depend on: it was
+    already installed everywhere as a dependency of ``paramiko``.
+
+    **The version marker is load-bearing, and measured.** The library
+    emits ``$2b$``; Apache's crypt_blowfish, which produced the hashes
+    this function used to return, emits ``$2y$``. With the digest held
+    constant and only the marker changed, ``htpasswd -vb`` accepts
+    ``$2y$`` and ``$2a$`` and **rejects** ``$2b$``. So the marker is
+    rewritten to ``$2y$`` and consumers see exactly the format they saw
+    before. (``2b`` and ``2y`` differ only in handling passwords of 255
+    bytes or more; these are generated 24-character values.)
+
+    Returns the hash with ``$`` characters un-escaped; the caller
+    (Filestash render) handles the docker-compose-specific ``$$``
+    escape, since that is a transport-format concern rather than a hash
+    concern.
     """
-    proc = subprocess.run(
-        ["htpasswd", "-nbBC", "10", "x", plaintext],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    # htpasswd output: ``x:$2y$10$...``; we want everything after the ``x:``.
-    line = proc.stdout.strip()
-    return line.split(":", 1)[1]
+    hashed = bcrypt.hashpw(plaintext.encode(), bcrypt.gensalt(rounds=10, prefix=b"2b"))
+    _, _, remainder = hashed.decode().partition("$2b$")
+    return f"$2y${remainder}"
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ dependencies = [
     "structlog>=24.1,<26.0",     # Structured logging
     "click>=8.1,<9.0",           # CLI framework
     "pyyaml>=6.0,<7.0",          # services.yaml + Kestra flow templates
+    "bcrypt>=4.0,<6.0",          # Filestash admin hash (already present via paramiko)
 ]
 
 [project.scripts]
