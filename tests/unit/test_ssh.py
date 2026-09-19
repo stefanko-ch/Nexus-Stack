@@ -7,6 +7,7 @@ ProxyCommand) is verified via spin-up acceptance, not these tests.
 
 from __future__ import annotations
 
+import shutil
 import socket
 import subprocess
 import threading
@@ -116,9 +117,27 @@ def test_run_script_timeout_propagates(
 
 
 # -- rsync_to -----------------------------------------------------------
+#
+# These three pin the rsync invocation, so they have to pin the transport
+# too: since #897 `push_directory` picks tar-over-ssh when rsync is absent,
+# and CI for a Conductor fork runs on a job image where it IS absent. Without
+# this fixture they would pass on GitHub and fail there — on the very machine
+# the fallback exists for.
 
 
-def test_rsync_to_appends_trailing_slash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture
+def rsync_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+
+    real_which = shutil.which
+    monkeypatch.setattr(
+        "nexus_deploy._remote.shutil.which",
+        lambda name, *a, **k: "/usr/bin/rsync" if name == "rsync" else real_which(name, *a, **k),
+    )
+
+
+def test_rsync_to_appends_trailing_slash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rsync_installed: None
+) -> None:
     captured: dict[str, Any] = {}
 
     def fake_run(*args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -134,7 +153,7 @@ def test_rsync_to_appends_trailing_slash(tmp_path: Path, monkeypatch: pytest.Mon
     assert cmd[-1] == "nexus:/dst/"
 
 
-def test_rsync_to_delete_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rsync_to_delete_flag(monkeypatch: pytest.MonkeyPatch, rsync_installed: None) -> None:
     captured: dict[str, Any] = {}
 
     def fake_run(*args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -146,7 +165,9 @@ def test_rsync_to_delete_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "--delete" in captured["args"]
 
 
-def test_rsync_to_no_delete_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rsync_to_no_delete_by_default(
+    monkeypatch: pytest.MonkeyPatch, rsync_installed: None
+) -> None:
     captured: dict[str, Any] = {}
 
     def fake_run(*args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:

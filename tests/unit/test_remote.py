@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -62,8 +63,24 @@ def test_ssh_run_no_check_propagates(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.returncode == 1
 
 
+@pytest.fixture
+def rsync_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the transport for the tests below.
+
+    Since #897 `push_directory` picks tar-over-ssh when rsync is absent, and
+    CI for a Conductor fork runs on a job image where it IS absent. Without
+    this, these tests would pass on GitHub and fail there — on the very
+    machine the fallback exists for.
+    """
+    real_which = shutil.which
+    monkeypatch.setattr(
+        "nexus_deploy._remote.shutil.which",
+        lambda name, *a, **k: "/usr/bin/rsync" if name == "rsync" else real_which(name, *a, **k),
+    )
+
+
 def test_rsync_to_remote_appends_trailing_slash(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rsync_installed: None
 ) -> None:
     """``Path('/foo')`` is normalised to ``/foo/`` so rsync copies the
     directory contents (not the directory itself, which would land at
@@ -86,6 +103,7 @@ def test_rsync_to_remote_appends_trailing_slash(
 
 def test_rsync_to_remote_preserves_existing_trailing_slash(
     monkeypatch: pytest.MonkeyPatch,
+    rsync_installed: None,
 ) -> None:
     """Passing a string path that already ends in ``/`` is left alone."""
     captured: dict[str, Any] = {}
@@ -101,7 +119,9 @@ def test_rsync_to_remote_preserves_existing_trailing_slash(
     assert captured["args"][-2].endswith("/")
 
 
-def test_rsync_to_remote_delete_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rsync_to_remote_delete_flag(
+    monkeypatch: pytest.MonkeyPatch, rsync_installed: None
+) -> None:
     captured: dict[str, Any] = {}
 
     def fake_run(*args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -175,7 +195,9 @@ def test_ssh_run_actually_invokes_subprocess(tmp_path: Path) -> None:
     assert "err-line" in result.stdout
 
 
-def test_rsync_to_remote_no_delete_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rsync_to_remote_no_delete_by_default(
+    monkeypatch: pytest.MonkeyPatch, rsync_installed: None
+) -> None:
     captured: dict[str, Any] = {}
 
     def fake_run(*args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
