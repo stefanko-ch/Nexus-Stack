@@ -9,7 +9,6 @@ pg-ducklake SQL escape, SeaweedFS/Garage sidecar files, LakeFS
 from __future__ import annotations
 
 import stat
-import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1872,12 +1871,60 @@ def test_lakefs_postgres_connection_string_includes_password(
 # ---------------------------------------------------------------------------
 
 
-def test_bcrypt_password_returns_bcrypt_hash() -> None:
-    """Sanity test that htpasswd is callable and returns a bcrypt hash."""
-    if subprocess.run(["which", "htpasswd"], capture_output=True).returncode != 0:
-        pytest.skip("htpasswd not installed (apache2-utils)")
+def test_bcrypt_password_produces_a_hash_that_verifies() -> None:
+    """The property that matters, rather than the shape of the string."""
+    import bcrypt
+
     result = _bcrypt_password("test-pw")
-    assert result.startswith("$2y$") or result.startswith("$2a$") or result.startswith("$2b$")
+
+    assert bcrypt.checkpw(b"test-pw", result.encode())
+    assert not bcrypt.checkpw(b"test-pw ", result.encode())
+
+
+def test_bcrypt_password_keeps_the_2y_marker() -> None:
+    """Load-bearing, and measured: with the digest held constant and only
+    the marker changed, `htpasswd -vb` accepts `$2y$` and `$2a$` and
+    REJECTS `$2b$`, which is what the library emits by default. Consumers
+    saw `$2y$` from the htpasswd binary this replaced (#898), so they keep
+    seeing it."""
+    assert _bcrypt_password("test-pw").startswith("$2y$10$")
+
+
+def test_bcrypt_password_needs_no_external_binary() -> None:
+    """The whole point of #898: the job image has no htpasswd, and a render
+    that shells out dies there. Run with an empty PATH — nothing can be
+    found, so a subprocess call cannot silently still be doing the work."""
+    import os
+
+    original = os.environ.get("PATH", "")
+    try:
+        os.environ["PATH"] = ""
+        result = _bcrypt_password("test-pw")
+    finally:
+        os.environ["PATH"] = original
+
+    assert result.startswith("$2y$10$")
+
+
+def test_bcrypt_password_refuses_more_than_bcrypt_can_hash() -> None:
+    """bcrypt takes 72 bytes. The library refuses a longer value; htpasswd
+    truncated silently — measured, a 100-character password produced a hash
+    and exit 0 — so such a value used to authenticate on its first 72 bytes.
+    Refusing is better, but the message has to name the field rather than
+    the algorithm."""
+    with pytest.raises(ServiceEnvError, match="filestash_admin_password"):
+        _bcrypt_password("x" * 73)
+
+    # The boundary itself still works, and in bytes rather than characters.
+    assert _bcrypt_password("x" * 72).startswith("$2y$")
+    with pytest.raises(ServiceEnvError):
+        _bcrypt_password("ä" * 37)  # 74 bytes as UTF-8, 37 characters
+
+
+def test_bcrypt_password_salts_each_call() -> None:
+    """A fixed salt would make two stacks with the same password share a
+    hash, and make the hash a lookup key across deployments."""
+    assert _bcrypt_password("same") != _bcrypt_password("same")
 
 
 def test_filestash_escapes_dollar_signs_for_compose(

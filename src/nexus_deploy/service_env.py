@@ -4,8 +4,9 @@
 :class:`BootstrapEnv` into the per-service ``stacks/<svc>/.env``
 files (plus the occasional sidecar config — ``garage.toml``,
 ``s3.json``, the pg-ducklake bootstrap SQL, etc.). Each renderer is a
-pure function with snapshot-tested output; the only subprocess shells
-out to ``htpasswd -nbB`` for Filestash's bcrypt admin password.
+pure function with snapshot-tested output, and no renderer shells out
+to anything: Filestash's bcrypt admin password is hashed in-process with
+the ``bcrypt`` library, which a job image cannot be missing (#898).
 
 Architecture:
 
@@ -33,12 +34,13 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+import bcrypt
 
 from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
 from nexus_deploy.infisical import BootstrapEnv
@@ -163,26 +165,49 @@ def _escape_sql(value: str) -> str:
 
 
 def _bcrypt_password(plaintext: str) -> str:
-    """bcrypt-hash a password via the system ``htpasswd -nbBC 10``
-    binary. ``htpasswd`` is provided by ``apache2-utils`` on the
-    deploy runner; the binary path is not
-    parameterised because every CI runner that runs this code has
-    apache2-utils installed.
+    """bcrypt-hash a password, cost 10, in the ``$2y$`` format.
 
-    Returns the bcrypt hash with ``$`` characters un-escaped; the
-    caller (Filestash render) handles the docker-compose-specific
-    ``$$`` escape since that's a transport-format concern, not a
-    hash concern.
+    This used to shell out to ``htpasswd -nbBC 10``, on the stated
+    assumption that "every CI runner that runs this code has
+    apache2-utils installed". That stopped being true: a Forgejo
+    runner's job image has no ``htpasswd``, so the render died on a
+    missing binary the first time a tenant enabled Filestash (#898) —
+    the same shape as #897, where the missing binary was rsync.
+
+    ``bcrypt`` is used instead, and costs nothing to depend on: it was
+    already installed everywhere as a dependency of ``paramiko``.
+
+    **The version marker is load-bearing, and measured.** The library
+    emits ``$2b$``; Apache's crypt_blowfish, which produced the hashes
+    this function used to return, emits ``$2y$``. With the digest held
+    constant and only the marker changed, ``htpasswd -vb`` accepts
+    ``$2y$`` and ``$2a$`` and **rejects** ``$2b$``. So the marker is
+    rewritten to ``$2y$`` and consumers see exactly the format they saw
+    before. (``2b`` and ``2y`` differ only in handling passwords of 255
+    bytes or more; these are generated 24-character values.)
+
+    Returns the hash with ``$`` characters un-escaped; the caller
+    (Filestash render) handles the docker-compose-specific ``$$``
+    escape, since that is a transport-format concern rather than a hash
+    concern.
     """
-    proc = subprocess.run(
-        ["htpasswd", "-nbBC", "10", "x", plaintext],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    # htpasswd output: ``x:$2y$10$...``; we want everything after the ``x:``.
-    line = proc.stdout.strip()
-    return line.split(":", 1)[1]
+    # bcrypt takes at most 72 bytes, and the library refuses a longer one
+    # rather than truncating. htpasswd truncated silently — measured: a
+    # 100-character password produced a hash and exit 0 — so a value over
+    # the limit used to authenticate on its first 72 bytes and now does
+    # not work at all. Refusing is the better half of that trade, but only
+    # if it says so: the raw ValueError names bcrypt and not the field.
+    # In practice unreachable, because the value is
+    # `random_password.filestash_admin` at 24 characters.
+    password = plaintext.encode()
+    if len(password) > 72:
+        raise ServiceEnvError(
+            f"filestash_admin_password is {len(password)} bytes; bcrypt hashes at most 72. "
+            "Shorten it — a longer value would silently authenticate on its first 72 bytes."
+        )
+    hashed = bcrypt.hashpw(password, bcrypt.gensalt(rounds=10, prefix=b"2b"))
+    _, _, remainder = hashed.decode().partition("$2b$")
+    return f"$2y${remainder}"
 
 
 # ---------------------------------------------------------------------------
@@ -2001,8 +2026,9 @@ def _render_filestash(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     base64.
 
     Special handling:
-    - If admin password is set, run ``htpasswd -nbBC 10`` to generate
-      bcrypt hash. Escape ``$`` → ``$$`` for docker-compose env parsing.
+    - If admin password is set, hash it with :func:`_bcrypt_password`
+      (bcrypt, cost 10, ``$2y$`` format). Escape ``$`` → ``$$`` for
+      docker-compose env parsing.
     - Each S3 backend (R2 / Hetzner / External) gates on
       endpoint+access+secret+bucket — empty bucket disables that
       connection (mirrors legacy ``[ -n "$X_BUCKET" ]`` guards).

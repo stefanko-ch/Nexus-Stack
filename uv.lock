@@ -509,6 +509,7 @@ name = "nexus-deploy"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "bcrypt" },
     { name = "click" },
     { name = "paramiko" },
     { name = "pydantic" },
@@ -537,6 +538,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "bcrypt", specifier = ">=4.0,<6.0" },
     { name = "click", specifier = ">=8.1,<9.0" },
     { name = "paramiko", specifier = ">=3.4,<4.0" },
     { name = "pydantic", specifier = ">=2.7,<3.0" },
