@@ -569,11 +569,23 @@ def test_a_step_that_comments_on_the_pr_is_skipped_for_forks(path: Path) -> None
     for step in _steps_with_uses(workflow):
         if not any(str(step["uses"]).startswith(a) for a in _PR_WRITING_ACTIONS):
             continue
-        condition = str(step.get("if", ""))
+        condition = " ".join(str(step.get("if", "")).split())
+        where = f"{path.name}: step {step.get('name')!r} writes to the pull request"
+
+        # Presence of the comparison is not enough. `A || B` contains the
+        # same text as `A && B` and runs the step for a fork anyway, so the
+        # substring check alone would pass a workflow that still fails on
+        # every external contribution.
         assert _SAME_REPO in condition, (
-            f"{path.name}: step {step.get('name')!r} writes to the pull request but "
-            "does not exempt forks, so it fails the job on every external contribution"
+            f"{where} but does not exempt forks, so it fails the job on every external contribution"
         )
+        assert "||" not in condition, (
+            f"{where} and its condition uses `||`, which lets a fork through "
+            f"whenever the other side is true: {condition}"
+        )
+        assert re.search(
+            rf"&&\s*{re.escape(_SAME_REPO)}|{re.escape(_SAME_REPO)}\s*&&", condition
+        ), f"{where}; the fork check must be conjoined with `&&`: {condition}"
 
 
 def test_the_fork_check_is_looking_at_a_real_step() -> None:
