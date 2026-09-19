@@ -39,6 +39,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import TracebackType
 
+from nexus_deploy import _remote
+
 
 class SSHError(Exception):
     """Raised for SSH-side errors not modelled by ``CalledProcessError``.
@@ -159,19 +161,15 @@ class SSHClient:
         ``delete=True`` clears destination paths that don't exist
         locally — used when the local dir is the canonical
         source-of-truth for that remote location.
+
+        Delegates to :func:`nexus_deploy._remote.push_directory`, which
+        falls back to tar over ssh where rsync is absent (#897). This
+        method had its own copy of the rsync invocation until then —
+        identical, and identically broken on a job image without rsync.
+        One implementation means the next runner image surprises exactly
+        one place.
         """
-        src = f"{local}/" if not str(local).endswith("/") else str(local)
-        args = ["rsync", "-aq"]
-        if delete:
-            args.append("--delete")
-        args += [src, remote]
-        return subprocess.run(
-            args,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        return _remote.push_directory(local, remote, delete=delete, timeout=timeout)
 
     @contextmanager
     def port_forward(

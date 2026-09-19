@@ -184,6 +184,14 @@ def _transport_detail(exc: BaseException) -> str:
     labels — never secret values — so their output is safe to surface.
     A phase whose script does not hold to that must not use this.
     """
+    # A missing program is not a transport failure, and saying "transport
+    # (FileNotFoundError)" sends the reader to the network. That is what
+    # #897 cost an hour of: rsync was simply absent from the job image,
+    # and Python raises FileNotFoundError — an OSError, so it landed in
+    # the transport arm. subprocess puts the program name in `filename`.
+    if isinstance(exc, FileNotFoundError) and exc.filename:
+        return f"executable not found: {exc.filename} (not installed in this job image)"
+
     parts: list[str] = [type(exc).__name__]
     returncode = getattr(exc, "returncode", None)
     if isinstance(returncode, int):

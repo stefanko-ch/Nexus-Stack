@@ -22,7 +22,11 @@ Tests mock ``subprocess.run`` directly — see ``tests/unit/test_remote.py``.
 
 from __future__ import annotations
 
+import os
+import shlex
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 # No subprocess timeout by default. A slow Hetzner control-plane
@@ -110,24 +114,60 @@ def ssh_run_script(
     )
 
 
-def rsync_to_remote(
+def push_directory(
     local: Path,
     remote: str,
     *,
     delete: bool = False,
     timeout: float | None = _DEFAULT_TIMEOUT_S,
 ) -> subprocess.CompletedProcess[str]:
-    """Push a local directory to the nexus server via rsync.
+    """Push a local directory's CONTENTS to a path on the nexus server.
 
-    ``remote`` follows rsync syntax (e.g. ``"nexus:/tmp/infisical-push/"``);
-    the alias resolves through the same ssh config as ``ssh_run``. The
-    trailing slash on ``local`` is auto-appended so rsync uploads the
-    directory's CONTENTS rather than the directory itself.
+    ``remote`` is ``<host>:<path>`` (e.g. ``"nexus:/tmp/infisical-push/"``);
+    the alias resolves through the same ssh config as :func:`ssh_run`.
 
-    ``delete=True`` clears destination paths that don't exist locally —
+    ``delete=True`` clears destination paths that do not exist locally —
     used when the local dir is the canonical source-of-truth for that
     remote location.
+
+    **Two transports, chosen at call time.** `rsync` when it is on PATH,
+    which is every GitHub runner, and `tar` over `ssh` when it is not.
+    A Forgejo runner's job image (`node:22-bookworm`) has ssh, scp, tar
+    and gzip but no rsync, and Python raises ``FileNotFoundError`` for a
+    missing executable — which surfaced as `stack-sync: transport
+    (FileNotFoundError)` on the first Conductor spin-up that reached this
+    phase (#897).
+
+    Installing rsync there was the other option and was measured: it
+    needs the rsync and libpopt packages extracted per architecture, and
+    Debian removes old point releases from its pool — a URL pinned today
+    404s within weeks, which is how that route was ruled out. tar and ssh
+    are in the image and in every runner image this project targets.
+
+    Both transports raise :class:`subprocess.CalledProcessError` with
+    ``stderr`` populated, because callers print that excerpt.
     """
+    if shutil.which("rsync") is not None:
+        return _rsync_push(local, remote, delete=delete, timeout=timeout)
+    return _tar_push(local, remote, delete=delete, timeout=timeout)
+
+
+# Kept as the historical name: four call sites and their tests use it,
+# and `stack_sync` names its result type after it. The transport is
+# chosen inside `push_directory`, so this no longer promises rsync.
+rsync_to_remote = push_directory
+
+
+def _rsync_push(
+    local: Path,
+    remote: str,
+    *,
+    delete: bool,
+    timeout: float | None,
+) -> subprocess.CompletedProcess[str]:
+    """The original path. The trailing slash on ``local`` is
+    auto-appended so rsync uploads the directory's CONTENTS rather than
+    the directory itself."""
     src = f"{local}/" if not str(local).endswith("/") else str(local)
     args = ["rsync", "-aq"]
     if delete:
@@ -140,3 +180,69 @@ def rsync_to_remote(
         text=True,
         timeout=timeout,
     )
+
+
+def _tar_push(
+    local: Path,
+    remote: str,
+    *,
+    delete: bool,
+    timeout: float | None,
+) -> subprocess.CompletedProcess[str]:
+    """`tar` locally, `tar -x` on the far side, one ssh in between.
+
+    Written as an archive file rather than a `tar | ssh` pipeline on
+    purpose. A pipeline hides the writer's exit status behind the
+    reader's, which is the shape that produced #883; here each half is
+    a separate call whose status is checked on its own.
+
+    The archive inherits ``mkstemp``'s 0600, which matters because one
+    caller pushes an Infisical payload of secret values. It is removed
+    in a ``finally``, including when ssh fails.
+
+    ``--no-same-owner`` on extraction: the numeric uid of whatever
+    account the CI job runs as means nothing on the server, and every
+    destination here is root-owned service configuration. Modes are
+    preserved, which is what the 0600 payload needs.
+    """
+    host, separator, path = remote.partition(":")
+    if not separator or not path:
+        raise ValueError(f"remote must be '<host>:<path>', got {remote!r}")
+
+    quoted = shlex.quote(path)
+    steps = [f"mkdir -p -- {quoted}"]
+    if delete:
+        # rsync --delete leaves the directory itself in place and clears
+        # what is under it, including dotfiles. `find -delete` is the
+        # same contract without a glob that would miss them.
+        steps.append(f"find {quoted} -mindepth 1 -delete")
+    steps.append(f"tar -C {quoted} -xpf - --no-same-owner")
+    # POSIX `set -eu`, not `set -euo pipefail`: `ssh host "<cmd>"` runs the
+    # command in the remote account's login shell, which is not guaranteed to
+    # be bash — dash answers `-o pipefail` with "Illegal option", the same
+    # way a container job did in #886. There is no pipeline here to protect,
+    # so the bash-only option bought nothing.
+    script = "set -eu; " + "; ".join(steps)
+
+    handle, archive_name = tempfile.mkstemp(prefix="nexus-push-", suffix=".tar")
+    os.close(handle)  # tar writes the path; the descriptor is only how mkstemp reserves it
+    archive = Path(archive_name)
+    try:
+        subprocess.run(
+            ["tar", "-C", str(local), "-cf", archive_name, "."],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        with archive.open("rb") as payload:
+            return subprocess.run(
+                ["ssh", host, script],
+                check=True,
+                stdin=payload,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+    finally:
+        archive.unlink(missing_ok=True)
