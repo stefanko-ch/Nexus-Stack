@@ -204,7 +204,19 @@ jobs:
         # coverage, badge, and per-file changed-lines breakdown. No
         # external service, no token — just `pull-requests: write`
         # scoped above. Skipped on push-to-main runs (no PR to comment on).
-        if: github.event_name == 'pull_request'
+        #
+        # And skipped for a pull request from a FORK, which is the second
+        # half of the condition. A fork's workflow run gets a read-only
+        # token whatever `permissions:` says, so this step cannot post and
+        # fails with `HttpError: Resource not accessible by integration`.
+        # That turned the whole job red on every external contribution
+        # while `pytest unit` was green two steps earlier — on #867 it read
+        # as the contributor's tests failing, which cost them a round of
+        # looking for a fault that was not theirs. The coverage itself is
+        # not lost: Codecov and the artifact below still run.
+        if: >-
+          github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
         uses: MishaKav/pytest-coverage-comment@v1.1.54
         with:
           pytest-coverage-path: ./pytest-coverage.txt
