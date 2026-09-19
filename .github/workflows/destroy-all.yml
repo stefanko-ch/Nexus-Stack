@@ -315,6 +315,34 @@ jobs:
           fi
           echo "✅ Nexus Stack destroyed successfully"
 
+      # A teardown takes the Forgejo Access service token out of the state and
+      # leaves it in Cloudflare, so that a spin-up can adopt it back (#892).
+      # The destroy above therefore cannot reach it, and on a stack that was
+      # torn down first it would survive a workflow whose subject is leaving
+      # nothing behind. Removed by name, and every match: destroy-all is the
+      # one place where "which one is in use" no longer matters.
+      #
+      # Deliberately NOT gated on SKIP_TOFU_DESTROY, unlike its neighbours.
+      # That flag means the OpenTofu backend could not be reached — missing R2
+      # credentials, or a state bucket that is already gone. A preserved token
+      # is not in the state; it is an object in the Cloudflare account, and
+      # this step needs only the API. So the case where the flag is set is
+      # precisely the case where nothing else will ever remove it.
+      #
+      # `!cancelled()` rather than no condition at all: a step without one
+      # carries an implicit `success()`, so a destroy that FAILED would skip
+      # this and leave the token behind — the very state this step exists for.
+      # And `!cancelled()` rather than `always()`, which GitHub's own
+      # documentation advises against because it also runs after a human
+      # cancels the run; a cancelled destroy-all should change nothing.
+      - name: Remove a preserved Forgejo service token
+        if: ${{ !cancelled() }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: bash .github/scripts/forgejo-service-token.sh purge
+
       - name: Destroy Control Plane infrastructure
         if: env.SKIP_TOFU_DESTROY != 'true'
         run: |

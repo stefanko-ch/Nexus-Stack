@@ -145,6 +145,35 @@ operator to copy into the management plane's own secret store. They are
 never printed to the workflow log. The caller sends them as the
 `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers.
 
+### The token survives a teardown; its secret is issued once
+
+The policy is recreated on every spin-up — it has to be, because the Access
+application it hangs on is new each time. **The token itself is kept.** A
+`rebuild` teardown takes it out of the OpenTofu state before the destroy, and
+the next spin-up imports it back, the same way the Control Plane's KV
+namespace is preserved. Until #892 it was destroyed and re-minted with a new
+client id and secret, which broke the management plane silently, one call
+later.
+
+Two consequences worth knowing before they surprise you:
+
+- **After the first teardown, Infisical shows the id and no secret.**
+  Cloudflare returns a service token's secret exactly once, at creation, and
+  the provider's documentation is explicit that an imported token "will not
+  have the client_secret available in the state for use". Nothing is lost:
+  the pair the management plane already holds stays valid, which is the whole
+  point. The empty value is dropped rather than written over the real one.
+- **The spin-up refuses rather than guess** if two Access service tokens carry
+  this stack's token name. Importing the wrong one would hand the policy a
+  credential the management plane does not hold — the same silent failure,
+  one level deeper. Delete the stale one under *Zero Trust → Access → Service
+  Auth* and run the spin-up again.
+
+`destroy-all` removes the token by name, because by then it is exactly the
+unmanaged object a teardown left behind. Turning the variable off without
+running `destroy-all` leaves it in the account, unused and attached to no
+policy; remove it by hand if you want it gone.
+
 Leave the variable unset on any stack that nothing manages externally. The
 forge holds every user repository, and the token is a credential that gets
 a caller past the perimeter protecting them.

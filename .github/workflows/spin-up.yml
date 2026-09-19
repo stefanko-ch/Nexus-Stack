@@ -452,6 +452,24 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl
 
+      # Must run before the apply: a teardown took the Forgejo Access service
+      # token out of the state and left it in Cloudflare (#892), so without
+      # this the apply mints a replacement and every external management
+      # plane authenticating with the old pair breaks, silently. The script
+      # refuses rather than guess when the name is ambiguous.
+      - name: Adopt a preserved Forgejo service token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          ENABLE_FORGEJO_SERVICE_TOKEN: ${{ vars.ENABLE_FORGEJO_SERVICE_TOKEN }}
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          bash "$GITHUB_WORKSPACE/.github/scripts/forgejo-service-token.sh" adopt
+
       - name: Apply infrastructure
         run: |
           cd tofu/stack
