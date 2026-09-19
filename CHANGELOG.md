@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.82.3](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.82.2...v0.82.3) (2026-09-19)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Keep the Forgejo Access service token across a teardown ([#895](https://github.com/stefanko-ch/Nexus-Stack/issues/895)) ([6784086](https://github.com/stefanko-ch/Nexus-Stack/commit/678408678e43c9146fd7742995076588625d3e57))
+* **deploy:** Copy stacks without rsync when the job image has none ([#899](https://github.com/stefanko-ch/Nexus-Stack/issues/899)) ([d083531](https://github.com/stefanko-ch/Nexus-Stack/commit/d0835310db4d6104e8509d350d3860f622baa42b))
+* **service_env:** reject empty DOMAIN in render_all_env_files ([#863](https://github.com/stefanko-ch/Nexus-Stack/issues/863)) ([#867](https://github.com/stefanko-ch/Nexus-Stack/issues/867)) ([5c6e93d](https://github.com/stefanko-ch/Nexus-Stack/commit/5c6e93dfdf561d507e09369a6c26087cfec475fc))
+
 ## [0.82.2](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.82.1...v0.82.2) (2026-09-18)
 
 
