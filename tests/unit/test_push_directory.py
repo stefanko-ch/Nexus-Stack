@@ -265,6 +265,51 @@ def test_no_archive_is_left_behind(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert list(spool.iterdir()) == [], "the archive outlived a failed push"
 
 
+# `ssh <host> <command>` that only records what it was asked to run.
+_RECORDING_SSH = """#!/usr/bin/env bash
+shift
+printf '%s' "$*" > "$REMOTE_SCRIPT_LOG"
+"""
+
+
+def test_the_remote_script_runs_in_a_posix_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`ssh host "<cmd>"` runs the command in the remote account's login
+    shell, which is not guaranteed to be bash. dash answers `-o pipefail`
+    with "Illegal option" — the same failure a container job hit in #886 —
+    and there is no pipeline in this script for pipefail to protect."""
+    _no_rsync(monkeypatch)
+    _fake_ssh(tmp_path, monkeypatch, body=_RECORDING_SSH)
+    log = tmp_path / "remote-script.txt"
+    monkeypatch.setenv("REMOTE_SCRIPT_LOG", str(log))
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "f").write_text("x")
+
+    _remote.push_directory(src, "nexus:/dst", delete=True)
+
+    script = log.read_text()
+    assert script.startswith("set -eu;")
+    assert "pipefail" not in script
+    # Still POSIX with a pipe would be a different question — there is none.
+    assert "|" not in script
+
+
+def test_the_remote_path_is_quoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The path reaches a remote shell as part of a command string."""
+    _no_rsync(monkeypatch)
+    _fake_ssh(tmp_path, monkeypatch, body=_RECORDING_SSH)
+    log = tmp_path / "remote-script.txt"
+    monkeypatch.setenv("REMOTE_SCRIPT_LOG", str(log))
+    src = tmp_path / "src"
+    src.mkdir()
+
+    _remote.push_directory(src, "nexus:/opt/docker server/stacks")
+
+    assert "'/opt/docker server/stacks'" in log.read_text()
+
+
 # ---------------------------------------------------------------------------
 # The diagnostic that sent the reader to the network
 # ---------------------------------------------------------------------------

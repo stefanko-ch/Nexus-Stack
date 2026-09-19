@@ -217,7 +217,12 @@ def _tar_push(
         # same contract without a glob that would miss them.
         steps.append(f"find {quoted} -mindepth 1 -delete")
     steps.append(f"tar -C {quoted} -xpf - --no-same-owner")
-    script = "set -euo pipefail; " + "; ".join(steps)
+    # POSIX `set -eu`, not `set -euo pipefail`: `ssh host "<cmd>"` runs the
+    # command in the remote account's login shell, which is not guaranteed to
+    # be bash — dash answers `-o pipefail` with "Illegal option", the same
+    # way a container job did in #886. There is no pipeline here to protect,
+    # so the bash-only option bought nothing.
+    script = "set -eu; " + "; ".join(steps)
 
     handle, archive_name = tempfile.mkstemp(prefix="nexus-push-", suffix=".tar")
     os.close(handle)  # tar writes the path; the descriptor is only how mkstemp reserves it
