@@ -308,6 +308,18 @@ jobs:
           uv run --quiet --project "$GITHUB_WORKSPACE" \
             python -m nexus_deploy s3-snapshot
 
+      # Before the destroy, and after the R2 snapshot: the destroy below is
+      # untargeted, and the Forgejo Access service token is a credential an
+      # external management plane holds (#892). Taking it out of the state
+      # leaves it in Cloudflare; the next spin-up imports it back.
+      - name: Preserve the Forgejo service token
+        run: |
+          cd tofu/stack
+          source ../.r2-credentials
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          bash "$GITHUB_WORKSPACE/.github/scripts/forgejo-service-token.sh" preserve
+
       - name: Teardown Hetzner infrastructure only
         run: |
           cd tofu/stack

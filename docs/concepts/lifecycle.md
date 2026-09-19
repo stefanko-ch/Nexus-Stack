@@ -74,6 +74,12 @@ data" — it is "some of your data, depending on the mode".
   the lifecycle mode, the teardown schedule.
 - The Control Plane itself. It lives in a separate OpenTofu root precisely so a
   teardown cannot take away the UI that brings the deployment back.
+- The Cloudflare Access service token for Forgejo, when
+  `ENABLE_FORGEJO_SERVICE_TOKEN` is on. It is a credential an external
+  management plane holds, so its lifetime is the relationship between the two
+  systems rather than the lifetime of a server: the teardown takes it out of
+  the state and the spin-up imports it back (#892). See
+  [Forgejo](../stacks/forgejo.md).
 
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —

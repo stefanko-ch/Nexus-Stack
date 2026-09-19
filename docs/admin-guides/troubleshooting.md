@@ -424,6 +424,29 @@ store does not get a narrower bundle: the deploy stops at
 jobs would otherwise fail on every public HTTPS call. Deleting the three
 files and re-running the spin-up regenerates them.
 
+## A spin-up refuses to adopt the Forgejo service token
+
+```text
+❌ ERROR: 2 Access service tokens are named 'nexus-example-com-forgejo-token'.
+   Refusing to guess which one the external management plane holds.
+```
+
+The Access service token for Forgejo is kept across a teardown and imported
+back on the next spin-up (#892). That only works while the name identifies one
+token. Two of them means an earlier preserve-and-adopt cycle did not complete —
+typically a spin-up that minted a new one while the old was still in the
+account.
+
+**Fix:** decide which one the management plane actually uses — it is the one
+whose client id matches the `CF-Access-Client-Id` in that system's secret
+store — and delete the others under *Zero Trust → Access → Service Auth*. Then
+re-run the spin-up.
+
+Guessing is exactly what the step refuses to do: adopting the wrong token
+would let OpenTofu build the policy around a credential the caller does not
+hold, and the caller would get Access's login redirect instead of the API,
+with nothing in any log saying why.
+
 ## General Tips
 
 ### SSH Access Issues
