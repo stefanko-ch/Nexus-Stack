@@ -464,10 +464,14 @@ is a script you run yourself:
 scripts/cleanup-orphaned-resources.sh
 ```
 
-It reads `TF_VAR_cloudflare_api_token` and `TF_VAR_cloudflare_account_id` from
-the environment, from a local `.env`, or from the repository's GitHub secrets
-via `gh`. It continues past a failure and exits non-zero at the end, so one
-broken delete does not hide a second orphan.
+It needs **three** values — `TF_VAR_cloudflare_api_token`,
+`TF_VAR_cloudflare_account_id` and `TF_VAR_cloudflare_zone_id` — and reads
+each from the environment, from a local `.env`, or from the repository's
+GitHub secrets via `gh`. The zone id is the one that is easy to forget, and
+without it the script stops at `Required environment variables not set!`
+before deleting anything; it is what the Access-application lookup is scoped
+to. It continues past a failure and exits non-zero at the end, so one broken
+delete does not hide a second orphan.
 
 **What it actually deletes is narrower than the name suggests**, and worth
 knowing before you rely on it:
