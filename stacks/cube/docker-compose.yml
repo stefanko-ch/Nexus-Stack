@@ -9,7 +9,7 @@
 #
 # Two containers:
 #
-#   cube        the API and the Playground UI
+#   cube        the SQL, REST and GraphQL APIs — token-authenticated
 #   cube-store  Cube's own storage layer for cache, queue and pre-aggregations
 #
 # cube-store is NOT optional, and that is upstream's word rather than a guess:
@@ -18,8 +18,10 @@
 #
 # DATA SOURCE: the shared `postgres` stack. Cube reads whatever tables are
 # there; it creates none of its own. A fresh stack therefore starts with no
-# data model, which is the intended starting point — the Playground generates
-# cubes from the tables it finds.
+# data model, which is the intended starting point: a model describes tables
+# that exist, and a fresh warehouse has none. To generate a first model by
+# clicking, run Cube on a laptop in development mode — stacks/cube/model/
+# README.md has the command — and commit what it produces.
 #
 # THE DATA MODEL LIVES IN THIS REPOSITORY, under stacks/cube/model/, and is
 # mounted read-only. stack-sync copies it to the server on every spin-up, so
