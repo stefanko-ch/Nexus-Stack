@@ -3904,6 +3904,16 @@ def test_cube_renders_exactly_what_the_compose_file_reads(
     assert rendered.env_vars["CUBE_API_SECRET"] == full_config.cube_api_secret
 
 
+def test_cube_env_is_not_world_readable(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Both values in this file are credentials — the warehouse password, and
+    the secret that signs every token Cube accepts. Anyone who can read it can
+    mint one, so it follows the 0600 the other credential-bearing renderers
+    use rather than the 0644 default."""
+    from nexus_deploy.service_env import _render_cube
+
+    assert _render_cube(full_config, full_env).mode == 0o600
+
+
 @pytest.mark.parametrize(
     ("field", "expected"),
     [

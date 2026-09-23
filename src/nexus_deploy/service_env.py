@@ -613,6 +613,11 @@ def _render_cube(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "POSTGRES_PASSWORD": c.postgres_password or "",
             "CUBE_API_SECRET": c.cube_api_secret or "",
         },
+        # 0600, like the fifteen other renderers whose file carries a
+        # credential. Both values here are one: the warehouse password, and
+        # the secret that signs every token Cube accepts — anyone who can
+        # read it can mint one.
+        mode=0o600,
     )
 
 

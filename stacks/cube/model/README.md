@@ -26,7 +26,7 @@ To iterate quickly without a spin-up per edit, run Cube locally against the
 same model:
 
 ```bash
-docker run --rm -p 4000:4000 \
+docker run --rm -p 127.0.0.1:4000:4000 \
   -v "$PWD:/cube/conf/model" \
   -e CUBEJS_DEV_MODE=true \
   -e CUBEJS_DB_TYPE=postgres \
@@ -36,6 +36,10 @@ docker run --rm -p 4000:4000 \
   -e CUBEJS_DB_PASS=... \
   cubejs/cube:v1.7.42
 ```
+
+The port is bound to `127.0.0.1` on purpose: that command turns development
+mode on, which is an authentication bypass, and `-p 4000:4000` would offer the
+warehouse behind it to anyone on the same network.
 
 Development mode on a laptop is what upstream recommends it for. The
 Playground at `localhost:4000` will also generate a first cube from the tables
