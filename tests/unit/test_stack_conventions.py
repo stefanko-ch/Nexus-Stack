@@ -2396,6 +2396,30 @@ def test_cube_reads_its_model_from_the_repository_read_only() -> None:
     assert (STACKS_DIR / "cube" / "model").is_dir()
 
 
+def test_cube_probes_health_with_something_the_image_has() -> None:
+    """The image ships neither curl nor wget — measured, after a first draft
+    used curl and left the container permanently `unhealthy` with
+    `/bin/sh: 1: curl: not found` in every probe. It ships node."""
+    check = " ".join(_cube_compose()["services"]["cube"]["healthcheck"]["test"])
+
+    assert "curl" not in check, check
+    assert "wget" not in check, check
+    assert "node " in check
+    assert "/livez" in check
+
+
+def test_cube_store_writes_into_the_volume_it_mounts() -> None:
+    """Its default data directory is /cube/.cubestore, not the /cube/data the
+    volume is mounted at — measured. Left implicit, the metastore and cache
+    lived in the container layer and every recreate silently discarded
+    them."""
+    store = _cube_compose()["services"]["cube-store"]
+    declared = store["environment"]["CUBESTORE_DATA_DIR"]
+    mounts = [v.split(":")[1] for v in store["volumes"] if isinstance(v, str)]
+
+    assert declared in mounts, (declared, mounts)
+
+
 def test_cube_carries_no_secret_of_its_own() -> None:
     """Both values come from the rendered .env — the compose file names
     them and never holds one."""

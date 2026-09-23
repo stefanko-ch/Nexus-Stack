@@ -93,6 +93,21 @@ Nexus-Stack has run on x86 `cx43` servers since 2026-05, so this satisfies the r
 - a contributor on Apple Silicon cannot run `cube-store` locally without emulation;
 - Cube Store needs AVX. Hetzner's Intel instances have it; on a CPU without it the container fails at startup rather than degrading quietly, and the `-non-avx` tags exist for exactly that case.
 
+### Rehearsed before it shipped
+
+Both containers were run locally against a probe PostgreSQL on 2026-09-23, with the stack's own compose file. Two defects turned up that no test would have caught:
+
+| Check | Result |
+|---|---|
+| `cube` starts with an effectively empty model directory | `🚀 Cube API server (1.7.42) is listening on 4000`, `/cubejs-api/v1/meta` → `{"cubes":[]}` |
+| Request with no token | **403** `{"error":"Authorization header isn't set"}` |
+| Token signed with the wrong secret | **403** `{"error":"Invalid token"}` |
+| Token signed with `CUBE_API_SECRET` | **200** |
+| Healthcheck | first draft used `curl`; the image has **neither curl nor wget**, so the container sat permanently `unhealthy` with `curl: not found`. Now probed with `node`, and the container reports `healthy` |
+| Cube Store's data | first draft mounted the volume at `/cube/data` while the default data directory is `/cube/.cubestore`, so the metastore lived in the container layer and a recreate would have discarded it. `CUBESTORE_DATA_DIR` is now declared, and the volume holds the state |
+
+What is still untested is a spin-up on a real server, which is what settles whether the tunnel, Access and the shared Postgres behave as expected.
+
 ### Configuration
 
 | Variable | Source | Purpose |

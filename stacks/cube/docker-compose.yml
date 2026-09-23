@@ -94,11 +94,22 @@ services:
     networks:
       - app-network
     healthcheck:
-      # Cube's own liveness endpoint. `readyz` additionally checks the data
-      # source, which would leave this container unhealthy whenever Postgres
-      # is down — true, but it makes an unrelated outage look like a broken
-      # Cube.
-      test: ["CMD-SHELL", "curl -sf http://localhost:4000/livez || exit 1"]
+      # Cube's own liveness endpoint, probed with node.
+      #
+      # NOT curl: the image has neither curl nor wget — measured, after the
+      # first draft used curl and left the container permanently `unhealthy`
+      # with `/bin/sh: 1: curl: not found` in every probe. It ships node,
+      # which is what it is written in.
+      #
+      # `livez` rather than `readyz`: the latter also checks the data source,
+      # which would mark this container unhealthy whenever Postgres is down —
+      # true, but it makes an unrelated outage look like a broken Cube.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "require('http').get('http://localhost:4000/livez',
+          r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error',
+          () => process.exit(1))"
       interval: 30s
       timeout: 10s
       retries: 3
@@ -121,6 +132,11 @@ services:
     restart: unless-stopped
     environment:
       CUBESTORE_SERVER_NAME: cube-store:3030
+      # Declared, not inherited. Cube Store's default data directory is
+      # /cube/.cubestore — measured — so the volume below was mounted at a
+      # path it never wrote to, and every container recreate would have
+      # thrown away the cache and the metastore while looking fine.
+      CUBESTORE_DATA_DIR: /cube/data
     volumes:
       - cube-store-data:/cube/data
     mem_limit: 1g
