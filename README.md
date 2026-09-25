@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (99)
+## Available Stacks (100)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -112,6 +112,7 @@ After deployment you'll have:
 [![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)](https://about.gitea.com)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)](https://grafana.com)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
+[![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
 [![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)](https://hoppscotch.io)
 [![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)](https://infisical.com)
 [![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/products/influxdb/)
@@ -214,6 +215,7 @@ After deployment you'll have:
 | **Gitea** | Self-hosted Git service with pull requests, code review, and CI/CD | [gitea.com](https://about.gitea.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
+| **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
 | **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **InfluxDB** | Time-series database with retention policies, downsampling tasks and a built-in UI | [influxdata.com](https://www.influxdata.com/products/influxdb/) |

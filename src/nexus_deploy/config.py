@@ -85,6 +85,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("CUBE_API_SECRET", "cube_api_secret", ""),
     ("APICURIO_DB_PASS", "apicurio_db_password", ""),
     ("CASSANDRA_ADMIN_PASS", "cassandra_admin_password", ""),
+    ("HIVE_DB_PASS", "hive_db_password", ""),
     ("KEYCLOAK_DB_PASS", "keycloak_db_password", ""),
     ("LANGFUSE_DB_PASS", "langfuse_db_password", ""),
     ("LANGFUSE_CLICKHOUSE_PASS", "langfuse_clickhouse_password", ""),
@@ -247,6 +248,7 @@ class NexusConfig(BaseModel):
     cube_api_secret: str | None = None
     apicurio_db_password: str | None = None
     cassandra_admin_password: str | None = None
+    hive_db_password: str | None = None
     keycloak_db_password: str | None = None
     langfuse_db_password: str | None = None
     langfuse_clickhouse_password: str | None = None

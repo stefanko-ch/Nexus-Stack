@@ -101,6 +101,10 @@
       'HETZNER_S3_REGION': 'hetzner_s3_region-VALUE',
       'HETZNER_S3_SECRET_KEY': 'hetzner_s3_secret_key-VALUE',
     }),
+    'hive-metastore': dict({
+      'HIVE_DB_PASSWORD': 'hive_db_password-VALUE',
+      'HIVE_DB_USERNAME': 'nexus-hive',
+    }),
     'infisical': dict({
       'INFISICAL_PASSWORD': 'infisical_admin_password-VALUE',
       'INFISICAL_USERNAME': 'admin@snapshot.test',

@@ -749,6 +749,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "hive-metastore",
+            _filter_empty(
+                {
+                    # The metastore has no user management; its Thrift port is
+                    # unauthenticated and bound to loopback. This is the
+                    # database role behind the catalogue.
+                    "HIVE_DB_USERNAME": "nexus-hive",
+                    "HIVE_DB_PASSWORD": config.hive_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "cassandra",
             _filter_empty(
                 {

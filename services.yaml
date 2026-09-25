@@ -444,6 +444,18 @@ services:
     support_images:
       hedgedoc-db: "postgres:18-alpine"
 
+  hive-metastore:
+    port: 9083
+    public: false
+    internal_only: true
+    category: "storage"
+    website: "https://hive.apache.org"
+    description: "The Hive catalog — what tables exist, and where their files live. Thrift only, no UI."
+    long_description: "The standalone Hive Metastore: the metadata service that Spark, Trino and Flink all know how to ask what tables exist, what columns they have and where their files are. It runs no queries of its own — each engine brings its own execution and talks to this over Thrift on 9083. It is the alternative to Lakekeeper rather than a companion to it: Lakekeeper serves the Iceberg REST catalog, this serves the Hive one, which the Hive table format and the older half of the ecosystem expect. Having both is the point. Tables on object storage are declared EXTERNAL with an s3a:// location, which the metastore resolves itself, so it carries the R2 credentials. Its own PostgreSQL holds the catalog, and the image creates the schema on first start."
+    image: "nexus-hive-metastore:4.1.0"
+    support_images:
+      hive-metastore-postgres: "postgres:17-alpine"
+
   hoppscotch:
     subdomain: "hoppscotch"
     port: 3003

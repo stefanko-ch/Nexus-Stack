@@ -193,6 +193,9 @@ output "secrets" {
     # creates `nexus-cassandra` with this password and drops that default.
     cassandra_admin_password = random_password.cassandra_admin.result
 
+    # Hive Metastore (the standalone catalogue service)
+    hive_db_password = random_password.hive_db_password.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result

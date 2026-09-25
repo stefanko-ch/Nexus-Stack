@@ -1,0 +1,144 @@
+# =============================================================================
+# Hive Metastore - the standalone catalog service
+# =============================================================================
+# No web UI and no query engine. This is the metadata service alone: what
+# tables exist, what columns they have, what format they are in, and where
+# their files live. Spark, Trino and Flink all speak its Thrift protocol on
+# port 9083 and each brings its own execution.
+#
+# It is the alternative to Lakekeeper, not a companion. Lakekeeper is an
+# Iceberg REST catalogue; this is the Hive catalogue, which is what the
+# Hive table format and the older half of the ecosystem expect. Having both
+# is the point: a course can compare them.
+#
+# Its own PostgreSQL, like every other stack here, and the schema is created
+# by the image itself — the entrypoint runs `schematool -initOrUpgradeSchema`
+# before starting the service, so there is no admin hook.
+#
+# The warehouse directory is LOCAL, and that is a decision rather than an
+# oversight: see the note on it below.
+# =============================================================================
+
+services:
+  hive-metastore:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_HIVE_METASTORE:-nexus-hive-metastore:4.1.0}
+    container_name: hive-metastore
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # Thrift. Not published to the host: everything that talks to a
+      # metastore is another container on app-network, and the protocol has
+      # no authentication of its own.
+      - "127.0.0.1:9083:9083"
+    environment:
+      SERVICE_NAME: "metastore"
+      DB_DRIVER: "postgres"
+      # hadoop-aws and the AWS SDK are IN the image already — at
+      # /opt/hadoop/share/hadoop/tools/lib — but the entrypoint only puts
+      # tools/lib on the classpath for hiveserver2, not for the metastore.
+      # Without this, registering a table whose LOCATION is s3a:// fails with
+      #   ClassNotFoundException: org.apache.hadoop.fs.s3a.S3AFileSystem
+      # which is measured, not feared: the metastore resolves the FileSystem
+      # for a location at create time, EXTERNAL table or not.
+      HADOOP_CLASSPATH: "/opt/hadoop/share/hadoop/tools/lib/hadoop-aws-3.4.1.jar:/opt/hadoop/share/hadoop/tools/lib/bundle-2.24.6.jar"
+      # NOTE: no credentials here, and none in SERVICE_OPTS either. See the
+      # entrypoint below.
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -eu
+        # Everything secret goes into hive-site.xml, NOT into SERVICE_OPTS.
+        #
+        # The image's own /entrypoint.sh begins with `set -x`, so every
+        # variable it expands is echoed to the container log. Measured: with
+        # the JDBC password in SERVICE_OPTS, `docker logs hive-metastore`
+        # printed `ConnectionPassword=<the password>` twice. This repository
+        # is public and its rule on that is absolute.
+        #
+        # A config file has none of that problem: `set -x` traces commands,
+        # and this file is written before the image's entrypoint is reached.
+        # Written straight into the conf directory, NOT through the image's
+        # HIVE_CUSTOM_CONF_DIR. That path is dead: the entrypoint links a
+        # custom conf dir in with
+        #   find "$$HIVE_CUSTOM_CONF_DIR" -type f -exec ln -sfn {} ...
+        # and this image has no `find` — `command -v find` is empty. The step
+        # fails silently under the entrypoint's `set -x` and the image's own
+        # Derby hive-site.xml survives, so schematool runs the PostgreSQL
+        # script against Derby and dies on
+        #   Syntax error: Encountered "statement_timeout"
+        #
+        # `rm -f` first: the shipped file is root-owned 0644 and this runs as
+        # `hive`, which can unlink it (the directory is hive-owned) but not
+        # overwrite it in place. What it holds is hiveserver2 and Tez
+        # settings, all irrelevant to a standalone metastore.
+        umask 077
+        rm -f /opt/hive/conf/hive-site.xml
+        cat > /opt/hive/conf/hive-site.xml <<XML
+        <?xml version="1.0"?>
+        <configuration>
+          <property><name>javax.jdo.option.ConnectionDriverName</name><value>org.postgresql.Driver</value></property>
+          <property><name>javax.jdo.option.ConnectionURL</name><value>jdbc:postgresql://hive-metastore-db:5432/metastore</value></property>
+          <property><name>javax.jdo.option.ConnectionUserName</name><value>nexus-hive</value></property>
+          <property><name>javax.jdo.option.ConnectionPassword</name><value>$${HIVE_DB_PASSWORD}</value></property>
+          <property><name>hive.metastore.warehouse.dir</name><value>file:///opt/hive/data/warehouse</value></property>
+          <property><name>fs.s3a.endpoint</name><value>$${R2_ENDPOINT:-}</value></property>
+          <property><name>fs.s3a.access.key</name><value>$${R2_ACCESS_KEY:-}</value></property>
+          <property><name>fs.s3a.secret.key</name><value>$${R2_SECRET_KEY:-}</value></property>
+          <property><name>fs.s3a.path.style.access</name><value>true</value></property>
+          <property><name>fs.s3a.aws.credentials.provider</name><value>org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider</value></property>
+        </configuration>
+        XML
+        exec /entrypoint.sh
+    volumes:
+      # Managed tables land here. A table on object storage is declared
+      # EXTERNAL with its own s3a:// LOCATION and never touches this
+      # directory — but the metastore still resolves that location itself,
+      # which is why it carries the R2 credentials above.
+      - /mnt/nexus-data/hive-metastore/warehouse:/opt/hive/data/warehouse
+    mem_limit: 2g
+    depends_on:
+      hive-metastore-db:
+        condition: service_healthy
+    healthcheck:
+      # The Thrift port, checked from inside. The image has no curl and no
+      # nc; it does have a JDK, and bash can open a TCP socket through
+      # /dev/tcp without spawning anything.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9083' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+
+  hive-metastore-db:
+    image: ${IMAGE_HIVE_METASTORE_POSTGRES:-postgres:17-alpine}
+    container_name: hive-metastore-db
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_DB: metastore
+      POSTGRES_USER: nexus-hive
+      POSTGRES_PASSWORD: ${HIVE_DB_PASSWORD}
+    volumes:
+      - /mnt/nexus-data/hive-metastore/db:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-hive -d metastore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

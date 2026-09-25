@@ -41,6 +41,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `11.6` | Minor |
+| Hive Metastore | `nexus-hive-metastore` (custom build) | `4.1.0` | Exact ³ |
+| PostgreSQL (Hive Metastore DB) | `postgres` | `17-alpine` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `2025.12.1` | Exact ¹ |
 | PostgreSQL (Hoppscotch DB) | `postgres` | `15-alpine` | Major |
 | Prometheus | `prom/prometheus` | `v3.9.1` | Exact ¹ |
@@ -234,6 +236,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
+| **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
 | **InfluxDB** | Time-series database with retention and downsampling tasks | [influxdb.md](influxdb.md) |

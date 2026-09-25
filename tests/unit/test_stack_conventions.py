@@ -2713,3 +2713,73 @@ def test_cassandra_readiness_waits_for_the_cql_port() -> None:
 
     assert "statusbinary" in probe, probe
     assert not re.search(r"nodetool status\b(?!inary)", probe), probe
+
+
+# ---------------------------------------------------------------------------
+# Hive Metastore: four things the upstream image does not do for us
+# ---------------------------------------------------------------------------
+
+
+def _hive_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "hive-metastore" / "docker-compose.yml").read_text()))
+
+
+def _hive_entrypoint() -> str:
+    return str(_hive_compose()["services"]["hive-metastore"]["entrypoint"][-1])
+
+
+def test_the_hive_metastore_keeps_its_secrets_out_of_the_log() -> None:
+    """The image's /entrypoint.sh starts with `set -x`, so anything it
+    expands is echoed. With the JDBC password in SERVICE_OPTS,
+    `docker logs hive-metastore` printed ConnectionPassword=<value> twice.
+    The configuration therefore goes into a file, written before that
+    entrypoint is reached."""
+    service = _hive_compose()["services"]["hive-metastore"]
+    entrypoint = _hive_entrypoint()
+
+    for secret in ("HIVE_DB_PASSWORD", "R2_SECRET_KEY", "R2_ACCESS_KEY"):
+        for key, value in service.get("environment", {}).items():
+            assert secret not in str(value), (
+                f"{secret} reaches the JVM through {key}, which the image's "
+                "`set -x` entrypoint echoes into the container log"
+            )
+    assert "hive-site.xml" in entrypoint
+    assert entrypoint.index("hive-site.xml") < entrypoint.index("exec /entrypoint.sh")
+
+
+def test_the_hive_metastore_does_not_rely_on_hive_custom_conf_dir() -> None:
+    """That variable is the documented way to supply configuration and it
+    does not work here: the entrypoint consumes it with `find ... -exec ln`,
+    and the image has no `find`. The step fails silently, the shipped Derby
+    hive-site.xml survives, and schematool runs the PostgreSQL script
+    against Derby."""
+    entrypoint = _hive_entrypoint()
+
+    assert "HIVE_CUSTOM_CONF_DIR=" not in entrypoint, (
+        "HIVE_CUSTOM_CONF_DIR is a dead path in this image — see the comment"
+    )
+    assert "/opt/hive/conf/hive-site.xml" in entrypoint, (
+        "the configuration must be written into the conf directory directly"
+    )
+
+
+def test_the_hive_metastore_can_resolve_an_s3a_location() -> None:
+    """hadoop-aws and the AWS SDK are in the image, but the entrypoint puts
+    tools/lib on the classpath only for hiveserver2. Without this, creating
+    a table with an s3a:// LOCATION fails with ClassNotFoundException —
+    and the metastore resolves that location at create time whether the
+    table is EXTERNAL or not."""
+    env = _hive_compose()["services"]["hive-metastore"]["environment"]
+    entrypoint = _hive_entrypoint()
+
+    assert "hadoop-aws" in env.get("HADOOP_CLASSPATH", ""), env
+    for key in ("fs.s3a.endpoint", "fs.s3a.access.key", "fs.s3a.secret.key"):
+        assert key in entrypoint, f"{key} is not configured, so s3a:// locations cannot resolve"
+
+
+def test_the_hive_metastore_thrift_port_stays_on_loopback() -> None:
+    """The Thrift protocol has no authentication of its own. Everything that
+    talks to a metastore is another container on app-network."""
+    ports = _hive_compose()["services"]["hive-metastore"]["ports"]
+
+    assert all(str(p).startswith("127.0.0.1:") for p in ports), ports

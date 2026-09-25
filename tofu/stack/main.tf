@@ -247,6 +247,13 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# Hive Metastore Postgres password — dedicated DB. Holds the catalogue:
+# databases, tables, columns and the locations their files live at.
+resource "random_password" "hive_db_password" {
+  length  = 24
+  special = false
+}
+
 # Cassandra superuser password. The image's only seedable account is the
 # built-in `cassandra` superuser with the password `cassandra`; the admin
 # hook creates `nexus-cassandra` with this password and then drops that

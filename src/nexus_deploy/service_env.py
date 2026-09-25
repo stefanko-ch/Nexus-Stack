@@ -660,6 +660,45 @@ def _render_cassandra(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_hive_metastore(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Hive Metastore: its own Postgres, plus the R2 credentials it needs
+    to resolve an ``s3a://`` table location.
+
+    The R2 half is not optional decoration. The metastore resolves the
+    FileSystem for a table's ``LOCATION`` when the table is created —
+    EXTERNAL or not — so registering a table on object storage without
+    credentials fails with ``NoAuthWithAWSException``, and without the
+    hadoop-aws classpath entry the compose file sets, with
+    ``ClassNotFoundException: org.apache.hadoop.fs.s3a.S3AFileSystem``.
+    Both were measured against a real object store.
+
+    Fail-fast on the database password only. The R2 values are emitted
+    empty when absent: a metastore with a local warehouse and no object
+    storage is a perfectly reasonable thing to run, and it is the same
+    ``r2_data_*`` group MLflow and Unity Catalog read.
+
+    Infisical naming reference: ``/hive-metastore/HIVE_DB_PASSWORD``.
+    """
+    del e
+    if _empty(c.hive_db_password):
+        raise ServiceEnvError(
+            "Hive Metastore enabled but HIVE_DB_PASS (Infisical /hive-metastore) "
+            "empty — run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.hive_db_password, then re-run spin-up. Aborting to "
+            "avoid a Postgres container that restart-loops with no auth.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "HIVE_DB_PASSWORD": c.hive_db_password or "",
+            "R2_ENDPOINT": c.r2_data_endpoint or "",
+            "R2_ACCESS_KEY": c.r2_data_access_key or "",
+            "R2_SECRET_KEY": c.r2_data_secret_key or "",
+        },
+        # The file carries the database password and the R2 keys.
+        mode=0o600,
+    )
+
+
 def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
 
@@ -2768,6 +2807,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
     EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),
     EnvSpec("cassandra", _is_enabled("cassandra"), _render_cassandra),
+    EnvSpec("hive-metastore", _is_enabled("hive-metastore"), _render_hive_metastore),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),
