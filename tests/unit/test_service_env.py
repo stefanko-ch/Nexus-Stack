@@ -104,6 +104,12 @@ def full_config() -> NexusConfig:
         influxdb_admin_token="influxdb-admin-token",
         neo4j_admin_password="neo4jAdminPw0123456789",
         cassandra_admin_password="cassandraAdminPw0123456789",
+        hive_db_password="hiveDbPw0123456789",
+        mindsdb_password="mindsdbAppPw0123456789",
+        mindsdb_db_password="mindsdbDbPw0123456789",
+        hue_secret_key="hueSecretKey01234567890123456789",
+        hue_admin_password="hueAdminPw0123456789",
+        hue_db_password="hueDbPw0123456789",
         nussknacker_admin_password="nussknacker-admin-pw",
         mongodb_root_password="mongodb-root-pw",
         mongodb_express_session_secret="mongodb-express-session-secret",
@@ -4009,3 +4015,255 @@ def test_append_forgejo_workspace_block_keeps_a_restricted_mode(tmp_path: Path) 
     assert (stacks / "streamlit" / ".env").stat().st_mode & 0o777 == 0o600
     # The other targets render at the default and must stay there.
     assert (stacks / "jupyter" / ".env").stat().st_mode & 0o777 == 0o644
+
+
+# ---------------------------------------------------------------------------
+# The two app-server renderers — deliberately NOT fail-fast
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("service", ["streamlit", "shiny"])
+def test_app_servers_render_the_shared_postgres_password(
+    service: str, full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Both carry one value and lock the file down for it.
+
+    Cube reads the same password and fails fast without it; these two do
+    not, and that difference is the point: an app that never opens a
+    database is a normal thing to host here.
+    """
+    from nexus_deploy import service_env
+
+    render = getattr(service_env, f"_render_{service.replace('-', '_')}")
+    rendered = render(full_config, full_env)
+
+    assert rendered.env_vars == {"POSTGRES_PASSWORD": full_config.postgres_password}
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize("service", ["streamlit", "shiny"])
+def test_app_servers_still_render_without_a_database(
+    service: str, full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """An empty password must NOT abort the deployment — the .env still has
+    to exist, because append_forgejo_workspace_block skips a service whose
+    file does not, and the workspace clone would then never happen."""
+    from nexus_deploy import service_env
+
+    render = getattr(service_env, f"_render_{service.replace('-', '_')}")
+    config = full_config.model_copy(update={"postgres_password": ""})
+
+    assert render(config, full_env).env_vars == {"POSTGRES_PASSWORD": ""}
+
+
+def test_both_app_servers_receive_the_forgejo_block(
+    full_config: NexusConfig, full_env: BootstrapEnv, tmp_path: Path
+) -> None:
+    """The renderers exist so this append has a file to write into."""
+    from nexus_deploy.service_env import _FORGEJO_APPEND_TARGETS
+
+    assert {"streamlit", "shiny"} <= set(_FORGEJO_APPEND_TARGETS)
+
+
+# ---------------------------------------------------------------------------
+# Hive Metastore — fail-fast on its database, permissive about object storage
+# ---------------------------------------------------------------------------
+
+
+def test_hive_metastore_renders_its_database_and_object_storage(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The R2 half is load-bearing: the metastore resolves a table's
+    LOCATION at CREATE time, EXTERNAL or not, so an s3a:// table needs
+    credentials here and not only in the engine that queries it."""
+    from nexus_deploy.service_env import _render_hive_metastore
+
+    rendered = _render_hive_metastore(full_config, full_env)
+
+    assert rendered.env_vars == {
+        "HIVE_DB_PASSWORD": full_config.hive_db_password,
+        "R2_ENDPOINT": full_config.r2_data_endpoint,
+        "R2_ACCESS_KEY": full_config.r2_data_access_key,
+        "R2_SECRET_KEY": full_config.r2_data_secret_key,
+    }
+    assert rendered.mode == 0o600
+
+
+def test_hive_metastore_raises_on_an_empty_database_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_hive_metastore
+
+    config = full_config.model_copy(update={"hive_db_password": ""})
+    with pytest.raises(ServiceEnvError, match="HIVE_DB_PASS"):
+        _render_hive_metastore(config, full_env)
+
+
+def test_hive_metastore_tolerates_no_object_storage(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A metastore with a local warehouse and no object store is a
+    reasonable thing to run, so missing R2 is not a reason to abort."""
+    from nexus_deploy.service_env import _render_hive_metastore
+
+    config = full_config.model_copy(
+        update={"r2_data_endpoint": "", "r2_data_access_key": "", "r2_data_secret_key": ""}
+    )
+    rendered = _render_hive_metastore(config, full_env)
+
+    assert rendered.env_vars["HIVE_DB_PASSWORD"] == full_config.hive_db_password
+    assert rendered.env_vars["R2_ENDPOINT"] == ""
+
+
+# ---------------------------------------------------------------------------
+# MindsDB — the password is a security boundary, not a convenience
+# ---------------------------------------------------------------------------
+
+
+def test_mindsdb_renders_both_accounts(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    from nexus_deploy.service_env import _render_mindsdb
+
+    rendered = _render_mindsdb(full_config, full_env)
+
+    assert rendered.env_vars == {
+        "MINDSDB_PASSWORD": full_config.mindsdb_password,
+        "MINDSDB_DB_PASSWORD": full_config.mindsdb_db_password,
+    }
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize("field", ["mindsdb_password", "mindsdb_db_password"])
+def test_mindsdb_raises_on_either_empty_password(
+    field: str, full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Without MINDSDB_PASSWORD the SQL endpoint answers unauthenticated
+    requests and the MySQL wire accepts `mindsdb` with an empty password —
+    an SQL engine that can open connections to every other database here."""
+    from nexus_deploy.service_env import _render_mindsdb
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match="MINDSDB"):
+        _render_mindsdb(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# Hue — three values, and all three matter
+# ---------------------------------------------------------------------------
+
+
+def test_hue_renders_its_key_its_database_and_its_engines(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_hue
+
+    rendered = _render_hue(full_config, full_env)
+
+    assert rendered.env_vars == {
+        "HUE_SECRET_KEY": full_config.hue_secret_key,
+        "HUE_DB_PASSWORD": full_config.hue_db_password,
+        "POSTGRES_PASSWORD": full_config.postgres_password,
+        "CLICKHOUSE_PASSWORD": full_config.clickhouse_admin_password,
+    }
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize(
+    ("field", "match"),
+    [
+        ("hue_secret_key", "HUE_SECRET_KEY"),
+        ("hue_db_password", "HUE_DB_PASS"),
+        ("hue_admin_password", "HUE_ADMIN_PASS"),
+    ],
+)
+def test_hue_raises_on_each_missing_secret(
+    field: str, match: str, full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The admin password is checked here even though it is the HOOK that
+    carries it: empty, the hook reports skipped-not-ready and says nothing
+    else, and Hue hands the superuser account to the first visitor."""
+    from nexus_deploy.service_env import _render_hue
+
+    config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match=match):
+        _render_hue(config, full_env)
+
+
+def test_hue_tolerates_engines_that_are_not_deployed(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """An interpreter whose stack is disabled shows a connection error in
+    the editor. That is the right outcome, not a reason to abort."""
+    from nexus_deploy.service_env import _render_hue
+
+    config = full_config.model_copy(
+        update={"postgres_password": "", "clickhouse_admin_password": ""}
+    )
+    rendered = _render_hue(config, full_env)
+
+    assert rendered.env_vars["HUE_SECRET_KEY"] == full_config.hue_secret_key
+    assert rendered.env_vars["POSTGRES_PASSWORD"] == ""
+    assert rendered.env_vars["CLICKHOUSE_PASSWORD"] == ""
+
+
+# ---------------------------------------------------------------------------
+# Apicurio — the hostname is load-bearing, not cosmetic
+# ---------------------------------------------------------------------------
+
+
+def _env_with(full_env: BootstrapEnv, **overrides: str) -> BootstrapEnv:
+    """BootstrapEnv is a frozen dataclass without a public replace helper;
+    this is the same rebuild the grafana tests above do inline."""
+    return BootstrapEnv(
+        **{**{k: getattr(full_env, k) for k in full_env.__dataclass_fields__}, **overrides}
+    )
+
+
+def test_apicurio_renders_its_database_and_the_hostname_its_ui_calls(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """APICURIO_DOMAIN ends up in REGISTRY_API_URL, which the UI writes into
+    config.js and the BROWSER then calls. Empty, the UI loads and can reach
+    nothing — which reads as a broken registry, not a missing variable."""
+    from nexus_deploy.service_env import _render_apicurio
+
+    rendered = _render_apicurio(full_config, full_env)
+
+    assert rendered.env_vars["APICURIO_DB_PASSWORD"] == full_config.apicurio_db_password
+    assert rendered.env_vars["APICURIO_DOMAIN"].startswith("apicurio")
+    assert str(full_env.domain) in rendered.env_vars["APICURIO_DOMAIN"]
+    assert rendered.mode == 0o600
+
+
+def test_apicurio_honours_the_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A multi-tenant fork sets `-`, and the flat hostname is what its
+    certificate covers — the same composition Lakekeeper and MLflow use."""
+    from nexus_deploy.service_env import _render_apicurio
+
+    env = _env_with(full_env, subdomain_separator="-")
+    host = _render_apicurio(full_config, env).env_vars["APICURIO_DOMAIN"]
+
+    assert host.startswith("apicurio-"), host
+    assert "apicurio." not in host, host
+
+
+@pytest.mark.parametrize(
+    ("field", "is_env", "match"),
+    [
+        ("apicurio_db_password", False, "APICURIO_DB_PASS"),
+        ("domain", True, "DOMAIN"),
+    ],
+)
+def test_apicurio_raises_on_each_missing_input(
+    field: str, is_env: bool, match: str, full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_apicurio
+
+    config, env = full_config, full_env
+    if is_env:
+        env = _env_with(full_env, **{field: ""})
+    else:
+        config = full_config.model_copy(update={field: ""})
+    with pytest.raises(ServiceEnvError, match=match):
+        _render_apicurio(config, env)
