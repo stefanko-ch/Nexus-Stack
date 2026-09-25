@@ -42,8 +42,13 @@ connect <- local({
         password = password,
         connect_timeout = 5
       )
-      # Read-only at the session level, so a mistyped UPDATE in the query
-      # box is refused by PostgreSQL rather than by a check here.
+      # Read-only at the session level: a guard against ACCIDENT, not a
+      # security boundary. A mistyped UPDATE is refused by PostgreSQL rather
+      # than by a check here, but it is a session DEFAULT and anyone typing
+      # SQL can lift it with SET default_transaction_read_only = off —
+      # measured. Acceptable because adminer and cloudbeaver already allow
+      # writes outright to the same audience, and Cloudflare Access is what
+      # decides who reaches any of them.
       dbExecute(conn, "SET default_transaction_read_only = on")
     }
     conn

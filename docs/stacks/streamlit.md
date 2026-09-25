@@ -57,13 +57,13 @@ pandas, numpy, altair and pyarrow arrive as Streamlit's own dependencies. Instal
 
 `Warehouse explorer` lists the tables in the shared PostgreSQL, runs a query and charts the numeric columns. It exists so a fresh Streamlit is not an empty page, and so the connection to the `postgres` stack is demonstrated once instead of rediscovered in every app.
 
-Its connection is opened with `set_session(readonly=True)`, so PostgreSQL itself refuses a write — verified:
+Its connection is opened read-only, which stops an accident rather than an attacker:
 
 ```
 cannot execute UPDATE in a read-only transaction
 ```
 
-That is a property of that example's connection, not of the stack. An app you write holds its own connection and can do whatever the `nexus-postgres` role can do.
+That is a session **default**, not a guarantee — anyone typing SQL can lift it with `SET default_transaction_read_only = off`, measured. It is the right level for this stack: [Adminer](./adminer.md) and [CloudBeaver](./cloudbeaver.md) already give the same audience unrestricted writes, and Cloudflare Access is what decides who reaches any of them. An app that needs a real boundary should open its own connection as a role with `SELECT` only.
 
 ### Authentication
 

@@ -32,9 +32,18 @@ ORDER BY table_schema, table_name
 def connect() -> psycopg2.extensions.connection:
     """One connection per server process, reused across reruns.
 
-    Read-only at the session level: every statement this app sends runs
-    in a read-only transaction, so a mistyped UPDATE in the query box
-    below is refused by PostgreSQL rather than by a check here.
+    Read-only at the session level, which is a guard against ACCIDENT and
+    not a security boundary. A mistyped UPDATE is refused by PostgreSQL
+    rather than by a check here — but the setting is a session default,
+    and anyone typing SQL can lift it:
+
+        SET default_transaction_read_only = off;   -- succeeds
+        UPDATE sales SET amount = 99;              -- then succeeds
+
+    Measured. That is acceptable because the same audience already has
+    adminer and cloudbeaver, which allow writes outright, and because
+    Cloudflare Access is what decides who reaches any of them. If you
+    want a real boundary, give this app its own role with SELECT only.
     """
     conn = psycopg2.connect(
         host=HOST,
@@ -69,9 +78,11 @@ def run(sql: str) -> pd.DataFrame:
         # made in a comment:
         #   * Cloudflare Access gates the hostname, so "user-provided" means an
         #     operator who authenticated with email OTP.
-        #   * connect() opens the session read-only, so PostgreSQL itself
-        #     refuses a write — measured: "cannot execute UPDATE in a read-only
-        #     transaction".
+        #   * connect() opens the session read-only, so a mistyped write is
+        #     refused — "cannot execute UPDATE in a read-only transaction".
+        #     A DEFAULT, not a guarantee: `SET default_transaction_read_only
+        #     = off` lifts it, measured. It stops accidents, not intent —
+        #     and intent here is no more than adminer already allows.
         # Parameterising is not available: a bind parameter substitutes a
         # VALUE, and what arrives here is a whole statement.
         cur.execute(sql)

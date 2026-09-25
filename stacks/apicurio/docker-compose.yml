@@ -28,7 +28,11 @@
 # WHY NOT IN-MEMORY: upstream offers it and says "all data is lost when the
 # container image is restarted". Every spin-up recreates containers, so a
 # registry on in-memory storage would be empty exactly when somebody needed
-# it. It gets a database, and s3_restore dumps it like MLflow's.
+# it. It gets a database. That database is NOT in
+# s3_restore.standard_targets() — its directory survives a snapshot
+# teardown, and a rebuild teardown loses it. Whether the schemas are
+# worth a pg_dump to R2 is a decision to make deliberately; see
+# docs/stacks/apicurio.md.
 # =============================================================================
 
 services:

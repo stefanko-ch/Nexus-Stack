@@ -86,10 +86,11 @@ services:
         # script against Derby and dies on
         #   Syntax error: Encountered "statement_timeout"
         #
-        # `rm -f` first: the shipped file is root-owned 0644 and this runs as
-        # `hive`, which can unlink it (the directory is hive-owned) but not
-        # overwrite it in place. What it holds is hiveserver2 and Tez
-        # settings, all irrelevant to a standalone metastore.
+        # `rm -f` first, and it stays even though this now runs as root:
+        # writing over the shipped file would inherit its 0644, and this one
+        # carries the database password and the R2 keys. Removing it first
+        # means the umask above decides the mode. What it held is hiveserver2
+        # and Tez settings, all irrelevant to a standalone metastore.
         umask 077
         rm -f /opt/hive/conf/hive-site.xml
         cat > /opt/hive/conf/hive-site.xml <<XML

@@ -67,13 +67,13 @@ Not added: `curl` and `wget`. The base image has neither, so the healthcheck use
 
 ### The shipped example
 
-`examples/warehouse_explorer` lists the tables in the shared PostgreSQL, runs a query and plots the first numeric column. Its connection sets `default_transaction_read_only`, so PostgreSQL itself refuses a write — verified:
+`examples/warehouse_explorer` lists the tables in the shared PostgreSQL, runs a query and plots the first numeric column. Its connection is opened read-only, which stops an accident rather than an attacker:
 
 ```
-Failed to fetch row : ERROR:  cannot execute UPDATE in a read-only transaction
+cannot execute UPDATE in a read-only transaction
 ```
 
-That is a property of that example's connection, not of the stack. An app you write opens its own.
+That is a session **default**, not a guarantee — anyone typing SQL can lift it with `SET default_transaction_read_only = off`, measured. It is the right level for this stack: [Adminer](./adminer.md) and [CloudBeaver](./cloudbeaver.md) already give the same audience unrestricted writes, and Cloudflare Access is what decides who reaches any of them. An app that needs a real boundary should open its own connection as a role with `SELECT` only.
 
 ### Authentication
 
