@@ -741,6 +741,50 @@ def _render_mindsdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_hue(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Hue: a generated Django secret key, its own Postgres, and the
+    credentials for the engines its editor is pointed at.
+
+    ``HUE_SECRET_KEY`` is the one that matters most. The image ships a
+    hardcoded key in ``z-hue-overrides.ini`` — the literal string
+    ``kasdlfjknasdfl3hbaksk3bwkasdfkasdfba23asdf``, readable by anyone
+    who pulls the image — and Django signs session cookies with it. An
+    empty value here would leave that key in place, so this fails fast
+    rather than starting a Hue whose sessions anyone can forge.
+
+    ``POSTGRES_PASSWORD`` and ``CLICKHOUSE_PASSWORD`` are the engines
+    behind two of the three configured interpreters. They are emitted
+    empty when absent rather than raising: an interpreter whose stack is
+    disabled shows a connection error in the editor, which is the right
+    outcome, not a reason to abort a deployment.
+
+    Infisical naming reference: ``/hue/HUE_PASSWORD``.
+    """
+    del e
+    missing = []
+    if _empty(c.hue_secret_key):
+        missing.append("HUE_SECRET_KEY (Infisical /hue)")
+    if _empty(c.hue_db_password):
+        missing.append("HUE_DB_PASS (Infisical /hue)")
+    if missing:
+        raise ServiceEnvError(
+            f"Hue enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate random_password.hue_secret_key "
+            "and random_password.hue_db_password, then re-run spin-up. Aborting "
+            "rather than running Django with the key published in the image.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "HUE_SECRET_KEY": c.hue_secret_key or "",
+            "HUE_DB_PASSWORD": c.hue_db_password or "",
+            "POSTGRES_PASSWORD": c.postgres_password or "",
+            "CLICKHOUSE_PASSWORD": c.clickhouse_admin_password or "",
+        },
+        # The file carries the session-signing key and three passwords.
+        mode=0o600,
+    )
+
+
 def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
 
@@ -2851,6 +2895,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("cassandra", _is_enabled("cassandra"), _render_cassandra),
     EnvSpec("hive-metastore", _is_enabled("hive-metastore"), _render_hive_metastore),
     EnvSpec("mindsdb", _is_enabled("mindsdb"), _render_mindsdb),
+    EnvSpec("hue", _is_enabled("hue"), _render_hue),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),

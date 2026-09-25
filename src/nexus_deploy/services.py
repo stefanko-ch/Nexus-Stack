@@ -123,6 +123,10 @@ _VALID_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 # The prefix matters because the data bucket is shared -- Unity Catalog
 # addresses it at the root and pg-ducklake writes tables into it.
 LAKEKEEPER_WAREHOUSE = "nexus"
+#: Hue's Django superuser. Not the shared `admin_username`: Hue keeps its
+#: own Django user table, and this name is what Infisical lists.
+HUE_ADMIN_USERNAME = "nexus-hue-admin"
+
 LAKEKEEPER_KEY_PREFIX = "lakekeeper"
 
 HookStatus = Literal["configured", "already-configured", "failed", "skipped-not-ready"]
@@ -2972,6 +2976,90 @@ cassandra_hook
 """
 
 
+def render_hue_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Hue admin seed: create or update a Django superuser.
+
+    Hue makes the first account registered through its web UI a
+    superuser, so without this the first visitor to the URL claims the
+    administrator. Cloudflare Access already limits who that can be, but
+    the account still needs a password this deployment knows.
+
+    One Django shell call does both create and rotate:
+    ``get_or_create`` then ``set_password``, which converges an existing
+    account on the current Infisical value rather than leaving a stale
+    hash behind — the same reason HedgeDoc's hook has a ``--reset``
+    fallback. It reports ``configured`` on create and
+    ``already-configured`` on update.
+
+    The password reaches the container over stdin and is read from the
+    environment inside Python, so it appears in no argument list on
+    either side. The username is not secret and goes via ``-e``.
+
+    Verified against ``gethue/hue:20260611-140101``: first run
+    ``configured``, second ``already-configured``, and a Django login as
+    the seeded account returns 302 with an authenticated session.
+    """
+    del env
+    password = config.hue_admin_password or ""
+    if not password:
+        return 'echo "RESULT hook=hue status=skipped-not-ready"\n'
+    password_q = shlex.quote(password)
+    # Raw f-string: the body carries shell escapes — the \" that keep the
+    # Python snippet's quotes inside `hue shell -c "..."`, and the trailing
+    # backslashes that continue the docker exec line. Without the r-prefix
+    # Python consumes both, the snippet's quotes end the shell string early
+    # and the hook reports `failed` — verified by rendering it both ways.
+    return rf"""
+hue_hook() {{
+    READY=false
+    ELAPSED=0
+    while [ "$ELAPSED" -lt 300 ]; do
+        if docker exec hue curl -sf --max-time 5 http://localhost:8888/hue/accounts/login >/dev/null 2>&1; then
+            READY=true; break
+        fi
+        sleep 5
+        ELAPSED=$((ELAPSED + 5))
+    done
+    if [ "$READY" != "true" ]; then
+        echo "  ⚠ hue not ready after 300s — skipping admin setup" >&2
+        echo "RESULT hook=hue status=skipped-not-ready"
+        return 0
+    fi
+
+    HUE_ADMIN_PASSWORD={password_q}
+    HOOK_FAILED=false
+    HOOK_OUTPUT=$(printf '%s' "$HUE_ADMIN_PASSWORD" | docker exec -i \
+        -e HUE_ADMIN_USERNAME='{HUE_ADMIN_USERNAME}' hue sh -c '
+            HUE_ADMIN_PASSWORD=$(cat)
+            export HUE_ADMIN_PASSWORD
+            cd /usr/share/hue && ./build/env/bin/hue shell -c "
+import os
+from django.contrib.auth.models import User
+user, created = User.objects.get_or_create(username=os.environ[\"HUE_ADMIN_USERNAME\"])
+user.set_password(os.environ[\"HUE_ADMIN_PASSWORD\"])
+user.is_superuser = True
+user.is_staff = True
+user.is_active = True
+user.save()
+print(\"NEXUS_HUE_RESULT\", \"created\" if created else \"updated\")
+"' 2>&1) || HOOK_FAILED=true
+
+    if [ "$HOOK_FAILED" = "true" ]; then
+        echo "  ⚠ hue: could not seed the admin account" >&2
+        echo "RESULT hook=hue status=failed"
+        return 0
+    fi
+    case "$HOOK_OUTPUT" in
+        *"NEXUS_HUE_RESULT created"*) echo "RESULT hook=hue status=configured" ;;
+        *"NEXUS_HUE_RESULT updated"*) echo "RESULT hook=hue status=already-configured" ;;
+        *) echo "  ⚠ hue: admin setup produced no recognisable result" >&2
+           echo "RESULT hook=hue status=failed" ;;
+    esac
+}}
+hue_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -3003,6 +3091,9 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # Same shape for Cassandra: creates `nexus-cassandra` and drops the
     # built-in `cassandra` superuser, whose password is `cassandra`.
     "cassandra": render_cassandra_hook,
+    # Seeds the Django superuser. Hue otherwise hands the administrator
+    # account to whoever registers through the web UI first.
+    "hue": render_hue_hook,
     # Hands the master realm from the throwaway `nexus-bootstrap` admin to the
     # permanent one Infisical lists, then deletes `nexus-bootstrap`.
     "keycloak": render_keycloak_hook,

@@ -33,6 +33,9 @@
   HIVE_DB_PASS=''
   MINDSDB_PASS=''
   MINDSDB_DB_PASS=''
+  HUE_SECRET_KEY=''
+  HUE_ADMIN_PASS=''
+  HUE_DB_PASS=''
   KEYCLOAK_DB_PASS=''
   LANGFUSE_DB_PASS=''
   LANGFUSE_CLICKHOUSE_PASS=''
@@ -183,6 +186,9 @@
   HIVE_DB_PASS=hive_db_password-VALUE
   MINDSDB_PASS=mindsdb_password-VALUE
   MINDSDB_DB_PASS=mindsdb_db_password-VALUE
+  HUE_SECRET_KEY=hue_secret_key-VALUE
+  HUE_ADMIN_PASS=hue_admin_password-VALUE
+  HUE_DB_PASS=hue_db_password-VALUE
   KEYCLOAK_DB_PASS=keycloak_db_password-VALUE
   LANGFUSE_DB_PASS=langfuse_db_password-VALUE
   LANGFUSE_CLICKHOUSE_PASS=langfuse_clickhouse_password-VALUE
@@ -333,6 +339,9 @@
   HIVE_DB_PASS=''
   MINDSDB_PASS=''
   MINDSDB_DB_PASS=''
+  HUE_SECRET_KEY=''
+  HUE_ADMIN_PASS=''
+  HUE_DB_PASS=''
   KEYCLOAK_DB_PASS=''
   LANGFUSE_DB_PASS=''
   LANGFUSE_CLICKHOUSE_PASS=''

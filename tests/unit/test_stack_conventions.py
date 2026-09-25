@@ -2829,3 +2829,67 @@ def test_mindsdb_keeps_its_metadata_out_of_sqlite() -> None:
     assert con.startswith("postgresql://"), con
     assert "mindsdb-db:5432" in con, con
     assert "mindsdb-db" in services
+
+
+# ---------------------------------------------------------------------------
+# Hue: a published secret key, and an image that terminates its own supervisor
+# ---------------------------------------------------------------------------
+
+
+def _hue_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "hue" / "docker-compose.yml").read_text()))
+
+
+def _hue_entrypoint() -> str:
+    return str(_hue_compose()["services"]["hue"]["entrypoint"][-1])
+
+
+def test_hue_replaces_the_secret_key_the_image_publishes() -> None:
+    """z-hue-overrides.ini in the image carries a hardcoded Django
+    secret_key, readable by anyone who pulls it. Django signs session
+    cookies with it, so the shipped value means a forgeable session."""
+    entrypoint = _hue_entrypoint()
+
+    assert "secret_key=$${HUE_SECRET_KEY}" in entrypoint, entrypoint
+    assert "kasdlfjknasdf" not in entrypoint, "the image's own key is being written back"
+    # The shipped file is root-owned 0644 and this runs as `hue`, which can
+    # unlink but not overwrite it.
+    rm = entrypoint.index("rm -f /usr/share/hue/desktop/conf/z-hue-overrides.ini")
+    write = entrypoint.index("cat > /usr/share/hue/desktop/conf/z-hue-overrides.ini")
+    assert rm < write, "the file is written without removing the root-owned one first"
+
+
+def test_hue_runs_with_an_init_process() -> None:
+    """Without one the image exits 143 seconds after start:
+    gunicorn_cleanup_utils terminates any Hue process whose parent is PID 1,
+    and without an init the supervisor that started gunicorn IS a child of
+    PID 1. Measured on three tags and on the stock image."""
+    assert _hue_compose()["services"]["hue"].get("init") is True, (
+        "init: true is what stops this image from killing its own supervisor"
+    )
+
+
+def test_hue_only_configures_interpreters_whose_driver_it_has() -> None:
+    """Checked with pip list inside the image: psycopg2-binary, trino and
+    sqlalchemy-clickhouse are present. An interpreter without a driver
+    fails at query time with an import error rather than at startup."""
+    entrypoint = _hue_entrypoint()
+
+    for name in ("postgresql://", "trino://", "clickhouse://"):
+        assert name in entrypoint, f"{name} interpreter is not configured"
+    for absent in ("mysql://", "oracle://", "hive://"):
+        assert absent not in entrypoint, (
+            f"{absent} is configured but its driver was not verified in the image"
+        )
+
+
+def test_hue_blacklists_the_apps_nothing_backs() -> None:
+    """HDFS, HBase, Oozie, Impala and Solr are not deployed here. Leaving
+    their apps enabled puts permanently broken tabs in the navigation."""
+    entrypoint = _hue_entrypoint()
+
+    blacklist = re.search(r"^app_blacklist=(\S+)$", entrypoint, re.M)
+    assert blacklist, "app_blacklist is no longer set"
+    listed = set(blacklist.group(1).split(","))
+
+    assert {"hbase", "oozie", "impala", "search", "filebrowser"} <= listed, listed

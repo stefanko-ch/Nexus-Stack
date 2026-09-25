@@ -88,6 +88,9 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("HIVE_DB_PASS", "hive_db_password", ""),
     ("MINDSDB_PASS", "mindsdb_password", ""),
     ("MINDSDB_DB_PASS", "mindsdb_db_password", ""),
+    ("HUE_SECRET_KEY", "hue_secret_key", ""),
+    ("HUE_ADMIN_PASS", "hue_admin_password", ""),
+    ("HUE_DB_PASS", "hue_db_password", ""),
     ("KEYCLOAK_DB_PASS", "keycloak_db_password", ""),
     ("LANGFUSE_DB_PASS", "langfuse_db_password", ""),
     ("LANGFUSE_CLICKHOUSE_PASS", "langfuse_clickhouse_password", ""),
@@ -253,6 +256,9 @@ class NexusConfig(BaseModel):
     hive_db_password: str | None = None
     mindsdb_password: str | None = None
     mindsdb_db_password: str | None = None
+    hue_secret_key: str | None = None
+    hue_admin_password: str | None = None
+    hue_db_password: str | None = None
     keycloak_db_password: str | None = None
     langfuse_db_password: str | None = None
     langfuse_clickhouse_password: str | None = None

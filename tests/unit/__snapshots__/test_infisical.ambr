@@ -105,6 +105,12 @@
       'HIVE_DB_PASSWORD': 'hive_db_password-VALUE',
       'HIVE_DB_USERNAME': 'nexus-hive',
     }),
+    'hue': dict({
+      'HUE_DB_PASSWORD': 'hue_db_password-VALUE',
+      'HUE_DB_USERNAME': 'nexus-hue',
+      'HUE_PASSWORD': 'hue_admin_password-VALUE',
+      'HUE_USERNAME': 'nexus-hue-admin',
+    }),
     'infisical': dict({
       'INFISICAL_PASSWORD': 'infisical_admin_password-VALUE',
       'INFISICAL_USERNAME': 'admin@snapshot.test',

@@ -114,7 +114,7 @@ def _make_env(admin_email: str = "ops@example.com") -> BootstrapEnv:
 
 def test_supported_hooks_contains_all_specs() -> None:
     """5 REST hooks + 3 docker-exec hooks + Filestash (python) +
-    9 additional admin-setups."""
+    10 additional admin-setups."""
     assert set(supported_hooks()) == {
         # REST first-init
         "portainer",
@@ -149,6 +149,9 @@ def test_supported_hooks_contains_all_specs() -> None:
         # Same shape: creates `nexus-cassandra` and drops the built-in
         # `cassandra` superuser, whose password is `cassandra`.
         "cassandra",
+        # Seeds Hue's Django superuser; it otherwise goes to whoever
+        # registers through the web UI first.
+        "hue",
         # Hands the master realm from `nexus-bootstrap` to the permanent admin.
         "keycloak",
     }

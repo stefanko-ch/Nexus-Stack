@@ -61,6 +61,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
 | Kestra | `kestra/kestra` | `v2.0` | Minor |
 | PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
+| Hue | `gethue/hue` | `20260611-140101` | Exact ¹ |
+| PostgreSQL (Hue DB) | `postgres` | `17-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | PostgreSQL (Infisical DB) | `postgres` | `18-alpine` | Major |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
@@ -240,6 +242,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
+| **Hue** | SQL editor and data browser | [hue.md](hue.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
 | **InfluxDB** | Time-series database with retention and downsampling tasks | [influxdb.md](influxdb.md) |
 | **IT-Tools** | Developer tools collection | [it-tools.md](it-tools.md) |

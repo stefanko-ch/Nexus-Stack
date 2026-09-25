@@ -1,0 +1,147 @@
+# =============================================================================
+# Hue - SQL editor and data browser
+# https://hue.${DOMAIN}
+# =============================================================================
+# The Hadoop-era SQL workbench, still the most complete browser editor for
+# several engines at once: schema tree, query editor with autocomplete,
+# saved queries, result charts. Here it is pointed at the SQL stacks that
+# already exist rather than at HDFS.
+#
+# THE SECRET KEY. The image ships a hardcoded Django secret_key in
+# /usr/share/hue/desktop/conf/z-hue-overrides.ini — the literal string
+# `kasdlfjknasdfl3hbaksk3bwkasdfkasdfba23asdf`, published in a public image
+# for anyone to read. Django signs session cookies with it, so leaving it in
+# place means anyone who can reach Hue can forge a session. The entrypoint
+# below overwrites that file with one carrying a generated key.
+#
+# WHY THE FILE IS WRITTEN RATHER THAN MOUNTED. Hue merges every .ini under
+# its conf directory, and `z-` sorts last so it wins — but the file has to
+# carry the database password and the secret key, and neither belongs in
+# the repository. It is rendered at container start from the .env instead.
+#
+# amd64 only: every gethue/hue tag lists a single architecture.
+# =============================================================================
+
+services:
+  hue:
+    image: ${IMAGE_HUE:-gethue/hue:20260611-140101}
+    container_name: hue
+    restart: unless-stopped
+    # NOT optional. Without an init as PID 1 this image kills itself at
+    # startup — exit 143, measured on three tags (20260529, 20260611 and
+    # latest) and on the STOCK image with no configuration of ours, so it is
+    # not caused by anything here:
+    #
+    #   gunicorn_cleanup_utils WARNING  Found orphaned process: PID 33,
+    #     CMD: .../python3.11 ./build/env/bin/supervisor
+    #   Terminated
+    #
+    # The cause is exact, from gunicorn_cleanup_utils.cleanup_orphaned_processes
+    # in the image: it walks every process whose command line mentions Hue and
+    # terminates any whose `parent.pid == 1`. Without an init, the supervisor
+    # that started gunicorn IS a child of PID 1, so gunicorn kills its own
+    # parent. With tini as PID 1 the predicate is false and the same image
+    # comes up in about 8 seconds.
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # 8888 is Hue's own default and belongs to jupyter here.
+      - "8111:8888"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        umask 077
+        # `rm -f` first: the shipped file is root-owned 0644 and this runs as
+        # `hue`, which can unlink it — the conf directory is hue-owned — but
+        # cannot overwrite it in place. Without this the container exits on
+        #   cannot create .../z-hue-overrides.ini: Permission denied
+        rm -f /usr/share/hue/desktop/conf/z-hue-overrides.ini
+        cat > /usr/share/hue/desktop/conf/z-hue-overrides.ini <<INI
+        [desktop]
+        secret_key=$${HUE_SECRET_KEY}
+        http_host=0.0.0.0
+        http_port=8888
+        time_zone=Europe/Zurich
+        django_debug_mode=false
+        http_500_debug_mode=false
+        # HDFS, HBase and Solr are not deployed here, and leaving their apps
+        # enabled puts permanently broken tabs in the navigation.
+        app_blacklist=search,hbase,security,jobbrowser,filebrowser,oozie,pig,sqoop,hbase,impala,indexer
+        use_cherrypy_server=false
+        gunicorn_work_class=sync
+        gunicorn_number_of_workers=1
+
+        [[database]]
+        engine=postgresql_psycopg2
+        host=hue-db
+        port=5432
+        user=nexus-hue
+        password=$${HUE_DB_PASSWORD}
+        name=hue
+
+        [notebook]
+        [[interpreters]]
+        # Only engines whose driver is actually IN this image — checked with
+        # pip list, not assumed: psycopg2-binary, trino and
+        # sqlalchemy-clickhouse are present. Each entry is inert until the
+        # stack behind it is enabled; a missing host shows as a connection
+        # error in the editor, not a broken Hue.
+        [[[postgresql]]]
+        name=PostgreSQL
+        interface=sqlalchemy
+        options='{"url": "postgresql://nexus-postgres:$${POSTGRES_PASSWORD}@postgres:5432/postgres"}'
+
+        [[[trino]]]
+        name=Trino
+        interface=sqlalchemy
+        options='{"url": "trino://hue@trino:8080/hive"}'
+
+        [[[clickhouse]]]
+        name=ClickHouse
+        interface=sqlalchemy
+        options='{"url": "clickhouse://nexus-clickhouse:$${CLICKHOUSE_PASSWORD}@clickhouse:8123/default"}'
+        INI
+        exec ./startup.sh
+    mem_limit: 1g
+    depends_on:
+      hue-db:
+        condition: service_healthy
+    healthcheck:
+      # Hue's own liveness endpoint; it answers before a user has logged in.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8888/hue/accounts/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+
+  hue-db:
+    image: ${IMAGE_HUE_POSTGRES:-postgres:17-alpine}
+    container_name: hue-db
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_DB: hue
+      POSTGRES_USER: nexus-hue
+      POSTGRES_PASSWORD: ${HUE_DB_PASSWORD}
+    volumes:
+      - /mnt/nexus-data/hue/db:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-hue -d hue"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

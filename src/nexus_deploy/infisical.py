@@ -749,6 +749,22 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "hue",
+            _filter_empty(
+                {
+                    # The account the admin hook seeds. Hue's own login sits
+                    # behind Cloudflare Access, as everywhere else.
+                    "HUE_USERNAME": "nexus-hue-admin",
+                    "HUE_PASSWORD": config.hue_admin_password,
+                    "HUE_DB_USERNAME": "nexus-hue",
+                    "HUE_DB_PASSWORD": config.hue_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "mindsdb",
             _filter_empty(
                 {

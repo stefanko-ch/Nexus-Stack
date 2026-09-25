@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (101)
+## Available Stacks (102)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -114,6 +114,7 @@ After deployment you'll have:
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
 [![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)](https://hoppscotch.io)
+[![Hue](https://img.shields.io/badge/Hue-4A90E2?logo=apachehadoop&logoColor=white)](https://gethue.com)
 [![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)](https://infisical.com)
 [![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/products/influxdb/)
 [![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)](https://it-tools.tech)
@@ -218,6 +219,7 @@ After deployment you'll have:
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
 | **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
 | **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
+| **Hue** | SQL editor and data browser for PostgreSQL, Trino and ClickHouse | [gethue.com](https://gethue.com) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **InfluxDB** | Time-series database with retention policies, downsampling tasks and a built-in UI | [influxdata.com](https://www.influxdata.com/products/influxdb/) |
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |

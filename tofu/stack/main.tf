@@ -247,6 +247,28 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# Hue: the Django secret key, the admin account, and its Postgres.
+#
+# The secret key is not cosmetic. The image ships a HARDCODED one —
+# `kasdlfjknasdfl3hbaksk3bwkasdfkasdfba23asdf`, readable by anyone who pulls
+# the image — and Django signs session cookies with it, so leaving it in
+# place means a forgeable session. 50 characters is what Django's own
+# generator produces.
+resource "random_password" "hue_secret_key" {
+  length  = 50
+  special = false
+}
+
+resource "random_password" "hue_admin_password" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "hue_db_password" {
+  length  = 24
+  special = false
+}
+
 # MindsDB: the application account (both its HTTP API and its MySQL wire
 # protocol read it) and its Postgres. Without the first, the SQL endpoint
 # answers unauthenticated and the wire accepts `mindsdb` with no password.

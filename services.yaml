@@ -483,6 +483,18 @@ services:
       infisical-postgres: "postgres:18-alpine"
       infisical-redis: "redis:7-alpine"
 
+  hue:
+    subdomain: "hue"
+    port: 8111
+    public: false
+    category: "analytics"
+    website: "https://gethue.com"
+    description: "SQL editor and data browser — schema tree, autocomplete, saved queries, result charts."
+    long_description: "Hue is the browser SQL workbench from the Hadoop era, and still one of the most complete: a schema tree, an editor with autocomplete, saved queries and charts over results. Here it is pointed at the SQL stacks that already exist rather than at HDFS — PostgreSQL, Trino and ClickHouse, the three engines whose drivers are actually in the image. Two things this stack fixes about that image: it replaces the Django secret key, which upstream ships hardcoded and therefore published, and it runs with an init process, without which the image terminates its own supervisor at startup. The admin account is seeded during setup, because Hue otherwise hands it to whoever opens the URL first."
+    image: "gethue/hue:20260611-140101"
+    support_images:
+      hue-postgres: "postgres:17-alpine"
+
   influxdb:
     subdomain: "influxdb"
     port: 8102

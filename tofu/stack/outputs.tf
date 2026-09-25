@@ -200,6 +200,11 @@ output "secrets" {
     mindsdb_password    = random_password.mindsdb_password.result
     mindsdb_db_password = random_password.mindsdb_db_password.result
 
+    # Hue (SQL editor). The secret key replaces one hardcoded in the image.
+    hue_secret_key     = random_password.hue_secret_key.result
+    hue_admin_password = random_password.hue_admin_password.result
+    hue_db_password    = random_password.hue_db_password.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result
