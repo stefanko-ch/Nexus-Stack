@@ -25,6 +25,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Appsmith | `appsmith/appsmith-ce` | `v1.98` | Minor |
 | Big-AGI | `ghcr.io/enricoros/big-agi` | `v2.0.4` | Exact ¹ |
 | Budibase | `budibase/budibase` | `v3.43.0` | Exact ¹ |
+| Cassandra | `cassandra` | `5.0.6` | Exact ¹ |
 | Chroma | `chromadb/chroma` | `1.5.9` | Exact ¹ |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
@@ -208,6 +209,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
+| **Cassandra** | Wide-column distributed database | [cassandra.md](cassandra.md) |
 | **Chroma** | Embedding (vector) database for LLM / RAG | [chroma.md](chroma.md) |
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |

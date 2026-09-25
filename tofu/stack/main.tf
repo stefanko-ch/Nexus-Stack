@@ -247,6 +247,16 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# Cassandra superuser password. The image's only seedable account is the
+# built-in `cassandra` superuser with the password `cassandra`; the admin
+# hook creates `nexus-cassandra` with this password and then drops that
+# default. `special = false` because the value is interpolated into a
+# single-quoted CQL string literal.
+resource "random_password" "cassandra_admin" {
+  length  = 24
+  special = false
+}
+
 # Apicurio Registry Postgres password — dedicated DB. Holds the schemas,
 # their versions and the compatibility rules.
 resource "random_password" "apicurio_db_password" {

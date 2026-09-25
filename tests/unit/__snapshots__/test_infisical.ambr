@@ -15,6 +15,10 @@
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',
     }),
+    'cassandra': dict({
+      'CASSANDRA_PASSWORD': 'cassandra_admin_password-VALUE',
+      'CASSANDRA_USERNAME': 'nexus-cassandra',
+    }),
     'clickhouse': dict({
       'CLICKHOUSE_PASSWORD': 'clickhouse_admin_password-VALUE',
       'CLICKHOUSE_USERNAME': 'nexus-clickhouse',

@@ -85,6 +85,9 @@ PUBLIC_ALLOWED = {"git-proxy"}
 # Each entry here is a protocol that genuinely cannot go through an HTTPS
 # tunnel: Postgres wire, the Kafka protocol, S3 SDK clients, SFTP.
 TCP_PORTS_ALLOWED = {
+    # CQL native protocol; authenticates as nexus-cassandra, and the
+    # built-in superuser is dropped by the admin hook.
+    "cassandra",
     "clickhouse",
     "garage",
     "lakefs",
@@ -2647,3 +2650,66 @@ def test_shiny_installs_r_packages_from_a_dated_snapshot() -> None:
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", repo.group(1)), (
         f"the p3m snapshot is '{repo.group(1)}', not a date"
     )
+
+
+# ---------------------------------------------------------------------------
+# Cassandra: authentication the image does not switch on, and two JVM sizes it
+# derives from the wrong machine
+# ---------------------------------------------------------------------------
+
+
+def _cassandra_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "cassandra" / "docker-compose.yml").read_text()))
+
+
+def test_cassandra_switches_authentication_on() -> None:
+    """The image's entrypoint substitutes eight keys into cassandra.yaml and
+    `authenticator` is not one of them, so the stock value survives:
+    AllowAllAuthenticator, which accepts any client with no credentials at
+    all. Losing these two sed lines opens the database completely."""
+    entrypoint = str(_cassandra_compose()["services"]["cassandra"]["entrypoint"][-1])
+
+    for key, value in (
+        ("authenticator", "PasswordAuthenticator"),
+        ("authorizer", "CassandraAuthorizer"),
+    ):
+        substitution = re.search(rf"sed -i -E 's/\^\(# \)\?\({key}:\)\.\*/\\2 (\w+)/'", entrypoint)
+        assert substitution, f"{key} is no longer substituted into cassandra.yaml"
+        assert substitution.group(1) == value, substitution.group(1)
+
+
+def test_cassandra_caps_both_memory_pools_it_derives_from_the_host() -> None:
+    """Cassandra sizes the heap AND the direct-memory pool from
+    /proc/meminfo, which reports the host's memory rather than the
+    container's limit. Unset, it asked for a 4 GB heap and a 4009M direct
+    pool on the 16 GB server, and the container is OOM-killed."""
+    env = _cassandra_compose()["services"]["cassandra"]["environment"]
+
+    assert env["MAX_HEAP_SIZE"] == "1G", env
+    assert "MaxDirectMemorySize" in env["JVM_EXTRA_OPTS"], env
+
+
+def test_cassandra_does_not_name_itself_as_its_own_seed() -> None:
+    """CASSANDRA_SEEDS: "cassandra" looks tidier and does not start — the
+    seed lookup happens before the node is reachable under that name:
+
+        SimpleSeedProvider - Seed provider couldn't lookup host cassandra
+        Exception ... The seed provider lists no seeds.
+    """
+    env = _cassandra_compose()["services"]["cassandra"]["environment"]
+
+    assert "CASSANDRA_SEEDS" not in env, (
+        "the image defaults the seed to the node's own broadcast address, "
+        "which is the only value that works for a single node"
+    )
+
+
+def test_cassandra_readiness_waits_for_the_cql_port() -> None:
+    """`nodetool status` reports UN while the native transport is still
+    refusing connections — measured at 50s versus 60s on a fresh node. A
+    stack depending on that healthcheck starts against a closed port."""
+    healthcheck = _cassandra_compose()["services"]["cassandra"]["healthcheck"]["test"]
+    probe = " ".join(healthcheck)
+
+    assert "statusbinary" in probe, probe
+    assert not re.search(r"nodetool status\b(?!inary)", probe), probe

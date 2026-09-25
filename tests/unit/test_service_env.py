@@ -103,6 +103,7 @@ def full_config() -> NexusConfig:
         influxdb_admin_password="influxdb-admin-pw",
         influxdb_admin_token="influxdb-admin-token",
         neo4j_admin_password="neo4jAdminPw0123456789",
+        cassandra_admin_password="cassandraAdminPw0123456789",
         nussknacker_admin_password="nussknacker-admin-pw",
         mongodb_root_password="mongodb-root-pw",
         mongodb_express_session_secret="mongodb-express-session-secret",
@@ -3934,3 +3935,46 @@ def test_cube_refuses_to_render_without_either_secret(
 
     with pytest.raises(ServiceEnvError, match=expected):
         _render_cube(config, full_env)
+
+
+def test_cassandra_renders_one_nexus_prefixed_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """One key, and deliberately not CASSANDRA_-prefixed: the image's
+    entrypoint substitutes CASSANDRA_<key> variables into cassandra.yaml,
+    and a name that happened to collide would rewrite a setting."""
+    from nexus_deploy.service_env import _render_cassandra
+
+    rendered = _render_cassandra(full_config, full_env)
+    assert rendered.env_vars == {"NEXUS_CASSANDRA_PASSWORD": full_config.cassandra_admin_password}
+    assert not any(key.startswith("CASSANDRA_") for key in rendered.env_vars)
+    assert rendered.mode == 0o600
+
+
+def test_cassandra_raises_on_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """With no password the hook would create a role nobody can log in as
+    and then drop the only account that could."""
+    from nexus_deploy.service_env import _render_cassandra
+
+    config = full_config.model_copy(update={"cassandra_admin_password": ""})
+    with pytest.raises(ServiceEnvError, match="CASSANDRA_ADMIN_PASS"):
+        _render_cassandra(config, full_env)
+
+
+def test_cassandra_rejects_a_password_the_hook_would_mangle(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The admin hook embeds the value in a single-quoted CQL string
+    literal, which only holds while random_password.cassandra_admin keeps
+    `special = false`. A quote in the value would end the literal."""
+    from nexus_deploy.service_env import _render_cassandra
+
+    quoted = full_config.model_copy(update={"cassandra_admin_password": "abc'def"})
+    with pytest.raises(ServiceEnvError, match=r"outside \[A-Za-z0-9\]") as excinfo:
+        _render_cassandra(quoted, full_env)
+    assert "abc'def" not in str(excinfo.value)
+
+    plain = full_config.model_copy(update={"cassandra_admin_password": "abcDEF123"})
+    assert _render_cassandra(plain, full_env).env_vars == {"NEXUS_CASSANDRA_PASSWORD": "abcDEF123"}

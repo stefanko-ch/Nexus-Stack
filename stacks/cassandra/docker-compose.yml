@@ -1,0 +1,104 @@
+# =============================================================================
+# Apache Cassandra - Wide-column distributed database
+# =============================================================================
+# No web UI. Clients reach it over CQL on port 9042 — CloudBeaver and
+# DBeaver both speak it, and every driver does.
+#
+# ONE node, deliberately. Cassandra's whole point is horizontal scale
+# across many machines, and there is one machine here. What a single node
+# still gives you is the real data model and the real query language:
+# partition keys, clustering columns, denormalised tables, and the
+# consequences of choosing them badly. That is what a data-engineering
+# course needs it for.
+#
+# TWO things the official image does not do for us:
+#
+#   AUTHENTICATION. Its entrypoint substitutes exactly eight keys into
+#   cassandra.yaml (cluster_name, seeds, listen_address, …) and
+#   `authenticator` is not among them — checked in
+#   /usr/local/bin/docker-entrypoint.sh. The stock value is
+#   AllowAllAuthenticator, so an unmodified container accepts any client
+#   with no credentials at all. The entrypoint below rewrites both
+#   `authenticator` and `authorizer` before handing over.
+#
+#   HEAP SIZING. Cassandra's calculate_heap_sizes reads /proc/meminfo,
+#   which reports the HOST's memory, not this container's limit. On the
+#   16 GB server it would therefore claim a 4 GB heap regardless of
+#   mem_limit. MAX_HEAP_SIZE and HEAP_NEWSIZE are set explicitly for that
+#   reason; leaving them out does not fail, it just quietly takes a
+#   quarter of the box.
+# =============================================================================
+
+services:
+  cassandra:
+    image: ${IMAGE_CASSANDRA:-cassandra:5.0.6}
+    container_name: cassandra
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # CQL native transport. Bound on the host so the firewall rule for
+      # external clients has something to point at.
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: "nexus"
+      # CASSANDRA_SEEDS is deliberately NOT set. The image defaults it to
+      # the node's own broadcast address, which is the correct seed for a
+      # single node. Setting it to the container name looks tidier and
+      # fails to start:
+      #   WARN  SimpleSeedProvider - Seed provider couldn't lookup host cassandra
+      #   Exception ... The seed provider lists no seeds.
+      # The lookup happens before the node is reachable under that name.
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+      CASSANDRA_DC: "nexus"
+      CASSANDRA_RACK: "rack1"
+      # See the heap note above.
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "256M"
+      # cassandra-env.sh derives MaxDirectMemorySize from the host's memory
+      # too — it asked for 4009M here. The cap is separate from the heap and
+      # is counted against mem_limit just the same.
+      JVM_EXTRA_OPTS: "-XX:MaxDirectMemorySize=512M"
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -eu
+        # Idempotent: /etc/cassandra lives in the image layer, so a
+        # recreated container starts from AllowAllAuthenticator again, and
+        # a restarted one matches the already-substituted value and
+        # rewrites it unchanged.
+        sed -i -E 's/^(# )?(authenticator:).*/\2 PasswordAuthenticator/' \
+          /etc/cassandra/cassandra.yaml
+        sed -i -E 's/^(# )?(authorizer:).*/\2 CassandraAuthorizer/' \
+          /etc/cassandra/cassandra.yaml
+        exec docker-entrypoint.sh cassandra -f
+    volumes:
+      - /mnt/nexus-data/cassandra:/var/lib/cassandra
+    # 3g, measured rather than guessed. At 2g the container is OOM-killed
+    # during startup (exit 137, OOMKilled=true) even with the 1 GB heap
+    # above: AlwaysPreTouch commits the whole heap immediately, and the
+    # direct-memory pool sits beside it. A started node settles at ~2.4 GiB
+    # RSS. This is one of the heaviest stacks here — enable it when you want
+    # it, not by default.
+    mem_limit: 3g
+    healthcheck:
+      # `nodetool statusbinary`, not `nodetool status`. The latter reports UN
+      # — Up/Normal — while the CQL port is still refusing connections, which
+      # was measured: UN at 50s, native transport at 60s. A stack depending on
+      # this healthcheck would have started against a closed port.
+      #
+      # cqlsh would be stronger still, but it needs the generated password,
+      # which this file deliberately does not hold.
+      test: ["CMD-SHELL", "[ \"$$(nodetool statusbinary)\" = running ] || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

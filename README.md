@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (98)
+## Available Stacks (99)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -87,6 +87,7 @@ After deployment you'll have:
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
+[![Cassandra](https://img.shields.io/badge/Apache_Cassandra-1287B1?logo=apachecassandra&logoColor=white)](https://cassandra.apache.org)
 [![Chroma](https://img.shields.io/badge/Chroma-F87171?logo=databricks&logoColor=white)](https://www.trychroma.com)
 [![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)](https://dbeaver.com/cloudbeaver/)
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC00?logo=clickhouse&logoColor=black)](https://clickhouse.com)
@@ -188,6 +189,7 @@ After deployment you'll have:
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
+| **Cassandra** | Wide-column distributed database — the data model and CQL, on one node | [cassandra.apache.org](https://cassandra.apache.org) |
 | **Chroma** | Developer-friendly embedding (vector) database for LLM / RAG pipelines | [trychroma.com](https://www.trychroma.com) |
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
 | **ClickHouse** | Fast columnar database for real-time analytics and OLAP queries | [clickhouse.com](https://clickhouse.com) |

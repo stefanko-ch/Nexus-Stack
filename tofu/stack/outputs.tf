@@ -189,6 +189,10 @@ output "secrets" {
     # Apicurio Registry (schema + API-contract registry)
     apicurio_db_password = random_password.apicurio_db_password.result
 
+    # Cassandra. The image seeds only `cassandra`/`cassandra`; the admin hook
+    # creates `nexus-cassandra` with this password and drops that default.
+    cassandra_admin_password = random_password.cassandra_admin.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result

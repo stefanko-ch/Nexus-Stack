@@ -653,6 +653,18 @@ services:
     long_description: "Mailpit is an email testing tool that acts as an SMTP server catching all outgoing emails. Inspect HTML and plain-text content, test email templates, verify attachments, and check spam scores. Perfect for development and staging environments where you need to test email sending without delivering to real recipients."
     image: "axllent/mailpit:v1.28"
 
+  cassandra:
+    port: 9042
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://cassandra.apache.org"
+    description: "Wide-column distributed database — the data model and query language, on one node."
+    long_description: "Cassandra stores wide rows partitioned across a ring, and its design forces the table to follow the query rather than the other way round: partition key, clustering columns, denormalised tables per access pattern. This stack runs a single node, which gives you all of that and none of the distribution — the point here is the model, not the scale. Authentication is switched on (the image ships AllowAllAuthenticator, which accepts any client with no credentials at all) and the built-in `cassandra` superuser is replaced by `nexus-cassandra` during setup. No web UI; reach it over CQL on port 9042 from CloudBeaver, DBeaver or any driver. One of the heaviest stacks here at a 3 GB limit — measured, it is OOM-killed at 2 GB."
+    image: "cassandra:5.0.6"
+    tcp_ports:
+      cql: 9042
+
   shiny:
     subdomain: "shiny"
     port: 3838

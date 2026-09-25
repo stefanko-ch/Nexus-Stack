@@ -749,6 +749,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "cassandra",
+            _filter_empty(
+                {
+                    # The role the admin hook creates. The image's own
+                    # `cassandra` superuser is dropped by that same hook, so
+                    # this is the only account that can log in.
+                    "CASSANDRA_USERNAME": "nexus-cassandra",
+                    "CASSANDRA_PASSWORD": config.cassandra_admin_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "cube",
             _filter_empty(
                 {

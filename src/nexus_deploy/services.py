@@ -2858,6 +2858,120 @@ keycloak_hook
 """
 
 
+def render_cassandra_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Cassandra: replace the built-in ``cassandra`` superuser with
+    ``nexus-cassandra``.
+
+    The image seeds exactly one account — ``cassandra`` with the password
+    ``cassandra`` — which is the guessable default the ``nexus-`` naming
+    rule exists to prevent. Cassandra can create a second superuser and
+    drop the first, so this hook does that:
+
+    1. Wait until SOME account can sign in — ``nexus-cassandra`` if an
+       earlier run made it, ``cassandra``/``cassandra`` otherwise. Waiting
+       on the CQL port instead is not enough, and that is measured rather
+       than cautious: ``CassandraRoleManager`` creates the default
+       superuser on a background task 70 seconds after the native
+       transport opens, so a hook keyed on ``nodetool statusbinary`` runs
+       while the only account it could use does not exist yet, and every
+       statement fails.
+    2. If the default is what answered, create ``nexus-cassandra``. If
+       that create fails, try ``nexus-cassandra`` once more before
+       reporting ``failed``: a concurrent deploy may have created the role
+       and dropped the default in between.
+    3. Sign in as ``nexus-cassandra`` and ``DROP ROLE IF EXISTS
+       cassandra``. You cannot drop the role you are logged in as, which
+       is why this is a separate step from the create.
+
+    Nothing secret is rendered into this script and nothing secret reaches
+    a ``docker exec`` argument list: ``NEXUS_CASSANDRA_PASSWORD`` comes
+    from the container's own environment, and the CREATE statement is
+    built inside the container by ``printf`` and piped to ``cqlsh``.
+
+    The create step's output is never printed — a CQL error can quote the
+    statement, and the statement holds the password. The sign-in and drop
+    steps carry no secret, so the drop's output is forwarded on failure.
+
+    Verified against ``cassandra:5.0.6``: fresh node -> ``configured``,
+    second run -> ``already-configured``, and afterwards
+    ``cqlsh -u cassandra -p cassandra`` answers
+    ``Provided username cassandra and/or password are incorrect``.
+    """
+    del config, env  # the password is read inside the container
+    # Raw string: the body carries shell escapes (\" inside the printf format,
+    # \n as printf's newline, line continuations) that must reach the rendered
+    # script untouched. Without the r-prefix Python consumes them and the CQL
+    # arrives as CREATE ROLE "nexus-cassandra" with the quotes already eaten by
+    # the shell — verified by rendering both ways.
+    return r"""
+cassandra_signin_nexus() {
+    docker exec cassandra sh -c \
+        'cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_PASSWORD" -e "SELECT role FROM system_auth.roles" >/dev/null' \
+        2>/dev/null
+}
+
+cassandra_signin_default() {
+    docker exec cassandra cqlsh -u cassandra -p cassandra \
+        -e "SELECT role FROM system_auth.roles" >/dev/null 2>&1
+}
+
+cassandra_hook() {
+    # Waiting on the CQL port is NOT enough. CassandraRoleManager creates the
+    # default superuser on a background task AFTER the native transport opens
+    # — measured on a fresh node at 70s past startup, with `nodetool
+    # statusbinary` already reporting `running`. A hook that started then
+    # failed to create anything, because the account it signs in as did not
+    # exist yet. So the wait is for an account that can actually log in:
+    # ours if an earlier run made it, the default otherwise.
+    MODE=none
+    ELAPSED=0
+    while [ "$ELAPSED" -lt 300 ]; do
+        if cassandra_signin_nexus; then MODE=nexus; break; fi
+        if cassandra_signin_default; then MODE=default; break; fi
+        sleep 5
+        ELAPSED=$((ELAPSED + 5))
+    done
+    if [ "$MODE" = "none" ]; then
+        echo "  ⚠ cassandra: no account could sign in after 300s — skipping admin setup" >&2
+        echo "RESULT hook=cassandra status=skipped-not-ready"
+        return 0
+    fi
+
+    CASSANDRA_STATUS=already-configured
+    if [ "$MODE" = "default" ]; then
+        if docker exec -i cassandra sh >/dev/null 2>&1 <<'NEXUS_CASSANDRA_CREATE_EOF'
+printf "CREATE ROLE IF NOT EXISTS \"nexus-cassandra\" WITH PASSWORD = '%s' AND LOGIN = true AND SUPERUSER = true;\n" "$NEXUS_CASSANDRA_PASSWORD" \
+    | cqlsh -u cassandra -p cassandra
+NEXUS_CASSANDRA_CREATE_EOF
+        then
+            CASSANDRA_STATUS=configured
+        elif cassandra_signin_nexus; then
+            # A concurrent deploy may have created the role and dropped the
+            # default between the sign-in above and this create.
+            CASSANDRA_STATUS=already-configured
+        else
+            echo "  ⚠ cassandra: could not create nexus-cassandra" >&2
+            echo "RESULT hook=cassandra status=failed"
+            return 0
+        fi
+    fi
+
+    DROP_FAILED=false
+    DROP_OUTPUT=$(docker exec cassandra sh -c \
+        'cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_PASSWORD" -e "DROP ROLE IF EXISTS cassandra"' 2>&1) \
+        || DROP_FAILED=true
+    if [ "$DROP_FAILED" = "true" ]; then
+        echo "  ⚠ cassandra: could not drop the default superuser: ${DROP_OUTPUT:-(no output)}" >&2
+        echo "RESULT hook=cassandra status=failed"
+        return 0
+    fi
+
+    echo "RESULT hook=cassandra status=$CASSANDRA_STATUS"
+}
+cassandra_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -2886,6 +3000,9 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # Creates `nexus-neo4j` and drops the built-in `neo4j` user, which is the
     # only account the image can seed.
     "neo4j": render_neo4j_hook,
+    # Same shape for Cassandra: creates `nexus-cassandra` and drops the
+    # built-in `cassandra` superuser, whose password is `cassandra`.
+    "cassandra": render_cassandra_hook,
     # Hands the master realm from the throwaway `nexus-bootstrap` admin to the
     # permanent one Infisical lists, then deletes `nexus-bootstrap`.
     "keycloak": render_keycloak_hook,

@@ -617,6 +617,49 @@ def _render_shiny(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_cassandra(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Cassandra: the superuser password the admin hook needs.
+
+    Fail-fast, unlike the two app-server renderers above. The hook uses
+    this value to create ``nexus-cassandra`` and then drops the built-in
+    ``cassandra`` superuser. With an empty value the hook would create a
+    role nobody can log in as and then delete the only account that could
+    — locking the database out of its own deployment.
+
+    ``NEXUS_CASSANDRA_PASSWORD`` reaches the container through its
+    ``.env``, and the hook reads it from the container's own environment
+    rather than embedding it in a ``docker exec`` argument list.
+
+    The value is interpolated into a single-quoted CQL string literal, so
+    the character-class check is enforced here rather than assumed — the
+    same guard :func:`_render_neo4j` carries.
+
+    Infisical naming reference: ``/cassandra/CASSANDRA_PASSWORD``.
+    """
+    del e
+    password = c.cassandra_admin_password or ""
+    if _empty(password):
+        raise ServiceEnvError(
+            "Cassandra enabled but CASSANDRA_ADMIN_PASS (Infisical /cassandra) "
+            "empty — run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.cassandra_admin, then re-run spin-up. Aborting to "
+            "avoid dropping the built-in superuser with no replacement able to "
+            "log in.",
+        )
+    if not re.fullmatch(r"[A-Za-z0-9]+", password):
+        raise ServiceEnvError(
+            "Cassandra password contains characters outside [A-Za-z0-9]. The "
+            "admin hook embeds it in a single-quoted CQL string literal, which "
+            "only holds while random_password.cassandra_admin keeps "
+            "`special = false`.",
+        )
+    return RenderedEnv(
+        env_vars={"NEXUS_CASSANDRA_PASSWORD": password},
+        # The file carries the only account that can log in.
+        mode=0o600,
+    )
+
+
 def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
 
@@ -2724,6 +2767,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
     EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
     EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),
+    EnvSpec("cassandra", _is_enabled("cassandra"), _render_cassandra),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),
