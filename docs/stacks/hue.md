@@ -44,6 +44,24 @@ It calls any Hue process whose parent is PID 1 an orphan. Without an init, the s
 
 **3. The first visitor becomes the administrator.** Hue makes the first account registered through its web UI a superuser. The admin hook seeds `nexus-hue-admin` with a generated password instead, and re-running it rotates that password rather than leaving a stale hash — so a credential rotation in Infisical converges.
 
+### Behind the tunnel, Django needs telling
+
+TLS terminates at the Cloudflare Tunnel, so Django only learns the real scheme from `X-Forwarded-Proto`. Without that it computes the expected CSRF origin as `http://hue.YOUR_DOMAIN` while the browser sends `https://…`, and **every POST is refused — the login included**. What the user meets is a bare "CSRF error" page; what Django logs is:
+
+```
+Forbidden (Origin checking failed - https://hue.example.com does not match
+any trusted origins.): /hue/accounts/login
+```
+
+Two settings cover it, and either one alone is enough — verified separately:
+
+| Setting | Effect |
+|---|---|
+| `secure_proxy_ssl_header=true` | `SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')`, so the computed origin becomes `https://` |
+| `[[session]] trusted_origins=$HUE_DOMAIN` | Django's `CSRF_TRUSTED_ORIGINS`; Hue expands it into both the `http://` and `https://` forms |
+
+Both are set so that a proxy which stops sending the header does not lock everybody out.
+
 ### Configuration is written, not mounted
 
 Hue merges every `.ini` under its conf directory and `z-` sorts last, so the overrides file wins. It has to carry the database password and the secret key, though, and neither belongs in the repository — so the entrypoint renders it at container start from the `.env`.

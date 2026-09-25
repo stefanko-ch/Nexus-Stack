@@ -11,6 +11,13 @@ library(ggplot2)
 library(DT)
 
 password <- Sys.getenv("POSTGRES_PASSWORD")
+db_host <- Sys.getenv("POSTGRES_HOST", "postgres")
+
+# Whether the host resolves at all on this Docker network. Worth telling
+# apart from a connection failure: a name that does not resolve means the
+# `postgres` stack is simply not enabled in this deployment, not that
+# anything is broken. nsl() returns NULL rather than erroring.
+host_is_deployed <- !is.null(nsl(db_host))
 
 TABLES_SQL <- "
 SELECT table_schema, table_name
@@ -28,7 +35,7 @@ connect <- local({
     if (is.null(conn) || !dbIsValid(conn)) {
       conn <<- dbConnect(
         RPostgres::Postgres(),
-        host = Sys.getenv("POSTGRES_HOST", "postgres"),
+        host = db_host,
         port = as.integer(Sys.getenv("POSTGRES_PORT", "5432")),
         dbname = Sys.getenv("POSTGRES_DB", "postgres"),
         user = Sys.getenv("POSTGRES_USER", "nexus-postgres"),
@@ -45,7 +52,19 @@ connect <- local({
 
 ui <- fluidPage(
   titlePanel("Warehouse explorer"),
-  if (!nzchar(password)) {
+  if (!host_is_deployed) {
+    div(
+      class = "alert alert-info",
+      sprintf(
+        paste0("The postgres stack is not running in this deployment, so ",
+               "there is nothing for this example to explore \u2014 '%s' does ",
+               "not resolve on the container network. Enable PostgreSQL in ",
+               "the Control Plane and spin up again, or point this app at ",
+               "another database with POSTGRES_HOST."),
+        db_host
+      )
+    )
+  } else if (!nzchar(password)) {
     div(
       class = "alert alert-warning",
       "No POSTGRES_PASSWORD in this container's environment, so there is ",
@@ -72,7 +91,7 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
-  if (!nzchar(password)) {
+  if (!host_is_deployed || !nzchar(password)) {
     return(invisible(NULL))
   }
 

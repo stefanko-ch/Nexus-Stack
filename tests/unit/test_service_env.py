@@ -4161,6 +4161,7 @@ def test_hue_renders_its_key_its_database_and_its_engines(
     assert rendered.env_vars == {
         "HUE_SECRET_KEY": full_config.hue_secret_key,
         "HUE_DB_PASSWORD": full_config.hue_db_password,
+        "HUE_DOMAIN": f"hue.{full_env.domain}",
         "POSTGRES_PASSWORD": full_config.postgres_password,
         "CLICKHOUSE_PASSWORD": full_config.clickhouse_admin_password,
     }
@@ -4267,3 +4268,26 @@ def test_apicurio_raises_on_each_missing_input(
         config = full_config.model_copy(update={field: ""})
     with pytest.raises(ServiceEnvError, match=match):
         _render_apicurio(config, env)
+
+
+def test_hue_renders_the_origin_django_will_trust(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """HUE_DOMAIN becomes Django's CSRF_TRUSTED_ORIGINS. Empty, every POST
+    including the login is refused with "Origin checking failed", which the
+    user meets as a bare "CSRF error" page."""
+    from nexus_deploy.service_env import _render_hue
+
+    assert _render_hue(full_config, full_env).env_vars["HUE_DOMAIN"] == f"hue.{full_env.domain}"
+
+    flat = _env_with(full_env, subdomain_separator="-")
+    assert _render_hue(full_config, flat).env_vars["HUE_DOMAIN"].startswith("hue-")
+
+
+def test_hue_raises_without_a_domain(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """No domain means no trusted origin, which means a Hue nobody can log
+    into — a deployment not worth completing."""
+    from nexus_deploy.service_env import _render_hue
+
+    with pytest.raises(ServiceEnvError, match="DOMAIN"):
+        _render_hue(full_config, _env_with(full_env, domain=""))

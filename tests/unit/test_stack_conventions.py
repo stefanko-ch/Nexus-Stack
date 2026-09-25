@@ -2744,7 +2744,9 @@ def test_the_hive_metastore_keeps_its_secrets_out_of_the_log() -> None:
                 "`set -x` entrypoint echoes into the container log"
             )
     assert "hive-site.xml" in entrypoint
-    assert entrypoint.index("hive-site.xml") < entrypoint.index("exec /entrypoint.sh")
+    # Written before the image's own entrypoint is reached — that is the
+    # whole mechanism, since `set -x` there is what echoes the values.
+    assert entrypoint.index("hive-site.xml") < entrypoint.index("/entrypoint.sh")
 
 
 def test_the_hive_metastore_does_not_rely_on_hive_custom_conf_dir() -> None:
@@ -2893,3 +2895,72 @@ def test_hue_blacklists_the_apps_nothing_backs() -> None:
     listed = set(blacklist.group(1).split(","))
 
     assert {"hbase", "oozie", "impala", "search", "filebrowser"} <= listed, listed
+
+
+# ---------------------------------------------------------------------------
+# Three defects the live deployment found that no local rehearsal had
+# ---------------------------------------------------------------------------
+
+
+def test_hue_tells_django_which_origin_the_browser_uses() -> None:
+    """TLS terminates at the tunnel, so Django only learns the real scheme
+    from X-Forwarded-Proto. Without it, it computes the expected CSRF origin
+    as http://<host> while the browser sends https://<host>, and every POST
+    is refused. Captured from a reproduction:
+
+        Forbidden (Origin checking failed - https://hue.example.com does not
+        match any trusted origins.): /hue/accounts/login
+
+    Either setting alone fixes it — verified separately — and both are here
+    so a proxy that stops sending the header does not lock everybody out.
+    """
+    entrypoint = _hue_entrypoint()
+
+    assert "secure_proxy_ssl_header=true" in entrypoint
+    assert "trusted_origins=$${HUE_DOMAIN}" in entrypoint
+    assert "[[session]]" in entrypoint
+
+
+def test_the_hive_metastore_can_write_its_own_warehouse() -> None:
+    """The image runs as `hive` (uid 1000) and a bind mount arrives
+    root-owned, so creating a managed table's directory failed on the server
+    with "is not a directory or unable to create one". The container starts
+    as root to fix the ownership and drops straight back."""
+    service = _hive_compose()["services"]["hive-metastore"]
+    entrypoint = _hive_entrypoint()
+
+    assert service.get("user") == "root", "the chown below needs root"
+    assert "chown -R hive:hive /opt/hive/data/warehouse" in entrypoint
+    # …and must not STAY root.
+    assert re.search(r"exec setpriv --reuid=hive --regid=hive\b", entrypoint), entrypoint
+    assert not re.search(r"^\s*exec /entrypoint\.sh\s*$", entrypoint, re.M), (
+        "the metastore would keep running as root"
+    )
+
+
+def test_the_hive_metastore_config_stays_readable_by_the_user_that_drops_to_it() -> None:
+    """It is written as root under umask 077, so without the chown `hive`
+    cannot read its own configuration."""
+    entrypoint = _hive_entrypoint()
+
+    chown = entrypoint.index("chown hive:hive /opt/hive/conf/hive-site.xml")
+    assert chown > entrypoint.index("cat > /opt/hive/conf/hive-site.xml")
+    assert chown < entrypoint.index("exec setpriv")
+
+
+@pytest.mark.parametrize(
+    ("app", "marker"),
+    [
+        ("streamlit/apps/warehouse_explorer.py", "socket.getaddrinfo"),
+        ("shiny/apps/warehouse_explorer/app.R", "nsl(db_host)"),
+    ],
+)
+def test_the_example_apps_separate_a_missing_stack_from_a_broken_one(app: str, marker: str) -> None:
+    """With the `postgres` stack disabled the first version showed
+    `could not translate host name "postgres" to address` — an
+    infrastructure fact presented as a fault. Both apps now check whether
+    the host resolves at all before trying to connect."""
+    source = (STACKS_DIR / app).read_text()
+
+    assert marker in source, f"{app} no longer checks whether the host resolves"
+    assert "not running in this deployment" in source

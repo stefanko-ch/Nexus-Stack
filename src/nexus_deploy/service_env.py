@@ -752,6 +752,13 @@ def _render_hue(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     empty value here would leave that key in place, so this fails fast
     rather than starting a Hue whose sessions anyone can forge.
 
+    ``HUE_DOMAIN`` is the hostname the browser uses, and it is what Hue
+    turns into Django's ``CSRF_TRUSTED_ORIGINS``. Without it every POST,
+    the login included, is refused with "Origin checking failed" — which
+    the user sees as a bare "CSRF error" page. Composed with
+    ``service_host`` so a multi-tenant fork with ``subdomain_separator``
+    set gets the flat hostname, as Apicurio and MLflow do.
+
     ``POSTGRES_PASSWORD`` and ``CLICKHOUSE_PASSWORD`` are the engines
     behind two of the three configured interpreters. They are emitted
     empty when absent rather than raising: an interpreter whose stack is
@@ -760,8 +767,9 @@ def _render_hue(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
     Infisical naming reference: ``/hue/HUE_PASSWORD``.
     """
-    del e
     missing = []
+    if _empty(e.domain):
+        missing.append("DOMAIN (bootstrap env)")
     if _empty(c.hue_secret_key):
         missing.append("HUE_SECRET_KEY (Infisical /hue)")
     if _empty(c.hue_db_password):
@@ -784,6 +792,7 @@ def _render_hue(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         env_vars={
             "HUE_SECRET_KEY": c.hue_secret_key or "",
             "HUE_DB_PASSWORD": c.hue_db_password or "",
+            "HUE_DOMAIN": service_host("hue", e.domain or "", e.subdomain_separator),
             "POSTGRES_PASSWORD": c.postgres_password or "",
             "CLICKHOUSE_PASSWORD": c.clickhouse_admin_password or "",
         },

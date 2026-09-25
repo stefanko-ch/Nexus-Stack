@@ -27,6 +27,15 @@ services:
     image: ${IMAGE_HIVE_METASTORE:-nexus-hive-metastore:4.1.0}
     container_name: hive-metastore
     restart: unless-stopped
+    # Root, and then straight back down again — see the entrypoint. The
+    # image runs as `hive` (uid 1000) and a bind mount arrives root-owned,
+    # so the warehouse directory is not writable by the user that needs it.
+    # Measured on the server:
+    #   MetaException: file:/opt/hive/data/warehouse/probe_db.db/local_sales
+    #   is not a directory or unable to create one
+    # The PostgreSQL sidecars get away without this because their image
+    # starts as root, chowns, and drops to uid 70 itself.
+    user: root
     env_file:
       - path: .env
         required: false
@@ -53,6 +62,10 @@ services:
       - -c
       - |
         set -eu
+        # The bind mount arrives root-owned; `hive` has to own it before it
+        # can create a managed table's directory. Idempotent: a second run
+        # finds the ownership already right.
+        chown -R hive:hive /opt/hive/data/warehouse
         # Everything secret goes into hive-site.xml, NOT into SERVICE_OPTS.
         #
         # The image's own /entrypoint.sh begins with `set -x`, so every
@@ -94,7 +107,12 @@ services:
           <property><name>fs.s3a.aws.credentials.provider</name><value>org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider</value></property>
         </configuration>
         XML
-        exec /entrypoint.sh
+        # Written as root under umask 077, so `hive` cannot read it yet.
+        chown hive:hive /opt/hive/conf/hive-site.xml
+        # setpriv, because this image has neither gosu nor su-exec —
+        # checked. --init-groups gives the process hive's supplementary
+        # groups rather than root's.
+        exec setpriv --reuid=hive --regid=hive --init-groups /entrypoint.sh
     volumes:
       # Managed tables land here. A table on object storage is declared
       # EXTERNAL with its own s3a:// LOCATION and never touches this

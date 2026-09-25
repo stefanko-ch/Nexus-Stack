@@ -55,6 +55,17 @@ ClassNotFoundException: org.apache.hadoop.fs.s3a.S3AFileSystem
 
 …and once that is fixed, with `NoAuthWithAWSException` until the R2 credentials are supplied. The metastore resolves a table's `LOCATION` **at create time**, EXTERNAL or not, so it needs both.
 
+### It starts as root, and does not stay there
+
+The image runs as `hive` (uid 1000), and a bind mount arrives root-owned — so the warehouse directory is not writable by the user that needs it. Creating a managed table then fails:
+
+```
+MetaException: file:/opt/hive/data/warehouse/probe_db.db/local_sales
+is not a directory or unable to create one
+```
+
+The container therefore starts as root, chowns the warehouse and its own `hive-site.xml` (written under `umask 077`, so otherwise unreadable), and drops straight back with `setpriv` — this image has neither `gosu` nor `su-exec`. The PostgreSQL sidecars need none of this because their image starts as root, chowns, and drops to uid 70 itself.
+
 ### Credentials and reach
 
 The Thrift protocol has no authentication of its own, which is why 9083 is published on loopback rather than opened through the firewall. Everything that talks to a metastore is another container on `app-network` and reaches it as `hive-metastore:9083`.

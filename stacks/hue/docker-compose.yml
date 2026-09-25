@@ -67,6 +67,14 @@ services:
         http_port=8888
         time_zone=Europe/Zurich
         django_debug_mode=false
+        # TLS is terminated at the tunnel, so Django only learns the real
+        # scheme from X-Forwarded-Proto. Without this it computes the
+        # expected CSRF origin as http://<host> while the browser sends
+        # https://<host>, and every POST — including the login — is
+        # rejected. Django's own words, captured from a reproduction:
+        #   Forbidden (Origin checking failed - https://hue.example.com
+        #   does not match any trusted origins.): /hue/accounts/login
+        secure_proxy_ssl_header=true
         http_500_debug_mode=false
         # HDFS, HBase and Solr are not deployed here, and leaving their apps
         # enabled puts permanently broken tabs in the navigation.
@@ -82,6 +90,14 @@ services:
         user=nexus-hue
         password=$${HUE_DB_PASSWORD}
         name=hue
+
+        [[session]]
+        # CSRF_TRUSTED_ORIGINS. Hue expands this into both the http:// and
+        # https:// forms. Either this or secure_proxy_ssl_header above is
+        # enough on its own — verified separately — and both are set so a
+        # proxy that stops sending X-Forwarded-Proto does not lock
+        # everybody out.
+        trusted_origins=$${HUE_DOMAIN}
 
         [notebook]
         [[interpreters]]

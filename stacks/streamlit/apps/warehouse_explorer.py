@@ -8,6 +8,7 @@ rather than rediscovered in every app.
 from __future__ import annotations
 
 import os
+import socket
 
 import pandas as pd
 import psycopg2
@@ -16,6 +17,7 @@ import streamlit as st
 st.title("Warehouse explorer")
 
 PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
+HOST = os.environ.get("POSTGRES_HOST", "postgres")
 
 TABLES_SQL = """
 SELECT table_schema, table_name
@@ -35,7 +37,7 @@ def connect() -> psycopg2.extensions.connection:
     below is refused by PostgreSQL rather than by a check here.
     """
     conn = psycopg2.connect(
-        host=os.environ.get("POSTGRES_HOST", "postgres"),
+        host=HOST,
         port=int(os.environ.get("POSTGRES_PORT", "5432")),
         dbname=os.environ.get("POSTGRES_DB", "postgres"),
         user=os.environ.get("POSTGRES_USER", "nexus-postgres"),
@@ -82,6 +84,31 @@ if not PASSWORD:
         "No `POSTGRES_PASSWORD` in this container's environment, so there is "
         "nothing to connect to. Enable the **postgres** stack in the Control "
         "Plane and spin up again."
+    )
+    st.stop()
+
+def host_is_deployed(host: str) -> bool:
+    """Whether `host` resolves at all on this Docker network.
+
+    Worth separating from a connection failure, because the two mean very
+    different things to whoever is reading the page. A name that does not
+    resolve means the `postgres` stack is simply not enabled in this
+    deployment — not that anything is broken.
+    """
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    return True
+
+
+if not host_is_deployed(HOST):
+    st.info(
+        f"The **postgres** stack is not running in this deployment, so there "
+        f"is nothing for this example to explore — `{HOST}` does not resolve "
+        f"on the container network.\n\n"
+        f"Enable **PostgreSQL** in the Control Plane and spin up again, or "
+        f"point this app at another database by setting `POSTGRES_HOST`."
     )
     st.stop()
 
