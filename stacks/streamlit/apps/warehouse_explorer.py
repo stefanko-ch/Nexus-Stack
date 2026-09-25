@@ -60,6 +60,18 @@ def run(sql: str) -> pd.DataFrame:
         connect.clear()
         conn = connect()
     with conn.cursor() as cur:
+        # CodeQL flags this as py/sql-injection, and the taint is real: `sql`
+        # comes from the text area below. It is also the entire feature — this
+        # is a query editor, like the adminer and cloudbeaver stacks the same
+        # audience already has. Two things bound it, and neither is a promise
+        # made in a comment:
+        #   * Cloudflare Access gates the hostname, so "user-provided" means an
+        #     operator who authenticated with email OTP.
+        #   * connect() opens the session read-only, so PostgreSQL itself
+        #     refuses a write — measured: "cannot execute UPDATE in a read-only
+        #     transaction".
+        # Parameterising is not available: a bind parameter substitutes a
+        # VALUE, and what arrives here is a whole statement.
         cur.execute(sql)
         columns = [c.name for c in cur.description or []]
         return pd.DataFrame(cur.fetchall(), columns=columns)
