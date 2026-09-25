@@ -769,6 +769,18 @@ services:
       superset-postgres: "postgres:17-alpine"
       superset-redis: "redis:7-alpine"
 
+  mindsdb:
+    subdomain: "mindsdb"
+    port: 47334
+    public: false
+    category: "ai-ml"
+    website: "https://mindsdb.com"
+    description: "SQL over everything — other databases, files and models, as schemas you can JOIN."
+    long_description: "MindsDB presents other systems as schemas: connect a PostgreSQL, a file, or a model provider, then SELECT from it and JOIN across them in one query. It serves both an HTTP SQL editor and the MySQL wire protocol, so DBeaver, CloudBeaver or a BI tool connects to it as if it were a MySQL server. Note that upstream has moved on — the mindsdb/mindsdb repository now redirects to mindsdb/mindshub, a different product, and the last MindsDB release is 26.1.0 from April 2026. This stack pins that release; it works, and it will not get fixes. Authentication is switched on deliberately: without it the SQL endpoint answers unauthenticated requests and the MySQL wire accepts the user `mindsdb` with an empty password."
+    image: "mindsdb/mindsdb:v26.1.0"
+    support_images:
+      mindsdb-postgres: "postgres:17-alpine"
+
   minio:
     subdomain: "minio"
     port: 9001

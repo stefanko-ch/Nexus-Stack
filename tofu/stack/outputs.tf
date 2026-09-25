@@ -196,6 +196,10 @@ output "secrets" {
     # Hive Metastore (the standalone catalogue service)
     hive_db_password = random_password.hive_db_password.result
 
+    # MindsDB (SQL over other databases and models)
+    mindsdb_password    = random_password.mindsdb_password.result
+    mindsdb_db_password = random_password.mindsdb_db_password.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result

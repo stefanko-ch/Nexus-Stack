@@ -2783,3 +2783,49 @@ def test_the_hive_metastore_thrift_port_stays_on_loopback() -> None:
     ports = _hive_compose()["services"]["hive-metastore"]["ports"]
 
     assert all(str(p).startswith("127.0.0.1:") for p in ports), ports
+
+
+# ---------------------------------------------------------------------------
+# MindsDB: two variables that are the difference between authenticated and not
+# ---------------------------------------------------------------------------
+
+
+def _mindsdb_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "mindsdb" / "docker-compose.yml").read_text()))
+
+
+def test_mindsdb_sets_the_account_both_its_apis_read() -> None:
+    """Measured on this image with the pair unset: POST /api/sql/query
+    answers unauthenticated requests, and the MySQL wire accepts user
+    `mindsdb` with an EMPTY password from anywhere on app-network. With it
+    set: 401, and `Access denied for user mindsdb`.
+
+    An unauthenticated MindsDB is not a read-only dashboard left open — it
+    is an SQL engine that can open connections to every other database in
+    the deployment."""
+    env = _mindsdb_compose()["services"]["mindsdb"]["environment"]
+
+    assert env["MINDSDB_USERNAME"] == "nexus-mindsdb", env
+    assert env["MINDSDB_PASSWORD"] == "${MINDSDB_PASSWORD}", env
+
+
+def test_the_mindsdb_wire_protocol_gets_no_firewall_rule() -> None:
+    """It is authenticated, but it is a database wire protocol with no TLS
+    in front of it once it leaves the host. 47334 goes through the tunnel;
+    47335 stays on loopback."""
+    ports = [str(p) for p in _mindsdb_compose()["services"]["mindsdb"]["ports"]]
+
+    wire = [p for p in ports if p.endswith(":47335")]
+    assert wire, ports
+    assert all(p.startswith("127.0.0.1:") for p in wire), wire
+
+
+def test_mindsdb_keeps_its_metadata_out_of_sqlite() -> None:
+    """The default puts every project, model and connection in one SQLite
+    file inside the storage directory. This stack gives it a PostgreSQL."""
+    services = _mindsdb_compose()["services"]
+    con = services["mindsdb"]["environment"]["MINDSDB_DB_CON"]
+
+    assert con.startswith("postgresql://"), con
+    assert "mindsdb-db:5432" in con, con
+    assert "mindsdb-db" in services

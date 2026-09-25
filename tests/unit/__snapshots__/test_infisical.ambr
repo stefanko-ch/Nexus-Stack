@@ -168,6 +168,12 @@
       'METABASE_PASSWORD': 'metabase_admin_password-VALUE',
       'METABASE_USERNAME': 'admin@snapshot.test',
     }),
+    'mindsdb': dict({
+      'MINDSDB_DB_PASSWORD': 'mindsdb_db_password-VALUE',
+      'MINDSDB_DB_USERNAME': 'nexus-mindsdb',
+      'MINDSDB_PASSWORD': 'mindsdb_password-VALUE',
+      'MINDSDB_USERNAME': 'nexus-mindsdb',
+    }),
     'minio': dict({
       'MINIO_ROOT_PASSWORD': 'minio_root_password-VALUE',
       'MINIO_ROOT_USER': 'nexus-minio',

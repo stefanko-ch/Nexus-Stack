@@ -699,6 +699,48 @@ def _render_hive_metastore(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_mindsdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """MindsDB: the application account and its own Postgres.
+
+    Fail-fast on both, and the first one is a security boundary rather
+    than a convenience. Measured on ``mindsdb/mindsdb:v26.1.0`` with no
+    ``MINDSDB_PASSWORD``: ``POST /api/sql/query`` answers unauthenticated
+    requests, and the MySQL wire protocol accepts user ``mindsdb`` with an
+    **empty** password from anywhere on ``app-network``. With it, the same
+    SQL endpoint answers 401 and the wire refuses ``mindsdb``. An empty
+    value here would therefore publish an unauthenticated SQL engine that
+    can open connections to every other database in the deployment.
+
+    The container's own config file prints ``"user": "mindsdb",
+    "password": ""`` either way, so it is not what governs and is not
+    worth reading.
+
+    Infisical naming reference: ``/mindsdb/MINDSDB_PASSWORD``.
+    """
+    del e
+    missing = []
+    if _empty(c.mindsdb_password):
+        missing.append("MINDSDB_PASS (Infisical /mindsdb)")
+    if _empty(c.mindsdb_db_password):
+        missing.append("MINDSDB_DB_PASS (Infisical /mindsdb)")
+    if missing:
+        raise ServiceEnvError(
+            f"MindsDB enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate random_password.mindsdb_password "
+            "and random_password.mindsdb_db_password, then re-run spin-up. "
+            "Aborting rather than starting an SQL engine that answers "
+            "unauthenticated requests.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "MINDSDB_PASSWORD": c.mindsdb_password or "",
+            "MINDSDB_DB_PASSWORD": c.mindsdb_db_password or "",
+        },
+        # The file carries both accounts.
+        mode=0o600,
+    )
+
+
 def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
 
@@ -2808,6 +2850,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),
     EnvSpec("cassandra", _is_enabled("cassandra"), _render_cassandra),
     EnvSpec("hive-metastore", _is_enabled("hive-metastore"), _render_hive_metastore),
+    EnvSpec("mindsdb", _is_enabled("mindsdb"), _render_mindsdb),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),

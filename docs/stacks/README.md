@@ -93,6 +93,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Marquez Web | `marquezproject/marquez-web` | `0.51.1` | Exact ¹ |
 | PostgreSQL (Marquez DB) | `postgres` | `16-alpine` | Major |
 | OpenSearch (Marquez) | `opensearchproject/opensearch` | `2.19.6` | Exact ¹ |
+| MindsDB | `mindsdb/mindsdb` | `v26.1.0` | Exact ¹ |
+| PostgreSQL (MindsDB DB) | `postgres` | `17-alpine` | Major |
 | MinIO | `quay.io/minio/minio` | `RELEASE.2025-09-07T16-13-09Z` | Exact ¹ |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
@@ -258,6 +260,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
+| **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |

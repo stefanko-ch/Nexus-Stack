@@ -247,6 +247,19 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# MindsDB: the application account (both its HTTP API and its MySQL wire
+# protocol read it) and its Postgres. Without the first, the SQL endpoint
+# answers unauthenticated and the wire accepts `mindsdb` with no password.
+resource "random_password" "mindsdb_password" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "mindsdb_db_password" {
+  length  = 24
+  special = false
+}
+
 # Hive Metastore Postgres password — dedicated DB. Holds the catalogue:
 # databases, tables, columns and the locations their files live at.
 resource "random_password" "hive_db_password" {

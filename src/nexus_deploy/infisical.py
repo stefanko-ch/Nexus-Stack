@@ -749,6 +749,22 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "mindsdb",
+            _filter_empty(
+                {
+                    # One account, read by both APIs — the HTTP SQL endpoint
+                    # and the MySQL wire protocol.
+                    "MINDSDB_USERNAME": "nexus-mindsdb",
+                    "MINDSDB_PASSWORD": config.mindsdb_password,
+                    "MINDSDB_DB_USERNAME": "nexus-mindsdb",
+                    "MINDSDB_DB_PASSWORD": config.mindsdb_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "hive-metastore",
             _filter_empty(
                 {
