@@ -573,6 +573,29 @@ def _render_planka(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_streamlit(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Streamlit: the shared PostgreSQL password, and nothing else.
+
+    Deliberately NOT fail-fast, unlike Cube, which reads the same value.
+    Cube cannot answer a single query without it; Streamlit is an app
+    server, and an app that never opens a database is perfectly normal
+    here. The shipped example checks for the variable itself and says so
+    on the page rather than failing a deployment that had no reason to
+    fail.
+
+    The Forgejo workspace coordinates are appended to this same ``.env``
+    afterwards by :func:`append_forgejo_workspace_block` — which is also
+    why this render must run even when it has nothing of its own to
+    write: that helper skips a service whose ``.env`` does not exist.
+    """
+    del e
+    return RenderedEnv(
+        env_vars={"POSTGRES_PASSWORD": c.postgres_password or ""},
+        # The file carries the shared database password.
+        mode=0o600,
+    )
+
+
 def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
 
@@ -2678,6 +2701,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("cube", _is_enabled("cube"), _render_cube),
     EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
+    EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),
@@ -2967,6 +2991,7 @@ _FORGEJO_APPEND_TARGETS: tuple[str, ...] = (
     "code-server",
     "meltano",
     "prefect",
+    "streamlit",
 )
 
 

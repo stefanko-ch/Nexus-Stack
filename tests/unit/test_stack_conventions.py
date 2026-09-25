@@ -34,7 +34,7 @@ import json
 import re
 import shlex
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
@@ -2496,3 +2496,81 @@ def test_apicurio_does_not_use_in_memory_storage() -> None:
 
     assert env["APICURIO_STORAGE_KIND"] == "sql"
     assert env["APICURIO_STORAGE_SQL_KIND"] == "postgresql"
+
+
+# ---------------------------------------------------------------------------
+# Streamlit: one launcher, two app sources, and the clone that must stay out
+# of the scan root
+# ---------------------------------------------------------------------------
+
+
+def _streamlit_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "streamlit" / "docker-compose.yml").read_text()))
+
+
+def _streamlit_entrypoint() -> str:
+    return str(_streamlit_compose()["services"]["streamlit"]["entrypoint"][-1])
+
+
+def _streamlit_launcher_path(name: str) -> str:
+    """The value of a ``<NAME> = Path("...")`` constant in Home.py."""
+    source = (STACKS_DIR / "streamlit" / "Home.py").read_text()
+    match = re.search(rf'^{name} = Path\("([^"]+)"\)', source, re.M)
+    assert match, f"{name} is not declared in Home.py"
+    return match.group(1)
+
+
+def test_the_streamlit_clone_lands_outside_the_examples_root() -> None:
+    """The workspace repository holds Kestra flows, marimo notebooks and dbt
+    models. If the clone landed under the directory the launcher scans
+    recursively, every one of those .py files would be listed as a Streamlit
+    app and fail the moment somebody clicked it."""
+    examples = PurePosixPath(_streamlit_launcher_path("EXAMPLES_ROOT"))
+    workspace = PurePosixPath(_streamlit_launcher_path("WORKSPACE_ROOT"))
+
+    assert not workspace.is_relative_to(examples), (
+        f"the workspace clone at {workspace} sits inside the scan root {examples}"
+    )
+    assert f"{workspace}/" in _streamlit_entrypoint(), (
+        "the entrypoint clones somewhere other than WORKSPACE_ROOT"
+    )
+
+
+def test_the_streamlit_entrypoint_expands_its_variables_at_runtime() -> None:
+    """A single ``$`` in a compose string is interpolated by Compose when it
+    reads the file, from the host's .env — not by the shell in the container.
+    Every one of these variables is written to stacks/streamlit/.env for the
+    container, so a single ``$`` would silently expand to nothing and the
+    clone would be skipped without an error."""
+    entrypoint = _streamlit_entrypoint()
+
+    for var in ("FORGEJO_USERNAME", "FORGEJO_PASSWORD", "FORGEJO_REPO_URL", "REPO_NAME"):
+        assert not re.search(rf"(?<!\$)\$\{{?{var}", entrypoint), (
+            f"${var} in the entrypoint is expanded by Compose, not by the container"
+        )
+        assert f"$${var}" in entrypoint or f"$${{{var}" in entrypoint, (
+            f"{var} is never read by the entrypoint"
+        )
+
+
+def test_the_streamlit_launcher_and_examples_are_mounted_read_only() -> None:
+    """Both come from the deployment repository and are re-synced on every
+    spin-up. A writable mount would let an edit made through a running app
+    survive until the next sync silently overwrote it."""
+    volumes = _streamlit_compose()["services"]["streamlit"]["volumes"]
+
+    read_only = {v.split(":")[1] for v in volumes if isinstance(v, str) and v.endswith(":ro")}
+
+    assert "/srv/Home.py" in read_only, volumes
+    assert _streamlit_launcher_path("EXAMPLES_ROOT") in read_only, volumes
+
+
+def test_the_streamlit_launcher_skips_helper_modules() -> None:
+    """Underscore-prefixed files are importable helpers, not apps — the same
+    convention the marimo seeds use. Without the check, a shared
+    `_db.py` would be listed in the sidebar and crash when opened."""
+    source = (STACKS_DIR / "streamlit" / "Home.py").read_text()
+
+    assert 'part.startswith((".", "_"))' in source, (
+        "Home.py no longer filters dot- and underscore-prefixed path parts"
+    )
