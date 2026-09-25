@@ -653,6 +653,16 @@ services:
     long_description: "Mailpit is an email testing tool that acts as an SMTP server catching all outgoing emails. Inspect HTML and plain-text content, test email templates, verify attachments, and check spam scores. Perfect for development and staging environments where you need to test email sending without delivering to real recipients."
     image: "axllent/mailpit:v1.28"
 
+  shiny:
+    subdomain: "shiny"
+    port: 3838
+    public: false
+    category: "analytics"
+    website: "https://posit.co/products/open-source/shinyserver/"
+    description: "R web applications — Shiny Server hosts every app it finds, with an index of them."
+    long_description: "Shiny is R's framework for interactive web applications: reactive inputs, tables and plots written entirely in R. Shiny Server hosts a directory of them and renders an index, so this stack needs no launcher of its own — an app is a directory with an app.R in it. Three sources end up in that directory: the sample apps the upstream image ships, the examples shipped with Nexus-Stack, and a symlink to the shiny/ directory of the Forgejo workspace repository, which is cloned when the stack starts. The image adds DBI, RPostgres, ggplot2, dplyr and DT on top of R 4.6, installed from a dated Posit Package Manager snapshot so a rebuild gets the versions this was tested against. The R counterpart to the streamlit stack."
+    image: "nexus-shiny:4.6.1"
+
   streamlit:
     subdomain: "streamlit"
     port: 8502

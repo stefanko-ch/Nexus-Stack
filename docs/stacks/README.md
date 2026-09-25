@@ -153,6 +153,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Spark Master | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
 | Spark Worker | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
 | Spark Connect | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
+| Shiny Server | `nexus-shiny` (custom build) | `4.6.1` | Exact ³ |
 | Streamlit | `nexus-streamlit` (custom build) | `1.64.0` | Exact ³ |
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
 | PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
@@ -280,6 +281,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **S3 Manager** | S3 bucket browser | [s3manager.md](s3manager.md) |
 | **SeaweedFS** | Distributed object storage | [seaweedfs.md](seaweedfs.md) |
 | **SFTPGo** | SFTP server with R2 backend (WebDAV/FTPS supported upstream, disabled by default) | [sftpgo.md](sftpgo.md) |
+| **Shiny Server** | R web applications | [shiny.md](shiny.md) |
 | **Sling** | Database-to-database transfers | [sling.md](sling.md) |
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
 | **Streamlit** | Python data apps, one server for all of them | [streamlit.md](streamlit.md) |

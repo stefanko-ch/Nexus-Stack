@@ -596,6 +596,27 @@ def _render_streamlit(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_shiny(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Shiny Server: the shared PostgreSQL password, and nothing else.
+
+    The R counterpart of :func:`_render_streamlit`, and not fail-fast for
+    the same reason: this is an app server, and an app that never opens a
+    database is normal. The shipped example checks the variable itself
+    and says so on the page.
+
+    The Forgejo workspace coordinates are appended to this same ``.env``
+    afterwards by :func:`append_forgejo_workspace_block`, which skips a
+    service whose ``.env`` does not exist — so this render must run even
+    though it has only one value of its own.
+    """
+    del e
+    return RenderedEnv(
+        env_vars={"POSTGRES_PASSWORD": c.postgres_password or ""},
+        # The file carries the shared database password.
+        mode=0o600,
+    )
+
+
 def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
 
@@ -2702,6 +2723,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("cube", _is_enabled("cube"), _render_cube),
     EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
     EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
+    EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),
@@ -2992,6 +3014,7 @@ _FORGEJO_APPEND_TARGETS: tuple[str, ...] = (
     "meltano",
     "prefect",
     "streamlit",
+    "shiny",
 )
 
 

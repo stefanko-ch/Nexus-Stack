@@ -2574,3 +2574,76 @@ def test_the_streamlit_launcher_skips_helper_modules() -> None:
     assert 'part.startswith((".", "_"))' in source, (
         "Home.py no longer filters dot- and underscore-prefixed path parts"
     )
+
+
+# ---------------------------------------------------------------------------
+# Shiny Server: what ends up in the served directory, and what must not
+# ---------------------------------------------------------------------------
+
+
+def _shiny_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "shiny" / "docker-compose.yml").read_text()))
+
+
+def _shiny_entrypoint() -> str:
+    return str(_shiny_compose()["services"]["shiny"]["entrypoint"][-1])
+
+
+def test_the_shiny_workspace_link_is_guarded_on_its_target() -> None:
+    """A dangling symlink in `site_dir` takes down the whole index page,
+    not just its own entry — measured against a repository with no shiny/
+    directory, which is every repository until somebody adds one:
+
+        Invalid application configuration.
+        ENOENT: no such file or directory, stat '/srv/shiny-server/workspace'
+    """
+    entrypoint = _shiny_entrypoint()
+
+    link = re.search(r"^\s*ln -sfn .*/shiny\" (/srv/shiny-server/workspace)$", entrypoint, re.M)
+    assert link, "the workspace symlink is no longer created the way this test reads it"
+
+    guard = re.search(r'if \[ -d "/srv/workspace/\$\$\{REPO_NAME:-\}/shiny" \]', entrypoint)
+    assert guard, "the symlink is created without checking that its target exists"
+    assert guard.start() < link.start(), "the guard runs after the link is created"
+    assert "rm -f /srv/shiny-server/workspace" in entrypoint, (
+        "a stale link from an earlier start is never removed"
+    )
+
+
+def test_shiny_serves_only_the_workspace_subdirectory() -> None:
+    """`site_dir` serves static files as well as apps, so the clone itself
+    must stay outside it. Linking the whole repository in would publish
+    every file in it — .git included — over HTTP."""
+    entrypoint = _shiny_entrypoint()
+    volumes = _shiny_compose()["services"]["shiny"]["volumes"]
+
+    assert 'git clone "$$FORGEJO_REPO_URL" "/srv/workspace/$$REPO_NAME"' in entrypoint
+    assert not re.search(r'ln -sfn "/srv/workspace/\$\$REPO_NAME" ', entrypoint), (
+        "the whole workspace repository is linked into the served directory"
+    )
+    assert "shiny_workspace:/srv/workspace" in volumes, volumes
+
+
+def test_shiny_hands_over_to_the_images_own_init() -> None:
+    """rocker/shiny runs under s6: a cont-init step copies the container
+    environment into Renviron.site, and the service wrapper honours
+    APPLICATION_LOGS_TO_STDOUT. Exec'ing the shiny-server binary directly
+    starts the server but skips both."""
+    entrypoint = _shiny_entrypoint()
+
+    assert entrypoint.rstrip().endswith("exec /init"), entrypoint.rstrip()[-60:]
+    assert "exec /usr/bin/shiny-server" not in entrypoint
+
+
+def test_shiny_installs_r_packages_from_a_dated_snapshot() -> None:
+    """`latest` on the Posit Package Manager moves, so a rebuild would
+    install versions nothing here was tested against. The dated snapshot
+    also still serves Ubuntu binaries, which is what keeps the layer at
+    seconds rather than a compile."""
+    dockerfile = (STACKS_DIR / "shiny" / "Dockerfile").read_text()
+
+    repo = re.search(r"https://p3m\.dev/cran/__linux__/\w+/(\S+?)'", dockerfile)
+    assert repo, "the R package repository is not set the way this test reads it"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", repo.group(1)), (
+        f"the p3m snapshot is '{repo.group(1)}', not a date"
+    )
