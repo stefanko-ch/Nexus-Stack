@@ -183,6 +183,9 @@ output "secrets" {
     # MLflow (experiment tracking + model registry)
     mlflow_db_password = random_password.mlflow_db_password.result
 
+    # Cube (semantic layer) — signs the JWTs its APIs accept.
+    cube_api_secret = random_password.cube_api_secret.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result

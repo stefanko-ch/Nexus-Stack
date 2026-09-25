@@ -27,6 +27,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | code-server | `nexus-code-server` (custom build) | `latest` | Latest ² |
 | Crawl4AI | `unclecode/crawl4ai` | `0.8.6` | Exact ¹ |
 | CyberChef | `mpepping/cyberchef` | `v10.24.0` | Exact ¹ |
+| Cube | `cubejs/cube` | `v1.7.42` | Exact ¹ |
+| Cube Store (Cube) | `cubejs/cubestore` | `v1.7.42` | Exact ¹ |
 | Dagster | dagster (custom build) | `1.12.21` | Exact ³ |
 | PostgreSQL (Dagster DB) | `postgres` | `16-alpine` | Major |
 | Debezium | `quay.io/debezium/connect` | `3.5.0` | Exact ¹ |
@@ -205,6 +207,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **code-server** | VS Code in the browser | [code-server.md](code-server.md) |
 | **Crawl4AI** | LLM-friendly web crawler for RAG | [crawl4ai.md](crawl4ai.md) |
 | **CyberChef** | GCHQ data manipulation tool — encode/decode/hash/regex/crypto | [cyberchef.md](cyberchef.md) |
+| **Cube** | Semantic layer — one metric definition, served to every BI tool | [cube.md](cube.md) |
 | **Dagster** | Python data orchestration | [dagster.md](dagster.md) |
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |

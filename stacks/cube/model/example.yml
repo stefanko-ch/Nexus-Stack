@@ -1,0 +1,54 @@
+# A worked example, and the only model this stack ships with.
+#
+# It is commented out on purpose: it describes a table that does not exist on
+# a fresh stack, and Cube refuses to start when a model references a missing
+# one. Uncomment it once you have a table to point at, or copy the shape into
+# a file of your own.
+#
+# What it shows is the whole idea of a semantic layer: `revenue` is defined
+# once here, and Superset, Metabase and Evidence then all answer with the same
+# number instead of each carrying its own SUM.
+#
+# cubes:
+#   - name: orders
+#     sql_table: public.orders
+#     description: One row per customer order.
+#
+#     joins:
+#       - name: customers
+#         sql: "{CUBE}.customer_id = {customers}.id"
+#         relationship: many_to_one
+#
+#     dimensions:
+#       - name: id
+#         sql: id
+#         type: number
+#         primary_key: true
+#
+#       - name: status
+#         sql: status
+#         type: string
+#
+#       - name: created_at
+#         sql: created_at
+#         type: time
+#
+#     measures:
+#       - name: count
+#         type: count
+#
+#       # The definition that stops three tools disagreeing: cancelled orders
+#       # are not revenue, and that rule now lives in one place.
+#       - name: revenue
+#         sql: amount
+#         type: sum
+#         filters:
+#           - sql: "{CUBE}.status != 'cancelled'"
+#
+#     pre_aggregations:
+#       # Materialised in Cube Store. Optional — remove it and queries still
+#       # work, they just hit the warehouse every time.
+#       - name: revenue_by_month
+#         measures: [revenue, count]
+#         time_dimension: created_at
+#         granularity: month

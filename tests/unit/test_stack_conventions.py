@@ -2333,3 +2333,113 @@ def test_forgejo_ci_subnet_holds_the_fixed_addresses_and_avoids_dockers_pools() 
 
 def test_forgejo_dind_stays_off_app_network() -> None:
     assert _runner_compose()["services"]["forgejo-dind"]["networks"] == ["forgejo-ci"]
+
+
+# ---------------------------------------------------------------------------
+# Cube: semantic layer over the shared postgres, plus its own storage layer
+# ---------------------------------------------------------------------------
+
+
+def _cube_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "cube" / "docker-compose.yml").read_text()))
+
+
+def test_cube_and_cube_store_are_pinned_in_lockstep() -> None:
+    """Upstream ships the two together. A version skew between them is a
+    protocol mismatch rather than a feature difference, and it surfaces as
+    a query that hangs instead of an image that fails to pull."""
+    services = _cube_compose()["services"]
+
+    versions = {}
+    for name, key in (("cube", "IMAGE_CUBE"), ("cube-store", "IMAGE_CUBE_STORE")):
+        match = re.fullmatch(rf"\$\{{{key}:-[^:]+:(v[0-9.]+)\}}", services[name]["image"])
+        assert match, services[name]["image"]
+        versions[name] = match.group(1)
+
+    assert versions["cube"] == versions["cube-store"], versions
+
+
+def test_cube_reaches_cube_store_by_its_service_name() -> None:
+    services = _cube_compose()["services"]
+    env = services["cube"]["environment"]
+
+    assert env["CUBEJS_CUBESTORE_HOST"] in services, env["CUBEJS_CUBESTORE_HOST"]
+
+
+def test_cube_does_not_run_the_authentication_bypass() -> None:
+    """Cube's Playground is served only in development mode, and upstream
+    calls that mode an authentication bypass: it "switches off JWT
+    verification on the REST (JSON) and GraphQL APIs", with "use it only on
+    a local development machine, never in production".
+
+    Access guards the browser route and never sees in-cluster traffic, so
+    dev mode here would mean any container on app-network querying without
+    a token — on a server that also hosts CI.
+    """
+    env = _cube_compose()["services"]["cube"]["environment"]
+
+    assert env["CUBEJS_DEV_MODE"] == "false", (
+        "development mode is an authentication bypass; the Playground is not "
+        "worth it on a server that runs other people's code"
+    )
+
+
+def test_cube_reads_its_model_from_the_repository_read_only() -> None:
+    """A model that lives only in a volume drifts on one server and exists
+    nowhere else. stack-sync copies stacks/cube/ on every spin-up, so the
+    semantic layer is versioned with the deployment that serves it."""
+    cube = _cube_compose()["services"]["cube"]
+    mounts = [v for v in cube["volumes"] if isinstance(v, str)]
+
+    model = [v for v in mounts if v.endswith("/cube/conf/model:ro")]
+    assert model == ["./model:/cube/conf/model:ro"], mounts
+    assert (STACKS_DIR / "cube" / "model").is_dir()
+
+
+def test_cube_probes_health_with_something_the_image_has() -> None:
+    """The image ships neither curl nor wget — measured, after a first draft
+    used curl and left the container permanently `unhealthy` with
+    `/bin/sh: 1: curl: not found` in every probe. It ships node."""
+    check = " ".join(_cube_compose()["services"]["cube"]["healthcheck"]["test"])
+
+    assert "curl" not in check, check
+    assert "wget" not in check, check
+    assert "node " in check
+    assert "/livez" in check
+
+
+def test_cube_store_writes_into_the_volume_it_mounts() -> None:
+    """Its default data directory is /cube/.cubestore, not the /cube/data the
+    volume is mounted at — measured. Left implicit, the metastore and cache
+    lived in the container layer and every recreate silently discarded
+    them."""
+    store = _cube_compose()["services"]["cube-store"]
+    declared = store["environment"]["CUBESTORE_DATA_DIR"]
+    mounts = [v.split(":")[1] for v in store["volumes"] if isinstance(v, str)]
+
+    assert declared in mounts, (declared, mounts)
+
+
+def test_cube_carries_no_secret_of_its_own() -> None:
+    """Both values come from the rendered .env — the compose file names
+    them and never holds one."""
+    services = _cube_compose()["services"]
+    env = services["cube"]["environment"]
+
+    assert env["CUBEJS_DB_PASS"] == "${POSTGRES_PASSWORD}"
+    assert env["CUBEJS_API_SECRET"] == "${CUBE_API_SECRET}"
+    assert "env_file" in services["cube"]
+
+
+def test_cube_reads_the_shared_postgres_stack() -> None:
+    """It describes tables that already exist; it creates none. The host is
+    the shared stack's container name, not a sidecar of its own."""
+    services = _cube_compose()["services"]
+    env = services["cube"]["environment"]
+
+    assert env["CUBEJS_DB_TYPE"] == "postgres"
+    assert env["CUBEJS_DB_HOST"] == "postgres"
+    assert env["CUBEJS_DB_USER"] == "nexus-postgres"
+    assert "postgres" not in {n for n in services if n != "cube"}, (
+        "cube must not bring its own postgres — it reads the shared stack"
+    )

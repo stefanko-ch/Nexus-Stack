@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (94)
+## Available Stacks (95)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -92,6 +92,7 @@ After deployment you'll have:
 [![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)](https://coder.com)
 [![Crawl4AI](https://img.shields.io/badge/Crawl4AI-1B6CA8?logo=googlechrome&logoColor=white)](https://github.com/unclecode/crawl4ai)
 [![CyberChef](https://img.shields.io/badge/CyberChef-1B365D?logo=gchq&logoColor=white)](https://gchq.github.io/CyberChef/)
+[![Cube](https://img.shields.io/badge/Cube-FF6492?logoColor=white)](https://cube.dev)
 [![Dagster](https://img.shields.io/badge/Dagster-4F43DD?logo=dagster&logoColor=white)](https://dagster.io)
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
@@ -189,6 +190,7 @@ After deployment you'll have:
 | **code-server** | VS Code in the browser for remote development | [coder.com](https://coder.com) |
 | **Crawl4AI** | LLM-friendly web crawler that returns clean Markdown for RAG ingestion (REST API + Playground UI) | [github.com/unclecode/crawl4ai](https://github.com/unclecode/crawl4ai) |
 | **CyberChef** | GCHQ's "Cyber Swiss Army Knife" — drag-and-drop data manipulation (encode/decode/hash/regex/crypto, ~400 operations) | [gchq.github.io/CyberChef](https://gchq.github.io/CyberChef/) |
+| **Cube** | Semantic layer — define a metric once and query it from every BI tool, over SQL, REST and GraphQL | [cube.dev](https://cube.dev) |
 | **Dagster** | Python-native data orchestration for data pipelines and Software-Defined Assets | [dagster.io](https://dagster.io) |
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |

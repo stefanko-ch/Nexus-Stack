@@ -573,6 +573,54 @@ def _render_planka(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_cube(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Cube: semantic layer over the shared `postgres` stack.
+
+    Two values, and the compose file cannot start without either:
+
+    - ``POSTGRES_PASSWORD`` — the connection to the shared `postgres`
+      stack, read as ``CUBEJS_DB_PASS``. Same source as PostgREST's:
+      ``NexusConfig``, not ``BootstrapEnv``, and no Infisical folder of
+      its own because it is the same value the `postgres` stack uses.
+    - ``CUBE_API_SECRET`` — signs and verifies the JWTs of Cube's REST,
+      GraphQL and SQL APIs. It is not a login; Cube has no user
+      management and Cloudflare Access is the gate. It matters because a
+      BI tool connecting from outside presents a token signed with it,
+      and an empty value leaves Cube accepting whatever its runtime
+      default produces.
+
+    Fail-fast rather than a container that comes up and then answers
+    every query with a connection error — the phase that would report
+    that is compose-up, three steps away from the cause.
+
+    Infisical naming reference: ``/cube/CUBE_API_SECRET``.
+    """
+    missing = []
+    if _empty(c.postgres_password):
+        missing.append("POSTGRES_PASSWORD (shared postgres stack secret)")
+    if _empty(c.cube_api_secret):
+        missing.append("CUBE_API_SECRET (Infisical /cube)")
+    if missing:
+        raise ServiceEnvError(
+            f"Cube enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate random_password.cube_api_secret "
+            "and the shared postgres password, then re-run spin-up. Aborting to "
+            "avoid a semantic layer that cannot reach the warehouse it exists to "
+            "describe.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "POSTGRES_PASSWORD": c.postgres_password or "",
+            "CUBE_API_SECRET": c.cube_api_secret or "",
+        },
+        # 0600, like the fifteen other renderers whose file carries a
+        # credential. Both values here are one: the warehouse password, and
+        # the secret that signs every token Cube accepts — anyone who can
+        # read it can mint one.
+        mode=0o600,
+    )
+
+
 def _render_postgrest(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """PostgREST: auto-generated REST API over the shared `postgres` stack.
 
@@ -2593,6 +2641,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("litellm", _is_enabled("litellm"), _render_litellm),
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
+    EnvSpec("cube", _is_enabled("cube"), _render_cube),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),

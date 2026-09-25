@@ -735,6 +735,20 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "cube",
+            _filter_empty(
+                {
+                    # Not a password: it signs the JWTs a BI tool presents to
+                    # Cube's APIs. Published so the operator can hand one out
+                    # without inventing a secret of their own.
+                    "CUBE_API_SECRET": config.cube_api_secret,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "keycloak",
             _filter_empty(
                 {
