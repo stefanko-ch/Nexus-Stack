@@ -447,6 +447,63 @@ would let OpenTofu build the policy around a credential the caller does not
 hold, and the caller would get Access's login redirect instead of the API,
 with nothing in any log saying why.
 
+## Cloudflare resources left behind after a lost state
+
+`tofu destroy` — and therefore `Destroy All` — reaches exactly what is in the
+OpenTofu state. If the state was lost, or a resource was removed from it while
+the Cloudflare object survived, the object stays: a **D1 database** and the
+**Access applications** for the domain are the two that occur in practice. They
+cost nothing, but they collide with the next deploy, because the names are
+derived from the domain and are therefore already taken.
+
+Nothing removes them automatically, by design — a job that deletes Cloudflare
+resources by name is not something to run on a schedule. The break-glass tool
+is a script you run yourself:
+
+```bash
+scripts/cleanup-orphaned-resources.sh
+```
+
+It needs **three** values — `TF_VAR_cloudflare_api_token`,
+`TF_VAR_cloudflare_account_id` and `TF_VAR_cloudflare_zone_id` — and reads
+each from the environment, from a local `.env`, or from the repository's
+GitHub secrets via `gh`. The zone id is the one that is easy to forget, and
+without it the script stops at `Required environment variables not set!`
+before deleting anything; it is what the Access-application lookup is scoped
+to. It continues past a failure and exits non-zero at the end, so one broken
+delete does not hide a second orphan.
+
+**What it actually deletes is narrower than the name suggests**, and worth
+knowing before you rely on it:
+
+| Resource | How it is selected |
+|---|---|
+| One D1 database | exact name `nexus-<domain-with-dashes>-db`, with the domain read from `tofu/stack/config.tfvars` |
+| One Access application | exact domain `control.$TF_VAR_domain` — the Control Plane's, not the per-service ones |
+
+Two consequences of that. Run it from a checkout whose `config.tfvars` carries
+the right domain: without the file the prefix falls back to a bare `nexus`, and
+it then looks for a database named `nexus-db` that does not exist. And export
+`TF_VAR_domain`, or the Access lookup becomes `control.unknown` and matches
+nothing — silently, because finding no orphan is also a valid outcome.
+
+Access applications for individual services are **not** covered. Those are
+recreated on every spin-up anyway, so a stale one is replaced rather than
+colliding; the Control Plane's is the one that outlives a lost state.
+
+**Check what it would hit before running it**, since deletion is not
+reversible:
+
+```bash
+# D1 databases in the account, with the prefix this domain produces
+npx wrangler@4.129.0 d1 list
+```
+
+A workflow of the same name existed until #902 and was removed: it was a
+second, unused implementation of this script's job, and it installed its
+dependencies with `sudo apt-get`, which no longer works on every runner this
+project targets.
+
 ## General Tips
 
 ### SSH Access Issues

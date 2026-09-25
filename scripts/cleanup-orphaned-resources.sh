@@ -12,7 +12,12 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TOFU_DIR="$PROJECT_ROOT/tofu"
+# tofu/stack, not tofu/: the root was split into stack/ and
+# control-plane/, and `domain` is written into the stack half by
+# .github/actions/nexus-config-tfvars. Reading the old path found no
+# file, so the prefix silently fell back to a bare "nexus" and this
+# script looked for a database named "nexus-db" that never exists.
+TOFU_DIR="$PROJECT_ROOT/tofu/stack"
 
 # Colors
 RED='\033[0;31m'

@@ -5,8 +5,8 @@ set -e
 
 # Derive project name from domain
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/../tofu/config.tfvars" ]; then
-  DOMAIN=$(grep -E '^domain\s*=' "$SCRIPT_DIR/../tofu/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
+if [ -f "$SCRIPT_DIR/../tofu/stack/config.tfvars" ]; then
+  DOMAIN=$(grep -E '^domain\s*=' "$SCRIPT_DIR/../tofu/stack/config.tfvars" 2>/dev/null | sed 's/.*"\(.*\)"/\1/' || echo "")
   if [ -n "$DOMAIN" ]; then
     RESOURCE_PREFIX="nexus-${DOMAIN//./-}"
   else
