@@ -83,6 +83,20 @@ services:
     support_images:
       airflow-db: "postgres:17-alpine"
 
+  apicurio:
+    subdomain: "apicurio"
+    port: 8110
+    public: false
+    category: "data-quality"
+    website: "https://www.apicur.io/registry/"
+    description: "Schema and API-contract registry — versions, groups and compatibility rules."
+    long_description: "Apicurio Registry stores the contracts a data platform agrees on: Avro, Protobuf and JSON Schema for the streaming side, OpenAPI, AsyncAPI and GraphQL for the service side. It keeps versions, groups them, and enforces compatibility rules when a new version arrives. Redpanda already ships a Confluent-compatible schema registry for its own topics, and kafka-ui is wired to it; this is the wider one, for contracts that outlive a single topic. The UI, the API and a PostgreSQL of its own sit behind one nginx so the single-page app and the API it calls share a hostname."
+    image: "apicurio/apicurio-registry:3.0.13"
+    support_images:
+      apicurio-ui: "apicurio/apicurio-registry-ui:3.0.13"
+      apicurio-proxy: "nginx:1.30.4-alpine"
+      apicurio-postgres: "postgres:17-alpine"
+
   appsmith:
     subdomain: "appsmith"
     port: 8098

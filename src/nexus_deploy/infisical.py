@@ -735,6 +735,20 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "apicurio",
+            _filter_empty(
+                {
+                    # No user management of its own; Cloudflare Access is the
+                    # gate. The username names the database role behind it.
+                    "APICURIO_DB_USERNAME": "nexus-apicurio",
+                    "APICURIO_DB_PASSWORD": config.apicurio_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "cube",
             _filter_empty(
                 {

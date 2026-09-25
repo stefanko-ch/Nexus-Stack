@@ -247,6 +247,13 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# Apicurio Registry Postgres password — dedicated DB. Holds the schemas,
+# their versions and the compatibility rules.
+resource "random_password" "apicurio_db_password" {
+  length  = 24
+  special = false
+}
+
 # Keycloak Postgres password — dedicated DB. Holds realms, clients, users
 # and sessions.
 resource "random_password" "keycloak_db_password" {

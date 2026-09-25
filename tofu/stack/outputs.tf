@@ -186,6 +186,9 @@ output "secrets" {
     # Cube (semantic layer) — signs the JWTs its APIs accept.
     cube_api_secret = random_password.cube_api_secret.result
 
+    # Apicurio Registry (schema + API-contract registry)
+    apicurio_db_password = random_password.apicurio_db_password.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result

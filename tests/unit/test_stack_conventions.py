@@ -2443,3 +2443,56 @@ def test_cube_reads_the_shared_postgres_stack() -> None:
     assert "postgres" not in {n for n in services if n != "cube"}, (
         "cube must not bring its own postgres — it reads the shared stack"
     )
+
+
+# ---------------------------------------------------------------------------
+# Apicurio Registry: a single-page UI, its API, and one hostname for both
+# ---------------------------------------------------------------------------
+
+
+def _apicurio_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "apicurio" / "docker-compose.yml").read_text()))
+
+
+def test_only_the_apicurio_proxy_publishes_a_port() -> None:
+    """The UI and the API have to answer under one hostname, which is what
+    the proxy is for. A second published port would be a second way in, and
+    the API one would sit outside the UI's origin."""
+    services = _apicurio_compose()["services"]
+
+    published = {name for name, spec in services.items() if spec.get("ports")}
+
+    assert published == {"apicurio-proxy"}, published
+
+
+def test_the_apicurio_ui_is_told_a_public_api_url() -> None:
+    """The UI reads REGISTRY_API_URL at start, writes it into config.js, and
+    the BROWSER calls it — measured. An in-cluster address there produces a
+    UI that loads and can reach nothing."""
+    env = _apicurio_compose()["services"]["apicurio-ui"]["environment"]
+
+    assert env["REGISTRY_API_URL"].startswith("https://${APICURIO_DOMAIN}"), env
+    assert "apicurio:8080" not in env["REGISTRY_API_URL"]
+
+
+def test_the_apicurio_proxy_routes_the_api_before_the_ui() -> None:
+    """nginx picks the longest matching prefix, but the order in the file is
+    what a reader checks. `/apis` must reach the registry, `/` the UI."""
+    conf = (STACKS_DIR / "apicurio" / "nginx.conf").read_text()
+
+    api = re.search(r"location /apis/ \{[^}]*proxy_pass http://(\w[\w-]*)", conf, re.S)
+    ui = re.search(r"location / \{[^}]*proxy_pass http://(\w[\w-]*)", conf, re.S)
+
+    assert api, "no /apis/ location in the proxy config"
+    assert api.group(1) == "apicurio"
+    assert ui, "no catch-all location in the proxy config"
+    assert ui.group(1) == "apicurio-ui"
+
+
+def test_apicurio_does_not_use_in_memory_storage() -> None:
+    """Upstream's own words: "all data is lost when the container image is
+    restarted". Every spin-up recreates containers."""
+    env = _apicurio_compose()["services"]["apicurio"]["environment"]
+
+    assert env["APICURIO_STORAGE_KIND"] == "sql"
+    assert env["APICURIO_STORAGE_SQL_KIND"] == "postgresql"

@@ -80,6 +80,7 @@ def full_config() -> NexusConfig:
         lakekeeper_db_password="lakekeeper-db-pw",
         mlflow_db_password="mlflow-db-pw",
         cube_api_secret="cube-api-secret",
+        apicurio_db_password="apicurio-db-pw",
         airflow_admin_password="airflow-admin-pw",
         airflow_db_password="airflow-db-pw",
         airflow_jwt_secret="airflow-jwt-secret",

@@ -18,6 +18,10 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Adminer | `adminer` | `latest` | Latest ² |
 | Apache Airflow | `apache/airflow` | `3.3.1` | Exact ¹ |
 | PostgreSQL (Airflow DB) | `postgres` | `17-alpine` | Major |
+| Apicurio Registry | `apicurio/apicurio-registry` | `3.0.13` | Exact ¹ |
+| Apicurio UI (Apicurio) | `apicurio/apicurio-registry-ui` | `3.0.13` | Exact ¹ |
+| nginx (Apicurio) | `nginx` | `1.30.4-alpine` | Exact ¹ |
+| PostgreSQL (Apicurio DB) | `postgres` | `17-alpine` | Major |
 | Appsmith | `appsmith/appsmith-ce` | `v1.98` | Minor |
 | Big-AGI | `ghcr.io/enricoros/big-agi` | `v2.0.4` | Exact ¹ |
 | Budibase | `budibase/budibase` | `v3.43.0` | Exact ¹ |
@@ -198,6 +202,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Adminer** | Lightweight database management tool | [adminer.md](adminer.md) |
 | **Apache Airflow** | DAG-based workflow orchestration | [airflow.md](airflow.md) |
 | **Apache Spark** | Distributed data processing engine | [spark.md](spark.md) |
+| **Apicurio Registry** | Schema and API-contract registry | [apicurio.md](apicurio.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |

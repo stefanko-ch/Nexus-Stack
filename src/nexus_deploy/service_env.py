@@ -573,6 +573,41 @@ def _render_planka(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
+
+    ``APICURIO_DOMAIN`` is load-bearing rather than cosmetic. The UI is a
+    single-page app: it reads ``REGISTRY_API_URL`` at container start,
+    writes it into ``config.js``, and the **browser** then calls that URL.
+    An empty value there produces a UI that loads and can reach nothing,
+    which looks like a broken registry rather than a missing variable.
+
+    Composed with ``service_host`` so a multi-tenant fork with
+    ``subdomain_separator='-'`` gets the flat hostname, as Lakekeeper and
+    MLflow do.
+    """
+    missing = []
+    if _empty(c.apicurio_db_password):
+        missing.append("APICURIO_DB_PASS (Infisical /apicurio)")
+    if _empty(e.domain):
+        missing.append("DOMAIN (bootstrap env)")
+    if missing:
+        raise ServiceEnvError(
+            f"Apicurio enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate "
+            "random_password.apicurio_db_password, then re-run spin-up. Aborting "
+            "to avoid a registry whose UI cannot reach its own API.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "APICURIO_DB_PASSWORD": c.apicurio_db_password or "",
+            "APICURIO_DOMAIN": service_host("apicurio", e.domain or "", e.subdomain_separator),
+        },
+        # The file carries a database password.
+        mode=0o600,
+    )
+
+
 def _render_cube(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Cube: semantic layer over the shared `postgres` stack.
 
@@ -2642,6 +2677,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("cube", _is_enabled("cube"), _render_cube),
+    EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),

@@ -7,6 +7,10 @@
       'AIRFLOW_PASSWORD': 'airflow_admin_password-VALUE',
       'AIRFLOW_USERNAME': 'nexus-test-user',
     }),
+    'apicurio': dict({
+      'APICURIO_DB_PASSWORD': 'apicurio_db_password-VALUE',
+      'APICURIO_DB_USERNAME': 'nexus-apicurio',
+    }),
     'appsmith': dict({
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',
