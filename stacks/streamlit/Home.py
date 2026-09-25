@@ -53,7 +53,9 @@ def _sources() -> list[tuple[str, Path]]:
 def _discover() -> dict[str, list[st.Page]]:
     """Group the discovered apps under their source's heading."""
     sections: dict[str, list[st.Page]] = {}
-    seen: set[str] = set()
+    # Pre-claimed by the welcome page below. An app file called `home.py`
+    # would otherwise resolve to the same url_path and shadow it.
+    seen: set[str] = {"home"}
 
     for label, root in _sources():
         if not root.is_dir():

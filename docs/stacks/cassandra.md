@@ -74,8 +74,11 @@ The lookup happens before the node is reachable under that name. The image's def
 From anywhere on `app-network`:
 
 ```bash
-docker exec -it cassandra cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_PASSWORD"
+ssh nexus
+docker exec -it cassandra sh -c 'cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_PASSWORD"'
 ```
+
+The single quotes around the whole `sh -c` argument are what make that work: `NEXUS_CASSANDRA_PASSWORD` lives in the **container's** environment, so it has to be expanded there. Written with double quotes it expands on the server instead, where it is unset, and `cqlsh` is handed an empty password.
 
 From outside, the firewall rule on port 9042 lets DBeaver, CloudBeaver or any driver connect with the same credentials — they are in Infisical under `/cassandra`.
 

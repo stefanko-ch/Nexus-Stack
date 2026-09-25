@@ -3978,3 +3978,34 @@ def test_cassandra_rejects_a_password_the_hook_would_mangle(
 
     plain = full_config.model_copy(update={"cassandra_admin_password": "abcDEF123"})
     assert _render_cassandra(plain, full_env).env_vars == {"NEXUS_CASSANDRA_PASSWORD": "abcDEF123"}
+
+
+def test_append_forgejo_workspace_block_keeps_a_restricted_mode(tmp_path: Path) -> None:
+    """The append must not widen a file another renderer locked down.
+
+    streamlit and shiny are rendered 0600 because they carry the shared
+    PostgreSQL password, and this helper then rewrites the same file to
+    add FORGEJO_PASSWORD. A fixed 0644 here silently made both readable
+    to every account on the server.
+    """
+    stacks = tmp_path / "stacks"
+    for svc, mode in (("streamlit", 0o600), ("jupyter", 0o644)):
+        (stacks / svc).mkdir(parents=True)
+        env = stacks / svc / ".env"
+        env.write_text("POSTGRES_PASSWORD=secret\n")
+        env.chmod(mode)
+
+    cfg = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/admin/repo",
+        forgejo_username="admin",
+        forgejo_password="pw",
+        git_author_name="admin",
+        git_author_email="admin@example.com",
+        repo_name="repo",
+    )
+    append_forgejo_workspace_block(cfg, ["streamlit", "jupyter"], stacks_dir=stacks)
+
+    assert "FORGEJO_PASSWORD=pw" in (stacks / "streamlit" / ".env").read_text()
+    assert (stacks / "streamlit" / ".env").stat().st_mode & 0o777 == 0o600
+    # The other targets render at the default and must stay there.
+    assert (stacks / "jupyter" / ".env").stat().st_mode & 0o777 == 0o644

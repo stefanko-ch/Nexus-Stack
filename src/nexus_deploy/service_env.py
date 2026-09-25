@@ -766,12 +766,19 @@ def _render_hue(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         missing.append("HUE_SECRET_KEY (Infisical /hue)")
     if _empty(c.hue_db_password):
         missing.append("HUE_DB_PASS (Infisical /hue)")
+    # Not emitted below — the admin hook carries it — but checked here
+    # because an empty value makes that hook report `skipped-not-ready`
+    # and say nothing else, and Hue then hands the superuser account to
+    # whoever opens the URL first. A silent regression of exactly the
+    # thing the hook exists to prevent.
+    if _empty(c.hue_admin_password):
+        missing.append("HUE_ADMIN_PASS (Infisical /hue)")
     if missing:
         raise ServiceEnvError(
             f"Hue enabled but {', '.join(missing)} empty — run `tofu apply` "
-            "(initial-setup workflow) to generate random_password.hue_secret_key "
-            "and random_password.hue_db_password, then re-run spin-up. Aborting "
-            "rather than running Django with the key published in the image.",
+            "(initial-setup workflow) to generate the three random_password "
+            "resources this stack needs, then re-run spin-up. Aborting rather "
+            "than running Django with the key published in the image.",
         )
     return RenderedEnv(
         env_vars={
@@ -3276,6 +3283,12 @@ def append_forgejo_workspace_block(
         if cleaned and not cleaned.endswith("\n"):
             cleaned += "\n"
         new_content = cleaned + block
-        _atomic_write(env_path, new_content, mode=0o644)
+        # The file's OWN mode, not a fixed 0644. Two of these targets —
+        # streamlit and shiny — are rendered 0600 because they carry the
+        # shared PostgreSQL password, and rewriting them at 0644 here would
+        # silently widen that, together with the FORGEJO_PASSWORD this block
+        # adds. The other five render at the 0644 default, so they are
+        # unaffected.
+        _atomic_write(env_path, new_content, mode=env_path.stat().st_mode & 0o777)
         appended.append(svc)
     return tuple(appended)

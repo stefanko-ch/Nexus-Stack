@@ -2928,12 +2928,14 @@ cassandra_hook() {
     # exist yet. So the wait is for an account that can actually log in:
     # ours if an earlier run made it, the default otherwise.
     MODE=none
-    ELAPSED=0
-    while [ "$ELAPSED" -lt 300 ]; do
+    # $SECONDS, not a counter incremented per sleep: each sign-in attempt
+    # opens a CQL connection and can itself take seconds, which a
+    # sleep-counter never charges against the deadline.
+    SECONDS=0
+    while [ "$SECONDS" -lt 300 ]; do
         if cassandra_signin_nexus; then MODE=nexus; break; fi
         if cassandra_signin_default; then MODE=default; break; fi
         sleep 5
-        ELAPSED=$((ELAPSED + 5))
     done
     if [ "$MODE" = "none" ]; then
         echo "  ⚠ cassandra: no account could sign in after 300s — skipping admin setup" >&2
@@ -3012,13 +3014,14 @@ def render_hue_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     return rf"""
 hue_hook() {{
     READY=false
-    ELAPSED=0
-    while [ "$ELAPSED" -lt 300 ]; do
+    # $SECONDS: the curl carries its own --max-time 5, which a sleep-counter
+    # would not charge against the deadline.
+    SECONDS=0
+    while [ "$SECONDS" -lt 300 ]; do
         if docker exec hue curl -sf --max-time 5 http://localhost:8888/hue/accounts/login >/dev/null 2>&1; then
             READY=true; break
         fi
         sleep 5
-        ELAPSED=$((ELAPSED + 5))
     done
     if [ "$READY" != "true" ]; then
         echo "  ⚠ hue not ready after 300s — skipping admin setup" >&2

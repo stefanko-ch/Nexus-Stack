@@ -47,7 +47,19 @@ def connect() -> psycopg2.extensions.connection:
 
 
 def run(sql: str) -> pd.DataFrame:
-    with connect().cursor() as cur:
+    """Run one statement, reopening the connection if it has gone away.
+
+    `st.cache_resource` hands back the same connection for the life of the
+    server process, so a PostgreSQL restart leaves every later rerun
+    failing on a dead handle. Clearing the cache costs one reconnect and
+    is the difference between a blip and an app that stays broken until
+    somebody restarts the stack.
+    """
+    conn = connect()
+    if conn.closed:
+        connect.clear()
+        conn = connect()
+    with conn.cursor() as cur:
         cur.execute(sql)
         columns = [c.name for c in cur.description or []]
         return pd.DataFrame(cur.fetchall(), columns=columns)
