@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.83.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.82.3...v0.83.0) (2026-09-25)
+
+
+### 🚀 Features
+
+* **stacks:** Add Cube as the semantic layer over the warehouse ([#905](https://github.com/stefanko-ch/Nexus-Stack/issues/905)) ([2dc7a6e](https://github.com/stefanko-ch/Nexus-Stack/commit/2dc7a6e930070fb5cbc6da5da072988c30109859))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Skip the coverage comment on pull requests from forks ([#901](https://github.com/stefanko-ch/Nexus-Stack/issues/901)) ([90ef3b2](https://github.com/stefanko-ch/Nexus-Stack/commit/90ef3b2bce7e9c485e43ac3764aea04f0517e370))
+* **deploy:** Hash the Filestash password without htpasswd ([#900](https://github.com/stefanko-ch/Nexus-Stack/issues/900)) ([b67f1c5](https://github.com/stefanko-ch/Nexus-Stack/commit/b67f1c555573c336d64edf0964263c43c23d2de8))
+
+
+### 🔧 Maintenance
+
+* **ci:** Remove the duplicate orphan-cleanup workflow, keep the tool ([#902](https://github.com/stefanko-ch/Nexus-Stack/issues/902)) ([04d7885](https://github.com/stefanko-ch/Nexus-Stack/commit/04d78853ee836fd7da0a0390a2a77f51cad87ac5))
+
 ## [0.82.3](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.82.2...v0.82.3) (2026-09-19)
 
 
