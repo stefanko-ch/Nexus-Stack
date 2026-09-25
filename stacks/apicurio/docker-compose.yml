@@ -1,0 +1,131 @@
+# =============================================================================
+# Apicurio Registry - Schema and API-contract registry
+# https://apicurio.${DOMAIN}
+# =============================================================================
+# Redpanda already ships a Confluent-compatible schema registry, and kafka-ui
+# is wired to it — measured, `redpanda:8081/subjects` answers 200. So this is
+# NOT here to give the Kafka stacks a registry they lack.
+#
+# What it adds is governance and breadth: versions, groups, compatibility
+# rules, and artifact types beyond Avro — OpenAPI, AsyncAPI, JSON Schema,
+# Protobuf, GraphQL. Redpanda's registry is a Kafka sidecar; this is a place
+# to keep contracts that outlive one topic.
+#
+# FOUR containers, and the reason is the UI:
+#
+#   apicurio-proxy  nginx, the only published port; serves the UI and
+#                   forwards /apis to the registry under one hostname
+#   apicurio-ui     the web UI — a separate image in 3.x
+#   apicurio        the REST API
+#   apicurio-db     its own PostgreSQL
+#
+# The UI is a single-page app: it reads REGISTRY_API_URL at container start,
+# writes it into config.js, and then the BROWSER calls that URL. Pointing it
+# at an in-cluster address would fail in every browser, and giving the API its
+# own hostname would mean a second Access application and CORS. One nginx in
+# front makes both same-origin, which is neither.
+#
+# WHY NOT IN-MEMORY: upstream offers it and says "all data is lost when the
+# container image is restarted". Every spin-up recreates containers, so a
+# registry on in-memory storage would be empty exactly when somebody needed
+# it. It gets a database. That database is NOT in
+# s3_restore.standard_targets() — its directory survives a snapshot
+# teardown, and a rebuild teardown loses it. Whether the schemas are
+# worth a pg_dump to R2 is a decision to make deliberately; see
+# docs/stacks/apicurio.md.
+# =============================================================================
+
+services:
+  apicurio-proxy:
+    image: ${IMAGE_APICURIO_PROXY:-nginx:1.30.4-alpine}
+    container_name: apicurio-proxy
+    restart: unless-stopped
+    ports:
+      # Host 8110 → container 80. The 8080-8109 range is fully taken.
+      - "8110:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    mem_limit: 64m
+    depends_on:
+      apicurio:
+        condition: service_healthy
+      apicurio-ui:
+        condition: service_started
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  apicurio-ui:
+    image: ${IMAGE_APICURIO_UI:-apicurio/apicurio-registry-ui:3.0.13}
+    container_name: apicurio-ui
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Read once at startup and written into config.js, which the browser
+      # then fetches — so this is a public URL, not an in-cluster one. It
+      # points back through the proxy in front of both, which keeps the UI
+      # and the API same-origin and avoids CORS entirely.
+      REGISTRY_API_URL: https://${APICURIO_DOMAIN}/apis/registry/v3
+    mem_limit: 256m
+    networks:
+      - app-network
+
+  apicurio:
+    image: ${IMAGE_APICURIO:-apicurio/apicurio-registry:3.0.13}
+    container_name: apicurio
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # One image serves every storage variant in 3.x; the kind is chosen
+      # here rather than by pulling a different tag.
+      APICURIO_STORAGE_KIND: sql
+      APICURIO_STORAGE_SQL_KIND: postgresql
+      APICURIO_DATASOURCE_URL: jdbc:postgresql://apicurio-db:5432/apicurio
+      APICURIO_DATASOURCE_USERNAME: nexus-apicurio
+      APICURIO_DATASOURCE_PASSWORD: ${APICURIO_DB_PASSWORD}
+    mem_limit: 1g
+    depends_on:
+      apicurio-db:
+        condition: service_healthy
+    networks:
+      - app-network
+    healthcheck:
+      # Quarkus readiness endpoint, probed with curl — which this image has,
+      # checked rather than assumed. (wget and nc are NOT in it; curl and
+      # java are.)
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  apicurio-db:
+    image: ${IMAGE_APICURIO_POSTGRES:-postgres:17-alpine}
+    container_name: apicurio-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: apicurio
+      POSTGRES_USER: nexus-apicurio
+      POSTGRES_PASSWORD: ${APICURIO_DB_PASSWORD}
+    volumes:
+      - /mnt/nexus-data/apicurio/db:/var/lib/postgresql/data
+    mem_limit: 512m
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-apicurio -d apicurio"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app-network:
+    external: true

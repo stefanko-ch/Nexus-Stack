@@ -1,0 +1,91 @@
+# =============================================================================
+# MindsDB - SQL over everything, including models
+# https://mindsdb.${DOMAIN}
+# =============================================================================
+# MindsDB presents other databases, files and model providers as schemas you
+# can SELECT from and JOIN across. Two APIs: HTTP on 47334 (the editor and
+# the REST/SQL endpoint) and the MySQL WIRE PROTOCOL on 47335, so any MySQL
+# client — DBeaver, CloudBeaver, a BI tool — connects to it directly.
+#
+# READ THIS BEFORE ENABLING IT. Upstream has moved on: the GitHub repository
+# `mindsdb/mindsdb` now redirects to `mindsdb/mindshub`, a different product,
+# and the last MindsDB release is 26.1.0 from 2026-04-23. This stack pins
+# that release. It works — see docs/stacks/mindsdb.md for what was measured —
+# but it will not get fixes.
+#
+# AUTHENTICATION IS THE WHOLE REASON THE TWO ENV VARS BELOW EXIST. Without
+# them, measured on this image: `/api/sql/query` answers unauthenticated
+# requests, and the MySQL wire accepts user `mindsdb` with an EMPTY password
+# from anywhere on app-network. With them, the SQL endpoint answers 401 and
+# the wire refuses `mindsdb`/`mindsdb`. Note the config file inside the
+# container still prints `"user": "mindsdb", "password": ""` either way — it
+# is not what governs.
+# =============================================================================
+
+services:
+  mindsdb:
+    image: ${IMAGE_MINDSDB:-mindsdb/mindsdb:v26.1.0}
+    container_name: mindsdb
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "47334:47334"
+      # The MySQL wire protocol, on loopback only. It is authenticated (see
+      # above), but it is a database wire protocol with no TLS in front of it
+      # once it leaves the host, so it gets no firewall rule. Reach it from
+      # app-network as mindsdb:47335, or over an SSH tunnel.
+      - "127.0.0.1:47335:47335"
+    environment:
+      # Both APIs read these. Not optional — see the header.
+      MINDSDB_USERNAME: "nexus-mindsdb"
+      MINDSDB_PASSWORD: ${MINDSDB_PASSWORD}
+      # Its own PostgreSQL rather than the SQLite default, which would put
+      # the project metadata in a single file inside the storage directory.
+      MINDSDB_DB_CON: "postgresql://nexus-mindsdb:${MINDSDB_DB_PASSWORD}@mindsdb-db:5432/mindsdb"
+      MINDSDB_APIS: "http,mysql"
+    volumes:
+      # Uploaded files, model artefacts and handler state. The metadata lives
+      # in Postgres; this is everything else.
+      - /mnt/nexus-data/mindsdb/storage:/root/mdb_storage
+    mem_limit: 2g
+    depends_on:
+      mindsdb-db:
+        condition: service_healthy
+    healthcheck:
+      # /api/status answers without credentials even when auth is on — it
+      # reports whether the server is up, not what it holds.
+      test: ["CMD-SHELL", "curl -sf http://localhost:47334/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - app-network
+
+  mindsdb-db:
+    image: ${IMAGE_MINDSDB_POSTGRES:-postgres:17-alpine}
+    container_name: mindsdb-db
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      POSTGRES_DB: mindsdb
+      POSTGRES_USER: nexus-mindsdb
+      POSTGRES_PASSWORD: ${MINDSDB_DB_PASSWORD}
+    volumes:
+      - /mnt/nexus-data/mindsdb/db:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-mindsdb -d mindsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

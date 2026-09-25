@@ -573,6 +573,269 @@ def _render_planka(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_streamlit(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Streamlit: the shared PostgreSQL password, and nothing else.
+
+    Deliberately NOT fail-fast, unlike Cube, which reads the same value.
+    Cube cannot answer a single query without it; Streamlit is an app
+    server, and an app that never opens a database is perfectly normal
+    here. The shipped example checks for the variable itself and says so
+    on the page rather than failing a deployment that had no reason to
+    fail.
+
+    The Forgejo workspace coordinates are appended to this same ``.env``
+    afterwards by :func:`append_forgejo_workspace_block` — which is also
+    why this render must run even when it has nothing of its own to
+    write: that helper skips a service whose ``.env`` does not exist.
+    """
+    del e
+    return RenderedEnv(
+        env_vars={"POSTGRES_PASSWORD": c.postgres_password or ""},
+        # The file carries the shared database password.
+        mode=0o600,
+    )
+
+
+def _render_shiny(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Shiny Server: the shared PostgreSQL password, and nothing else.
+
+    The R counterpart of :func:`_render_streamlit`, and not fail-fast for
+    the same reason: this is an app server, and an app that never opens a
+    database is normal. The shipped example checks the variable itself
+    and says so on the page.
+
+    The Forgejo workspace coordinates are appended to this same ``.env``
+    afterwards by :func:`append_forgejo_workspace_block`, which skips a
+    service whose ``.env`` does not exist — so this render must run even
+    though it has only one value of its own.
+    """
+    del e
+    return RenderedEnv(
+        env_vars={"POSTGRES_PASSWORD": c.postgres_password or ""},
+        # The file carries the shared database password.
+        mode=0o600,
+    )
+
+
+def _render_cassandra(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Cassandra: the superuser password the admin hook needs.
+
+    Fail-fast, unlike the two app-server renderers above. The hook uses
+    this value to create ``nexus-cassandra`` and then drops the built-in
+    ``cassandra`` superuser. With an empty value the hook would create a
+    role nobody can log in as and then delete the only account that could
+    — locking the database out of its own deployment.
+
+    ``NEXUS_CASSANDRA_PASSWORD`` reaches the container through its
+    ``.env``, and the hook reads it from the container's own environment
+    rather than embedding it in a ``docker exec`` argument list.
+
+    The value is interpolated into a single-quoted CQL string literal, so
+    the character-class check is enforced here rather than assumed — the
+    same guard :func:`_render_neo4j` carries.
+
+    Infisical naming reference: ``/cassandra/CASSANDRA_PASSWORD``.
+    """
+    del e
+    password = c.cassandra_admin_password or ""
+    if _empty(password):
+        raise ServiceEnvError(
+            "Cassandra enabled but CASSANDRA_ADMIN_PASS (Infisical /cassandra) "
+            "empty — run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.cassandra_admin, then re-run spin-up. Aborting to "
+            "avoid dropping the built-in superuser with no replacement able to "
+            "log in.",
+        )
+    if not re.fullmatch(r"[A-Za-z0-9]+", password):
+        raise ServiceEnvError(
+            "Cassandra password contains characters outside [A-Za-z0-9]. The "
+            "admin hook embeds it in a single-quoted CQL string literal, which "
+            "only holds while random_password.cassandra_admin keeps "
+            "`special = false`.",
+        )
+    return RenderedEnv(
+        env_vars={"NEXUS_CASSANDRA_PASSWORD": password},
+        # The file carries the only account that can log in.
+        mode=0o600,
+    )
+
+
+def _render_hive_metastore(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Hive Metastore: its own Postgres, plus the R2 credentials it needs
+    to resolve an ``s3a://`` table location.
+
+    The R2 half is not optional decoration. The metastore resolves the
+    FileSystem for a table's ``LOCATION`` when the table is created —
+    EXTERNAL or not — so registering a table on object storage without
+    credentials fails with ``NoAuthWithAWSException``, and without the
+    hadoop-aws classpath entry the compose file sets, with
+    ``ClassNotFoundException: org.apache.hadoop.fs.s3a.S3AFileSystem``.
+    Both were measured against a real object store.
+
+    Fail-fast on the database password only. The R2 values are emitted
+    empty when absent: a metastore with a local warehouse and no object
+    storage is a perfectly reasonable thing to run, and it is the same
+    ``r2_data_*`` group MLflow and Unity Catalog read.
+
+    Infisical naming reference: ``/hive-metastore/HIVE_DB_PASSWORD``.
+    """
+    del e
+    if _empty(c.hive_db_password):
+        raise ServiceEnvError(
+            "Hive Metastore enabled but HIVE_DB_PASS (Infisical /hive-metastore) "
+            "empty — run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.hive_db_password, then re-run spin-up. Aborting to "
+            "avoid a Postgres container that restart-loops with no auth.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "HIVE_DB_PASSWORD": c.hive_db_password or "",
+            "R2_ENDPOINT": c.r2_data_endpoint or "",
+            "R2_ACCESS_KEY": c.r2_data_access_key or "",
+            "R2_SECRET_KEY": c.r2_data_secret_key or "",
+        },
+        # The file carries the database password and the R2 keys.
+        mode=0o600,
+    )
+
+
+def _render_mindsdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """MindsDB: the application account and its own Postgres.
+
+    Fail-fast on both, and the first one is a security boundary rather
+    than a convenience. Measured on ``mindsdb/mindsdb:v26.1.0`` with no
+    ``MINDSDB_PASSWORD``: ``POST /api/sql/query`` answers unauthenticated
+    requests, and the MySQL wire protocol accepts user ``mindsdb`` with an
+    **empty** password from anywhere on ``app-network``. With it, the same
+    SQL endpoint answers 401 and the wire refuses ``mindsdb``. An empty
+    value here would therefore publish an unauthenticated SQL engine that
+    can open connections to every other database in the deployment.
+
+    The container's own config file prints ``"user": "mindsdb",
+    "password": ""`` either way, so it is not what governs and is not
+    worth reading.
+
+    Infisical naming reference: ``/mindsdb/MINDSDB_PASSWORD``.
+    """
+    del e
+    missing = []
+    if _empty(c.mindsdb_password):
+        missing.append("MINDSDB_PASS (Infisical /mindsdb)")
+    if _empty(c.mindsdb_db_password):
+        missing.append("MINDSDB_DB_PASS (Infisical /mindsdb)")
+    if missing:
+        raise ServiceEnvError(
+            f"MindsDB enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate random_password.mindsdb_password "
+            "and random_password.mindsdb_db_password, then re-run spin-up. "
+            "Aborting rather than starting an SQL engine that answers "
+            "unauthenticated requests.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "MINDSDB_PASSWORD": c.mindsdb_password or "",
+            "MINDSDB_DB_PASSWORD": c.mindsdb_db_password or "",
+        },
+        # The file carries both accounts.
+        mode=0o600,
+    )
+
+
+def _render_hue(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Hue: a generated Django secret key, its own Postgres, and the
+    credentials for the engines its editor is pointed at.
+
+    ``HUE_SECRET_KEY`` is the one that matters most. The image ships a
+    hardcoded key in ``z-hue-overrides.ini`` — the literal string
+    ``kasdlfjknasdfl3hbaksk3bwkasdfkasdfba23asdf``, readable by anyone
+    who pulls the image — and Django signs session cookies with it. An
+    empty value here would leave that key in place, so this fails fast
+    rather than starting a Hue whose sessions anyone can forge.
+
+    ``HUE_DOMAIN`` is the hostname the browser uses, and it is what Hue
+    turns into Django's ``CSRF_TRUSTED_ORIGINS``. Without it every POST,
+    the login included, is refused with "Origin checking failed" — which
+    the user sees as a bare "CSRF error" page. Composed with
+    ``service_host`` so a multi-tenant fork with ``subdomain_separator``
+    set gets the flat hostname, as Apicurio and MLflow do.
+
+    ``POSTGRES_PASSWORD`` and ``CLICKHOUSE_PASSWORD`` are the engines
+    behind two of the three configured interpreters. They are emitted
+    empty when absent rather than raising: an interpreter whose stack is
+    disabled shows a connection error in the editor, which is the right
+    outcome, not a reason to abort a deployment.
+
+    Infisical naming reference: ``/hue/HUE_PASSWORD``.
+    """
+    missing = []
+    if _empty(e.domain):
+        missing.append("DOMAIN (bootstrap env)")
+    if _empty(c.hue_secret_key):
+        missing.append("HUE_SECRET_KEY (Infisical /hue)")
+    if _empty(c.hue_db_password):
+        missing.append("HUE_DB_PASS (Infisical /hue)")
+    # Not emitted below — the admin hook carries it — but checked here
+    # because an empty value makes that hook report `skipped-not-ready`
+    # and say nothing else, and Hue then hands the superuser account to
+    # whoever opens the URL first. A silent regression of exactly the
+    # thing the hook exists to prevent.
+    if _empty(c.hue_admin_password):
+        missing.append("HUE_ADMIN_PASS (Infisical /hue)")
+    if missing:
+        raise ServiceEnvError(
+            f"Hue enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate the three random_password "
+            "resources this stack needs, then re-run spin-up. Aborting rather "
+            "than running Django with the key published in the image.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "HUE_SECRET_KEY": c.hue_secret_key or "",
+            "HUE_DB_PASSWORD": c.hue_db_password or "",
+            "HUE_DOMAIN": service_host("hue", e.domain or "", e.subdomain_separator),
+            "POSTGRES_PASSWORD": c.postgres_password or "",
+            "CLICKHOUSE_PASSWORD": c.clickhouse_admin_password or "",
+        },
+        # The file carries the session-signing key and three passwords.
+        mode=0o600,
+    )
+
+
+def _render_apicurio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Apicurio Registry: its own Postgres, plus the hostname its UI needs.
+
+    ``APICURIO_DOMAIN`` is load-bearing rather than cosmetic. The UI is a
+    single-page app: it reads ``REGISTRY_API_URL`` at container start,
+    writes it into ``config.js``, and the **browser** then calls that URL.
+    An empty value there produces a UI that loads and can reach nothing,
+    which looks like a broken registry rather than a missing variable.
+
+    Composed with ``service_host`` so a multi-tenant fork with
+    ``subdomain_separator='-'`` gets the flat hostname, as Lakekeeper and
+    MLflow do.
+    """
+    missing = []
+    if _empty(c.apicurio_db_password):
+        missing.append("APICURIO_DB_PASS (Infisical /apicurio)")
+    if _empty(e.domain):
+        missing.append("DOMAIN (bootstrap env)")
+    if missing:
+        raise ServiceEnvError(
+            f"Apicurio enabled but {', '.join(missing)} empty — run `tofu apply` "
+            "(initial-setup workflow) to generate "
+            "random_password.apicurio_db_password, then re-run spin-up. Aborting "
+            "to avoid a registry whose UI cannot reach its own API.",
+        )
+    return RenderedEnv(
+        env_vars={
+            "APICURIO_DB_PASSWORD": c.apicurio_db_password or "",
+            "APICURIO_DOMAIN": service_host("apicurio", e.domain or "", e.subdomain_separator),
+        },
+        # The file carries a database password.
+        mode=0o600,
+    )
+
+
 def _render_cube(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Cube: semantic layer over the shared `postgres` stack.
 
@@ -2642,6 +2905,13 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("cube", _is_enabled("cube"), _render_cube),
+    EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
+    EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
+    EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),
+    EnvSpec("cassandra", _is_enabled("cassandra"), _render_cassandra),
+    EnvSpec("hive-metastore", _is_enabled("hive-metastore"), _render_hive_metastore),
+    EnvSpec("mindsdb", _is_enabled("mindsdb"), _render_mindsdb),
+    EnvSpec("hue", _is_enabled("hue"), _render_hue),
     EnvSpec("keycloak", _is_enabled("keycloak"), _render_keycloak),
     EnvSpec("langfuse", _is_enabled("langfuse"), _render_langfuse),
     EnvSpec("airflow", _is_enabled("airflow"), _render_airflow),
@@ -2931,6 +3201,8 @@ _FORGEJO_APPEND_TARGETS: tuple[str, ...] = (
     "code-server",
     "meltano",
     "prefect",
+    "streamlit",
+    "shiny",
 )
 
 
@@ -3020,6 +3292,12 @@ def append_forgejo_workspace_block(
         if cleaned and not cleaned.endswith("\n"):
             cleaned += "\n"
         new_content = cleaned + block
-        _atomic_write(env_path, new_content, mode=0o644)
+        # The file's OWN mode, not a fixed 0644. Two of these targets —
+        # streamlit and shiny — are rendered 0600 because they carry the
+        # shared PostgreSQL password, and rewriting them at 0644 here would
+        # silently widen that, together with the FORGEJO_PASSWORD this block
+        # adds. The other five render at the 0644 default, so they are
+        # unaffected.
+        _atomic_write(env_path, new_content, mode=env_path.stat().st_mode & 0o777)
         appended.append(svc)
     return tuple(appended)

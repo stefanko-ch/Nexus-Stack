@@ -34,7 +34,7 @@ import json
 import re
 import shlex
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import pytest
@@ -85,6 +85,9 @@ PUBLIC_ALLOWED = {"git-proxy"}
 # Each entry here is a protocol that genuinely cannot go through an HTTPS
 # tunnel: Postgres wire, the Kafka protocol, S3 SDK clients, SFTP.
 TCP_PORTS_ALLOWED = {
+    # CQL native protocol; authenticates as nexus-cassandra, and the
+    # built-in superuser is dropped by the admin hook.
+    "cassandra",
     "clickhouse",
     "garage",
     "lakefs",
@@ -2443,3 +2446,521 @@ def test_cube_reads_the_shared_postgres_stack() -> None:
     assert "postgres" not in {n for n in services if n != "cube"}, (
         "cube must not bring its own postgres — it reads the shared stack"
     )
+
+
+# ---------------------------------------------------------------------------
+# Apicurio Registry: a single-page UI, its API, and one hostname for both
+# ---------------------------------------------------------------------------
+
+
+def _apicurio_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "apicurio" / "docker-compose.yml").read_text()))
+
+
+def test_only_the_apicurio_proxy_publishes_a_port() -> None:
+    """The UI and the API have to answer under one hostname, which is what
+    the proxy is for. A second published port would be a second way in, and
+    the API one would sit outside the UI's origin."""
+    services = _apicurio_compose()["services"]
+
+    published = {name for name, spec in services.items() if spec.get("ports")}
+
+    assert published == {"apicurio-proxy"}, published
+
+
+def test_the_apicurio_ui_is_told_a_public_api_url() -> None:
+    """The UI reads REGISTRY_API_URL at start, writes it into config.js, and
+    the BROWSER calls it — measured. An in-cluster address there produces a
+    UI that loads and can reach nothing."""
+    env = _apicurio_compose()["services"]["apicurio-ui"]["environment"]
+
+    assert env["REGISTRY_API_URL"].startswith("https://${APICURIO_DOMAIN}"), env
+    assert "apicurio:8080" not in env["REGISTRY_API_URL"]
+
+
+def test_the_apicurio_proxy_routes_the_api_before_the_ui() -> None:
+    """nginx picks the longest matching prefix, but the order in the file is
+    what a reader checks. `/apis` must reach the registry, `/` the UI."""
+    conf = (STACKS_DIR / "apicurio" / "nginx.conf").read_text()
+
+    api = re.search(r"location /apis/ \{[^}]*proxy_pass http://(\w[\w-]*)", conf, re.S)
+    ui = re.search(r"location / \{[^}]*proxy_pass http://(\w[\w-]*)", conf, re.S)
+
+    assert api, "no /apis/ location in the proxy config"
+    assert api.group(1) == "apicurio"
+    assert ui, "no catch-all location in the proxy config"
+    assert ui.group(1) == "apicurio-ui"
+
+
+def test_apicurio_does_not_use_in_memory_storage() -> None:
+    """Upstream's own words: "all data is lost when the container image is
+    restarted". Every spin-up recreates containers."""
+    env = _apicurio_compose()["services"]["apicurio"]["environment"]
+
+    assert env["APICURIO_STORAGE_KIND"] == "sql"
+    assert env["APICURIO_STORAGE_SQL_KIND"] == "postgresql"
+
+
+# ---------------------------------------------------------------------------
+# Streamlit: one launcher, two app sources, and the clone that must stay out
+# of the scan root
+# ---------------------------------------------------------------------------
+
+
+def _streamlit_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "streamlit" / "docker-compose.yml").read_text()))
+
+
+def _streamlit_entrypoint() -> str:
+    return str(_streamlit_compose()["services"]["streamlit"]["entrypoint"][-1])
+
+
+def _streamlit_launcher_path(name: str) -> str:
+    """The value of a ``<NAME> = Path("...")`` constant in Home.py."""
+    source = (STACKS_DIR / "streamlit" / "Home.py").read_text()
+    match = re.search(rf'^{name} = Path\("([^"]+)"\)', source, re.M)
+    assert match, f"{name} is not declared in Home.py"
+    return match.group(1)
+
+
+def test_the_streamlit_clone_lands_outside_the_examples_root() -> None:
+    """The workspace repository holds Kestra flows, marimo notebooks and dbt
+    models. If the clone landed under the directory the launcher scans
+    recursively, every one of those .py files would be listed as a Streamlit
+    app and fail the moment somebody clicked it."""
+    examples = PurePosixPath(_streamlit_launcher_path("EXAMPLES_ROOT"))
+    workspace = PurePosixPath(_streamlit_launcher_path("WORKSPACE_ROOT"))
+
+    assert not workspace.is_relative_to(examples), (
+        f"the workspace clone at {workspace} sits inside the scan root {examples}"
+    )
+    assert f"{workspace}/" in _streamlit_entrypoint(), (
+        "the entrypoint clones somewhere other than WORKSPACE_ROOT"
+    )
+
+
+def test_the_streamlit_entrypoint_expands_its_variables_at_runtime() -> None:
+    """A single ``$`` in a compose string is interpolated by Compose when it
+    reads the file, from the host's .env — not by the shell in the container.
+    Every one of these variables is written to stacks/streamlit/.env for the
+    container, so a single ``$`` would silently expand to nothing and the
+    clone would be skipped without an error."""
+    entrypoint = _streamlit_entrypoint()
+
+    for var in ("FORGEJO_USERNAME", "FORGEJO_PASSWORD", "FORGEJO_REPO_URL", "REPO_NAME"):
+        assert not re.search(rf"(?<!\$)\$\{{?{var}", entrypoint), (
+            f"${var} in the entrypoint is expanded by Compose, not by the container"
+        )
+        assert f"$${var}" in entrypoint or f"$${{{var}" in entrypoint, (
+            f"{var} is never read by the entrypoint"
+        )
+
+
+def test_the_streamlit_launcher_and_examples_are_mounted_read_only() -> None:
+    """Both come from the deployment repository and are re-synced on every
+    spin-up. A writable mount would let an edit made through a running app
+    survive until the next sync silently overwrote it."""
+    volumes = _streamlit_compose()["services"]["streamlit"]["volumes"]
+
+    read_only = {v.split(":")[1] for v in volumes if isinstance(v, str) and v.endswith(":ro")}
+
+    assert "/srv/Home.py" in read_only, volumes
+    assert _streamlit_launcher_path("EXAMPLES_ROOT") in read_only, volumes
+
+
+def test_the_streamlit_launcher_skips_helper_modules() -> None:
+    """Underscore-prefixed files are importable helpers, not apps — the same
+    convention the marimo seeds use. Without the check, a shared
+    `_db.py` would be listed in the sidebar and crash when opened."""
+    source = (STACKS_DIR / "streamlit" / "Home.py").read_text()
+
+    assert 'part.startswith((".", "_"))' in source, (
+        "Home.py no longer filters dot- and underscore-prefixed path parts"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shiny Server: what ends up in the served directory, and what must not
+# ---------------------------------------------------------------------------
+
+
+def _shiny_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "shiny" / "docker-compose.yml").read_text()))
+
+
+def _shiny_entrypoint() -> str:
+    return str(_shiny_compose()["services"]["shiny"]["entrypoint"][-1])
+
+
+def test_the_shiny_workspace_link_is_guarded_on_its_target() -> None:
+    """A dangling symlink in `site_dir` takes down the whole index page,
+    not just its own entry — measured against a repository with no shiny/
+    directory, which is every repository until somebody adds one:
+
+        Invalid application configuration.
+        ENOENT: no such file or directory, stat '/srv/shiny-server/workspace'
+    """
+    entrypoint = _shiny_entrypoint()
+
+    link = re.search(r"^\s*ln -sfn .*/shiny\" (/srv/shiny-server/workspace)$", entrypoint, re.M)
+    assert link, "the workspace symlink is no longer created the way this test reads it"
+
+    guard = re.search(r'if \[ -d "/srv/workspace/\$\$\{REPO_NAME:-\}/shiny" \]', entrypoint)
+    assert guard, "the symlink is created without checking that its target exists"
+    assert guard.start() < link.start(), "the guard runs after the link is created"
+    assert "rm -f /srv/shiny-server/workspace" in entrypoint, (
+        "a stale link from an earlier start is never removed"
+    )
+
+
+def test_shiny_serves_only_the_workspace_subdirectory() -> None:
+    """`site_dir` serves static files as well as apps, so the clone itself
+    must stay outside it. Linking the whole repository in would publish
+    every file in it — .git included — over HTTP."""
+    entrypoint = _shiny_entrypoint()
+    volumes = _shiny_compose()["services"]["shiny"]["volumes"]
+
+    assert 'git clone "$$FORGEJO_REPO_URL" "/srv/workspace/$$REPO_NAME"' in entrypoint
+    assert not re.search(r'ln -sfn "/srv/workspace/\$\$REPO_NAME" ', entrypoint), (
+        "the whole workspace repository is linked into the served directory"
+    )
+    assert "shiny_workspace:/srv/workspace" in volumes, volumes
+
+
+def test_shiny_hands_over_to_the_images_own_init() -> None:
+    """rocker/shiny runs under s6: a cont-init step copies the container
+    environment into Renviron.site, and the service wrapper honours
+    APPLICATION_LOGS_TO_STDOUT. Exec'ing the shiny-server binary directly
+    starts the server but skips both."""
+    entrypoint = _shiny_entrypoint()
+
+    assert entrypoint.rstrip().endswith("exec /init"), entrypoint.rstrip()[-60:]
+    assert "exec /usr/bin/shiny-server" not in entrypoint
+
+
+def test_shiny_installs_r_packages_from_a_dated_snapshot() -> None:
+    """`latest` on the Posit Package Manager moves, so a rebuild would
+    install versions nothing here was tested against. The dated snapshot
+    also still serves Ubuntu binaries, which is what keeps the layer at
+    seconds rather than a compile."""
+    dockerfile = (STACKS_DIR / "shiny" / "Dockerfile").read_text()
+
+    repo = re.search(r"https://p3m\.dev/cran/__linux__/\w+/(\S+?)'", dockerfile)
+    assert repo, "the R package repository is not set the way this test reads it"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", repo.group(1)), (
+        f"the p3m snapshot is '{repo.group(1)}', not a date"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cassandra: authentication the image does not switch on, and two JVM sizes it
+# derives from the wrong machine
+# ---------------------------------------------------------------------------
+
+
+def _cassandra_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "cassandra" / "docker-compose.yml").read_text()))
+
+
+def test_cassandra_switches_authentication_on() -> None:
+    """The image's entrypoint substitutes eight keys into cassandra.yaml and
+    `authenticator` is not one of them, so the stock value survives:
+    AllowAllAuthenticator, which accepts any client with no credentials at
+    all. Losing these two sed lines opens the database completely."""
+    entrypoint = str(_cassandra_compose()["services"]["cassandra"]["entrypoint"][-1])
+
+    for key, value in (
+        ("authenticator", "PasswordAuthenticator"),
+        ("authorizer", "CassandraAuthorizer"),
+    ):
+        substitution = re.search(rf"sed -i -E 's/\^\(# \)\?\({key}:\)\.\*/\\2 (\w+)/'", entrypoint)
+        assert substitution, f"{key} is no longer substituted into cassandra.yaml"
+        assert substitution.group(1) == value, substitution.group(1)
+
+
+def test_cassandra_caps_both_memory_pools_it_derives_from_the_host() -> None:
+    """Cassandra sizes the heap AND the direct-memory pool from
+    /proc/meminfo, which reports the host's memory rather than the
+    container's limit. Unset, it asked for a 4 GB heap and a 4009M direct
+    pool on the 16 GB server, and the container is OOM-killed."""
+    env = _cassandra_compose()["services"]["cassandra"]["environment"]
+
+    assert env["MAX_HEAP_SIZE"] == "1G", env
+    assert "MaxDirectMemorySize" in env["JVM_EXTRA_OPTS"], env
+
+
+def test_cassandra_does_not_name_itself_as_its_own_seed() -> None:
+    """CASSANDRA_SEEDS: "cassandra" looks tidier and does not start — the
+    seed lookup happens before the node is reachable under that name:
+
+        SimpleSeedProvider - Seed provider couldn't lookup host cassandra
+        Exception ... The seed provider lists no seeds.
+    """
+    env = _cassandra_compose()["services"]["cassandra"]["environment"]
+
+    assert "CASSANDRA_SEEDS" not in env, (
+        "the image defaults the seed to the node's own broadcast address, "
+        "which is the only value that works for a single node"
+    )
+
+
+def test_cassandra_readiness_waits_for_the_cql_port() -> None:
+    """`nodetool status` reports UN while the native transport is still
+    refusing connections — measured at 50s versus 60s on a fresh node. A
+    stack depending on that healthcheck starts against a closed port."""
+    healthcheck = _cassandra_compose()["services"]["cassandra"]["healthcheck"]["test"]
+    probe = " ".join(healthcheck)
+
+    assert "statusbinary" in probe, probe
+    assert not re.search(r"nodetool status\b(?!inary)", probe), probe
+
+
+# ---------------------------------------------------------------------------
+# Hive Metastore: four things the upstream image does not do for us
+# ---------------------------------------------------------------------------
+
+
+def _hive_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "hive-metastore" / "docker-compose.yml").read_text()))
+
+
+def _hive_entrypoint() -> str:
+    return str(_hive_compose()["services"]["hive-metastore"]["entrypoint"][-1])
+
+
+def test_the_hive_metastore_keeps_its_secrets_out_of_the_log() -> None:
+    """The image's /entrypoint.sh starts with `set -x`, so anything it
+    expands is echoed. With the JDBC password in SERVICE_OPTS,
+    `docker logs hive-metastore` printed ConnectionPassword=<value> twice.
+    The configuration therefore goes into a file, written before that
+    entrypoint is reached."""
+    service = _hive_compose()["services"]["hive-metastore"]
+    entrypoint = _hive_entrypoint()
+
+    for secret in ("HIVE_DB_PASSWORD", "R2_SECRET_KEY", "R2_ACCESS_KEY"):
+        for key, value in service.get("environment", {}).items():
+            assert secret not in str(value), (
+                f"{secret} reaches the JVM through {key}, which the image's "
+                "`set -x` entrypoint echoes into the container log"
+            )
+    assert "hive-site.xml" in entrypoint
+    # Written before the image's own entrypoint is reached — that is the
+    # whole mechanism, since `set -x` there is what echoes the values.
+    assert entrypoint.index("hive-site.xml") < entrypoint.index("/entrypoint.sh")
+
+
+def test_the_hive_metastore_does_not_rely_on_hive_custom_conf_dir() -> None:
+    """That variable is the documented way to supply configuration and it
+    does not work here: the entrypoint consumes it with `find ... -exec ln`,
+    and the image has no `find`. The step fails silently, the shipped Derby
+    hive-site.xml survives, and schematool runs the PostgreSQL script
+    against Derby."""
+    entrypoint = _hive_entrypoint()
+
+    assert "HIVE_CUSTOM_CONF_DIR=" not in entrypoint, (
+        "HIVE_CUSTOM_CONF_DIR is a dead path in this image — see the comment"
+    )
+    assert "/opt/hive/conf/hive-site.xml" in entrypoint, (
+        "the configuration must be written into the conf directory directly"
+    )
+
+
+def test_the_hive_metastore_can_resolve_an_s3a_location() -> None:
+    """hadoop-aws and the AWS SDK are in the image, but the entrypoint puts
+    tools/lib on the classpath only for hiveserver2. Without this, creating
+    a table with an s3a:// LOCATION fails with ClassNotFoundException —
+    and the metastore resolves that location at create time whether the
+    table is EXTERNAL or not."""
+    env = _hive_compose()["services"]["hive-metastore"]["environment"]
+    entrypoint = _hive_entrypoint()
+
+    assert "hadoop-aws" in env.get("HADOOP_CLASSPATH", ""), env
+    for key in ("fs.s3a.endpoint", "fs.s3a.access.key", "fs.s3a.secret.key"):
+        assert key in entrypoint, f"{key} is not configured, so s3a:// locations cannot resolve"
+
+
+def test_the_hive_metastore_thrift_port_stays_on_loopback() -> None:
+    """The Thrift protocol has no authentication of its own. Everything that
+    talks to a metastore is another container on app-network."""
+    ports = _hive_compose()["services"]["hive-metastore"]["ports"]
+
+    assert all(str(p).startswith("127.0.0.1:") for p in ports), ports
+
+
+# ---------------------------------------------------------------------------
+# MindsDB: two variables that are the difference between authenticated and not
+# ---------------------------------------------------------------------------
+
+
+def _mindsdb_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "mindsdb" / "docker-compose.yml").read_text()))
+
+
+def test_mindsdb_sets_the_account_both_its_apis_read() -> None:
+    """Measured on this image with the pair unset: POST /api/sql/query
+    answers unauthenticated requests, and the MySQL wire accepts user
+    `mindsdb` with an EMPTY password from anywhere on app-network. With it
+    set: 401, and `Access denied for user mindsdb`.
+
+    An unauthenticated MindsDB is not a read-only dashboard left open — it
+    is an SQL engine that can open connections to every other database in
+    the deployment."""
+    env = _mindsdb_compose()["services"]["mindsdb"]["environment"]
+
+    assert env["MINDSDB_USERNAME"] == "nexus-mindsdb", env
+    assert env["MINDSDB_PASSWORD"] == "${MINDSDB_PASSWORD}", env
+
+
+def test_the_mindsdb_wire_protocol_gets_no_firewall_rule() -> None:
+    """It is authenticated, but it is a database wire protocol with no TLS
+    in front of it once it leaves the host. 47334 goes through the tunnel;
+    47335 stays on loopback."""
+    ports = [str(p) for p in _mindsdb_compose()["services"]["mindsdb"]["ports"]]
+
+    wire = [p for p in ports if p.endswith(":47335")]
+    assert wire, ports
+    assert all(p.startswith("127.0.0.1:") for p in wire), wire
+
+
+def test_mindsdb_keeps_its_metadata_out_of_sqlite() -> None:
+    """The default puts every project, model and connection in one SQLite
+    file inside the storage directory. This stack gives it a PostgreSQL."""
+    services = _mindsdb_compose()["services"]
+    con = services["mindsdb"]["environment"]["MINDSDB_DB_CON"]
+
+    assert con.startswith("postgresql://"), con
+    assert "mindsdb-db:5432" in con, con
+    assert "mindsdb-db" in services
+
+
+# ---------------------------------------------------------------------------
+# Hue: a published secret key, and an image that terminates its own supervisor
+# ---------------------------------------------------------------------------
+
+
+def _hue_compose() -> dict[str, Any]:
+    return dict(yaml.safe_load((STACKS_DIR / "hue" / "docker-compose.yml").read_text()))
+
+
+def _hue_entrypoint() -> str:
+    return str(_hue_compose()["services"]["hue"]["entrypoint"][-1])
+
+
+def test_hue_replaces_the_secret_key_the_image_publishes() -> None:
+    """z-hue-overrides.ini in the image carries a hardcoded Django
+    secret_key, readable by anyone who pulls it. Django signs session
+    cookies with it, so the shipped value means a forgeable session."""
+    entrypoint = _hue_entrypoint()
+
+    assert "secret_key=$${HUE_SECRET_KEY}" in entrypoint, entrypoint
+    assert "kasdlfjknasdf" not in entrypoint, "the image's own key is being written back"
+    # The shipped file is root-owned 0644 and this runs as `hue`, which can
+    # unlink but not overwrite it.
+    rm = entrypoint.index("rm -f /usr/share/hue/desktop/conf/z-hue-overrides.ini")
+    write = entrypoint.index("cat > /usr/share/hue/desktop/conf/z-hue-overrides.ini")
+    assert rm < write, "the file is written without removing the root-owned one first"
+
+
+def test_hue_runs_with_an_init_process() -> None:
+    """Without one the image exits 143 seconds after start:
+    gunicorn_cleanup_utils terminates any Hue process whose parent is PID 1,
+    and without an init the supervisor that started gunicorn IS a child of
+    PID 1. Measured on three tags and on the stock image."""
+    assert _hue_compose()["services"]["hue"].get("init") is True, (
+        "init: true is what stops this image from killing its own supervisor"
+    )
+
+
+def test_hue_only_configures_interpreters_whose_driver_it_has() -> None:
+    """Checked with pip list inside the image: psycopg2-binary, trino and
+    sqlalchemy-clickhouse are present. An interpreter without a driver
+    fails at query time with an import error rather than at startup."""
+    entrypoint = _hue_entrypoint()
+
+    for name in ("postgresql://", "trino://", "clickhouse://"):
+        assert name in entrypoint, f"{name} interpreter is not configured"
+    for absent in ("mysql://", "oracle://", "hive://"):
+        assert absent not in entrypoint, (
+            f"{absent} is configured but its driver was not verified in the image"
+        )
+
+
+def test_hue_blacklists_the_apps_nothing_backs() -> None:
+    """HDFS, HBase, Oozie, Impala and Solr are not deployed here. Leaving
+    their apps enabled puts permanently broken tabs in the navigation."""
+    entrypoint = _hue_entrypoint()
+
+    blacklist = re.search(r"^app_blacklist=(\S+)$", entrypoint, re.M)
+    assert blacklist, "app_blacklist is no longer set"
+    listed = set(blacklist.group(1).split(","))
+
+    assert {"hbase", "oozie", "impala", "search", "filebrowser"} <= listed, listed
+
+
+# ---------------------------------------------------------------------------
+# Three defects the live deployment found that no local rehearsal had
+# ---------------------------------------------------------------------------
+
+
+def test_hue_tells_django_which_origin_the_browser_uses() -> None:
+    """TLS terminates at the tunnel, so Django only learns the real scheme
+    from X-Forwarded-Proto. Without it, it computes the expected CSRF origin
+    as http://<host> while the browser sends https://<host>, and every POST
+    is refused. Captured from a reproduction:
+
+        Forbidden (Origin checking failed - https://hue.example.com does not
+        match any trusted origins.): /hue/accounts/login
+
+    Either setting alone fixes it — verified separately — and both are here
+    so a proxy that stops sending the header does not lock everybody out.
+    """
+    entrypoint = _hue_entrypoint()
+
+    assert "secure_proxy_ssl_header=true" in entrypoint
+    assert "trusted_origins=$${HUE_DOMAIN}" in entrypoint
+    assert "[[session]]" in entrypoint
+
+
+def test_the_hive_metastore_can_write_its_own_warehouse() -> None:
+    """The image runs as `hive` (uid 1000) and a bind mount arrives
+    root-owned, so creating a managed table's directory failed on the server
+    with "is not a directory or unable to create one". The container starts
+    as root to fix the ownership and drops straight back."""
+    service = _hive_compose()["services"]["hive-metastore"]
+    entrypoint = _hive_entrypoint()
+
+    assert service.get("user") == "root", "the chown below needs root"
+    assert "chown -R hive:hive /opt/hive/data/warehouse" in entrypoint
+    # …and must not STAY root.
+    assert re.search(r"exec setpriv --reuid=hive --regid=hive\b", entrypoint), entrypoint
+    assert not re.search(r"^\s*exec /entrypoint\.sh\s*$", entrypoint, re.M), (
+        "the metastore would keep running as root"
+    )
+
+
+def test_the_hive_metastore_config_stays_readable_by_the_user_that_drops_to_it() -> None:
+    """It is written as root under umask 077, so without the chown `hive`
+    cannot read its own configuration."""
+    entrypoint = _hive_entrypoint()
+
+    chown = entrypoint.index("chown hive:hive /opt/hive/conf/hive-site.xml")
+    assert chown > entrypoint.index("cat > /opt/hive/conf/hive-site.xml")
+    assert chown < entrypoint.index("exec setpriv")
+
+
+@pytest.mark.parametrize(
+    ("app", "marker"),
+    [
+        ("streamlit/apps/warehouse_explorer.py", "socket.getaddrinfo"),
+        ("shiny/apps/warehouse_explorer/app.R", "nsl(db_host)"),
+    ],
+)
+def test_the_example_apps_separate_a_missing_stack_from_a_broken_one(app: str, marker: str) -> None:
+    """With the `postgres` stack disabled the first version showed
+    `could not translate host name "postgres" to address` — an
+    infrastructure fact presented as a fault. Both apps now check whether
+    the host resolves at all before trying to connect."""
+    source = (STACKS_DIR / app).read_text()
+
+    assert marker in source, f"{app} no longer checks whether the host resolves"
+    assert "not running in this deployment" in source

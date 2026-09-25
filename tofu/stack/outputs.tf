@@ -186,6 +186,25 @@ output "secrets" {
     # Cube (semantic layer) — signs the JWTs its APIs accept.
     cube_api_secret = random_password.cube_api_secret.result
 
+    # Apicurio Registry (schema + API-contract registry)
+    apicurio_db_password = random_password.apicurio_db_password.result
+
+    # Cassandra. The image seeds only `cassandra`/`cassandra`; the admin hook
+    # creates `nexus-cassandra` with this password and drops that default.
+    cassandra_admin_password = random_password.cassandra_admin.result
+
+    # Hive Metastore (the standalone catalogue service)
+    hive_db_password = random_password.hive_db_password.result
+
+    # MindsDB (SQL over other databases and models)
+    mindsdb_password    = random_password.mindsdb_password.result
+    mindsdb_db_password = random_password.mindsdb_db_password.result
+
+    # Hue (SQL editor). The secret key replaces one hardcoded in the image.
+    hue_secret_key     = random_password.hue_secret_key.result
+    hue_admin_password = random_password.hue_admin_password.result
+    hue_db_password    = random_password.hue_db_password.result
+
     # Keycloak (identity provider). The bootstrap password unlocks only a
     # throwaway account that the services hook deletes.
     keycloak_db_password        = random_password.keycloak_db_password.result

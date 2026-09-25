@@ -247,6 +247,65 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# Hue: the Django secret key, the admin account, and its Postgres.
+#
+# The secret key is not cosmetic. The image ships a HARDCODED one —
+# `kasdlfjknasdfl3hbaksk3bwkasdfkasdfba23asdf`, readable by anyone who pulls
+# the image — and Django signs session cookies with it, so leaving it in
+# place means a forgeable session. 50 characters is what Django's own
+# generator produces.
+resource "random_password" "hue_secret_key" {
+  length  = 50
+  special = false
+}
+
+resource "random_password" "hue_admin_password" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "hue_db_password" {
+  length  = 24
+  special = false
+}
+
+# MindsDB: the application account (both its HTTP API and its MySQL wire
+# protocol read it) and its Postgres. Without the first, the SQL endpoint
+# answers unauthenticated and the wire accepts `mindsdb` with no password.
+resource "random_password" "mindsdb_password" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "mindsdb_db_password" {
+  length  = 24
+  special = false
+}
+
+# Hive Metastore Postgres password — dedicated DB. Holds the catalogue:
+# databases, tables, columns and the locations their files live at.
+resource "random_password" "hive_db_password" {
+  length  = 24
+  special = false
+}
+
+# Cassandra superuser password. The image's only seedable account is the
+# built-in `cassandra` superuser with the password `cassandra`; the admin
+# hook creates `nexus-cassandra` with this password and then drops that
+# default. `special = false` because the value is interpolated into a
+# single-quoted CQL string literal.
+resource "random_password" "cassandra_admin" {
+  length  = 24
+  special = false
+}
+
+# Apicurio Registry Postgres password — dedicated DB. Holds the schemas,
+# their versions and the compatibility rules.
+resource "random_password" "apicurio_db_password" {
+  length  = 24
+  special = false
+}
+
 # Keycloak Postgres password — dedicated DB. Holds realms, clients, users
 # and sessions.
 resource "random_password" "keycloak_db_password" {

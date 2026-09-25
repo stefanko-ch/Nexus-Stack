@@ -1,0 +1,109 @@
+# =============================================================================
+# Shiny Server - R web applications
+# https://shiny.${DOMAIN}
+# =============================================================================
+# The R counterpart to the streamlit stack, and it needs no launcher of
+# its own: Shiny Server already serves a directory of apps and renders an
+# index of them (`site_dir` + `directory_index on` in its shipped config).
+# So the work here is only deciding what ends up in that directory.
+#
+# Three things do:
+#
+#   the image's own sample apps   01_hello … 11_timer, upstream's R
+#                                 teaching material, left in place
+#   /srv/shiny-server/examples    bind mount of ./apps, read-only
+#   /srv/shiny-server/workspace   a SYMLINK to the Forgejo workspace
+#                                 clone's shiny/ directory
+#
+# The clone itself lands in /srv/workspace, not in the served directory,
+# and only its shiny/ subdirectory is linked in. That is deliberate:
+# `site_dir` also serves static files, so cloning the repository into it
+# would publish every file in that repository — including .git — over
+# HTTP.
+#
+# The shipped index.html is removed so the directory index is what the
+# root serves. It is a welcome page for a fresh Shiny Server and would
+# otherwise hide every app behind a URL a user has to already know.
+#
+# amd64 only; see ./Dockerfile.
+# =============================================================================
+
+services:
+  shiny:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_SHINY:-nexus-shiny:4.6.1}
+    container_name: shiny
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "3838:3838"
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -eu
+        rm -f /srv/shiny-server/index.html
+        if [ -n "$${FORGEJO_USERNAME:-}" ] && [ -n "$${FORGEJO_PASSWORD:-}" ]; then
+          printf 'machine forgejo login %s password %s\n' \
+            "$$FORGEJO_USERNAME" "$$FORGEJO_PASSWORD" > "$$HOME/.netrc"
+          chmod 600 "$$HOME/.netrc"
+        fi
+        if [ -n "$${FORGEJO_REPO_URL:-}" ] && [ -n "$${REPO_NAME:-}" ]; then
+          if [ -d "/srv/workspace/$$REPO_NAME/.git" ]; then
+            git -C "/srv/workspace/$$REPO_NAME" pull --ff-only \
+              || echo "[shiny] Warning: could not update the workspace clone" >&2
+          elif git clone "$$FORGEJO_REPO_URL" "/srv/workspace/$$REPO_NAME"; then
+            echo "[shiny] Cloned the workspace repo into /srv/workspace/$$REPO_NAME"
+          else
+            echo "[shiny] Warning: could not clone $$FORGEJO_REPO_URL" >&2
+          fi
+        fi
+        # Only the shiny/ directory is linked into the served tree, and the
+        # link is refreshed on every start so a repository that gained one
+        # since the last start picks it up.
+        #
+        # The existence check is not defensive padding: a DANGLING link here
+        # takes down the whole index page, not just that entry. Measured
+        # against a repository with no shiny/ directory — which is every
+        # repository until somebody adds one — the root answered
+        #   An error has occurred / Invalid application configuration.
+        #   ENOENT: no such file or directory, stat '/srv/shiny-server/workspace'
+        # instead of listing any app at all.
+        if [ -d "/srv/workspace/$${REPO_NAME:-}/shiny" ]; then
+          ln -sfn "/srv/workspace/$$REPO_NAME/shiny" /srv/shiny-server/workspace
+        else
+          rm -f /srv/shiny-server/workspace
+        fi
+        # /init, not shiny-server: this image runs under s6, whose
+        # cont-init step copies the container environment into
+        # Renviron.site and whose service wrapper honours
+        # APPLICATION_LOGS_TO_STDOUT. Calling the binary directly starts
+        # the server but skips both.
+        exec /init
+    volumes:
+      - ./apps:/srv/shiny-server/examples:ro
+      - shiny_workspace:/srv/workspace
+    mem_limit: 2g
+    healthcheck:
+      # python3, not curl or wget — the base image has neither, checked.
+      # It does have python3, and R, and R is the slower of the two.
+      test:
+        - "CMD-SHELL"
+        - "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:3838/\").close()' || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app-network
+
+volumes:
+  shiny_workspace:
+
+networks:
+  app-network:
+    external: true

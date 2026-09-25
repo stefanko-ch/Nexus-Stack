@@ -1,0 +1,94 @@
+# =============================================================================
+# Streamlit - Python data apps
+# https://streamlit.${DOMAIN}
+# =============================================================================
+# Streamlit runs ONE entrypoint script per process. That script is
+# ./Home.py, a launcher: it scans the mounted directories for `.py` files
+# and hands them to st.navigation, which renders the sidebar. So this one
+# container serves every app, and a new app is a new file rather than a
+# new service.
+#
+# Two sources, deliberately separate:
+#
+#   ./apps           the examples that ship with Nexus-Stack, read-only
+#   /srv/workspace   a clone of the Forgejo workspace repository, of which
+#                    only `streamlit/` and `nexus_seeds/streamlit/` are
+#                    scanned — the rest of that repository is Kestra flows
+#                    and marimo notebooks, which are not Streamlit apps
+#
+# The clone is NOT under /srv/apps for exactly that reason.
+#
+# There is no image to pull: Docker Hub has no `streamlit/streamlit`, and
+# upstream's guide tells you to write a Dockerfile. See ./Dockerfile.
+# =============================================================================
+
+services:
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_STREAMLIT:-nexus-streamlit:1.64.0}
+    container_name: streamlit
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # 8501 is Streamlit's own default and belongs to `dify` here, so the
+      # host side moves and the container side stays on 8080.
+      - "8502:8080"
+    environment:
+      # Cloudflare Access is the gate, as everywhere else in this stack.
+      # XSRF protection stays ON — it costs nothing behind a reverse proxy
+      # and is what stops a third-party page from POSTing into an app.
+      STREAMLIT_SERVER_ADDRESS: "0.0.0.0"
+      STREAMLIT_SERVER_PORT: "8080"
+      STREAMLIT_SERVER_HEADLESS: "true"
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      # The tunnel terminates TLS and the app is reached over one hostname,
+      # so websocket origin checking has nothing useful to compare against
+      # and would reject the connection outright.
+      STREAMLIT_SERVER_ENABLE_CORS: "false"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ -n "$${FORGEJO_USERNAME:-}" ] && [ -n "$${FORGEJO_PASSWORD:-}" ]; then
+          printf 'machine forgejo login %s password %s\n' \
+            "$$FORGEJO_USERNAME" "$$FORGEJO_PASSWORD" > "$$HOME/.netrc"
+          chmod 600 "$$HOME/.netrc"
+        fi
+        if [ -n "$${FORGEJO_REPO_URL:-}" ] && [ -n "$${REPO_NAME:-}" ]; then
+          if [ -d "/srv/workspace/$$REPO_NAME/.git" ]; then
+            git -C "/srv/workspace/$$REPO_NAME" pull --ff-only \
+              || echo "[streamlit] Warning: could not update the workspace clone" >&2
+          elif git clone "$$FORGEJO_REPO_URL" "/srv/workspace/$$REPO_NAME"; then
+            echo "[streamlit] Cloned the workspace repo into /srv/workspace/$$REPO_NAME"
+          else
+            echo "[streamlit] Warning: could not clone $$FORGEJO_REPO_URL" >&2
+          fi
+        fi
+        exec streamlit run /srv/Home.py
+    volumes:
+      - ./Home.py:/srv/Home.py:ro
+      - ./apps:/srv/apps:ro
+      - streamlit_workspace:/srv/workspace
+    mem_limit: 1g
+    healthcheck:
+      # Streamlit's own liveness endpoint; it answers "ok" once the server
+      # is accepting connections. curl is installed by the Dockerfile.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/_stcore/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app-network
+
+volumes:
+  streamlit_workspace:
+
+networks:
+  app-network:
+    external: true

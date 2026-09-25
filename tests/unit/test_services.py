@@ -37,9 +37,11 @@ from nexus_deploy.services import (
     _render_filestash_push_script,
     configure_filestash,
     parse_results,
+    render_cassandra_hook,
     render_dify_hook,
     render_garage_hook,
     render_hedgedoc_hook,
+    render_hue_hook,
     render_keycloak_hook,
     render_lakefs_hook,
     render_lakekeeper_hook,
@@ -114,7 +116,7 @@ def _make_env(admin_email: str = "ops@example.com") -> BootstrapEnv:
 
 def test_supported_hooks_contains_all_specs() -> None:
     """5 REST hooks + 3 docker-exec hooks + Filestash (python) +
-    8 additional admin-setups."""
+    10 additional admin-setups."""
     assert set(supported_hooks()) == {
         # REST first-init
         "portainer",
@@ -146,6 +148,12 @@ def test_supported_hooks_contains_all_specs() -> None:
         "pg-ducklake",
         # Creates `nexus-neo4j` and drops the image's built-in `neo4j` user.
         "neo4j",
+        # Same shape: creates `nexus-cassandra` and drops the built-in
+        # `cassandra` superuser, whose password is `cassandra`.
+        "cassandra",
+        # Seeds Hue's Django superuser; it otherwise goes to whoever
+        # registers through the web UI first.
+        "hue",
         # Hands the master realm from `nexus-bootstrap` to the permanent admin.
         "keycloak",
     }
@@ -3342,3 +3350,271 @@ def test_keycloak_hook_puts_no_credential_in_any_argv(tmp_path: Path, start: str
     joined = "\n".join(calls)
     for secret in (_KC_ADMIN_PW, _KC_BOOT_PW, "StalePw000", "tok-"):
         assert secret not in joined, f"{secret!r} reached an argv ({start})"
+
+
+# ---------------------------------------------------------------------------
+# Cassandra — create `nexus-cassandra`, drop the built-in `cassandra`
+# ---------------------------------------------------------------------------
+
+# Same shape as the neo4j fake: the hook's control flow is exercised by bash
+# rather than read out of the rendered text. NEXUS_SIGNIN_RC decides whether
+# `nexus-cassandra` can sign in, DEFAULT_SIGNIN_RC whether `cassandra` can.
+_FAKE_DOCKER_CASSANDRA = """#!/usr/bin/env bash
+args="$*"
+echo "$args" >> "$FAKE_LOG"
+case "$args" in
+  *"nexus-cassandra"*"system_auth.roles"*)
+    if grep -q "nexus-signin" "$FAKE_LOG.seen" 2>/dev/null; then exit "$NEXUS_SIGNIN_RETRY_RC"; fi
+    echo "nexus-signin" >> "$FAKE_LOG.seen"
+    exit "$NEXUS_SIGNIN_RC" ;;
+  *"-u cassandra -p cassandra"*"system_auth.roles"*) exit "$DEFAULT_SIGNIN_RC" ;;
+  *"DROP ROLE IF EXISTS cassandra"*) echo "drop refused (fake)"; exit "$DROP_RC" ;;
+  "exec -i cassandra sh")
+    cat > "$FAKE_STDIN"
+    echo "CREATE-ERROR-QUOTING-THE-STATEMENT" >&2
+    exit "$CREATE_RC" ;;
+esac
+echo "unexpected docker call: $args" >&2
+exit 99
+"""
+
+
+def _run_cassandra_hook(
+    tmp_path: Path,
+    *,
+    nexus_signin_rc: int,
+    default_signin_rc: int = 0,
+    create_rc: int = 0,
+    drop_rc: int = 0,
+    nexus_signin_retry_rc: int | None = None,
+) -> tuple[str, list[str], str]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker = bin_dir / "docker"
+    docker.write_text(_FAKE_DOCKER_CASSANDRA)
+    docker.chmod(0o755)
+    log = tmp_path / "calls.log"
+    stdin_capture = tmp_path / "create-stdin"
+    script = render_cassandra_hook(_make_config(), _make_env())
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_LOG": str(log),
+        "FAKE_STDIN": str(stdin_capture),
+        "NEXUS_SIGNIN_RC": str(nexus_signin_rc),
+        "NEXUS_SIGNIN_RETRY_RC": str(
+            nexus_signin_rc if nexus_signin_retry_rc is None else nexus_signin_retry_rc
+        ),
+        "DEFAULT_SIGNIN_RC": str(default_signin_rc),
+        "CREATE_RC": str(create_rc),
+        "DROP_RC": str(drop_rc),
+        # Host side only. The CREATE statement must reference the container's
+        # variable, so this value must never reach the pipe.
+        "NEXUS_CASSANDRA_PASSWORD": "HOST-SIDE-VALUE-MUST-NOT-EXPAND",
+    }
+    done = subprocess.run(
+        ["bash", "-s"], input=script, capture_output=True, text=True, env=env, check=False
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    stdin_seen = stdin_capture.read_text() if stdin_capture.exists() else ""
+    return done.stdout + done.stderr, calls, stdin_seen
+
+
+def test_cassandra_hook_is_registered() -> None:
+    """Without it the node keeps `cassandra`/`cassandra`, the guessable
+    default the `nexus-` naming rule exists to prevent."""
+    from nexus_deploy.services import _HOOK_REGISTRY
+
+    assert _HOOK_REGISTRY["cassandra"] is render_cassandra_hook
+
+
+def test_cassandra_hook_renders_no_secret() -> None:
+    """The password comes from the container's own environment, so no config
+    value may appear in the script sent over SSH."""
+    canary = "CASSANDRACANARY0123456789"
+    script = render_cassandra_hook(_make_config(cassandra_admin_password=canary), _make_env())
+    assert canary not in script
+
+
+def test_cassandra_hook_keeps_the_cql_quoting_intact() -> None:
+    """The role name is hyphenated, so CQL needs it double-quoted. Without a
+    raw string Python eats the escapes and the statement arrives as
+    CREATE ROLE nexus-cassandra, which the parser rejects — the first
+    rendered version of this hook did exactly that."""
+    script = render_cassandra_hook(_make_config(), _make_env())
+
+    assert r"\"nexus-cassandra\"" in script
+    assert ";\\n" in script, "printf's newline was consumed before it reached the script"
+
+
+def test_cassandra_hook_fresh_node_creates_then_drops(tmp_path: Path) -> None:
+    """nexus-cassandra cannot sign in, the default can -> create, then drop.
+
+    The drop is a separate step because you cannot drop the role you are
+    logged in as.
+    """
+    out, calls, stdin_seen = _run_cassandra_hook(tmp_path, nexus_signin_rc=1)
+    assert "RESULT hook=cassandra status=configured" in out
+    kinds = [
+        "nexus"
+        if "nexus-cassandra" in c and "roles" in c
+        else "default"
+        if "-u cassandra -p cassandra" in c
+        else "drop"
+        if "DROP ROLE" in c
+        else "create"
+        for c in calls
+    ]
+    assert kinds == ["nexus", "default", "create", "drop"]
+    assert 'CREATE ROLE IF NOT EXISTS \\"nexus-cassandra\\"' in stdin_seen
+    assert '"$NEXUS_CASSANDRA_PASSWORD"' in stdin_seen
+    assert "HOST-SIDE-VALUE-MUST-NOT-EXPAND" not in stdin_seen
+
+
+def test_cassandra_hook_second_run_is_already_configured(tmp_path: Path) -> None:
+    """nexus-cassandra signs in, so nothing is created; the drop still runs
+    and is idempotent server-side."""
+    out, calls, _ = _run_cassandra_hook(tmp_path, nexus_signin_rc=0)
+    assert "RESULT hook=cassandra status=already-configured" in out
+    assert not any(c == "exec -i cassandra sh" for c in calls)
+    assert any("DROP ROLE" in c for c in calls)
+
+
+def test_cassandra_hook_waits_for_an_account_not_for_the_port(tmp_path: Path) -> None:
+    """CassandraRoleManager creates the default superuser on a background
+    task 70s AFTER the native transport opens — measured. A hook keyed on
+    the port alone runs while the only account it could use does not exist,
+    so the wait is for a sign-in, and `nodetool` is never consulted."""
+    out, calls, _ = _run_cassandra_hook(tmp_path, nexus_signin_rc=0)
+
+    assert not any("nodetool" in c for c in calls), calls
+    assert "status=skipped-not-ready" not in out
+
+
+def test_cassandra_hook_fails_when_neither_account_works(tmp_path: Path) -> None:
+    """The create step's own output is never shown: a CQL error can quote
+    the statement, and the statement holds the password."""
+    out, _, _ = _run_cassandra_hook(tmp_path, nexus_signin_rc=1, create_rc=1)
+    assert "RESULT hook=cassandra status=failed" in out
+    assert "CREATE-ERROR-QUOTING-THE-STATEMENT" not in out
+
+
+def test_cassandra_hook_rechecks_after_a_losing_create(tmp_path: Path) -> None:
+    """A concurrent deploy may create the role and drop the default between
+    the sign-in and the create. Losing that race is `already-configured`,
+    not `failed`."""
+    out, _, _ = _run_cassandra_hook(
+        tmp_path, nexus_signin_rc=1, create_rc=1, nexus_signin_retry_rc=0
+    )
+    assert "RESULT hook=cassandra status=already-configured" in out
+
+
+# ---------------------------------------------------------------------------
+# Hue — seed the Django superuser before the first visitor claims it
+# ---------------------------------------------------------------------------
+
+_FAKE_DOCKER_HUE = """#!/usr/bin/env bash
+args="$*"
+echo "$args" >> "$FAKE_LOG"
+case "$args" in
+  *"accounts/login"*) exit "$READY_RC" ;;
+  *"exec -i"*"hue sh -c"*)
+    cat > "$FAKE_STDIN"
+    echo "NEXUS_HUE_RESULT $SEED_RESULT"
+    exit "$SEED_RC" ;;
+esac
+echo "unexpected docker call: $args" >&2
+exit 99
+"""
+
+
+def _run_hue_hook(
+    tmp_path: Path,
+    *,
+    ready_rc: int = 0,
+    seed_rc: int = 0,
+    seed_result: str = "created",
+    password: str = "hue-pass",
+) -> tuple[str, list[str], str]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker = bin_dir / "docker"
+    docker.write_text(_FAKE_DOCKER_HUE)
+    docker.chmod(0o755)
+    log = tmp_path / "calls.log"
+    stdin_capture = tmp_path / "seed-stdin"
+    script = render_hue_hook(_make_config(hue_admin_password=password), _make_env())
+    # The readiness loop is wall-clock bounded at 300s; a not-ready run would
+    # otherwise hold the suite for five minutes.
+    script = script.replace("-lt 300", "-lt 2")
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_LOG": str(log),
+        "FAKE_STDIN": str(stdin_capture),
+        "READY_RC": str(ready_rc),
+        "SEED_RC": str(seed_rc),
+        "SEED_RESULT": seed_result,
+    }
+    done = subprocess.run(
+        ["bash", "-s"], input=script, capture_output=True, text=True, env=env, check=False
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    stdin_seen = stdin_capture.read_text() if stdin_capture.exists() else ""
+    return done.stdout + done.stderr, calls, stdin_seen
+
+
+def test_hue_hook_is_registered() -> None:
+    """Without it Hue makes the first account registered through its web UI
+    a superuser — whoever opens the URL first."""
+    from nexus_deploy.services import _HOOK_REGISTRY
+
+    assert _HOOK_REGISTRY["hue"] is render_hue_hook
+
+
+def test_hue_hook_keeps_the_python_quoting_intact() -> None:
+    """The seed runs a Python snippet inside `hue shell -c "..."`, so its own
+    quotes must stay escaped. Without a raw string Python eats them, the
+    shell string ends early and the hook reports `failed` — which is exactly
+    what the first rendered version did."""
+    script = render_hue_hook(_make_config(hue_admin_password="x"), _make_env())
+
+    assert r"os.environ[\"HUE_ADMIN_USERNAME\"]" in script
+    assert r"os.environ[\"HUE_ADMIN_PASSWORD\"]" in script
+
+
+def test_hue_hook_seeds_the_account_over_stdin(tmp_path: Path) -> None:
+    """The password goes in over stdin and is read from the environment
+    inside Python, so it reaches no argument list on either side."""
+    out, calls, stdin_seen = _run_hue_hook(tmp_path, password="HUECANARY0123456789")
+
+    assert "RESULT hook=hue status=configured" in out
+    assert stdin_seen == "HUECANARY0123456789"
+    assert not any("HUECANARY0123456789" in c for c in calls), calls
+    assert any("HUE_ADMIN_USERNAME=nexus-hue-admin" in c for c in calls), calls
+
+
+def test_hue_hook_reports_a_rotation_as_already_configured(tmp_path: Path) -> None:
+    """get_or_create + set_password converges an existing account on the
+    current Infisical value rather than leaving a stale hash."""
+    out, _, _ = _run_hue_hook(tmp_path, seed_result="updated")
+    assert "RESULT hook=hue status=already-configured" in out
+
+
+def test_hue_hook_skips_when_the_password_is_missing() -> None:
+    """Rendered, not executed: with no password there is nothing to seed."""
+    script = render_hue_hook(_make_config(hue_admin_password=""), _make_env())
+    assert script.strip() == 'echo "RESULT hook=hue status=skipped-not-ready"'
+
+
+def test_hue_hook_skips_when_hue_never_answers(tmp_path: Path) -> None:
+    out, _, _ = _run_hue_hook(tmp_path, ready_rc=1)
+    assert "RESULT hook=hue status=skipped-not-ready" in out
+
+
+def test_hue_hook_fails_on_an_unrecognisable_result(tmp_path: Path) -> None:
+    """A seed that exits zero while printing nothing the hook recognises is
+    a failure, not a success — the status must not be a by-product of the
+    message."""
+    out, _, _ = _run_hue_hook(tmp_path, seed_result="something-else")
+    assert "RESULT hook=hue status=failed" in out

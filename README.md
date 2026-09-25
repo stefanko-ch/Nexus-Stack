@@ -78,14 +78,16 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (95)
+## Available Stacks (102)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
 [![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org)
+[![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
+[![Cassandra](https://img.shields.io/badge/Apache_Cassandra-1287B1?logo=apachecassandra&logoColor=white)](https://cassandra.apache.org)
 [![Chroma](https://img.shields.io/badge/Chroma-F87171?logo=databricks&logoColor=white)](https://www.trychroma.com)
 [![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)](https://dbeaver.com/cloudbeaver/)
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC00?logo=clickhouse&logoColor=black)](https://clickhouse.com)
@@ -110,7 +112,9 @@ After deployment you'll have:
 [![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)](https://about.gitea.com)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)](https://grafana.com)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
+[![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
 [![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)](https://hoppscotch.io)
+[![Hue](https://img.shields.io/badge/Hue-4A90E2?logo=apachehadoop&logoColor=white)](https://gethue.com)
 [![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)](https://infisical.com)
 [![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/products/influxdb/)
 [![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)](https://it-tools.tech)
@@ -131,6 +135,7 @@ After deployment you'll have:
 [![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)](https://meltano.com)
 [![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)](https://www.metabase.com)
 [![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
+[![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
 [![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)](https://min.io)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
 [![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io)
@@ -159,9 +164,11 @@ After deployment you'll have:
 [![S3 Manager](https://img.shields.io/badge/S3_Manager-2E7D32?logo=amazons3&logoColor=white)](https://github.com/cloudlena/s3manager)
 [![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)](https://seaweedfs.com)
 [![SFTPGo](https://img.shields.io/badge/SFTPGo-2D3748?logo=files&logoColor=white)](https://sftpgo.com)
+[![Shiny](https://img.shields.io/badge/Shiny-447099?logo=r&logoColor=white)](https://posit.co/products/open-source/shinyserver/)
 [![Sling](https://img.shields.io/badge/Sling-FF6B35?logo=data&logoColor=white)](https://slingdata.io)
 [![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)](https://www.soda.io)
 [![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Superset](https://img.shields.io/badge/Apache_Superset-20A6A4?logo=apachesuperset&logoColor=white)](https://superset.apache.org)
 [![Telegraf](https://img.shields.io/badge/Telegraf-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/time-series-platform/telegraf/)
 [![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)](https://www.tigerdata.com/timescaledb)
@@ -181,9 +188,11 @@ After deployment you'll have:
 | **AKHQ** | Kafka/Redpanda management GUI for topics, consumer groups, schema registry, and Kafka Connect | [akhq.io](https://akhq.io) |
 | **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
 | **Airflow** | Apache Airflow — DAG-based workflow orchestration with the largest operator and provider ecosystem | [airflow.apache.org](https://airflow.apache.org) |
+| **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
+| **Cassandra** | Wide-column distributed database — the data model and CQL, on one node | [cassandra.apache.org](https://cassandra.apache.org) |
 | **Chroma** | Developer-friendly embedding (vector) database for LLM / RAG pipelines | [trychroma.com](https://www.trychroma.com) |
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
 | **ClickHouse** | Fast columnar database for real-time analytics and OLAP queries | [clickhouse.com](https://clickhouse.com) |
@@ -208,7 +217,9 @@ After deployment you'll have:
 | **Gitea** | Self-hosted Git service with pull requests, code review, and CI/CD | [gitea.com](https://about.gitea.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
+| **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
 | **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
+| **Hue** | SQL editor and data browser for PostgreSQL, Trino and ClickHouse | [gethue.com](https://gethue.com) |
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **InfluxDB** | Time-series database with retention policies, downsampling tasks and a built-in UI | [influxdata.com](https://www.influxdata.com/products/influxdb/) |
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
@@ -229,6 +240,7 @@ After deployment you'll have:
 | **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
+| **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
 | **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
@@ -257,9 +269,11 @@ After deployment you'll have:
 | **S3 Manager** | Web-based S3 bucket browser and manager for Hetzner Object Storage | [GitHub](https://github.com/cloudlena/s3manager) |
 | **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **SFTPGo** | SFTP/SCP server with R2 backend (file-protocol front door onto the datalake; WebDAV/FTPS supported upstream, disabled by default) | [sftpgo.com](https://sftpgo.com) |
+| **Shiny Server** | R web applications — hosts every app in the workspace repository, with an index | [posit.co](https://posit.co/products/open-source/shinyserver/) |
 | **Sling** | Lightweight CLI for database-to-database and file-to-database transfers | [slingdata.io](https://slingdata.io) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
 | **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |
+| **Streamlit** | Python data apps — one server runs every app in the workspace repository | [streamlit.io](https://streamlit.io) |
 | **Superset** | Modern data exploration and visualization platform with SQL Lab | [superset.apache.org](https://superset.apache.org) |
 | **Telegraf** | Metrics collection agent with 300+ plugins (CLI-only, no web UI) | [influxdata.com](https://www.influxdata.com/time-series-platform/telegraf/) |
 | **TimescaleDB** | PostgreSQL with the TimescaleDB extension — hypertables, continuous aggregates and compression for time-series (no web UI) | [tigerdata.com](https://www.tigerdata.com/timescaledb) |

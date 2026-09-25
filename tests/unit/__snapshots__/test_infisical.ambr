@@ -7,9 +7,17 @@
       'AIRFLOW_PASSWORD': 'airflow_admin_password-VALUE',
       'AIRFLOW_USERNAME': 'nexus-test-user',
     }),
+    'apicurio': dict({
+      'APICURIO_DB_PASSWORD': 'apicurio_db_password-VALUE',
+      'APICURIO_DB_USERNAME': 'nexus-apicurio',
+    }),
     'appsmith': dict({
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',
+    }),
+    'cassandra': dict({
+      'CASSANDRA_PASSWORD': 'cassandra_admin_password-VALUE',
+      'CASSANDRA_USERNAME': 'nexus-cassandra',
     }),
     'clickhouse': dict({
       'CLICKHOUSE_PASSWORD': 'clickhouse_admin_password-VALUE',
@@ -93,6 +101,16 @@
       'HETZNER_S3_REGION': 'hetzner_s3_region-VALUE',
       'HETZNER_S3_SECRET_KEY': 'hetzner_s3_secret_key-VALUE',
     }),
+    'hive-metastore': dict({
+      'HIVE_DB_PASSWORD': 'hive_db_password-VALUE',
+      'HIVE_DB_USERNAME': 'nexus-hive',
+    }),
+    'hue': dict({
+      'HUE_DB_PASSWORD': 'hue_db_password-VALUE',
+      'HUE_DB_USERNAME': 'nexus-hue',
+      'HUE_PASSWORD': 'hue_admin_password-VALUE',
+      'HUE_USERNAME': 'nexus-hue-admin',
+    }),
     'infisical': dict({
       'INFISICAL_PASSWORD': 'infisical_admin_password-VALUE',
       'INFISICAL_USERNAME': 'admin@snapshot.test',
@@ -155,6 +173,12 @@
     'metabase': dict({
       'METABASE_PASSWORD': 'metabase_admin_password-VALUE',
       'METABASE_USERNAME': 'admin@snapshot.test',
+    }),
+    'mindsdb': dict({
+      'MINDSDB_DB_PASSWORD': 'mindsdb_db_password-VALUE',
+      'MINDSDB_DB_USERNAME': 'nexus-mindsdb',
+      'MINDSDB_PASSWORD': 'mindsdb_password-VALUE',
+      'MINDSDB_USERNAME': 'nexus-mindsdb',
     }),
     'minio': dict({
       'MINIO_ROOT_PASSWORD': 'minio_root_password-VALUE',

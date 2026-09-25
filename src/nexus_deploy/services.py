@@ -123,6 +123,10 @@ _VALID_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 # The prefix matters because the data bucket is shared -- Unity Catalog
 # addresses it at the root and pg-ducklake writes tables into it.
 LAKEKEEPER_WAREHOUSE = "nexus"
+#: Hue's Django superuser. Not the shared `admin_username`: Hue keeps its
+#: own Django user table, and this name is what Infisical lists.
+HUE_ADMIN_USERNAME = "nexus-hue-admin"
+
 LAKEKEEPER_KEY_PREFIX = "lakekeeper"
 
 HookStatus = Literal["configured", "already-configured", "failed", "skipped-not-ready"]
@@ -2858,6 +2862,207 @@ keycloak_hook
 """
 
 
+def render_cassandra_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Cassandra: replace the built-in ``cassandra`` superuser with
+    ``nexus-cassandra``.
+
+    The image seeds exactly one account — ``cassandra`` with the password
+    ``cassandra`` — which is the guessable default the ``nexus-`` naming
+    rule exists to prevent. Cassandra can create a second superuser and
+    drop the first, so this hook does that:
+
+    1. Wait until SOME account can sign in — ``nexus-cassandra`` if an
+       earlier run made it, ``cassandra``/``cassandra`` otherwise. Waiting
+       on the CQL port instead is not enough, and that is measured rather
+       than cautious: ``CassandraRoleManager`` creates the default
+       superuser on a background task 70 seconds after the native
+       transport opens, so a hook keyed on ``nodetool statusbinary`` runs
+       while the only account it could use does not exist yet, and every
+       statement fails.
+    2. If the default is what answered, create ``nexus-cassandra``. If
+       that create fails, try ``nexus-cassandra`` once more before
+       reporting ``failed``: a concurrent deploy may have created the role
+       and dropped the default in between.
+    3. Sign in as ``nexus-cassandra`` and ``DROP ROLE IF EXISTS
+       cassandra``. You cannot drop the role you are logged in as, which
+       is why this is a separate step from the create.
+
+    Nothing secret is rendered into this script and nothing secret reaches
+    a ``docker exec`` argument list: ``NEXUS_CASSANDRA_PASSWORD`` comes
+    from the container's own environment, and the CREATE statement is
+    built inside the container by ``printf`` and piped to ``cqlsh``.
+
+    The create step's output is never printed — a CQL error can quote the
+    statement, and the statement holds the password. The sign-in and drop
+    steps carry no secret, so the drop's output is forwarded on failure.
+
+    Verified against ``cassandra:5.0.6``: fresh node -> ``configured``,
+    second run -> ``already-configured``, and afterwards
+    ``cqlsh -u cassandra -p cassandra`` answers
+    ``Provided username cassandra and/or password are incorrect``.
+    """
+    del config, env  # the password is read inside the container
+    # Raw string: the body carries shell escapes (\" inside the printf format,
+    # \n as printf's newline, line continuations) that must reach the rendered
+    # script untouched. Without the r-prefix Python consumes them and the CQL
+    # arrives as CREATE ROLE "nexus-cassandra" with the quotes already eaten by
+    # the shell — verified by rendering both ways.
+    return r"""
+cassandra_signin_nexus() {
+    docker exec cassandra sh -c \
+        'cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_PASSWORD" -e "SELECT role FROM system_auth.roles" >/dev/null' \
+        2>/dev/null
+}
+
+cassandra_signin_default() {
+    docker exec cassandra cqlsh -u cassandra -p cassandra \
+        -e "SELECT role FROM system_auth.roles" >/dev/null 2>&1
+}
+
+cassandra_hook() {
+    # Waiting on the CQL port is NOT enough. CassandraRoleManager creates the
+    # default superuser on a background task AFTER the native transport opens
+    # — measured on a fresh node at 70s past startup, with `nodetool
+    # statusbinary` already reporting `running`. A hook that started then
+    # failed to create anything, because the account it signs in as did not
+    # exist yet. So the wait is for an account that can actually log in:
+    # ours if an earlier run made it, the default otherwise.
+    MODE=none
+    # $SECONDS, not a counter incremented per sleep: each sign-in attempt
+    # opens a CQL connection and can itself take seconds, which a
+    # sleep-counter never charges against the deadline.
+    SECONDS=0
+    while [ "$SECONDS" -lt 300 ]; do
+        if cassandra_signin_nexus; then MODE=nexus; break; fi
+        if cassandra_signin_default; then MODE=default; break; fi
+        sleep 5
+    done
+    if [ "$MODE" = "none" ]; then
+        echo "  ⚠ cassandra: no account could sign in after 300s — skipping admin setup" >&2
+        echo "RESULT hook=cassandra status=skipped-not-ready"
+        return 0
+    fi
+
+    CASSANDRA_STATUS=already-configured
+    if [ "$MODE" = "default" ]; then
+        if docker exec -i cassandra sh >/dev/null 2>&1 <<'NEXUS_CASSANDRA_CREATE_EOF'
+printf "CREATE ROLE IF NOT EXISTS \"nexus-cassandra\" WITH PASSWORD = '%s' AND LOGIN = true AND SUPERUSER = true;\n" "$NEXUS_CASSANDRA_PASSWORD" \
+    | cqlsh -u cassandra -p cassandra
+NEXUS_CASSANDRA_CREATE_EOF
+        then
+            CASSANDRA_STATUS=configured
+        elif cassandra_signin_nexus; then
+            # A concurrent deploy may have created the role and dropped the
+            # default between the sign-in above and this create.
+            CASSANDRA_STATUS=already-configured
+        else
+            echo "  ⚠ cassandra: could not create nexus-cassandra" >&2
+            echo "RESULT hook=cassandra status=failed"
+            return 0
+        fi
+    fi
+
+    DROP_FAILED=false
+    DROP_OUTPUT=$(docker exec cassandra sh -c \
+        'cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_PASSWORD" -e "DROP ROLE IF EXISTS cassandra"' 2>&1) \
+        || DROP_FAILED=true
+    if [ "$DROP_FAILED" = "true" ]; then
+        echo "  ⚠ cassandra: could not drop the default superuser: ${DROP_OUTPUT:-(no output)}" >&2
+        echo "RESULT hook=cassandra status=failed"
+        return 0
+    fi
+
+    echo "RESULT hook=cassandra status=$CASSANDRA_STATUS"
+}
+cassandra_hook
+"""
+
+
+def render_hue_hook(config: NexusConfig, env: BootstrapEnv) -> str:
+    """Hue admin seed: create or update a Django superuser.
+
+    Hue makes the first account registered through its web UI a
+    superuser, so without this the first visitor to the URL claims the
+    administrator. Cloudflare Access already limits who that can be, but
+    the account still needs a password this deployment knows.
+
+    One Django shell call does both create and rotate:
+    ``get_or_create`` then ``set_password``, which converges an existing
+    account on the current Infisical value rather than leaving a stale
+    hash behind — the same reason HedgeDoc's hook has a ``--reset``
+    fallback. It reports ``configured`` on create and
+    ``already-configured`` on update.
+
+    The password reaches the container over stdin and is read from the
+    environment inside Python, so it appears in no argument list on
+    either side. The username is not secret and goes via ``-e``.
+
+    Verified against ``gethue/hue:20260611-140101``: first run
+    ``configured``, second ``already-configured``, and a Django login as
+    the seeded account returns 302 with an authenticated session.
+    """
+    del env
+    password = config.hue_admin_password or ""
+    if not password:
+        return 'echo "RESULT hook=hue status=skipped-not-ready"\n'
+    password_q = shlex.quote(password)
+    # Raw f-string: the body carries shell escapes — the \" that keep the
+    # Python snippet's quotes inside `hue shell -c "..."`, and the trailing
+    # backslashes that continue the docker exec line. Without the r-prefix
+    # Python consumes both, the snippet's quotes end the shell string early
+    # and the hook reports `failed` — verified by rendering it both ways.
+    return rf"""
+hue_hook() {{
+    READY=false
+    # $SECONDS: the curl carries its own --max-time 5, which a sleep-counter
+    # would not charge against the deadline.
+    SECONDS=0
+    while [ "$SECONDS" -lt 300 ]; do
+        if docker exec hue curl -sf --max-time 5 http://localhost:8888/hue/accounts/login >/dev/null 2>&1; then
+            READY=true; break
+        fi
+        sleep 5
+    done
+    if [ "$READY" != "true" ]; then
+        echo "  ⚠ hue not ready after 300s — skipping admin setup" >&2
+        echo "RESULT hook=hue status=skipped-not-ready"
+        return 0
+    fi
+
+    HUE_ADMIN_PASSWORD={password_q}
+    HOOK_FAILED=false
+    HOOK_OUTPUT=$(printf '%s' "$HUE_ADMIN_PASSWORD" | docker exec -i \
+        -e HUE_ADMIN_USERNAME='{HUE_ADMIN_USERNAME}' hue sh -c '
+            HUE_ADMIN_PASSWORD=$(cat)
+            export HUE_ADMIN_PASSWORD
+            cd /usr/share/hue && ./build/env/bin/hue shell -c "
+import os
+from django.contrib.auth.models import User
+user, created = User.objects.get_or_create(username=os.environ[\"HUE_ADMIN_USERNAME\"])
+user.set_password(os.environ[\"HUE_ADMIN_PASSWORD\"])
+user.is_superuser = True
+user.is_staff = True
+user.is_active = True
+user.save()
+print(\"NEXUS_HUE_RESULT\", \"created\" if created else \"updated\")
+"' 2>&1) || HOOK_FAILED=true
+
+    if [ "$HOOK_FAILED" = "true" ]; then
+        echo "  ⚠ hue: could not seed the admin account" >&2
+        echo "RESULT hook=hue status=failed"
+        return 0
+    fi
+    case "$HOOK_OUTPUT" in
+        *"NEXUS_HUE_RESULT created"*) echo "RESULT hook=hue status=configured" ;;
+        *"NEXUS_HUE_RESULT updated"*) echo "RESULT hook=hue status=already-configured" ;;
+        *) echo "  ⚠ hue: admin setup produced no recognisable result" >&2
+           echo "RESULT hook=hue status=failed" ;;
+    esac
+}}
+hue_hook
+"""
+
+
 _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # REST first-init hooks
     "portainer": render_portainer_hook,
@@ -2886,6 +3091,12 @@ _HOOK_REGISTRY: dict[str, HookRenderer] = {
     # Creates `nexus-neo4j` and drops the built-in `neo4j` user, which is the
     # only account the image can seed.
     "neo4j": render_neo4j_hook,
+    # Same shape for Cassandra: creates `nexus-cassandra` and drops the
+    # built-in `cassandra` superuser, whose password is `cassandra`.
+    "cassandra": render_cassandra_hook,
+    # Seeds the Django superuser. Hue otherwise hands the administrator
+    # account to whoever registers through the web UI first.
+    "hue": render_hue_hook,
     # Hands the master realm from the throwaway `nexus-bootstrap` admin to the
     # permanent one Infisical lists, then deletes `nexus-bootstrap`.
     "keycloak": render_keycloak_hook,

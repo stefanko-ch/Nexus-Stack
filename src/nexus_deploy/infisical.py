@@ -735,6 +735,82 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "apicurio",
+            _filter_empty(
+                {
+                    # No user management of its own; Cloudflare Access is the
+                    # gate. The username names the database role behind it.
+                    "APICURIO_DB_USERNAME": "nexus-apicurio",
+                    "APICURIO_DB_PASSWORD": config.apicurio_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
+            "hue",
+            _filter_empty(
+                {
+                    # The account the admin hook seeds. Hue's own login sits
+                    # behind Cloudflare Access, as everywhere else.
+                    "HUE_USERNAME": "nexus-hue-admin",
+                    "HUE_PASSWORD": config.hue_admin_password,
+                    "HUE_DB_USERNAME": "nexus-hue",
+                    "HUE_DB_PASSWORD": config.hue_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
+            "mindsdb",
+            _filter_empty(
+                {
+                    # One account, read by both APIs — the HTTP SQL endpoint
+                    # and the MySQL wire protocol.
+                    "MINDSDB_USERNAME": "nexus-mindsdb",
+                    "MINDSDB_PASSWORD": config.mindsdb_password,
+                    "MINDSDB_DB_USERNAME": "nexus-mindsdb",
+                    "MINDSDB_DB_PASSWORD": config.mindsdb_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
+            "hive-metastore",
+            _filter_empty(
+                {
+                    # The metastore has no user management; its Thrift port is
+                    # unauthenticated and bound to loopback. This is the
+                    # database role behind the catalogue.
+                    "HIVE_DB_USERNAME": "nexus-hive",
+                    "HIVE_DB_PASSWORD": config.hive_db_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
+            "cassandra",
+            _filter_empty(
+                {
+                    # The role the admin hook creates. The image's own
+                    # `cassandra` superuser is dropped by that same hook, so
+                    # this is the only account that can log in.
+                    "CASSANDRA_USERNAME": "nexus-cassandra",
+                    "CASSANDRA_PASSWORD": config.cassandra_admin_password,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "cube",
             _filter_empty(
                 {

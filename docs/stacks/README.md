@@ -18,9 +18,14 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Adminer | `adminer` | `latest` | Latest ² |
 | Apache Airflow | `apache/airflow` | `3.3.1` | Exact ¹ |
 | PostgreSQL (Airflow DB) | `postgres` | `17-alpine` | Major |
+| Apicurio Registry | `apicurio/apicurio-registry` | `3.0.13` | Exact ¹ |
+| Apicurio UI (Apicurio) | `apicurio/apicurio-registry-ui` | `3.0.13` | Exact ¹ |
+| nginx (Apicurio) | `nginx` | `1.30.4-alpine` | Exact ¹ |
+| PostgreSQL (Apicurio DB) | `postgres` | `17-alpine` | Major |
 | Appsmith | `appsmith/appsmith-ce` | `v1.98` | Minor |
 | Big-AGI | `ghcr.io/enricoros/big-agi` | `v2.0.4` | Exact ¹ |
 | Budibase | `budibase/budibase` | `v3.43.0` | Exact ¹ |
+| Cassandra | `cassandra` | `5.0.6` | Exact ¹ |
 | Chroma | `chromadb/chroma` | `1.5.9` | Exact ¹ |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
@@ -36,6 +41,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | Grafana | `grafana/grafana` | `11.6` | Minor |
+| Hive Metastore | `nexus-hive-metastore` (custom build) | `4.1.0` | Exact ³ |
+| PostgreSQL (Hive Metastore DB) | `postgres` | `17-alpine` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `2025.12.1` | Exact ¹ |
 | PostgreSQL (Hoppscotch DB) | `postgres` | `15-alpine` | Major |
 | Prometheus | `prom/prometheus` | `v3.9.1` | Exact ¹ |
@@ -54,6 +61,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
 | Kestra | `kestra/kestra` | `v2.0` | Minor |
 | PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
+| Hue | `gethue/hue` | `20260611-140101` | Exact ¹ |
+| PostgreSQL (Hue DB) | `postgres` | `17-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
 | PostgreSQL (Infisical DB) | `postgres` | `18-alpine` | Major |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
@@ -86,6 +95,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Marquez Web | `marquezproject/marquez-web` | `0.51.1` | Exact ¹ |
 | PostgreSQL (Marquez DB) | `postgres` | `16-alpine` | Major |
 | OpenSearch (Marquez) | `opensearchproject/opensearch` | `2.19.6` | Exact ¹ |
+| MindsDB | `mindsdb/mindsdb` | `v26.1.0` | Exact ¹ |
+| PostgreSQL (MindsDB DB) | `postgres` | `17-alpine` | Major |
 | MinIO | `quay.io/minio/minio` | `RELEASE.2025-09-07T16-13-09Z` | Exact ¹ |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
@@ -149,6 +160,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Spark Master | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
 | Spark Worker | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
 | Spark Connect | `nexus-spark` | `4.2.0-python3.13` | Exact ³ |
+| Shiny Server | `nexus-shiny` (custom build) | `4.6.1` | Exact ³ |
+| Streamlit | `nexus-streamlit` (custom build) | `1.64.0` | Exact ³ |
 | Superset | `apache/superset` | `6.0.0` | Exact ¹ |
 | PostgreSQL (Superset DB) | `postgres` | `17-alpine` | Major |
 | Telegraf | `telegraf` | `1.38.2` | Exact ¹ |
@@ -198,9 +211,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Adminer** | Lightweight database management tool | [adminer.md](adminer.md) |
 | **Apache Airflow** | DAG-based workflow orchestration | [airflow.md](airflow.md) |
 | **Apache Spark** | Distributed data processing engine | [spark.md](spark.md) |
+| **Apicurio Registry** | Schema and API-contract registry | [apicurio.md](apicurio.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
+| **Cassandra** | Wide-column distributed database | [cassandra.md](cassandra.md) |
 | **Chroma** | Embedding (vector) database for LLM / RAG | [chroma.md](chroma.md) |
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |
@@ -225,7 +240,9 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
+| **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
+| **Hue** | SQL editor and data browser | [hue.md](hue.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
 | **InfluxDB** | Time-series database with retention and downsampling tasks | [influxdb.md](influxdb.md) |
 | **IT-Tools** | Developer tools collection | [it-tools.md](it-tools.md) |
@@ -246,6 +263,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
+| **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
@@ -274,8 +292,10 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **S3 Manager** | S3 bucket browser | [s3manager.md](s3manager.md) |
 | **SeaweedFS** | Distributed object storage | [seaweedfs.md](seaweedfs.md) |
 | **SFTPGo** | SFTP server with R2 backend (WebDAV/FTPS supported upstream, disabled by default) | [sftpgo.md](sftpgo.md) |
+| **Shiny Server** | R web applications | [shiny.md](shiny.md) |
 | **Sling** | Database-to-database transfers | [sling.md](sling.md) |
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
+| **Streamlit** | Python data apps, one server for all of them | [streamlit.md](streamlit.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |
 | **TimescaleDB** | PostgreSQL with time-series hypertables, continuous aggregates and compression | [timescaledb.md](timescaledb.md) |
