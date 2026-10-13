@@ -79,15 +79,24 @@ than relying on what sits in front of it:
   adds. The RS256 signature is checked against the JWKS your Access team publishes,
   along with the issuer, the application's AUD tag and the expiry. An identity header
   is something a caller can set; a signature is not.
-- **It authorizes per endpoint.** Access answers *whether* someone reaches the
-  Control Plane; it does not distinguish the admin from a student. Each endpoint
-  requires either the admin identity or one of the configured operator identities,
-  and endpoints with no identity requirement at all — the health check and the
+- **It authorizes per endpoint**, in three tiers. Access answers *whether*
+  someone reaches the Control Plane; it does not distinguish the admin from a
+  student. So destroying infrastructure and opening firewall ports require the
+  admin identity; starting the stack and reading secret values require the admin
+  or one of the configured user addresses; and the reads every role is meant to
+  have — status, the stack list, logs — require a verified Access session for
+  this application without comparing the identity to a list, because guest
+  addresses go to the Access policy and are never pushed to the Control Plane.
+  Endpoints with no identity requirement at all — the health check and the
   version banner — are listed as such in a test that fails if a new one appears.
 
 OpenTofu also creates a second, account-scoped Access application covering
-`<project>.pages.dev`, so the configuration and the code both close that door. If
-the Control Plane cannot verify a token — because `ACCESS_AUD` or
+`<project>.pages.dev` — the production Pages hostname, the one that is stable and
+guessable. Per-deployment preview hostnames are not covered by it and are closed
+by the hostname check instead; that asymmetry is the reason the check is in code
+rather than left to the Access configuration alone.
+
+If the Control Plane cannot verify a token — because `ACCESS_AUD` or
 `ACCESS_TEAM_DOMAIN` is missing — it denies every request and names the missing
 value. That direction is deliberate: a locked-out operator notices within seconds,
 a trusted header does not.

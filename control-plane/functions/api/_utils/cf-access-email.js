@@ -12,6 +12,15 @@
 // `getAccessUserEmail` is async as a result. Every caller awaits it.
 import { verifyAccessJwt, AccessJwtError } from './access-jwt.js';
 
+// One verification per request, however many times it is asked for.
+//
+// A request passes a guard and then, in a few handlers, asks for the
+// identity again to record who acted. Verifying twice costs a second
+// RSA verify and — worse — could in principle answer differently either
+// side of a key rotation. Keyed on the Request object, so an entry lives
+// exactly as long as the request does and cannot leak between them.
+const perRequest = new WeakMap();
+
 /**
  * The verified caller's email, or null.
  *
@@ -28,6 +37,18 @@ import { verifyAccessJwt, AccessJwtError } from './access-jwt.js';
  *   missing instead of looking like a permissions problem.
  */
 export async function getAccessUserEmail(request, env, options = {}) {
+  // Only the no-options case is memoised. A caller that passes options is
+  // asking a different question (the tests inject a fetch), and caching
+  // across different questions is how a cache starts lying.
+  const memoisable = Object.keys(options).length === 0;
+  if (memoisable && perRequest.has(request)) return perRequest.get(request);
+
+  const result = await resolveAccessUserEmail(request, env, options);
+  if (memoisable) perRequest.set(request, result);
+  return result;
+}
+
+async function resolveAccessUserEmail(request, env, options) {
   const token = request.headers.get('Cf-Access-Jwt-Assertion');
 
   try {

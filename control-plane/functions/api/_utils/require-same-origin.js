@@ -43,7 +43,31 @@ export function requireSameOrigin(request) {
     return deny('Content-Type must be application/json');
   }
 
+  return requireSameOriginHeader(request);
+}
+
+/**
+ * Check 2 alone, for a state-changing request that carries no body.
+ *
+ * DELETE /api/logs is the case: a browser sends no Content-Type on it, so
+ * the full guard would reject every legitimate call. The Content-Type
+ * half exists to stop an HTML form forging a JSON body — and a form
+ * cannot issue a DELETE at all, so its absence here removes nothing. What
+ * remains is the Origin comparison, and `Sec-Fetch-Site`, which a browser
+ * sets and a page cannot.
+ */
+export function requireSameOriginHeader(request) {
+  // Set by the browser, and not settable from script, so it catches the
+  // case the Origin comparison below cannot: a cross-site request that
+  // arrives without an Origin header. `none` is a direct navigation.
+  const fetchSite = request.headers.get('Sec-Fetch-Site');
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    return deny('Cross-site request refused');
+  }
+
   const origin = request.headers.get('Origin');
+  // A MISSING Origin is allowed on purpose, as above: curl and the CLI
+  // send none, and neither can be driven by a victim's browser.
   if (!origin) return null;
 
   let expected;

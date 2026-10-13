@@ -16,9 +16,13 @@
  *   exp / nbf   with a small clock skew allowance
  *
  * The JWKS is cached per isolate. Workers isolates are short-lived and
- * numerous, so this is a hit-rate optimisation rather than a guarantee —
- * which is the right shape here: a key rotation is picked up by the next
- * cold isolate without any invalidation logic to get wrong.
+ * numerous, so this is a hit-rate optimisation rather than a guarantee.
+ *
+ * A cache alone is not enough, though: Access rotates its signing keys,
+ * and between a rotation and the cache expiring, a warm isolate would
+ * reject perfectly valid tokens. So an unknown `kid` refetches the JWKS
+ * once before rejecting — rate-limited, because `kid` comes from the
+ * token and a made-up one must not buy an outbound request per attempt.
  */
 
 /** Seconds of tolerance for exp/nbf. Access tokens live hours; this is noise. */
@@ -27,8 +31,21 @@ const CLOCK_SKEW_SECONDS = 60;
 /** How long a fetched JWKS is reused inside one isolate. */
 const JWKS_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Floor between two refreshes triggered by an unknown `kid`.
+ *
+ * Without it, a token carrying a random `kid` would cost one request to
+ * Cloudflare per attempt. Shorter than JWKS_TTL_MS, because the case it
+ * serves is a key rotation that must be picked up quickly; long enough
+ * that a flood collapses into one fetch.
+ */
+const JWKS_MISS_REFRESH_MS = 60 * 1000;
+
 /** @type {{ url: string, keys: Map<string, CryptoKey>, fetchedAt: number } | null} */
 let jwksCache = null;
+
+/** When a kid-miss last caused a refetch. Per isolate, like the cache. */
+let lastMissRefreshAt = 0;
 
 export class AccessJwtError extends Error {
   /**
@@ -65,10 +82,10 @@ export function normaliseTeamDomain(raw) {
   return value.includes('.') ? value : `${value}.cloudflareaccess.com`;
 }
 
-async function fetchJwks(teamDomain, fetchImpl) {
+async function fetchJwks(teamDomain, fetchImpl, { force = false } = {}) {
   const url = `https://${teamDomain}/cdn-cgi/access/certs`;
   const now = Date.now();
-  if (jwksCache && jwksCache.url === url && now - jwksCache.fetchedAt < JWKS_TTL_MS) {
+  if (!force && jwksCache && jwksCache.url === url && now - jwksCache.fetchedAt < JWKS_TTL_MS) {
     return jwksCache.keys;
   }
 
@@ -113,6 +130,30 @@ async function fetchJwks(teamDomain, fetchImpl) {
 /** Drop the cache. Exported for tests; nothing in production calls it. */
 export function _resetJwksCache() {
   jwksCache = null;
+  lastMissRefreshAt = 0;
+}
+
+/**
+ * The key for `kid`, refetching the JWKS once if it is not in the cache.
+ *
+ * The refetch is what makes a key rotation visible to a warm isolate. The
+ * rate limit is what stops a forged `kid` from turning every request into
+ * an outbound fetch — on a limited window, a miss is simply a rejection,
+ * which is the correct answer for a `kid` that does not exist.
+ */
+async function keyForKid(kid, teamDomain, fetchImpl, now) {
+  const cached = await fetchJwks(teamDomain, fetchImpl);
+  const key = cached.get(kid);
+  if (key) return key;
+
+  const sinceLastRefresh = now() - lastMissRefreshAt;
+  if (sinceLastRefresh < JWKS_MISS_REFRESH_MS) return undefined;
+
+  // Set before the fetch, not after: a burst of misses that all arrive
+  // while the first fetch is in flight must not each start one.
+  lastMissRefreshAt = now();
+  const refreshed = await fetchJwks(teamDomain, fetchImpl, { force: true });
+  return refreshed.get(kid);
 }
 
 /**
@@ -145,8 +186,7 @@ export async function verifyAccessJwt(token, { teamDomain, aud, fetchImpl = fetc
   if (header?.alg !== 'RS256') throw new AccessJwtError('token alg is not RS256');
   if (typeof header?.kid !== 'string') throw new AccessJwtError('token has no kid');
 
-  const keys = await fetchJwks(team, fetchImpl);
-  const key = keys.get(header.kid);
+  const key = await keyForKid(header.kid, team, fetchImpl, now);
   if (!key) throw new AccessJwtError('token kid is not in the JWKS');
 
   const verified = await crypto.subtle.verify(

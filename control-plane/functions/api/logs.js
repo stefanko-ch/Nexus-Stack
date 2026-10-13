@@ -1,4 +1,4 @@
-import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { requireSameOrigin, requireSameOriginHeader } from './_utils/require-same-origin.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { requireViewer } from './_utils/require-viewer.js';
 
@@ -210,9 +210,12 @@ export async function onRequestPost(context) {
 export async function onRequestDelete(context) {
   const { env, request } = context;
 
-  // Clearing the log is destructive and admin-only. No requireSameOrigin:
-  // a browser DELETE sends no JSON body, which is what that guard checks
-  // for — the identity check is what carries this one.
+  // Clearing the log is destructive and admin-only. The full
+  // requireSameOrigin would reject it — a browser DELETE sends no
+  // Content-Type — so the origin half of that guard runs on its own, and
+  // identity after it, in the same order as every POST here.
+  const crossSite = requireSameOriginHeader(request);
+  if (crossSite) return crossSite;
   const denial = await requireAdmin(env, request);
   if (denial) return denial;
 

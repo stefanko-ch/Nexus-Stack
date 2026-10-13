@@ -294,12 +294,18 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
 # account-scoped instead. The two arguments are mutually exclusive, which
 # is why this is a second resource rather than another `domain`.
 #
-# Without it, protecting those hostnames is a click in the dashboard:
+# This application covers the second one. The preview hostnames it does
+# NOT cover: their names are per-deployment, so an Access application
+# would need a wildcard over a zone that is Cloudflare's rather than
+# ours, and whether that is accepted for an account-scoped application is
+# not something this repository can establish without a failed apply
+# breaking every setup run. They are closed by the hostname check in
+# control-plane/functions/_middleware.js, which is why that check is in
+# code: it covers hostnames an Access application cannot be written for.
+#
+# Without either, protecting these hostnames is a click in the dashboard:
 # outside version control, and not guaranteed to survive the
-# destroy/recreate cycle this project performs routinely. The hostname
-# check in control-plane/functions/_middleware.js is the other half of
-# this — code and configuration, so neither is the only thing standing in
-# the way.
+# destroy/recreate cycle this project performs routinely.
 resource "cloudflare_zero_trust_access_application" "control_plane_pages_dev" {
   # Account-scoped: see the comment above. Not var.cloudflare_zone_id.
   account_id       = var.cloudflare_account_id

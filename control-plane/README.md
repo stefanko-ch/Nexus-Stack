@@ -70,6 +70,11 @@ The Control Plane provides endpoints for debugging and monitoring:
 > request, so a plain `curl` gets an HTTP 403. These examples are what the
 > browser does with your Access session; to reproduce one from a terminal
 > you need the `CF_Authorization` cookie from a logged-in browser.
+>
+> Two exceptions, both deliberate: `/api/health` returns fixed strings and
+> a timestamp, and `/api/version` returns a public GitHub release tag.
+> Neither needs an identity, and an uptime check has none to present. The
+> hostname check in `functions/_middleware.js` still applies to them.
 
 ### GET /api/info
 Returns infrastructure information including server details, uptime, and workflow history.

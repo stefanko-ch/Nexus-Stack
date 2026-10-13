@@ -35,7 +35,9 @@
    - Session: 24 hours
    - OpenTofu creates a second, account-scoped application covering
      `<project>.pages.dev`, because the application above is zone-scoped
-     and `pages.dev` is not in this zone
+     and `pages.dev` is not in this zone. It covers the production Pages
+     hostname only; per-deployment preview hostnames are closed by the
+     hostname check in Layer 2, not by an Access application
 
 2. **The Control Plane's own checks** (Layer 2)
    - `functions/_middleware.js` answers only on the Control Plane's own

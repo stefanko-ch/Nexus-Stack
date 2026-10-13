@@ -57,6 +57,33 @@ test('every API handler either calls a guard or is listed as unguarded', () => {
   assert.deepEqual(missing, []);
 });
 
+test('the guard runs before the handler touches anything', () => {
+  // "Calls a guard somewhere in the body" is not the rule — a guard after
+  // the first database read has already leaked the read. So the awaited
+  // guard must come before the first use of a datastore binding or an
+  // outbound fetch, and before any try block that might contain one.
+  const late = [];
+  for (const { name, source } of files) {
+    for (const { name: handler, body } of handlers(source)) {
+      if ((INTENTIONALLY_UNGUARDED[name] || []).includes(handler)) continue;
+      // Strip comments first: a guard named in prose is not a guard, and
+      // `env.NEXUS_DB` named in prose is not a read.
+      const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const guardAt = code.search(/await require(Admin|Operator|Viewer)\(/);
+      if (guardAt === -1) {
+        late.push(`${name}:${handler} has no guard in its code (only in a comment?)`);
+        continue;
+      }
+      const firstUse = [/\benv\.NEXUS_DB\b/, /\benv\.NEXUS_KV\b/, /\bfetchWithTimeout\(/, /\btry\s*\{/]
+        .map((re) => code.search(re))
+        .filter((i) => i !== -1);
+      const earliest = firstUse.length ? Math.min(...firstUse) : Infinity;
+      if (earliest < guardAt) late.push(`${name}:${handler} reads state before its guard`);
+    }
+  }
+  assert.deepEqual(late, []);
+});
+
 test('no handler calls a guard without awaiting it', () => {
   // `requireAdmin` returns a Promise, and a Promise is truthy — so a
   // forgotten await turns "deny" into "return the denial object as if it
