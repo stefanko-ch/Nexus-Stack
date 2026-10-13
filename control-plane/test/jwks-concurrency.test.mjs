@@ -110,6 +110,58 @@ test('an overlapping fetch cannot install an older key set as the fresh one', as
   void stale;
 });
 
+test('an in-flight refresh for another team is not mistaken for this one', async () => {
+  // One team domain per deployment makes this unreachable in production.
+  // It is here because the check that makes it unreachable is one `&&`
+  // that is easy to drop — and the first version of this test did not
+  // reach that check at all: it asserted on fetch COUNT, which
+  // `fetchJwks` already keeps correct by its own URL comparison, so the
+  // mutation passed. The path that matters is the one in `keyForKid`,
+  // which needs a warm cache plus a kid miss to be reached.
+  _resetJwksCache();
+  const warm = await makeKeypair('warm-kid');
+  const rotated = await makeKeypair('rotated-kid');
+  const theirs = await makeKeypair('their-kid');
+
+  const pending = [];
+  const fetchImpl = async (url) => {
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    pending.push({ url, release });
+    return new Response(JSON.stringify({ keys: await gate }), { status: 200 });
+  };
+  const forTeam = (team) => ({ teamDomain: team, aud: 'test-aud', fetchImpl });
+
+  // 1. Warm OUR cache, so the next lookup needs no fetch of its own.
+  const first = verifyAccessJwt(await signToken({ privateKey: warm.privateKey, kid: 'warm-kid' }), forTeam('testteam'));
+  await new Promise((r) => setImmediate(r));
+  pending[0].release([warm.jwk]);
+  assert.equal((await first).email, 'admin@example.com');
+
+  // 2. Hold a fetch open for a DIFFERENT team, so `jwksInFlight` is set
+  //    and points somewhere else.
+  const other = verifyAccessJwt(await signToken({ privateKey: theirs.privateKey, kid: 'their-kid' }), forTeam('otherteam'))
+    .catch(() => 'rejected');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(pending.length, 2);
+  assert.match(pending[1].url, /otherteam/);
+
+  // 3. Our rotated kid misses our warm cache, which lands in `keyForKid`'s
+  //    in-flight branch. Without the URL comparison it awaits the other
+  //    team's key set, does not find our kid, and rejects a valid token.
+  const mine = verifyAccessJwt(await signToken({ privateKey: rotated.privateKey, kid: 'rotated-kid' }), forTeam('testteam'));
+  await new Promise((r) => setImmediate(r));
+  const ourRefresh = pending.find((c, i) => i > 1 && /testteam/.test(c.url));
+  assert.ok(ourRefresh, 'the kid miss should have started a refresh for OUR team');
+  ourRefresh.release([rotated.jwk]);
+  assert.equal((await mine).email, 'admin@example.com');
+
+  pending[1].release([theirs.jwk]);
+  await other;
+});
+
 test('a stalled JWKS endpoint produces a prompt denial, not a hang', { timeout: 5000 }, async () => {
   _resetJwksCache();
   // Never resolves, and never settles the abort either — the only way

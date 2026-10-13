@@ -1102,35 +1102,66 @@ jobs:
           PAGES_HOSTNAME="${{ steps.prefix.outputs.project_name }}.pages.dev"
           echo "🔍 Looking for an existing Access application on $PAGES_HOSTNAME..."
 
-          # Status and message in separate variables: a failure here must not
-          # read as "no application exists", which would send the apply
-          # straight into the 11010 this step exists to avoid.
-          APPS_FAILED=0
-          APPS_RESPONSE=$(curl -sS --fail-with-body --max-time 30 \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps?per_page=100" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" 2>&1) || APPS_FAILED=$?
-          if [ "$APPS_FAILED" -ne 0 ]; then
-            APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
-            echo "::error title=access-app-adopt::Could not list this account's Access applications (curl exit ${APPS_FAILED}). Cloudflare said: ${APPS_ERROR:-(no error message in the response)}. Without this list the apply cannot tell whether the pages.dev application already exists, and would fail with access.api.error.application_already_exists if it does. CLOUDFLARE_API_TOKEN needs 'Access: Apps and Policies'."
+          # Paginated, because this account holds one Access application per
+          # private service — around 90 of them, plus SSH and the Control
+          # Plane — so a single page of 100 is already nearly full and gets
+          # fuller with every stack added. Reading only the first page
+          # would eventually conclude "no application exists" for one
+          # sitting on page two, and send the apply back into 11010.
+          #
+          # Status and message in separate variables throughout: a failure
+          # here must not read as "none exists" either.
+          APPS_FILE=$(mktemp)
+          PAGE=1
+          TOTAL_PAGES=1
+          # A cap, so a mis-reported total_pages cannot loop forever. 20
+          # pages is 2000 applications; the account would have to grow
+          # twentyfold before this is the limit that bites.
+          MAX_PAGES=20
+          while [ "$PAGE" -le "$TOTAL_PAGES" ] && [ "$PAGE" -le "$MAX_PAGES" ]; do
+            APPS_FAILED=0
+            APPS_RESPONSE=$(curl -sS --fail-with-body --max-time 30 \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps?per_page=100&page=${PAGE}" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" 2>&1) || APPS_FAILED=$?
+            if [ "$APPS_FAILED" -ne 0 ]; then
+              APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+              rm -f "$APPS_FILE"
+              echo "::error title=access-app-adopt::Could not list this account's Access applications, page ${PAGE} (curl exit ${APPS_FAILED}). Cloudflare said: ${APPS_ERROR:-(no error message in the response)}. Without the full list the apply cannot tell whether the pages.dev application already exists, and would fail with access.api.error.application_already_exists if it does. CLOUDFLARE_API_TOKEN needs 'Access: Apps and Policies'."
+              exit 1
+            fi
+
+            # Confirm the response is the shape this reads BEFORE drawing
+            # any conclusion from an empty match. Without this, an
+            # unexpected body — a `success: false`, a truncated response, a
+            # future schema — reads as "none", and the apply then fails
+            # with the opaque 11010 instead of the real reason. Found by
+            # rehearsal, not by reading: a stub curl that exited 0 and
+            # printed nothing took the "no application exists" path
+            # silently.
+            if [ "$(printf '%s' "$APPS_RESPONSE" | jq -r 'if .success == true and (.result | type) == "array" then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
+              APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+              rm -f "$APPS_FILE"
+              echo "::error title=access-app-adopt::Page ${PAGE} of the Access applications list came back in a shape this step cannot read, so it cannot tell whether one already covers ${PAGES_HOSTNAME}. Cloudflare said: ${APPS_ERROR:-(no error message in the response)}."
+              exit 1
+            fi
+
+            printf '%s' "$APPS_RESPONSE" | jq -r '.result[] | [(.domain // ""), .id] | @tsv' >> "$APPS_FILE"
+            TOTAL_PAGES=$(printf '%s' "$APPS_RESPONSE" | jq -r '.result_info.total_pages // 1' 2>/dev/null || echo 1)
+            case "$TOTAL_PAGES" in
+              ''|*[!0-9]*) TOTAL_PAGES=1 ;;
+            esac
+            PAGE=$((PAGE + 1))
+          done
+
+          if [ "$PAGE" -gt "$MAX_PAGES" ] && [ "$TOTAL_PAGES" -ge "$PAGE" ]; then
+            rm -f "$APPS_FILE"
+            echo "::error title=access-app-adopt::This account reports ${TOTAL_PAGES} pages of Access applications, more than the ${MAX_PAGES} this step reads. It cannot establish whether one already covers ${PAGES_HOSTNAME}, and will not guess. Raise MAX_PAGES in this step."
             exit 1
           fi
 
-          # Confirm the response is the shape this reads BEFORE concluding
-          # "no application exists" from an empty match. Without this, any
-          # unexpected body — a `success: false`, a truncated response, a
-          # future schema — reads as "none", and the apply then fails with
-          # the opaque 11010 instead of the real reason. Caught by stubbing
-          # a curl that exits 0 and prints nothing, which is exactly what
-          # that silent path looks like.
-          if [ "$(printf '%s' "$APPS_RESPONSE" | jq -r 'if .success == true and (.result | type) == "array" then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
-            APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
-            echo "::error title=access-app-adopt::The Access applications list came back in a shape this step cannot read, so it cannot tell whether one already covers ${PAGES_HOSTNAME}. Cloudflare said: ${APPS_ERROR:-(no error message in the response)}."
-            exit 1
-          fi
-
-          APP_ID=$(printf '%s' "$APPS_RESPONSE" \
-            | jq -r --arg host "$PAGES_HOSTNAME" '.result[] | select(.domain == $host) | .id' 2>/dev/null | head -1)
+          echo "  Read $(wc -l < "$APPS_FILE" | tr -d ' ') Access applications across $((PAGE - 1)) page(s)"
+          APP_ID=$(awk -F'\t' -v host="$PAGES_HOSTNAME" '$1 == host { print $2; exit }' "$APPS_FILE")
 
           if [ -z "$APP_ID" ]; then
             # An application whose domain is not exactly this host but still
@@ -1140,16 +1171,18 @@ jobs:
             # sets `domain` to the exact host, so adopting a wildcard would
             # have the next apply narrow it, silently removing the preview
             # protection somebody set up by hand. Report it and stop.
-            NEARBY=$(printf '%s' "$APPS_RESPONSE" \
-              | jq -r --arg host "$PAGES_HOSTNAME" '.result[] | select((.domain // "") | endswith($host)) | .domain' 2>/dev/null | head -3 | tr '\n' ' ')
+            NEARBY=$(awk -F'\t' -v host="$PAGES_HOSTNAME" 'index($1, host) && $1 != host { print $1 }' "$APPS_FILE" | head -3 | tr '\n' ' ')
             if [ -n "$NEARBY" ]; then
+              rm -f "$APPS_FILE"
               echo "::error title=access-app-adopt::An Access application covers ${PAGES_HOSTNAME} under a different domain pattern (${NEARBY}), so it cannot be adopted into a resource whose domain is the exact host — doing so would narrow it on the next apply and drop whatever else it covers, such as the preview hostnames. Decide which you want: keep the broader application and remove cloudflare_zero_trust_access_application.control_plane_pages_dev from tofu/control-plane/main.tf, or delete the broader one in Zero Trust -> Access -> Applications and re-run. The hostname check in control-plane/functions/_middleware.js covers every pages.dev hostname either way."
               exit 1
             fi
+            rm -f "$APPS_FILE"
             echo "ℹ️  No existing application on $PAGES_HOSTNAME - tofu apply will create it"
             exit 0
           fi
 
+          rm -f "$APPS_FILE"
           echo "💾 Found one - importing so Terraform owns it from here on..."
           if ! tofu import -var-file=config.tfvars "$APP_RESOURCE" "${CLOUDFLARE_ACCOUNT_ID}/${APP_ID}"; then
             # Not a warning. The application exists, so the apply that

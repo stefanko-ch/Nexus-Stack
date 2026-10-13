@@ -168,8 +168,13 @@ async function loadJwks(url, fetchImpl, timeoutMs) {
  *   behind a rotation. It does NOT bypass coalescing: an in-flight fetch
  *   is already the newer answer.
  */
+/** Where a team publishes its keys. One expression, two comparisons. */
+function jwksUrl(teamDomain) {
+  return `https://${teamDomain}/cdn-cgi/access/certs`;
+}
+
 async function fetchJwks(teamDomain, fetchImpl, { force = false, timeoutMs = JWKS_TIMEOUT_MS } = {}) {
-  const url = `https://${teamDomain}/cdn-cgi/access/certs`;
+  const url = jwksUrl(teamDomain);
   if (
     !force &&
     jwksCache &&
@@ -219,12 +224,17 @@ async function keyForKid(kid, teamDomain, fetchImpl, now, timeoutMs) {
   const key = cached.get(kid);
   if (key) return key;
 
-  // A refresh already running is the one this request wants. Checked
-  // BEFORE the cooldown, because the cooldown exists to suppress new
-  // outbound requests — and waiting on one that is already in flight
-  // starts none. Getting this order wrong is what makes a rotation
-  // reject the very tokens the refresh is being done for.
-  if (jwksInFlight) {
+  // A refresh already running for THIS team is the one this request
+  // wants. Checked BEFORE the cooldown, because the cooldown exists to
+  // suppress new outbound requests — and waiting on one that is already
+  // in flight starts none. Getting this order wrong is what makes a
+  // rotation reject the very tokens the refresh is being done for.
+  //
+  // The URL comparison matches the one in fetchJwks. One team domain per
+  // deployment makes a mismatch unreachable today; without the check,
+  // the day that stops being true is the day this awaits another team's
+  // key set and rejects a valid token.
+  if (jwksInFlight && jwksInFlight.url === jwksUrl(teamDomain)) {
     return (await jwksInFlight.promise).get(kid);
   }
 
