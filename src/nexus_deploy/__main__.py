@@ -2593,15 +2593,14 @@ def _select_capacity(args: list[str]) -> int:
     Pre-flight step that runs in spin-up.yml BEFORE ``tofu apply``:
     walks an operator-provided preference list of ``<server_type>:
     <location>`` pairs, queries Hetzner Cloud's API
-    (``/v1/server_types`` to resolve type name → ID, then
-    ``/v1/datacenters`` for the per-DC ``available`` list keyed by
-    those IDs), and rewrites ``config.tfvars`` to the first pair
-    that is in stock. Lets a deploy survive a Hetzner capacity
-    crunch by transparently falling through to the next region
-    without operator intervention. (PR #537 R4 #3 — docstring
-    corrected to mention both endpoints; the previous text only
-    listed ``/v1/datacenters`` which made API-permission debugging
-    harder.)
+    (``/v1/server_types``, where each type carries a ``locations``
+    array with an ``available`` flag per location), and rewrites
+    ``config.tfvars`` to the first pair that is in stock. Lets a
+    deploy survive a Hetzner capacity crunch by transparently falling
+    through to the next region without operator intervention.
+
+    One endpoint since 2026-10-01, when Hetzner removed the datacenter
+    endpoints this step used to pair it with.
 
     Preference source priority (first non-empty wins):
 

@@ -197,21 +197,26 @@ _FAKE_SERVER_TYPES = {
 }
 
 
+#: The one URL the module may request. Matched EXACTLY by the fake below —
+#: a substring match on "/server_types" would also accept
+#: `/v1/server_types/invalid`, so a broken path would pass the tests.
+_EXPECTED_URL = "https://api.hetzner.cloud/v1/server_types?per_page=200"
+
+
 def _make_http_get(types_payload: Any) -> Any:
-    """Build a fake ``http_get``. Only ``/v1/server_types`` is reachable:
-    the datacenter endpoints were removed by Hetzner on 2026-10-01 and
-    answer 410 Gone, so a call to one is a bug this fake must expose."""
+    """Build a fake ``http_get`` that serves exactly one URL.
+
+    Anything else is a bug the fake must expose rather than absorb: the
+    datacenter endpoints were removed by Hetzner on 2026-10-01 and answer
+    410 Gone, and a malformed server-types path would 404.
+    """
     calls: list[tuple[str, str]] = []
 
     def _http_get(url: str, token: str) -> Any:
         calls.append((url, token))
-        if "/datacenters" in url:
-            raise AssertionError(
-                "called /v1/datacenters — removed by Hetzner on 2026-10-01 (410 Gone)"
-            )
-        if "/server_types" in url:
-            return types_payload
-        raise AssertionError(f"unexpected URL {url}")
+        if url != _EXPECTED_URL:
+            raise AssertionError(f"requested {url!r}, expected {_EXPECTED_URL!r}")
+        return types_payload
 
     _http_get.calls = calls  # type: ignore[attr-defined]
     return _http_get
@@ -228,7 +233,7 @@ def test_fetch_availability_happy_path() -> None:
     # removed on 2026-10-01; the availability it carried moved into each
     # server type's own `locations` array.
     assert len(fake.calls) == 1
-    assert "/server_types" in fake.calls[0][0]
+    assert fake.calls[0][0] == _EXPECTED_URL
 
 
 def test_fetch_availability_keeps_locations_that_have_nothing_available() -> None:
@@ -732,3 +737,45 @@ def test_every_raise_site_sets_a_detail() -> None:
     assert raises, "no raise sites found — the regex no longer matches"
     for site in raises:
         assert "detail=" in site, f"raise without a detail: {site.strip()[:70]}"
+
+
+def test_fetch_availability_survives_a_non_list_locations_field() -> None:
+    """A truthy non-list used to raise TypeError out of this function.
+
+    `_select_capacity` catches only `HetznerCapacityError`, so the CLI
+    printed a traceback instead of a message and an exit code — which is
+    the opposite of what the module's schema-drift posture promises.
+    """
+    payload = {
+        "server_types": [
+            {"name": "broken", "locations": 5},
+            {"name": "alsobroken", "locations": "abc"},
+            {"name": "mapping", "locations": {"fsn1": True}},
+            {"name": "good", "locations": [{"name": "fsn1", "available": True}]},
+        ],
+    }
+    assert fetch_availability("t", http_get=_make_http_get(payload)) == {"fsn1": {"good"}}
+
+
+@pytest.mark.parametrize("locations", [5, "abc", {"fsn1": True}, None])
+def test_fetch_availability_raises_when_nothing_parses(locations: Any) -> None:
+    """A non-empty catalogue yielding no locations at all is schema drift,
+    not a capacity state — every real type lists the locations it is
+    offered in, available or not.
+
+    Reporting it as "nothing in stock anywhere" would send the operator
+    looking for a Hetzner outage that is not happening.
+    """
+    payload = {"server_types": [{"name": "x", "locations": locations}]}
+    with pytest.raises(HetznerCapacityError) as excinfo:
+        fetch_availability("t", http_get=_make_http_get(payload))
+
+    assert excinfo.value.detail == "/v1/server_types had no parseable 'locations'"
+
+
+def test_the_fake_rejects_a_malformed_server_types_path() -> None:
+    """Guards the guard: a substring match would have accepted
+    `/v1/server_types/invalid` and hidden a broken request path."""
+    fake = _make_http_get(_FAKE_SERVER_TYPES)
+    with pytest.raises(AssertionError, match="expected"):
+        fake("https://api.hetzner.cloud/v1/server_types/invalid", "t")

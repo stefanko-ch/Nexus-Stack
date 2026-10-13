@@ -13,18 +13,18 @@ Public surface:
 * :class:`ServerSpec` — frozen ``(server_type, location)`` pair.
 * :class:`HetznerCapacityError` — API/auth/network/schema failure.
 * :func:`parse_preferences` — comma-list parser with validation.
-* :func:`fetch_availability` — calls ``/v1/server_types`` +
-  ``/v1/datacenters`` and returns ``location -> {available type names}``.
+* :func:`fetch_availability` — calls ``/v1/server_types`` and returns
+  ``location -> {available type names}``.
 * :func:`select` — walk preferences in order, return first match.
 
 Default preference list lives in :data:`DEFAULT_PREFERENCES` — used
 when neither config.tfvars nor the workflow override provides one.
 
-Why two API calls instead of one: ``/v1/datacenters`` returns
-server-type IDs as integers; the per-stock list is keyed by ID, not
-name. We resolve names→IDs via ``/v1/server_types`` once, then walk
-the datacenters response. Both endpoints are stable and the round-
-trip is small (a few KB each).
+Why one API call: each server type carries its own ``locations``
+array with an ``available`` flag per location, so the catalogue and
+the stock list arrive together. This used to take two calls, the
+second against ``/v1/datacenters`` — Hetzner removed those endpoints
+on 2026-10-01 and they now answer HTTP 410 Gone.
 """
 
 from __future__ import annotations
@@ -125,7 +125,12 @@ DEFAULT_PREFERENCES = (
 
 
 def _path_of(url: str) -> str:
-    """`https://api.hetzner.cloud/v1/datacenters?per_page=50` -> `/v1/datacenters`.
+    """`https://api.hetzner.cloud/v1/server_types?per_page=200` -> `/server_types`.
+
+    `_API_BASE` already ends in `/v1`, so stripping it strips the version
+    too. `test_error_detail_names_the_status_and_the_path` asserts the
+    result, which is what makes this example checkable rather than a
+    claim.
 
     Ours, not upstream: it is built from the literal `_API_BASE` and the
     path this module asked for, so it is safe to print.
@@ -450,7 +455,16 @@ def fetch_availability(
         if not isinstance(st_name, str):
             continue
         st_name = st_name.lower()
-        for entry in st.get("locations") or []:
+        locations = st.get("locations")
+        if not isinstance(locations, list):
+            # A truthy non-list used to reach the `for` and raise TypeError
+            # — uncaught, because the CLI only handles HetznerCapacityError,
+            # so an API schema change surfaced as a traceback instead of a
+            # message. Skipping keeps this consistent with how every other
+            # malformed entry here is treated; the empty-result check below
+            # is what stops a wholesale skip from reading as "no capacity".
+            continue
+        for entry in locations:
             if not isinstance(entry, dict):
                 continue
             loc_name = entry.get("name")
@@ -467,6 +481,18 @@ def fetch_availability(
             # make every location look available.
             if entry.get("available") is True:
                 bucket.add(st_name)
+
+    # A non-empty catalogue that yields no locations at all is not a
+    # capacity state — every real server type lists the locations it is
+    # offered in, available or not. It means the shape changed under us,
+    # and reporting it as "nothing in stock anywhere" would send the
+    # operator looking for a Hetzner outage that is not happening.
+    if server_types and not by_location:
+        raise HetznerCapacityError(
+            f"Hetzner /v1/server_types returned {len(server_types)} types "
+            "but no parseable 'locations' entries",
+            detail="/v1/server_types had no parseable 'locations'",
+        )
     return by_location
 
 
