@@ -394,9 +394,9 @@ jobs:
         # location combinations during capacity crunches; a single-
         # pair config.tfvars then fails ``tofu apply`` with
         # ``resource_unavailable``. This step queries the Hetzner
-        # Cloud API (``/v1/server_types`` to resolve type names to
-        # internal IDs, then ``/v1/datacenters`` for per-DC live
-        # availability keyed by those IDs) BEFORE tofu runs and
+        # Cloud API (``/v1/server_types``, where each type carries a
+        # ``locations`` array with an ``available`` flag per location)
+        # BEFORE tofu runs and
         # picks the first available pair from the operator-provided
         # preference list (vars.SERVER_PREFERENCES → config.tfvars's
         # server_preferences key → legacy single-pair shorthand →

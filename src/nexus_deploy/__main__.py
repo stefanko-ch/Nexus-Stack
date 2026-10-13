@@ -2593,15 +2593,14 @@ def _select_capacity(args: list[str]) -> int:
     Pre-flight step that runs in spin-up.yml BEFORE ``tofu apply``:
     walks an operator-provided preference list of ``<server_type>:
     <location>`` pairs, queries Hetzner Cloud's API
-    (``/v1/server_types`` to resolve type name → ID, then
-    ``/v1/datacenters`` for the per-DC ``available`` list keyed by
-    those IDs), and rewrites ``config.tfvars`` to the first pair
-    that is in stock. Lets a deploy survive a Hetzner capacity
-    crunch by transparently falling through to the next region
-    without operator intervention. (PR #537 R4 #3 — docstring
-    corrected to mention both endpoints; the previous text only
-    listed ``/v1/datacenters`` which made API-permission debugging
-    harder.)
+    (``/v1/server_types``, where each type carries a ``locations``
+    array with an ``available`` flag per location), and rewrites
+    ``config.tfvars`` to the first pair that is in stock. Lets a
+    deploy survive a Hetzner capacity crunch by transparently falling
+    through to the next region without operator intervention.
+
+    One endpoint since 2026-10-01, when Hetzner removed the datacenter
+    endpoints this step used to pair it with.
 
     Preference source priority (first non-empty wins):
 
@@ -2771,11 +2770,16 @@ def _select_capacity(args: list[str]) -> int:
     try:
         availability = _hetzner.fetch_availability(token)
     except _hetzner.HetznerCapacityError as exc:
-        # Type only, never str(exc): the message embeds the response body,
-        # which is upstream text we do not control. Per CLAUDE.md and the
-        # src/nexus_deploy path instructions.
+        # `exc.detail`, never str(exc). The message may embed the response
+        # body, which is upstream text we do not control; the detail is
+        # assembled from an HTTP status and an API path, which are ours.
+        #
+        # The difference is not cosmetic. With the type alone, "no token",
+        # "401", "410", "timeout" and "schema change" all printed the same
+        # line — and the one that happened on 2026-10-13 was a 410, because
+        # Hetzner had removed the datacenter endpoints twelve days earlier.
         print(
-            f"select-capacity: Hetzner API failure ({type(exc).__name__})",
+            f"select-capacity: Hetzner API failure — {exc.detail or type(exc).__name__}",
             file=sys.stderr,
         )
         return 2
@@ -2796,8 +2800,9 @@ def _select_capacity(args: list[str]) -> int:
         try:
             types = _hetzner.fetch_server_types(token)
         except _hetzner.HetznerCapacityError as exc:
+            # Same rule as the handler above: detail, not str(exc).
             print(
-                f"select-capacity: Hetzner API failure ({type(exc).__name__})",
+                f"select-capacity: Hetzner API failure — {exc.detail or type(exc).__name__}",
                 file=sys.stderr,
             )
             return 2
@@ -3069,7 +3074,10 @@ def _server_poweroff(args: list[str]) -> int:
     try:
         _hsnap.poweroff_server(server_id, token)
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"server-poweroff: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
+        print(
+            f"server-poweroff: Hetzner API failure ({type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
     sys.stderr.write(f"✓ server-poweroff: server {server_id} is off\n")
     return 0
@@ -3153,7 +3161,10 @@ def _snapshot_create(args: list[str]) -> int:
             timestamp=timestamp,
         )
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-create: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
+        print(
+            f"snapshot-create: Hetzner API failure ({type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
 
     sys.stderr.write(f"✓ snapshot-create: {snapshot}\n")
@@ -3197,7 +3208,10 @@ def _snapshot_resolve(args: list[str]) -> int:
             expect_epoch=expect_epoch or None,
         )
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-resolve: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
+        print(
+            f"snapshot-resolve: Hetzner API failure ({type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
 
     if snapshot is None:
@@ -3244,7 +3258,10 @@ def _snapshot_prune(args: list[str]) -> int:
         snapshots = _hsnap.list_snapshots(token, domain_slug=domain_slug)
         prunable = _hsnap.select_prunable(snapshots, keep=keep)
     except _hsnap.HetznerSnapshotError as exc:
-        print(f"snapshot-prune: Hetzner API failure ({type(exc).__name__})", file=sys.stderr)
+        print(
+            f"snapshot-prune: Hetzner API failure ({type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
 
     if not prunable:

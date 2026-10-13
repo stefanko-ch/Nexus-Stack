@@ -13,18 +13,18 @@ Public surface:
 * :class:`ServerSpec` — frozen ``(server_type, location)`` pair.
 * :class:`HetznerCapacityError` — API/auth/network/schema failure.
 * :func:`parse_preferences` — comma-list parser with validation.
-* :func:`fetch_availability` — calls ``/v1/server_types`` +
-  ``/v1/datacenters`` and returns ``location -> {available type names}``.
+* :func:`fetch_availability` — calls ``/v1/server_types`` and returns
+  ``location -> {available type names}``.
 * :func:`select` — walk preferences in order, return first match.
 
 Default preference list lives in :data:`DEFAULT_PREFERENCES` — used
 when neither config.tfvars nor the workflow override provides one.
 
-Why two API calls instead of one: ``/v1/datacenters`` returns
-server-type IDs as integers; the per-stock list is keyed by ID, not
-name. We resolve names→IDs via ``/v1/server_types`` once, then walk
-the datacenters response. Both endpoints are stable and the round-
-trip is small (a few KB each).
+Why one API call: each server type carries its own ``locations``
+array with an ``available`` flag per location, so the catalogue and
+the stock list arrive together. This used to take two calls, the
+second against ``/v1/datacenters`` — Hetzner removed those endpoints
+on 2026-10-01 and they now answer HTTP 410 Gone.
 """
 
 from __future__ import annotations
@@ -124,8 +124,42 @@ DEFAULT_PREFERENCES = (
 )
 
 
+def _path_of(url: str) -> str:
+    """`https://api.hetzner.cloud/v1/server_types?per_page=200` -> `/server_types`.
+
+    `_API_BASE` already ends in `/v1`, so stripping it strips the version
+    too. `test_error_detail_names_the_status_and_the_path` asserts the
+    result, which is what makes this example checkable rather than a
+    claim.
+
+    Ours, not upstream: it is built from the literal `_API_BASE` and the
+    path this module asked for, so it is safe to print.
+    """
+    return url.removeprefix(_API_BASE).split("?", 1)[0] or url
+
+
 class HetznerCapacityError(Exception):
-    """Hetzner API call failed (auth / network / schema drift / timeout)."""
+    """API/auth/network/schema failure talking to the Hetzner Cloud API.
+
+    Carries a ``detail`` string alongside the message. The two differ in
+    what they may contain, and that distinction is the whole point:
+
+    * ``str(exc)`` may embed the response body or a decoder's complaint —
+      upstream text we do not control, which must not reach a CI log.
+    * ``detail`` is assembled here from an HTTP status, an API path and
+      an exception class name. All three are ours, so the CLI can print
+      it.
+
+    Written after an outage where the CLI printed only the exception
+    TYPE, so five unrelated causes — no token, HTTP 401, HTTP 410,
+    a network timeout, a schema change — were indistinguishable. The one
+    that actually happened was a 410: Hetzner removed the datacenter
+    endpoints on 2026-10-01.
+    """
+
+    def __init__(self, message: str, *, detail: str | None = None) -> None:
+        super().__init__(message)
+        self.detail = detail
 
 
 @dataclass(frozen=True)
@@ -177,7 +211,7 @@ def fetch_server_types(
     endpoint we already hit, and only on the snapshot path.
     """
     if not token:
-        raise HetznerCapacityError("HCLOUD_TOKEN not set")
+        raise HetznerCapacityError("HCLOUD_TOKEN not set", detail="HCLOUD_TOKEN is empty")
     get = http_get if http_get is not None else _default_http_get
 
     payload = get(f"{_API_BASE}/server_types?per_page=200", token)
@@ -185,6 +219,7 @@ def fetch_server_types(
     if not isinstance(server_types, list):
         raise HetznerCapacityError(
             "Hetzner /v1/server_types response missing 'server_types' list",
+            detail="/v1/server_types response had no 'server_types' list",
         )
 
     out: dict[str, ServerTypeInfo] = {}
@@ -342,10 +377,12 @@ def _default_http_get(url: str, token: str) -> Any:
     except urllib.error.HTTPError as exc:
         raise HetznerCapacityError(
             f"Hetzner API HTTP {exc.code} for {url}: {exc.reason}",
+            detail=f"HTTP {exc.code} from {_path_of(url)}",
         ) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise HetznerCapacityError(
             f"Hetzner API request failed for {url}: {type(exc).__name__}: {exc}",
+            detail=f"{type(exc).__name__} reaching {_path_of(url)}",
         ) from exc
     # PR #537 R6 #4: catch UnicodeDecodeError from a non-UTF-8 body
     # (e.g. a misconfigured upstream proxy serving binary garbage on
@@ -357,12 +394,14 @@ def _default_http_get(url: str, token: str) -> Any:
     except UnicodeDecodeError as exc:
         raise HetznerCapacityError(
             f"Hetzner API returned non-UTF-8 body for {url}: {exc}",
+            detail=f"non-UTF-8 body from {_path_of(url)}",
         ) from exc
     try:
         return json.loads(body)
     except json.JSONDecodeError as exc:
         raise HetznerCapacityError(
             f"Hetzner API returned non-JSON for {url}: {exc}",
+            detail=f"non-JSON body from {_path_of(url)}",
         ) from exc
 
 
@@ -371,22 +410,34 @@ def fetch_availability(
     *,
     http_get: HttpGet | None = None,
 ) -> dict[str, set[str]]:
-    """Query ``/v1/server_types`` + ``/v1/datacenters``.
+    """Query ``/v1/server_types``.
 
-    Returns a map ``{location_name: {available_server_type_name, ...}}``.
-    A location is considered to "have" a server type if ANY datacenter
-    at that location lists the type's ID in ``server_types.available``.
-    (A single location like ``fsn1`` typically has 1-2 datacenters
-    such as ``fsn1-dc14``; treating any-DC-available as
-    location-available matches what ``tofu apply`` would actually
-    succeed at.)
+    Returns a map ``{location_name: {available_server_type_name, ...}}``,
+    built from each type's own ``locations`` array:
+
+        {"name": "cpx42", "locations": [
+            {"id": 1, "name": "fsn1", "available": true, ...}, ...]}
+
+    This used to take two calls — ``/v1/server_types`` for the id→name
+    map plus ``/v1/datacenters`` for ``server_types.available`` per
+    datacenter. Hetzner **removed** the datacenter endpoints on
+    2026-10-01 (announced 2026-06-02); they answer HTTP 410 Gone with
+    ``error.code = deprecated_api_endpoint``. The replacement they named
+    is ``server_types.locations.available``, which is in the response
+    this function already fetched, so the second call is gone rather
+    than replaced.
+
+    One consequence worth knowing: availability is now reported per
+    LOCATION rather than per datacenter, so the old "available in any
+    datacenter at this location" aggregation is no longer an
+    approximation — the API states it directly.
 
     Raises :class:`HetznerCapacityError` on auth/network failures or
-    when either response is missing the expected top-level field
+    when the response is missing the expected top-level field
     (defensive against a future API schema change).
     """
     if not token:
-        raise HetznerCapacityError("HCLOUD_TOKEN not set")
+        raise HetznerCapacityError("HCLOUD_TOKEN not set", detail="HCLOUD_TOKEN is empty")
     get = http_get if http_get is not None else _default_http_get
 
     types_payload = get(f"{_API_BASE}/server_types?per_page=200", token)
@@ -394,42 +445,54 @@ def fetch_availability(
     if not isinstance(server_types, list):
         raise HetznerCapacityError(
             "Hetzner /v1/server_types response missing 'server_types' list",
+            detail="/v1/server_types response had no 'server_types' list",
         )
-    id_to_name: dict[int, str] = {}
+    by_location: dict[str, set[str]] = {}
     for st in server_types:
         if not isinstance(st, dict):
             continue
-        st_id = st.get("id")
         st_name = st.get("name")
-        if isinstance(st_id, int) and isinstance(st_name, str):
-            id_to_name[st_id] = st_name.lower()
+        if not isinstance(st_name, str):
+            continue
+        st_name = st_name.lower()
+        locations = st.get("locations")
+        if not isinstance(locations, list):
+            # A truthy non-list used to reach the `for` and raise TypeError
+            # — uncaught, because the CLI only handles HetznerCapacityError,
+            # so an API schema change surfaced as a traceback instead of a
+            # message. Skipping keeps this consistent with how every other
+            # malformed entry here is treated; the empty-result check below
+            # is what stops a wholesale skip from reading as "no capacity".
+            continue
+        for entry in locations:
+            if not isinstance(entry, dict):
+                continue
+            loc_name = entry.get("name")
+            if not isinstance(loc_name, str):
+                continue
+            # Register the location even when nothing is available there.
+            # A location missing from the map means "unknown" downstream,
+            # and `render_status_lines` prints it as `? (unknown location)`
+            # — wrong for a real Hetzner location that simply has no
+            # capacity. Present-but-empty prints `✗`, which is the truth.
+            bucket = by_location.setdefault(loc_name.lower(), set())
+            # `is True`, not truthy: the field is a bool, and a schema
+            # change that turned it into a non-empty string would otherwise
+            # make every location look available.
+            if entry.get("available") is True:
+                bucket.add(st_name)
 
-    dc_payload = get(f"{_API_BASE}/datacenters?per_page=50", token)
-    datacenters = dc_payload.get("datacenters") if isinstance(dc_payload, dict) else None
-    if not isinstance(datacenters, list):
+    # A non-empty catalogue that yields no locations at all is not a
+    # capacity state — every real server type lists the locations it is
+    # offered in, available or not. It means the shape changed under us,
+    # and reporting it as "nothing in stock anywhere" would send the
+    # operator looking for a Hetzner outage that is not happening.
+    if server_types and not by_location:
         raise HetznerCapacityError(
-            "Hetzner /v1/datacenters response missing 'datacenters' list",
+            f"Hetzner /v1/server_types returned {len(server_types)} types "
+            "but no parseable 'locations' entries",
+            detail="/v1/server_types had no parseable 'locations'",
         )
-
-    by_location: dict[str, set[str]] = {}
-    for dc in datacenters:
-        if not isinstance(dc, dict):
-            continue
-        location = dc.get("location")
-        if not isinstance(location, dict):
-            continue
-        loc_name = location.get("name")
-        if not isinstance(loc_name, str):
-            continue
-        loc_name = loc_name.lower()
-        st_field = dc.get("server_types")
-        if not isinstance(st_field, dict):
-            continue
-        available = st_field.get("available")
-        if not isinstance(available, list):
-            continue
-        names = {id_to_name[i] for i in available if isinstance(i, int) and i in id_to_name}
-        by_location.setdefault(loc_name, set()).update(names)
     return by_location
 
 
