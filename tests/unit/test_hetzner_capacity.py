@@ -220,7 +220,9 @@ def _make_http_get(types_payload: Any) -> Any:
 def test_fetch_availability_happy_path() -> None:
     fake = _make_http_get(_FAKE_SERVER_TYPES)
     result = fetch_availability("token-abc", http_get=fake)
-    assert result == {"fsn1": {"cx43", "ccx33"}, "nbg1": {"ccx33"}}
+    # hel1 is listed by all three fixture types and available at none, so it
+    # is present and empty — see the test below for why that matters.
+    assert result == {"fsn1": {"cx43", "ccx33"}, "nbg1": {"ccx33"}, "hel1": set()}
     assert all(token == "token-abc" for _url, token in fake.calls)
     # ONE call now. The second one went to /v1/datacenters, which Hetzner
     # removed on 2026-10-01; the availability it carried moved into each
@@ -229,15 +231,30 @@ def test_fetch_availability_happy_path() -> None:
     assert "/server_types" in fake.calls[0][0]
 
 
-def test_fetch_availability_omits_locations_where_nothing_is_available() -> None:
-    """A location appears only if at least one type is available there.
+def test_fetch_availability_keeps_locations_that_have_nothing_available() -> None:
+    """A real location with no capacity must stay in the map, as an empty set.
 
-    `hel1` is listed by all three fixture types and available at none, so
-    it must not appear at all — an empty set would read as "known and
-    empty", which `select_server_type` treats differently from "unknown".
+    Dropping it is not equivalent: downstream, a location missing from the
+    map means UNKNOWN, and `render_status_lines` prints
+    `? (unknown location)` — which is wrong for a location Hetzner lists
+    and simply has no capacity at. Present-but-empty prints `✗`.
     """
     result = fetch_availability("t", http_get=_make_http_get(_FAKE_SERVER_TYPES))
-    assert "hel1" not in result
+    assert result["hel1"] == set()
+
+
+def test_unavailable_location_renders_as_a_cross_not_as_unknown() -> None:
+    """The consequence of the test above, pinned where an operator sees it.
+
+    A dict-shape assertion alone does not catch this: both shapes look
+    plausible until you render them.
+    """
+    availability = fetch_availability("t", http_get=_make_http_get(_FAKE_SERVER_TYPES))
+    prefs = parse_preferences("cx43:hel1,cx43:fsn1")
+    lines = render_status_lines(prefs, availability, select(prefs, availability))
+
+    assert "✗ 1. cx43:hel1" in lines[0], lines
+    assert "unknown location" not in lines[0], lines
 
 
 def test_fetch_availability_unions_types_across_one_location() -> None:
@@ -279,7 +296,7 @@ def test_fetch_availability_skips_malformed_entries() -> None:
         ],
     }
     result = fetch_availability("t", http_get=_make_http_get(payload))
-    assert result == {"fsn1": {"good"}}
+    assert result["fsn1"] == {"good"}
 
 
 def test_fetch_availability_treats_only_true_as_available() -> None:
@@ -297,7 +314,7 @@ def test_fetch_availability_treats_only_true_as_available() -> None:
             {"name": "absent", "locations": [{"name": "fsn1"}]},
         ],
     }
-    assert fetch_availability("t", http_get=_make_http_get(payload)) == {"fsn1": {"yes"}}
+    assert fetch_availability("t", http_get=_make_http_get(payload))["fsn1"] == {"yes"}
 
 
 def test_select_returns_first_match() -> None:

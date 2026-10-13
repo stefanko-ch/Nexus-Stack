@@ -454,11 +454,19 @@ def fetch_availability(
             if not isinstance(entry, dict):
                 continue
             loc_name = entry.get("name")
-            # `available is True`, not truthy: the field is a bool, and a
-            # schema change that turned it into a string would otherwise
+            if not isinstance(loc_name, str):
+                continue
+            # Register the location even when nothing is available there.
+            # A location missing from the map means "unknown" downstream,
+            # and `render_status_lines` prints it as `? (unknown location)`
+            # — wrong for a real Hetzner location that simply has no
+            # capacity. Present-but-empty prints `✗`, which is the truth.
+            bucket = by_location.setdefault(loc_name.lower(), set())
+            # `is True`, not truthy: the field is a bool, and a schema
+            # change that turned it into a non-empty string would otherwise
             # make every location look available.
-            if isinstance(loc_name, str) and entry.get("available") is True:
-                by_location.setdefault(loc_name.lower(), set()).add(st_name)
+            if entry.get("available") is True:
+                bucket.add(st_name)
     return by_location
 
 
