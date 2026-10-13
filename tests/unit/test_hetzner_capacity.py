@@ -10,16 +10,21 @@ Three layers:
 
 Hetzner's API responses are stable enough that we hard-code
 representative fixture payloads. The two-call pattern (server_types
-then datacenters) is reproduced verbatim so a future schema change
+locations) is reproduced verbatim so a future schema change
 shows up as a focused test failure rather than a runtime surprise.
 """
 
 from __future__ import annotations
 
+import pathlib
+import re
+import urllib.error
 from typing import Any
+from unittest import mock
 
 import pytest
 
+from nexus_deploy import hetzner_capacity
 from nexus_deploy.hetzner_capacity import (
     DEFAULT_PREFERENCES,
     HetznerCapacityError,
@@ -163,47 +168,49 @@ def test_default_preferences_parse_round_trip() -> None:
 # because we only check name-keyed result.
 _FAKE_SERVER_TYPES = {
     "server_types": [
-        {"id": 22, "name": "cx43"},
-        {"id": 45, "name": "ccx33"},
-        {"id": 9, "name": "cax31"},
+        {
+            "id": 22,
+            "name": "cx43",
+            "locations": [
+                {"id": 1, "name": "fsn1", "available": True, "recommended": True},
+                {"id": 2, "name": "nbg1", "available": False, "recommended": False},
+                {"id": 3, "name": "hel1", "available": False, "recommended": False},
+            ],
+        },
+        {
+            "id": 45,
+            "name": "ccx33",
+            "locations": [
+                {"id": 1, "name": "fsn1", "available": True, "recommended": False},
+                {"id": 2, "name": "nbg1", "available": True, "recommended": False},
+                {"id": 3, "name": "hel1", "available": False, "recommended": False},
+            ],
+        },
+        {
+            "id": 9,
+            "name": "cax31",
+            "locations": [
+                {"id": 3, "name": "hel1", "available": False, "recommended": False},
+            ],
+        },
     ],
 }
 
-_FAKE_DATACENTERS = {
-    "datacenters": [
-        {
-            "id": 1,
-            "name": "fsn1-dc14",
-            "location": {"name": "fsn1"},
-            "server_types": {"available": [22, 45], "supported": [22, 45, 9]},
-        },
-        {
-            "id": 2,
-            "name": "nbg1-dc3",
-            "location": {"name": "nbg1"},
-            "server_types": {"available": [45], "supported": [22, 45, 9]},
-        },
-        {
-            "id": 4,
-            "name": "hel1-dc2",
-            "location": {"name": "hel1"},
-            "server_types": {"available": [], "supported": [22, 45, 9]},
-        },
-    ],
-}
 
-
-def _make_http_get(types_payload: Any, dc_payload: Any) -> Any:
-    """Build a fake ``http_get`` that routes server_types vs
-    datacenters to the right fixture."""
+def _make_http_get(types_payload: Any) -> Any:
+    """Build a fake ``http_get``. Only ``/v1/server_types`` is reachable:
+    the datacenter endpoints were removed by Hetzner on 2026-10-01 and
+    answer 410 Gone, so a call to one is a bug this fake must expose."""
     calls: list[tuple[str, str]] = []
 
     def _http_get(url: str, token: str) -> Any:
         calls.append((url, token))
+        if "/datacenters" in url:
+            raise AssertionError(
+                "called /v1/datacenters — removed by Hetzner on 2026-10-01 (410 Gone)"
+            )
         if "/server_types" in url:
             return types_payload
-        if "/datacenters" in url:
-            return dc_payload
         raise AssertionError(f"unexpected URL {url}")
 
     _http_get.calls = calls  # type: ignore[attr-defined]
@@ -211,44 +218,32 @@ def _make_http_get(types_payload: Any, dc_payload: Any) -> Any:
 
 
 def test_fetch_availability_happy_path() -> None:
-    fake = _make_http_get(_FAKE_SERVER_TYPES, _FAKE_DATACENTERS)
+    fake = _make_http_get(_FAKE_SERVER_TYPES)
     result = fetch_availability("token-abc", http_get=fake)
-    assert result == {
-        "fsn1": {"cx43", "ccx33"},
-        "nbg1": {"ccx33"},
-        "hel1": set(),
-    }
-    # Verify the bearer token is forwarded on both calls.
+    assert result == {"fsn1": {"cx43", "ccx33"}, "nbg1": {"ccx33"}}
     assert all(token == "token-abc" for _url, token in fake.calls)
-    # Both endpoints hit; correct order doesn't matter functionally
-    # but pin one call per endpoint to catch accidental duplication.
-    assert sum("/server_types" in u for u, _ in fake.calls) == 1
-    assert sum("/datacenters" in u for u, _ in fake.calls) == 1
+    # ONE call now. The second one went to /v1/datacenters, which Hetzner
+    # removed on 2026-10-01; the availability it carried moved into each
+    # server type's own `locations` array.
+    assert len(fake.calls) == 1
+    assert "/server_types" in fake.calls[0][0]
 
 
-def test_fetch_availability_collapses_multiple_datacenters_per_location() -> None:
-    """A location with two datacenters should report the UNION of
-    their available server_types — operator only cares whether ANY
-    DC at that location can fulfil the request."""
-    multi_dc = {
-        "datacenters": [
-            {
-                "id": 1,
-                "name": "fsn1-dc14",
-                "location": {"name": "fsn1"},
-                "server_types": {"available": [22]},  # cx43 only
-            },
-            {
-                "id": 99,
-                "name": "fsn1-dc15",
-                "location": {"name": "fsn1"},
-                "server_types": {"available": [45]},  # ccx33 only
-            },
-        ],
-    }
-    fake = _make_http_get(_FAKE_SERVER_TYPES, multi_dc)
-    result = fetch_availability("t", http_get=fake)
-    assert result == {"fsn1": {"cx43", "ccx33"}}
+def test_fetch_availability_omits_locations_where_nothing_is_available() -> None:
+    """A location appears only if at least one type is available there.
+
+    `hel1` is listed by all three fixture types and available at none, so
+    it must not appear at all — an empty set would read as "known and
+    empty", which `select_server_type` treats differently from "unknown".
+    """
+    result = fetch_availability("t", http_get=_make_http_get(_FAKE_SERVER_TYPES))
+    assert "hel1" not in result
+
+
+def test_fetch_availability_unions_types_across_one_location() -> None:
+    """Two types available at the same location land in one set."""
+    result = fetch_availability("t", http_get=_make_http_get(_FAKE_SERVER_TYPES))
+    assert result["fsn1"] == {"cx43", "ccx33"}
 
 
 def test_fetch_availability_rejects_empty_token() -> None:
@@ -259,49 +254,50 @@ def test_fetch_availability_rejects_empty_token() -> None:
 
 
 def test_fetch_availability_raises_on_missing_server_types_field() -> None:
-    """Schema-drift safety: if Hetzner ever drops the top-level key
-    name we want to fail loudly, not silently return {}."""
-    fake = _make_http_get({"unexpected": []}, _FAKE_DATACENTERS)
+    fake = _make_http_get({"unexpected": []})
     with pytest.raises(HetznerCapacityError, match="server_types"):
         fetch_availability("t", http_get=fake)
 
 
-def test_fetch_availability_raises_on_missing_datacenters_field() -> None:
-    fake = _make_http_get(_FAKE_SERVER_TYPES, {"unexpected": []})
-    with pytest.raises(HetznerCapacityError, match="datacenters"):
-        fetch_availability("t", http_get=fake)
-
-
 def test_fetch_availability_skips_malformed_entries() -> None:
-    """Defensive against partial-shape entries (a future API field
-    becoming optional). Skip + continue, don't crash."""
-    types_payload = {
+    """Junk in the catalogue must not take the deploy down with it.
+
+    Each entry below is a different shape the parser has to survive, and
+    the one good type still has to come through.
+    """
+    payload = {
         "server_types": [
-            {"id": 22, "name": "cx43"},
-            {"id": "not-an-int", "name": "garbage"},  # skipped
-            "not-a-dict",  # skipped
-            {"id": 45},  # missing name → skipped
+            "not-a-dict",
+            {"name": 42, "locations": [{"name": "fsn1", "available": True}]},  # name not a str
+            {"id": 7, "locations": [{"name": "fsn1", "available": True}]},  # no name
+            {"name": "nolocs"},  # locations missing entirely
+            {"name": "nullocs", "locations": None},  # locations not a list
+            {"name": "junklocs", "locations": ["x", 3, None]},  # entries not dicts
+            {"name": "noname", "locations": [{"available": True}]},  # location has no name
+            {"name": "badname", "locations": [{"name": 9, "available": True}]},
+            {"name": "good", "locations": [{"name": "FSN1", "available": True}]},
         ],
     }
-    dc_payload = {
-        "datacenters": [
-            {
-                "id": 1,
-                "name": "fsn1-dc14",
-                "location": {"name": "fsn1"},
-                "server_types": {"available": [22, 999]},  # 999 unknown → skipped
-            },
-            "not-a-dict",  # skipped
+    result = fetch_availability("t", http_get=_make_http_get(payload))
+    assert result == {"fsn1": {"good"}}
+
+
+def test_fetch_availability_treats_only_true_as_available() -> None:
+    """`available` is a bool in the API. A schema change that turned it
+    into a truthy string would otherwise mark every location available —
+    which fails at `tofu apply` instead of at selection, where the
+    operator can still read the reason.
+    """
+    payload = {
+        "server_types": [
+            {"name": "yes", "locations": [{"name": "fsn1", "available": True}]},
+            {"name": "str", "locations": [{"name": "fsn1", "available": "true"}]},
+            {"name": "one", "locations": [{"name": "fsn1", "available": 1}]},
+            {"name": "no", "locations": [{"name": "fsn1", "available": False}]},
+            {"name": "absent", "locations": [{"name": "fsn1"}]},
         ],
     }
-    fake = _make_http_get(types_payload, dc_payload)
-    result = fetch_availability("t", http_get=fake)
-    assert result == {"fsn1": {"cx43"}}
-
-
-# ---------------------------------------------------------------------------
-# select
-# ---------------------------------------------------------------------------
+    assert fetch_availability("t", http_get=_make_http_get(payload)) == {"fsn1": {"yes"}}
 
 
 def test_select_returns_first_match() -> None:
@@ -410,99 +406,6 @@ def test_render_status_handles_no_selection() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_availability_skips_dc_with_missing_location() -> None:
-    """Datacenter entry without a ``location`` dict → skipped, not
-    crashed. Future schema where the field becomes optional must
-    not take down the whole capacity check."""
-    dc_payload = {
-        "datacenters": [
-            {"id": 1, "name": "fsn1-dc14", "server_types": {"available": [22]}},
-            {
-                "id": 2,
-                "name": "nbg1-dc3",
-                "location": {"name": "nbg1"},
-                "server_types": {"available": [22]},
-            },
-        ],
-    }
-    fake = _make_http_get(_FAKE_SERVER_TYPES, dc_payload)
-    result = fetch_availability("t", http_get=fake)
-    # Only the well-formed nbg1 entry survived.
-    assert result == {"nbg1": {"cx43"}}
-
-
-def test_fetch_availability_skips_dc_with_non_string_location_name() -> None:
-    dc_payload = {
-        "datacenters": [
-            {
-                "id": 1,
-                "name": "weird",
-                "location": {"name": 12345},  # int, not string
-                "server_types": {"available": [22]},
-            },
-            {
-                "id": 2,
-                "name": "fsn1-dc14",
-                "location": {"name": "fsn1"},
-                "server_types": {"available": [22]},
-            },
-        ],
-    }
-    fake = _make_http_get(_FAKE_SERVER_TYPES, dc_payload)
-    result = fetch_availability("t", http_get=fake)
-    assert result == {"fsn1": {"cx43"}}
-
-
-def test_fetch_availability_skips_dc_with_missing_server_types_field() -> None:
-    dc_payload = {
-        "datacenters": [
-            {"id": 1, "name": "fsn1-dc14", "location": {"name": "fsn1"}},
-            {
-                "id": 2,
-                "name": "nbg1-dc3",
-                "location": {"name": "nbg1"},
-                "server_types": {"available": [22]},
-            },
-        ],
-    }
-    fake = _make_http_get(_FAKE_SERVER_TYPES, dc_payload)
-    result = fetch_availability("t", http_get=fake)
-    assert result == {"nbg1": {"cx43"}}
-
-
-def test_fetch_availability_skips_dc_with_non_list_available() -> None:
-    dc_payload = {
-        "datacenters": [
-            {
-                "id": 1,
-                "name": "fsn1-dc14",
-                "location": {"name": "fsn1"},
-                "server_types": {"available": "not-a-list"},
-            },
-            {
-                "id": 2,
-                "name": "nbg1-dc3",
-                "location": {"name": "nbg1"},
-                "server_types": {"available": [22]},
-            },
-        ],
-    }
-    fake = _make_http_get(_FAKE_SERVER_TYPES, dc_payload)
-    result = fetch_availability("t", http_get=fake)
-    assert result == {"nbg1": {"cx43"}}
-
-
-# ---------------------------------------------------------------------------
-# _default_http_get — production HTTP path (PR #537 R5 coverage)
-#
-# Tests exercise the real urllib-backed implementation by monkey-
-# patching ``urllib.request.urlopen`` so we don't make actual network
-# calls. Each branch (HTTP error / URL error / TimeoutError /
-# malformed JSON / happy path) is pinned because these paths only
-# fire in production, not when callers inject the ``http_get`` seam.
-# ---------------------------------------------------------------------------
-
-
 class _FakeUrlopenContext:
     """Context-manager stand-in for ``urllib.request.urlopen()`` —
     the ``with urlopen(req) as resp`` pattern requires both
@@ -545,8 +448,6 @@ def test_default_http_get_wraps_http_error(monkeypatch: pytest.MonkeyPatch) -> N
     """HTTP 4xx/5xx → HetznerCapacityError carrying the status + reason."""
     import urllib.error
 
-    from nexus_deploy.hetzner_capacity import _default_http_get
-
     def _fake_urlopen(req: object, timeout: float = 0) -> _FakeUrlopenContext:
         raise urllib.error.HTTPError(
             url="https://example/v1/x",
@@ -558,34 +459,31 @@ def test_default_http_get_wraps_http_error(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     with pytest.raises(HetznerCapacityError, match=r"HTTP 401.*Unauthorized"):
-        _default_http_get("https://example/v1/x", "t")
+        hetzner_capacity._default_http_get("https://example/v1/x", "t")
 
 
 def test_default_http_get_wraps_url_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """DNS / connection failure → HetznerCapacityError with class name."""
     import urllib.error
 
-    from nexus_deploy.hetzner_capacity import _default_http_get
-
     def _fake_urlopen(req: object, timeout: float = 0) -> _FakeUrlopenContext:
         raise urllib.error.URLError("Name or service not known")
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     with pytest.raises(HetznerCapacityError, match=r"URLError"):
-        _default_http_get("https://api.hetzner.cloud/v1/datacenters", "t")
+        hetzner_capacity._default_http_get("https://api.hetzner.cloud/v1/server_types", "t")
 
 
 def test_default_http_get_wraps_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """Socket timeout (TimeoutError subclass of OSError on modern Py)
     → HetznerCapacityError. Don't surface the raw exception at the CLI."""
-    from nexus_deploy.hetzner_capacity import _default_http_get
 
     def _fake_urlopen(req: object, timeout: float = 0) -> _FakeUrlopenContext:
         raise TimeoutError("read timeout after 30s")
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     with pytest.raises(HetznerCapacityError, match=r"TimeoutError|read timeout"):
-        _default_http_get("https://api.hetzner.cloud/v1/datacenters", "t")
+        hetzner_capacity._default_http_get("https://api.hetzner.cloud/v1/server_types", "t")
 
 
 def test_default_http_get_wraps_non_utf8_body(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -594,7 +492,6 @@ def test_default_http_get_wraps_non_utf8_body(monkeypatch: pytest.MonkeyPatch) -
     UnicodeDecodeError. Now wrapped into HetznerCapacityError so the
     CLI handler sees the same single error class as every other
     failure mode."""
-    from nexus_deploy.hetzner_capacity import _default_http_get
 
     # 0x80 is invalid as the start of a UTF-8 sequence.
     bad_bytes = b"\x80\x81\x82 not utf-8"
@@ -604,21 +501,20 @@ def test_default_http_get_wraps_non_utf8_body(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     with pytest.raises(HetznerCapacityError, match=r"non-UTF-8"):
-        _default_http_get("https://api.hetzner.cloud/v1/datacenters", "t")
+        hetzner_capacity._default_http_get("https://api.hetzner.cloud/v1/server_types", "t")
 
 
 def test_default_http_get_wraps_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
     """Body parses to non-JSON → HetznerCapacityError with parser detail.
     Defensive against an upstream proxy that intercepts and serves an
     HTML error page on what should have been a JSON response."""
-    from nexus_deploy.hetzner_capacity import _default_http_get
 
     def _fake_urlopen(req: object, timeout: float = 0) -> _FakeUrlopenContext:
         return _FakeUrlopenContext(b"<html>500 Internal Server Error</html>")
 
     monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     with pytest.raises(HetznerCapacityError, match=r"non-JSON"):
-        _default_http_get("https://api.hetzner.cloud/v1/datacenters", "t")
+        hetzner_capacity._default_http_get("https://api.hetzner.cloud/v1/server_types", "t")
 
 
 # ---------------------------------------------------------------------------
@@ -639,7 +535,7 @@ _FAKE_TYPES_WITH_DISK = {
 
 
 def test_fetch_server_types_parses_disk_and_architecture() -> None:
-    fake = _make_http_get(_FAKE_TYPES_WITH_DISK, _FAKE_DATACENTERS)
+    fake = _make_http_get(_FAKE_TYPES_WITH_DISK)
     types = fetch_server_types("t", http_get=fake)
     assert types["cx43"] == ServerTypeInfo(name="cx43", disk_gb=160, architecture="x86")
     assert types["cax31"].architecture == "arm"
@@ -651,15 +547,14 @@ def test_fetch_server_types_rejects_empty_token() -> None:
 
 
 def test_fetch_server_types_raises_on_schema_drift() -> None:
-    fake = _make_http_get({"nope": []}, _FAKE_DATACENTERS)
+    fake = _make_http_get({"nope": []})
     with pytest.raises(HetznerCapacityError, match="missing 'server_types' list"):
         fetch_server_types("t", http_get=fake)
 
 
 def test_fetch_server_types_skips_malformed_entries() -> None:
     fake = _make_http_get(
-        {"server_types": [{"id": 1, "name": "cx43", "disk": 160}, {"id": 2}, "junk"]},
-        _FAKE_DATACENTERS,
+        {"server_types": [{"id": 1, "name": "cx43", "disk": 160}, {"id": 2}, "junk"]}
     )
     types = fetch_server_types("t", http_get=fake)
     assert list(types) == ["cx43"]
@@ -681,7 +576,7 @@ def test_filter_specs_defaults_are_a_no_op() -> None:
 
 def test_filter_specs_drops_types_with_too_small_a_disk() -> None:
     """A 240GB snapshot cannot be restored onto a 160GB cx43."""
-    fake = _make_http_get(_FAKE_TYPES_WITH_DISK, _FAKE_DATACENTERS)
+    fake = _make_http_get(_FAKE_TYPES_WITH_DISK)
     types = fetch_server_types("t", http_get=fake)
     prefs = parse_preferences("cx43:fsn1, cpx42:fsn1, cx53:fsn1")
     kept, excluded = filter_specs(prefs, types, min_disk_gb=240)
@@ -690,7 +585,7 @@ def test_filter_specs_drops_types_with_too_small_a_disk() -> None:
 
 
 def test_filter_specs_drops_mismatched_architecture() -> None:
-    fake = _make_http_get(_FAKE_TYPES_WITH_DISK, _FAKE_DATACENTERS)
+    fake = _make_http_get(_FAKE_TYPES_WITH_DISK)
     types = fetch_server_types("t", http_get=fake)
     prefs = parse_preferences("cx43:fsn1, cax31:hel1")
     kept, excluded = filter_specs(prefs, types, arch="x86")
@@ -742,3 +637,81 @@ def test_render_status_lines_without_excluded_is_unchanged() -> None:
         selected,
         None,
     )
+
+
+# ---------------------------------------------------------------------------
+# The error detail — added after an outage where five causes printed one line
+# ---------------------------------------------------------------------------
+
+
+def test_error_detail_names_the_status_and_the_path() -> None:
+    """An HTTP failure has to say WHICH status and WHICH endpoint.
+
+    This is the case that cost an afternoon: Hetzner removed the
+    datacenter endpoints on 2026-10-01, every spin-up failed, and the CLI
+    printed only `(HetznerCapacityError)` — the same line a missing token
+    or a timeout produces.
+    """
+    url = "https://api.hetzner.cloud/v1/datacenters?per_page=50"
+    with (
+        mock.patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError(
+                url=url,
+                code=410,
+                msg="Gone",
+                hdrs=None,  # type: ignore[arg-type]
+                fp=None,
+            ),
+        ),
+        pytest.raises(HetznerCapacityError) as excinfo,
+    ):
+        hetzner_capacity._default_http_get(url, "t")
+
+    assert excinfo.value.detail == "HTTP 410 from /datacenters"
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (urllib.error.URLError("boom"), "URLError reaching /server_types"),
+        (TimeoutError("timed out"), "TimeoutError reaching /server_types"),
+    ],
+)
+def test_error_detail_names_the_failure_class_for_network_errors(
+    exc: Exception, expected: str
+) -> None:
+    url = "https://api.hetzner.cloud/v1/server_types?per_page=200"
+    with (
+        mock.patch("urllib.request.urlopen", side_effect=exc),
+        pytest.raises(HetznerCapacityError) as excinfo,
+    ):
+        hetzner_capacity._default_http_get(url, "t")
+
+    assert excinfo.value.detail == expected
+
+
+def test_error_detail_carries_nothing_from_the_response_body() -> None:
+    """`str(exc)` may quote upstream text; `detail` may not — that is the
+    whole reason they are separate fields. The CLI prints only `detail`."""
+    url = "https://api.hetzner.cloud/v1/server_types?per_page=200"
+    body = b"SECRET-UPSTREAM-TEXT-THAT-MUST-NOT-BE-PRINTED \xff\xfe"
+    with (
+        mock.patch("urllib.request.urlopen", return_value=_FakeUrlopenContext(body)),
+        pytest.raises(HetznerCapacityError) as excinfo,
+    ):
+        hetzner_capacity._default_http_get(url, "t")
+
+    assert "SECRET-UPSTREAM-TEXT" not in (excinfo.value.detail or "")
+    assert excinfo.value.detail == "non-UTF-8 body from /server_types"
+
+
+def test_every_raise_site_sets_a_detail() -> None:
+    """Stated as a rule, not a list: a `detail=None` would fall back to the
+    bare class name and reintroduce exactly the blindness this fixes."""
+    source = pathlib.Path(hetzner_capacity.__file__).read_text(encoding="utf-8")
+
+    raises = re.findall(r"raise HetznerCapacityError\((.*?)\)\s*(?:from exc)?\n", source, re.S)
+    assert raises, "no raise sites found — the regex no longer matches"
+    for site in raises:
+        assert "detail=" in site, f"raise without a detail: {site.strip()[:70]}"
