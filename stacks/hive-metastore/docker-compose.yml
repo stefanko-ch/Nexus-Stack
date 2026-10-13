@@ -92,6 +92,26 @@ services:
         # means the umask above decides the mode. What it held is hiveserver2
         # and Tez settings, all irrelevant to a standalone metastore.
         umask 077
+        # Every value below is XML element text, so the five predefined
+        # entities have to be escaped before the here-document writes them.
+        # `&` is the one that matters: an unescaped `&` makes the file
+        # malformed and schema initialisation never starts. The generated
+        # password is alphanumeric today, but the R2 credentials come from
+        # Cloudflare rather than from `random_password`, so their alphabet
+        # is not ours to assume.
+        #
+        # sed, not the shell, because the values must not be re-expanded —
+        # and the output is assigned, never echoed, so `set -x` further down
+        # in the image's own entrypoint has nothing to print.
+        xml_escape() {
+          printf '%s' "$${1:-}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' \
+            -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"
+        }
+        HIVE_DB_PASSWORD_XML=$(xml_escape "$${HIVE_DB_PASSWORD}")
+        R2_ENDPOINT_XML=$(xml_escape "$${R2_ENDPOINT:-}")
+        R2_ACCESS_KEY_XML=$(xml_escape "$${R2_ACCESS_KEY:-}")
+        R2_SECRET_KEY_XML=$(xml_escape "$${R2_SECRET_KEY:-}")
+
         rm -f /opt/hive/conf/hive-site.xml
         cat > /opt/hive/conf/hive-site.xml <<XML
         <?xml version="1.0"?>
@@ -99,11 +119,11 @@ services:
           <property><name>javax.jdo.option.ConnectionDriverName</name><value>org.postgresql.Driver</value></property>
           <property><name>javax.jdo.option.ConnectionURL</name><value>jdbc:postgresql://hive-metastore-db:5432/metastore</value></property>
           <property><name>javax.jdo.option.ConnectionUserName</name><value>nexus-hive</value></property>
-          <property><name>javax.jdo.option.ConnectionPassword</name><value>$${HIVE_DB_PASSWORD}</value></property>
+          <property><name>javax.jdo.option.ConnectionPassword</name><value>$${HIVE_DB_PASSWORD_XML}</value></property>
           <property><name>hive.metastore.warehouse.dir</name><value>file:///opt/hive/data/warehouse</value></property>
-          <property><name>fs.s3a.endpoint</name><value>$${R2_ENDPOINT:-}</value></property>
-          <property><name>fs.s3a.access.key</name><value>$${R2_ACCESS_KEY:-}</value></property>
-          <property><name>fs.s3a.secret.key</name><value>$${R2_SECRET_KEY:-}</value></property>
+          <property><name>fs.s3a.endpoint</name><value>$${R2_ENDPOINT_XML}</value></property>
+          <property><name>fs.s3a.access.key</name><value>$${R2_ACCESS_KEY_XML}</value></property>
+          <property><name>fs.s3a.secret.key</name><value>$${R2_SECRET_KEY_XML}</value></property>
           <property><name>fs.s3a.path.style.access</name><value>true</value></property>
           <property><name>fs.s3a.aws.credentials.provider</name><value>org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider</value></property>
         </configuration>

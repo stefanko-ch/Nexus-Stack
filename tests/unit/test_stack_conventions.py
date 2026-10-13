@@ -2474,8 +2474,12 @@ def test_the_apicurio_ui_is_told_a_public_api_url() -> None:
     UI that loads and can reach nothing."""
     env = _apicurio_compose()["services"]["apicurio-ui"]["environment"]
 
-    assert env["REGISTRY_API_URL"].startswith("https://${APICURIO_DOMAIN}"), env
-    assert "apicurio:8080" not in env["REGISTRY_API_URL"]
+    url = env["REGISTRY_API_URL"]
+    # Matched loosely on purpose: the variable carries a `:?` required-guard
+    # whose message is not what this test is about.
+    assert re.match(r"^https://\$\{APICURIO_DOMAIN[:?}]", url), url
+    assert url.endswith("/apis/registry/v3"), url
+    assert "apicurio:8080" not in url
 
 
 def test_the_apicurio_proxy_routes_the_api_before_the_ui() -> None:
@@ -2964,3 +2968,81 @@ def test_the_example_apps_separate_a_missing_stack_from_a_broken_one(app: str, m
 
     assert marker in source, f"{app} no longer checks whether the host resolves"
     assert "not running in this deployment" in source
+
+
+# ---------------------------------------------------------------------------
+# Round 2 on #908 — what the review round found
+# ---------------------------------------------------------------------------
+
+
+def test_cassandra_leaves_its_wire_port_to_the_firewall_override() -> None:
+    """The same rule mongodb follows (#488), and for the second of its two
+    reasons rather than the first.
+
+    The merge-collision half does not bite here: both sides would publish
+    the identical `9042:9042`, and `docker compose config` deduplicates
+    that — checked. What does bite is the other half, named in
+    `firewall.py`: a `ports:` entry in the base file binds the host port
+    with no firewall toggle behind it, so CQL is reachable even while the
+    rule is off — and the built-in `cassandra` superuser exists until the
+    admin hook drops it.
+    """
+    service = _cassandra_compose()["services"]["cassandra"]
+    ports = service.get("ports") or []
+
+    assert not any("9042" in str(p) for p in ports), (
+        f"cassandra publishes {ports!r}; 9042 belongs to the firewall override only"
+    )
+
+
+def test_apicurio_refuses_to_start_without_its_rendered_values() -> None:
+    """`_render_apicurio` already fails fast, so this only covers the path
+    that skips it — a hand-run `docker compose up` against a stale or
+    absent .env. Same `:?` guard the airflow stack uses."""
+    services = _apicurio_compose()["services"]
+
+    for ref in ("APICURIO_DB_PASSWORD", "APICURIO_DOMAIN"):
+        rendered = yaml.dump(services)
+        assert f"${{{ref}}}" not in rendered, f"{ref} is interpolated without a `:?` guard"
+        assert f"${{{ref}:?" in rendered, f"{ref} has no required-variable guard"
+
+
+def test_the_hive_metastore_escapes_what_it_writes_into_xml() -> None:
+    """Every value lands in XML element text, so `&` and `<` have to be
+    escaped or the file is malformed and schema init never starts.
+
+    The generated password is alphanumeric today, but the R2 credentials
+    come from Cloudflare rather than from `random_password`, so their
+    alphabet is not ours to assume — the repo's own rule is to enforce the
+    assumption rather than hope for it.
+    """
+    entrypoint = _hive_entrypoint()
+
+    assert "xml_escape()" in entrypoint, "the escape helper is gone"
+    for var in ("HIVE_DB_PASSWORD", "R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY"):
+        assert f"{var}_XML=$(xml_escape" in entrypoint, f"{var} is not escaped"
+        assert f"<value>$${{{var}_XML}}</value>" in entrypoint, f"{var} reaches the XML unescaped"
+    # Every variable reaching the document must be an escaped one. Stated as
+    # a rule rather than a list, so a value added later is covered too.
+    for match in re.finditer(r"<value>\$\$\{([A-Za-z0-9_]+)(?::-)?\}</value>", entrypoint):
+        assert match.group(1).endswith("_XML"), (
+            f"{match.group(1)} is written into hive-site.xml without xml_escape"
+        )
+
+
+def test_the_streamlit_launcher_keeps_every_url_path_unique() -> None:
+    """One prefix pass is not enough. Both workspace sources carry the label
+    "Workspace", so three files called `report.py` — one example, one per
+    workspace source — produced
+
+        ['report', 'workspace_report', 'workspace_report']
+
+    measured against the real `_discover()`. st.navigation rejects
+    duplicates, and that takes down every page including the launcher.
+    """
+    source = (STACKS_DIR / "streamlit" / "Home.py").read_text()
+
+    assert "while url_path in seen:" in source, (
+        "the launcher stopped looping until the url_path is actually free"
+    )
+    assert "seen.add(url_path)" in source

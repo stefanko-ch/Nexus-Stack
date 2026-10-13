@@ -68,9 +68,21 @@ def _discover() -> dict[str, list[st.Page]]:
                 continue
             # The URL path has to be unique across every source, and the file
             # name alone is not: two directories may both hold a `report.py`.
-            url_path = str(relative.with_suffix("")).replace("/", "_")
+            # Nor is one prefix pass enough — both workspace sources carry the
+            # label "Workspace", so prefixing each of their `report.py` gives
+            # `workspace_report` twice. Measured with three such files:
+            #   ['report', 'workspace_report', 'workspace_report']
+            # st.navigation rejects duplicates, and that takes down every page
+            # on the server, this launcher included. So keep going until the
+            # path really is free.
+            base = str(relative.with_suffix("")).replace("/", "_")
+            url_path = base
             if url_path in seen:
-                url_path = f"{label.lower()}_{url_path}"
+                url_path = f"{label.lower()}_{base}"
+            suffix = 2
+            while url_path in seen:
+                url_path = f"{label.lower()}_{base}_{suffix}"
+                suffix += 1
             seen.add(url_path)
             sections.setdefault(label, []).append(
                 # Absolute paths are explicitly supported by st.Page ("It can

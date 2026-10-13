@@ -12,7 +12,7 @@ Cassandra stores wide rows partitioned across a ring, and its design forces the 
 
 | Setting | Value |
 |---------|-------|
-| Host Port | `9042` (CQL native protocol) |
+| Port | `9042` (CQL native protocol) — published by the firewall override only |
 | Web UI | none — CQL only |
 | Public Access | No (internal-only; a Hetzner firewall rule opens 9042 for external clients) |
 | Website | [cassandra.apache.org](https://cassandra.apache.org) |
@@ -80,7 +80,9 @@ docker exec -it cassandra sh -c 'cqlsh -u nexus-cassandra -p "$NEXUS_CASSANDRA_P
 
 The single quotes around the whole `sh -c` argument are what make that work: `NEXUS_CASSANDRA_PASSWORD` lives in the **container's** environment, so it has to be expanded there. Written with double quotes it expands on the server instead, where it is unset, and `cqlsh` is handed an empty password.
 
-From outside, the firewall rule on port 9042 lets DBeaver, CloudBeaver or any driver connect with the same credentials — they are in Infisical under `/cassandra`.
+From outside, the host port exists **only while the firewall rule is enabled** — the base compose file publishes nothing, the same rule [MongoDB](./mongodb.md) follows (#488), so turning the rule off actually closes the port rather than leaving it bound behind a firewall entry. With it on, DBeaver, CloudBeaver or any driver connects with the same credentials, which are in Infisical under `/cassandra`.
+
+One caveat worth knowing before enabling that rule: the built-in `cassandra` superuser exists from the moment the node finishes starting until the admin hook drops it, and the hook has to wait for that account to be created before it can act. If the rule is on, that window is reachable from outside.
 
 ### Related
 

@@ -37,10 +37,12 @@ services:
     env_file:
       - path: .env
         required: false
-    ports:
-      # CQL native transport. Bound on the host so the firewall rule for
-      # external clients has something to point at.
-      - "9042:9042"
+    # No `ports:` for 9042, deliberately — the same rule mongodb follows
+    # (#488). `services.yaml` advertises it under `tcp_ports`, so the
+    # firewall override publishes it, and that override exists only while
+    # the rule is enabled. Publishing it here as well would bind the host
+    # port with no firewall toggle behind it. Cross-stack traffic reaches
+    # `cassandra:9042` over app-network without any host port.
     environment:
       CASSANDRA_CLUSTER_NAME: "nexus"
       # CASSANDRA_SEEDS is deliberately NOT set. The image defaults it to

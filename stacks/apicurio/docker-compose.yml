@@ -70,7 +70,7 @@ services:
       # then fetches — so this is a public URL, not an in-cluster one. It
       # points back through the proxy in front of both, which keeps the UI
       # and the API same-origin and avoids CORS entirely.
-      REGISTRY_API_URL: https://${APICURIO_DOMAIN}/apis/registry/v3
+      REGISTRY_API_URL: https://${APICURIO_DOMAIN:?must be set in .env (rendered by service_env._render_apicurio)}/apis/registry/v3
     mem_limit: 256m
     networks:
       - app-network
@@ -88,7 +88,7 @@ services:
       APICURIO_STORAGE_SQL_KIND: postgresql
       APICURIO_DATASOURCE_URL: jdbc:postgresql://apicurio-db:5432/apicurio
       APICURIO_DATASOURCE_USERNAME: nexus-apicurio
-      APICURIO_DATASOURCE_PASSWORD: ${APICURIO_DB_PASSWORD}
+      APICURIO_DATASOURCE_PASSWORD: ${APICURIO_DB_PASSWORD:?must be set in .env (rendered by service_env._render_apicurio)}
     mem_limit: 1g
     depends_on:
       apicurio-db:
@@ -114,7 +114,7 @@ services:
     environment:
       POSTGRES_DB: apicurio
       POSTGRES_USER: nexus-apicurio
-      POSTGRES_PASSWORD: ${APICURIO_DB_PASSWORD}
+      POSTGRES_PASSWORD: ${APICURIO_DB_PASSWORD:?must be set in .env (rendered by service_env._render_apicurio)}
     volumes:
       - /mnt/nexus-data/apicurio/db:/var/lib/postgresql/data
     mem_limit: 512m
