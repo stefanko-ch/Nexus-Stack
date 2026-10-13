@@ -39,6 +39,17 @@ const files = readdirSync(API_DIR)
   .filter((f) => f.endsWith('.js'))
   .map((f) => ({ name: f, source: readFileSync(path.join(API_DIR, f), 'utf8') }));
 
+test('every test file in this directory is one the runner picks up', () => {
+  // The suite is run as `node --test test/*.test.mjs`, so a file named
+  // anything else is silently never executed — a gap that looks exactly
+  // like a passing suite. `helpers.mjs` is imported, not run.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const stray = readdirSync(here).filter(
+    (f) => f.endsWith('.mjs') && !f.endsWith('.test.mjs') && f !== 'helpers.mjs',
+  );
+  assert.deepEqual(stray, []);
+});
+
 test('the API directory is actually being read', () => {
   // A path typo would otherwise make every assertion below vacuous.
   assert.ok(files.length > 15, `expected the api/ handlers, found ${files.length} files`);

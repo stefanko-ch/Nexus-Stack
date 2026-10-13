@@ -49,5 +49,13 @@ jobs:
           # cache: the suite installs nothing.
           node-version: "22"
 
+      # `npm test`, so the command lives in package.json and cannot drift
+      # from what a contributor runs locally. It installs nothing: the
+      # suite has no dependencies, which is why there is no `npm ci`.
+      #
+      # The script passes an explicit file list rather than the directory.
+      # `node --test test/` resolves the bare path as a module on Node 22
+      # and fails with MODULE_NOT_FOUND — directory expansion is newer
+      # than the version pinned here, and it passed locally on Node 26.
       - name: Run tests
-        run: node --test test/
+        run: npm test
