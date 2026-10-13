@@ -31,8 +31,13 @@ output "access_aud" {
   value       = cloudflare_zero_trust_access_application.control_plane.aud
 }
 
+# Deliberately has no consumer. Nothing verifies against this AUD — the
+# Functions check the `.control` application's, and the middleware answers
+# 404 on the pages.dev hostname anyway — so this is here to identify the
+# application when someone is looking at it in the dashboard. See the
+# comment above the resource in main.tf.
 output "access_aud_pages_dev" {
-  description = "AUD tag of the Access application covering <project>.pages.dev"
+  description = "AUD tag of the Access application covering <project>.pages.dev (informational)"
   value       = cloudflare_zero_trust_access_application.control_plane_pages_dev.aud
 }
 

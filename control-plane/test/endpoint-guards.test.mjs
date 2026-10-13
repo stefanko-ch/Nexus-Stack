@@ -7,7 +7,7 @@
 // endpoint will be added by someone with the same reasonable assumption.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -24,6 +24,11 @@ const INTENTIONALLY_UNGUARDED = {
   'version.js': ['onRequestGet'],
 };
 
+/** Code with comments removed: prose is not behaviour. */
+function stripComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 function handlers(source) {
   const marks = [...source.matchAll(/export async function (onRequest\w+)/g)].map((m) => ({
     name: m[1],
@@ -35,9 +40,33 @@ function handlers(source) {
   }));
 }
 
-const files = readdirSync(API_DIR)
-  .filter((f) => f.endsWith('.js'))
-  .map((f) => ({ name: f, source: readFileSync(path.join(API_DIR, f), 'utf8') }));
+/**
+ * Every routed handler file under functions/api, recursively.
+ *
+ * Pages Functions route subdirectories — `api/foo/bar.js` serves
+ * `/api/foo/bar` — so a check that read only the top level would skip a
+ * nested endpoint and let an unguarded route ship. There are no such
+ * directories today; the recursion is so that adding one does not
+ * silently opt out of every rule below.
+ *
+ * `_`-prefixed names are skipped because Pages does not route them: that
+ * is what makes `_utils/` helpers and not endpoints.
+ */
+function handlerFiles(dir, prefix = '') {
+  const out = [];
+  for (const entry of readdirSync(dir).sort()) {
+    if (entry.startsWith('_')) continue;
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push(...handlerFiles(full, `${prefix}${entry}/`));
+    } else if (entry.endsWith('.js')) {
+      out.push({ name: `${prefix}${entry}`, source: readFileSync(full, 'utf8') });
+    }
+  }
+  return out;
+}
+
+const files = handlerFiles(API_DIR);
 
 test('every test file in this directory is one the runner picks up', () => {
   // The suite is run as `node --test test/*.test.mjs`, so a file named
@@ -77,15 +106,25 @@ test('the guard runs before the handler touches anything', () => {
   for (const { name, source } of files) {
     for (const { name: handler, body } of handlers(source)) {
       if ((INTENTIONALLY_UNGUARDED[name] || []).includes(handler)) continue;
-      // Strip comments first: a guard named in prose is not a guard, and
-      // `env.NEXUS_DB` named in prose is not a read.
-      const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      const code = stripComments(body);
       const guardAt = code.search(/await require(Admin|Operator|Viewer)\(/);
       if (guardAt === -1) {
         late.push(`${name}:${handler} has no guard in its code (only in a comment?)`);
         continue;
       }
-      const firstUse = [/\benv\.NEXUS_DB\b/, /\benv\.NEXUS_KV\b/, /\bfetchWithTimeout\(/, /\btry\s*\{/]
+      // Datastore access by any spelling — `env.NEXUS_DB`,
+      // `context.env.NEXUS_DB`, or destructured to a bare binding — plus
+      // reading the request body, calling out, and `try {`, which can
+      // contain any of them.
+      const firstUse = [
+        /\bNEXUS_DB\b/,
+        /\bNEXUS_KV\b/,
+        /\.prepare\(/,
+        /\brequest\.(json|text|arrayBuffer|formData)\(/,
+        /\bfetchWithTimeout\(/,
+        /\bfetch\(/,
+        /\btry\s*\{/,
+      ]
         .map((re) => code.search(re))
         .filter((i) => i !== -1);
       const earliest = firstUse.length ? Math.min(...firstUse) : Infinity;
@@ -93,6 +132,32 @@ test('the guard runs before the handler touches anything', () => {
     }
   }
   assert.deepEqual(late, []);
+});
+
+test('every guard result is returned, not merely obtained', () => {
+  // Calling and awaiting a guard proves nothing if the denial is then
+  // dropped: the handler carries on and serves the protected response to
+  // a caller the guard just refused. So the value the guard was assigned
+  // to must appear in a `return` soon after.
+  //
+  // "Soon after" rather than "on the next line", because two handlers
+  // legitimately do more with it: firewall.js picks the guard with a
+  // ternary, and lifecycle.js returns it only when it is a configuration
+  // denial, using the rest to decide `canEdit`.
+  const dropped = [];
+  for (const { name, source } of files) {
+    for (const { name: handler, body } of handlers(source)) {
+      const code = stripComments(body);
+      for (const m of code.matchAll(/(?:const|let)\s+(\w+)\s*=\s*(?:await\s+require|countOnly)/g)) {
+        const variable = m[1];
+        const after = code.slice(m.index, m.index + 400);
+        if (!new RegExp(`return\\s+${variable}\\b`).test(after)) {
+          dropped.push(`${name}:${handler} obtains ${variable} from a guard and never returns it`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(dropped, []);
 });
 
 test('no handler calls a guard without awaiting it', () => {

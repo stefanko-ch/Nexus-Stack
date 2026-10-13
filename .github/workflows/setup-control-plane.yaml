@@ -1671,23 +1671,45 @@ jobs:
           # Organizations read. This step does not know the token's scopes, so
           # it reports what the call actually returned rather than asserting
           # anything about permissions.
-          ACCESS_TEAM_DOMAIN="$CF_ACCESS_TEAM_DOMAIN"
+          ACCESS_TEAM_DOMAIN=$(printf '%s' "$CF_ACCESS_TEAM_DOMAIN" | tr -d '[:space:]')
           if [ -n "$ACCESS_TEAM_DOMAIN" ]; then
             echo "  Access team domain taken from the CF_ACCESS_TEAM_DOMAIN secret"
           else
             echo "  Asking the Cloudflare API for the Access team domain..."
-            ORG_RESPONSE=$(curl -s --max-time 30 \
+            # Status and message in SEPARATE variables. The first draft of
+            # this used `curl -s ... || echo ''`, which turns a network
+            # outage, a wrong account id, a revoked token and a token
+            # missing one permission into the same empty string — and then
+            # the message below would confidently blame the permission.
+            # --fail-with-body gives a non-zero status on an HTTP error
+            # while still handing over the body Cloudflare explains it in.
+            ORG_FAILED=0
+            ORG_RESPONSE=$(curl -sS --fail-with-body --max-time 30 \
               "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/organizations" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              -H "Content-Type: application/json" || echo '')
+              -H "Content-Type: application/json" 2>&1) || ORG_FAILED=$?
+
+            # Only `.errors[0].message` is ever printed, never the body: a
+            # response from this endpoint carries account detail, and the
+            # remedy does not need it.
+            ORG_ERROR=$(printf '%s' "$ORG_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+
+            if [ "$ORG_FAILED" -ne 0 ]; then
+              echo "::error title=access-team-domain::The Cloudflare API call for the Access team domain failed (curl exit ${ORG_FAILED}). Cloudflare said: ${ORG_ERROR:-(no error message in the response)}. The Control Plane verifies Access tokens against https://<team>.cloudflareaccess.com and denies every request without it. Fix: give CLOUDFLARE_API_TOKEN the 'Access: Organizations, Identity Providers, and Groups' permission, or set the team domain directly as the CF_ACCESS_TEAM_DOMAIN repository secret (Zero Trust -> Settings -> Custom Pages shows it, as 'yourteam.cloudflareaccess.com')."
+              exit 1
+            fi
+
             ACCESS_TEAM_DOMAIN=$(printf '%s' "$ORG_RESPONSE" | jq -r '.result.auth_domain // empty' 2>/dev/null || echo "")
+            if [ -z "$ACCESS_TEAM_DOMAIN" ]; then
+              # The call succeeded and still produced nothing usable —
+              # a `success: false` body, or an account with Zero Trust
+              # never set up. Separate message, because the remedy is
+              # different: there may be no team domain to find.
+              echo "::error title=access-team-domain::The Cloudflare API answered but reported no Access team domain for this account. Cloudflare said: ${ORG_ERROR:-(no error message in the response)}. Either Zero Trust has not been set up on this account (see docs/admin-guides/setup-guide.md, 'Enable Services R2, Workers and Zero Trust'), or set the team domain as the CF_ACCESS_TEAM_DOMAIN repository secret."
+              exit 1
+            fi
           fi
-          if [ -z "$ACCESS_TEAM_DOMAIN" ]; then
-            # Deliberately not echoing $ORG_RESPONSE: an error body from this
-            # endpoint has carried account detail. The remedy does not need it.
-            echo "::error title=access-team-domain::Could not determine the Cloudflare Access team domain. The Control Plane verifies Access tokens against https://<team>.cloudflareaccess.com and denies every request without it. Fix: read the team domain from Zero Trust -> Settings -> Custom Pages (it looks like 'yourteam.cloudflareaccess.com') and set it as the CF_ACCESS_TEAM_DOMAIN repository secret, or give CLOUDFLARE_API_TOKEN the 'Access: Organizations, Identity Providers, and Groups - Read' permission."
-            exit 1
-          fi
+
           echo "  Access team domain resolved"
 
           echo "  Setting ACCESS_AUD secret..."

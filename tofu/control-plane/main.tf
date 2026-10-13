@@ -306,6 +306,15 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
 # Without either, protecting these hostnames is a click in the dashboard:
 # outside version control, and not guaranteed to survive the
 # destroy/recreate cycle this project performs routinely.
+# What this application does and does not do, because the two are easy to
+# swap: it keeps an UNAUTHENTICATED request off the pages.dev hostname.
+# It does not let an authenticated one through — a token Access issues for
+# this application carries this application's AUD, the Functions verify
+# against the `.control` application's AUD (`ACCESS_AUD`), and the
+# middleware answers 404 on that hostname regardless. All three are
+# intended. It is also why the `access_aud_pages_dev` output has no
+# consumer: it exists so an operator can identify the application, not
+# because anything verifies against it.
 resource "cloudflare_zero_trust_access_application" "control_plane_pages_dev" {
   # Account-scoped: see the comment above. Not var.cloudflare_zone_id.
   account_id       = var.cloudflare_account_id

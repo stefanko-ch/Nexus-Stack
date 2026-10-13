@@ -23,6 +23,13 @@
  * reject perfectly valid tokens. So an unknown `kid` refetches the JWKS
  * once before rejecting — rate-limited, because `kid` comes from the
  * token and a made-up one must not buy an outbound request per attempt.
+ *
+ * Only ever one fetch at a time per URL. An isolate serves many requests
+ * concurrently, so without that, a cold cache means a burst of identical
+ * outbound requests, and two overlapping fetches can finish out of order
+ * and leave the OLDER key set installed as the fresh one. Coalescing
+ * removes both, and gives a request that arrives mid-refresh something
+ * to wait for instead of a rejection.
  */
 
 /** Seconds of tolerance for exp/nbf. Access tokens live hours; this is noise. */
@@ -41,8 +48,21 @@ const JWKS_TTL_MS = 10 * 60 * 1000;
  */
 const JWKS_MISS_REFRESH_MS = 60 * 1000;
 
+/** How long to wait for the JWKS endpoint before giving up. */
+const JWKS_TIMEOUT_MS = 10 * 1000;
+
 /** @type {{ url: string, keys: Map<string, CryptoKey>, fetchedAt: number } | null} */
 let jwksCache = null;
+
+/**
+ * The fetch currently in flight, if any.
+ *
+ * One per URL at a time. Everything that needs the JWKS while this is
+ * set awaits this promise instead of starting a second request.
+ *
+ * @type {{ url: string, promise: Promise<Map<string, CryptoKey>> } | null}
+ */
+let jwksInFlight = null;
 
 /** When a kid-miss last caused a refetch. Per isolate, like the cache. */
 let lastMissRefreshAt = 0;
@@ -82,22 +102,36 @@ export function normaliseTeamDomain(raw) {
   return value.includes('.') ? value : `${value}.cloudflareaccess.com`;
 }
 
-async function fetchJwks(teamDomain, fetchImpl, { force = false } = {}) {
-  const url = `https://${teamDomain}/cdn-cgi/access/certs`;
-  const now = Date.now();
-  if (!force && jwksCache && jwksCache.url === url && now - jwksCache.fetchedAt < JWKS_TTL_MS) {
-    return jwksCache.keys;
-  }
+/**
+ * Fetch and import one JWKS. No caching, no coalescing — `fetchJwks`
+ * owns both, so this only has to do the work once it is asked to.
+ */
+async function loadJwks(url, fetchImpl, timeoutMs) {
+  // An AbortController rather than the shared `fetchWithTimeout` helper,
+  // which calls the global fetch and so cannot take the injected one the
+  // tests supply. Without a bound, a stalled Access certificates
+  // endpoint leaves every request that needs verification waiting until
+  // the runtime kills it — a hang where a prompt denial belongs.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let payload;
   try {
-    const response = await fetchImpl(url, { headers: { Accept: 'application/json' } });
+    const response = await fetchImpl(url, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
     if (!response.ok) throw new AccessJwtError(`JWKS endpoint returned HTTP ${response.status}`);
     payload = await response.json();
   } catch (err) {
     if (err instanceof AccessJwtError) throw err;
+    // An abort arrives as an AbortError, which would otherwise read as a
+    // generic failure and send someone looking in the wrong place.
+    if (err?.name === 'AbortError') throw new AccessJwtError('JWKS fetch timed out');
     // Never the upstream message: it can carry response text.
     throw new AccessJwtError(`JWKS fetch failed (${err?.name || 'Error'})`);
+  } finally {
+    clearTimeout(timer);
   }
 
   const jwks = Array.isArray(payload?.keys) ? payload.keys : null;
@@ -123,13 +157,52 @@ async function fetchJwks(teamDomain, fetchImpl, { force = false } = {}) {
   }
   if (keys.size === 0) throw new AccessJwtError('JWKS held no importable RS256 keys');
 
-  jwksCache = { url, keys, fetchedAt: now };
   return keys;
+}
+
+/**
+ * The current key set, from the cache when it is fresh.
+ *
+ * @param {{ force?: boolean }} options  `force` bypasses the TTL — used
+ *   by the kid-miss path, which has a reason to believe the cache is
+ *   behind a rotation. It does NOT bypass coalescing: an in-flight fetch
+ *   is already the newer answer.
+ */
+async function fetchJwks(teamDomain, fetchImpl, { force = false, timeoutMs = JWKS_TIMEOUT_MS } = {}) {
+  const url = `https://${teamDomain}/cdn-cgi/access/certs`;
+  if (
+    !force &&
+    jwksCache &&
+    jwksCache.url === url &&
+    Date.now() - jwksCache.fetchedAt < JWKS_TTL_MS
+  ) {
+    return jwksCache.keys;
+  }
+
+  if (jwksInFlight && jwksInFlight.url === url) return jwksInFlight.promise;
+
+  const promise = (async () => {
+    const keys = await loadJwks(url, fetchImpl, timeoutMs);
+    // Stamped after the fetch, so the TTL measures from when the keys
+    // were actually received rather than from when they were asked for.
+    jwksCache = { url, keys, fetchedAt: Date.now() };
+    return keys;
+  })();
+
+  jwksInFlight = { url, promise };
+  try {
+    return await promise;
+  } finally {
+    // Only if nothing has replaced it: a later force-refresh may already
+    // have installed its own, and clearing that one would un-coalesce it.
+    if (jwksInFlight?.promise === promise) jwksInFlight = null;
+  }
 }
 
 /** Drop the cache. Exported for tests; nothing in production calls it. */
 export function _resetJwksCache() {
   jwksCache = null;
+  jwksInFlight = null;
   lastMissRefreshAt = 0;
 }
 
@@ -141,18 +214,30 @@ export function _resetJwksCache() {
  * an outbound fetch — on a limited window, a miss is simply a rejection,
  * which is the correct answer for a `kid` that does not exist.
  */
-async function keyForKid(kid, teamDomain, fetchImpl, now) {
-  const cached = await fetchJwks(teamDomain, fetchImpl);
+async function keyForKid(kid, teamDomain, fetchImpl, now, timeoutMs) {
+  const cached = await fetchJwks(teamDomain, fetchImpl, { timeoutMs });
   const key = cached.get(kid);
   if (key) return key;
 
-  const sinceLastRefresh = now() - lastMissRefreshAt;
-  if (sinceLastRefresh < JWKS_MISS_REFRESH_MS) return undefined;
+  // A refresh already running is the one this request wants. Checked
+  // BEFORE the cooldown, because the cooldown exists to suppress new
+  // outbound requests — and waiting on one that is already in flight
+  // starts none. Getting this order wrong is what makes a rotation
+  // reject the very tokens the refresh is being done for.
+  if (jwksInFlight) {
+    return (await jwksInFlight.promise).get(kid);
+  }
 
-  // Set before the fetch, not after: a burst of misses that all arrive
-  // while the first fetch is in flight must not each start one.
+  if (now() - lastMissRefreshAt < JWKS_MISS_REFRESH_MS) return undefined;
+
+  // Stamped before the fetch, not after, so the window covers attempts
+  // that arrive while it is running. A FAILED fetch keeps the stamp: it
+  // was still an outbound request, and resetting it would turn an
+  // unreachable JWKS endpoint into one request per inbound request. The
+  // cost is bounded — a rotation during an outage is picked up within
+  // JWKS_MISS_REFRESH_MS of the endpoint recovering.
   lastMissRefreshAt = now();
-  const refreshed = await fetchJwks(teamDomain, fetchImpl, { force: true });
+  const refreshed = await fetchJwks(teamDomain, fetchImpl, { force: true, timeoutMs });
   return refreshed.get(kid);
 }
 
@@ -162,7 +247,13 @@ async function keyForKid(kid, teamDomain, fetchImpl, now) {
  * @throws {AccessJwtError} with a `reason` that is safe to log — it never
  *   contains any part of the token.
  */
-export async function verifyAccessJwt(token, { teamDomain, aud, fetchImpl = fetch, now = Date.now } = {}) {
+export async function verifyAccessJwt(
+  token,
+  // `jwksTimeoutMs` is injectable for the same reason `fetchImpl` and
+  // `now` are: a test that waited out the real ten seconds would be a
+  // test nobody runs. Production never passes it.
+  { teamDomain, aud, fetchImpl = fetch, now = Date.now, jwksTimeoutMs = JWKS_TIMEOUT_MS } = {},
+) {
   const team = normaliseTeamDomain(teamDomain);
   if (!team) throw new AccessJwtError('ACCESS_TEAM_DOMAIN is not set');
   if (!aud) throw new AccessJwtError('ACCESS_AUD is not set');
@@ -186,7 +277,7 @@ export async function verifyAccessJwt(token, { teamDomain, aud, fetchImpl = fetc
   if (header?.alg !== 'RS256') throw new AccessJwtError('token alg is not RS256');
   if (typeof header?.kid !== 'string') throw new AccessJwtError('token has no kid');
 
-  const key = await keyForKid(header.kid, team, fetchImpl, now);
+  const key = await keyForKid(header.kid, team, fetchImpl, now, jwksTimeoutMs);
   if (!key) throw new AccessJwtError('token kid is not in the JWKS');
 
   const verified = await crypto.subtle.verify(

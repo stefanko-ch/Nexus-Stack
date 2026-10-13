@@ -41,9 +41,19 @@ jobs:
       run:
         working-directory: control-plane
     steps:
-      - uses: actions/checkout@v5
+      # SHA-pinned because these are new `uses:` lines, which is the
+      # moment to pin (#652 tracks the rest of the migration). The SHAs
+      # are the ones job-image-toolchain.yaml and changelog-parse.yaml
+      # already use, so there is one version of each in the tree.
+      #
+      # `persist-credentials: false` because this job runs test files
+      # from the pull request's own tree and performs no later Git
+      # operation, so the token has nothing to do here.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           # Matches the engines field in control-plane/package.json. No
           # cache: the suite installs nothing.
