@@ -1094,127 +1094,186 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
           APP_RESOURCE=cloudflare_zero_trust_access_application.control_plane_pages_dev
-          if tofu state show "$APP_RESOURCE" >/dev/null 2>&1; then
-            echo "✅ pages.dev Access application already in state"
+          POLICY_RESOURCE=cloudflare_zero_trust_access_policy.control_plane_pages_dev_email
+
+          APP_IN_STATE=no
+          POLICY_IN_STATE=no
+          tofu state show "$APP_RESOURCE" >/dev/null 2>&1 && APP_IN_STATE=yes
+          tofu state show "$POLICY_RESOURCE" >/dev/null 2>&1 && POLICY_IN_STATE=yes
+
+          if [ "$APP_IN_STATE" = yes ] && [ "$POLICY_IN_STATE" = yes ]; then
+            echo "✅ pages.dev Access application and its policy are both in state"
             exit 0
           fi
 
           PAGES_HOSTNAME="${{ steps.prefix.outputs.project_name }}.pages.dev"
-          echo "🔍 Looking for an existing Access application on $PAGES_HOSTNAME..."
 
-          # One request, filtered server-side with `?domain=`, rather than
-          # a walk through every Access application on the account. That
-          # matters for more than tidiness: tofu/stack creates one
-          # application per private service with `for_each` — 90 of the 104
-          # in services.yaml — and tenants provisioned under a shared base
-          # domain (`subdomain_separator = "-"`) share the zone, and so the
-          # account. A full listing would therefore grow as tenants × 90
-          # and need paginating; a filtered one does not grow at all.
-          #
-          # NOT `&exact=true`: a broader pattern covering this host has to
-          # come back too, so it can be refused below rather than adopted.
-          # The exact comparison happens here instead, so an ignored or
-          # loosened filter cannot turn into a wrong import.
-          APPS_FAILED=0
-          APPS_RESPONSE=$(curl -sS --fail-with-body --max-time 30 \
-            --get --data-urlencode "domain=${PAGES_HOSTNAME}" --data "per_page=100" \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" 2>&1) || APPS_FAILED=$?
-          if [ "$APPS_FAILED" -ne 0 ]; then
-            APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
-            # Fatal rather than "assume none exists". Not stricter than the
-            # apply either: creating the application needs Access: Apps and
-            # Policies, which includes the read this call makes — so a token
-            # that cannot list cannot create, and failing here says which
-            # permission rather than leaving it to a 403 mid-apply.
-            echo "::error title=access-app-adopt::Could not ask Cloudflare whether an Access application already covers ${PAGES_HOSTNAME} (curl exit ${APPS_FAILED}). Cloudflare said: ${APPS_ERROR:-(no error message in the response)}. Without that answer the apply would fail with access.api.error.application_already_exists if one does. CLOUDFLARE_API_TOKEN needs 'Access: Apps and Policies'."
-            exit 1
-          fi
-
-          # Confirm the response is the shape this reads BEFORE drawing any
-          # conclusion from an empty match. Without this, an unexpected body
-          # — a `success: false`, a truncated response, a future schema —
-          # reads as "none", and the apply then fails with the opaque 11010
-          # instead of the real reason. Found by rehearsal, not by reading:
-          # a stub curl that exited 0 and printed nothing took the "no
-          # application exists" path silently.
-          if [ "$(printf '%s' "$APPS_RESPONSE" | jq -r 'if .success == true and (.result | type) == "array" then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
-            APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
-            echo "::error title=access-app-adopt::The Access applications response came back in a shape this step cannot read, so it cannot tell whether one already covers ${PAGES_HOSTNAME}. Cloudflare said: ${APPS_ERROR:-(no error message in the response)}."
-            exit 1
-          fi
-
-          # A filtered query should never fill a page. If it does, the
-          # filter is not doing what this step assumes, and a conclusion
-          # drawn from page one would be guesswork.
-          FILTERED_PAGES=$(printf '%s' "$APPS_RESPONSE" | jq -r '.result_info.total_pages // 1' 2>/dev/null || echo 1)
-          case "$FILTERED_PAGES" in ''|*[!0-9]*) FILTERED_PAGES=1 ;; esac
-          if [ "$FILTERED_PAGES" -gt 1 ]; then
-            echo "::error title=access-app-adopt::Cloudflare reports ${FILTERED_PAGES} pages of Access applications matching ${PAGES_HOSTNAME}, which this step does not expect from a filtered query — it cannot tell which, if any, is the one to adopt, and will not guess."
-            exit 1
-          fi
-
-          MATCHED=$(printf '%s' "$APPS_RESPONSE" | jq -r '.result | length')
-          echo "  Cloudflare returned ${MATCHED} application(s) matching ${PAGES_HOSTNAME}"
-          APP_ID=$(printf '%s' "$APPS_RESPONSE" \
-            | jq -r --arg host "$PAGES_HOSTNAME" '.result[] | select((.domain // "") == $host) | .id' 2>/dev/null | head -1)
-
-          if [ -z "$APP_ID" ]; then
-            # An application whose domain is not exactly this host but still
-            # covers it — most plausibly the wildcard
-            # `*.<project>.pages.dev`, which also protects the preview
-            # hostnames. Deliberately NOT imported: this resource's config
-            # sets `domain` to the exact host, so adopting a wildcard would
-            # have the next apply narrow it, silently removing the preview
-            # protection somebody set up by hand. Report it and stop.
-            NEARBY=$(printf '%s' "$APPS_RESPONSE" \
-              | jq -r --arg host "$PAGES_HOSTNAME" '.result[] | select((.domain // "") != $host) | .domain' 2>/dev/null | head -3 | tr '\n' ' ')
-            if [ -n "$NEARBY" ]; then
-                echo "::error title=access-app-adopt::An Access application covers ${PAGES_HOSTNAME} under a different domain pattern (${NEARBY}), so it cannot be adopted into a resource whose domain is the exact host — doing so would narrow it on the next apply and drop whatever else it covers, such as the preview hostnames. Decide which you want: keep the broader application and remove cloudflare_zero_trust_access_application.control_plane_pages_dev from tofu/control-plane/main.tf, or delete the broader one in Zero Trust -> Access -> Applications and re-run. The hostname check in control-plane/functions/_middleware.js covers every pages.dev hostname either way."
+          if [ "$APP_IN_STATE" = yes ]; then
+            # The application is managed but its policy is not — which is
+            # what a previous run that adopted the application and then
+            # failed on the policy leaves behind. Exiting here (as an
+            # earlier version of this step did) made that state permanent:
+            # every later run saw the application in state and stopped
+            # before reaching the policy.
+            echo "ℹ️  Application already managed; its policy is not - checking"
+            APP_ID=$(tofu show -json 2>/dev/null \
+              | jq -r --arg addr "$APP_RESOURCE" '.values.root_module.resources[]? | select(.address == $addr) | .values.id // empty' 2>/dev/null || echo "")
+            if [ -z "$APP_ID" ]; then
+              echo "::error title=access-app-adopt::${APP_RESOURCE} is in state but its id could not be read back from it, so its policy cannot be looked up. Inspect with: tofu state show ${APP_RESOURCE}"
               exit 1
             fi
-            # The ordinary path for a fresh deployment, including every
-            # tenant that never had one created by hand.
+          else
+            echo "🔍 Looking for an existing Access application on $PAGES_HOSTNAME..."
+
+            # One request, filtered server-side with `?domain=`, rather
+            # than a walk through every Access application on the account.
+            # That matters for more than tidiness: tofu/stack creates one
+            # application per private service with `for_each` — 90 of the
+            # 104 in services.yaml — and tenants provisioned under a shared
+            # base domain (`subdomain_separator = "-"`) share the zone, and
+            # so the account. A full listing would grow as tenants × 90 and
+            # need paginating; a filtered one does not grow at all.
             #
-            # One honest limit: if an application covers this host under a
-            # pattern the `?domain=` filter does not return, this concludes
-            # "none" and the apply fails with 11010 — exactly what happened
-            # before this step existed, no worse, and the log above now
-            # names what to look for.
-            echo "ℹ️  No Access application covers $PAGES_HOSTNAME - tofu apply will create it"
-            exit 0
+            # NOT `&exact=true`: a broader pattern covering this host has to
+            # come back too, so it can be refused below rather than
+            # adopted. The exact comparison happens here instead, so an
+            # ignored or loosened filter cannot turn into a wrong import.
+            APPS_FAILED=0
+            APPS_RESPONSE=$(curl -sS --fail-with-body --max-time 30 \
+              --get --data-urlencode "domain=${PAGES_HOSTNAME}" --data "per_page=100" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" 2>&1) || APPS_FAILED=$?
+            if [ "$APPS_FAILED" -ne 0 ]; then
+              APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+              # Fatal rather than "assume none exists". Not stricter than
+              # the apply either: creating the application needs Access:
+              # Apps and Policies, which includes the read this call makes —
+              # so a token that cannot list cannot create, and failing here
+              # says which permission rather than leaving it to a 403
+              # mid-apply.
+              echo "::error title=access-app-adopt::Could not ask Cloudflare whether an Access application already covers ${PAGES_HOSTNAME} (curl exit ${APPS_FAILED}). Cloudflare said: ${APPS_ERROR:-(no error message in the response)}. Without that answer the apply would fail with access.api.error.application_already_exists if one does. CLOUDFLARE_API_TOKEN needs 'Access: Apps and Policies'."
+              exit 1
+            fi
+
+            # Confirm the response is the shape this reads BEFORE drawing
+            # any conclusion from an empty match. Without this, an
+            # unexpected body — a `success: false`, a truncated response, a
+            # future schema — reads as "none", and the apply then fails
+            # with the opaque 11010 instead of the real reason. Found by
+            # rehearsal, not by reading: a stub curl that exited 0 and
+            # printed nothing took the "no application exists" path
+            # silently.
+            if [ "$(printf '%s' "$APPS_RESPONSE" | jq -r 'if .success == true and (.result | type) == "array" then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
+              APPS_ERROR=$(printf '%s' "$APPS_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+              echo "::error title=access-app-adopt::The Access applications response came back in a shape this step cannot read, so it cannot tell whether one already covers ${PAGES_HOSTNAME}. Cloudflare said: ${APPS_ERROR:-(no error message in the response)}."
+              exit 1
+            fi
+
+            # A filtered query should never fill a page. If it does, the
+            # filter is not doing what this step assumes, and a conclusion
+            # drawn from page one would be guesswork.
+            FILTERED_PAGES=$(printf '%s' "$APPS_RESPONSE" | jq -r '.result_info.total_pages // 1' 2>/dev/null || echo 1)
+            case "$FILTERED_PAGES" in ''|*[!0-9]*) FILTERED_PAGES=1 ;; esac
+            if [ "$FILTERED_PAGES" -gt 1 ]; then
+              echo "::error title=access-app-adopt::Cloudflare reports ${FILTERED_PAGES} pages of Access applications matching ${PAGES_HOSTNAME}, which this step does not expect from a filtered query — it cannot tell which, if any, is the one to adopt, and will not guess."
+              exit 1
+            fi
+
+            MATCHED=$(printf '%s' "$APPS_RESPONSE" | jq -r '.result | length')
+            echo "  Cloudflare returned ${MATCHED} application(s) matching ${PAGES_HOSTNAME}"
+            APP_ID=$(printf '%s' "$APPS_RESPONSE" \
+              | jq -r --arg host "$PAGES_HOSTNAME" '.result[] | select((.domain // "") == $host) | .id' 2>/dev/null | head -1)
+
+            if [ -z "$APP_ID" ]; then
+              # An application whose domain is not exactly this host but
+              # still covers it — most plausibly the wildcard
+              # `*.<project>.pages.dev`, which also protects the preview
+              # hostnames. Deliberately NOT imported: this resource's
+              # config sets `domain` to the exact host, so adopting a
+              # wildcard would have the next apply narrow it, silently
+              # removing the preview protection somebody set up by hand.
+              # Report it and stop.
+              NEARBY=$(printf '%s' "$APPS_RESPONSE" \
+                | jq -r --arg host "$PAGES_HOSTNAME" '.result[] | select((.domain // "") != $host) | .domain' 2>/dev/null | head -3 | tr '\n' ' ')
+              if [ -n "$NEARBY" ]; then
+                echo "::error title=access-app-adopt::An Access application covers ${PAGES_HOSTNAME} under a different domain pattern (${NEARBY}), so it cannot be adopted into a resource whose domain is the exact host — doing so would narrow it on the next apply and drop whatever else it covers, such as the preview hostnames. Decide which you want: keep the broader application and remove cloudflare_zero_trust_access_application.control_plane_pages_dev from tofu/control-plane/main.tf, or delete the broader one in Zero Trust -> Access -> Applications and re-run. The hostname check in control-plane/functions/_middleware.js covers every pages.dev hostname either way."
+                exit 1
+              fi
+              # The ordinary path for a fresh deployment, including every
+              # tenant that never had one created by hand.
+              #
+              # One honest limit: if an application covers this host under a
+              # pattern the `?domain=` filter does not return, this
+              # concludes "none" and the apply fails with 11010 — exactly
+              # what happened before this step existed, no worse, and the
+              # log above now names what to look for.
+              echo "ℹ️  No Access application covers $PAGES_HOSTNAME - tofu apply will create it"
+              exit 0
+            fi
+
+            echo "💾 Found one - importing so Terraform owns it from here on..."
+            if ! tofu import -var-file=config.tfvars "$APP_RESOURCE" "${CLOUDFLARE_ACCOUNT_ID}/${APP_ID}"; then
+              # Not a warning. The application exists, so the apply that
+              # follows WILL hit 11010 - failing here says why, which 11010
+              # does not.
+              echo "::error title=access-app-adopt::An Access application already covers ${PAGES_HOSTNAME}, but importing it into OpenTofu state failed. The apply that follows would fail with access.api.error.application_already_exists. Fix: import it by hand (tofu import ${APP_RESOURCE} <account_id>/${APP_ID}) or delete the application in Zero Trust -> Access -> Applications and re-run."
+              exit 1
+            fi
+            echo "✅ Access application imported"
           fi
 
-          echo "💾 Found one - importing so Terraform owns it from here on..."
-          if ! tofu import -var-file=config.tfvars "$APP_RESOURCE" "${CLOUDFLARE_ACCOUNT_ID}/${APP_ID}"; then
-            # Not a warning. The application exists, so the apply that
-            # follows WILL hit 11010 - failing here says why, which 11010
-            # does not.
-            echo "::error title=access-app-adopt::An Access application already covers ${PAGES_HOSTNAME}, but importing it into OpenTofu state failed. The apply that follows would fail with access.api.error.application_already_exists. Fix: import it by hand (tofu import cloudflare_zero_trust_access_application.control_plane_pages_dev <account_id>/${APP_ID}) or delete the application in Zero Trust -> Access -> Applications and re-run."
+          # Its policy, if it has one. Fatal when this cannot be settled,
+          # not best-effort: the provider documents `precedence` as "the
+          # unique precedence for policies on a single application", and
+          # the config sets it to 1. Whether the API rejects a second
+          # policy at precedence 1 is not something this repository can
+          # establish without creating one, so the step does not rely on
+          # either answer — it refuses to leave the question open. An
+          # earlier version of this comment asserted that duplicates are
+          # merely untidy. That was unverified.
+          POLICIES_FAILED=0
+          POLICIES_RESPONSE=$(curl -sS --fail-with-body --max-time 30 \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps/${APP_ID}/policies" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" 2>&1) || POLICIES_FAILED=$?
+          if [ "$POLICIES_FAILED" -ne 0 ]; then
+            POLICIES_ERROR=$(printf '%s' "$POLICIES_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+            echo "::error title=access-app-adopt::Could not list the policies on Access application ${APP_ID} (curl exit ${POLICIES_FAILED}). Cloudflare said: ${POLICIES_ERROR:-(no error message in the response)}. The apply would then try to add a policy at precedence 1 without knowing whether one is already there."
             exit 1
           fi
-          echo "✅ Access application imported"
+          if [ "$(printf '%s' "$POLICIES_RESPONSE" | jq -r 'if .success == true and (.result | type) == "array" then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
+            POLICIES_ERROR=$(printf '%s' "$POLICIES_RESPONSE" | jq -r '.errors[0].message // empty' 2>/dev/null || echo "")
+            echo "::error title=access-app-adopt::The policy list for Access application ${APP_ID} came back in a shape this step cannot read. Cloudflare said: ${POLICIES_ERROR:-(no error message in the response)}."
+            exit 1
+          fi
 
-          # Its policy too, if it has one. Best-effort on purpose: a missing
-          # import here means the apply creates a second policy on the same
-          # application, which Cloudflare permits - untidy, not broken - so
-          # it must not fail a setup run the way the application does.
-          POLICY_ID=$(curl -sS --fail-with-body --max-time 30 \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/apps/${APP_ID}/policies" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" 2>/dev/null \
-            | jq -r '.result[0].id // empty' 2>/dev/null || echo "")
-          if [ -z "$POLICY_ID" ]; then
+          POLICY_COUNT=$(printf '%s' "$POLICIES_RESPONSE" | jq -r '.result | length')
+          if [ "$POLICY_COUNT" -eq 0 ]; then
             echo "ℹ️  The application carries no policy - tofu apply will add one"
             exit 0
           fi
-          POLICY_RESOURCE=cloudflare_zero_trust_access_policy.control_plane_pages_dev_email
-          if tofu import -var-file=config.tfvars "$POLICY_RESOURCE" \
-              "account/${CLOUDFLARE_ACCOUNT_ID}/${APP_ID}/${POLICY_ID}"; then
-            echo "✅ Access policy imported"
-          else
-            echo "⚠️  Could not import the existing policy - tofu apply will add its own alongside it"
+          if [ "$POLICY_COUNT" -gt 1 ]; then
+            # Importing one of several would leave the others unmanaged,
+            # still granting access, and invisible in the plan. Which to
+            # keep is a decision about who may reach the Control Plane, so
+            # it is not one to make here.
+            POLICY_NAMES=$(printf '%s' "$POLICIES_RESPONSE" | jq -r '.result[] | "\(.name // "(unnamed)")@precedence=\(.precedence // "?")"' 2>/dev/null | head -5 | tr '\n' ' ')
+            echo "::error title=access-app-adopt::Access application ${APP_ID} carries ${POLICY_COUNT} policies (${POLICY_NAMES}), and this step manages exactly one. Adopting one would leave the rest granting access while invisible to the plan. Remove the ones you do not want in Zero Trust -> Access -> Applications and re-run."
+            exit 1
           fi
+
+          POLICY_ID=$(printf '%s' "$POLICIES_RESPONSE" | jq -r '.result[0].id // empty')
+          if [ -z "$POLICY_ID" ]; then
+            echo "::error title=access-app-adopt::Access application ${APP_ID} reports one policy with no id, which this step cannot adopt."
+            exit 1
+          fi
+          if ! tofu import -var-file=config.tfvars "$POLICY_RESOURCE" \
+              "account/${CLOUDFLARE_ACCOUNT_ID}/${APP_ID}/${POLICY_ID}"; then
+            echo "::error title=access-app-adopt::A policy already exists on Access application ${APP_ID}, but importing it into OpenTofu state failed. The apply would then add a second policy at precedence 1, which the provider documents as having to be unique per application. Fix: import it by hand (tofu import ${POLICY_RESOURCE} account/<account_id>/${APP_ID}/${POLICY_ID}) or delete the policy in Zero Trust -> Access -> Applications and re-run."
+            exit 1
+          fi
+          echo "✅ Access policy imported"
 
       - name: Deploy Control Plane infrastructure
         run: |
