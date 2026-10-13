@@ -5,12 +5,20 @@
  * with POST /api/databricks-sync so the Secrets page and the Databricks scope
  * always mirror the same inventory.
  *
- * All Control Panel endpoints are protected by Cloudflare Access (email OTP)
- * at the infrastructure level. No additional auth needed.
+ * This returns secret VALUES in plaintext, so it carries the strongest
+ * guard an endpoint users need to reach can have: `requireOperator`, which
+ * admits the admin and the addresses in USER_EMAIL and nobody else. It
+ * previously had none, on the reasoning that Cloudflare Access in front of
+ * the custom domain was enough — a guarantee this repository cannot make,
+ * because the Pages project answers on hostnames Terraform does not cover.
  */
 import { fetchAllInfisicalSecrets } from './_utils/infisical.js';
+import { requireOperator } from './_utils/require-operator.js';
 
 export async function onRequestGet(context) {
+  const denial = await requireOperator(context.env, context.request);
+  if (denial) return denial;
+
   try {
     const { configured, groups, warnings, message } = await fetchAllInfisicalSecrets(context.env);
 

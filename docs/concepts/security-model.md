@@ -59,6 +59,39 @@ one-time-password policy, created by OpenTofu from the service list. Practically
   the whole internet with only its own authentication. Exactly one shipped stack
   does this, and adding a second one deserves a hard look.
 
+### The Control Plane checks for itself
+
+The Control Plane is not a container behind the tunnel — it is a Cloudflare Pages
+project, and that makes it the one component where "Access is in front of it" is
+not a complete answer.
+
+A Pages project answers on more than its custom domain: also on
+`<project>.pages.dev`, and on one hostname per preview deployment. OpenTofu creates
+the Access application for `control.<domain>`, and an Access application covers the
+hostname it names. So the Control Plane does three things in its own code rather
+than relying on what sits in front of it:
+
+- **It answers on one hostname.** A request that arrives on any other hostname gets
+  a 404 — not a redirect, which would confirm which hostname is the real one. The
+  check derives the expected hostname from the deployment's own configuration, so it
+  covers hostnames nobody has enumerated.
+- **It verifies the Access token** rather than reading the identity header Cloudflare
+  adds. The RS256 signature is checked against the JWKS your Access team publishes,
+  along with the issuer, the application's AUD tag and the expiry. An identity header
+  is something a caller can set; a signature is not.
+- **It authorizes per endpoint.** Access answers *whether* someone reaches the
+  Control Plane; it does not distinguish the admin from a student. Each endpoint
+  requires either the admin identity or one of the configured operator identities,
+  and endpoints with no identity requirement at all — the health check and the
+  version banner — are listed as such in a test that fails if a new one appears.
+
+OpenTofu also creates a second, account-scoped Access application covering
+`<project>.pages.dev`, so the configuration and the code both close that door. If
+the Control Plane cannot verify a token — because `ACCESS_AUD` or
+`ACCESS_TEAM_DOMAIN` is missing — it denies every request and names the missing
+value. That direction is deliberate: a locked-out operator notices within seconds,
+a trusted header does not.
+
 ## Two worlds of credentials
 
 Nexus Stack keeps infrastructure credentials and service credentials strictly apart,
@@ -115,7 +148,9 @@ An honest security page needs this section.
 - **Anyone with push access to the repository** — see above.
 - **The people you let in.** Access decides *whether* someone reaches a service, not
   what they may do inside it. Everyone on the allowed-email list is effectively an
-  administrator of every enabled stack.
+  administrator of every enabled stack. The Control Plane is the exception —
+  it separates the admin from the other operators — but the stacks themselves are
+  not role-aware.
 - **A stack's own vulnerabilities.** Images are pinned, but pinned is not patched. A
   long-lived deployment needs someone to update them.
 - **Containers publishing ports on all host interfaces.** Most stacks bind published

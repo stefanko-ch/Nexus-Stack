@@ -16,37 +16,41 @@
 // your own stack is the reason the Control Plane is there; a guest doing
 // it to a stack somebody else is working on is not.
 //
-// Use it where the action is self-service. Today that is exactly three
-// endpoints: /api/spin-up, /api/teardown and the POST on /api/services.
+// Use it where the action is self-service, or where the response is a
+// credential. Today that is four endpoints: /api/spin-up, /api/teardown,
+// the POST on /api/services, and GET /api/secrets — which returns secret
+// VALUES, so guests are deliberately not admitted to it even though they
+// may see the dashboard around it.
+//
+// For reads that all three roles are meant to have, requireViewer sits one
+// tier below this one: it requires a verified Access session without
+// comparing the identity to a list, because the Control Plane is never
+// told who the guests are. See require-viewer.js.
 //
 // Keep requireAdmin everywhere else, including two that sound like they
 // belong here and do not. /api/lifecycle changes WHICH teardown and
 // spin-up pair the stack uses, which decides what survives a cycle —
 // a configuration choice with data-loss consequences, not an act of
-// running the stack. /api/scheduled-teardown sets the cost-control
-// timer that users are not meant to switch off. The rest is plainly
+// running the stack. The POST on /api/scheduled-teardown sets the
+// cost-control timer that users are not meant to switch off (its GET is
+// viewer-level: the dashboard shows the countdown to everyone). The rest is plainly
 // operator work: destroying infrastructure, redeploying the Control
 // Plane, opening host firewall ports, mailing the Infisical master
 // credentials.
 //
 // Usage at the top of a handler, after the origin check:
-//   const denial = requireOperator(context.env, context.request);
+//   const denial = await requireOperator(context.env, context.request);
 //   if (denial) return denial;
 import { getAccessUserEmail } from './cf-access-email.js';
+import { misconfigured, forbidden } from './deny.js';
 
-export function requireOperator(env, request) {
+export async function requireOperator(env, request) {
   const adminEmail = (env.ADMIN_EMAIL || '').trim().toLowerCase();
   if (!adminEmail) {
     // Same failure mode as requireAdmin: with no admin configured there
     // is no identity to compare against, and treating that as "allow"
     // would turn a misconfiguration into an open endpoint.
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Server misconfigured: ADMIN_EMAIL is not set',
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return misconfigured('ADMIN_EMAIL is not set');
   }
 
   // USER_EMAIL may be a single address or a comma-separated list — the
@@ -59,16 +63,9 @@ export function requireOperator(env, request) {
 
   // Comparison is case-insensitive to match Cloudflare Access and
   // identity-provider behaviour, as requireAdmin does.
-  const caller = (getAccessUserEmail(request) || '').trim().toLowerCase();
-  if (caller && (caller === adminEmail || userEmails.includes(caller))) {
-    return null;
-  }
+  const { email, reason } = await getAccessUserEmail(request, env);
+  const caller = (email || '').trim().toLowerCase();
+  if (caller && (caller === adminEmail || userEmails.includes(caller))) return null;
 
-  return new Response(
-    JSON.stringify({
-      success: false,
-      error: 'Forbidden: this endpoint requires an operator or user account',
-    }),
-    { status: 403, headers: { 'Content-Type': 'application/json' } }
-  );
+  return forbidden('Forbidden: this endpoint requires an operator or user account', reason);
 }

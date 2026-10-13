@@ -22,12 +22,18 @@
  *
  * No `requireSameOrigin` here: that guard requires a JSON Content-Type,
  * which a browser GET never sends, and it exists for state-changing
- * endpoints. Reads are gated by Cloudflare Access like every other GET.
+ * endpoints. Identity is established by `requireViewer` instead — the
+ * run ids, workflow names and failed-step detail below are deployment
+ * state — but the setup guide's role table promises them to every role,
+ * guests included, so the guard requires a verified Access session rather
+ * than one of the two named identities. "Cloudflare Access is in front of
+ * this" was never something this code could check.
  */
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 import { deriveProgress } from './_utils/run-progress.js';
 import { readDispatchMarkers, DISPATCH_GRACE_MS, DISPATCH_SKEW_MS } from './_utils/dispatch-marker.js';
+import { requireViewer } from './_utils/require-viewer.js';
 
 const FAMILY_ORDER = ['initialSetup', 'setup', 'spinUp', 'teardown', 'destroy'];
 
@@ -78,6 +84,9 @@ async function fetchProgress(env, run) {
 
 export async function onRequestGet(context) {
   const { env, request } = context;
+
+  const denial = await requireViewer(env, request);
+  if (denial) return denial;
 
   // Validate environment variables
   const missing = [];

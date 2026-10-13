@@ -1,8 +1,15 @@
 /**
  * Get Nexus-Stack version from GitHub releases
  * GET /api/version
- * 
- * Returns the latest release version from GitHub
+ *
+ * Returns the latest release version from GitHub.
+ *
+ * Deliberately NOT identity-guarded, unlike the other GETs here. Header
+ * .astro fetches it on every page render, including for an Access
+ * identity that is on the whitelist but is neither the admin nor in
+ * USER_EMAIL, and what it returns is a public GitHub release tag plus the
+ * owner/repo already printed in this repository's README. The hostname
+ * check in functions/_middleware.js still applies.
  */
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 
@@ -53,7 +60,7 @@ export async function onRequestGet(context) {
   try {
     // Fetch the latest release from GitHub
     const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/releases/latest`;
-    
+
     const response = await fetchWithTimeout(url, {
       headers: {
         'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
@@ -72,19 +79,19 @@ export async function onRequestGet(context) {
           url: `https://github.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}`,
           publishedAt: null,
         }), {
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'Cache-Control': 'public, max-age=300', // 300s = 5 minutes
           },
         });
       }
-      
+
       const errorText = await response.text();
       console.error(`GitHub API error: ${response.status} - ${errorText}`);
-      
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: `Failed to fetch version: ${response.status}` 
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: `Failed to fetch version: ${response.status}`
       }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' },
@@ -100,16 +107,16 @@ export async function onRequestGet(context) {
       url: release.html_url,
       publishedAt: release.published_at,
     }), {
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=300', // 300s = 5 minutes
       },
     });
   } catch (error) {
     console.error('Version endpoint error:', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Internal server error' 
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Internal server error'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

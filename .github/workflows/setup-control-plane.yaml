@@ -1478,6 +1478,9 @@ jobs:
           SUBDOMAIN_SEPARATOR: ${{ secrets.SUBDOMAIN_SEPARATOR || '.' }}
           ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
           USER_EMAIL: ${{ secrets.TF_VAR_user_email }}
+          # Optional. Set it when CLOUDFLARE_API_TOKEN lacks the Access
+          # Organizations read permission the step below would otherwise use.
+          CF_ACCESS_TEAM_DOMAIN: ${{ secrets.CF_ACCESS_TEAM_DOMAIN }}
         run: |
           echo "⚙️  Setting Control Plane secrets..."
           PROJECT_NAME="${{ steps.prefix.outputs.project_name }}"
@@ -1624,6 +1627,81 @@ jobs:
               echo "❌ Failed to set CONTROL_PLANE_URL - teardown emails will link to wrong host"
               exit 1
             fi
+          fi
+
+          # ACCESS_AUD + ACCESS_TEAM_DOMAIN — what the Pages Functions need to
+          # VERIFY an Access token rather than trust the header Cloudflare puts
+          # on it. Both fatal if missing: the guards in
+          # control-plane/functions/api/_utils/ deny every request when they
+          # cannot verify, so a Control Plane deployed without these answers
+          # 403 to its own admin. That is the direction to fail in — a
+          # locked-out operator notices within seconds, a trusted header does
+          # not — but it does mean the step cannot shrug this off.
+          echo "  Reading the Access AUD tag from Terraform..."
+          ACCESS_AUD=""
+          AUD_FAILED=0
+          AUD_ERROR=""
+          (
+            cd tofu/control-plane
+            source ../.r2-credentials
+            export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+            export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+            tofu output -raw access_aud
+          ) > /tmp/access-aud.txt 2> /tmp/access-aud.err || AUD_FAILED=1
+          if [ "$AUD_FAILED" -eq 0 ]; then
+            ACCESS_AUD=$(tr -d '[:space:]' < /tmp/access-aud.txt)
+          else
+            AUD_ERROR=$(tr '\n\r' '  ' < /tmp/access-aud.err | head -c 300)
+          fi
+          rm -f /tmp/access-aud.txt /tmp/access-aud.err
+          if [ -z "$ACCESS_AUD" ]; then
+            echo "::error title=access-aud::Could not read the access_aud Terraform output, so the Control Plane cannot verify Access tokens and would deny every request. tofu output: ${AUD_ERROR:-(empty value, no error)}"
+            exit 1
+          fi
+          # The AUD identifies an application; it authorises nothing. Masked
+          # anyway, because a log line nobody meant to publish is cheaper to
+          # prevent than to retract.
+          echo "::add-mask::$ACCESS_AUD"
+
+          # The Access team domain (<team>.cloudflareaccess.com) is an account
+          # property, and the Cloudflare Terraform provider v4 exposes it only
+          # through a resource that would MANAGE the organisation — so it is
+          # read here instead. An explicit secret wins when set; otherwise the
+          # account API is asked, which needs a token with Access:
+          # Organizations read. This step does not know the token's scopes, so
+          # it reports what the call actually returned rather than asserting
+          # anything about permissions.
+          ACCESS_TEAM_DOMAIN="$CF_ACCESS_TEAM_DOMAIN"
+          if [ -n "$ACCESS_TEAM_DOMAIN" ]; then
+            echo "  Access team domain taken from the CF_ACCESS_TEAM_DOMAIN secret"
+          else
+            echo "  Asking the Cloudflare API for the Access team domain..."
+            ORG_RESPONSE=$(curl -s --max-time 30 \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access/organizations" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" || echo '')
+            ACCESS_TEAM_DOMAIN=$(printf '%s' "$ORG_RESPONSE" | jq -r '.result.auth_domain // empty' 2>/dev/null || echo "")
+          fi
+          if [ -z "$ACCESS_TEAM_DOMAIN" ]; then
+            # Deliberately not echoing $ORG_RESPONSE: an error body from this
+            # endpoint has carried account detail. The remedy does not need it.
+            echo "::error title=access-team-domain::Could not determine the Cloudflare Access team domain. The Control Plane verifies Access tokens against https://<team>.cloudflareaccess.com and denies every request without it. Fix: read the team domain from Zero Trust -> Settings -> Custom Pages (it looks like 'yourteam.cloudflareaccess.com') and set it as the CF_ACCESS_TEAM_DOMAIN repository secret, or give CLOUDFLARE_API_TOKEN the 'Access: Organizations, Identity Providers, and Groups - Read' permission."
+            exit 1
+          fi
+          echo "  Access team domain resolved"
+
+          echo "  Setting ACCESS_AUD secret..."
+          if ! printf '%s' "$ACCESS_AUD" | npx wrangler@4.129.0 pages secret put ACCESS_AUD \
+            --project-name="$PROJECT_NAME" 2>&1; then
+            echo "❌ Failed to set ACCESS_AUD - the Control Plane would deny every request"
+            exit 1
+          fi
+
+          echo "  Setting ACCESS_TEAM_DOMAIN secret..."
+          if ! printf '%s' "$ACCESS_TEAM_DOMAIN" | npx wrangler@4.129.0 pages secret put ACCESS_TEAM_DOMAIN \
+            --project-name="$PROJECT_NAME" 2>&1; then
+            echo "❌ Failed to set ACCESS_TEAM_DOMAIN - the Control Plane would deny every request"
+            exit 1
           fi
 
           if [ -n "$ADMIN_EMAIL" ]; then

@@ -7,32 +7,24 @@
 // caller (extracted from the JWT). Comparison is case-insensitive to match
 // Cloudflare Access / identity-provider behaviour.
 //
-// Usage at the top of any admin-only handler:
-//   const denial = requireAdmin(context.env, context.request);
+// The caller's identity comes from a VERIFIED Access token — signature,
+// iss, aud and exp — so a self-set `Cf-Access-*` header no longer passes
+// this guard. See cf-access-email.js and access-jwt.js.
+//
+// Usage at the top of any admin-only handler (note the await):
+//   const denial = await requireAdmin(context.env, context.request);
 //   if (denial) return denial;
 import { getAccessUserEmail } from './cf-access-email.js';
+import { misconfigured, forbidden } from './deny.js';
 
-export function requireAdmin(env, request) {
+export async function requireAdmin(env, request) {
   const adminEmail = (env.ADMIN_EMAIL || '').trim().toLowerCase();
-  if (!adminEmail) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Server misconfigured: ADMIN_EMAIL is not set'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  if (!adminEmail) return misconfigured('ADMIN_EMAIL is not set');
 
-  const caller = (getAccessUserEmail(request) || '').trim().toLowerCase();
+  const { email, reason } = await getAccessUserEmail(request, env);
+  const caller = (email || '').trim().toLowerCase();
   if (!caller || caller !== adminEmail) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Forbidden: this endpoint requires admin access'
-    }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return forbidden('Forbidden: this endpoint requires admin access', reason);
   }
   return null;
 }

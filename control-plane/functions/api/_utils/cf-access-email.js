@@ -1,28 +1,45 @@
-// Extract the authenticated user's email from a Cloudflare Access request.
+// Identify the caller from a verified Cloudflare Access token.
 //
-// Cloudflare Access always injects `Cf-Access-Jwt-Assertion`, but only some
-// app configurations also emit `Cf-Access-Authenticated-User-Email` as a
-// plain header — newer apps tend not to. Decoding the JWT's email claim is
-// the only universally reliable path. Origin-supplied `Cf-Access-*` headers
-// are stripped and re-set at Cloudflare's edge, so values reaching the
-// Worker were written by the edge — but only as long as the request
-// actually passed through Access. That holds for Pages Functions on this
-// project today; a misconfig or alternate route would break the assumption.
-// Proper defense-in-depth would verify the JWT signature against the
-// Access JWKS endpoint.
-export function getAccessUserEmail(request) {
-  const direct = (request.headers.get('Cf-Access-Authenticated-User-Email') || '').trim();
-  if (direct) return direct;
+// This used to read `Cf-Access-Authenticated-User-Email`, or base64-decode
+// the JWT payload without checking the signature. Both are only as good as
+// the assumption that every route reaching this code passed through
+// Access — an assumption about infrastructure, held outside this
+// repository, and one this project destroys and recreates routinely.
+//
+// Now the token is verified: signature against the Access JWKS, plus
+// `iss`, `aud` and `exp`. See `access-jwt.js`.
+//
+// `getAccessUserEmail` is async as a result. Every caller awaits it.
+import { verifyAccessJwt, AccessJwtError } from './access-jwt.js';
 
-  const jwt = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!jwt) return null;
-  const parts = jwt.split('.');
-  if (parts.length !== 3) return null;
+/**
+ * The verified caller's email, or null.
+ *
+ * Returns null — never a fallback identity — when the token is missing,
+ * malformed, expired, or signed by someone else. The guards that call this
+ * treat null as "deny", so a configuration mistake locks people out rather
+ * than letting an unverified header through. That is the direction to fail
+ * in: a locked-out operator notices within seconds, a trusted header does
+ * not.
+ *
+ * @returns {Promise<{ email: string | null, reason: string | null }>}
+ *   `reason` is a short, token-free string for the caller to surface when
+ *   the deployment is misconfigured, so a 403 can say which secret is
+ *   missing instead of looking like a permissions problem.
+ */
+export async function getAccessUserEmail(request, env, options = {}) {
+  const token = request.headers.get('Cf-Access-Jwt-Assertion');
 
   try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof payload.email === 'string' ? payload.email.trim() : null;
-  } catch {
-    return null;
+    const payload = await verifyAccessJwt(token, {
+      teamDomain: env.ACCESS_TEAM_DOMAIN,
+      aud: env.ACCESS_AUD,
+      ...options,
+    });
+    const email = typeof payload.email === 'string' ? payload.email.trim() : '';
+    return { email: email || null, reason: email ? null : 'token carries no email claim' };
+  } catch (err) {
+    if (err instanceof AccessJwtError) return { email: null, reason: err.reason };
+    return { email: null, reason: `verification failed (${err?.name || 'Error'})` };
   }
 }

@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
   // address on the Access whitelist — user_email, guest_emails — could have
   // the master credentials delivered to itself. Spin-up and service toggles
   // stay open to non-admins on purpose; this one cannot.
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
 
   // Validate environment variables
@@ -79,7 +79,12 @@ export async function onRequestPost(context) {
 
     // TO is the Access-authenticated caller, so each user gets their own copy.
     // Falls back to USER_EMAIL[0] when no Access identity can be resolved.
-    const accessEmailRaw = getAccessUserEmail(request);
+    //
+    // The fallback is safe here in a way it would not be in a guard:
+    // requireAdmin above has already established that the caller IS the
+    // admin, so this only decides which of two addresses the mail goes
+    // to — both of them the operator's own.
+    const { email: accessEmailRaw } = await getAccessUserEmail(request, env);
     const accessEmail = accessEmailRaw && isValidResendEmail(accessEmailRaw) ? accessEmailRaw : null;
 
     // USER_EMAIL may be a single address or a comma-separated list.

@@ -24,7 +24,7 @@ export async function onRequestPost(context) {
   // setup-control-plane workflow, which rotates its secrets and rebuilds the
   // Pages project. That is operator work, not the per-student self-service
   // that spin-up and the service toggles deliberately allow.
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
 
   // Validate environment variables

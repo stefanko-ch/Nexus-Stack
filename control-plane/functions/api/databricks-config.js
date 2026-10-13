@@ -14,6 +14,11 @@ import { requireSameOrigin } from './_utils/require-same-origin.js';
 export async function onRequestGet(context) {
   const { env } = context;
 
+  // Matches onRequestPost: this returns the workspace host and whether a
+  // token is stored, which is admin configuration.
+  const denial = await requireAdmin(env, context.request);
+  if (denial) return denial;
+
   try {
     if (!env.NEXUS_KV) {
       return new Response(JSON.stringify({ success: false, error: 'KV not configured' }), {
@@ -49,7 +54,7 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
 
   try {

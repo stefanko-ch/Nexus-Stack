@@ -16,6 +16,7 @@
 import { logApiCall, logError } from './_utils/logger.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import { requireOperator } from './_utils/require-operator.js';
+import { requireViewer } from './_utils/require-viewer.js';
 
 /**
  * Validate service name to prevent injection attacks
@@ -42,6 +43,12 @@ function validateServiceName(name) {
  */
 export async function onRequestGet(context) {
   const { env, request } = context;
+
+  // The stack catalogue is what StacksShared.astro renders for everyone,
+  // guests included. Toggling a stack is operator work; seeing the list
+  // is not, so the GET is a tier below the POST.
+  const denial = await requireViewer(env, request);
+  if (denial) return denial;
 
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
@@ -156,7 +163,7 @@ export async function onRequestPost(context) {
   // Enabling and disabling services is self-service and stays open to
   // users. It is a POST that changes desired state for everyone on the
   // stack, though, so a guest does not get it.
-  const denial = requireOperator(env, request);
+  const denial = await requireOperator(env, request);
   if (denial) return denial;
 
   if (!env.NEXUS_DB) {

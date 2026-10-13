@@ -9,6 +9,7 @@
 import { logApiCall, logError } from './_utils/logger.js';
 import { getAccessUserEmail } from './_utils/cf-access-email.js';
 import { requireAdmin } from './_utils/require-admin.js';
+import { requireViewer } from './_utils/require-viewer.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import { timeInTimezoneToUTC } from './_utils/timezone.js';
 
@@ -100,7 +101,13 @@ async function logExtension(db, userEmail, delayHours, delayUntil) {
 
 export async function onRequestGet(context) {
   const { env, request } = context;
-  const userEmail = getAccessUserEmail(request) || '';
+  // This reads deployment state, so it needs an identity like the POST
+  // path does. It had none: Cloudflare Access in front of the custom
+  // domain was the only thing standing between it and the internet.
+  // Viewer-level, because the dashboard shows the countdown to everyone.
+  const denial = await requireViewer(env, request);
+  if (denial) return denial;
+  const { email: userEmail } = await getAccessUserEmail(request, env);
   const maxExtensionsPerDay = parsePositiveInt(env.MAX_EXTENSIONS_PER_DAY, 3);
   const maxDelayHours = parsePositiveInt(env.MAX_DELAY_HOURS, 4);
 
@@ -205,9 +212,9 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
-  const userEmail = getAccessUserEmail(request) || '';
+  const { email: userEmail } = await getAccessUserEmail(request, env);
   const maxExtensionsPerDay = parsePositiveInt(env.MAX_EXTENSIONS_PER_DAY, 3);
   const maxDelayHours = parsePositiveInt(env.MAX_DELAY_HOURS, 4);
 

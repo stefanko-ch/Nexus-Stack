@@ -8,6 +8,7 @@
 import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 import { timeInTimezoneToUTC } from './_utils/timezone.js';
+import { requireViewer } from './_utils/require-viewer.js';
 
 // D1 Helper Functions
 async function getConfig(db, key, defaultValue = null) {
@@ -20,7 +21,13 @@ async function getConfig(db, key, defaultValue = null) {
 }
 
 export async function onRequestGet(context) {
-  const { env } = context;
+  const { env, request } = context;
+
+  // Server type, location, teardown schedule and workflow detail are
+  // deployment state: readable by anyone on the Access whitelist — the
+  // dashboard needs it on first paint — and by nobody else.
+  const denial = await requireViewer(env, request);
+  if (denial) return denial;
 
   // Validate environment variables
   const missing = [];

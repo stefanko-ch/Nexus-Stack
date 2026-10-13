@@ -29,7 +29,9 @@ Web-based control plane to manage Nexus-Stack infrastructure via GitHub Actions.
 - **Teardown** - Stop infrastructure (keeps control plane + R2 state)
 - **Services** - Enable/disable services and trigger spin-up
 - **Status** - Real-time workflow monitoring
-- **Secure** - GitHub token stays server-side, protected by Cloudflare Access
+- **Secure** - GitHub token stays server-side; every endpoint verifies the
+  Cloudflare Access token and checks the request arrived on the Control
+  Plane's own hostname
 
 ## 📁 Structure
 
@@ -64,6 +66,11 @@ control-plane/
 
 The Control Plane provides endpoints for debugging and monitoring:
 
+> Every endpoint below `/api/` verifies the Cloudflare Access token on the
+> request, so a plain `curl` gets an HTTP 403. These examples are what the
+> browser does with your Access session; to reproduce one from a terminal
+> you need the `CF_Authorization` cookie from a logged-in browser.
+
 ### GET /api/info
 Returns infrastructure information including server details, uptime, and workflow history.
 
@@ -78,7 +85,8 @@ Response includes:
 - `workflows`: lastDeploy, lastSpinUp, lastTeardown details
 
 ### GET /api/debug
-Returns environment variable status for troubleshooting (values are masked).
+Returns environment variable status for troubleshooting. Set/missing only —
+never a value, `ADMIN_EMAIL` included. Admin-only.
 
 ```bash
 curl https://control.YOUR_DOMAIN/api/debug

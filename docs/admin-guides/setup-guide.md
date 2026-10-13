@@ -330,6 +330,28 @@ is why the answer is a second token rather than a tighter first one.
 | `DOCKERHUB_USERNAME` | Docker Hub username (higher pull limits) |
 | `DOCKERHUB_TOKEN` | Docker Hub access token |
 | `UPSTREAM_UPDATE_TOKEN` | Only for [updating to a new release](#updating-to-a-new-release): a fine-grained token on this repository with *Contents* and *Workflows* read/write |
+| `CF_ACCESS_TEAM_DOMAIN` | Your Access team domain, e.g. `yourteam.cloudflareaccess.com`. Only needed if `CLOUDFLARE_API_TOKEN` cannot read it — see [below](#cf_access_team_domain) |
+
+#### CF_ACCESS_TEAM_DOMAIN
+
+The Control Plane verifies the Cloudflare Access token on every request
+against the keys your Access team publishes at
+`https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`, so it has to
+know the team domain. `setup-control-plane.yaml` reads it from the
+Cloudflare account API, which needs *Access: Organizations, Identity
+Providers, and Groups* — a permission the token described in
+[Create API Token](#create-api-token) above already includes, so on a
+deployment set up by following this guide you do not need this secret.
+
+Set it if the setup workflow stops with an `access-team-domain` error. You
+will find the value in the Cloudflare dashboard under **Zero Trust** →
+**Settings** → **Custom Pages**; it looks like
+`yourteam.cloudflareaccess.com`.
+
+The workflow fails rather than continuing without it, because the Control
+Plane denies every request it cannot verify — including the admin's. A
+deployment that cannot check tokens is not a deployment that quietly
+trusts them.
 
 #### What each role may do in the Control Plane
 
@@ -340,6 +362,7 @@ Plane enforces the difference itself:
 | Action | Admin | User | Guest |
 |---|:--:|:--:|:--:|
 | View status, services, logs | ✅ | ✅ | ✅ |
+| View secret values | ✅ | ✅ | — |
 | Spin up / tear down the stack | ✅ | ✅ | — |
 | Enable / disable services | ✅ | ✅ | — |
 | Destroy all infrastructure | ✅ | — | — |
@@ -360,6 +383,17 @@ Guests are on the Access whitelist to look. Put someone in
 `TF_VAR_user_email` rather than `TF_VAR_guest_emails` if they need to run
 the stack — a guest attempting a state-changing action gets an HTTP 403
 with an explanatory message, not a silent failure.
+
+How the Control Plane tells the roles apart is worth knowing, because one
+of the three is invisible to it. `TF_VAR_admin_email` and
+`TF_VAR_user_email` are pushed to the Pages project, so an endpoint can
+compare the authenticated caller against them. `TF_VAR_guest_emails` is
+not: those addresses go to the Access policy and nowhere else. So the
+read-only endpoints require a verified Access session for this
+application — which Cloudflare only issues to an address on the policy —
+rather than a name on a list the Control Plane does not have. The
+practical consequence is the row above: guests see the dashboard, and the
+Secrets page is a tier higher.
 
 ### S3-Persistence Secrets (RFC 0001)
 

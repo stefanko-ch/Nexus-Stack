@@ -41,7 +41,7 @@ export async function onRequestPost(context) {
   // guests included. Users keep it — starting your own stack is the
   // point of the Control Plane — but a guest is on the list to look,
   // not to provision a server that costs money.
-  const denial = requireOperator(env, request);
+  const denial = await requireOperator(env, request);
   if (denial) return denial;
 
   // Validate environment variables

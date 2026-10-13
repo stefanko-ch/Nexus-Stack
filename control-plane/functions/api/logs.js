@@ -1,12 +1,20 @@
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { requireAdmin } from './_utils/require-admin.js';
+import { requireViewer } from './_utils/require-viewer.js';
 
 /**
  * Logs API
  * GET /api/logs - Get logs (with optional filters)
  * POST /api/logs - Write a log entry
  * DELETE /api/logs - Clear old logs
- * 
- * Used by GitHub Actions, Workers, and other components to store logs in D1.
+ *
+ * Reading needs a verified Access session and nothing more, because the
+ * Monitoring page is part of what every role gets. Writing and clearing are admin-only: a writable log is a way
+ * to put arbitrary text in front of every user of the stack, and DELETE
+ * destroys the audit trail. Nothing outside the browser calls this — the
+ * header above once said GitHub Actions did, but no workflow or Python
+ * module in the repo references /api/logs; the deploy pipeline logs to the
+ * Actions run instead.
  */
 
 // D1 Helper Functions
@@ -19,10 +27,10 @@ async function insertLog(db, source, runId, level, message, metadata) {
 
 async function getLogs(db, options = {}) {
   const { source, level, limit = 100, offset = 0 } = options;
-  
+
   let query = 'SELECT * FROM logs WHERE 1=1';
   const params = [];
-  
+
   if (source) {
     query += ' AND source = ?';
     params.push(source);
@@ -31,13 +39,13 @@ async function getLogs(db, options = {}) {
     query += ' AND level = ?';
     params.push(level);
   }
-  
+
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
-  
+
   const stmt = db.prepare(query);
   const results = await stmt.bind(...params).all();
-  
+
   return results.results || [];
 }
 
@@ -45,11 +53,11 @@ async function deleteOldLogs(db, daysToKeep = 30) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - daysToKeep);
   const cutoffStr = cutoff.toISOString().replace('T', ' ').substring(0, 19);
-  
+
   const result = await db.prepare(
     'DELETE FROM logs WHERE created_at < ?'
   ).bind(cutoffStr).run();
-  
+
   return result.meta?.changes || 0;
 }
 
@@ -63,7 +71,10 @@ async function deleteOldLogs(db, daysToKeep = 30) {
  */
 export async function onRequestGet(context) {
   const { env, request } = context;
-  
+
+  const denial = await requireViewer(env, request);
+  if (denial) return denial;
+
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
@@ -80,15 +91,15 @@ export async function onRequestGet(context) {
     const level = url.searchParams.get('level');
     const limit = parseInt(url.searchParams.get('limit') || '100', 10);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
-    
+
     const logs = await getLogs(env.NEXUS_DB, { source, level, limit, offset });
-    
+
     // Parse metadata JSON for each log
     const parsedLogs = logs.map(log => ({
       ...log,
       metadata: log.metadata ? JSON.parse(log.metadata) : null
     }));
-    
+
     return new Response(JSON.stringify({
       success: true,
       logs: parsedLogs,
@@ -116,7 +127,7 @@ export async function onRequestGet(context) {
  * - level: 'debug' | 'info' | 'warn' | 'error' (default: 'info')
  * - message: (required) Log message
  * - metadata: Optional JSON object with additional context
- * 
+ *
  * Or batch mode:
  * - logs: Array of log entries
  */
@@ -127,7 +138,9 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  
+  const denial = await requireAdmin(env, request);
+  if (denial) return denial;
+
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
@@ -140,26 +153,26 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
-    
+
     // Support batch mode
     const entries = body.logs || [body];
     let insertedCount = 0;
-    
+
     for (const entry of entries) {
       const { source, run_id, level = 'info', message, metadata } = entry;
-      
+
       if (!source || !message) {
         continue; // Skip invalid entries in batch mode
       }
-      
+
       // Validate level
       const validLevels = ['debug', 'info', 'warn', 'error'];
       const normalizedLevel = validLevels.includes(level) ? level : 'info';
-      
+
       await insertLog(env.NEXUS_DB, source, run_id, normalizedLevel, message, metadata);
       insertedCount++;
     }
-    
+
     if (insertedCount === 0) {
       return new Response(JSON.stringify({
         success: false,
@@ -169,7 +182,7 @@ export async function onRequestPost(context) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    
+
     return new Response(JSON.stringify({
       success: true,
       message: `${insertedCount} log(s) written`,
@@ -196,7 +209,13 @@ export async function onRequestPost(context) {
  */
 export async function onRequestDelete(context) {
   const { env, request } = context;
-  
+
+  // Clearing the log is destructive and admin-only. No requireSameOrigin:
+  // a browser DELETE sends no JSON body, which is what that guard checks
+  // for — the identity check is what carries this one.
+  const denial = await requireAdmin(env, request);
+  if (denial) return denial;
+
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
       success: false,
@@ -210,9 +229,9 @@ export async function onRequestDelete(context) {
   try {
     const url = new URL(request.url);
     const daysToKeep = parseInt(url.searchParams.get('days') || '30', 10);
-    
+
     const deletedCount = await deleteOldLogs(env.NEXUS_DB, daysToKeep);
-    
+
     return new Response(JSON.stringify({
       success: true,
       message: `Deleted ${deletedCount} log(s) older than ${daysToKeep} days`,

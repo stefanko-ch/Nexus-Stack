@@ -121,6 +121,10 @@ async function saveLastSync(env, payload) {
 
 export async function onRequestGet(context) {
   const { env } = context;
+
+  const denial = await requireAdmin(env, context.request);
+  if (denial) return denial;
+
   if (!env.NEXUS_KV) {
     return jsonResponse({ success: true, status: 'never', message: 'No sync has been run yet' });
   }
@@ -142,7 +146,7 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
 
   const auth = await readDatabricksAuth(env);

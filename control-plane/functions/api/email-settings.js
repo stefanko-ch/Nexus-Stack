@@ -23,6 +23,9 @@ async function setConfig(db, key, value) {
 }
 
 export async function onRequestGet(context) {
+  const denial = await requireAdmin(context.env, context.request);
+  if (denial) return denial;
+
   const db = context.env.NEXUS_DB;
   if (!db) {
     return new Response(JSON.stringify({ success: false, error: 'D1 database not configured' }), {
@@ -62,7 +65,7 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(context.request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(context.env, context.request);
+  const denial = await requireAdmin(context.env, context.request);
   if (denial) return denial;
 
   const db = context.env.NEXUS_DB;

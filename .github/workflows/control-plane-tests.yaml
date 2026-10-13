@@ -1,0 +1,53 @@
+# =============================================================================
+# control-plane-tests — quality gate for the Cloudflare Pages Functions
+# =============================================================================
+# The Control Plane's authorization lives entirely in
+# control-plane/functions/: a hostname check in _middleware.js, Access-JWT
+# verification in api/_utils/access-jwt.js, and a guard on every endpoint.
+# Until this workflow existed, none of it was covered — control-plane had no
+# test script and no CI job, so the only check on a change there was review.
+#
+# `node --test` with no dependencies on purpose. The code under test uses
+# only Web APIs that Node and workerd both provide (crypto.subtle, Request,
+# Response, atob), so the tests sign real RS256 tokens against a real
+# keypair rather than mocking the verification they exist to check.
+# =============================================================================
+
+name: "CI: Control Plane Tests"
+
+on:
+  pull_request:
+    paths:
+      - "control-plane/functions/**"
+      - "control-plane/test/**"
+      - "control-plane/package.json"
+      - ".github/workflows/control-plane-tests.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "control-plane/functions/**"
+      - "control-plane/test/**"
+      - "control-plane/package.json"
+      - ".github/workflows/control-plane-tests.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Functions unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: control-plane
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          # Matches the engines field in control-plane/package.json. No
+          # cache: the suite installs nothing.
+          node-version: "22"
+
+      - name: Run tests
+        run: node --test test/

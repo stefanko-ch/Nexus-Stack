@@ -121,7 +121,7 @@ export async function onRequestGet(context) {
     // is misconfigured. Reporting that as canEdit:false would show every
     // caller a read-only page and hide the actual problem, so the denial
     // is returned as-is and the operator sees it.
-    const denial = requireAdmin(env, request);
+    const denial = await requireAdmin(env, request);
     if (denial && denial.status !== 403) return denial;
     const canEdit = denial === null;
     return json({
@@ -151,7 +151,7 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
 
   if (!env.NEXUS_DB) {
@@ -197,9 +197,9 @@ export async function onRequestPost(context) {
 
     // No caller email in the metadata. `requireAdmin` above allows
     // exactly one identity through, so recording *who* adds no
-    // information — but /api/logs has no admin guard and the Monitoring
-    // page renders metadata verbatim, so it would put the admin address
-    // in front of every Access-authenticated user on the stack.
+    // information — but GET /api/logs is operator-level and the
+    // Monitoring page renders metadata verbatim, so it would put the
+    // admin address in front of every user on the stack.
     //
     // Different from the extension log in scheduled-teardown.js, which
     // does keep the address: extensions are counted per user, so there

@@ -12,6 +12,7 @@
 import { logApiCall, logError } from './_utils/logger.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
+import { requireViewer } from './_utils/require-viewer.js';
 
 /**
  * Validate service name to prevent injection attacks
@@ -62,6 +63,15 @@ export async function onRequestGet(context) {
   const { env, request } = context;
   const url = new URL(request.url);
   const countOnly = url.searchParams.get('count_only') === 'true';
+
+  // Two audiences, two guards. PendingBar.astro renders the count on
+  // every page, so that path only needs a verified Access session; the
+  // rule list carries source_ips and stays with the admin, like the POST
+  // that writes it.
+  const denial = countOnly
+    ? await requireViewer(env, request)
+    : await requireAdmin(env, request);
+  if (denial) return denial;
 
   if (!env.NEXUS_DB) {
     return new Response(JSON.stringify({
@@ -168,7 +178,7 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(request);
   if (crossSite) return crossSite;
-  const denial = requireAdmin(env, request);
+  const denial = await requireAdmin(env, request);
   if (denial) return denial;
 
   if (!env.NEXUS_DB) {

@@ -17,6 +17,25 @@ output "pages_url" {
   value       = "${cloudflare_pages_project.control_plane.name}.pages.dev"
 }
 
+# The AUD tag of the Control Plane's Access application. Every JWT Access
+# issues for this application carries it in the `aud` claim, and the Pages
+# Functions verify against it — see
+# control-plane/functions/api/_utils/access-jwt.js. setup-control-plane.yaml
+# reads this output and stores it as the ACCESS_AUD Pages secret.
+#
+# Not sensitive: it identifies an application, it does not authorise
+# anything. It is, however, the value that makes a forged token fail, so a
+# wrong one locks everyone out rather than letting anyone in.
+output "access_aud" {
+  description = "AUD tag of the Control Plane Access application"
+  value       = cloudflare_zero_trust_access_application.control_plane.aud
+}
+
+output "access_aud_pages_dev" {
+  description = "AUD tag of the Access application covering <project>.pages.dev"
+  value       = cloudflare_zero_trust_access_application.control_plane_pages_dev.aud
+}
+
 output "d1_database_id" {
   description = "D1 Database ID for control plane state"
   value       = cloudflare_d1_database.nexus.id

@@ -280,6 +280,56 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
 }
 
 # -----------------------------------------------------------------------------
+# Access Protection for the *.pages.dev Hostnames
+# -----------------------------------------------------------------------------
+# A Pages project answers on three kinds of hostname:
+#
+#   control.<domain>              covered by the application above
+#   <project>.pages.dev           the production Pages hostname
+#   <hash>.<project>.pages.dev    one per preview deployment
+#
+# Only the first is in this zone, so the application above — which is
+# zone-scoped — cannot cover the others. `pages.dev` is Cloudflare's own
+# zone, and an Access application for a hostname in it has to be
+# account-scoped instead. The two arguments are mutually exclusive, which
+# is why this is a second resource rather than another `domain`.
+#
+# Without it, protecting those hostnames is a click in the dashboard:
+# outside version control, and not guaranteed to survive the
+# destroy/recreate cycle this project performs routinely. The hostname
+# check in control-plane/functions/_middleware.js is the other half of
+# this — code and configuration, so neither is the only thing standing in
+# the way.
+resource "cloudflare_zero_trust_access_application" "control_plane_pages_dev" {
+  # Account-scoped: see the comment above. Not var.cloudflare_zone_id.
+  account_id       = var.cloudflare_account_id
+  name             = "${local.resource_prefix} Control Plane (pages.dev)"
+  domain           = "${cloudflare_pages_project.control_plane.name}.pages.dev"
+  type             = "self_hosted"
+  session_duration = "24h"
+
+  # Not in the app launcher: this is a hostname nobody should be using,
+  # kept closed rather than advertised.
+  app_launcher_visible = false
+  skip_interstitial    = true
+
+  http_only_cookie_attribute = true
+  same_site_cookie_attribute = "lax"
+}
+
+resource "cloudflare_zero_trust_access_policy" "control_plane_pages_dev_email" {
+  account_id     = var.cloudflare_account_id
+  application_id = cloudflare_zero_trust_access_application.control_plane_pages_dev.id
+  name           = "Email Access"
+  precedence     = 1
+  decision       = "allow"
+
+  include {
+    email = local.allowed_emails
+  }
+}
+
+# -----------------------------------------------------------------------------
 # Hetzner Object Storage Bucket (for LakeFS)
 # -----------------------------------------------------------------------------
 # This bucket persists through teardown - only destroyed on destroy-all.

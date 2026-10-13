@@ -25,7 +25,7 @@ export async function onRequestPost(context) {
   // paying for a server and then wait for somebody else to release it.
   // Guests still cannot: tearing down a stack somebody is working on is
   // not a spectator's call.
-  const denial = requireOperator(env, request);
+  const denial = await requireOperator(env, request);
   if (denial) return denial;
 
   // Validate environment variables
