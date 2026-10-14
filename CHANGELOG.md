@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.84.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.83.0...v0.84.0) (2026-10-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **control-plane:** Verify Access JWTs and restrict the Control Plane hostname ([#914](https://github.com/stefanko-ch/Nexus-Stack/issues/914))
+
+### 🚀 Features
+
+* **stacks:** Add seven stacks — Apicurio, Streamlit, Shiny, Cassandra, Hive Metastore, MindsDB and Hue ([#908](https://github.com/stefanko-ch/Nexus-Stack/issues/908)) ([e6e9bf4](https://github.com/stefanko-ch/Nexus-Stack/commit/e6e9bf45c583d607487ed016306a4e7bae5cff78))
+
+
+### 🐛 Bug Fixes
+
+* **control-plane:** Verify Access JWTs and restrict the Control Plane hostname ([#914](https://github.com/stefanko-ch/Nexus-Stack/issues/914)) ([8b22f3a](https://github.com/stefanko-ch/Nexus-Stack/commit/8b22f3a39302385651b79c1152a91d3034e63d0a))
+* **deploy:** Read capacity from server_types after Hetzner removed /v1/datacenters ([#913](https://github.com/stefanko-ch/Nexus-Stack/issues/913)) ([6c3d877](https://github.com/stefanko-ch/Nexus-Stack/commit/6c3d8773a91c0cb0e25ecfbaa375ef2e24b5a9fa))
+* **deps:** Bump astro to 7.3.5, clearing five Dependabot alerts ([#907](https://github.com/stefanko-ch/Nexus-Stack/issues/907)) ([27c1e96](https://github.com/stefanko-ch/Nexus-Stack/commit/27c1e965355efa4b2253704dd164187e0fe58281))
+
 ## [0.83.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.82.3...v0.83.0) (2026-09-25)
 
 
