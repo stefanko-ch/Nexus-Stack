@@ -1,0 +1,175 @@
+"""Tests for .github/scripts/generate-services-tfvars.py.
+
+The script had no tests, which is how #911 stayed open on a question
+nobody had answered: what happens when D1 names a service the deployed
+ref's ``services.yaml`` does not have. Measured answer, before the guard
+these tests cover existed — exit 0, nothing on either stream, the name
+simply absent from the output. The deploy then succeeds and the stack is
+not there.
+
+Run as a subprocess rather than imported: the filename has a hyphen, and
+what matters here is the exit status, which is what the workflow step
+reacts to.
+"""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = REPO_ROOT / ".github" / "scripts" / "generate-services-tfvars.py"
+
+# Two services are enough to exercise every branch: one core (always
+# enabled, never named in D1) and one ordinary (enabled only when D1 says
+# so). A fixture rather than the real services.yaml, so the assertions do
+# not move when a stack is added.
+FIXTURE = textwrap.dedent(
+    """\
+    services:
+      forgejo:
+        subdomain: "git"
+        port: 3000
+        public: false
+        core: true
+        description: "Git forge"
+        image: "codeberg.org/forgejo/forgejo:14"
+      grafana:
+        subdomain: "grafana"
+        port: 3001
+        public: false
+        description: "Dashboards"
+        image: "grafana/grafana:12.3.0"
+    """
+)
+
+
+def _run(tmp_path: Path, enabled: str) -> subprocess.CompletedProcess[str]:
+    """Run the generator in `tmp_path` with ENABLED_SERVICES=`enabled`."""
+    (tmp_path / "services.yaml").write_text(FIXTURE, encoding="utf-8")
+    (tmp_path / "tofu" / "stack").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "tofu" / "stack" / "config.tfvars").write_text("", encoding="utf-8")
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        cwd=tmp_path,
+        env={"ENABLED_SERVICES": enabled, "FIREWALL_RULES": "", "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+    )
+
+
+def _tfvars(tmp_path: Path) -> str:
+    return (tmp_path / "tofu" / "stack" / "config.tfvars").read_text(encoding="utf-8")
+
+
+def test_the_script_is_where_this_test_thinks_it_is() -> None:
+    """Otherwise every assertion below is about a subprocess that failed
+    to start, which looks much the same as a passing guard."""
+    assert SCRIPT.is_file(), SCRIPT
+
+
+def test_known_services_are_enabled(tmp_path: Path) -> None:
+    result = _run(tmp_path, "grafana")
+    assert result.returncode == 0, result.stderr
+    out = _tfvars(tmp_path)
+    assert "grafana = {\n    enabled     = true" in out
+    # Core is enabled without being named in D1.
+    assert "forgejo = {\n    enabled     = true" in out
+
+
+def test_an_unnamed_non_core_service_is_disabled(tmp_path: Path) -> None:
+    result = _run(tmp_path, "forgejo")
+    assert result.returncode == 0, result.stderr
+    assert "grafana = {\n    enabled     = false" in _tfvars(tmp_path)
+
+
+def test_empty_enabled_set_enables_only_core(tmp_path: Path) -> None:
+    """The no-D1-state path: core on, everything else off."""
+    result = _run(tmp_path, "")
+    assert result.returncode == 0, result.stderr
+    out = _tfvars(tmp_path)
+    assert "forgejo = {\n    enabled     = true" in out
+    assert "grafana = {\n    enabled     = false" in out
+
+
+def test_unknown_service_fails_loudly(tmp_path: Path) -> None:
+    """#911. The silent drop is the defect; this is the guard."""
+    result = _run(tmp_path, "grafana,only-on-a-branch")
+    assert result.returncode == 1
+    assert "only-on-a-branch" in result.stderr
+    # The name of a real service is not what the operator needs to see.
+    assert "grafana" not in result.stderr
+
+
+def test_every_unknown_service_is_named(tmp_path: Path) -> None:
+    """Naming one of three would send someone round the loop twice."""
+    result = _run(tmp_path, "zeta-stack,grafana,alpha-stack")
+    assert result.returncode == 1
+    assert "alpha-stack" in result.stderr
+    assert "zeta-stack" in result.stderr
+    # Sorted, so the message does not reshuffle between runs.
+    assert result.stderr.index("alpha-stack") < result.stderr.index("zeta-stack")
+
+
+def test_the_message_says_what_to_do(tmp_path: Path) -> None:
+    """A failure an operator cannot act on is a worse failure than the
+    silent drop it replaced: that one at least did not stop a deploy."""
+    stderr = _run(tmp_path, "only-on-a-branch").stderr
+    # The two causes, and the one-click recovery.
+    assert "not merged" in stderr
+    assert "never deletes" in stderr
+    assert "Control Plane" in stderr
+    # The branch-deploy command lives in the docs, not here: the rule in
+    # test_job_toolchain.py reads this script as text and cannot tell a
+    # tool named in a message from one invoked, so inlining `gh …` made
+    # four lifecycle jobs fail for a mention. The section is named instead.
+    assert "docs/admin-guides/troubleshooting.md" in stderr
+
+
+def test_nothing_is_written_when_the_guard_fires(tmp_path: Path) -> None:
+    """The step runs before `tofu apply`, which reads this file. A
+    half-written tfvars behind a non-zero exit would be a trap for
+    anything that retries without clearing it."""
+    result = _run(tmp_path, "only-on-a-branch")
+    assert result.returncode == 1
+    assert _tfvars(tmp_path) == ""
+
+
+def test_the_doc_section_the_message_points_at_exists(tmp_path: Path) -> None:
+    """An error message that names a doc section is a claim, and a claim in
+    an error message is read while something is already broken. The heading
+    is matched verbatim, so renaming it fails here rather than sending
+    someone to a page that no longer has it."""
+    stderr = _run(tmp_path, "only-on-a-branch").stderr
+    doc = REPO_ROOT / "docs" / "admin-guides" / "troubleshooting.md"
+    assert doc.is_file(), doc
+
+    # The quoted heading is pulled out of the message rather than repeated
+    # here — repeating it would let the two drift and still pass.
+    quoted = re.findall(r"'([^']+)'", stderr)
+    assert quoted, f"no quoted heading in the message:\n{stderr}"
+    # The last quoted run, so an apostrophe earlier in the prose cannot
+    # make this test grade the wrong substring — which it did once.
+    heading = " ".join(quoted[-1].split())
+    headings = {
+        " ".join(line[3:].split())
+        for line in doc.read_text(encoding="utf-8").splitlines()
+        if line.startswith("## ")
+    }
+    assert heading in headings, f"{heading!r} is not a heading in {doc.name}"
+
+
+@pytest.mark.parametrize("enabled", ["  grafana  ", "grafana,", ",grafana", "grafana,,"])
+def test_whitespace_and_empty_entries_are_not_unknown_services(
+    tmp_path: Path, enabled: str
+) -> None:
+    """The D1 list is assembled by string join; a trailing comma or a
+    stray space must not read as a service nobody has."""
+    result = _run(tmp_path, enabled)
+    assert result.returncode == 0, result.stderr
+    assert "grafana = {\n    enabled     = true" in _tfvars(tmp_path)

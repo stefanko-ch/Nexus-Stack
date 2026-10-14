@@ -135,6 +135,51 @@ def main():
         sys.exit(1)
 
     services = data['services']
+
+    # D1 is branch-agnostic; services.yaml is not. A name enabled in D1
+    # that the deployed ref does not have would otherwise vanish without
+    # a word: the loop below walks services.yaml rather than the enabled
+    # set, so such a name is never visited. Measured before this guard
+    # existed, with two invented names in ENABLED_SERVICES against the
+    # real services.yaml: exit 0, no warning on either stream, the names
+    # absent from the output, 104 blocks written as if nothing had been
+    # asked for. The deploy then succeeds and the stack is simply not
+    # there, which is the shape of #911.
+    #
+    # Fatal rather than a warning, for two reasons. A log line is the
+    # thing that was missing and would be missed again at this volume.
+    # And the stale row does not heal: sync-deployed-state.sh inserts and
+    # updates, never deletes, so a name that leaves services.yaml keeps
+    # its D1 row — and its enabled state — indefinitely. One failing
+    # deploy that names the row is recoverable in a click; a silent drop
+    # on every future deploy is not discoverable at all.
+    unknown = sorted(enabled_set - set(services))
+    if unknown:
+        print(
+            "Services enabled in D1 that the services.yaml of this ref does "
+            f"not have: {', '.join(unknown)}",
+            file=sys.stderr,
+        )
+        print(
+            "  Each is enabled in the Control Plane but cannot be deployed from "
+            "this ref, so the deploy would quietly leave it out.",
+            file=sys.stderr,
+        )
+        print(
+            "  Usually one of two things: the stack lives on a branch that is "
+            "not merged yet, or it was removed from services.yaml and its D1 "
+            "row outlived it (the D1 sync inserts and updates, never deletes).",
+            file=sys.stderr,
+        )
+        print(
+            "  Fix: disable it under Stacks in the Control Plane. To deploy an "
+            "unmerged stack instead, see docs/admin-guides/troubleshooting.md, "
+            "'A stack is enabled in the Control Plane but the deploy stops "
+            "naming it'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     output_lines = ['', '# Services (from services.yaml, enabled state from D1)', 'services = {']
 
     for name, config in sorted(services.items()):
