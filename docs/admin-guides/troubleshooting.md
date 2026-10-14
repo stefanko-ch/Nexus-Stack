@@ -447,6 +447,47 @@ would let OpenTofu build the policy around a credential the caller does not
 hold, and the caller would get Access's login redirect instead of the API,
 with nothing in any log saying why.
 
+## A stack is enabled in the Control Plane but the deploy stops naming it
+
+The deploy now fails, with a message like:
+
+```
+Services enabled in D1 that the services.yaml of this ref does not have: only-on-a-branch
+```
+
+The Control Plane's enabled-service list lives in Cloudflare D1, which knows
+nothing about branches, and every workflow the Control Plane dispatches runs
+against `main`. So the two can disagree, and the deploy is the place it
+surfaces.
+
+Two causes, and the message names both:
+
+- **The stack lives on a branch that is not merged yet.** Enabling it in the
+  Control Plane works — D1 accepts any name — but `main` has no
+  `services.yaml` entry for it. Deploy the branch instead:
+
+  ```bash
+  gh workflow run spin-up.yml --ref feat/my-branch
+  ```
+
+  This is the only way to spin up an unmerged stack; the Control Plane's
+  buttons deliberately cannot choose a ref, so that nobody can deploy
+  somebody else's feature branch from the web UI.
+
+- **The stack was removed from `services.yaml` and its D1 row outlived it.**
+  `sync-deployed-state.sh` inserts and updates rows, and never deletes them,
+  so a row keeps its enabled state indefinitely after the service is gone.
+
+Either way the fix is the same, and it is one click: open **Stacks** in the
+Control Plane and disable it.
+
+Worth knowing what this replaced, because the old behaviour is easy to walk
+back into. Before the guard, an unknown name was dropped in silence: the
+generator walks `services.yaml` rather than the enabled list, so the name was
+never visited. The deploy reported success and the stack simply was not there,
+with nothing in any log mentioning it
+([#911](https://github.com/stefanko-ch/Nexus-Stack/issues/911)).
+
 ## Cloudflare resources left behind after a lost state
 
 `tofu destroy` — and therefore `Destroy All` — reaches exactly what is in the
