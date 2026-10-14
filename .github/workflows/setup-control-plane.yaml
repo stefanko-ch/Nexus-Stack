@@ -1094,11 +1094,44 @@ jobs:
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
+          # The managed addresses, read ONCE with its status checked.
+          #
+          # `tofu state show "$RESOURCE"` would have been the obvious test,
+          # and it is wrong: its non-zero exit means both "not in state"
+          # and "the state could not be read". A transient backend error
+          # would silently `continue` past both resources, and if the apply
+          # behind it then succeeded, the cleanup would be skipped — the
+          # resources stay in state with nothing in the configuration, and
+          # the NEXT apply destroys them. Precisely what this step exists
+          # to prevent.
+          #
+          # `tofu show -json` rather than `tofu state list`, which looks
+          # like the natural fit and is not: on a state that does not exist
+          # yet it exits 1 with "No state file was found", so a loud
+          # failure on non-zero would break every first-time setup.
+          # Measured, in an initialized directory with no state:
+          #
+          #   tofu state list  -> exit 1, "No state file was found"
+          #   tofu show -json  -> exit 0, {"format_version":"1.0"}
+          STATE_FAILED=0
+          STATE_JSON=$(tofu show -json 2>&1) || STATE_FAILED=$?
+          if [ "$STATE_FAILED" -ne 0 ]; then
+            echo "::error title=access-state-forget::Could not read the OpenTofu state (exit ${STATE_FAILED}), so this step cannot tell whether the pages.dev Access objects are still in it. They are no longer in the configuration, so an apply that ran without this check would DESTROY the live Cloudflare objects. Output: $(printf '%s' "${STATE_JSON:-(no output)}" | tr '\n\r' '  ' | head -c 300)"
+            exit 1
+          fi
+          # An empty state is valid and yields no addresses; an unparseable
+          # one is not, and must not read as "nothing to clean up".
+          if [ "$(printf '%s' "$STATE_JSON" | jq -r 'if has("format_version") then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
+            echo "::error title=access-state-forget::The OpenTofu state came back in a shape this step cannot read, so it cannot tell whether the pages.dev Access objects are still in it."
+            exit 1
+          fi
+          MANAGED=$(printf '%s' "$STATE_JSON" | jq -r '.values.root_module.resources[]?.address // empty' 2>/dev/null || echo "")
+
           for RESOURCE in \
             cloudflare_zero_trust_access_policy.control_plane_pages_dev_email \
             cloudflare_zero_trust_access_application.control_plane_pages_dev
           do
-            if ! tofu state show "$RESOURCE" >/dev/null 2>&1; then
+            if ! printf '%s\n' "$MANAGED" | grep -qxF "$RESOURCE"; then
               continue
             fi
             echo "🧹 $RESOURCE is in state but no longer in the configuration - forgetting it"
