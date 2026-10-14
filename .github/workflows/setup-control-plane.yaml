@@ -1119,13 +1119,36 @@ jobs:
             echo "::error title=access-state-forget::Could not read the OpenTofu state (exit ${STATE_FAILED}), so this step cannot tell whether the pages.dev Access objects are still in it. They are no longer in the configuration, so an apply that ran without this check would DESTROY the live Cloudflare objects. Output: $(printf '%s' "${STATE_JSON:-(no output)}" | tr '\n\r' '  ' | head -c 300)"
             exit 1
           fi
-          # An empty state is valid and yields no addresses; an unparseable
-          # one is not, and must not read as "nothing to clean up".
+          # Two checks, because they cover different things.
+          #
+          # First: is this a state document at all. An empty state is valid
+          # and yields no addresses; a non-JSON body is not, and must not
+          # read as "nothing to clean up".
           if [ "$(printf '%s' "$STATE_JSON" | jq -r 'if has("format_version") then "ok" else "bad" end' 2>/dev/null || echo bad)" != "ok" ]; then
             echo "::error title=access-state-forget::The OpenTofu state came back in a shape this step cannot read, so it cannot tell whether the pages.dev Access objects are still in it."
             exit 1
           fi
-          MANAGED=$(printf '%s' "$STATE_JSON" | jq -r '.values.root_module.resources[]?.address // empty' 2>/dev/null || echo "")
+
+          # Second: did reading the addresses out of it actually work. That
+          # is NOT implied by the check above — `has("format_version")`
+          # says nothing about `.values.root_module.resources`, and the
+          # extraction below errors on a document where that is not an
+          # array of objects. Measured:
+          #
+          #   {"format_version":"1.0"}                        -> exit 0, no output
+          #   {…,"resources":["a-string"]}                    -> exit 5
+          #   {…,"resources":{"not":"an array"}}              -> exit 5
+          #
+          # So its status is checked rather than discarded. A `|| echo ""`
+          # here would turn exit 5 into "no managed addresses", skip the
+          # cleanup, and leave the apply free to destroy the very objects
+          # this step exists to protect. Status and message stay separate.
+          EXTRACT_FAILED=0
+          MANAGED=$(printf '%s' "$STATE_JSON" | jq -r '.values.root_module.resources[]?.address // empty' 2>&1) || EXTRACT_FAILED=$?
+          if [ "$EXTRACT_FAILED" -ne 0 ]; then
+            echo "::error title=access-state-forget::Could not read the resource addresses out of the OpenTofu state (jq exit ${EXTRACT_FAILED}), so this step cannot tell whether the pages.dev Access objects are still in it. They are no longer in the configuration, so an apply that ran without this check would DESTROY the live Cloudflare objects. jq said: $(printf '%s' "${MANAGED:-(no output)}" | tr '\n\r' '  ' | head -c 200)"
+            exit 1
+          fi
 
           for RESOURCE in \
             cloudflare_zero_trust_access_policy.control_plane_pages_dev_email \
