@@ -14,6 +14,7 @@ reacts to.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -54,10 +55,15 @@ def _run(tmp_path: Path, enabled: str) -> subprocess.CompletedProcess[str]:
     (tmp_path / "services.yaml").write_text(FIXTURE, encoding="utf-8")
     (tmp_path / "tofu" / "stack").mkdir(parents=True, exist_ok=True)
     (tmp_path / "tofu" / "stack" / "config.tfvars").write_text("", encoding="utf-8")
+    # Inherit the environment rather than replacing it: a hand-built env
+    # drops whatever the platform needs (PATH, HOME, locale, the
+    # interpreter's own vars) and turns an unrelated breakage into a
+    # failure of this test.
+    env = {**os.environ, "ENABLED_SERVICES": enabled, "FIREWALL_RULES": ""}
     return subprocess.run(
         [sys.executable, str(SCRIPT)],
         cwd=tmp_path,
-        env={"ENABLED_SERVICES": enabled, "FIREWALL_RULES": "", "PATH": "/usr/bin:/bin"},
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -162,6 +168,21 @@ def test_the_doc_section_the_message_points_at_exists(tmp_path: Path) -> None:
         if line.startswith("## ")
     }
     assert heading in headings, f"{heading!r} is not a heading in {doc.name}"
+
+
+def test_the_doc_quotes_the_message_the_script_prints(tmp_path: Path) -> None:
+    """The guide shows a sample of this failure, and a doc quoting an error
+    string only helps if the code prints it verbatim — otherwise someone
+    searching their log for the documented line finds nothing. Caught once
+    already: removing an apostrophe from the message left the guide quoting
+    a sentence that no longer exists."""
+    doc = (REPO_ROOT / "docs" / "admin-guides" / "troubleshooting.md").read_text(encoding="utf-8")
+    stderr = _run(tmp_path, "only-on-a-branch").stderr
+    first_line = stderr.splitlines()[0]
+    assert "only-on-a-branch" in first_line, first_line
+    assert first_line in doc, (
+        f"the guide does not quote the line the script prints:\n  script: {first_line}"
+    )
 
 
 @pytest.mark.parametrize("enabled", ["  grafana  ", "grafana,", ",grafana", "grafana,,"])

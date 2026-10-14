@@ -452,7 +452,7 @@ with nothing in any log saying why.
 The deploy now fails, with a message like:
 
 ```
-Services enabled in D1 that this ref's services.yaml does not have: only-on-a-branch
+Services enabled in D1 that the services.yaml of this ref does not have: only-on-a-branch
 ```
 
 The Control Plane's enabled-service list lives in Cloudflare D1, which knows
