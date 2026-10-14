@@ -57,9 +57,10 @@ reviews:
   # threads did not release it either.
   #
   # The findings are unchanged by this. What goes away is a gate that
-  # only ever opened by hand. Sourcery and Copilot already review without
+  # only ever opened by hand. Sourcery and CodeQL already review without
   # blocking, and branch protection is the right place for a hard gate if
-  # one is wanted.
+  # one is wanted. (This said "Sourcery and Copilot" until 2026-10-13;
+  # GitHub's Copilot reviewer does not run on this repository.)
   request_changes_workflow: false
   high_level_summary: true       # PR-level summary at the top
   poem: false                    # disable the closing rhyme — pure noise
