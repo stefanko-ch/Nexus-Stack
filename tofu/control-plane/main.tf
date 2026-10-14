@@ -280,69 +280,51 @@ resource "cloudflare_zero_trust_access_policy" "control_plane_email" {
 }
 
 # -----------------------------------------------------------------------------
-# Access Protection for the *.pages.dev Hostnames
+# The *.pages.dev Hostnames: Closed in Code, Not Here
 # -----------------------------------------------------------------------------
 # A Pages project answers on three kinds of hostname:
 #
-#   control.<domain>              covered by the application above
+#   control.<domain>              the application above
 #   <project>.pages.dev           the production Pages hostname
 #   <hash>.<project>.pages.dev    one per preview deployment
 #
 # Only the first is in this zone, so the application above — which is
-# zone-scoped — cannot cover the others. `pages.dev` is Cloudflare's own
-# zone, and an Access application for a hostname in it has to be
-# account-scoped instead. The two arguments are mutually exclusive, which
-# is why this is a second resource rather than another `domain`.
+# zone-scoped — cannot cover the others, and `pages.dev` is Cloudflare's
+# own zone. The obvious move is a second, account-scoped Access
+# application for `<project>.pages.dev`. This file had one. It is gone,
+# deliberately, and the reason is worth keeping:
 #
-# This application covers the second one. The preview hostnames it does
-# NOT cover: their names are per-deployment, so an Access application
-# would need a wildcard over a zone that is Cloudflare's rather than
-# ours, and whether that is accepted for an account-scoped application is
-# not something this repository can establish without a failed apply
-# breaking every setup run. They are closed by the hostname check in
-# control-plane/functions/_middleware.js, which is why that check is in
-# code: it covers hostnames an Access application cannot be written for.
+# Owning that application means owning whatever policy is attached to it,
+# and an operator has every reason to have attached one already — the
+# hostname existed and needed protecting before this repository managed
+# it. On the first real run, the policy found there was a *reusable*
+# account-level policy shared with other applications. Terraform's plan
+# was to rename it and rewrite its email list, which would have changed
+# access for every application sharing it. Cloudflare refused the update
+# (`access.api.error.invalid_request: can not update reusable policies
+# through this endpoint`), which is the only reason it did not happen.
 #
-# Without either, protecting these hostnames is a click in the dashboard:
-# outside version control, and not guaranteed to survive the
-# destroy/recreate cycle this project performs routinely.
-# What this application does and does not do, because the two are easy to
-# swap: it keeps an UNAUTHENTICATED request off the pages.dev hostname.
-# It does not let an authenticated one through — a token Access issues for
-# this application carries this application's AUD, the Functions verify
-# against the `.control` application's AUD (`ACCESS_AUD`), and the
-# middleware answers 404 on that hostname regardless. All three are
-# intended. It is also why the `access_aud_pages_dev` output has no
-# consumer: it exists so an operator can identify the application, not
-# because anything verifies against it.
-resource "cloudflare_zero_trust_access_application" "control_plane_pages_dev" {
-  # Account-scoped: see the comment above. Not var.cloudflare_zone_id.
-  account_id       = var.cloudflare_account_id
-  name             = "${local.resource_prefix} Control Plane (pages.dev)"
-  domain           = "${cloudflare_pages_project.control_plane.name}.pages.dev"
-  type             = "self_hosted"
-  session_duration = "24h"
-
-  # Not in the app launcher: this is a hostname nobody should be using,
-  # kept closed rather than advertised.
-  app_launcher_visible = false
-  skip_interstitial    = true
-
-  http_only_cookie_attribute = true
-  same_site_cookie_attribute = "lax"
-}
-
-resource "cloudflare_zero_trust_access_policy" "control_plane_pages_dev_email" {
-  account_id     = var.cloudflare_account_id
-  application_id = cloudflare_zero_trust_access_application.control_plane_pages_dev.id
-  name           = "Email Access"
-  precedence     = 1
-  decision       = "allow"
-
-  include {
-    email = local.allowed_emails
-  }
-}
+# That is not a gap to patch. A resource that must adopt whatever an
+# operator configured, in a shape this repository cannot predict, is the
+# wrong tool — and it was buying defence in depth that
+# control-plane/functions/_middleware.js already provides more completely:
+# the middleware answers 404 on every hostname but the Control Plane's
+# own, which covers the production pages.dev hostname AND the
+# per-deployment preview hostnames that no single Access application can
+# name. It is code, so it deploys with the application and survives the
+# destroy/recreate cycle this project performs routinely — the very
+# property the Access application was added for.
+#
+# So the division is: Access protects `control.<domain>`, where this
+# repository created the application and owns its policy. Every other
+# hostname the Pages project answers on is closed by the middleware. An
+# operator who additionally wants an Access prompt on `pages.dev` can
+# keep one in the dashboard; nothing here will fight them for it.
+#
+# If this is ever reinstated, the thing to solve first is the policy, not
+# the application: it needs a policy of its own that is not reusable and
+# not shared, or no managed policy at all — and "an Access application
+# with zero policies" is a behaviour to verify, not assume.
 
 # -----------------------------------------------------------------------------
 # Hetzner Object Storage Bucket (for LakeFS)

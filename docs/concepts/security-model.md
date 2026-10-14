@@ -90,11 +90,20 @@ than relying on what sits in front of it:
   Endpoints with no identity requirement at all — the health check and the
   version banner — are listed as such in a test that fails if a new one appears.
 
-OpenTofu also creates a second, account-scoped Access application covering
-`<project>.pages.dev` — the production Pages hostname, the one that is stable and
-guessable. Per-deployment preview hostnames are not covered by it and are closed
-by the hostname check instead; that asymmetry is the reason the check is in code
-rather than left to the Access configuration alone.
+Access itself covers only `control.<domain>`, the one hostname OpenTofu creates an
+application for. The other two kinds are closed by the hostname check, and that
+division is deliberate rather than an omission: an Access application for
+`<project>.pages.dev` was written and then removed, because owning it means owning
+whatever policy an operator already attached to that hostname — and on the first
+real deployment that turned out to be a *reusable* account-level policy shared with
+other applications, which the plan would have renamed and had its email list
+rewritten. Cloudflare refused the update, which is the only reason it did not
+happen. The per-deployment preview hostnames could never have been covered by a
+single Access application anyway, since their names are not known in advance.
+
+So the hostname check is not a second layer behind Access on these hostnames. It is
+the layer. An operator who also wants an Access prompt on `pages.dev` can keep one
+in the dashboard, and nothing in this repository will fight them for it.
 
 If the Control Plane cannot verify a token — because `ACCESS_AUD` or
 `ACCESS_TEAM_DOMAIN` is missing — it denies every request and names the missing

@@ -33,11 +33,15 @@
    - The admin, the user addresses and the guest addresses can reach
      `control.domain.com`; Access does not distinguish between them
    - Session: 24 hours
-   - OpenTofu creates a second, account-scoped application covering
-     `<project>.pages.dev`, because the application above is zone-scoped
-     and `pages.dev` is not in this zone. It covers the production Pages
-     hostname only; per-deployment preview hostnames are closed by the
-     hostname check in Layer 2, not by an Access application
+   - Access covers `control.<domain>` and nothing else. Every other
+     hostname the Pages project answers on — `<project>.pages.dev` and
+     the per-deployment preview hostnames — is closed by the hostname
+     check in Layer 2 instead. OpenTofu briefly managed an Access
+     application for the production `pages.dev` hostname; it was removed
+     because owning it means owning whatever policy an operator attached,
+     and on the first real run that was a *reusable* account-level policy
+     shared with other applications, which the plan would have renamed
+     and rewritten. See the comment in `tofu/control-plane/main.tf`
 
 2. **The Control Plane's own checks** (Layer 2)
    - `functions/_middleware.js` answers only on the Control Plane's own
