@@ -56,7 +56,16 @@ Other documented variables: `AI_PROVIDER`, `AI_AUTH_HEADER` (`bearer` or `api-ke
 
 Upstream hardcodes `tests.enabled` to `true` and ships `api.datacontract.com` as the default test server, so **Run Test** worked out of the box and sent the contract to a third party — no flag to switch on, no warning. This stack sets `TESTS_SERVER_URL` to its own [datacontract-api](./datacontract-api.md) instead.
 
-The button will most likely error there, because the request is cross-origin from the browser to a hostname behind Cloudflare Access and the API wants an `x-api-key` the editor cannot send. That is the intended state while the gap is open: a failing test button rather than a quiet upload. [datacontract-api.md](./datacontract-api.md) has the three reasons and what closing them would take.
+**What you will see, and it is not a broken stack.** The tab shows the redirected target and the browser refuses the call:
+
+```
+Run tests via: https://datacontract-api.<domain>
+Failed — Error: Load failed
+```
+
+`Load failed` is the browser's wording for a `fetch()` it would not make: the request is cross-origin from the editor's hostname to one behind Cloudflare Access, whose per-service applications carry no CORS configuration here. The API also wants an `x-api-key` the editor has no way to send.
+
+That is the intended state while the gap is open — a failing test button rather than a quiet upload. [datacontract-api.md](./datacontract-api.md) has the three reasons and what closing them would take.
 
 Validation, preview and the Diagram/Form/YAML views are unaffected — they run in the browser and need no server at all.
 

@@ -82,7 +82,7 @@ INFO  Data Contract CLI 1.2.5 running through FastAPI at http://api.datacontract
 
 One click on **Run Test** therefore sent the contract off the server, with nobody having switched anything on. Same shape as the AI assistant, same answer: `TESTS_SERVER_URL` now points the editor at this stack instead (`src/nexus_deploy/service_env.py`, `_render_datacontract_editor`).
 
-**Expect the button to fail, and prefer that.** Three things still stand between the editor and this API, and a test that errors is worth more than one that quietly publishes a contract:
+**Expect the button to fail, and prefer that.** Verified after the redirect: the tab shows `Run tests via: https://datacontract-api.<domain>` and the result is `Failed — Error: Load failed`, the browser's wording for a `fetch()` it refused to make. Three things still stand between the editor and this API, and a test that errors is worth more than one that quietly publishes a contract:
 
 - The editor is a single-page app, so the request comes from the **visitor's browser**, not from the editor's container. The URL therefore has to be the public `https://datacontract-api.<domain>`, not an `app-network` name.
 - That hostname sits behind Cloudflare Access, and a cross-origin request to it from `datacontract-editor.<domain>` needs CORS configuration that this repository's per-service Access applications do not carry.
