@@ -1480,7 +1480,10 @@ def test_duckdb_keeps_the_token_off_the_command_line() -> None:
     """The command reads the token with getenv() inside the process. Written
     into the command, any user on the host could read it with ``ps``."""
     command = " ".join(_duckdb_service()["command"])
-    assert "getenv('DUCKDB_QUACK_TOKEN')" in command
+    # The token argument of quack_serve itself, not merely a getenv()
+    # somewhere in the command that a literal token could sit beside.
+    token_args = re.findall(r"\btoken\s*=\s*(getenv\([^)]*\)|[^,)\s]+)", command)
+    assert token_args == ["getenv('DUCKDB_QUACK_TOKEN')"], token_args
     assert "${DUCKDB_QUACK_TOKEN}" not in command
     assert "$DUCKDB_QUACK_TOKEN" not in command
 

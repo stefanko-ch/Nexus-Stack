@@ -297,7 +297,7 @@ services:
     internal_only: true
     category: "databases"
     website: "https://duckdb.org/docs/2.0/quack/overview"
-    description: "DuckDB as a server — one shared analytical database that every notebook and flow can attach over the Quack protocol."
+    description: "DuckDB as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol."
     long_description: "DuckDB 2.0 added a server mode: the Quack protocol lets one DuckDB process serve its database to others over HTTP. This stack runs it with a single persistent database file, so several clients can read and write the same tables concurrently instead of each holding a private .duckdb file that only one process may open for writing. Clients ATTACH 'quack:duckdb:9494' and query it like a local catalog; filters and aggregates run on the server and only results travel. A token generated per deployment and stored in Infisical guards it, and is the whole of its access control — anyone holding it can run any SQL, including reading and writing files inside the container. Clients must be DuckDB 2.0; 1.x cannot attach, which today rules out Marimo's bundled DuckDB 1.5 — see the stack documentation for the clients that work."
     image: "duckdb/duckdb:2.0.0"
 

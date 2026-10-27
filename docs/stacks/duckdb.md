@@ -46,7 +46,7 @@ So which stacks can talk to the server today depends on the DuckDB version each 
 
 ### Connecting
 
-The token is the only credential. It reaches the Jupyter, Marimo and Kestra containers as the environment variable `DUCKDB_QUACK_TOKEN`, because the spin-up's secret sync copies every Infisical folder into them. Elsewhere, take it from Infisical.
+The token is the only credential. When Jupyter, Marimo, code-server or Kestra is enabled and the spin-up's secret sync succeeds, the token reaches that container as the environment variable `DUCKDB_QUACK_TOKEN`, because the sync copies every Infisical folder into it. The sync skips a target that is disabled, and on an Infisical outage it leaves the previous environment file in place. If the variable is missing, or anywhere else, take the token from Infisical.
 
 **SQL (any DuckDB 2.0 client on `app-network`)**
 
@@ -115,7 +115,7 @@ ATTACH 'quack:localhost:9494' AS srv (TOKEN '<token>');
 
 These were all measured against 2.0.0. They are worth knowing before you port code that works locally:
 
-- **Prepared-statement parameters fail.** `con.execute("INSERT INTO srv.t VALUES (?)", [1])` returns *Values were not provided for the following parameters: 1*. The same happens after `CONNECT`. Inline the literal instead, and escape anything that comes from outside your code.
+- **Prepared-statement parameters fail.** `con.execute("INSERT INTO srv.t VALUES (?)", [1])` returns *Values were not provided for the following parameters: 1*. The same happens after `CONNECT`. The workaround is to write values into the SQL text, and that is safe only for constants your own code controls. Do not treat hand-escaping as a replacement for parameters when the input is untrusted: a quoting mistake runs as SQL with the token's full privileges. For data from outside, load it into a local table first (for example from a DataFrame) and `INSERT INTO srv.t SELECT … FROM local_table`, so the values never pass through the SQL text.
 - **The Python relation API refuses while `CONNECT`-ed.** `con.sql(…).pl()` and `.df()` fail with *materialize() is not available while CONNECT-ed; DISCONNECT first*. `con.execute(…).fetchall()` works. With qualified `srv.` names and no `CONNECT`, the relation API works.
 - **A half-read remote result blocks the connection.** After `con.execute("SELECT …").fetchone()` on a server table, the next query on that connection fails with *connection has an unfinished result from execute()*. Read results to the end with `fetchall()`, or use a second cursor. A local connection does not behave this way.
 - **`ATTACH` reads the remote catalog once.** A table that another client creates later is visible after `DETACH` and a fresh `ATTACH`. Upstream also notes that one remote table definition that fails to bind fails the whole `ATTACH`.

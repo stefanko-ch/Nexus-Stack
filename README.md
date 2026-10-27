@@ -211,7 +211,7 @@ After deployment you'll have:
 | **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
 | **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
-| **DuckDB** | DuckDB 2.0 as a server — one shared analytical database every notebook and flow attaches over the Quack protocol | [duckdb.org](https://duckdb.org) |
+| **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
