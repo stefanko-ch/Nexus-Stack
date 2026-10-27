@@ -1478,7 +1478,7 @@ def test_duckdb_publishes_its_port_on_loopback_only() -> None:
 
 def test_duckdb_keeps_the_token_off_the_command_line() -> None:
     """The command reads the token with getenv() inside the process. Written
-    into the command, it would be visible in ``ps`` and ``docker inspect``."""
+    into the command, any user on the host could read it with ``ps``."""
     command = " ".join(_duckdb_service()["command"])
     assert "getenv('DUCKDB_QUACK_TOKEN')" in command
     assert "${DUCKDB_QUACK_TOKEN}" not in command

@@ -20,7 +20,9 @@
 # From a laptop, the port is published on loopback only, for SSH forwarding:
 #
 #   ssh -N -L 9494:localhost:9494 nexus
-#   duckdb -c "ATTACH 'quack:localhost:9494' AS srv (TOKEN '<token>')"
+#   duckdb      # then type the ATTACH at the prompt, not with -c, so the
+#               # token stays out of your own process list:
+#   ATTACH 'quack:localhost:9494' AS srv (TOKEN '<token>');
 # =============================================================================
 
 services:
@@ -49,8 +51,11 @@ services:
     # restarts, which shows up.
     #
     # The token is read with getenv() inside the process rather than
-    # placed on the command line, which would publish it in `ps` and in
-    # `docker inspect`. And it is SELECTed around, not CALLed: quack_serve
+    # placed on the command line, where any user on the host could read
+    # it with `ps`. It is still in the container's environment, so
+    # `docker inspect` shows it, as it does every stack's .env values;
+    # that output needs Docker access and is secret-bearing either way.
+    # And it is SELECTed around, not CALLed: quack_serve
     # returns the token as a column, and the CLI prints results to the
     # container log.
     #

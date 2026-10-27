@@ -149,7 +149,7 @@ Quack also supports [custom authentication and authorization functions](https://
 
 If the token is empty, the deploy stops before the container starts. `src/nexus_deploy/service_env.py` raises with a pointer to `random_password.duckdb_quack_token`. Even if it did not, the server would not run open. `quack_serve` rejects a token shorter than four characters, and `-bail` stops the CLI on that error.
 
-The compose command reads the token with `getenv()` inside the process, so it never appears in `ps` or `docker inspect`. It also selects only `listen_uri` from `quack_serve`. That function returns the token as a column, and the CLI would otherwise print it into the container log.
+The compose command reads the token with `getenv()` inside the process, so it is not on the command line, where any user on the host could read it with `ps`. It is still in the container's environment. `docker inspect duckdb` shows it, as it shows every stack's `.env` values, so treat that output as secret-bearing. The command also selects only `listen_uri` from `quack_serve`. That function returns the token as a column, and the CLI would otherwise print it into the container log.
 
 ### How the container is put together
 
