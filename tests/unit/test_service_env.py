@@ -80,6 +80,7 @@ def full_config() -> NexusConfig:
         lakekeeper_db_password="lakekeeper-db-pw",
         mlflow_db_password="mlflow-db-pw",
         cube_api_secret="cube-api-secret",
+        datacontract_api_key="datacontract-api-key",
         apicurio_db_password="apicurio-db-pw",
         airflow_admin_password="airflow-admin-pw",
         airflow_db_password="airflow-db-pw",
@@ -3941,6 +3942,73 @@ def test_cube_refuses_to_render_without_either_secret(
 
     with pytest.raises(ServiceEnvError, match=expected):
         _render_cube(config, full_env)
+
+
+# ---------------------------------------------------------------------------
+# Data Contract API — one key, and it is the only thing guarding the endpoints
+# ---------------------------------------------------------------------------
+
+
+def test_datacontract_api_renders_exactly_what_the_compose_file_reads(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_datacontract_api
+
+    rendered = _render_datacontract_api(full_config, full_env)
+
+    assert set(rendered.env_vars) == {"DATACONTRACT_API_KEY"}
+    assert rendered.env_vars["DATACONTRACT_API_KEY"] == full_config.datacontract_api_key
+
+
+def test_datacontract_api_env_is_not_world_readable(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The single value in this file is the only credential guarding an
+    endpoint that is deliberately allowed to reach the stack's databases."""
+    from nexus_deploy.service_env import _render_datacontract_api
+
+    assert _render_datacontract_api(full_config, full_env).mode == 0o600
+
+
+def test_datacontract_api_refuses_to_render_without_the_key(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The load-bearing test of this stack.
+
+    The compose file sets ``DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true``
+    so a contract can be tested against postgres, trino, lakekeeper and
+    minio. That makes the service an SSRF-shaped capability by design, and
+    Cloudflare Access covers its public hostname but not ``app-network``,
+    where every other container can reach port 4242 directly.
+
+    So an empty key must stop the deploy rather than produce
+    ``DATACONTRACT_API_KEY=''`` — which the image accepts, and which turns
+    every endpoint into an open one for anything on that network.
+    """
+    from nexus_deploy.service_env import _render_datacontract_api
+
+    config = full_config.model_copy(update={"datacontract_api_key": ""})
+
+    with pytest.raises(ServiceEnvError, match="DATACONTRACT_API_KEY"):
+        _render_datacontract_api(config, full_env)
+
+
+def test_datacontract_api_error_says_how_to_fix_it(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A failure an operator cannot act on costs more than the silent
+    version it replaced. The message names the Terraform resource that
+    produces the value and the Infisical folder it lands in."""
+    from nexus_deploy.service_env import _render_datacontract_api
+
+    config = full_config.model_copy(update={"datacontract_api_key": ""})
+
+    with pytest.raises(ServiceEnvError) as excinfo:
+        _render_datacontract_api(config, full_env)
+
+    message = str(excinfo.value)
+    assert "random_password.datacontract_api_key" in message
+    assert "/datacontract" in message
 
 
 def test_cassandra_renders_one_nexus_prefixed_secret(
