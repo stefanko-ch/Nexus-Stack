@@ -81,6 +81,7 @@ def full_config() -> NexusConfig:
         mlflow_db_password="mlflow-db-pw",
         cube_api_secret="cube-api-secret",
         datacontract_api_key="datacontract-api-key",
+        duckdb_quack_token="duckdb-quack-token",
         apicurio_db_password="apicurio-db-pw",
         airflow_admin_password="airflow-admin-pw",
         airflow_db_password="airflow-db-pw",
@@ -4066,6 +4067,52 @@ def test_datacontract_api_error_says_how_to_fix_it(
     message = str(excinfo.value)
     assert "random_password.datacontract_api_key" in message
     assert "/datacontract" in message
+
+
+# ---------------------------------------------------------------------------
+# DuckDB server — the Quack token is its whole access control
+# ---------------------------------------------------------------------------
+
+
+def test_duckdb_renders_exactly_what_the_compose_file_reads(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_duckdb
+
+    rendered = _render_duckdb(full_config, full_env)
+
+    assert set(rendered.env_vars) == {"DUCKDB_QUACK_TOKEN"}
+    assert rendered.env_vars["DUCKDB_QUACK_TOKEN"] == full_config.duckdb_quack_token
+
+    compose = (Path(__file__).parents[2] / "stacks" / "duckdb" / "docker-compose.yml").read_text()
+    assert "DUCKDB_QUACK_TOKEN=${DUCKDB_QUACK_TOKEN}" in compose
+
+
+def test_duckdb_env_is_not_world_readable(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    """Whoever reads the token can run any SQL on the server."""
+    from nexus_deploy.service_env import _render_duckdb
+
+    assert _render_duckdb(full_config, full_env).mode == 0o600
+
+
+def test_duckdb_refuses_to_render_without_the_token(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """An empty token never leaves the server open — ``quack_serve``
+    rejects anything under four characters and ``-bail`` stops the
+    container — but that surfaces as a restart loop after a green deploy.
+    The render is where the cause can still be named."""
+    from nexus_deploy.service_env import _render_duckdb
+
+    config = full_config.model_copy(update={"duckdb_quack_token": ""})
+
+    with pytest.raises(ServiceEnvError) as excinfo:
+        _render_duckdb(config, full_env)
+
+    message = str(excinfo.value)
+    assert "DUCKDB_QUACK_TOKEN" in message
+    assert "random_password.duckdb_quack_token" in message
+    assert "/duckdb" in message
 
 
 def test_cassandra_renders_one_nexus_prefixed_secret(

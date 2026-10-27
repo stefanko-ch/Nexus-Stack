@@ -840,6 +840,22 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "duckdb",
+            _filter_empty(
+                {
+                    # The token every client attaches to the DuckDB server
+                    # with. Published here so it reaches the notebooks:
+                    # secret_sync copies every folder into the Jupyter and
+                    # Marimo environments and into Kestra's, where a flow
+                    # reads it as {{ secret('DUCKDB_QUACK_TOKEN') }}.
+                    "DUCKDB_QUACK_TOKEN": config.duckdb_quack_token,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "keycloak",
             _filter_empty(
                 {

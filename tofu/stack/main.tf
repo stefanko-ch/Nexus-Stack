@@ -257,6 +257,15 @@ resource "random_password" "datacontract_api_key" {
   special = false
 }
 
+# The DuckDB server's Quack token. It is the server's only access control:
+# whoever holds it can run any SQL, from every container on app-network.
+# No special characters, because clients paste it into a SQL string literal
+# (`TOKEN '...'`) where a quote would end the literal.
+resource "random_password" "duckdb_quack_token" {
+  length  = 48
+  special = false
+}
+
 # Hue: the Django secret key, the admin account, and its Postgres.
 #
 # The secret key is not cosmetic. The image ships a HARDCODED one —

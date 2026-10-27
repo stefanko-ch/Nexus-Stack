@@ -42,6 +42,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Dinky | `dinkydocker/dinky-standalone-server` | `1.2.5-flink1.20` | Exact ¹ |
 | Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
+| DuckDB | `duckdb/duckdb` | `2.0.0` | Exact ¹ |
 | Grafana | `grafana/grafana` | `11.6` | Minor |
 | Hive Metastore | `nexus-hive-metastore` (custom build) | `4.1.0` | Exact ³ |
 | PostgreSQL (Hive Metastore DB) | `postgres` | `17-alpine` | Major |
@@ -233,6 +234,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
 | **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
+| **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
 | **Evidence** | SQL + markdown BI for analytics engineers | [evidence.md](evidence.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |

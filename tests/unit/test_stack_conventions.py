@@ -1460,6 +1460,47 @@ def test_notebook_stacks_point_at_the_in_cluster_mlflow() -> None:
         )
 
 
+def _duckdb_service() -> dict[str, Any]:
+    compose = yaml.safe_load((STACKS_DIR / "duckdb" / "docker-compose.yml").read_text())
+    return dict(compose["services"]["duckdb"])
+
+
+def test_duckdb_publishes_its_port_on_loopback_only() -> None:
+    """The server binds 0.0.0.0 inside the container over plain HTTP, and
+    the bearer token travels in that HTTP. A bare ``"9494:9494"`` would put
+    it on the public interface with the firewall as the only control left;
+    loopback is all the documented ``ssh -N -L`` path needs."""
+    offenders = [
+        p for p in _duckdb_service().get("ports") or [] if not str(p).startswith("127.0.0.1:")
+    ]
+    assert not offenders, f"stacks/duckdb publishes on every interface: {offenders}"
+
+
+def test_duckdb_keeps_the_token_off_the_command_line() -> None:
+    """The command reads the token with getenv() inside the process. Written
+    into the command, it would be visible in ``ps`` and ``docker inspect``."""
+    command = " ".join(_duckdb_service()["command"])
+    assert "getenv('DUCKDB_QUACK_TOKEN')" in command
+    assert "${DUCKDB_QUACK_TOKEN}" not in command
+    assert "$DUCKDB_QUACK_TOKEN" not in command
+
+
+def test_duckdb_server_stays_up_and_fails_loudly() -> None:
+    """Three settings the server is useless without, each observed failing.
+
+    - ``stdin_open``: the CLI serves until stdin hits EOF, and a container's
+      stdin is closed by default, so the container exited 0 in seconds.
+    - ``-bail``: without it a rejected ``quack_serve`` left the CLI idling
+      on stdin — a running container serving nothing.
+    - ``init``: the CLI ignores SIGTERM as PID 1, so every stop was a
+      SIGKILL after ten seconds.
+    """
+    service = _duckdb_service()
+    assert service.get("stdin_open") is True
+    assert service.get("init") is True
+    assert "-bail" in service["command"]
+
+
 def _temporal_compose() -> dict[str, Any]:
     return dict(yaml.safe_load((STACKS_DIR / "temporal" / "docker-compose.yml").read_text()))
 

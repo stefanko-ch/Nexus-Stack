@@ -187,6 +187,9 @@ output "secrets" {
     cube_api_secret      = random_password.cube_api_secret.result
     datacontract_api_key = random_password.datacontract_api_key.result
 
+    # DuckDB server (Quack protocol) — the bearer token clients attach with.
+    duckdb_quack_token = random_password.duckdb_quack_token.result
+
     # Apicurio Registry (schema + API-contract registry)
     apicurio_db_password = random_password.apicurio_db_password.result
 

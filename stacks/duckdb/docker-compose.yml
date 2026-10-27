@@ -1,0 +1,116 @@
+# =============================================================================
+# DuckDB Server - one shared DuckDB database, served over the Quack protocol
+# =============================================================================
+# DuckDB 2.0 can serve a database to other DuckDB processes over its own
+# HTTP-based protocol, Quack. This stack runs the DuckDB CLI with one
+# persistent database file and keeps it serving, so notebooks, scripts and
+# flows can read and write the same tables at once instead of each holding
+# a private .duckdb file.
+#
+# Internal Access: quack:duckdb:9494 (from other containers, plain HTTP)
+# Token:           Infisical /duckdb/DUCKDB_QUACK_TOKEN
+# Docs:            https://duckdb.org/docs/2.0/quack/overview
+#
+# Connect from any DuckDB 2.0 client (1.x clients cannot attach):
+#
+#   CREATE SECRET (TYPE quack, TOKEN '<token>', SCOPE 'quack:duckdb:9494');
+#   ATTACH 'quack:duckdb:9494' AS srv (DISABLE_SSL true);
+#   SELECT * FROM srv.my_table;
+#
+# From a laptop, the port is published on loopback only, for SSH forwarding:
+#
+#   ssh -N -L 9494:localhost:9494 nexus
+#   duckdb -c "ATTACH 'quack:localhost:9494' AS srv (TOKEN '<token>')"
+# =============================================================================
+
+services:
+  duckdb:
+    image: ${IMAGE_DUCKDB:-duckdb/duckdb:2.0.0}
+    container_name: duckdb
+    restart: unless-stopped
+    # The CLI serves for as long as it is reading stdin and exits at EOF.
+    # A container's stdin is closed unless it is held open, so without this
+    # the server answers for a moment and the container exits 0.
+    stdin_open: true
+    # The CLI ignores SIGTERM as PID 1, so `docker stop` would wait its ten
+    # seconds and SIGKILL it mid-write. Under tini it stops in well under a
+    # second, and the database reopens with every committed row.
+    init: true
+    environment:
+      - DUCKDB_QUACK_TOKEN=${DUCKDB_QUACK_TOKEN}
+      # The image sets no HOME, and DuckDB keeps downloaded extensions under
+      # ~/.duckdb. Pointing it into the volume means the quack extension is
+      # fetched once rather than on every container start — and that the
+      # healthcheck below, a second DuckDB process, finds the same copy.
+      - HOME=/data
+    # -bail exits on the first failed statement. Without it, a rejected
+    # token leaves the CLI waiting on stdin with no server running: a live
+    # container that serves nothing. With it, the container exits and
+    # restarts, which shows up.
+    #
+    # The token is read with getenv() inside the process rather than
+    # placed on the command line, which would publish it in `ps` and in
+    # `docker inspect`. And it is SELECTed around, not CALLed: quack_serve
+    # returns the token as a column, and the CLI prints results to the
+    # container log.
+    #
+    # quack_serve refuses a non-local hostname unless told otherwise, and
+    # serves HTTPS with a self-signed certificate on one. app-network is a
+    # private Docker network where every other stack speaks plain TCP too,
+    # so the server binds every interface over plain HTTP — and the
+    # loopback-only port mapping below is what keeps that off the host's
+    # public interface.
+    #
+    # memory_limit is set below the container limit because DuckDB sizes
+    # its default from the host's RAM, not the cgroup: it reported 12.5 GiB
+    # inside a container capped far lower. temp_directory lets a query that
+    # outgrows it spill to the volume instead of failing.
+    command:
+      - /duckdb
+      - -bail
+      - /data/nexus.duckdb
+      - -cmd
+      - >-
+        SET memory_limit = '1536MB';
+        SET temp_directory = '/data/tmp';
+        SELECT listen_uri FROM quack_serve(
+          'quack:0.0.0.0:9494',
+          allow_other_hostname = true,
+          disable_ssl = true,
+          token = getenv('DUCKDB_QUACK_TOKEN')
+        );
+    ports:
+      # Loopback only. The server authenticates with a bearer token sent
+      # over plain HTTP, so it must not listen on the public interface —
+      # the firewall would then be the only control left. Loopback is all
+      # SSH forwarding needs.
+      - "127.0.0.1:9494:9494"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # A real authenticated round trip, not a port check: it proves the
+      # server is up AND that the token it was started with is the one in
+      # the environment. CMD form, because the image is distroless — there
+      # is no /bin/sh, only the duckdb binary.
+      test:
+        - CMD
+        - /duckdb
+        - -c
+        - "SELECT * FROM quack_query('quack:localhost:9494', 'SELECT 1', token = getenv('DUCKDB_QUACK_TOKEN'))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - duckdb-data:/data
+    networks:
+      - app-network
+
+volumes:
+  duckdb-data:
+
+networks:
+  app-network:
+    external: true
