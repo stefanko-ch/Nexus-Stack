@@ -20,14 +20,14 @@ This is the other half of [datacontract-editor](./datacontract-editor.md): the e
 | Website | [cli.datacontract.com](https://cli.datacontract.com/) |
 | Docker image | [`datacontract/cli`](https://hub.docker.com/r/datacontract/cli), pinned |
 | API key | Infisical, `/datacontract/DATACONTRACT_API_KEY` |
-| Persistence | None |
+| Persistence | A `datacontract-api-data` volume at `/workspace` — scratch space, not storage; absent from `s3_restore` so it does not survive a teardown |
 | Licence | MIT |
 
 ### Two ways to use one container
 
 The container runs the API server, and because the CLI lives in the same image, both are available.
 
-**From the browser** — `/` is a Swagger UI. Paste a contract, pick a server, run the test. Every request needs the API key as an `x-api-key` header; the Swagger UI has a field for it.
+**From the browser** — `/` is a Swagger UI. Paste a contract, pick a server, run the test. The *operations* need the API key as an `x-api-key` header; the Swagger UI has a field for it. The documentation itself does not: `GET /` and `GET /openapi.json` answer without one, which is how the container's own healthcheck probes it.
 
 | Endpoint | Does |
 |---|---|
@@ -41,8 +41,9 @@ The container runs the API server, and because the CLI lives in the same image, 
 **From the shell** — the same pattern as the [Soda](./soda.md) stack. The container has a `datacontract-api-data` volume mounted at `/workspace`, which is also its working directory, so a contract has somewhere to live while you test it:
 
 ```bash
-ssh nexus
-docker cp contract.yaml datacontract-api:/workspace/
+# from your machine, not from inside the ssh session:
+scp contract.yaml nexus:/tmp/
+ssh nexus docker cp /tmp/contract.yaml datacontract-api:/workspace/
 docker exec -it datacontract-api datacontract lint contract.yaml
 docker exec -it datacontract-api datacontract test --server production contract.yaml
 ```
@@ -57,7 +58,7 @@ It also means the service is, by design, something that will make requests to in
 
 The deploy fails rather than starting without it. `src/nexus_deploy/service_env.py` raises if `DATACONTRACT_API_KEY` is empty, with a message pointing at `tofu apply` — because the alternative is a container that comes up looking healthy and answers `POST /test` to anything that asks.
 
-**The Swagger UI is not behind the key; the endpoints are.** `GET /` loads without one, because it is static JavaScript plus `openapi.json` — the description of the interface, not access to it. Verified against a live deployment: an `Execute` from the Swagger UI sends no `x-api-key` (the generated curl carries only `accept` and `Content-Type`), and the API answers
+**The Swagger UI is not behind the key; the operations are.** `GET /` and `GET /openapi.json` load without one, because they are the description of the interface, not access to it — and the container's healthcheck calls `/openapi.json` precisely because it needs no credential. Verified against a live deployment: an `Execute` from the Swagger UI sends no `x-api-key` (the generated curl carries only `accept` and `Content-Type`), and the API answers
 
 ```json
 401  {"detail": "Missing API key. Use Header 'x-api-key' to provide the API key."}
@@ -86,7 +87,7 @@ One click on **Run Test** therefore sent the contract off the server, with nobod
 
 - The editor is a single-page app, so the request comes from the **visitor's browser**, not from the editor's container. The URL therefore has to be the public `https://datacontract-api.<domain>`, not an `app-network` name.
 - That hostname sits behind Cloudflare Access, and a cross-origin request to it from `datacontract-editor.<domain>` needs CORS configuration that this repository's per-service Access applications do not carry.
-- And every endpoint here requires an `x-api-key` header. The editor has no variable for one — and if it had, the value would land in its browser-readable `config.json` ([datacontract-editor.md](./datacontract-editor.md)), which would hand the key to everyone who can open the editor.
+- And every API operation here requires an `x-api-key` header. The editor has no variable for one — and if it had, the value would land in its browser-readable `config.json` ([datacontract-editor.md](./datacontract-editor.md)), which would hand the key to everyone who can open the editor.
 
 So in practice the two stacks are used side by side: write in the editor, test in the Swagger UI or over `docker exec`. Closing the gap means solving the CORS question and finding somewhere for the key that is not a public file — neither is a line of configuration.
 

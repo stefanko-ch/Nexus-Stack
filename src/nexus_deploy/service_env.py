@@ -925,7 +925,7 @@ def _render_datacontract_api(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     contract can be tested against postgres, trino, lakekeeper and minio —
     the whole reason to run the tool next to the data. That makes the
     service an SSRF-shaped capability by design, and the API key is what
-    keeps it from being an open one: with it, every endpoint needs an
+    keeps it from being an open one: with it, every API operation needs an
     ``x-api-key`` header (401 without, 403 with the wrong one).
 
     So this fails fast rather than starting a container that would answer

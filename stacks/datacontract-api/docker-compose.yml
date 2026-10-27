@@ -46,7 +46,10 @@ services:
     healthcheck:
       # /openapi.json rather than /: it needs no auth, returns JSON, and
       # proves the app is serving rather than just that a port is open.
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4242/openapi.json', timeout=3)\""]
+      # CMD, not CMD-SHELL: the runtime image is not guaranteed to carry
+      # /bin/sh, and a probe that cannot start reports unhealthy for the
+      # wrong reason. Exec form needs no shell.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4242/openapi.json', timeout=3)"]
       interval: 30s
       timeout: 10s
       retries: 3
