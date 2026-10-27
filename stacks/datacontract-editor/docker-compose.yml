@@ -26,12 +26,19 @@ services:
       - "4173:4173"
     environment:
       # The AI assistant is off by default upstream, and it stays off here.
+      # Two reasons, and the second is the one that is easy to miss.
+      #
       # Its default AI_ENDPOINT is a hosted third-party API, so enabling it
-      # without overriding the endpoint would send contract content — schema,
+      # without overriding the endpoint sends contract content — schema,
       # ownership, and on a teaching stack a student's coursework — off the
-      # server. To turn it on, point it at the in-stack LiteLLM proxy
-      # (http://litellm:4000/v1/chat/completions over app-network) and take
-      # the key from Infisical like any other service credential.
+      # server.
+      #
+      # And the image writes these variables into config.json inside nginx's
+      # html root, so GET /config.json serves them. AI_API_KEY is therefore
+      # readable by anyone who can load the editor, and the request itself
+      # leaves the browser rather than this container — an app-network
+      # hostname would not resolve. See docs/stacks/datacontract-editor.md
+      # for what turning it on would actually require.
       - AI_ENABLED=false
     deploy:
       resources:

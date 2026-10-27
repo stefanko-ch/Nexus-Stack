@@ -28,23 +28,29 @@ The image is nginx serving a built single-page app: no database, no backend, no 
 
 The practical consequence: **save your work somewhere**. Closing the tab is closing the editor.
 
-### The AI assistant is off, on purpose
+### The AI assistant is off, and turning it on is harder than it looks
 
-The image ships an optional AI assistant, and this stack leaves `AI_ENABLED=false`. The reason is its default endpoint: upstream points `AI_ENDPOINT` at a hosted third-party API, so switching the assistant on without overriding it sends contract content off the server — schema, ownership and service-level detail, and on a teaching stack a student's coursework.
+This stack leaves `AI_ENABLED=false`. The obvious reason is the default endpoint: upstream points `AI_ENDPOINT` at a hosted third-party API, so switching the assistant on without overriding it sends contract content off the server — schema, ownership and service-level detail, and on a teaching stack a student's coursework.
 
-If you want it, point it at the stack's own LiteLLM proxy instead:
+The less obvious reason is where the configuration ends up. The image's `CMD` writes those variables into `config.json` **inside nginx's html root** (`/usr/share/nginx/html/config.json`), so the file is served like any other asset:
 
-```yaml
-environment:
-  - AI_ENABLED=true
-  - AI_ENDPOINT=http://litellm:4000/v1/chat/completions
-  - AI_API_KEY=${LITELLM_MASTER_KEY}
-  - AI_MODEL=gpt-4o
+```
+GET https://datacontract-editor.<domain>/config.json
 ```
 
-`litellm` is reachable over `app-network`, and its key is in Infisical under `/litellm` like any other service credential. Then the assistant runs against a model you chose, through a proxy you control.
+**`AI_API_KEY` is therefore not a secret.** It is readable by anyone who can load the editor — on this stack, everyone on the Cloudflare Access allow-list. Never put `LITELLM_MASTER_KEY` there: [litellm.md](./litellm.md) calls it a root credential, and it can mint keys, change models and log into the UI as admin.
 
-Other documented variables: `AI_AUTH_HEADER` (`bearer` or `api-key`) and `CUSTOMIZATION_CONFIG`, a path to a mounted `customization.yaml`.
+And the endpoint has to be one the **browser** can reach, because this is a single-page app — the request leaves the visitor's browser, not the server. `http://litellm:4000` is a Docker network name and resolves nowhere outside the host, so an in-stack endpoint simply does not work here.
+
+What is left if you want the assistant:
+
+- `AI_ENDPOINT=https://litellm.<domain>/v1/chat/completions` — the public hostname, which exists
+- `AI_API_KEY` = a LiteLLM **virtual key** scoped to one model with a budget and an expiry ([litellm.md](./litellm.md)), never the master key, and accepting that everyone with Access can read it
+- …and then a cross-origin request from `datacontract-editor.<domain>` to `litellm.<domain>` has to pass Cloudflare Access, whose per-service applications carry no CORS configuration in this repository
+
+That last point is why the flag is off rather than documented as a recipe: the pieces exist, the path does not, and a documented recipe that fails at the preflight is worse than none.
+
+Other documented variables: `AI_PROVIDER`, `AI_AUTH_HEADER` (`bearer` or `api-key`), `SCHEMA_URL`, `CUSTOMIZATION_CONFIG` (a path to a mounted `customization.yaml`), and `CONFIG_JSON` — which replaces the generated file with one you mount, and is the only way to keep a value out of the generated JSON.
 
 ### Why there is no `strict_host_check`
 

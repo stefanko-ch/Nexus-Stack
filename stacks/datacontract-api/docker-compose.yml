@@ -52,8 +52,19 @@ services:
       retries: 3
       start_period: 30s
     command: ["api", "--host", "0.0.0.0"]
+    volumes:
+      # A working surface for the `docker exec` path, the same shape the
+      # soda stack uses. Contracts belong in the workspace repository; this
+      # is somewhere to drop one while testing it, and it is deliberately
+      # NOT in s3_restore.standard_targets() — it does not survive a rebuild
+      # teardown, and nothing here should be the only copy of anything.
+      - datacontract-api-data:/workspace
+    working_dir: /workspace
     networks:
       - app-network
+
+volumes:
+  datacontract-api-data:
 
 networks:
   app-network:

@@ -38,13 +38,16 @@ The container runs the API server, and because the CLI lives in the same image, 
 | `POST /changelog` | Lists what changed between two contract versions |
 | `POST /breaking` | Grades those changes and returns `is_breaking` |
 
-**From the shell** — the same pattern as the [Soda](./soda.md) stack:
+**From the shell** — the same pattern as the [Soda](./soda.md) stack. The container has a `datacontract-api-data` volume mounted at `/workspace`, which is also its working directory, so a contract has somewhere to live while you test it:
 
 ```bash
 ssh nexus
-docker exec -it datacontract-api datacontract lint /workspace/contract.yaml
-docker exec -it datacontract-api datacontract test --server production /workspace/contract.yaml
+docker cp contract.yaml datacontract-api:/workspace/
+docker exec -it datacontract-api datacontract lint contract.yaml
+docker exec -it datacontract-api datacontract test --server production contract.yaml
 ```
+
+That volume is deliberately **not** in `s3_restore.standard_targets()`: it does not survive a rebuild teardown. It is a working surface, not storage — contracts belong in the workspace repository, where they are versioned and reviewed.
 
 ### The API key is not optional, and here is why
 
@@ -59,6 +62,16 @@ The deploy fails rather than starting without it. `src/nexus_deploy/service_env.
 Data source credentials arrive as `DATACONTRACT_<SOURCE>_*` environment variables, or per-request as `datacontract-*` headers. Neither is on disk in the container.
 
 For a contract against the shared Postgres, the per-request header form keeps the stack's own `.env` free of a second copy of the warehouse password — the value is already in Infisical under `/postgres`.
+
+### Connecting the editor to this service
+
+The editor has a `TESTS_SERVER_URL` variable that points at this API, and its `tests.enabled` is hardcoded to `true` upstream. It is not wired up here, and the reason is worth recording rather than rediscovering:
+
+- The editor is a single-page app, so the request comes from the **visitor's browser**, not from the editor's container. The URL therefore has to be the public `https://datacontract-api.<domain>`, not an `app-network` name.
+- That hostname sits behind Cloudflare Access, and a cross-origin request to it from `datacontract-editor.<domain>` needs CORS configuration that this repository's per-service Access applications do not carry.
+- And every endpoint here requires an `x-api-key` header. The editor has no variable for one — and if it had, the value would land in its browser-readable `config.json` ([datacontract-editor.md](./datacontract-editor.md)), which would hand the key to everyone who can open the editor.
+
+So the two stacks are used side by side rather than wired together: write in the editor, test in the Swagger UI or over `docker exec`. Closing that gap means solving the CORS question and finding somewhere for the key that is not a public file — neither is a line of configuration.
 
 ### Related
 
