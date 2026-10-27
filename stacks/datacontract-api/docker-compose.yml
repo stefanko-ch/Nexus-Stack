@@ -1,0 +1,60 @@
+# =============================================================================
+# Data Contract CLI - test ODCS contracts against the stack's own data
+# =============================================================================
+# The other half of datacontract-editor: the editor writes a contract, this
+# tests it. Supports Postgres, Trino, Iceberg, S3, Kafka, DuckDB, MySQL and
+# more — which is most of what this stack already runs.
+#
+# URL:  https://datacontract-api.${DOMAIN}   (Swagger UI on /)
+# Docs: https://cli.datacontract.com/api
+#
+# Two ways to use one container. The API server runs as the command, and
+# because the CLI lives in the same image, the CLI is still reachable:
+#
+#   docker exec -it datacontract-api datacontract test --server production contract.yaml
+#   docker exec -it datacontract-api datacontract lint contract.yaml
+#
+# Endpoints: GET / (Swagger UI), POST /test, /export, /changelog, /breaking.
+#
+# Stateless: no database, no volume. Credentials for the systems under test
+# arrive as DATACONTRACT_<SOURCE>_* environment variables, not on disk.
+# =============================================================================
+
+services:
+  datacontract-api:
+    image: ${IMAGE_DATACONTRACT_API:-datacontract/cli:1.2.8}
+    container_name: datacontract-api
+    restart: unless-stopped
+    ports:
+      - "4242:4242"
+    environment:
+      # Not optional. Without a key every endpoint answers to anything that
+      # can reach the container, and on app-network that is every other
+      # stack. With it, each request needs an `x-api-key` header; a missing
+      # one is 401, a wrong one 403.
+      - DATACONTRACT_CLI_API_KEY=${DATACONTRACT_API_KEY}
+      # The whole point of running this next to the data: a contract has to
+      # be testable against postgres, trino, lakekeeper and minio, which are
+      # all private addresses on app-network. This is deliberately an
+      # SSRF-shaped capability, and it is why the API key above is required
+      # rather than recommended.
+      - DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # /openapi.json rather than /: it needs no auth, returns JSON, and
+      # proves the app is serving rather than just that a port is open.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4242/openapi.json', timeout=3)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: ["api", "--host", "0.0.0.0"]
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

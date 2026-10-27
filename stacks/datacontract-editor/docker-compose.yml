@@ -1,0 +1,53 @@
+# =============================================================================
+# Data Contract Editor - write ODCS contracts in the browser
+# =============================================================================
+# Visual, form and YAML editing for Open Data Contract Standard (ODCS) 3.2.0
+# contracts, plus preview and validation.
+#
+# URL: https://datacontract-editor.${DOMAIN}
+# Docs: https://github.com/datacontract/datacontract-editor
+#
+# Stateless by design: the image is nginx serving a built SPA. No database,
+# no backend, no volume — nothing to carry across a teardown, which is why
+# this stack has no s3_restore target.
+#
+# No strict_host_check, and the port makes that look wrong: 4173 is Vite's
+# `preview` default, so this looks like the case that flag exists for. It is
+# not. The image's final stage is nginx:alpine-slim and its nginx.conf is
+# `listen 4173;` with no server_name, so nothing validates the Host header.
+# =============================================================================
+
+services:
+  datacontract-editor:
+    image: ${IMAGE_DATACONTRACT_EDITOR:-datacontract/editor:0.1.17}
+    container_name: datacontract-editor
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    environment:
+      # The AI assistant is off by default upstream, and it stays off here.
+      # Its default AI_ENDPOINT is a hosted third-party API, so enabling it
+      # without overriding the endpoint would send contract content — schema,
+      # ownership, and on a teaching stack a student's coursework — off the
+      # server. To turn it on, point it at the in-stack LiteLLM proxy
+      # (http://litellm:4000/v1/chat/completions over app-network) and take
+      # the key from Infisical like any other service credential.
+      - AI_ENABLED=false
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    healthcheck:
+      # The SPA fallback (`try_files $$uri $$uri/ /index.html`) means any path
+      # returns 200, so / is as good a probe as any.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4173/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

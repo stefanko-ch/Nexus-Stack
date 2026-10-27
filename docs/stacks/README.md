@@ -34,6 +34,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | CyberChef | `mpepping/cyberchef` | `v10.24.0` | Exact ¹ |
 | Cube | `cubejs/cube` | `v1.7.42` | Exact ¹ |
 | Cube Store (Cube) | `cubejs/cubestore` | `v1.7.42` | Exact ¹ |
+| Data Contract API | `datacontract/cli` | `1.2.8` | Exact ¹ |
+| Data Contract Editor | `datacontract/editor` | `0.1.17` | Exact ¹ |
 | Dagster | dagster (custom build) | `1.12.21` | Exact ³ |
 | PostgreSQL (Dagster DB) | `postgres` | `16-alpine` | Major |
 | Debezium | `quay.io/debezium/connect` | `3.5.0` | Exact ¹ |
@@ -223,6 +225,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Crawl4AI** | LLM-friendly web crawler for RAG | [crawl4ai.md](crawl4ai.md) |
 | **CyberChef** | GCHQ data manipulation tool — encode/decode/hash/regex/crypto | [cyberchef.md](cyberchef.md) |
 | **Cube** | Semantic layer — one metric definition, served to every BI tool | [cube.md](cube.md) |
+| **Data Contract API** | Tests ODCS contracts against the stack's own data | [datacontract-api.md](datacontract-api.md) |
+| **Data Contract Editor** | Browser editor for ODCS data contracts | [datacontract-editor.md](datacontract-editor.md) |
 | **Dagster** | Python data orchestration | [dagster.md](dagster.md) |
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |

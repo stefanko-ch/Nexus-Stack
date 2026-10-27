@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (102)
+## Available Stacks (104)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -95,6 +95,8 @@ After deployment you'll have:
 [![Crawl4AI](https://img.shields.io/badge/Crawl4AI-1B6CA8?logo=googlechrome&logoColor=white)](https://github.com/unclecode/crawl4ai)
 [![CyberChef](https://img.shields.io/badge/CyberChef-1B365D?logo=gchq&logoColor=white)](https://gchq.github.io/CyberChef/)
 [![Cube](https://img.shields.io/badge/Cube-FF6492?logoColor=white)](https://cube.dev)
+[![Data Contract API](https://img.shields.io/badge/Data_Contract_API-0F766E?logoColor=white)](https://cli.datacontract.com)
+[![Data Contract Editor](https://img.shields.io/badge/Data_Contract_Editor-1E293B?logoColor=white)](https://github.com/datacontract/datacontract-editor)
 [![Dagster](https://img.shields.io/badge/Dagster-4F43DD?logo=dagster&logoColor=white)](https://dagster.io)
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
@@ -200,6 +202,8 @@ After deployment you'll have:
 | **Crawl4AI** | LLM-friendly web crawler that returns clean Markdown for RAG ingestion (REST API + Playground UI) | [github.com/unclecode/crawl4ai](https://github.com/unclecode/crawl4ai) |
 | **CyberChef** | GCHQ's "Cyber Swiss Army Knife" — drag-and-drop data manipulation (encode/decode/hash/regex/crypto, ~400 operations) | [gchq.github.io/CyberChef](https://gchq.github.io/CyberChef/) |
 | **Cube** | Semantic layer — define a metric once and query it from every BI tool, over SQL, REST and GraphQL | [cube.dev](https://cube.dev) |
+| **Data Contract API** | Tests an ODCS data contract against the stack's own databases and object stores — Swagger UI, or the CLI over `docker exec` | [cli.datacontract.com](https://cli.datacontract.com) |
+| **Data Contract Editor** | Browser editor for Open Data Contract Standard (ODCS) contracts — form, visual model or raw YAML | [datacontract.com](https://github.com/datacontract/datacontract-editor) |
 | **Dagster** | Python-native data orchestration for data pipelines and Software-Defined Assets | [dagster.io](https://dagster.io) |
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |

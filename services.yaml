@@ -197,6 +197,24 @@ services:
     long_description: "CyberChef is a web-based tool from GCHQ that lets you chain ~400 operations (encoding, encryption, compression, regex, hashing, format conversion, etc.) into a 'recipe' via drag-and-drop. The container serves static assets only; CyberChef operations execute client-side in the browser. A small number of operations deliberately call external services (DNS-over-HTTPS, HTTP request, URL fetch) — avoid those if you want recipe inputs to stay in the browser process. Useful for quickly decoding JWTs, base64+gzip payloads, inspecting Kafka message bodies, and live demos."
     image: "mpepping/cyberchef:v10.24.0"
 
+  datacontract-api:
+    subdomain: "datacontract-api"
+    port: 4242
+    public: false
+    category: "data-quality"
+    website: "https://cli.datacontract.com"
+    description: "Tests ODCS data contracts against the databases and object stores this stack already runs."
+    long_description: "The Data Contract CLI checks whether real data keeps the promise a contract makes: column types, nullability, uniqueness, row counts, freshness. It speaks Postgres, Trino, Iceberg, S3, Kafka, DuckDB, MySQL and more, which is most of what Nexus-Stack already runs — so a contract written in the Data Contract Editor can be tested against the warehouse next door rather than against a copy. The stack serves the tool's API, whose root is a Swagger UI: paste a contract, pick a server, run the test from the browser. Because the CLI ships in the same image, `docker exec -it datacontract-api datacontract lint contract.yaml` works too, the same way the Soda stack is used. An API key is generated per deployment and stored in Infisical; every endpoint requires it, because the service is deliberately allowed to reach private addresses on the Docker network and that capability is not one to leave open."
+    image: "datacontract/cli:1.2.8"
+  datacontract-editor:
+    subdomain: "datacontract-editor"
+    port: 4173
+    public: false
+    category: "data-quality"
+    website: "https://github.com/datacontract/datacontract-editor"
+    description: "Browser editor for Open Data Contract Standard (ODCS) contracts — form, visual model or raw YAML."
+    long_description: "A data contract states what a dataset promises: its schema, its owners, its quality guarantees, its service levels. This editor writes them in the Open Data Contract Standard 3.2.0, the Linux Foundation specification maintained by the Bitol project, and lets you switch between a form, a visual model and the YAML itself while validating as you go. It is the step before Soda: describe the contract, then let a check enforce it. The image is nginx serving a built single-page app — no database, no backend, nothing to lose across a teardown. Its AI assistant is deliberately left off, because the upstream default sends contract content to a hosted third-party endpoint; pointing it at the in-stack LiteLLM proxy instead is a one-line change documented in the stack."
+    image: "datacontract/editor:0.1.17"
   dagster:
     subdomain: "dagster"
     port: 3004

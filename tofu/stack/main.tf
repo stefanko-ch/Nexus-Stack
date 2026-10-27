@@ -247,6 +247,16 @@ resource "random_password" "cube_api_secret" {
   special = false
 }
 
+# The Data Contract CLI API's `x-api-key`. Required rather than optional:
+# the service is deliberately allowed to reach private addresses on
+# app-network so it can test contracts against postgres, trino, lakekeeper
+# and minio, and without a key every endpoint answers to any container
+# that can reach it.
+resource "random_password" "datacontract_api_key" {
+  length  = 48
+  special = false
+}
+
 # Hue: the Django secret key, the admin account, and its Postgres.
 #
 # The secret key is not cosmetic. The image ships a HARDCODED one —
