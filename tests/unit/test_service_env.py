@@ -3945,6 +3945,63 @@ def test_cube_refuses_to_render_without_either_secret(
 
 
 # ---------------------------------------------------------------------------
+# Data Contract Editor — redirect the test runner away from a third party
+# ---------------------------------------------------------------------------
+
+
+def test_datacontract_editor_points_tests_at_our_own_api(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The editor ships api.datacontract.com as its default test server and
+    upstream hardcodes tests.enabled to true, so one click on Run Test sends
+    the contract to a third party. TESTS_SERVER_URL overrides that."""
+    from nexus_deploy.service_env import _render_datacontract_editor
+
+    rendered = _render_datacontract_editor(full_config, full_env)
+
+    assert set(rendered.env_vars) == {"TESTS_SERVER_URL"}
+    url = rendered.env_vars["TESTS_SERVER_URL"]
+    domain = full_env.domain
+    assert domain, "the fixture must carry a domain for this assertion to mean anything"
+    assert url.startswith("https://datacontract-api.")
+    assert domain in url
+    # The whole point: not the upstream default.
+    assert "datacontract.com" not in url
+
+
+def test_datacontract_editor_honours_the_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A flat-subdomain tenant would otherwise get a hostname its edge does
+    not route, which is a silent fall back to nothing rather than to the
+    third party — but still wrong."""
+    import dataclasses
+
+    from nexus_deploy.service_env import _render_datacontract_editor
+
+    env = dataclasses.replace(full_env, domain="user1.example.com", subdomain_separator="-")
+    url = _render_datacontract_editor(full_config, env).env_vars["TESTS_SERVER_URL"]
+
+    assert url == "https://datacontract-api-user1.example.com"
+
+
+def test_datacontract_editor_env_carries_no_credential(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """A public hostname, so the 0644 default is right. Guard against a
+    future edit that adds the API key here — it would land in the
+    browser-readable config.json."""
+    from nexus_deploy.service_env import _render_datacontract_editor
+
+    rendered = _render_datacontract_editor(full_config, full_env)
+
+    assert rendered.mode is None or rendered.mode == 0o644
+    key = full_config.datacontract_api_key
+    assert key, "an empty key is a substring of every string — the check below would be vacuous"
+    assert key not in str(rendered.env_vars)
+
+
+# ---------------------------------------------------------------------------
 # Data Contract API — one key, and it is the only thing guarding the endpoints
 # ---------------------------------------------------------------------------
 

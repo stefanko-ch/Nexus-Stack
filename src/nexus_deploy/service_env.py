@@ -884,6 +884,39 @@ def _render_cube(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_datacontract_editor(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Data Contract Editor: point its test runner at our own API.
+
+    The editor ships a *default* test server — ``api.datacontract.com``,
+    a hosted third party — and upstream hardcodes ``tests.enabled`` to
+    true. So the Tests tab works out of the box and sends the contract
+    off the server, with nobody having switched anything on. Observed on
+    a live deployment: "Run tests via: https://api.datacontract.com".
+
+    Same shape as the AI assistant this stack disables, and the same
+    answer: keep the data here. ``TESTS_SERVER_URL`` overrides the
+    default, so the button points at the datacontract-api stack instead.
+
+    It will probably fail there, and that is the better failure. The
+    request leaves the visitor's browser, so it is cross-origin to a
+    hostname behind Cloudflare Access, whose per-service applications
+    carry no CORS configuration in this repository — and the API demands
+    an ``x-api-key`` the editor has no way to send. A test button that
+    errors is worth more than one that quietly publishes a contract, and
+    this is the direction to fail in while that gap is open.
+
+    Not a credential, so the default 0644 stands: the value is a public
+    hostname this repository prints in a dozen other places.
+    """
+    return RenderedEnv(
+        env_vars={
+            "TESTS_SERVER_URL": (
+                f"https://{service_host('datacontract-api', e.domain or '', e.subdomain_separator)}"
+            ),
+        },
+    )
+
+
 def _render_datacontract_api(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Data Contract CLI API: one value, and it is the only thing between
     the endpoints and every other container on ``app-network``.
@@ -2943,6 +2976,11 @@ _SPECS: tuple[EnvSpec, ...] = (
         "datacontract-api",
         _is_enabled("datacontract-api"),
         _render_datacontract_api,
+    ),
+    EnvSpec(
+        "datacontract-editor",
+        _is_enabled("datacontract-editor"),
+        _render_datacontract_editor,
     ),
     EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
     EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),

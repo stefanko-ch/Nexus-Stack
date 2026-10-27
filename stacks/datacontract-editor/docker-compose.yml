@@ -40,6 +40,13 @@ services:
       # hostname would not resolve. See docs/stacks/datacontract-editor.md
       # for what turning it on would actually require.
       - AI_ENABLED=false
+      # The Tests tab is NOT off — upstream hardcodes tests.enabled to true
+      # and ships api.datacontract.com as the default test server, so one
+      # click would send the contract to a third party. This points it at
+      # the datacontract-api stack instead. Expect it to fail there until
+      # the CORS and api-key questions are solved (see the stack docs) —
+      # a failing button beats a quiet upload.
+      - TESTS_SERVER_URL=${TESTS_SERVER_URL}
     deploy:
       resources:
         limits:

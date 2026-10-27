@@ -52,6 +52,14 @@ That last point is why the flag is off rather than documented as a recipe: the p
 
 Other documented variables: `AI_PROVIDER`, `AI_AUTH_HEADER` (`bearer` or `api-key`), `SCHEMA_URL`, `CUSTOMIZATION_CONFIG` (a path to a mounted `customization.yaml`), and `CONFIG_JSON` — which replaces the generated file with one you mount, and is the only way to keep a value out of the generated JSON.
 
+### The Tests tab points at this stack's own API
+
+Upstream hardcodes `tests.enabled` to `true` and ships `api.datacontract.com` as the default test server, so **Run Test** worked out of the box and sent the contract to a third party — no flag to switch on, no warning. This stack sets `TESTS_SERVER_URL` to its own [datacontract-api](./datacontract-api.md) instead.
+
+The button will most likely error there, because the request is cross-origin from the browser to a hostname behind Cloudflare Access and the API wants an `x-api-key` the editor cannot send. That is the intended state while the gap is open: a failing test button rather than a quiet upload. [datacontract-api.md](./datacontract-api.md) has the three reasons and what closing them would take.
+
+Validation, preview and the Diagram/Form/YAML views are unaffected — they run in the browser and need no server at all.
+
 ### Why there is no `strict_host_check`
 
 Port 4173 is Vite's `preview` default, so this stack looks exactly like the case that flag exists for — a dev server that rejects the tunnel's `Host` header with `Blocked request. This host is not allowed.`

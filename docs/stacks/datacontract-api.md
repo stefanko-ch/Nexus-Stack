@@ -73,13 +73,24 @@ For a contract against the shared Postgres, the per-request header form keeps th
 
 ### Connecting the editor to this service
 
-The editor has a `TESTS_SERVER_URL` variable that points at this API, and its `tests.enabled` is hardcoded to `true` upstream. It is not wired up here, and the reason is worth recording rather than rediscovering:
+The editor's **Tests** tab is not off, and it is not unconfigured — upstream hardcodes `tests.enabled` to `true` and ships `api.datacontract.com`, a hosted third party, as the default test server. Observed on a live deployment before this was changed:
+
+```
+Run tests via: https://api.datacontract.com
+INFO  Data Contract CLI 1.2.5 running through FastAPI at http://api.datacontract.com/test
+```
+
+One click on **Run Test** therefore sent the contract off the server, with nobody having switched anything on. Same shape as the AI assistant, same answer: `TESTS_SERVER_URL` now points the editor at this stack instead (`src/nexus_deploy/service_env.py`, `_render_datacontract_editor`).
+
+**Expect the button to fail, and prefer that.** Three things still stand between the editor and this API, and a test that errors is worth more than one that quietly publishes a contract:
 
 - The editor is a single-page app, so the request comes from the **visitor's browser**, not from the editor's container. The URL therefore has to be the public `https://datacontract-api.<domain>`, not an `app-network` name.
 - That hostname sits behind Cloudflare Access, and a cross-origin request to it from `datacontract-editor.<domain>` needs CORS configuration that this repository's per-service Access applications do not carry.
 - And every endpoint here requires an `x-api-key` header. The editor has no variable for one — and if it had, the value would land in its browser-readable `config.json` ([datacontract-editor.md](./datacontract-editor.md)), which would hand the key to everyone who can open the editor.
 
-So the two stacks are used side by side rather than wired together: write in the editor, test in the Swagger UI or over `docker exec`. Closing that gap means solving the CORS question and finding somewhere for the key that is not a public file — neither is a line of configuration.
+So in practice the two stacks are used side by side: write in the editor, test in the Swagger UI or over `docker exec`. Closing the gap means solving the CORS question and finding somewhere for the key that is not a public file — neither is a line of configuration.
+
+What the redirect buys in the meantime is the failure direction. Pointed at `api.datacontract.com` the button works and the contract leaves; pointed here it breaks and the contract stays. On a teaching stack, where a contract is a student's coursework, that is the trade worth making.
 
 ### Related
 
