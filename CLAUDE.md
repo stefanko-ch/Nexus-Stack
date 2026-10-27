@@ -867,12 +867,27 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 **Never commit directly to the `main` branch.** The `main` branch is protected and should only be modified via Pull Requests.
 
 **Never merge Pull Requests.** Only create PRs and push commits — the user
-merges, after whatever review they want. There is no required reviewer: the
-automated reviewers that actually run on this repository are CodeRabbit,
-Sourcery and CodeQL, none of them blocking. Copilot was named here as a gate
-for a long time and never reviewed a PR — #907, #908, #913 and #914 all
-merged or stand ready with no Copilot review — so the rule described a step
-that never happened.
+merges, after whatever review they want.
+
+**No reviewer is required, but one check can block.** The automated reviewers
+that actually run here are CodeRabbit, Sourcery and CodeQL. The first two only
+comment. CodeQL is different: the active `protect_main` ruleset carries a
+`code_scanning` rule (`alerts_threshold: errors`,
+`security_alerts_threshold: high_or_higher`), so unresolved CodeQL findings at
+or above those thresholds hold a merge. Repository admins bypass it
+(`bypass_actors: RepositoryRole/always`), which is why it has never been felt
+here — a contributor without that role would feel it. Read the ruleset rather
+than this paragraph when it matters:
+
+```bash
+gh api repos/stefanko-ch/Nexus-Stack/rulesets --jq '.[] | "\(.name) \(.enforcement)"'
+```
+
+Copilot was named here as a gate for a long time and never reviewed a PR —
+#907, #908, #913 and #914 all merged or stand ready with no Copilot review —
+so that rule described a step that never happened. It is **not** in the
+ruleset either: its rules are `deletion`, `non_fast_forward`, `pull_request`
+and `code_scanning`, with no `copilot_code_review` among them.
 
 **Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
 
