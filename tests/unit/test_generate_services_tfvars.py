@@ -50,7 +50,9 @@ FIXTURE = textwrap.dedent(
 )
 
 
-def _run(tmp_path: Path, enabled: str) -> subprocess.CompletedProcess[str]:
+def _run(
+    tmp_path: Path, enabled: str, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run the generator in `tmp_path` with ENABLED_SERVICES=`enabled`."""
     (tmp_path / "services.yaml").write_text(FIXTURE, encoding="utf-8")
     (tmp_path / "tofu" / "stack").mkdir(parents=True, exist_ok=True)
@@ -59,7 +61,7 @@ def _run(tmp_path: Path, enabled: str) -> subprocess.CompletedProcess[str]:
     # drops whatever the platform needs (PATH, HOME, locale, the
     # interpreter's own vars) and turns an unrelated breakage into a
     # failure of this test.
-    env = {**os.environ, "ENABLED_SERVICES": enabled, "FIREWALL_RULES": ""}
+    env = {**os.environ, "ENABLED_SERVICES": enabled, "FIREWALL_RULES": "", **(extra_env or {})}
     return subprocess.run(
         [sys.executable, str(SCRIPT)],
         cwd=tmp_path,
@@ -143,7 +145,63 @@ def test_nothing_is_written_when_the_guard_fires(tmp_path: Path) -> None:
     anything that retries without clearing it."""
     result = _run(tmp_path, "only-on-a-branch")
     assert result.returncode == 1
+    # Not just any exit 1: an unrelated early failure would also leave the
+    # file untouched, and this test would pass without the guard firing.
+    assert "only-on-a-branch" in result.stderr
     assert _tfvars(tmp_path) == ""
+
+
+def test_the_guard_is_skippable_for_teardown(tmp_path: Path) -> None:
+    """Teardown and destroy generate tfvars too, and the guard harms them.
+
+    destroy-all.yml runs this generator and then removes a preserved
+    Forgejo service token under `if: ${{ !cancelled() }}` — deliberately,
+    so a *failed* destroy still cleans up. An abort here would therefore
+    skip `tofu destroy` while that purge still ran, leaving infrastructure
+    alive with its management credential revoked. The guard introduced
+    that path; before it, the generator could not fail.
+    """
+    result = _run(tmp_path, "grafana,only-on-a-branch", {"ALLOW_UNKNOWN_ENABLED_SERVICES": "true"})
+
+    assert result.returncode == 0, result.stderr
+    # Still says so — skipping the abort is not skipping the diagnosis.
+    assert "only-on-a-branch" in result.stderr
+    assert "ALLOW_UNKNOWN_ENABLED_SERVICES" in result.stderr
+    # And it wrote the file, which is what teardown needs.
+    assert "grafana = {\n    enabled     = true" in _tfvars(tmp_path)
+
+
+@pytest.mark.parametrize("value", ["false", "", "yes", "1", "TRUE "])
+def test_only_an_exact_true_skips_the_guard(tmp_path: Path, value: str) -> None:
+    """A typo in a workflow must not silently disable a safety check. Only
+    the literal `true` counts (case-insensitively, whitespace-trimmed) —
+    `TRUE ` passes because of the trim, `1` and `yes` do not."""
+    result = _run(tmp_path, "only-on-a-branch", {"ALLOW_UNKNOWN_ENABLED_SERVICES": value})
+
+    if value.strip().lower() == "true":
+        assert result.returncode == 0, result.stderr
+    else:
+        assert result.returncode == 1, f"{value!r} disabled the guard"
+
+
+def test_every_destroying_workflow_sets_the_flag(tmp_path: Path) -> None:
+    """The rule, not the instance. A teardown workflow that runs this
+    generator without the flag can abort before `tofu destroy` — and the
+    cleanup steps behind it still run. A new teardown variant must not be
+    able to reintroduce that quietly."""
+    workflows = REPO_ROOT / ".github" / "workflows"
+    offenders = []
+    for path in sorted(workflows.glob("*.y*ml")):
+        text = path.read_text(encoding="utf-8")
+        if "generate-services-tfvars" not in text or "tofu destroy" not in text:
+            continue
+        if "ALLOW_UNKNOWN_ENABLED_SERVICES=true" not in text:
+            offenders.append(path.name)
+    assert offenders == [], (
+        f"these workflows destroy and generate tfvars but do not skip the guard: {offenders}"
+    )
+    # Guard against the check going vacuous if the generator is renamed.
+    assert (REPO_ROOT / ".github" / "workflows" / "destroy-all.yml").exists()
 
 
 def test_the_doc_section_the_message_points_at_exists(tmp_path: Path) -> None:

@@ -478,8 +478,33 @@ Two causes, and the message names both:
   `sync-deployed-state.sh` inserts and updates rows, and never deletes them,
   so a row keeps its enabled state indefinitely after the service is gone.
 
-Either way the fix is the same, and it is one click: open **Stacks** in the
-Control Plane and disable it.
+The fix depends on which of the two it is, and the difference matters —
+disabling is right for one and wrong for the other.
+
+**Removed from `services.yaml`:** open **Stacks** in the Control Plane and
+disable it. One click, and the deploy proceeds.
+
+Two rows cannot be cleared that way. `services.js` refuses to toggle a `core`
+row (400) or an `admin_only` one (403), so a stale row carrying either flag
+has to be cleared in D1 directly:
+
+```bash
+npx wrangler d1 execute "$(cd tofu/control-plane && tofu output -raw d1_database_name)" \
+  --remote --command "DELETE FROM services WHERE name = 'the-stale-name'"
+```
+
+**Still on a branch:** do **not** disable it — the branch deploy reads the
+enabled set from D1, so disabling it is what makes the branch deploy leave it
+out. Deploy the branch with it enabled:
+
+```bash
+gh workflow run spin-up.yml --ref feat/my-branch
+```
+
+And if the stack is brand new, it has no D1 row yet, so there is nothing to
+enable: `services.js` rejects a toggle for a name D1 does not have. The first
+branch deploy is what registers it — disabled, since it is not `core`. So the
+sequence for a new branch stack is **deploy, enable, deploy again**.
 
 Worth knowing what this replaced, because the old behaviour is easy to walk
 back into. Before the guard, an unknown name was dropped in silence: the
