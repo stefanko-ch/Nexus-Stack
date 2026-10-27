@@ -57,6 +57,14 @@ It also means the service is, by design, something that will make requests to in
 
 The deploy fails rather than starting without it. `src/nexus_deploy/service_env.py` raises if `DATACONTRACT_API_KEY` is empty, with a message pointing at `tofu apply` — because the alternative is a container that comes up looking healthy and answers `POST /test` to anything that asks.
 
+**The Swagger UI is not behind the key; the endpoints are.** `GET /` loads without one, because it is static JavaScript plus `openapi.json` — the description of the interface, not access to it. Verified against a live deployment: an `Execute` from the Swagger UI sends no `x-api-key` (the generated curl carries only `accept` and `Content-Type`), and the API answers
+
+```json
+401  {"detail": "Missing API key. Use Header 'x-api-key' to provide the API key."}
+```
+
+So anyone who passes Cloudflare Access can read what the API offers, and nobody can call it without the key from Infisical. That split is the intended one — but it is worth stating, because "every endpoint requires the key" reads as though the documentation page did too.
+
 ### Credentials for the systems under test
 
 Data source credentials arrive as `DATACONTRACT_<SOURCE>_*` environment variables, or per-request as `datacontract-*` headers. Neither is on disk in the container.
