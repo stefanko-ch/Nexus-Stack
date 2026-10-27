@@ -866,7 +866,28 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 
 **Never commit directly to the `main` branch.** The `main` branch is protected and should only be modified via Pull Requests.
 
-**Never merge Pull Requests.** PRs must go through Copilot code review first. Only create PRs and push commits - the user will merge after review passes.
+**Never merge Pull Requests.** Only create PRs and push commits — the user
+merges, after whatever review they want.
+
+**No reviewer is required, but one check can block.** The automated reviewers
+that actually run here are CodeRabbit, Sourcery and CodeQL. The first two only
+comment. CodeQL is different: the active `protect_main` ruleset carries a
+`code_scanning` rule (`alerts_threshold: errors`,
+`security_alerts_threshold: high_or_higher`), so unresolved CodeQL findings at
+or above those thresholds hold a merge. Repository admins bypass it
+(`bypass_actors: RepositoryRole/always`), which is why it has never been felt
+here — a contributor without that role would feel it. Read the ruleset rather
+than this paragraph when it matters:
+
+```bash
+gh api repos/stefanko-ch/Nexus-Stack/rulesets --jq '.[] | "\(.name) \(.enforcement)"'
+```
+
+Copilot was named here as a gate for a long time and never reviewed a PR —
+#907, #908, #913 and #914 all merged or stand ready with no Copilot review —
+so that rule described a step that never happened. It is **not** in the
+ruleset either: its rules are `deletion`, `non_fast_forward`, `pull_request`
+and `code_scanning`, with no `copilot_code_review` among them.
 
 **Do NOT automatically create Pull Requests.** Wait for the user to explicitly request a PR before creating one. The user may want to make additional changes, test locally, or review the commits first.
 
@@ -877,7 +898,7 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full details.
 - Before creating each new branch, `git fetch --prune origin` + check open PRs (`gh pr list --state open`). Confirm none of them touch the same files you're about to.
 - Keep each branch single-purpose. Don't start adding new unrelated changes to a branch that's already in review — open a fresh branch instead.
 - When one of the parallel PRs merges, the others may need a quick `git fetch && git rebase origin/main` if `main` moved over a file they share (rare with disjoint scopes; common with broad refactors).
-- Don't run more than 3-4 PRs in flight at once — Copilot review threads accumulate cognitively, and you (the human) lose track of what's where. Sequential is still the right default for related work.
+- Don't run more than 3-4 PRs in flight at once — automated review threads accumulate cognitively, and you (the human) lose track of what's where. Sequential is still the right default for related work.
 
 **Same-file changes still need sequencing.** If two issues both need an edit to the same file (e.g. both modify `compose_runner.py`), do them in one branch as separate commits, or do one branch first and rebase the second after the first merges. Parallel branches racing on the same file are the failure mode the old "one at a time" rule was guarding against — that part is still real.
 
@@ -1163,7 +1184,11 @@ Don't sweep silently — report which branches were deleted in one line so the u
 
 ### Responding to PR Review Comments
 
-**Critically evaluate every Copilot review comment before acting on it.** Copilot suggestions are automated and may be wrong, unnecessary, or counterproductive. Do NOT blindly apply every suggestion. For each comment:
+**Critically evaluate every automated review comment before acting on it.**
+CodeRabbit, Sourcery and CodeQL findings are machine-generated and may be
+wrong, unnecessary, or counterproductive. A reviewer's confidence is not
+evidence, and neither is its severity label. Do NOT blindly apply every
+suggestion. For each comment:
 - Does the suggestion actually improve the code, or is it cosmetic/pedantic?
 - Could the suggestion introduce a new bug or break existing logic?
 - Does it conflict with the project's patterns or architecture?
@@ -1246,7 +1271,25 @@ Use prefixes that match commit types:
 
 2. **Update affected docs in the same PR.** Never leave docs out of sync - the website at nexus-stack.ch pulls directly from `docs/` and `services.yaml`, so stale docs = stale website.
 
-3. **Keep `.github/copilot-instructions.md` in sync with larger changes.** That file is what GitHub's Copilot PR reviewer uses to check every incoming PR. It describes project-specific conventions, security rules, and "do not flag this" trade-offs. If a change in this PR would invalidate any statement in `.github/copilot-instructions.md` — new naming convention, new stack-addition step, new security rule, an issue getting closed that's referenced there, a convention flipping (e.g. the tutorial-link format change tracked in #456 eventually landing) — update the Copilot instructions in the same PR. Stale instructions turn the reviewer into a noise generator.
+3. **Keep the reviewer instructions in sync with larger changes.** Two files
+   describe project-specific conventions, security rules, and "do not flag
+   this" trade-offs to the automated reviewers: `.coderabbit.yaml`
+   (`path_instructions`, which demonstrably drives CodeRabbit's comments) and
+   `.github/copilot-instructions.md`. If a change would invalidate a statement
+   in either — new naming convention, new stack-addition step, new security
+   rule, an issue getting closed that's referenced there, a convention
+   flipping (e.g. the tutorial-link format change tracked in #456 eventually
+   landing) — update it in the same PR. Stale instructions turn a reviewer
+   into a noise generator, and `.coderabbit.yaml` already carries an audit
+   note about four of its own instructions having asserted rules the repo
+   does not follow.
+
+   `.github/copilot-instructions.md` is kept because CodeRabbit reads that
+   filename as an instruction source on some configurations — unverified
+   here, and nothing in `.coderabbit.yaml` points at it. Since GitHub's
+   Copilot reviewer does not run on this repository, treat the file as
+   possibly dead weight rather than as a second source of truth: when the two
+   disagree, `.coderabbit.yaml` is the one with observable effect.
 
 4. **Stack count:** If stacks were added or removed, update the count in `README.md` heading `## Available Stacks (N)` and verify badges match the table.
 

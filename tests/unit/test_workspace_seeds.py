@@ -18,6 +18,17 @@ SEEDS_DIR = Path(__file__).resolve().parents[2] / "examples" / "workspace-seeds"
 # therefore ship without this check ever seeing it.
 MARIMO_SEEDS = sorted((SEEDS_DIR / "marimo").rglob("*.py"))
 
+# Same reasoning for Kestra: rglob, both flows/ and workflows/, and any
+# future subdirectory under kestra/.
+KESTRA_SEEDS = sorted(p for p in (SEEDS_DIR / "kestra").rglob("*") if p.suffix in {".yaml", ".yml"})
+
+# Both spellings Kestra accepts. The legacy one still parses, so a seed
+# using it would fire exactly as hard as one using the current name.
+SCHEDULE_TRIGGER_TYPES = (
+    "io.kestra.plugin.core.trigger.Schedule",
+    "io.kestra.core.models.triggers.types.Schedule",
+)
+
 # Marimo's own limit, copied from the version this project runs:
 #
 #   marimo/_server/files/directory_scanner.py
@@ -90,3 +101,36 @@ def test_marimo_seed_is_recognisable_as_a_notebook(path: Path) -> None:
 
     assert b"import marimo" in header, _too_late(b"import marimo")
     assert b"marimo.App" in header, _too_late(b"marimo.App")
+
+
+# ---------------------------------------------------------------------------
+# Seeded Kestra flows must not carry a schedule trigger
+# ---------------------------------------------------------------------------
+
+
+def test_kestra_seed_directory_is_not_empty() -> None:
+    """Otherwise the parametrised check below silently covers nothing."""
+    assert KESTRA_SEEDS, f"no Kestra seeds found under {SEEDS_DIR / 'kestra'}"
+
+
+@pytest.mark.parametrize("path", KESTRA_SEEDS, ids=lambda p: p.name)
+def test_kestra_seed_declares_no_schedule_trigger(path: Path) -> None:
+    """A seeded flow lands on *every* user stack, so a cron trigger fires N
+    times in parallel for an N-user cohort — multiplying CloudFront
+    downloads, R2 egress, Databricks Free-Edition quota burn and Kestra
+    container CPU. CLAUDE.md states the rule; a scheduled flow belongs to
+    the orchestrator's `_phase_kestra_register`, outside workspace-seeds/.
+
+    This test exists because the rule had no enforcement. `.github/
+    copilot-instructions.md:107-111` tells Copilot to "flag it" — and
+    Copilot does not review this repository, which is what PR #915 is
+    about. A rule whose only enforcement is a reviewer that never runs is
+    not enforced, and a violation would reach users' workspaces unseen.
+    """
+    text = path.read_text(encoding="utf-8")
+    offenders = [t for t in SCHEDULE_TRIGGER_TYPES if t in text]
+    assert not offenders, (
+        f"{path.relative_to(SEEDS_DIR)} declares a schedule trigger "
+        f"({', '.join(offenders)}). Seeded flows are run manually; register a "
+        f"scheduled flow through _phase_kestra_register instead."
+    )

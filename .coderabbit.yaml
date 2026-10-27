@@ -57,9 +57,13 @@ reviews:
   # threads did not release it either.
   #
   # The findings are unchanged by this. What goes away is a gate that
-  # only ever opened by hand. Sourcery and Copilot already review without
-  # blocking, and branch protection is the right place for a hard gate if
-  # one is wanted.
+  # only ever opened by hand. Sourcery reviews without blocking, and
+  # branch protection is where a hard gate belongs — which is where one
+  # already is: the active `protect_main` ruleset has a `code_scanning`
+  # rule, so CodeQL findings at `errors` / `high_or_higher` do hold a
+  # merge for anyone without the admin bypass. (This said "Sourcery and
+  # Copilot" until 2026-10-13; GitHub's Copilot reviewer does not run on
+  # this repository, and `copilot_code_review` is not in the ruleset.)
   request_changes_workflow: false
   high_level_summary: true       # PR-level summary at the top
   poem: false                    # disable the closing rhyme — pure noise
