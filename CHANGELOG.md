@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.85.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.84.0...v0.85.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **stacks:** Add the Data Contract Editor and the Data Contract API ([#921](https://github.com/stefanko-ch/Nexus-Stack/issues/921))
+
+### 🚀 Features
+
+* **stacks:** Add the Data Contract Editor and the Data Contract API ([#921](https://github.com/stefanko-ch/Nexus-Stack/issues/921)) ([31b140a](https://github.com/stefanko-ch/Nexus-Stack/commit/31b140a9037a7852eb299a68110e4605734c0133))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Fail when D1 enables a service the deployed ref does not have ([#917](https://github.com/stefanko-ch/Nexus-Stack/issues/917)) ([2135af8](https://github.com/stefanko-ch/Nexus-Stack/commit/2135af8ea167825dfed398cc3b33452524a1b47d))
+
+
+### 🔧 Maintenance
+
+* **docs:** Drop the Copilot code-review gate from CLAUDE.md ([#915](https://github.com/stefanko-ch/Nexus-Stack/issues/915)) ([7de590c](https://github.com/stefanko-ch/Nexus-Stack/commit/7de590ce716ff5f493123e9df48fc77e478dd0b3))
+
 ## [0.84.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.83.0...v0.84.0) (2026-10-14)
 
 
