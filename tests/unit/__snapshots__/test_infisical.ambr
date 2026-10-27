@@ -38,6 +38,8 @@
     'dagster': dict({
       'DAGSTER_DB_PASSWORD': 'dagster_db_password-VALUE',
     }),
+    'datacontract': dict({
+    }),
     'dify': dict({
       'DIFY_DB_PASSWORD': 'dify_db_password-VALUE',
       'DIFY_PASSWORD': 'dify_admin_password-VALUE',

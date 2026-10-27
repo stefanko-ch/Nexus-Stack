@@ -83,6 +83,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("LAKEKEEPER_DB_PASS", "lakekeeper_db_password", ""),
     ("MLFLOW_DB_PASS", "mlflow_db_password", ""),
     ("CUBE_API_SECRET", "cube_api_secret", ""),
+    ("DATACONTRACT_API_KEY", "datacontract_api_key", ""),
     ("APICURIO_DB_PASS", "apicurio_db_password", ""),
     ("CASSANDRA_ADMIN_PASS", "cassandra_admin_password", ""),
     ("HIVE_DB_PASS", "hive_db_password", ""),
@@ -251,6 +252,7 @@ class NexusConfig(BaseModel):
     lakekeeper_db_password: str | None = None
     mlflow_db_password: str | None = None
     cube_api_secret: str | None = None
+    datacontract_api_key: str | None = None
     apicurio_db_password: str | None = None
     cassandra_admin_password: str | None = None
     hive_db_password: str | None = None

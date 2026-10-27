@@ -825,6 +825,21 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
 
     folders.append(
         FolderSpec(
+            "datacontract",
+            _filter_empty(
+                {
+                    # The `x-api-key` every call to the Data Contract API
+                    # needs. Published so an operator can test a contract
+                    # from the Swagger UI or a Kestra flow without minting
+                    # a credential of their own.
+                    "DATACONTRACT_API_KEY": config.datacontract_api_key,
+                }
+            ),
+        )
+    )
+
+    folders.append(
+        FolderSpec(
             "keycloak",
             _filter_empty(
                 {

@@ -184,7 +184,8 @@ output "secrets" {
     mlflow_db_password = random_password.mlflow_db_password.result
 
     # Cube (semantic layer) — signs the JWTs its APIs accept.
-    cube_api_secret = random_password.cube_api_secret.result
+    cube_api_secret      = random_password.cube_api_secret.result
+    datacontract_api_key = random_password.datacontract_api_key.result
 
     # Apicurio Registry (schema + API-contract registry)
     apicurio_db_password = random_password.apicurio_db_password.result

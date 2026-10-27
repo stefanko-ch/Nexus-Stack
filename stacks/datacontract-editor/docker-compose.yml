@@ -1,0 +1,67 @@
+# =============================================================================
+# Data Contract Editor - write ODCS contracts in the browser
+# =============================================================================
+# Visual, form and YAML editing for Open Data Contract Standard (ODCS) 3.2.0
+# contracts, plus preview and validation.
+#
+# URL: https://datacontract-editor.${DOMAIN}
+# Docs: https://github.com/datacontract/datacontract-editor
+#
+# Stateless by design: the image is nginx serving a built SPA. No database,
+# no backend, no volume — nothing to carry across a teardown, which is why
+# this stack has no s3_restore target.
+#
+# No strict_host_check, and the port makes that look wrong: 4173 is Vite's
+# `preview` default, so this looks like the case that flag exists for. It is
+# not. The image's final stage is nginx:alpine-slim and its nginx.conf is
+# `listen 4173;` with no server_name, so nothing validates the Host header.
+# =============================================================================
+
+services:
+  datacontract-editor:
+    image: ${IMAGE_DATACONTRACT_EDITOR:-datacontract/editor:0.1.17}
+    container_name: datacontract-editor
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    environment:
+      # The AI assistant is off by default upstream, and it stays off here.
+      # Two reasons, and the second is the one that is easy to miss.
+      #
+      # Its default AI_ENDPOINT is a hosted third-party API, so enabling it
+      # without overriding the endpoint sends contract content — schema,
+      # ownership, and on a teaching stack a student's coursework — off the
+      # server.
+      #
+      # And the image writes these variables into config.json inside nginx's
+      # html root, so GET /config.json serves them. AI_API_KEY is therefore
+      # readable by anyone who can load the editor, and the request itself
+      # leaves the browser rather than this container — an app-network
+      # hostname would not resolve. See docs/stacks/datacontract-editor.md
+      # for what turning it on would actually require.
+      - AI_ENABLED=false
+      # The Tests tab is NOT off — upstream hardcodes tests.enabled to true
+      # and ships api.datacontract.com as the default test server, so one
+      # click would send the contract to a third party. This points it at
+      # the datacontract-api stack instead. Expect it to fail there until
+      # the CORS and api-key questions are solved (see the stack docs) —
+      # a failing button beats a quiet upload.
+      - TESTS_SERVER_URL=${TESTS_SERVER_URL}
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    healthcheck:
+      # The SPA fallback (`try_files $$uri $$uri/ /index.html`) means any path
+      # returns 200, so / is as good a probe as any.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:4173/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

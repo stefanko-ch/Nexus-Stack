@@ -884,6 +884,73 @@ def _render_cube(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_datacontract_editor(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Data Contract Editor: point its test runner at our own API.
+
+    The editor ships a *default* test server — ``api.datacontract.com``,
+    a hosted third party — and upstream hardcodes ``tests.enabled`` to
+    true. So the Tests tab works out of the box and sends the contract
+    off the server, with nobody having switched anything on. Observed on
+    a live deployment: "Run tests via: https://api.datacontract.com".
+
+    Same shape as the AI assistant this stack disables, and the same
+    answer: keep the data here. ``TESTS_SERVER_URL`` overrides the
+    default, so the button points at the datacontract-api stack instead.
+
+    It will probably fail there, and that is the better failure. The
+    request leaves the visitor's browser, so it is cross-origin to a
+    hostname behind Cloudflare Access, whose per-service applications
+    carry no CORS configuration in this repository — and the API demands
+    an ``x-api-key`` the editor has no way to send. A test button that
+    errors is worth more than one that quietly publishes a contract, and
+    this is the direction to fail in while that gap is open.
+
+    Not a credential, so the default 0644 stands: the value is a public
+    hostname this repository prints in a dozen other places.
+    """
+    return RenderedEnv(
+        env_vars={
+            "TESTS_SERVER_URL": (
+                f"https://{service_host('datacontract-api', e.domain or '', e.subdomain_separator)}"
+            ),
+        },
+    )
+
+
+def _render_datacontract_api(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Data Contract CLI API: one value, and it is the only thing between
+    the endpoints and every other container on ``app-network``.
+
+    The stack sets ``DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true`` so a
+    contract can be tested against postgres, trino, lakekeeper and minio —
+    the whole reason to run the tool next to the data. That makes the
+    service an SSRF-shaped capability by design, and the API key is what
+    keeps it from being an open one: with it, every API operation needs an
+    ``x-api-key`` header (401 without, 403 with the wrong one).
+
+    So this fails fast rather than starting a container that would answer
+    `POST /test` to anything that can reach port 4242. Cloudflare Access
+    covers the public hostname; it does not cover the Docker network.
+
+    Infisical naming reference: ``/datacontract/DATACONTRACT_API_KEY``.
+    """
+    if _empty(c.datacontract_api_key):
+        raise ServiceEnvError(
+            "datacontract-api enabled but DATACONTRACT_API_KEY (Infisical "
+            "/datacontract) is empty — run `tofu apply` (initial-setup "
+            "workflow) to generate random_password.datacontract_api_key, then "
+            "re-run spin-up. Aborting rather than starting an API that is "
+            "allowed to reach private addresses and asks nothing of its "
+            "callers.",
+        )
+    return RenderedEnv(
+        env_vars={"DATACONTRACT_API_KEY": c.datacontract_api_key or ""},
+        # 0600: the value is the only credential guarding an endpoint that
+        # can read the stack's databases.
+        mode=0o600,
+    )
+
+
 def _render_postgrest(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """PostgREST: auto-generated REST API over the shared `postgres` stack.
 
@@ -2905,6 +2972,16 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("lakekeeper", _is_enabled("lakekeeper"), _render_lakekeeper),
     EnvSpec("mlflow", _is_enabled("mlflow"), _render_mlflow),
     EnvSpec("cube", _is_enabled("cube"), _render_cube),
+    EnvSpec(
+        "datacontract-api",
+        _is_enabled("datacontract-api"),
+        _render_datacontract_api,
+    ),
+    EnvSpec(
+        "datacontract-editor",
+        _is_enabled("datacontract-editor"),
+        _render_datacontract_editor,
+    ),
     EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
     EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
     EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),
