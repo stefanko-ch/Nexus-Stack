@@ -447,6 +447,72 @@ would let OpenTofu build the policy around a credential the caller does not
 hold, and the caller would get Access's login redirect instead of the API,
 with nothing in any log saying why.
 
+## A stack is enabled in the Control Plane but the deploy stops naming it
+
+The deploy now fails, with a message like:
+
+```
+Services enabled in D1 that the services.yaml of this ref does not have: only-on-a-branch
+```
+
+The Control Plane's enabled-service list lives in Cloudflare D1, which knows
+nothing about branches, and every workflow the Control Plane dispatches runs
+against `main`. So the two can disagree, and the deploy is the place it
+surfaces.
+
+Two causes, and the message names both:
+
+- **The stack lives on a branch that is not merged yet.** Enabling it in the
+  Control Plane works — D1 accepts any name — but `main` has no
+  `services.yaml` entry for it. Deploy the branch instead:
+
+  ```bash
+  gh workflow run spin-up.yml --ref feat/my-branch
+  ```
+
+  This is the only way to spin up an unmerged stack; the Control Plane's
+  buttons deliberately cannot choose a ref, so that nobody can deploy
+  somebody else's feature branch from the web UI.
+
+- **The stack was removed from `services.yaml` and its D1 row outlived it.**
+  `sync-deployed-state.sh` inserts and updates rows, and never deletes them,
+  so a row keeps its enabled state indefinitely after the service is gone.
+
+The fix depends on which of the two it is, and the difference matters —
+disabling is right for one and wrong for the other.
+
+**Removed from `services.yaml`:** open **Stacks** in the Control Plane and
+disable it. One click, and the deploy proceeds.
+
+Two rows cannot be cleared that way. `services.js` refuses to toggle a `core`
+row (400) or an `admin_only` one (403), so a stale row carrying either flag
+has to be cleared in D1 directly:
+
+```bash
+npx wrangler d1 execute "$(cd tofu/control-plane && tofu output -raw d1_database_name)" \
+  --remote --command "DELETE FROM services WHERE name = 'the-stale-name'"
+```
+
+**Still on a branch:** do **not** disable it — the branch deploy reads the
+enabled set from D1, so disabling it is what makes the branch deploy leave it
+out. Deploy the branch with it enabled:
+
+```bash
+gh workflow run spin-up.yml --ref feat/my-branch
+```
+
+And if the stack is brand new, it has no D1 row yet, so there is nothing to
+enable: `services.js` rejects a toggle for a name D1 does not have. The first
+branch deploy is what registers it — disabled, since it is not `core`. So the
+sequence for a new branch stack is **deploy, enable, deploy again**.
+
+Worth knowing what this replaced, because the old behaviour is easy to walk
+back into. Before the guard, an unknown name was dropped in silence: the
+generator walks `services.yaml` rather than the enabled list, so the name was
+never visited. The deploy reported success and the stack simply was not there,
+with nothing in any log mentioning it
+([#911](https://github.com/stefanko-ch/Nexus-Stack/issues/911)).
+
 ## Cloudflare resources left behind after a lost state
 
 `tofu destroy` — and therefore `Destroy All` — reaches exactly what is in the

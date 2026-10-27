@@ -235,7 +235,13 @@ jobs:
           # Generate services config from services.yaml
           # Use shared script to avoid code duplication
           chmod +x .github/scripts/generate-services-tfvars.py
-          ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
+          # ALLOW_UNKNOWN_ENABLED_SERVICES: this workflow destroys. A service
+          # enabled in D1 that this ref does not have cannot be "missing after
+          # the deploy" here, and aborting would skip `tofu destroy` while
+          # later `!cancelled()` cleanup steps still run — infrastructure alive,
+          # credentials revoked. The guard belongs to spin-up, not to teardown.
+          ALLOW_UNKNOWN_ENABLED_SERVICES=true \
+            ENABLED_SERVICES="$ENABLED_SERVICES" python3 .github/scripts/generate-services-tfvars.py
 
           # Control Plane config
           cat > tofu/control-plane/config.tfvars << EOF
