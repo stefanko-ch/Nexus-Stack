@@ -574,9 +574,9 @@ project targets.
 
 **Symptom.** `teardown.yml` fails in the step *Snapshot persistent state to
 R2*, for example with `client_loop: send disconnect: Broken pipe` when the
-runner's SSH session drops. The server is still up, and some stacks — Forgejo,
-Gitea, the notebook stacks, Kestra and the others the snapshot stops — show as
-exited.
+runner's SSH session drops. The server is still up, and the stacks the snapshot
+stops — those in `_STANDARD_STOP_COMPOSE_FILES` in `src/nexus_deploy/s3_restore.py`,
+such as Forgejo, DuckDB and the notebook stacks — show as exited.
 
 **What happened.** The snapshot dumps the databases, then stops those stacks,
 then uploads. `tofu destroy` runs only after the upload is verified, so a
