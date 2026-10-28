@@ -6,7 +6,8 @@ own, and it is also called by initial-setup.yaml and spin-up-snapshot.yml,
 which already hold that group. A called workflow joining its caller's group
 deadlocks, so spin-up.yml picks its group from an input that only a call
 carries. These tests pin both halves: a dispatch takes the lock, a call
-does not, and every caller holds the lock it relies on.
+that says its caller holds the lock does not, and every caller holds the
+lock it says it holds.
 """
 
 from __future__ import annotations
@@ -82,12 +83,17 @@ def test_a_dispatched_spin_up_takes_the_lock() -> None:
 
 
 def test_a_called_spin_up_does_not_join_its_callers_group() -> None:
+    assert _group_for({LOCK_INPUT: True}) == "spin-up-called-42"
+
+
+def test_a_caller_that_does_not_say_it_holds_the_lock_takes_it() -> None:
+    # Fails closed: a new caller that forgets the input queues in
+    # `infrastructure`, or deadlocks loudly if it holds the group itself,
+    # instead of running unlocked beside a teardown.
     call_input = _triggers(_load(SPIN_UP))["workflow_call"]["inputs"][LOCK_INPUT]
     assert call_input["type"] == "boolean"
-    assert call_input["default"] is True
-    group = _group_for({LOCK_INPUT: call_input["default"]})
-    assert group != "infrastructure"
-    assert group == "spin-up-called-42"
+    assert call_input["default"] is False
+    assert _group_for({LOCK_INPUT: call_input["default"]}) == "infrastructure"
 
 
 def _callers() -> list[tuple[str, dict[str, Any]]]:
@@ -109,6 +115,5 @@ def test_the_callers_are_the_ones_the_comment_names() -> None:
 @pytest.mark.parametrize(("name", "job"), _callers(), ids=lambda v: v if isinstance(v, str) else "")
 def test_every_caller_holds_the_lock_it_relies_on(name: str, job: dict[str, Any]) -> None:
     assert _load(name)["concurrency"]["group"] == "infrastructure"
-    # Passing the input would only ever be done to set it to false, which
-    # joins the caller's own group: a deadlock.
-    assert LOCK_INPUT not in (job.get("with") or {})
+    # Without it the call would join the caller's own group: a deadlock.
+    assert (job.get("with") or {}).get(LOCK_INPUT) is True

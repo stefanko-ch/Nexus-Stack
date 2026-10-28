@@ -201,6 +201,8 @@ jobs:
     uses: ./.github/workflows/spin-up.yml
     secrets: inherit
     with:
+      # This workflow holds the infrastructure group; see spin-up.yml.
+      caller_holds_infrastructure_lock: true
       enabled_services: ${{ inputs.enabled_services }}
       silent_mode: ${{ inputs.silent_mode }}
       server_image: ${{ needs.resolve.outputs.server_image }}

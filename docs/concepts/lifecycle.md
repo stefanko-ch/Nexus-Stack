@@ -139,6 +139,11 @@ teardowns, Destroy All and the upstream update — shares one GitHub Actions
 concurrency group, `infrastructure`. A run dispatched while another is in progress
 waits for it instead of working on the same server at the same time.
 
+The one exception is the rebuild spin-up when Initial Setup or the snapshot
+spin-up calls it as part of their own run: it then takes a group of its own and
+relies on its caller, which already holds `infrastructure`. Joining the caller's
+group would deadlock.
+
 GitHub keeps at most **one** waiting run per group. A third dispatch replaces the
 waiting one, which is cancelled. So a teardown queued behind a spin-up is lost if
 somebody dispatches another spin-up before it starts; check the Actions tab rather
