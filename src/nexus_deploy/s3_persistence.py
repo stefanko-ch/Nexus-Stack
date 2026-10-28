@@ -583,6 +583,12 @@ def render_snapshot_script(
        (acceptable for a teardown use case at low traffic).
        Per-target skip if the container isn't running (``docker
        inspect --format='{{.State.Running}}'``).
+       Before the dumps, every ``stop_compose_files`` stack that has
+       containers is started again, and each running database is
+       given up to 60s to accept connections. A previous attempt
+       that failed after step 2 left those stacks stopped; without
+       this, a retry would skip their dumps as "not deployed" and
+       still point ``latest`` at the result (#937).
     2. ``docker compose stop`` for every file in
        ``stop_compose_files``. Graceful drain with the default
        10s timeout: app processes finish in-flight requests and
@@ -684,6 +690,61 @@ def render_snapshot_script(
     # use case needs hard-stop consistency, the right answer is
     # filesystem-level snapshot of ``/mnt/nexus-data/<stack>/db``
     # AFTER compose-stop, not pg_dump.
+    #
+    # Before any of that: start whatever an earlier attempt stopped
+    # (#937). A teardown that fails after the stop step below leaves
+    # these stacks stopped, and the dump step skips a stopped database
+    # as "stack not deployed". A retry would then point `latest` at a
+    # snapshot without those dumps and destroy the server. Only stacks
+    # with containers on disk are started; a stack that was never
+    # deployed has none and stays absent.
+    if stop_files:
+        lines.append('echo "→ snapshot: starting stacks an earlier attempt stopped"')
+        for compose_file in stop_files:
+            quoted = shlex.quote(compose_file)
+            # Status and output kept apart, as in the stop step below:
+            # a failing `ps` read as "no containers" would skip the
+            # start and bring back exactly the silent skip this fixes.
+            lines.append(f"if [ -f {quoted} ]; then")
+            lines.append("  set +e")
+            lines.append(f"  PS_ALL=$(docker compose -f {quoted} ps -a -q)")
+            lines.append("  PS_RC=$?")
+            lines.append("  set -e")
+            lines.append('  if [ "$PS_RC" -ne 0 ]; then')
+            lines.append(f'    echo "  ✗ cannot list the containers of {compose_file}" >&2')
+            lines.append("    exit 1")
+            lines.append("  fi")
+            lines.append('  if [ -n "$PS_ALL" ]; then')
+            lines.append(f"    docker compose -f {quoted} start >/dev/null")
+            lines.append("  fi")
+            lines.append("fi")
+        lines.append("")
+    if stop_files and pg_targets:
+        # A database container that was just started needs a moment
+        # before it accepts connections; pg_dump would fail on it.
+        lines.append('echo "→ snapshot: waiting for running databases to accept connections"')
+        for pg in pg_targets:
+            container = shlex.quote(pg.container)
+            user = shlex.quote(pg.user)
+            lines.append(
+                f"if [ \"$(docker inspect --format='{{{{.State.Running}}}}' "
+                f'{container} 2>/dev/null)" = "true" ]; then',
+            )
+            lines.append("  ready=0")
+            lines.append("  for _ in $(seq 1 30); do")
+            lines.append(
+                f"    if docker exec {container} pg_isready -U {user} -q; then ready=1; break; fi",
+            )
+            lines.append("    sleep 2")
+            lines.append("  done")
+            lines.append('  if [ "$ready" -ne 1 ]; then')
+            lines.append(
+                f'    echo "  ✗ {pg.container} is running but not accepting connections after 60s" >&2',
+            )
+            lines.append("    exit 1")
+            lines.append("  fi")
+            lines.append("fi")
+        lines.append("")
     if pg_targets:
         lines.append('echo "→ snapshot: dumping postgres databases (online)"')
         for pg in pg_targets:

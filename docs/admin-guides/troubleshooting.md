@@ -570,6 +570,27 @@ second, unused implementation of this script's job, and it installed its
 dependencies with `sudo apt-get`, which no longer works on every runner this
 project targets.
 
+## A rebuild teardown fails during the snapshot
+
+**Symptom.** `teardown.yml` fails in the step *Snapshot persistent state to
+R2*, for example with `client_loop: send disconnect: Broken pipe` when the
+runner's SSH session drops. The server is still up, and some stacks — Forgejo,
+Gitea, the notebook stacks, Kestra and the others the snapshot stops — show as
+exited.
+
+**What happened.** The snapshot dumps the databases, then stops those stacks,
+then uploads. `tofu destroy` runs only after the upload is verified, so a
+failure in between leaves the server and its data in place. `latest` in R2
+still points at the previous complete snapshot, or at the new one if the
+script on the server finished after the connection dropped.
+
+**What to do.** Dispatch the teardown again. Its snapshot starts every stack
+an earlier attempt stopped and waits for their databases before dumping, so a
+retry dumps the same databases a first attempt would (#937). Before that fix, a
+retry skipped the stopped databases as "not deployed" and still pointed
+`latest` at the result; on a version without it, run a spin-up on the running
+server first, which starts the stacks without restoring anything.
+
 ## General Tips
 
 ### SSH Access Issues
