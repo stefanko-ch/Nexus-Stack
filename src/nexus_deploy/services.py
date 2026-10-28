@@ -814,9 +814,9 @@ redpanda_hook() {{
     # unreachable container -- in which case the request on the next line
     # fails too and reports it properly. This command is not the failure
     # indicator for anything.
-    # One path per invocation. `spin-up.yml` carries no `concurrency:`
-    # group, so two runs really can reach this hook at the same time; on a
-    # shared path each would clear and overwrite the other's response and
+    # One path per invocation. Until #801 gave `spin-up.yml` a
+    # `concurrency:` group, two runs really could reach this hook at the
+    # same time; on a shared path each would clear and overwrite the other's response and
     # both diagnostics would be about the wrong request. `$$` is the PID of
     # the shell this script runs in, which differs per SSH session.
     RP_OUT=/tmp/rp-user.$$.out
@@ -2265,8 +2265,8 @@ unity_catalog_hook() {{
         echo "RESULT hook=unity-catalog status=configured"
     elif docker exec unity-catalog wget -T 10 -q -O /dev/null {shlex.quote(api + "/unity")} 2>/dev/null; then
         # The POST failed but the catalog is there. Two deploys can reach this
-        # hook at once -- spin-up.yml has no concurrency group (#801) -- and the
-        # loser of that race would otherwise report `failed` for a catalog that
+        # hook at once -- spin-up.yml had no concurrency group before #801 --
+        # and the loser of that race would otherwise report `failed` for a catalog that
         # exists. Re-asking is also the honest answer for any other POST failure
         # that left the catalog behind.
         echo "RESULT hook=unity-catalog status=already-configured"
@@ -2472,7 +2472,7 @@ lakekeeper_hook() {{
             ;;
         *)
             # Re-ask rather than trust the code. Two spin-ups can reach this
-            # hook at once (spin-up.yml has no concurrency group, #801), and
+            # hook at once (spin-up.yml had no concurrency group before #801), and
             # the loser gets the same 400 as a genuinely bad profile.
             if curl -s --max-time 10 {shlex.quote(base + "/management/v1/warehouse")} 2>/dev/null \\
                 | jq -e --arg n {shlex.quote(LAKEKEEPER_WAREHOUSE)} \\
@@ -2507,7 +2507,7 @@ def render_neo4j_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     3. Otherwise sign in as ``neo4j`` and create ``nexus-neo4j``. If that
        fails, ask step 2 again before reporting ``failed``: a concurrent
        deploy may have created ``nexus-neo4j`` and dropped ``neo4j`` in
-       between (#801).
+       between (possible until #801 serialised spin-ups).
     4. Sign in as ``nexus-neo4j`` and ``DROP USER neo4j IF EXISTS``.
 
     Both accounts use the one generated password, ``NEXUS_NEO4J_PASSWORD``,
@@ -2568,8 +2568,8 @@ NEXUS_NEO4J_CREATE_EOF
                 'NEO4J_USERNAME=nexus-neo4j NEO4J_PASSWORD="$NEXUS_NEO4J_PASSWORD" cypher-shell -d system "SHOW CURRENT USER"' \\
                 2>&1); then
             # The create failed, but nexus-neo4j signs in now. Two deploys can
-            # reach this hook at once -- spin-up.yml has no concurrency group
-            # (#801) -- and the loser finds `neo4j` already dropped by the
+            # reach this hook at once -- spin-up.yml had no concurrency group
+            # before #801 -- and the loser finds `neo4j` already dropped by the
             # winner. Asking again is also the honest answer to a first
             # sign-in that failed for a reason that has since passed.
             NEO4J_STATUS=already-configured
@@ -2647,8 +2647,8 @@ def render_keycloak_hook(config: NexusConfig, env: BootstrapEnv) -> str:
     Every intermediate state is one a later run recognises -- temporary admin
     plus bootstrap, bootstrap alone, permanent admin plus bootstrap -- so an
     interrupted run is finished by the next one. If neither account signs in,
-    the permanent admin is asked once more before ``failed``: two spin-ups can
-    run at once (#801), and the loser finds ``nexus-bootstrap`` already
+    the permanent admin is asked once more before ``failed``: two spin-ups could
+    run at once before #801, and the loser finds ``nexus-bootstrap`` already
     deleted by the winner.
 
     Transport follows R4 throughout. Form and JSON bodies are built by ``jq``
@@ -2822,7 +2822,7 @@ keycloak_hook_body() {{
             kc_install "$ADMIN_U" "$ADMIN_P" " — $BOOT_U kept" || return 0
             STATUS=configured
         else
-            # A concurrent deploy (#801) may have finished the hand-over
+            # A concurrent deploy (possible before #801) may have finished the hand-over
             # between the two sign-ins; ask once more before failing.
             TOKEN=$(kc_admin_token "$ADMIN_U" "$ADMIN_P")
             if [ -z "$TOKEN" ]; then

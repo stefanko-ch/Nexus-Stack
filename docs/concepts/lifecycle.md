@@ -132,6 +132,18 @@ which matters when the person paying the bill is not the person using the stack.
 Spin-up stays manual: the deployment comes back when somebody asks for it, not on a
 timer.
 
+## One lifecycle run at a time
+
+Every workflow that changes the server — Initial Setup, both spin-ups, both
+teardowns, Destroy All and the upstream update — shares one GitHub Actions
+concurrency group, `infrastructure`. A run dispatched while another is in progress
+waits for it instead of working on the same server at the same time.
+
+GitHub keeps at most **one** waiting run per group. A third dispatch replaces the
+waiting one, which is cancelled. So a teardown queued behind a spin-up is lost if
+somebody dispatches another spin-up before it starts; check the Actions tab rather
+than dispatching again when a run seems slow.
+
 ## Teardown is not Destroy All
 
 | | Teardown | Destroy All |
