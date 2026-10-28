@@ -570,6 +570,43 @@ second, unused implementation of this script's job, and it installed its
 dependencies with `sudo apt-get`, which no longer works on every runner this
 project targets.
 
+## A rebuild teardown fails during the snapshot
+
+**Symptom.** `teardown.yml` fails in the step *Snapshot persistent state to
+R2*, for example with `client_loop: send disconnect: Broken pipe` when the
+runner's SSH session drops. The server is still up, and the stacks the snapshot
+stops — those in `_STANDARD_STOP_COMPOSE_FILES` in `src/nexus_deploy/s3_restore.py`,
+such as Forgejo, DuckDB and the notebook stacks — show as exited.
+
+**What happened.** The snapshot dumps the databases, then stops those stacks,
+then uploads. `tofu destroy` runs only after the upload is verified, so a
+failure in between leaves the server and its data in place. `latest` in R2
+still points at the previous complete snapshot, or at the new one if the
+script on the server finished after the connection dropped.
+
+**What to do.** Dispatch the teardown again. Its snapshot:
+
+- waits until the earlier run's script on the server has finished, if it is
+  still going, instead of racing it for `latest`;
+- starts every stack the earlier attempt stopped, and waits for their
+  databases before dumping, so a retry dumps the same databases a first
+  attempt would (#937);
+- stops with an error rather than skipping a database container that exists
+  but will not run.
+
+**On a version without #937**, a retry skipped the stopped databases as "not
+deployed" and still pointed `latest` at the result. Start the stopped stacks
+first, in each affected stack directory:
+
+```bash
+ssh nexus 'cd /opt/docker-server/stacks/forgejo && docker compose start'
+```
+
+Do not use a spin-up for this unless `/mnt/nexus-data/.nexus-restored` exists
+on the server (`ssh nexus 'ls /mnt/nexus-data/.nexus-restored'`). Without that
+marker, a spin-up with persistence on restores R2 over the server's newer
+data.
+
 ## General Tips
 
 ### SSH Access Issues

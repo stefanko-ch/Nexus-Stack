@@ -526,12 +526,15 @@ def test_snapshot_script_orders_phases_correctly() -> None:
     # Locate each phase via a stable substring + assert ordering.
     # **dump → stop** is the load-bearing ordering: pg_dump needs
     # the container running, so it must come before compose-stop.
+    # Starting what an earlier attempt stopped (#937) precedes the dump.
+    start_pos = script.find("start >/dev/null")
+    ready_pos = script.find("pg_isready")
     dump_pos = script.find("pg_dump")
-    stop_pos = script.find("compose -f")
+    stop_pos = script.find("→ snapshot: stopping compose stacks")
     upload_pos = script.find("rclone sync")
     check_pos = script.find("rclone check")
     latest_pos = script.find("snapshots/latest.txt")
-    assert dump_pos < stop_pos < upload_pos < check_pos < latest_pos
+    assert -1 < start_pos < ready_pos < dump_pos < stop_pos < upload_pos < check_pos < latest_pos
     # Regression: stop, not pause, AND no `... || echo` blanket
     # error-swallowing (per CLAUDE.md "Never silently swallow
     # errors in critical operations"). The current implementation
@@ -599,14 +602,13 @@ def test_snapshot_script_skips_compose_stop_when_file_missing() -> None:
     # missing container today produces an opaque "Error: No such
     # container" with rc=1 which set -e turns into a teardown
     # abort.
-    # pg_dump must guard with `docker inspect --format='{{.State.Running}}'`
-    # — a missing container (not deployed) AND a stopped container
-    # (e.g. crashed earlier) both produce non-"true" output, both
-    # land in the skip branch. Bare `docker inspect <c>` would
-    # incorrectly succeed for stopped containers, then `docker
-    # exec` would fail with rc=1 and abort the snapshot.
+    # pg_dump must guard with `docker inspect --format='{{.State.Running}}'`.
+    # A missing container (not deployed) is skipped; a stopped one is
+    # refused, since skipping it would point `latest` at a snapshot
+    # without that database (#937). Executed in the retry-phase tests.
     assert "docker inspect --format='{{.State.Running}}' gitea-db" in script
-    assert "container dify-db not running" in script
+    assert "no container dify-db on this server — stack not deployed" in script
+    assert "dify-db exists but is not running" in script
     # rsync sync must guard with `[ -d <path> ]`. The verify_one
     # function (called for every rs_target) must short-circuit on
     # missing source too — verifying a non-existent local dir
@@ -1361,3 +1363,178 @@ def test_stop_during_restore_rejects_unsafe_container_names(name: str) -> None:
             user="nexus-kestra",
             stop_during_restore=(name,),
         )
+
+
+# ---------------------------------------------------------------------------
+# A retry after a failed teardown (#937)
+# ---------------------------------------------------------------------------
+
+
+def _retry_phase(script: str, *, through_dump: bool = False) -> str:
+    """The start + readiness phases, up to the first pg_dump, or through
+    the dumps when `through_dump` is set."""
+    start = script.index('echo "→ snapshot: starting stacks an earlier attempt stopped"')
+    stop_marker = (
+        'echo "→ snapshot: stopping compose stacks'
+        if through_dump
+        else 'echo "→ snapshot: dumping postgres databases (online)"'
+    )
+    return script[start : script.index(stop_marker)]
+
+
+def _run_retry_phase(
+    tmp_path: Path,
+    *,
+    deployed: bool,
+    ps_rc: int = 0,
+    ready_after: int = 1,
+    exits_after_start: bool = False,
+    through_dump: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """Runs the phase with a stub `docker` that logs every call. `ps -a`
+    lists a container when the stack is deployed; `inspect` fails for an
+    undeployed one and reports running only after a `start`, like a stack
+    an earlier attempt stopped, unless the database exits again right
+    after it. `pg_isready` succeeds on its `ready_after`-th call, and only
+    against forgejo-db."""
+    compose = tmp_path / "docker-compose.yml"
+    compose.write_text("services: {}\n")
+    script = render_snapshot_script(
+        endpoint=_endpoint(),
+        stack_slug="nexus-test",
+        template_version="v0.86.0",
+        timestamp="20261028T150000Z",
+        postgres_targets=(
+            PostgresDumpTarget(container="forgejo-db", database="forgejo", user="nexus-forgejo"),
+        ),
+        rsync_targets=(),
+        stop_compose_files=(str(compose),),
+    )
+    log = tmp_path / "calls"
+    started = tmp_path / "started"
+    tries = tmp_path / "tries"
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        f'echo "$*" >> {log}\n'
+        'case "$*" in\n'
+        f'  *"ps -a -q"*) {"echo abc" if deployed else ":"}; exit {ps_rc} ;;\n'
+        f'  *" start") touch {started} ;;\n'
+        + (
+            f"  inspect*) [ -f {started} ] && echo {'false' if exits_after_start else 'true'}"
+            " || echo false ;;\n"
+            if deployed
+            else "  inspect*) exit 1 ;;\n"
+        )
+        + '  *"exec forgejo-db pg_isready"*) '
+        f"n=$(( $(cat {tries} 2>/dev/null || echo 0) + 1 )); echo $n > {tries};"
+        f" [ $n -ge {ready_after} ] ;;\n"
+        "  *pg_isready*) exit 2 ;;\n"
+        '  *"pg_dump"*) echo dump ;;\n'
+        "esac\n"
+    )
+    stub.chmod(0o755)
+    sleep = tmp_path / "bin" / "sleep"
+    sleep.write_text("#!/bin/bash\n:\n")
+    sleep.chmod(0o755)
+    body = "set -euo pipefail\n" + _retry_phase(script, through_dump=through_dump)
+    result = subprocess.run(
+        ["bash", "-c", body],
+        env={"PATH": f"{stub.parent}:/usr/bin:/bin", "POSTGRES_DIR": str(tmp_path)},
+        capture_output=True,
+        text=True,
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    return result, calls
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_retry_starts_what_the_failed_attempt_stopped(tmp_path: Path) -> None:
+    """The database comes back up and is waited for, so the dump that
+    follows sees it running instead of skipping it as not deployed."""
+    result, calls = _run_retry_phase(tmp_path, deployed=True, ready_after=3)
+    assert result.returncode == 0, result.stderr
+    start = next(i for i, c in enumerate(calls) if c.endswith(" start"))
+    ready = [i for i, c in enumerate(calls) if "pg_isready" in c]
+    assert len(ready) == 3
+    assert start < ready[0]
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_stack_never_deployed_is_not_started(tmp_path: Path) -> None:
+    result, calls = _run_retry_phase(tmp_path, deployed=False)
+    assert result.returncode == 0, result.stderr
+    assert not any(c.endswith(" start") for c in calls)
+    assert not any("pg_isready" in c for c in calls)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_failing_container_listing_stops_the_snapshot(tmp_path: Path) -> None:
+    """Read as "no containers", a failing `ps` would skip the start and
+    the dump with it: the bug this phase exists to prevent."""
+    result, calls = _run_retry_phase(tmp_path, deployed=True, ps_rc=1)
+    assert result.returncode != 0
+    assert "cannot list the containers" in result.stderr
+    assert not any(c.endswith(" start") for c in calls)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_database_that_never_becomes_ready_stops_the_snapshot(tmp_path: Path) -> None:
+    result, calls = _run_retry_phase(tmp_path, deployed=True, ready_after=99)
+    assert result.returncode != 0
+    assert "not accepting connections after 60s" in result.stderr
+    assert sum("pg_isready" in c for c in calls) == 30
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_the_readiness_probe_targets_the_configured_database(tmp_path: Path) -> None:
+    result, calls = _run_retry_phase(tmp_path, deployed=True)
+    assert result.returncode == 0, result.stderr
+    probes = [c for c in calls if "pg_isready" in c]
+    assert probes
+    assert all(c.startswith("exec forgejo-db pg_isready -U nexus-forgejo") for c in probes)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_database_that_exits_after_start_stops_the_snapshot(tmp_path: Path) -> None:
+    """Existing but not running after the start phase: skipping it would
+    point `latest` at a snapshot without that database."""
+    result, calls = _run_retry_phase(tmp_path, deployed=True, exits_after_start=True)
+    assert result.returncode != 0
+    assert "forgejo-db exists but is not running" in result.stderr
+    assert not any("pg_dump" in c for c in calls)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_an_undeployed_database_is_skipped_through_the_dump(tmp_path: Path) -> None:
+    result, calls = _run_retry_phase(tmp_path, deployed=False, through_dump=True)
+    assert result.returncode == 0, result.stderr
+    assert "no container forgejo-db on this server" in result.stdout
+    assert not any("pg_dump" in c for c in calls)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_running_database_is_dumped(tmp_path: Path) -> None:
+    result, calls = _run_retry_phase(tmp_path, deployed=True, through_dump=True)
+    assert result.returncode == 0, result.stderr
+    assert any(c.startswith("exec forgejo-db pg_dump -U nexus-forgejo -d forgejo") for c in calls)
+
+
+def test_only_one_snapshot_runs_at_a_time() -> None:
+    """A retry started while an orphaned run is still going (its SSH
+    session dropped, the script did not) waits for it instead of sharing
+    $WORKDIR and racing it for `latest`. The lock is taken before the
+    workdir is touched."""
+    script = render_snapshot_script(
+        endpoint=_endpoint(),
+        stack_slug="nexus-test",
+        template_version="v0.86.0",
+        timestamp="20261028T150000Z",
+        postgres_targets=(),
+        rsync_targets=(),
+    )
+    lock = script.index("flock -w 1800 9")
+    assert script.index("exec 9>/run/lock/nexus-snapshot.lock") < lock
+    assert lock < script.index('rm -rf "$WORKDIR"')
+    assert "another snapshot is still running" in script
