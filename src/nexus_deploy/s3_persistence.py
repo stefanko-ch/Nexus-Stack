@@ -474,13 +474,22 @@ class PostgresDumpTarget:
     container: str
     database: str
     user: str
+    # Application containers to restart once the database is restored.
+    # The restore runs after compose-up, so the application is already
+    # connected and may have cached what it read from the empty database
+    # it started with. Restarted only if running.
+    restart_after: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not _S3_REGION.fullmatch(self.container):
-            raise S3PersistenceError(
-                f"PostgresDumpTarget.container must match docker-service-name shape "
-                f"(lowercase alnum + dash): {self.container!r}",
-            )
+        for name, value in (
+            ("container", self.container),
+            *(("restart_after", c) for c in self.restart_after),
+        ):
+            if not _S3_REGION.fullmatch(value):
+                raise S3PersistenceError(
+                    f"PostgresDumpTarget.{name} must match docker-service-name shape "
+                    f"(lowercase alnum + dash): {value!r}",
+                )
         for name, value in (("database", self.database), ("user", self.user)):
             if not _PG_IDENTIFIER.fullmatch(value):
                 raise S3PersistenceError(
@@ -1220,6 +1229,15 @@ def render_restore_script(
                 f"docker exec -i {container} pg_restore -U {user_cli} -d {db_cli} "
                 "--no-owner --no-acl",
             )
+            for app in pg.restart_after:
+                app_q = shlex.quote(app)
+                lines.append(
+                    f"  if [ \"$(docker inspect --format='{{{{.State.Running}}}}' "
+                    f'{app_q} 2>/dev/null)" = "true" ]; then',
+                )
+                lines.append(f"    docker restart {app_q} >/dev/null")
+                lines.append(f'    echo "  restarted {app} on its restored database"')
+                lines.append("  fi")
             lines.append("fi")
         lines.append("")
 

@@ -784,6 +784,36 @@ def test_notebook_prep_migrates_once_and_never_overwrites(tmp_path: Path) -> Non
     assert "migrated" not in second.stdout
 
 
+def test_kestra_storage_is_prepared_before_compose_up() -> None:
+    """Same block as the notebook stacks, owned by root because Kestra
+    runs as root, and migrating the named volume it used before."""
+    path = "/mnt/nexus-data/kestra/storage"
+    captured: dict[str, str] = {}
+
+    def capture(rendered: str) -> subprocess.CompletedProcess[str]:
+        captured["script"] = rendered
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["kestra"], script_runner=capture)
+    lines = captured["script"].splitlines()
+    mkdir_idx = lines.index(f"mkdir -p {path}")
+    migrate_idx = next(
+        i
+        for i, le in enumerate(lines)
+        if "docker volume inspect" in le and "kestra_kestra-data" in le
+    )
+    chown_idx = next(
+        i for i, le in enumerate(lines) if le.startswith(f"find {path} ") and "chown -h 0:0" in le
+    )
+    up_idx = next(i for i, le in enumerate(lines) if "docker compose" in le and " up " in le)
+    assert mkdir_idx < migrate_idx < chown_idx < up_idx
+
+    run_compose_up(["marimo"], script_runner=capture)
+    assert path not in captured["script"]
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------

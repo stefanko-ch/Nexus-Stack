@@ -831,3 +831,37 @@ def test_an_unreadable_marker_answer_refuses_rather_than_restores(
 
     with pytest.raises(_s3.S3PersistenceError, match="refusing to restore"):
         s3_restore.host_already_restored(ssh)
+
+
+# ---------------------------------------------------------------------------
+# Kestra (flows written in the UI survive a rebuild teardown)
+# ---------------------------------------------------------------------------
+
+
+def test_kestra_database_target_matches_its_compose_file() -> None:
+    """Container, database and role are read from the compose file, so a
+    rename in one place fails here. Kestra itself is restarted after the
+    restore, because it is already running on the empty database."""
+    compose = yaml.safe_load((_REPO_ROOT / "stacks/kestra/docker-compose.yml").read_text())
+    db = compose["services"]["kestra-postgres"]
+    postgres, _ = standard_targets()
+    target = {p.container: p for p in postgres}["kestra-postgres"]
+
+    assert db["container_name"] == target.container
+    assert db["environment"]["POSTGRES_DB"] == target.database
+    assert db["environment"]["POSTGRES_USER"] == target.user
+    assert target.restart_after == (compose["services"]["kestra"]["container_name"],)
+
+
+def test_kestra_storage_target_matches_its_compose_file() -> None:
+    compose = yaml.safe_load((_REPO_ROOT / "stacks/kestra/docker-compose.yml").read_text())
+    mounts = compose["services"]["kestra"]["volumes"]
+    sources = [m.split(":")[0] for m in mounts if m.split(":")[1] == "/app/storage"]
+    _, rsync = standard_targets()
+    target = {r.name: r for r in rsync}["kestra-storage"]
+
+    assert sources == [target.local_path]
+    assert target.local_path.startswith("/mnt/nexus-data/")
+    assert "/opt/docker-server/stacks/kestra/docker-compose.yml" in _STANDARD_STOP_COMPOSE_FILES
+    # The database keeps its named volume; only the storage moved.
+    assert set(compose.get("volumes") or {}) == {"kestra-postgres-data"}

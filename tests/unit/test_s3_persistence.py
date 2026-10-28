@@ -345,7 +345,9 @@ def test_postgres_dump_target_rejects_unsafe_identifiers(
     kwargs = {"container": "gitea-db", "database": "gitea", "user": "nexus-gitea"}
     kwargs[field] = value
     with pytest.raises(S3PersistenceError, match=fragment):
-        PostgresDumpTarget(**kwargs)
+        PostgresDumpTarget(
+            container=kwargs["container"], database=kwargs["database"], user=kwargs["user"]
+        )
 
 
 def test_postgres_dump_target_accepts_canonical_values() -> None:
@@ -1241,3 +1243,99 @@ def test_code_server_home_keeps_the_forgejo_netrc_out_of_r2() -> None:
 
     _, rsync = standard_targets()
     assert {r.name: r for r in rsync}["code-server-home"].excludes == ("/.netrc",)
+
+
+# ---------------------------------------------------------------------------
+# Restarting the application after its database was replaced
+# ---------------------------------------------------------------------------
+
+
+def _kestra_target() -> PostgresDumpTarget:
+    return PostgresDumpTarget(
+        container="kestra-postgres",
+        database="kestra",
+        user="nexus-kestra",
+        restart_after=("kestra",),
+    )
+
+
+def _restart_block(script: str) -> list[str]:
+    """The lines between a target's pg_restore and the end of its branch."""
+    lines = script.splitlines()
+    start = next(i for i, le in enumerate(lines) if "pg_restore -U nexus-kestra" in le)
+    end = next(i for i in range(start, len(lines)) if lines[i] == "fi")
+    return lines[start + 1 : end]
+
+
+def test_restart_after_follows_the_restore_and_only_its_branch() -> None:
+    """Rendered after pg_restore and inside the branch that ran it: a
+    skipped restore (no dump, container down) restarts nothing."""
+    script = render_restore_script(
+        endpoint=_endpoint(), postgres_targets=(_kestra_target(),), rsync_targets=()
+    )
+    block = _restart_block(script)
+    assert any("docker restart kestra" in le for le in block)
+    assert script.count("docker restart") == 1
+
+
+def test_a_target_without_restart_after_restarts_nothing() -> None:
+    script = render_restore_script(
+        endpoint=_endpoint(),
+        postgres_targets=(
+            PostgresDumpTarget(container="gitea-db", database="gitea", user="nexus-gitea"),
+        ),
+        rsync_targets=(),
+    )
+    assert "docker restart" not in script
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+@pytest.mark.parametrize(
+    ("running", "restart_rc", "rc", "restarted"),
+    [
+        ("true", 0, 0, True),
+        ("false", 0, 0, False),
+        ("true", 1, 1, True),
+    ],
+    ids=["running", "not-running", "restart-fails"],
+)
+def test_restart_after_executes(
+    tmp_path: Path, running: str, restart_rc: int, rc: int, restarted: bool
+) -> None:
+    """Runs the rendered block with a stub `docker`: a running container is
+    restarted, a stopped one is left alone, and a failed restart fails the
+    restore instead of reporting it."""
+    script = render_restore_script(
+        endpoint=_endpoint(), postgres_targets=(_kestra_target(),), rsync_targets=()
+    )
+    log = tmp_path / "calls"
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        f'echo "$*" >> {log}\n'
+        f'case "$1" in inspect) echo {running} ;; restart) exit {restart_rc} ;; esac\n'
+    )
+    stub.chmod(0o755)
+    body = "set -euo pipefail\n" + "\n".join(_restart_block(script)) + "\n"
+    result = subprocess.run(
+        ["bash", "-c", body],
+        env={"PATH": f"{stub.parent}:/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == rc, result.stderr
+    calls = log.read_text().splitlines()
+    assert ("restart kestra" in calls) is restarted
+    assert ("restarted kestra" in result.stdout) is (rc == 0 and restarted)
+
+
+@pytest.mark.parametrize("name", ["Kestra", "kestra;id", "$(id)", ""])
+def test_restart_after_rejects_unsafe_container_names(name: str) -> None:
+    with pytest.raises(S3PersistenceError, match="restart_after"):
+        PostgresDumpTarget(
+            container="kestra-postgres",
+            database="kestra",
+            user="nexus-kestra",
+            restart_after=(name,),
+        )
