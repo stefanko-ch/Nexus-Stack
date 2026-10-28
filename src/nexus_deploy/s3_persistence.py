@@ -1040,6 +1040,7 @@ def render_restore_script(
     rsync_targets: Iterable[RsyncTarget],
     local_root: str = "/var/lib/nexus-data",
     phase: Literal["all", "filesystem", "postgres"] = "all",
+    restored_marker_dir: str | None = None,
 ) -> str:
     """Render the bash that restores a snapshot from R2 to the local
     filesystem.
@@ -1100,6 +1101,16 @@ def render_restore_script(
     * ``"all"`` (default) — both halves, matches the legacy
       single-shot teardown-side behaviour and keeps the
       tests/snapshot-replay path unchanged.
+
+    ``restored_marker_dir`` makes the Postgres half track each
+    database on its own (#931). A database is restored only when
+    ``<dir>/<container>`` does not exist yet, and the file is
+    written once the database was restored or the snapshot turned
+    out to hold no dump for it. A database whose container is not
+    running gets no file, so the spin-up that later starts it
+    restores it then, and every other database is left alone. The
+    dumps are pulled only when at least one database still lacks
+    its file. ``None`` keeps the untracked behaviour.
     """
     if phase not in ("all", "filesystem", "postgres"):
         # Fail loud — if a caller passes a typo like "fs" or
@@ -1231,10 +1242,29 @@ def render_restore_script(
         lines.append("")
 
     if pg_targets and include_pg:
-        lines.append('echo "→ restore: pulling postgres dumps"')
-        lines.append(
-            'rclone sync "$BUCKET/$SNAPSHOT_PREFIX/postgres" "$WORKDIR/postgres"',
-        )
+
+        def _marker(pg: PostgresDumpTarget) -> str:
+            # Called only when restored_marker_dir is set.
+            return shlex.quote(f"{restored_marker_dir}/{pg.container}")
+
+        if restored_marker_dir is None:
+            lines.append('echo "→ restore: pulling postgres dumps"')
+            lines.append(
+                'rclone sync "$BUCKET/$SNAPSHOT_PREFIX/postgres" "$WORKDIR/postgres"',
+            )
+        else:
+            # On a server that is already running, every database
+            # usually carries its file and there is nothing to pull.
+            lines.append(f"mkdir -p {shlex.quote(restored_marker_dir)}")
+            lines.append('PG_PENDING=""')
+            for pg in pg_targets:
+                lines.append(f'if [ ! -e {_marker(pg)} ]; then PG_PENDING="1"; fi')
+            lines.append('if [ -n "$PG_PENDING" ]; then')
+            lines.append('  echo "→ restore: pulling postgres dumps"')
+            lines.append(
+                '  rclone sync "$BUCKET/$SNAPSHOT_PREFIX/postgres" "$WORKDIR/postgres"',
+            )
+            lines.append("fi")
         lines.append('echo "→ restore: applying postgres dumps"')
         for pg in pg_targets:
             container = shlex.quote(pg.container)
@@ -1268,18 +1298,50 @@ def render_restore_script(
             #     "No such container" rc=1 and aborts restore.
             # Either case → skip with an explicit log line; the
             # forgejo-only restore path still proceeds normally.
-            lines.append(f"if [ ! -f {dump_file} ]; then")
+            if restored_marker_dir is not None:
+                # Restored, or confirmed to have nothing to restore,
+                # by an earlier spin-up on this disk: whatever it
+                # holds now is newer than R2.
+                lines.append(f"if [ -e {_marker(pg)} ]; then")
+                lines.append(
+                    f'  echo "  (skip: {pg.database} already restored on this server)"',
+                )
+                lines.append(f"elif [ ! -f {dump_file} ]; then")
+            else:
+                lines.append(f"if [ ! -f {dump_file} ]; then")
             lines.append(
                 f'  echo "  (skip: no dump for {pg.database} — stack not snapshotted)"',
             )
+            if restored_marker_dir is not None:
+                lines.append(f"  touch {_marker(pg)}")
             lines.append(
                 f"elif [ \"$(docker inspect --format='{{{{.State.Running}}}}' "
                 f'{container} 2>/dev/null)" != "true" ]; then',
             )
-            lines.append(
-                f'  echo "  (skip: container {pg.container} not running '
-                f'— stack not deployed on this restore target)"',
-            )
+            if restored_marker_dir is not None:
+                # Left untracked, a database is restored by a later
+                # spin-up. That is right when its stack is not deployed
+                # (stack_sync removes a disabled stack's containers), and
+                # wrong when the container exists but is down: the stack
+                # is deployed, will be used once it runs, and the later
+                # restore would drop that work. Stop instead, so it is
+                # restored by a re-run before anyone works in it.
+                lines.append(f"  if docker inspect {container} >/dev/null 2>&1; then")
+                lines.append(
+                    f'    echo "✗ restore-failed: {pg.container} exists but is not '
+                    f'running, so {pg.database} cannot be restored" >&2',
+                )
+                lines.append("    exit 1")
+                lines.append("  fi")
+                lines.append(
+                    f'  echo "  (skip: no container {pg.container} — stack not deployed; '
+                    f'the spin-up that starts it restores it)"',
+                )
+            else:
+                lines.append(
+                    f'  echo "  (skip: container {pg.container} not running '
+                    f'— stack not deployed on this restore target)"',
+                )
             lines.append("else")
             # We drop+recreate the database to guarantee a clean
             # restore. pg_restore --clean would do something similar
@@ -1328,6 +1390,11 @@ def render_restore_script(
                 f"docker exec -i {container} pg_restore -U {user_cli} -d {db_cli} "
                 "--no-owner --no-acl",
             )
+            if restored_marker_dir is not None:
+                # Only reached when pg_restore succeeded: `set -e`
+                # and pipefail end the script on any failure above.
+                lines.append(f"  touch {_marker(pg)}")
+                lines.append(f'  echo "  restored {pg.database}"')
             if pg.stop_during_restore:
                 # Only what was running before; a container the stack had
                 # stopped stays stopped.

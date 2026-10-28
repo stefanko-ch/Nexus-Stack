@@ -1538,3 +1538,169 @@ def test_only_one_snapshot_runs_at_a_time() -> None:
     assert script.index("exec 9>/run/lock/nexus-snapshot.lock") < lock
     assert lock < script.index('rm -rf "$WORKDIR"')
     assert "another snapshot is still running" in script
+
+
+# ---------------------------------------------------------------------------
+# Per-database restore tracking (#931)
+# ---------------------------------------------------------------------------
+
+
+def _tracked_targets() -> tuple[PostgresDumpTarget, ...]:
+    return (
+        PostgresDumpTarget(container="a-db", database="a", user="nexus-a"),
+        PostgresDumpTarget(container="b-db", database="b", user="nexus-b"),
+        PostgresDumpTarget(container="c-db", database="c", user="nexus-c"),
+    )
+
+
+def _run_tracked_restore(
+    tmp_path: Path,
+    *,
+    running: set[str],
+    dumps: set[str],
+    restore_rc: int = 0,
+    stopped: frozenset[str] = frozenset(),
+) -> tuple[subprocess.CompletedProcess[str], list[str], Path]:
+    """Runs the whole Postgres phase with stub `rclone` and `docker`.
+
+    The bucket is a local directory: `rclone sync` of the dump prefix
+    copies it into the workdir and logs the call. `docker inspect`
+    finds the containers in ``running`` and ``stopped`` and fails for
+    any other, as for a removed stack; `exec -i` exits ``restore_rc``.
+    Markers persist in ``tmp_path`` across calls, as on a real disk."""
+    marker_dir = tmp_path / "nexus-data" / ".nexus-restored.d"
+    workdir = tmp_path / "work"
+    shutil.rmtree(workdir, ignore_errors=True)
+    bucket = tmp_path / "bucket-postgres"
+    shutil.rmtree(bucket, ignore_errors=True)
+    bucket.mkdir()
+    for db in dumps:
+        (bucket / f"{db}.dump.gz").write_bytes(gzip.compress(b"dump"))
+    script = render_restore_script(
+        endpoint=_endpoint(),
+        postgres_targets=_tracked_targets(),
+        rsync_targets=(),
+        local_root=str(tmp_path / "nexus-data"),
+        phase="postgres",
+        restored_marker_dir=str(marker_dir),
+    )
+    assert script.count("WORKDIR=/tmp/nexus-restore") == 1
+    script = script.replace("WORKDIR=/tmp/nexus-restore", f"WORKDIR={workdir}")
+    log = tmp_path / "calls"
+    log.unlink(missing_ok=True)
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    rclone = bindir / "rclone"
+    rclone.write_text(
+        "#!/bin/bash\n"
+        f'echo "rclone $*" >> {log}\n'
+        'case "$1" in\n'
+        "  lsf) echo latest.txt ;;\n"
+        '  copyto) echo 20261028T154802Z > "$3" ;;\n'
+        f'  sync) mkdir -p "$3" && cp -R {bucket}/. "$3"/ ;;\n'
+        "esac\n"
+    )
+    docker = bindir / "docker"
+    docker.write_text(
+        "#!/bin/bash\n"
+        f'echo "docker $*" >> {log}\n'
+        "cat >/dev/null 2>&1 || true\n"
+        'case "$1 $2" in\n'
+        '  inspect*) case " $RUNNING " in *" ${@: -1} "*) echo true ;;\n'
+        '      *) case " $STOPPED " in *" ${@: -1} "*) echo false ;; *) exit 1 ;; esac ;;\n'
+        "    esac ;;\n"
+        f'  "exec -i") exit {restore_rc} ;;\n'
+        "esac\n"
+    )
+    rclone.chmod(0o755)
+    docker.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-c", script],
+        env={
+            "PATH": f"{bindir}:/usr/bin:/bin",
+            "RUNNING": " ".join(sorted(running)),
+            "STOPPED": " ".join(sorted(stopped)),
+        },
+        capture_output=True,
+        text=True,
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    return result, calls, marker_dir
+
+
+def _restored(calls: list[str]) -> set[str]:
+    """Databases a pg_restore ran against, read from the stub's log."""
+    return {c.split(" -d ")[1].split()[0] for c in calls if "pg_restore" in c}
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_database_whose_stack_starts_later_is_restored_then_and_alone(
+    tmp_path: Path,
+) -> None:
+    """#931. First spin-up: b's stack is disabled, so b gets no marker,
+    while a (restored) and c (no dump) do. A later spin-up after b was
+    enabled restores b and nothing else."""
+    first, calls, markers = _run_tracked_restore(
+        tmp_path, running={"a-db", "c-db"}, dumps={"a", "b"}
+    )
+    assert first.returncode == 0, first.stderr
+    assert _restored(calls) == {"a"}
+    assert sorted(p.name for p in markers.iterdir()) == ["a-db", "c-db"]
+
+    second, calls, markers = _run_tracked_restore(
+        tmp_path, running={"a-db", "b-db", "c-db"}, dumps={"a", "b"}
+    )
+    assert second.returncode == 0, second.stderr
+    assert _restored(calls) == {"b"}
+    assert not any('DROP DATABASE IF EXISTS "a"' in c for c in calls)
+    assert "(skip: a already restored on this server)" in second.stdout
+    assert "restored b" in second.stdout
+    assert sorted(p.name for p in markers.iterdir()) == ["a-db", "b-db", "c-db"]
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_server_whose_databases_are_all_tracked_pulls_and_touches_nothing(
+    tmp_path: Path,
+) -> None:
+    """The common case on a running server: no dump is downloaded and no
+    database is dropped."""
+    _run_tracked_restore(tmp_path, running={"a-db", "b-db", "c-db"}, dumps={"a", "b"})
+    result, calls, _ = _run_tracked_restore(
+        tmp_path, running={"a-db", "b-db", "c-db"}, dumps={"a", "b"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert not any(c.startswith("rclone sync") for c in calls)
+    assert not any(c.startswith("docker exec") for c in calls)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_failed_restore_leaves_the_database_untracked(tmp_path: Path) -> None:
+    """A marker after a failed pg_restore would stop every later spin-up
+    from repairing the database."""
+    result, _, markers = _run_tracked_restore(tmp_path, running={"a-db"}, dumps={"a"}, restore_rc=1)
+    assert result.returncode != 0
+    assert not (markers / "a-db").exists()
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_deployed_database_that_is_down_stops_the_restore(tmp_path: Path) -> None:
+    """Left untracked, it would be used once it runs and a later spin-up
+    would restore over that work. Only an absent container, a stack
+    that is not deployed, is left for later."""
+    result, calls, markers = _run_tracked_restore(
+        tmp_path, running={"a-db"}, dumps={"a", "b"}, stopped=frozenset({"b-db"})
+    )
+    assert result.returncode != 0
+    assert "b-db exists but is not running" in result.stderr
+    assert not (markers / "b-db").exists()
+    assert not any("pg_restore" in c and " -d b " in c for c in calls)
+
+
+def test_untracked_restore_writes_no_markers() -> None:
+    """Without ``restored_marker_dir`` the script is what operator
+    scripts and the "all" phase have always run."""
+    script = render_restore_script(
+        endpoint=_endpoint(), postgres_targets=_tracked_targets(), rsync_targets=()
+    )
+    assert "touch" not in script
+    assert "PG_PENDING" not in script
