@@ -129,7 +129,12 @@ services:
           # breathing room for parallel tutorial flow executions.
           memory: 4g
     volumes:
-      - kestra-data:/app/storage
+      # Internal storage: namespace files written in the UI's editor and
+      # execution outputs. A bind mount rather than a named volume, so the
+      # R2 snapshot and restore cycle (s3_restore.standard_targets) can
+      # rsync it and it survives a rebuild teardown. Flows and executions
+      # live in kestra-postgres, which the same cycle dumps.
+      - /mnt/nexus-data/kestra/storage:/app/storage
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/kestra-wd:/tmp/kestra-wd
     depends_on:
@@ -181,7 +186,6 @@ services:
 # Volumes
 # =============================================================================
 volumes:
-  kestra-data:
   kestra-postgres-data:
 
 # =============================================================================

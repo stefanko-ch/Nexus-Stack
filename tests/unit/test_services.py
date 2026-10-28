@@ -2385,9 +2385,9 @@ def test_render_redpanda_hook_never_attributes_a_stale_body_to_a_new_request() -
     naming a conflict that never happened, while the real fault was that
     nothing answered. Four defences, all asserted here:
 
-    1. The response path is unique per invocation. `spin-up.yml` has no
-       `concurrency:` group, so two runs really can reach this hook at
-       once and a shared path would cross their responses.
+    1. The response path is unique per invocation. Before #801 gave
+       `spin-up.yml` a `concurrency:` group, two runs really could reach
+       this hook at once, and a shared path would cross their responses.
     2. Every request clears the file first — consume-after-read alone is
        not enough, because a deploy interrupted between the write and the
        read never reaches the delete.
@@ -2582,8 +2582,8 @@ def test_render_unity_catalog_hook_asks_before_creating() -> None:
 def test_render_unity_catalog_hook_rechecks_after_a_failed_post() -> None:
     """A losing race must report already-configured, not failed.
 
-    Two deploys can reach this hook at once — spin-up.yml has no concurrency
-    group (#801) — and a duplicate POST is refused. Reporting `failed` for a
+    Two deploys could reach this hook at once — spin-up.yml had no concurrency
+    group before #801 — and a duplicate POST is refused. Reporting `failed` for a
     catalog that demonstrably exists is a false alarm in a workflow log people
     are meant to trust, so the hook asks again before saying so.
     """
@@ -2925,7 +2925,7 @@ def test_neo4j_hook_fails_when_neither_account_works(tmp_path: Path) -> None:
 
 
 def test_neo4j_hook_asks_again_when_the_create_loses_a_race(tmp_path: Path) -> None:
-    """spin-up.yml has no concurrency group (#801). A second deploy can find
+    """spin-up.yml had no concurrency group before #801. A second deploy can find
     nexus-neo4j missing, then fail to create it because the first deploy has
     dropped `neo4j` in between. nexus-neo4j signing in on the second ask is
     success, not `failed`."""
@@ -3270,7 +3270,7 @@ def test_keycloak_hook_fails_without_touching_anything_when_no_account_signs_in(
 def test_keycloak_hook_asks_again_when_a_concurrent_deploy_finished_first(
     tmp_path: Path,
 ) -> None:
-    """Two spin-ups can run at once (#801). The loser's first admin sign-in
+    """Two spin-ups could run at once before #801. The loser's first admin sign-in
     comes before the winner created the account, its bootstrap sign-in after
     the winner deleted that one; the retry finds the job done."""
     out, _, users = _run_keycloak_hook(

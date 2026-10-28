@@ -295,9 +295,10 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     The tuples below are the authoritative list; the mappings described
     further down cover only the first stacks added. Today they hold
     Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
-    Postgres, Unity Catalog, Lakekeeper and MLflow, and filesystem trees
-    for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB and the
-    notebook stacks (Jupyter, Marimo, code-server).
+    Postgres, Unity Catalog, Lakekeeper, MLflow and Kestra, and filesystem
+    trees for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB,
+    the notebook stacks (Jupyter, Marimo, code-server) and Kestra's
+    internal storage.
 
     Hard-coded because:
     1. Stateful stacks are explicitly opted in here. Adding a stack
@@ -415,6 +416,18 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             database="mlflow",
             user="nexus-mlflow",
         ),
+        # Kestra's repository and queue: flows, executions, logs and
+        # triggers. Flows from the workspace repo come back on their
+        # own through system.flow-sync; a flow written in the UI exists
+        # only here. Kestra is stopped while the restore replaces it: it is
+        # already running on the empty database by then, would write into
+        # the half-restored one, and holds flow and trigger state in memory.
+        _s3.PostgresDumpTarget(
+            container="kestra-postgres",
+            database="kestra",
+            user="nexus-kestra",
+            stop_during_restore=("kestra",),
+        ),
     )
     rsync = (
         _s3.RsyncTarget(
@@ -511,6 +524,15 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             # in plaintext and rewrites it on every start, so it must
             # not reach R2 and nothing is lost by leaving it out.
             excludes=("/.netrc",),
+        ),
+        # Kestra's internal storage: namespace files written in the UI's
+        # editor and execution outputs. The database above names them;
+        # without this half an execution's outputs and the namespace
+        # files a flow reads would be missing.
+        _s3.RsyncTarget(
+            name="kestra-storage",
+            local_path="/mnt/nexus-data/kestra/storage",
+            s3_subpath="kestra/storage",
         ),
     )
     return postgres, rsync
@@ -877,6 +899,9 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/jupyter/docker-compose.yml",
     "/opt/docker-server/stacks/marimo/docker-compose.yml",
     "/opt/docker-server/stacks/code-server/docker-compose.yml",
+    # Stopped after its database was dumped, so no execution writes an
+    # output file the dump does not know about.
+    "/opt/docker-server/stacks/kestra/docker-compose.yml",
 )
 
 # The runner stack is deliberately absent from both lists. Its bind

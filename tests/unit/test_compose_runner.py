@@ -784,6 +784,118 @@ def test_notebook_prep_migrates_once_and_never_overwrites(tmp_path: Path) -> Non
     assert "migrated" not in second.stdout
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_notebook_prep_stops_the_old_container_before_copying(tmp_path: Path) -> None:
+    """On a running server the old container still writes to the volume;
+    it is stopped before the copy, and only when a copy happens."""
+    from nexus_deploy.compose_runner import _render_notebook_prep
+
+    target = tmp_path / "storage"
+    volume = tmp_path / "vols" / "old"
+    volume.mkdir(parents=True)
+    (volume / "flow.yml").write_text("id: x")
+    log = tmp_path / "calls"
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        f'echo "$*" >> {log}\n'
+        f'case "$1" in volume) echo "{volume}" ;; ps) echo abc123 ;;\n'
+        # A stopping container flushes its last writes; they must be copied.
+        f'  stop) echo last > "{volume}/flushed-on-stop" ;; esac\n'
+    )
+    stub.chmod(0o755)
+    whoami = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
+    whoami_g = subprocess.run(["id", "-g"], capture_output=True, text=True).stdout.strip()
+    block = "set -euo pipefail\n" + _render_notebook_prep(
+        str(target), f"{whoami}:{whoami_g}", "old"
+    )
+    env = {**os.environ, "PATH": f"{stub.parent}:{os.environ['PATH']}"}
+
+    first = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert first.returncode == 0, first.stderr
+    assert log.read_text().splitlines() == [
+        "volume inspect -f {{.Mountpoint}} old",
+        "ps -q --filter volume=old",
+        "stop abc123",
+    ]
+    assert (target / "flow.yml").read_text() == "id: x"
+    assert (target / "flushed-on-stop").read_text() == "last\n"
+
+    log.unlink()
+    second = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert second.returncode == 0, second.stderr
+    assert not log.exists()
+
+
+def test_kestra_storage_is_prepared_before_compose_up() -> None:
+    """Same block as the notebook stacks, owned by root because Kestra
+    runs as root, and migrating the named volume it used before."""
+    path = "/mnt/nexus-data/kestra/storage"
+    captured: dict[str, str] = {}
+
+    def capture(rendered: str) -> subprocess.CompletedProcess[str]:
+        captured["script"] = rendered
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["kestra"], script_runner=capture)
+    lines = captured["script"].splitlines()
+    mkdir_idx = lines.index(f"mkdir -p {path}")
+    migrate_idx = next(
+        i
+        for i, le in enumerate(lines)
+        if "docker volume inspect" in le and "kestra_kestra-data" in le
+    )
+    chown_idx = next(
+        i for i, le in enumerate(lines) if le.startswith(f"find {path} ") and "chown -h 0:0" in le
+    )
+    up_idx = next(i for i, le in enumerate(lines) if "docker compose" in le and " up " in le)
+    assert mkdir_idx < migrate_idx < chown_idx < up_idx
+
+    run_compose_up(["marimo"], script_runner=capture)
+    assert path not in captured["script"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads an unreadable file")
+def test_a_failed_migration_leaves_the_target_empty_and_retries(tmp_path: Path) -> None:
+    """A copy that fails halfway must not leave a partial tree behind: the
+    next run would find the directory non-empty and never migrate again."""
+    from nexus_deploy.compose_runner import _render_notebook_prep
+
+    target = tmp_path / "storage"
+    volume = tmp_path / "vols" / "old"
+    volume.mkdir(parents=True)
+    (volume / "a.txt").write_text("first")
+    blocked = volume / "b.txt"
+    blocked.write_text("second")
+    blocked.chmod(0)
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(f'#!/bin/bash\ncase "$1" in volume) echo "{volume}" ;; esac\n')
+    stub.chmod(0o755)
+    whoami = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
+    whoami_g = subprocess.run(["id", "-g"], capture_output=True, text=True).stdout.strip()
+    block = "set -euo pipefail\n" + _render_notebook_prep(
+        str(target), f"{whoami}:{whoami_g}", "old"
+    )
+    env = {**os.environ, "PATH": f"{stub.parent}:{os.environ['PATH']}"}
+
+    failed = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert failed.returncode != 0
+    assert target.is_dir()
+    assert list(target.iterdir()) == []
+
+    blocked.chmod(0o644)
+    retried = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert retried.returncode == 0, retried.stderr
+    assert (target / "a.txt").read_text() == "first"
+    assert (target / "b.txt").read_text() == "second"
+    assert not (tmp_path / "storage.migrating").exists()
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------

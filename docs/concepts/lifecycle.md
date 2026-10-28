@@ -83,8 +83,8 @@ data" — it is "some of your data, depending on the mode".
 
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —
-currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB and the notebook
-stacks (Jupyter, Marimo, code-server), plus dumps of the
+currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB, Kestra and the
+notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
 shared Postgres database and of the Unity Catalog, Lakekeeper and MLflow catalogues. Two kinds of target sit in that list: a `pg_dump` of a
 stack's database, and an rsync of the directories it writes — Forgejo and Gitea
 have both, since a forge is repositories as much as it is a database. Read that function rather than trusting a number in a document:
@@ -131,6 +131,29 @@ which matters when the person paying the bill is not the person using the stack.
 
 Spin-up stays manual: the deployment comes back when somebody asks for it, not on a
 timer.
+
+## One lifecycle run at a time
+
+Every workflow that changes the server — Initial Setup, both spin-ups, both
+teardowns, Destroy All and the upstream update — shares one GitHub Actions
+concurrency group, `infrastructure`. A run dispatched while another is in progress
+waits for it instead of working on the same server at the same time.
+
+The one exception is the rebuild spin-up when Initial Setup or the snapshot
+spin-up calls it as part of their own run: it then takes a group of its own and
+relies on its caller, which already holds `infrastructure`. Joining the caller's
+group would deadlock.
+
+GitHub keeps at most **one** waiting run per group by default. A third dispatch
+replaces the waiting one, which is cancelled. So a teardown queued behind a spin-up
+is lost if somebody dispatches another spin-up before it starts; check the Actions
+tab rather than dispatching again when a run seems slow. The Control Plane counts a
+waiting run as running, so its buttons stay locked until it has finished.
+
+GitHub's `queue: max` setting would keep up to 100 waiting runs instead. These
+workflows do not use it yet: the actionlint version pinned in
+`.pre-commit-config.yaml` rejects the key, and whether the Forgejo runner that also
+runs these workflows accepts it has not been checked.
 
 ## Teardown is not Destroy All
 

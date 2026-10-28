@@ -103,12 +103,31 @@ on:
         required: false
         default: ''
         type: string
+      caller_holds_infrastructure_lock:
+        description: 'Pass true only from a workflow that already holds the infrastructure concurrency group; see the concurrency block.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
-# NOTE: No concurrency here - handled by calling workflow (initial-setup.yaml)
-# When called directly via workflow_dispatch, runs without concurrency lock
+# A dispatched spin-up queues in the group every other lifecycle workflow
+# uses, so it never overlaps a teardown, an update or a second spin-up
+# (#801). Its callers, initial-setup.yaml and spin-up-snapshot.yml, already
+# hold that group while they run this one, and a called workflow joining
+# its caller's group is a deadlock, which GitHub cancels. So a call gets a
+# group of its own and relies on its caller's lock.
+#
+# The input that tells them apart exists only under workflow_call, and
+# both callers pass true. It defaults to false, so a new caller that
+# forgets it joins `infrastructure`: if that caller holds the group it
+# deadlocks, which GitHub reports and cancels, rather than running
+# unlocked beside a teardown. A dispatch, where the input is absent,
+# always takes the lock.
+concurrency:
+  group: ${{ inputs.caller_holds_infrastructure_lock && format('spin-up-called-{0}', github.run_id) || 'infrastructure' }}
+  cancel-in-progress: false
 
 jobs:
   spin-up:

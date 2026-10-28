@@ -7,8 +7,9 @@
  * `GET /actions/runs` at all. The dashboard re-polls 2 s after the click,
  * status.js picks the newest run of that workflow — the one that finished
  * an hour ago — reports `deployed`, and the Spin Up button comes back.
- * `spin-up.yml` carries no concurrency lock, so the second click starts a
- * second run. Seen in the wild; this is the fix.
+ * The second click starts a second run: concurrent with the first until
+ * #801 gave `spin-up.yml` a concurrency group, queued behind it since,
+ * which still deploys twice. Seen in the wild; this is the fix.
  *
  * Stored in D1 rather than the browser: a reload or a second tab must see
  * the same picture, and the endpoints that dispatch already write to D1.

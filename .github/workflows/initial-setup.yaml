@@ -218,6 +218,8 @@ jobs:
     if: ${{ always() && needs.setup-control-plane.result == 'success' && needs.configure-initial-services.result != 'failure' }}
     uses: ./.github/workflows/spin-up.yml
     with:
+      # This workflow holds the infrastructure group; see spin-up.yml.
+      caller_holds_infrastructure_lock: true
       # Pass R2 credentials from setup-control-plane to spin-up
       # This enables fully automated initial deployment without pre-existing secrets
       r2_access_key_id: ${{ needs.setup-control-plane.outputs.r2_access_key_id }}

@@ -399,8 +399,9 @@ import RunProgress from '../components/RunProgress.astro';
       if (err) console.error('Failed to fetch status:', err);
       // A failed poll is not evidence that the run finished. Re-enabling
       // here let a transient network blip invite a second dispatch onto a
-      // stack that was mid-provision — `spin-up.yml` has no concurrency
-      // lock. Keep the last known state and wait for a real answer.
+      // stack that was mid-provision, which since #801 queues a second
+      // full deploy behind the first. Keep the last known state and wait
+      // for a real answer.
       if (wasInProgress || (window.NS.status && window.NS.status.isLatched())) return;
       enableFallbackState();
       return;
