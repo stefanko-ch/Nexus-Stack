@@ -139,7 +139,13 @@ services:
         limits:
           memory: 3g
     volumes:
-      - jupyter-data:/home/jovyan/work
+      # A bind mount rather than a named volume, so the R2 snapshot and
+      # restore cycle (s3_restore.standard_targets) can rsync it and the
+      # students' work survives a rebuild teardown. The teardown stops
+      # this stack first, so the copy is taken with nothing writing.
+      # compose_runner chowns it to jovyan (1000:100) before compose up:
+      # Docker would create it root-owned, and so does the restore.
+      - /mnt/nexus-data/jupyter/work:/home/jovyan/work
       - ./spark-init.py:/opt/spark-init.py:ro
       - ./pyspark-kernel.json:/opt/pyspark-kernel.json:ro
       - ./Getting_Started_PySpark.ipynb:/opt/Getting_Started_PySpark.ipynb:ro
@@ -152,9 +158,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 180s
-
-volumes:
-  jupyter-data:
 
 networks:
   app-network:

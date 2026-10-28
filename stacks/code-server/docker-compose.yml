@@ -56,7 +56,7 @@ services:
         # old image baked SQLTools + sqltools-driver-pg and the
         # entrypoint wrote a sqltools.connections block with the
         # Postgres admin password into settings.json. Both live in
-        # the persistent code-server-data volume, so just removing
+        # the persistent home (/mnt/nexus-data/code-server/home), so just removing
         # them from the image doesn't clean existing deployments.
         #
         # ONE-TIME via marker file at /home/coder/.nexus-stack-sqltools-cleanup-done
@@ -152,7 +152,15 @@ services:
           # that the new baseline sits around 350-500 MiB at idle.
           memory: 2g
     volumes:
-      - code-server-data:/home/coder
+      # A bind mount rather than a named volume, so the R2 snapshot and
+      # restore cycle (s3_restore.standard_targets) can rsync it and the
+      # students' work survives a rebuild teardown. The teardown stops
+      # this stack first, so the copy is taken with nothing writing.
+      # The whole home, not just the repo clone: settings, installed
+      # extensions and files outside the repo are the student's work too.
+      # compose_runner chowns it to coder (1000:1000) before compose up;
+      # the container runs as coder and cannot fix a root-owned mount.
+      - /mnt/nexus-data/code-server/home:/home/coder
     networks:
       - app-network
     healthcheck:
@@ -161,9 +169,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  code-server-data:
 
 networks:
   app-network:

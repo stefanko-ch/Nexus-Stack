@@ -152,6 +152,8 @@ def render_remote_script(
     ollama_internal_network_prep: bool = False,
     hedgedoc_uploads_prep: bool = False,
     planka_data_prep: bool = False,
+    jupyter_work_prep: bool = False,
+    code_server_home_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
 ) -> str:
@@ -262,6 +264,34 @@ if [ "$(stat -c '%u:%g' /mnt/nexus-data/planka/data)" != "1000:1000" ]; then
 fi
 """
 
+    # Jupyter and code-server keep the students' work in bind mounts
+    # under /mnt/nexus-data so the R2 snapshot/restore cycle covers it.
+    # Docker creates a missing bind source root-owned, and the restore
+    # writes as root too, but neither container can fix that itself:
+    # code-server runs as coder (1000:1000), and Jupyter's start script
+    # only chowns $HOME, not the work dir below it, for jovyan
+    # (1000:100). Same guarded chown as hedgedoc/planka: the recursive
+    # walk only happens when the top-level owner is wrong, which is the
+    # case after a restore or on first start. Marimo needs no block:
+    # its entrypoint runs this same check as root.
+    jupyter_block = ""
+    if jupyter_work_prep:
+        jupyter_block = """
+mkdir -p /mnt/nexus-data/jupyter/work
+if [ "$(stat -c '%u:%g' /mnt/nexus-data/jupyter/work)" != "1000:100" ]; then
+  chown -R 1000:100 /mnt/nexus-data/jupyter/work
+fi
+"""
+
+    code_server_block = ""
+    if code_server_home_prep:
+        code_server_block = """
+mkdir -p /mnt/nexus-data/code-server/home
+if [ "$(stat -c '%u:%g' /mnt/nexus-data/code-server/home)" != "1000:1000" ]; then
+  chown -R 1000:1000 /mnt/nexus-data/code-server/home
+fi
+"""
+
     metabase_block = ""
     if metabase_storage_prep:
         # Metabase runs as uid 2000 (since v0.46 official image) and
@@ -299,7 +329,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}
+{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{code_server_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -406,6 +436,8 @@ def run_compose_up(
     ollama_internal_network_prep: bool | None = None,
     hedgedoc_uploads_prep: bool | None = None,
     planka_data_prep: bool | None = None,
+    jupyter_work_prep: bool | None = None,
+    code_server_home_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
     """Render → exec → parse.
@@ -449,6 +481,10 @@ def run_compose_up(
         hedgedoc_uploads_prep if hedgedoc_uploads_prep is not None else "hedgedoc" in enabled
     )
     actual_planka = planka_data_prep if planka_data_prep is not None else "planka" in enabled
+    actual_jupyter = jupyter_work_prep if jupyter_work_prep is not None else "jupyter" in enabled
+    actual_code_server = (
+        code_server_home_prep if code_server_home_prep is not None else "code-server" in enabled
+    )
 
     script = render_remote_script(
         parents=parents,
@@ -458,6 +494,8 @@ def run_compose_up(
         ollama_internal_network_prep=actual_ollama_internal,
         hedgedoc_uploads_prep=actual_hedgedoc,
         planka_data_prep=actual_planka,
+        jupyter_work_prep=actual_jupyter,
+        code_server_home_prep=actual_code_server,
     )
 
     run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))

@@ -83,7 +83,8 @@ data" — it is "some of your data, depending on the mode".
 
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —
-currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka and DuckDB, plus dumps of the
+currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB and the notebook
+stacks (Jupyter, Marimo, code-server), plus dumps of the
 shared Postgres database and of the Unity Catalog, Lakekeeper and MLflow catalogues. Two kinds of target sit in that list: a `pg_dump` of a
 stack's database, and an rsync of the directories it writes — Forgejo and Gitea
 have both, since a forge is repositories as much as it is a database. Read that function rather than trusting a number in a document:
@@ -92,6 +93,14 @@ the list grows when someone extends it, and this page will not notice.
 Everything else — a topic you created in Redpanda, a dashboard you built in a stack
 outside the list, files written inside a container — is **gone** on teardown. Not
 corrupted, not recoverable: the disk it lived on no longer exists.
+
+**A spin-up on a server that is already running restores nothing.** Once both
+restore phases of a spin-up have finished, it writes `/mnt/nexus-data/.nexus-restored`.
+A later spin-up that finds that file skips the restore and keeps the data on the
+server, because that data is newer than the last teardown's snapshot. Before this
+guard (#926), re-running a spin-up on a live server rolled every covered stack back
+to the last teardown. A rebuild teardown destroys the disk and the file with it, so
+the spin-up after it always restores.
 
 **In `snapshot` mode, everything on the root disk survives**, because the whole disk
 is imaged. That is the main reason to switch.

@@ -681,6 +681,50 @@ def test_run_compose_up_planka_omitted_when_planka_not_in_enabled() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Notebook stacks: ownership of their backed-up bind mounts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("flag", "service", "path", "owner"),
+    [
+        ("jupyter_work_prep", "jupyter", "/mnt/nexus-data/jupyter/work", "1000:100"),
+        ("code_server_home_prep", "code-server", "/mnt/nexus-data/code-server/home", "1000:1000"),
+    ],
+)
+def test_notebook_bind_mount_is_chowned_before_compose_up(
+    flag: str, service: str, path: str, owner: str
+) -> None:
+    """Docker creates a missing bind source root-owned and the restore
+    writes as root; neither container can fix that itself. The chown is
+    guarded on the top-level owner so a populated tree is not walked on
+    every deploy, and it runs before any `docker compose up`."""
+    assert path not in _render_default(**{flag: False})
+
+    script = _render_default(**{flag: True})
+    lines = script.splitlines()
+    if_idx = next(i for i, le in enumerate(lines) if f"stat -c '%u:%g' {path}" in le)
+    fi_idx = next(i for i, le in enumerate(lines) if i > if_idx and le.strip() == "fi")
+    assert f'!= "{owner}"' in lines[if_idx]
+    assert any(f"chown -R {owner} {path}" in le for le in lines[if_idx:fi_idx])
+    first_up = next(i for i, le in enumerate(lines) if "docker compose" in le and " up " in le)
+    assert fi_idx < first_up
+
+    captured: dict[str, str] = {}
+
+    def capture(rendered: str) -> subprocess.CompletedProcess[str]:
+        captured["script"] = rendered
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up([service], script_runner=capture)
+    assert path in captured["script"]
+    run_compose_up(["kestra"], script_runner=capture)
+    assert path not in captured["script"]
+
+
+# ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
 

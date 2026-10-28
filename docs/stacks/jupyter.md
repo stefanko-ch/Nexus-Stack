@@ -62,5 +62,5 @@ df = spark.read.csv("s3a://your-bucket/path/file.csv")
 2. Access `https://jupyter.YOUR_DOMAIN`
 3. Select the **PySpark (Spark Cluster)** kernel when creating a notebook
 4. Authentication is handled by Cloudflare Access (token auth disabled)
-5. Notebooks are persisted in a Docker volume (`jupyter-data`)
+5. Notebooks live in `/home/jovyan/work`, bind-mounted from `/mnt/nexus-data/jupyter/work` on the host. In the `rebuild` lifecycle a teardown copies it to R2 and the next spin-up restores it, including the workspace repo clone and any commits not yet pushed
 6. PySpark and `sparksql-magic` are pre-installed; Spark SQL is auto-loaded

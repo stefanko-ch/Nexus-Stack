@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -276,9 +277,10 @@ def test_standard_stop_compose_files_matches_rsync_targets() -> None:
     racing with rsync on every snapshot."""
     _, rsync = standard_targets()
 
-    # Each rsync target's name is `<stack>-<subdir>` (gitea-repos,
-    # hedgedoc-uploads, ...). Stack name = first segment.
-    stacks_with_rsync = {r.name.split("-", 1)[0] for r in rsync}
+    # Each rsync target's S3 subpath is `<stack>/<subdir>` (gitea/repos,
+    # hedgedoc/uploads, ...). Read the stack from there rather than from
+    # the target name: `code-server-home` would split to `code`.
+    stacks_with_rsync = {r.s3_subpath.split("/", 1)[0] for r in rsync}
 
     # Each compose-file path is `/opt/docker-server/stacks/<stack>/docker-compose.yml`.
     stacks_in_stop_list = {
@@ -734,3 +736,98 @@ def test_duckdb_backs_up_the_directory_its_compose_file_mounts() -> None:
     assert target.s3_subpath == "duckdb/data"
     # Stopped first, so the file is closed when rclone reads it.
     assert "/opt/docker-server/stacks/duckdb/docker-compose.yml" in _STANDARD_STOP_COMPOSE_FILES
+
+
+# ---------------------------------------------------------------------------
+# Notebook stacks (course work survives a rebuild teardown)
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.mark.parametrize(
+    ("stack", "service", "container_path", "target_name"),
+    [
+        ("jupyter", "jupyter", "/home/jovyan/work", "jupyter-work"),
+        ("marimo", "marimo", "/app/notebooks", "marimo-notebooks"),
+        ("code-server", "code-server", "/home/coder", "code-server-home"),
+    ],
+)
+def test_notebook_stacks_back_up_the_directory_their_compose_file_mounts(
+    stack: str, service: str, container_path: str, target_name: str
+) -> None:
+    """Each target is read from the compose file rather than restated, so
+    a mount moved in one place and not the other fails here. Stopped
+    first, so no notebook is copied half-saved."""
+    compose = yaml.safe_load((_REPO_ROOT / f"stacks/{stack}/docker-compose.yml").read_text())
+    mounts = compose["services"][service]["volumes"]
+    sources = [m.split(":")[0] for m in mounts if m.split(":")[1] == container_path]
+
+    _, rsync = standard_targets()
+    target = {r.name: r for r in rsync}[target_name]
+
+    assert sources == [target.local_path]
+    assert target.local_path.startswith("/mnt/nexus-data/")
+    assert target.s3_subpath.split("/", 1)[0] == stack
+    assert f"/opt/docker-server/stacks/{stack}/docker-compose.yml" in _STANDARD_STOP_COMPOSE_FILES
+    # A leftover top-level named volume would mean the mount was only
+    # half moved.
+    assert not compose.get("volumes")
+
+
+# ---------------------------------------------------------------------------
+# Live-host guard (#926)
+# ---------------------------------------------------------------------------
+
+
+class _LocalBash:
+    """Stands in for SSHClient and runs each script with the local bash,
+    so the guard is tested by executing it, not by reading its text."""
+
+    def __init__(self, stdout_override: str | None = None) -> None:
+        self.stdout_override = stdout_override
+
+    def run_script(self, script: str, *, check: bool = True) -> subprocess.CompletedProcess[str]:
+        completed = subprocess.run(
+            ["bash", "-s"], input=script, text=True, capture_output=True, check=check
+        )
+        if self.stdout_override is not None:
+            return subprocess.CompletedProcess(completed.args, 0, self.stdout_override, "")
+        return completed
+
+
+def test_restore_marker_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from nexus_deploy import s3_restore
+
+    marker = tmp_path / "nexus-data" / ".nexus-restored"
+    monkeypatch.setattr(s3_restore, "RESTORE_MARKER", str(marker))
+    ssh: Any = _LocalBash()
+
+    assert s3_restore.host_already_restored(ssh) is False
+    s3_restore.mark_host_restored(ssh)
+    assert marker.exists()
+    assert s3_restore.host_already_restored(ssh) is True
+
+
+def test_restore_marker_path_is_outside_every_rsync_target() -> None:
+    """Inside a target, a teardown would upload it and every restore
+    would bring it back, so even a fresh host would skip its restore."""
+    from nexus_deploy.s3_restore import RESTORE_MARKER
+
+    _, rsync = standard_targets()
+    for target in rsync:
+        assert not RESTORE_MARKER.startswith(target.local_path.rstrip("/") + "/")
+
+
+def test_an_unreadable_marker_answer_refuses_rather_than_restores(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reading anything but a clear "absent" as absent would restore over
+    a live host, the failure the guard exists to prevent."""
+    from nexus_deploy import s3_restore
+
+    monkeypatch.setattr(s3_restore, "RESTORE_MARKER", str(tmp_path / ".nexus-restored"))
+    ssh: Any = _LocalBash(stdout_override="")
+
+    with pytest.raises(_s3.S3PersistenceError, match="refusing to restore"):
+        s3_restore.host_already_restored(ssh)
