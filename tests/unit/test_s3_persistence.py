@@ -175,6 +175,26 @@ def test_render_rclone_config_emits_full_profile_block() -> None:
     assert "acl = private\n" in config
 
 
+def test_render_rclone_config_skips_head_after_upload() -> None:
+    """R2 answers rclone's post-upload ``HEAD <key>?versionId=…`` with
+    501 NotImplemented, so without ``no_head`` every upload's first
+    attempt fails and is retried. Pin the option so a refactor of the
+    profile cannot silently bring the false errors back."""
+    e = S3Endpoint(
+        endpoint="https://abc123.r2.cloudflarestorage.com",
+        region="auto",
+        access_key="AKIA",
+        secret_key="secret",
+        bucket="nexus-test",
+    )
+    lines = render_rclone_config(e).splitlines()
+
+    assert "no_head = true" in lines
+    # Not to be confused with `no_head_object`, which changes how rclone
+    # *reads* objects (GET without a prior HEAD) and is not wanted here.
+    assert not any(line.startswith("no_head_object") for line in lines)
+
+
 def test_render_rclone_config_uses_module_level_profile_name() -> None:
     """Regression: render and script use the SAME profile name.
     Hardcoded literal would be fine but a constant means a future

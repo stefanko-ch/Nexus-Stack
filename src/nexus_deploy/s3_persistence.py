@@ -416,6 +416,30 @@ def render_rclone_config(endpoint: S3Endpoint) -> str:
         # makes the intent explicit and protects against a future
         # rclone-default change.
         "acl = private\n"
+        # `no_head = true` skips the HEAD rclone sends after every
+        # upload. R2 now returns `X-Amz-Version-Id` on PUT, and rclone
+        # (1.60.1 from the Ubuntu repo, and master at the time of
+        # writing) reads the object back with `HEAD <key>?versionId=…`,
+        # which R2 answers with `501 NotImplemented`. rclone counts
+        # the copy as failed and retries it, so every upload logged a
+        # false ERROR and burned its first attempt.
+        #
+        # What still guards integrity without the HEAD (rclone 1.60.1,
+        # backend/s3/s3.go `Object.Update`): a single-part PUT (below
+        # the 200 MiB `upload_cutoff`) carries `Content-MD5`, so R2
+        # rejects a corrupted body, and rclone takes the ETag from the
+        # PUT response for its post-copy hash comparison. Multipart
+        # uploads send `Content-MD5` per part, but their size and
+        # final ETag are assumed rather than read back. That gap is
+        # what the snapshot's verify step closes: it runs
+        # `rclone check --one-way` for every uploaded source against a fresh
+        # listing before `latest.txt` is promoted (see
+        # `render_snapshot_script`).
+        #
+        # Reads are unaffected: objects from a plain listing carry no
+        # version ID, so the restore's `rclone sync`/`copyto` from R2
+        # never send `?versionId`.
+        "no_head = true\n"
     )
 
 
