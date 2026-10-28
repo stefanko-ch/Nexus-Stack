@@ -117,3 +117,21 @@ def test_every_caller_holds_the_lock_it_relies_on(name: str, job: dict[str, Any]
     assert _load(name)["concurrency"]["group"] == "infrastructure"
     # Without it the call would join the caller's own group: a deadlock.
     assert (job.get("with") or {}).get(LOCK_INPUT) is True
+
+
+# A run waiting on the group has status `pending`, which is neither
+# `queued` nor `in_progress`. Both places that ask "is a lifecycle run
+# active?" must count it, or the dashboard re-enables Spin Up (and a second
+# dispatch cancels the waiting run) and the scheduled-teardown worker reads
+# the state from an older completed run.
+_REPO = WORKFLOWS.parents[1]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["control-plane/functions/api/status.js", "control-plane/worker/src/index.js"],
+)
+def test_active_run_checks_count_a_waiting_run(path: str) -> None:
+    source = (_REPO / path).read_text()
+    assert "r.status !== 'completed'" in source
+    assert "r.status === 'queued'" not in source

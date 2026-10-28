@@ -205,7 +205,11 @@ export async function onRequestGet(context) {
     let runningFamily = null;
     for (const family of FAMILY_ORDER) {
       const r = workflows[family];
-      if (r && (r.status === 'in_progress' || r.status === 'queued')) {
+      // Anything not completed is active. A run waiting on the
+      // `infrastructure` concurrency group is `pending` (#801), not
+      // `queued`; missing it would re-enable Spin Up, and a second
+      // dispatch cancels the waiting run.
+      if (r && r.status !== 'completed') {
         runningFamily = family;
         break;
       }

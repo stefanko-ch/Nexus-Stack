@@ -144,10 +144,16 @@ spin-up calls it as part of their own run: it then takes a group of its own and
 relies on its caller, which already holds `infrastructure`. Joining the caller's
 group would deadlock.
 
-GitHub keeps at most **one** waiting run per group. A third dispatch replaces the
-waiting one, which is cancelled. So a teardown queued behind a spin-up is lost if
-somebody dispatches another spin-up before it starts; check the Actions tab rather
-than dispatching again when a run seems slow.
+GitHub keeps at most **one** waiting run per group by default. A third dispatch
+replaces the waiting one, which is cancelled. So a teardown queued behind a spin-up
+is lost if somebody dispatches another spin-up before it starts; check the Actions
+tab rather than dispatching again when a run seems slow. The Control Plane counts a
+waiting run as running, so its buttons stay locked until it has finished.
+
+GitHub's `queue: max` setting would keep up to 100 waiting runs instead. These
+workflows do not use it yet: the actionlint version pinned in
+`.pre-commit-config.yaml` rejects the key, and whether the Forgejo runner that also
+runs these workflows accepts it has not been checked.
 
 ## Teardown is not Destroy All
 
