@@ -277,6 +277,7 @@ import StackTable from '../components/StackTable.astro';
     localStorage.setItem(VIEW_KEY, 'list');
   } else if (urlParams.get('filter') === 'proven') {
     currentFilter = 'proven';
+    currentView = 'list';
   }
   document.getElementById('filter-proven').setAttribute('aria-pressed', currentFilter === 'proven');
   const initialQuery = urlParams.get('q') || '';
@@ -286,12 +287,22 @@ import StackTable from '../components/StackTable.astro';
   if (initialQuery) document.getElementById('stacks-search').value = initialQuery;
 
   // Event wiring
-  document.getElementById('view-grid').addEventListener('click', function() { setView('grid'); });
+  // The grid counts per category, and a category card opens the
+  // unfiltered category page, so the Proven only filter lives in the list
+  // view: turning it on switches there, and switching to the grid drops it.
+  document.getElementById('view-grid').addEventListener('click', function() {
+    if (currentFilter === 'proven') {
+      currentFilter = null;
+      document.getElementById('filter-proven').setAttribute('aria-pressed', false);
+    }
+    setView('grid');
+  });
   document.getElementById('view-list').addEventListener('click', function() { setView('list'); });
   document.getElementById('filter-proven').addEventListener('click', function() {
     currentFilter = currentFilter === 'proven' ? null : 'proven';
     this.setAttribute('aria-pressed', currentFilter === 'proven');
-    applyFilterAndRender();
+    if (currentFilter === 'proven') setView('list');
+    else applyFilterAndRender();
   });
 
   let searchTimer;

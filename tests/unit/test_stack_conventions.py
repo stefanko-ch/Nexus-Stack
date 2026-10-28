@@ -883,10 +883,9 @@ def _is_exact(image: str) -> bool:
     """
     if "@" in image:
         return True
-    tail = image.rsplit("/", 1)[-1]
-    if ":" not in tail:
+    if _is_floating(image):  # `1.2.3-latest` starts like a release and moves
         return False
-    repo, tag = tail.rsplit(":", 1)
+    repo, tag = image.rsplit("/", 1)[-1].rsplit(":", 1)
     if _EXACT_TAG.match(tag):
         return True
     return repo in TWO_PART_VERSION_REPOS and bool(_TWO_PART_TAG.match(tag))
@@ -1046,6 +1045,7 @@ def test_exactness_check_tells_releases_from_release_lines() -> None:
     assert not _is_exact("grafana/grafana:11.6")
     assert not _is_exact("redis:7.4-alpine")
     assert not _is_exact("codercom/code-server:latest")
+    assert not _is_exact("image:1.2.3-latest")
     assert not _is_exact("redis")
 
 

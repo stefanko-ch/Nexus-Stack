@@ -56,7 +56,7 @@ Core stacks are shown with a **CORE** badge and their toggle is locked.
 
 A few more stacks carry a **PROVEN** badge: code-server, Kestra, Marimo and Spark. They are the ones courses run on, and they are promised to work on every release, across a teardown and restore. Issues about them are fixed first. Unlike core stacks, you can switch them on and off like any other.
 
-Click **Proven only** at the top of the Stacks page to show just these. Every other stack is *best-effort*: available, but not tested before each release. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
+Click **Proven only** at the top of the Stacks page to list just these; it switches to the List view, and switching back to Grid clears the filter. Every other stack is *best-effort*: available, but not tested before each release. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
 
 ## What happens when you disable a stack
 

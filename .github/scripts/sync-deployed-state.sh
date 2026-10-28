@@ -67,9 +67,18 @@ for COL_SQL in \
   "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0" \
   "ALTER TABLE services ADD COLUMN tier TEXT DEFAULT 'best-effort'"; do
-  set +e
-  npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>/dev/null
-  set -e
+  # An existing column is the expected answer on every run after the
+  # first. Anything else is a real failure: the INSERT/UPDATE batches
+  # below name every one of these columns and would fail on a missing
+  # one anyway, later and less clearly. Same handling as migrate_column
+  # in setup-control-plane.yaml.
+  MIGRATE_FAILED=0
+  MIGRATE_ERROR=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>&1) || MIGRATE_FAILED=1
+  if [ "$MIGRATE_FAILED" -ne 0 ] && ! printf '%s' "$MIGRATE_ERROR" | grep -qiE "duplicate column|already exists"; then
+    echo "❌ D1 migration failed: $COL_SQL"
+    echo "   wrangler output: ${MIGRATE_ERROR:-(no output)}"
+    exit 1
+  fi
 done
 echo "  ✅ Schema migrations complete (new columns added or already exist)"
 
