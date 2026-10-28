@@ -131,7 +131,8 @@ container afterwards, so it loads the restored flows and triggers instead of
 what it cached at start.
 
 A server that still has the old `kestra_kestra-data` named volume has it
-copied into the bind mount once, while the directory is empty. The volume is
+copied into the bind mount once, while the directory is empty, with the old
+container stopped first so none of its writes miss the copy. The volume is
 left in place.
 
 ### Authentication & RBAC

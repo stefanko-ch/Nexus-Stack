@@ -154,6 +154,10 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
        and the next teardown would snapshot the empty directory. Copied
        only while the directory is empty, so it never overwrites and
        runs once. The volume itself is left in place, as a fallback.
+       Any container still using the volume is stopped first: on a
+       running server the old container keeps writing to the volume
+       until compose up replaces it, and those writes would miss the
+       copy. compose up starts the stack again right after.
     3. Ownership, per file rather than on the top-level directory only:
        a restore into a directory that already has the right owner
        (a re-run after a spin-up that failed before marking the host)
@@ -169,6 +173,8 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
         f'if [ -z "$(ls -A {p})" ] '
         f"&& OLD_MOUNT=$(docker volume inspect -f '{{{{.Mountpoint}}}}' {vol} 2>/dev/null) "
         f'&& [ -n "$(ls -A "$OLD_MOUNT")" ]; then\n'
+        f"  USERS=$(docker ps -q --filter volume={vol})\n"
+        f'  if [ -n "$USERS" ]; then docker stop $USERS >/dev/null; fi\n'
         f'  cp -a "$OLD_MOUNT"/. {p}/\n'
         f'  echo "  migrated docker volume {old_volume} into {path}"\n'
         f"fi\n"

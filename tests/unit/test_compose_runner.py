@@ -784,6 +784,50 @@ def test_notebook_prep_migrates_once_and_never_overwrites(tmp_path: Path) -> Non
     assert "migrated" not in second.stdout
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_notebook_prep_stops_the_old_container_before_copying(tmp_path: Path) -> None:
+    """On a running server the old container still writes to the volume;
+    it is stopped before the copy, and only when a copy happens."""
+    from nexus_deploy.compose_runner import _render_notebook_prep
+
+    target = tmp_path / "storage"
+    volume = tmp_path / "vols" / "old"
+    volume.mkdir(parents=True)
+    (volume / "flow.yml").write_text("id: x")
+    log = tmp_path / "calls"
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        f'echo "$*" >> {log}\n'
+        f'case "$1" in volume) echo "{volume}" ;; ps) echo abc123 ;;\n'
+        # A stopping container flushes its last writes; they must be copied.
+        f'  stop) echo last > "{volume}/flushed-on-stop" ;; esac\n'
+    )
+    stub.chmod(0o755)
+    whoami = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
+    whoami_g = subprocess.run(["id", "-g"], capture_output=True, text=True).stdout.strip()
+    block = "set -euo pipefail\n" + _render_notebook_prep(
+        str(target), f"{whoami}:{whoami_g}", "old"
+    )
+    env = {**os.environ, "PATH": f"{stub.parent}:{os.environ['PATH']}"}
+
+    first = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert first.returncode == 0, first.stderr
+    assert log.read_text().splitlines() == [
+        "volume inspect -f {{.Mountpoint}} old",
+        "ps -q --filter volume=old",
+        "stop abc123",
+    ]
+    assert (target / "flow.yml").read_text() == "id: x"
+    assert (target / "flushed-on-stop").read_text() == "last\n"
+
+    log.unlink()
+    second = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert second.returncode == 0, second.stderr
+    assert not log.exists()
+
+
 def test_kestra_storage_is_prepared_before_compose_up() -> None:
     """Same block as the notebook stacks, owned by root because Kestra
     runs as root, and migrating the named volume it used before."""
