@@ -1928,6 +1928,10 @@ jobs:
           # SELECT includes api_only; without this ALTER the frontend would 500 until
           # the next spin-up runs sync-deployed-state.sh.
           migrate_column "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0"
+          # tier column for the core / proven / best-effort badge (#712). Same
+          # race as api_only: the frontend's SELECT names it, so it has to exist
+          # before the Pages deploy further down in this job.
+          migrate_column "ALTER TABLE services ADD COLUMN tier TEXT DEFAULT 'best-effort'"
 
           # Store domain in D1 config (escape single quotes)
           ESCAPED_DOMAIN=${DOMAIN//\'/\'\'}

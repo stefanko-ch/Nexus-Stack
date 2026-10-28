@@ -18,15 +18,27 @@
 #            management plane. Note the cost: the stack includes a
 #            privileged docker-in-docker container, so every server runs
 #            one whether or not anybody uses Actions.
-# - gitea: Self-hosted Git service
 # - grafana: Observability platform
 # - infisical: Required for secret management
 # - portainer: Always-on Docker dashboard for diagnosing container state.
 #              When something goes wrong (restart-loop, OOM, port collision,
 #              image pull failure) Portainer is the operator's first stop —
 #              shouldn't require an opt-in to be there when you need it.
+# - sftpgo: Always-on browser for the deployment's object storage.
 # These services are automatically enabled during initial setup and cannot be
 # disabled from the Control Plane.
+#
+# TIERS (tier: proven):
+# Every stack is in one of three tiers; docs/concepts/stacks.md says what
+# each one promises.
+# - core: `core: true` above. Never set `tier` on a core service.
+# - proven: `tier: proven`. Promised to work on every release, across a
+#           teardown and restore, and handled first. The automated release
+#           test is still to come (#712); until then that check is manual.
+#           Every image, Dockerfile base and Python package is an exact
+#           version, which the convention tests do enforce already.
+# - best-effort: no `tier` field. Available, with no release test.
+# tests/unit/test_stack_conventions.py enforces the rules.
 #
 # CATEGORIES:
 # - core: Core Infrastructure
@@ -169,13 +181,14 @@ services:
     description: "VS Code in the browser for remote development."
     long_description: "Code Server runs VS Code on a remote server, accessible through your browser. Full VS Code experience including extensions, terminal, Git integration, and IntelliSense. Access your development environment from any device with a consistent setup."
     # The built image, not its base. `stacks/code-server/Dockerfile` starts
-    # FROM codercom/code-server:latest and adds the nexus-venv, so the
+    # FROM codercom/code-server and adds the nexus-venv, so the
     # container never runs the upstream image. Declaring the base would put
     # a name into IMAGE_CODE_SERVER that Compose then tags the local build
     # with — masquerading, and it made services.yaml describe an image that
     # is never pulled. Matches dagster, dinky, flink, marimo, sling and
     # spark, which all declare their `nexus-` build.
-    image: "nexus-code-server:latest"
+    image: "nexus-code-server:4.143.1"
+    tier: proven
 
   crawl4ai:
     subdomain: "crawl4ai"
@@ -385,7 +398,7 @@ services:
       # retags every other stack that uses it — and, because support
       # images are merged last, also overrides the image of any service
       # with the same name.
-      forgejo-postgres: "postgres:17-alpine"
+      forgejo-postgres: "postgres:17.11-alpine"
 
   forgejo-runner:
     # internal_only, with no subdomain and no port. A runner listens on
@@ -457,12 +470,12 @@ services:
     website: "https://grafana.com"
     description: "Observability platform for metrics, logs, and traces visualization."
     long_description: "Grafana is the open-source observability platform. Visualize metrics from Prometheus, logs from Loki, and traces in customizable dashboards. Includes alerting, annotations, and a rich plugin ecosystem. Deployed with Prometheus, Loki, Promtail, cAdvisor, and Node Exporter."
-    image: "grafana/grafana:11.6"
+    image: "grafana/grafana:11.6.16"
     support_images:
       prometheus: "prom/prometheus:v3.9.1"
-      loki: "grafana/loki:3"
-      promtail: "grafana/promtail:3"
-      cadvisor: "ghcr.io/google/cadvisor:0.56"
+      loki: "grafana/loki:3.7.9"
+      promtail: "grafana/promtail:3.6.8"
+      cadvisor: "ghcr.io/google/cadvisor:0.56.2"
       node-exporter: "prom/node-exporter:v1.10.2"
 
   hedgedoc:
@@ -513,8 +526,8 @@ services:
     long_description: "Infisical is an open-source secret management platform. Centralize secrets, environment variables, and API keys across your entire infrastructure. Features include versioning, audit logs, access controls, secret rotation, and integrations with Docker, Kubernetes, and CI/CD systems."
     image: "infisical/infisical:v0.155.5"
     support_images:
-      infisical-postgres: "postgres:18-alpine"
-      infisical-redis: "redis:7-alpine"
+      infisical-postgres: "postgres:18.6-alpine"
+      infisical-redis: "redis:7.4.12-alpine"
 
   hue:
     subdomain: "hue"
@@ -657,9 +670,10 @@ services:
     website: "https://kestra.io"
     description: "Open-source orchestration and scheduling platform for data pipelines and workflows."
     long_description: "Kestra is an orchestration platform for scheduling and managing complex workflows. Define pipelines in YAML, use 500+ plugins for integrations, and orchestrate data pipelines, microservices, and business processes. Features a visual flow editor, real-time monitoring, and built-in secret management."
-    image: "kestra/kestra:v2.0"
+    image: "kestra/kestra:v2.0.8"
+    tier: proven
     support_images:
-      kestra-postgres: "postgres:18-alpine"
+      kestra-postgres: "postgres:18.6-alpine"
 
   langfuse:
     subdomain: "langfuse"
@@ -750,7 +764,8 @@ services:
     website: "https://marimo.io"
     description: "Reactive Python notebook with SQL + Spark Connect support, reproducible and git-friendly."
     long_description: "Marimo is a reactive Python notebook that automatically re-executes dependent cells when you modify code. Notebooks are stored as pure Python files (git-friendly), support SQL natively, and can be deployed as interactive web apps. Pre-wired to talk to the Spark cluster via Spark Connect (sc://spark-connect:15002) — pyspark[connect] + ibis-framework[pyspark] are pre-installed."
-    image: "nexus-marimo:latest-sql-spark"
+    image: "nexus-marimo:0.23.4-sql-spark"
+    tier: proven
 
   meilisearch:
     subdomain: "meilisearch"
@@ -1228,6 +1243,7 @@ services:
     description: "Distributed data processing engine with standalone cluster (Master + Worker)."
     long_description: "Apache Spark is a multi-language engine for large-scale data processing. Run batch and streaming workloads with SQL, Python, Scala, or R. This deployment includes a standalone cluster with Master and Worker nodes, accessible via the Spark Web UI and connected to Jupyter notebooks."
     image: "nexus-spark:4.2.0-python3.13"
+    tier: proven
     support_images:
       spark-worker: "nexus-spark:4.2.0-python3.13"
 

@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS services (
     long_description TEXT DEFAULT '',
     landing_path TEXT DEFAULT '',
     api_only INTEGER DEFAULT 0,
+    -- 'core', 'proven' or 'best-effort' (#712), derived from services.yaml
+    tier TEXT DEFAULT 'best-effort',
     updated_at TEXT DEFAULT (datetime('now'))
 );
 

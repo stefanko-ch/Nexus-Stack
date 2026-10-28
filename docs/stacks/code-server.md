@@ -6,6 +6,8 @@ title: "code-server"
 
 ![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)
 
+> **Tier: proven** — promised to work on every release, across a teardown and restore, and fixed first. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
+
 **VS Code in the browser, pre-loaded with dbt + DuckDB**
 
 Run VS Code on a remote server and access it through the browser. Provides a consistent development environment accessible from any device. Features include:
@@ -104,19 +106,21 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 
 **In the `/opt/nexus-venv` Python venv** (auto-activated in every terminal):
 
+Every package is pinned, dependencies included, in `stacks/code-server/requirements.txt`, compiled from the top-level list in `requirements.in`. code-server is a `proven` stack ([what that promises](../concepts/stacks.md#what-each-tier-promises)), so a rebuild installs exactly these versions; bumping one means recompiling the file (the command is in its header).
+
 | Tool | Version | Purpose |
 |---|---|---|
-| `dbt-core` | latest from PyPI | Data build tool engine |
-| `dbt-postgres` | latest from PyPI | Adapter for the Nexus-Stack postgres stack |
-| `dbt-duckdb` | latest from PyPI | Adapter for local DuckDB targets |
-| `dbt-clickhouse` | latest from PyPI | Adapter for the Nexus-Stack clickhouse stack (official `clickhouse/clickhouse-server` image) |
-| `dbt-spark` | latest from PyPI | Adapter for **external** Spark clusters (Thrift / ODBC / session modes). See "Spark caveat" below — not pre-wired to the Nexus-Stack spark stack. |
-| `dbt-trino` | latest from PyPI | Adapter for the Nexus-Stack trino stack (official `trinodb/trino` image; catalogs: clickhouse + postgresql) |
-| `dbt-databricks` | latest from PyPI | Adapter only — see "Databricks caveat" below. The adapter is installed, but credentials are NOT auto-injected into code-server. |
-| `jupyterlab` + `jupysql` | latest | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
-| `polars` | latest | Fast Rust-backed dataframes |
-| `plotly` | latest | Charting |
-| `duckdb` (Python) | latest | Python bindings (separate from the CLI binary below) |
+| `dbt-core` | `1.12.5` | Data build tool engine |
+| `dbt-postgres` | `1.11.0` | Adapter for the Nexus-Stack postgres stack |
+| `dbt-duckdb` | `1.11.1` | Adapter for local DuckDB targets |
+| `dbt-clickhouse` | `1.10.3` | Adapter for the Nexus-Stack clickhouse stack (official `clickhouse/clickhouse-server` image) |
+| `dbt-spark` | `1.10.3` | Adapter for **external** Spark clusters (Thrift / ODBC / session modes). See "Spark caveat" below — not pre-wired to the Nexus-Stack spark stack. |
+| `dbt-trino` | `1.11.0` | Adapter for the Nexus-Stack trino stack (official `trinodb/trino` image; catalogs: clickhouse + postgresql) |
+| `dbt-databricks` | `1.12.8` | Adapter only — see "Databricks caveat" below. The adapter is installed, but credentials are NOT auto-injected into code-server. |
+| `jupyterlab` + `jupysql` | `4.6.4` / `0.11.1` | Notebook UI + SQL magic cells (`%sql`, `%%sql`) |
+| `polars` | `2.1.0` | Fast Rust-backed dataframes |
+| `plotly` | `7.1.0` | Charting |
+| `duckdb` (Python) | `2.0.0` | Python bindings (separate from the CLI binary below) |
 
 **System binaries** (installed via apt / direct download into `/usr/local/bin`, not in the venv):
 
@@ -129,22 +133,22 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 
 **Databricks caveat:** `dbt-databricks` is installed, but the adapter alone does not give you authenticated access. The Nexus-Stack Databricks integration (Control Plane → Databricks page → KV-stored `databricks_host` + `databricks_token`; `/api/databricks-sync` worker) pushes Infisical secrets *into* a Databricks scope so notebooks running **on** Databricks can read them — it does **not** inject `databricks_host` / `databricks_token` into code-server (or any local stack). To use `dbt-databricks` here, save host + token in the Control Plane's Databricks page, then add them to `~/.dbt/profiles.yml` manually (copy from the Control Plane's KV view).
 
-**Why `/opt/` instead of `~`?** code-server's `docker-compose.yml` mounts the persistent home `/mnt/nexus-data/code-server/home` at `/home/coder`. Anything the image puts at `/home/coder/<X>` is **masked** by that mount on every container start, so a rebuilt image's freshly-installed venv would never reach an existing home — students would be stuck on whatever version was installed when their home was first created. Putting the venv at `/opt/nexus-venv` keeps it outside the mount: every image rebuild guarantees the latest venv reaches every container, fresh or not.
+**Why `/opt/` instead of `~`?** code-server's `docker-compose.yml` mounts the persistent home `/mnt/nexus-data/code-server/home` at `/home/coder`. Anything the image puts at `/home/coder/<X>` is **masked** by that mount on every container start, so a rebuilt image's freshly-installed venv would never reach an existing home — students would be stuck on whatever version was installed when their home was first created. Putting the venv at `/opt/nexus-venv` keeps it outside the mount: every image rebuild guarantees the image's venv reaches every container, fresh or not.
 
 **How the auto-activation is wired:** the activate-line is appended to `~/.bashrc` by the compose entrypoint on container start (idempotent — only adds if not already present). `~/.bashrc` lives in the persistent home, so the line persists across restarts. We can't use `/etc/bash.bashrc` here because code-server launches its xterm with `bash --init-file …` (VS Code's shellIntegration-bash.sh), and bash explicitly skips `/etc/bash.bashrc` when an `--init-file` is given — the init-file sources `~/.bashrc` only.
 
-**Version stability note:** all Python packages above are pulled at **latest** on every image rebuild; the DuckDB CLI is pinned since DuckDB 2.0 renamed its release assets and the unpinned download broke the build. Trade-off: stays current with security fixes and new features, but new minor/major versions may introduce breaking changes mid-semester if you trigger a rebuild during a course run. If you want reproducibility for a specific semester, add explicit constraints in `stacks/code-server/Dockerfile` (e.g. `dbt-core>=1.9,<1.10`) and rebuild — the image then constrains the venv contents to that range until you change them again. Note: range constraints don't fully lock — patch releases and transitive dependencies can still drift between rebuilds. For a fully reproducible venv, use exact pins (`==1.9.7`) or a `constraints.txt` / lock file passed to `uv pip install`.
+**Version stability note:** the base image (`codercom/code-server:4.143.1`), every Python package in the venv (`requirements.txt`) and the DuckDB CLI are pinned to exact versions, so rebuilding the image mid-semester installs the same tools as before. To upgrade, edit `requirements.in` or the `FROM` line, recompile `requirements.txt`, and test the stack before a course depends on it. System packages from `apt` are not pinned: they follow the base image's Debian 13 security updates.
 
 The venv is **image-baked** at `/opt/nexus-venv` — not in your workspace. So `dbt` works immediately when you open a terminal:
 
 ```bash
 # In code-server's terminal — venv is already active
 (nexus-venv) coder@code-server:~$ dbt --version
-Core: 1.x  (latest from PyPI at image build time)
+Core: 1.12.5
 Plugins: postgres 1.x, duckdb 1.x, clickhouse 1.x, spark 1.x, trino 1.x, databricks 1.x
 
 (nexus-venv) coder@code-server:~$ duckdb
-v1.x.x ...
+v2.0.0 ...
 D
 ```
 

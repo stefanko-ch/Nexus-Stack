@@ -69,14 +69,14 @@ export async function onRequestGet(context) {
     let stmt;
     if (categoryFilter) {
       stmt = env.NEXUS_DB.prepare(`
-        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only
+        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only, tier
         FROM services
         WHERE category = ?
         ORDER BY name
       `).bind(categoryFilter);
     } else {
       stmt = env.NEXUS_DB.prepare(`
-        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only
+        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only, tier
         FROM services
         ORDER BY name
       `);
@@ -119,6 +119,7 @@ export async function onRequestGet(context) {
         long_description: row.long_description || '',
         landing_path: row.landing_path || '',
         api_only: row.api_only === 1,
+        tier: row.tier || 'best-effort',
         enabled,
         deployed,
         pending: hasPendingChange,

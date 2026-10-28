@@ -157,6 +157,7 @@ body.run-locked .toggle-switch::after {
 }
 
 .badge-core { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.3); }
+.badge-proven { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .badge-admin { background: rgba(136, 136, 136, 0.2); color: #888; border: 1px solid rgba(136, 136, 136, 0.3); }
 .badge-public { background: rgba(255, 170, 0, 0.2); color: var(--warning); border: 1px solid rgba(255, 170, 0, 0.3); }
 .badge-internal { background: rgba(0, 170, 255, 0.15); color: var(--info); border: 1px solid rgba(0, 170, 255, 0.3); }

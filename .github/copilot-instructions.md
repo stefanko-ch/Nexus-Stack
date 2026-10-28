@@ -23,7 +23,7 @@ Nexus-Stack defaults to **x86 servers** (`cx43`, Intel-shared, 8 vCPU / 16 GB RA
 
 ## 3. Docker image version pinning
 
-Image tags must be pinned to a specific version for anything data-storing or state-bearing (databases, object storage, message brokers, data-lake tooling, pipelines). The few allow-listed exceptions for `:latest` are standalone utilities (drawio, it-tools, wetty, code-server, jupyter, marimo, adminer, excalidraw). Flag unpinned versions outside that exception list.
+Image tags must be pinned to a specific version for anything data-storing or state-bearing (databases, object storage, message brokers, data-lake tooling, pipelines). The few allow-listed exceptions for `:latest` are standalone utilities (drawio, it-tools, wetty, jupyter, adminer, excalidraw, evidence). Flag unpinned versions outside that exception list. Core stacks and `tier: proven` stacks (code-server, kestra, marimo, spark) need one exact release, not a major or minor line such as `17-alpine` or `v2.0`.
 
 ## 4. Factual accuracy against the shipped config
 

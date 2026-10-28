@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${IMAGE_MARIMO:-nexus-marimo:latest-sql-spark}
+    image: ${IMAGE_MARIMO:-nexus-marimo:0.23.4-sql-spark}
     container_name: marimo
     restart: unless-stopped
     # Entrypoint runs as root: (1) chown /app/notebooks to appuser since

@@ -61,7 +61,6 @@ DOCS_DIR = REPO_ROOT / "docs" / "stacks"
 # in neither this list nor a floating tag.
 LATEST_ALLOWED = {
     "adminer",
-    "code-server",
     "drawio",
     "evidence",
     "excalidraw",
@@ -154,7 +153,6 @@ FLOATING_COMPONENTS = {"latest", "main", "nightly", "edge", "dev"}
 # narrower. Already marked `Rolling ⚠️` in docs/stacks/README.md; listed here
 # so the test agrees with the table rather than contradicting it.
 ROLLING_ALLOWED = {
-    "marimo",  # nexus-marimo:latest-sql-spark — locally built, no version tags
     "pg-ducklake",  # pgducklake/pgducklake:18-main
     "prefect",  # prefecthq/prefect:3-latest
 }
@@ -847,8 +845,221 @@ def test_core_services_are_the_documented_five(services: dict[str, Any]) -> None
     core = {name for name, entry in services.items() if entry.get("core")}
     assert core == {"forgejo", "grafana", "infisical", "portainer", "sftpgo"}, (
         f"core services changed to {sorted(core)}. That is a deliberate decision; "
-        f"update this test and the docs together."
+        f"update this test and the docs (including the tier table in "
+        f"docs/stacks/README.md) together."
     )
+
+
+# ---------------------------------------------------------------------------
+# Stack tiers (#712): core / proven / best-effort
+# ---------------------------------------------------------------------------
+
+# The only value `tier` may take. `core` comes from `core: true` and
+# best-effort is the absence of the field, so neither is spelled out.
+VALID_TIERS = {"proven"}
+
+# Repositories whose release versions have two parts, so `17.11` is a
+# full release and not a minor line. PostgreSQL dropped the third
+# component with version 10.
+TWO_PART_VERSION_REPOS = {"postgres"}
+
+_EXACT_TAG = re.compile(r"^v?\d+\.\d+\.\d+")
+_TWO_PART_TAG = re.compile(r"^\d+\.\d+(?:-|$)")
+
+
+def _tiered(services: dict[str, Any]) -> list[str]:
+    """Services that carry a release promise: core and proven."""
+    return sorted(
+        name for name, entry in services.items() if entry.get("core") or entry.get("tier")
+    )
+
+
+def _is_exact(image: str) -> bool:
+    """An image reference that names one release, not a line of them.
+
+    Stricter than `not _is_floating`: `17-alpine`, `v2.0` and `11.6` are
+    deliberate major or minor pins and pass that check, but each still
+    pulls a different image whenever upstream ships a patch.
+    """
+    if "@" in image:
+        return True
+    tail = image.rsplit("/", 1)[-1]
+    if ":" not in tail:
+        return False
+    repo, tag = tail.rsplit(":", 1)
+    if _EXACT_TAG.match(tag):
+        return True
+    return repo in TWO_PART_VERSION_REPOS and bool(_TWO_PART_TAG.match(tag))
+
+
+def _dockerfile_instructions(dockerfile: Path) -> list[str]:
+    """The instructions of a Dockerfile, continuation lines joined."""
+    instructions: list[str] = []
+    current = ""
+    for raw in dockerfile.read_text().splitlines():
+        line = raw.strip()
+        if not current and (not line or line.startswith("#")):
+            continue
+        if current and line.startswith("#"):
+            continue
+        if line.endswith("\\"):
+            current += line[:-1] + " "
+            continue
+        instructions.append(current + line)
+        current = ""
+    if current:
+        instructions.append(current)
+    return instructions
+
+
+# pip / uv options that take a value, so the next token is not a package.
+_PIP_VALUE_OPTIONS = {"--python", "-c", "--constraint", "--index-url", "--extra-index-url"}
+
+
+def _unpinned_python_packages(dockerfile: Path) -> list[str]:
+    """Packages a `pip install` / `uv pip install` names without `==`.
+
+    A `-r` file is read too, so pinning by lock file passes and an
+    unpinned line inside it does not. Its path is the one inside the
+    image, so it is traced back through the `COPY` that put it there.
+    """
+    unpinned: list[str] = []
+    copied: dict[str, str] = {}
+    for instruction in _dockerfile_instructions(dockerfile):
+        if instruction.startswith("COPY "):
+            parts = [p for p in instruction.split()[1:] if not p.startswith("--")]
+            if len(parts) == 2:
+                copied[parts[1]] = parts[0]
+            continue
+        if not instruction.startswith("RUN "):
+            continue
+        for command in re.split(r"&&|;", instruction[4:]):
+            tokens = shlex.split(command)
+            if "install" not in tokens or "pip" not in tokens:
+                continue
+            args = tokens[tokens.index("install") + 1 :]
+            skip_next = False
+            for i, token in enumerate(args):
+                if skip_next:
+                    skip_next = False
+                    continue
+                if token in ("-r", "--requirement"):
+                    in_image = args[i + 1]
+                    requirements = dockerfile.parent / copied.get(in_image, in_image)
+                    unpinned += [
+                        f"{requirements.name}: {line}"
+                        for line in requirements.read_text().splitlines()
+                        if line.strip() and not line.startswith("#") and "==" not in line
+                    ]
+                    skip_next = True
+                elif token in _PIP_VALUE_OPTIONS:
+                    skip_next = True
+                elif not token.startswith("-") and "==" not in token:
+                    unpinned.append(token)
+    return unpinned
+
+
+def test_tier_takes_only_known_values(services: dict[str, Any]) -> None:
+    bad = {
+        name: entry["tier"]
+        for name, entry in services.items()
+        if "tier" in entry and entry["tier"] not in VALID_TIERS
+    }
+    assert not bad, (
+        f"unknown tier values {bad}. `tier: proven` is the only one; best-effort "
+        f"is the absence of the field and core comes from `core: true`."
+    )
+
+
+def test_core_services_set_no_tier(services: dict[str, Any]) -> None:
+    both = sorted(n for n, e in services.items() if e.get("core") and "tier" in e)
+    assert not both, f"{both} are core and also set `tier`; core already is the top tier."
+
+
+def test_proven_services_are_the_documented_set(services: dict[str, Any]) -> None:
+    """The stacks courses run on. A deliberate list, like the core five.
+
+    Kept small on purpose: the promise is a release test across a teardown
+    and restore, which has to fit on one server next to core and finish in
+    reasonable time. Adding a stack here is adding to that test.
+    """
+    proven = {name for name, entry in services.items() if entry.get("tier") == "proven"}
+    assert proven == {"code-server", "kestra", "marimo", "spark"}, (
+        f"proven services changed to {sorted(proven)}. That is a deliberate decision; "
+        f"update this test, docs/concepts/stacks.md and docs/stacks/README.md together."
+    )
+
+
+@pytest.mark.parametrize("name", _tiered(SERVICES))
+def test_tiered_images_are_exact_versions(name: str, services: dict[str, Any]) -> None:
+    """A release promise cannot hold for an image that moves after the release."""
+    entry = services[name]
+    images = {"image": str(entry.get("image", ""))}
+    images.update({k: str(v) for k, v in (entry.get("support_images") or {}).items()})
+    loose = {key: image for key, image in images.items() if image and not _is_exact(image)}
+    assert not loose, (
+        f"{name} is core or proven but {loose} name a line of releases, not one "
+        f"release. Pin each to an exact version."
+    )
+
+
+@pytest.mark.parametrize("name", _tiered(SERVICES))
+def test_tiered_dockerfiles_build_from_exact_versions(name: str) -> None:
+    """A locally built image is only as fixed as what it is built from.
+
+    The `nexus-` tag in services.yaml is a name for the local build, so it
+    proves nothing; the base image and every Python package do.
+    """
+    dockerfiles = sorted((STACKS_DIR / name).glob("Dockerfile*"))
+    if not dockerfiles:
+        pytest.skip(f"{name} builds no image of its own")
+    for dockerfile in dockerfiles:
+        stage_names: set[str] = set()
+        for instruction in _dockerfile_instructions(dockerfile):
+            if not instruction.startswith("FROM "):
+                continue
+            parts = [p for p in instruction.split()[1:] if not p.startswith("--")]
+            base = parts[0]
+            if len(parts) >= 3 and parts[1].upper() == "AS":
+                stage_names.add(parts[2])
+            if base in stage_names:
+                continue
+            assert _is_exact(base), (
+                f"{dockerfile.relative_to(REPO_ROOT)} builds FROM {base!r}, which moves. "
+                f"Pin the base image to an exact version."
+            )
+        unpinned = _unpinned_python_packages(dockerfile)
+        assert not unpinned, (
+            f"{dockerfile.relative_to(REPO_ROOT)} installs Python packages without an "
+            f"exact version: {unpinned}. Pin each with ==, or install from a lock file."
+        )
+
+
+def test_exactness_check_tells_releases_from_release_lines() -> None:
+    """The helpers above, against the shapes they have to tell apart."""
+    assert _is_exact("kestra/kestra:v2.0.8")
+    assert _is_exact("postgres:17.11-alpine")
+    assert _is_exact("nexus-spark:4.2.0-python3.13")
+    assert _is_exact("img@sha256:" + "0" * 64)
+    assert not _is_exact("kestra/kestra:v2.0")
+    assert not _is_exact("postgres:17-alpine")
+    assert not _is_exact("grafana/grafana:11.6")
+    assert not _is_exact("redis:7.4-alpine")
+    assert not _is_exact("codercom/code-server:latest")
+    assert not _is_exact("redis")
+
+
+def test_unpinned_python_packages_are_found(tmp_path: Path) -> None:
+    (tmp_path / "requirements.txt").write_text("# header\nagate==1.9.1\nloose\n")
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "FROM python:3.13.5-slim\n"
+        "COPY requirements.txt /tmp/requirements.txt\n"
+        "# a comment\n"
+        'RUN pip install --no-cache-dir \\\n    "pyspark[connect]==4.2.0" \\\n    polars && \\\n'
+        "    uv pip install --python /opt/venv/bin/python -r /tmp/requirements.txt\n"
+    )
+    assert _unpinned_python_packages(dockerfile) == ["polars", "requirements.txt: loose"]
 
 
 # Hosts a shipped Evidence source may name without being defined in

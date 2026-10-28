@@ -35,7 +35,7 @@ Disabling a stack reverses every one of those steps. Nothing is left behind on C
 Every stack Docker Compose file uses an environment variable default pattern:
 
 ```yaml
-image: ${IMAGE_GRAFANA:-grafana/grafana:11.6}
+image: ${IMAGE_GRAFANA:-grafana/grafana:11.6.16}
 ```
 
 The tag shown in each table below is the value Nexus Stack ships with **right now** on `main`. Tags fall into three buckets:
@@ -46,7 +46,7 @@ The tag shown in each table below is the value Nexus Stack ships with **right no
 
 You override any image via the matching `IMAGE_*` environment variable in your deployment — useful for pinning `:latest` stacks to a specific version, or for testing a pre-release tag.
 
-Some images are maintained by Nexus Stack itself rather than pulled from a public registry. Most use the `nexus-*` prefix (e.g. `nexus-flink:1.20.1`, `nexus-spark:4.2.0-python3.13`, `nexus-dagster:1.12.21`, `nexus-dinky:1.2.5-flink1.20`, `nexus-sling:1.5.13`, `nexus-code-server:latest`). A small number of local-build variants use descriptive names without the prefix — most notably **`soda-core:3.3.7`**, where Soda's official image is x86-only and Nexus Stack ships a multi-arch rebuild via Python + pip. All of these Dockerfiles live in the Nexus-Stack repo, layer Python/Java dependencies on top of upstream base images, and are built on the Hetzner server during Initial Setup. They build correctly on both ARM (cax) and x86 (cpx) server types. Most get that for free from multi-arch base images; the two that download a pre-built binary — `nexus-sling` and the DuckDB CLI inside `nexus-code-server` — select the matching artefact at build time via `dpkg --print-architecture` / `uname -m`.
+Some images are maintained by Nexus Stack itself rather than pulled from a public registry. Most use the `nexus-*` prefix (e.g. `nexus-flink:1.20.1`, `nexus-spark:4.2.0-python3.13`, `nexus-dagster:1.12.21`, `nexus-dinky:1.2.5-flink1.20`, `nexus-sling:1.5.13`, `nexus-code-server:4.143.1`). A small number of local-build variants use descriptive names without the prefix — most notably **`soda-core:3.3.7`**, where Soda's official image is x86-only and Nexus Stack ships a multi-arch rebuild via Python + pip. All of these Dockerfiles live in the Nexus-Stack repo, layer Python/Java dependencies on top of upstream base images, and are built on the Hetzner server during Initial Setup. They build correctly on both ARM (cax) and x86 (cpx) server types. Most get that for free from multi-arch base images; the two that download a pre-built binary — `nexus-sling` and the DuckDB CLI inside `nexus-code-server` — select the matching artefact at build time via `dpkg --print-architecture` / `uname -m`.
 
 ## Authentication
 
@@ -124,7 +124,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | Stack | Image | Description |
 |-------|-------|-------------|
 | **[Dagster](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/dagster.md)** | `nexus-dagster:1.12.21` | Python orchestrator built around Software-Defined Assets and data lineage. Great fit for dbt + Python analytics stacks. Uses a Nexus-built image that layers your dependencies on top of the official base. |
-| **[Kestra](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/kestra.md)** | `kestra/kestra:v2.0` | YAML-defined declarative workflow orchestration. Event-driven, plugin-rich, and language-agnostic. Pinned to the Kestra LTS track — the default image already bundles every official plugin (Databricks JDBC, Snowflake, Trino, Postgres, ~15 more). Always protected by Cloudflare Access — it touches every downstream system. |
+| **[Kestra](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/kestra.md)** | `kestra/kestra:v2.0.8` | YAML-defined declarative workflow orchestration. Event-driven, plugin-rich, and language-agnostic. Pinned to a release on the Kestra 2.0 LTS line — the default image already bundles every official plugin (Databricks JDBC, Snowflake, Trino, Postgres, ~15 more). Always protected by Cloudflare Access — it touches every downstream system. |
 | **[Mage](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/mage.md)** | `mageai/mageai:0.9.79` | Notebook-style data pipeline builder. A good middle ground if Dagster feels too abstract and Jupyter feels too loose. |
 | **[n8n](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/n8n.md)** | `n8nio/n8n:1.123.75` | Fair-code workflow automation — Zapier/Make alternative with 400+ integrations and self-hostable license. The go-to tool for "when X happens, do Y" glue work. |
 | **[Prefect](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/prefect.md)** | `prefecthq/prefect:3-latest` | Python-native orchestrator — flows are plain Python decorated with `@flow`. Deploys a Prefect Server, worker, and UI as separate containers. |
@@ -158,7 +158,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | Stack | Image | Description |
 |-------|-------|-------------|
 | **[Dozzle](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/dozzle.md)** | `amir20/dozzle:v10.5.3` | Realtime Docker logs in the browser. The "no-SSH `docker logs -f`" — pick a container in the sidebar, stream its logs live, search/filter, open multiple in tabs. Subscribes to the Docker socket read-only. Stateless, ~30 MB image. |
-| **[Grafana](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/grafana.md)** | `grafana/grafana:11.6` | The observability stack, bundled: Grafana + Prometheus + Loki + Promtail + cAdvisor + Node Exporter. Ships with pre-provisioned dashboards for Docker containers, Loki logs, and host metrics — working observability out of the box. Always protected. |
+| **[Grafana](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/grafana.md)** | `grafana/grafana:11.6.16` | The observability stack, bundled: Grafana + Prometheus + Loki + Promtail + cAdvisor + Node Exporter. Ships with pre-provisioned dashboards for Docker containers, Loki logs, and host metrics — working observability out of the box. Always protected. |
 | **[Quickwit](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/quickwit.md)** | `quickwit/quickwit:0.8.1` | Rust-based log search engine, designed to store indexes on cheap object storage (S3/MinIO) instead of expensive SSD. Elasticsearch alternative when you have terabytes of logs you rarely query. |
 | **[Telegraf](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/telegraf.md)** | `telegraf:1.38.2` | InfluxData's metrics agent with 300+ input plugins. CLI-only — runs in the background, no web UI. Complements the Grafana stack when you need something Node Exporter doesn't cover. |
 | **[Uptime Kuma](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/uptime-kuma.md)** | `louislam/uptime-kuma:2` | A fancy self-hosted uptime monitor. Beautiful dashboards, Telegram/Slack/Discord alerts, public status pages. The reference "I need monitoring tonight" pick. |
@@ -185,7 +185,7 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 
 | Stack | Image | Description |
 |-------|-------|-------------|
-| **[code-server](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/code-server.md)** | `nexus-code-server:latest` | VS Code in the browser. Nexus-built image preinstalls Python, Node, Docker CLI, and common language servers. Point it at a workspace volume and you have a full cloud IDE. |
+| **[code-server](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/code-server.md)** | `nexus-code-server:4.143.1` | VS Code in the browser. Nexus-built image preinstalls Python, Node, Docker CLI, and common language servers. Point it at a workspace volume and you have a full cloud IDE. |
 | **[CyberChef](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/cyberchef.md)** | `mpepping/cyberchef:v10.24.0` | GCHQ's "Cyber Swiss Army Knife" — drag-and-drop ~400 operations into a recipe (encode/decode/hash/regex/crypto/compress/parse). The container serves static assets only; operations execute client-side in the browser (a small subset like DNS-over-HTTPS or HTTP request deliberately call out). Perfect for decoding JWTs, base64+gzip payloads, or live-demoing format conversions in class. |
 | **[Git Proxy](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/git-proxy.md)** | `nginx:alpine` | Public HTTPS reverse proxy for Gitea, so external tools that can't do Cloudflare Access (Databricks, hosted CI, `git clone` from a random box) can still pull from your repos. |
 | **[Gitea](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/gitea.md)** | `gitea/gitea:1.23` | Self-hosted Git with pull requests, code review, releases, and a built-in Actions runner. The GitHub-at-home experience. PostgreSQL is included as a sibling container. |

@@ -6,6 +6,8 @@ title: "Marimo"
 
 ![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)
 
+> **Tier: proven** — promised to work on every release, across a teardown and restore, and fixed first. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
+
 **Reactive Python notebook with SQL + Spark Connect support**
 
 Marimo is a reactive Python notebook that's reproducible, git-friendly, and deployable as apps. Features include:
@@ -22,7 +24,7 @@ Marimo is a reactive Python notebook that's reproducible, git-friendly, and depl
 | Default Port | `2718` |
 | Suggested Subdomain | `marimo` |
 | Public Access | No (contains notebooks/code) |
-| Image | `nexus-marimo:latest-sql-spark` (custom, see `stacks/marimo/Dockerfile`) |
+| Image | `nexus-marimo:0.23.4-sql-spark` (custom, see `stacks/marimo/Dockerfile`; built `FROM ghcr.io/marimo-team/marimo:0.23.4-sql`) |
 | Website | [marimo.io](https://marimo.io) |
 | Source | [GitHub](https://github.com/marimo-team/marimo) |
 

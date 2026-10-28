@@ -2,6 +2,16 @@
 
 This document provides an overview of all available Docker stacks in Nexus-Stack. Click on any stack name to see detailed documentation.
 
+## Stack Tiers
+
+Every stack is `core`, `proven` or `best-effort`; [What each tier promises](../concepts/stacks.md#what-each-tier-promises) explains the difference. `services.yaml` is the source of truth. `tests/unit/test_stack_conventions.py` fails when the core or proven set there changes, and its message names this table.
+
+| Tier | Stacks |
+|------|--------|
+| **core** | Forgejo, Grafana, Infisical, Portainer, SFTPGo |
+| **proven** | code-server, Kestra, Marimo, Spark |
+| **best-effort** | every other stack |
+
 ## Docker Image Versions
 
 **No stack that holds persistent state is left on `:latest`.** A tag that moved between two spin-ups would meet data written by the previous one, so `latest` is reserved for presentation-layer and dev tools that keep nothing beyond a cache, and for viewers over somebody else's state such as Kafka-UI and S3 Manager.
@@ -29,7 +39,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Chroma | `chromadb/chroma` | `1.5.9` | Exact ¹ |
 | CloudBeaver | `dbeaver/cloudbeaver` | `24` | Major |
 | ClickHouse | `clickhouse/clickhouse-server` | `25.8.16.34` | Exact ¹ |
-| code-server | `nexus-code-server` (custom build) | `latest` | Latest ² |
+| code-server | `nexus-code-server` (custom build) | `4.143.1` | Exact ³ ⁷ |
 | Crawl4AI | `unclecode/crawl4ai` | `0.8.6` | Exact ¹ |
 | CyberChef | `mpepping/cyberchef` | `v10.24.0` | Exact ¹ |
 | Cube | `cubejs/cube` | `v1.7.42` | Exact ¹ |
@@ -43,15 +53,15 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Dozzle | `amir20/dozzle` | `v10.5.3` | Exact ¹ |
 | Draw.io | `jgraph/drawio` | `latest` | Latest ² |
 | DuckDB | `duckdb/duckdb` | `2.0.0` | Exact ¹ |
-| Grafana | `grafana/grafana` | `11.6` | Minor |
+| Grafana | `grafana/grafana` | `11.6.16` | Exact ⁷ |
 | Hive Metastore | `nexus-hive-metastore` (custom build) | `4.1.0` | Exact ³ |
 | PostgreSQL (Hive Metastore DB) | `postgres` | `17-alpine` | Major |
 | Hoppscotch | `hoppscotch/hoppscotch` | `2025.12.1` | Exact ¹ |
 | PostgreSQL (Hoppscotch DB) | `postgres` | `15-alpine` | Major |
 | Prometheus | `prom/prometheus` | `v3.9.1` | Exact ¹ |
-| Loki | `grafana/loki` | `3` | Major |
-| Promtail | `grafana/promtail` | `3` | Major |
-| cAdvisor | `ghcr.io/google/cadvisor` | `0.56` | Minor |
+| Loki | `grafana/loki` | `3.7.9` | Exact ⁷ |
+| Promtail | `grafana/promtail` | `3.6.8` | Exact ⁷ |
+| cAdvisor | `ghcr.io/google/cadvisor` | `0.56.2` | Exact ⁷ |
 | Node Exporter | `prom/node-exporter` | `v1.10.2` | Exact ¹ |
 | Portainer | `portainer/portainer-ce` | `2.40.0` | Exact ¹ |
 | Uptime Kuma | `louislam/uptime-kuma` | `2` | Major |
@@ -62,12 +72,12 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (OpenMetadata DB) | `postgres` | `16-alpine` | Major |
 | Kafdrop | `obsidiandynamics/kafdrop` | `4.2.0` | Exact ¹ |
 | Kafka-UI | `provectuslabs/kafka-ui` | `latest` | Latest ² |
-| Kestra | `kestra/kestra` | `v2.0` | Minor |
-| PostgreSQL (Kestra DB) | `postgres` | `18-alpine` | Major |
+| Kestra | `kestra/kestra` | `v2.0.8` | Exact ⁷ |
+| PostgreSQL (Kestra DB) | `postgres` | `18.6-alpine` | Exact ⁷ |
 | Hue | `gethue/hue` | `20260611-140101` | Exact ¹ |
 | PostgreSQL (Hue DB) | `postgres` | `17-alpine` | Major |
 | Infisical | `infisical/infisical` | `v0.155.5` | Exact ¹ |
-| PostgreSQL (Infisical DB) | `postgres` | `18-alpine` | Major |
+| PostgreSQL (Infisical DB) | `postgres` | `18.6-alpine` | Exact ⁷ |
 | Metabase | `metabase/metabase` | `v0.60.6.2` | Exact ¹ |
 | Mailpit | `axllent/mailpit` | `v1.28` | Minor |
 | IT-Tools | `corentinth/it-tools` | `latest` | Latest ² |
@@ -80,7 +90,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Flink JobManager | `flink` (custom build) | `1.20.1` | Exact ³ |
 | Flink TaskManager | `flink` (custom build) | `1.20.1` | Exact ³ |
 | Forgejo | `codeberg.org/forgejo/forgejo` | `15.0.7` | Exact ¹ |
-| PostgreSQL (Forgejo DB) | `postgres` | `17-alpine` | Major |
+| PostgreSQL (Forgejo DB) | `postgres` | `17.11-alpine` | Exact ⁷ |
 | Forgejo Runner | `data.forgejo.org/forgejo/runner` | `13.0.0` | Exact ¹ |
 | Docker-in-Docker (Forgejo) | `docker` | `29.7.2-dind` | Exact ¹ |
 | nginx (Forgejo Runner git proxy) | `nginx` | `1.30.4-alpine` | Exact |
@@ -107,7 +117,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.8.3` | Exact ¹ |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
-| Marimo | `nexus-marimo` (custom build) | `latest-sql-spark` | Latest ² |
+| Marimo | `nexus-marimo` (custom build) | `0.23.4-sql-spark` | Exact ³ ⁷ |
 | Meilisearch | `getmeili/meilisearch` | `v1.43.1` | Exact ¹ |
 | HedgeDoc | `quay.io/hedgedoc/hedgedoc` | `1.10.3` | Exact ¹ |
 | PostgreSQL (HedgeDoc DB) | `postgres` | `18-alpine` | Major |
@@ -195,6 +205,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 ⁵ No version tags published at all — only `latest`, `lowa`, `trial` and commit SHAs, and the SHA tags are single-arch. Pinned to the digest of the multi-arch manifest list, which keeps amd64 and arm64. Holds state in a volume, so `latest` was not an option.
 
 ⁶ Upstream does publish minor tags (`1.32`), and they are not used on purpose. Temporal Server is upgraded one minor version at a time, with the database schema migrated *before* the new server starts — `temporal-schema-setup` does that migration with the admin-tools image, so the server and admin-tools tags must move together and deliberately. A moving tag would let the running version change on a re-pull without anyone deciding to upgrade. See [temporal.md](temporal.md#upgrading).
+
+⁷ Core or `proven` stack ([what that promises](../concepts/stacks.md#what-each-tier-promises)), so every image is one exact release — no major or minor line, and for a custom build the base image and Python packages too. `tests/unit/test_stack_conventions.py` enforces it.
 
 **Strategies:**
 - **Major** (e.g., `:12`) - Auto-patches, manual major upgrades only
