@@ -147,8 +147,9 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories.ts';
   //   - the poll itself fails, and the error path used to fall back to
   //     "not in progress".
   //
-  // `spin-up.yml` has no concurrency lock, so a second click is a second
-  // provisioning run. The latch says "a dispatch is outstanding" from the
+  // A second click is a second provisioning run: concurrent before #801
+  // gave `spin-up.yml` a concurrency group, queued behind the first since.
+  // The latch says "a dispatch is outstanding" from the
   // click until a poll proves the server has taken over — nothing else
   // clears it except the give-up bound.
   let dispatchLatch = null;   // { family, at }

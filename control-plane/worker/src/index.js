@@ -470,7 +470,11 @@ async function checkInfraStatus(env) {
 
     // Check if any workflow is currently running
     const allRuns = [workflows.initialSetup, workflows.spinUp, workflows.teardown, workflows.destroy].filter(Boolean);
-    const runningWorkflow = allRuns.find(r => r.status === 'in_progress' || r.status === 'queued');
+    // Anything not completed is running, including `pending`: a run
+    // waiting on the `infrastructure` concurrency group (#801). Read as
+    // completed, a waiting spin-up would let an older teardown decide the
+    // state and skip the scheduled teardown as "not deployed".
+    const runningWorkflow = allRuns.find(r => r.status !== 'completed');
 
     if (runningWorkflow) {
       return 'running';

@@ -46,8 +46,8 @@ permissions:
   contents: read
 
 # The group the teardowns, the snapshot spin-up, Initial Setup and
-# destroy-all use, so none of them overlaps an update. spin-up.yml declares
-# no group (#801); the state check below refuses while one runs.
+# destroy-all and a dispatched spin-up.yml use (#801), so none of them
+# overlaps an update. The state check below also refuses while one runs.
 concurrency:
   group: infrastructure
   cancel-in-progress: false
