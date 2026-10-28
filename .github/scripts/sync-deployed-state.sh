@@ -74,10 +74,17 @@ for COL_SQL in \
   # in setup-control-plane.yaml.
   MIGRATE_FAILED=0
   MIGRATE_ERROR=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>&1) || MIGRATE_FAILED=1
-  if [ "$MIGRATE_FAILED" -ne 0 ] && ! printf '%s' "$MIGRATE_ERROR" | grep -qiE "duplicate column|already exists"; then
-    echo "❌ D1 migration failed: $COL_SQL"
-    echo "   wrangler output: ${MIGRATE_ERROR:-(no output)}"
-    exit 1
+  if [ "$MIGRATE_FAILED" -ne 0 ]; then
+    # `case` rather than `grep -q`: an early-exiting reader under
+    # pipefail can fail the pipe on SIGPIPE (test_sigpipe_under_pipefail).
+    case "$(printf '%s' "$MIGRATE_ERROR" | tr '[:upper:]' '[:lower:]')" in
+      *"duplicate column"* | *"already exists"*) ;;
+      *)
+        echo "❌ D1 migration failed: $COL_SQL"
+        echo "   wrangler output: ${MIGRATE_ERROR:-(no output)}"
+        exit 1
+        ;;
+    esac
   fi
 done
 echo "  ✅ Schema migrations complete (new columns added or already exist)"
