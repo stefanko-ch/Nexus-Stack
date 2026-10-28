@@ -43,11 +43,11 @@ Two reasons, and the second is the stronger one.
 
 A restore skips both: cloud-init takes a light path, and the Docker images are already on the disk. Roughly **3 minutes on a small service set**, scaling with the number of images. The cost lands on the teardown (~2 min → ~2.5 min), which runs unattended at 21:00.
 
-**Data coverage.** The R2 persistence layer covers a hard-coded five-stack subset — Postgres dumps for forgejo, dify, hedgedoc and planka, plus filesystem trees for those and metabase. Everything else is discarded on teardown. `s3_restore.standard_targets()` says so directly:
+**Data coverage.** The R2 persistence layer covers a hard-coded subset — Postgres dumps for forgejo, gitea, dify, hedgedoc, planka, unity-catalog, lakekeeper, mlflow and the shared postgres stack, plus filesystem trees for forgejo, gitea, dify, metabase, hedgedoc, planka and duckdb. Everything else is discarded on teardown. `s3_restore.standard_targets()` says so directly:
 
 > Skipping this step means the stack's bind-mount under `/mnt/nexus-data/<stack>/` is purely ephemeral — present across container restarts on the same VM, gone the moment `tofu destroy` re-creates the host.
 
-A disk snapshot captures the whole root disk, so **all ~76 stacks** survive a teardown rather than five. It also needs no per-stack maintenance, where the hard-coded list silently makes every new stack ephemeral until someone remembers to extend it.
+A disk snapshot captures the whole root disk, so **all ~76 stacks** survive a teardown rather than that subset. It also needs no per-stack maintenance, where the hard-coded list silently makes every new stack ephemeral until someone remembers to extend it.
 
 ---
 
@@ -186,7 +186,7 @@ This is the **designed** behaviour, not a fault. A snapshot is only used when it
 - its credential epoch no longer matches
 - its architecture or disk size cannot be satisfied by any available server type
 
-In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the five R2-covered stacks keep their data. The other stacks come back empty — the same as the rebuild path has always behaved.
+In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the R2-covered stacks keep their data. The other stacks come back empty — the same as the rebuild path has always behaved.
 
 The workflow log names the reason.
 

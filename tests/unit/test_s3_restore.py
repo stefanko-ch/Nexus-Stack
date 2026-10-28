@@ -28,9 +28,11 @@ Coverage focus:
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 
 from nexus_deploy import s3_persistence as _s3
 from nexus_deploy.s3_restore import (
@@ -709,3 +711,26 @@ def test_the_runner_stack_is_deliberately_not_persisted() -> None:
     assert not [p for p in postgres if "runner" in p.container]
     assert not [r for r in rsync if "runner" in r.name]
     assert not [f for f in _STANDARD_STOP_COMPOSE_FILES if "forgejo-runner" in f]
+
+
+def test_duckdb_backs_up_the_directory_its_compose_file_mounts() -> None:
+    """The target must be the directory the server writes to, read from
+    the compose file rather than restated, and it must be the whole
+    directory: a stopped server leaves recent writes in `nexus.duckdb.wal`
+    beside a database file that does not contain them yet. Measured on
+    2.0.0: after `docker compose stop`, 100,001 rows lived in an 800 KB
+    WAL next to a 12 KB database file, and a copy of both restored all of
+    them."""
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parents[2] / "stacks/duckdb/docker-compose.yml").read_text(),
+    )
+    mounts = compose["services"]["duckdb"]["volumes"]
+    data_mounts = [m.split(":")[0] for m in mounts if m.split(":")[1] == "/data"]
+
+    _, rsync = standard_targets()
+    target = {r.name: r for r in rsync}["duckdb-data"]
+
+    assert data_mounts == [target.local_path]
+    assert target.s3_subpath == "duckdb/data"
+    # Stopped first, so the file is closed when rclone reads it.
+    assert "/opt/docker-server/stacks/duckdb/docker-compose.yml" in _STANDARD_STOP_COMPOSE_FILES

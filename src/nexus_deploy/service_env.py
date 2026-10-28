@@ -951,6 +951,34 @@ def _render_datacontract_api(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_duckdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """DuckDB server: the Quack token, which is the server's whole access
+    control.
+
+    The compose command passes it to ``quack_serve`` with ``getenv()``.
+    Empty, ``quack_serve`` rejects it (the minimum is four characters) and
+    ``-bail`` stops the container, so nothing would be served unguarded —
+    but that failure only shows up as a restart loop after the deploy has
+    reported success. Failing here names the cause instead.
+
+    Infisical naming reference: ``/duckdb/DUCKDB_QUACK_TOKEN``.
+    """
+    del e
+    if _empty(c.duckdb_quack_token):
+        raise ServiceEnvError(
+            "duckdb enabled but DUCKDB_QUACK_TOKEN (Infisical /duckdb) is "
+            "empty — run `tofu apply` (initial-setup workflow) to generate "
+            "random_password.duckdb_quack_token, then re-run spin-up. "
+            "Aborting rather than starting a server that cannot accept a "
+            "single client.",
+        )
+    return RenderedEnv(
+        env_vars={"DUCKDB_QUACK_TOKEN": c.duckdb_quack_token or ""},
+        # 0600: whoever reads the token can run any SQL on the server.
+        mode=0o600,
+    )
+
+
 def _render_postgrest(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """PostgREST: auto-generated REST API over the shared `postgres` stack.
 
@@ -2982,6 +3010,7 @@ _SPECS: tuple[EnvSpec, ...] = (
         _is_enabled("datacontract-editor"),
         _render_datacontract_editor,
     ),
+    EnvSpec("duckdb", _is_enabled("duckdb"), _render_duckdb),
     EnvSpec("apicurio", _is_enabled("apicurio"), _render_apicurio),
     EnvSpec("streamlit", _is_enabled("streamlit"), _render_streamlit),
     EnvSpec("shiny", _is_enabled("shiny"), _render_shiny),

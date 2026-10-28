@@ -55,6 +55,8 @@
       'DINKY_PASSWORD': 'dinky_admin_password-VALUE',
       'DINKY_USERNAME': 'admin',
     }),
+    'duckdb': dict({
+    }),
     'evidence': dict({
       'EVIDENCE_DB_PASSWORD': 'evidence_db_password-VALUE',
       'EVIDENCE_DB_USERNAME': 'nexus-evidence',

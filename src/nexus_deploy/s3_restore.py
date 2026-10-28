@@ -467,6 +467,16 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             local_path="/mnt/nexus-data/planka/data",
             s3_subpath="planka/data",
         ),
+        # DuckDB: the served database file, its WAL, the downloaded
+        # extensions (HOME=/data) and the spill directory. Not a
+        # PostgresDumpTarget because there is no dump step to run: the
+        # stack is stopped first, and a closed database file plus its WAL
+        # is a consistent copy on its own.
+        _s3.RsyncTarget(
+            name="duckdb-data",
+            local_path="/mnt/nexus-data/duckdb",
+            s3_subpath="duckdb/data",
+        ),
     )
     return postgres, rsync
 
@@ -762,6 +772,11 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/hedgedoc/docker-compose.yml",
     "/opt/docker-server/stacks/planka/docker-compose.yml",
     "/opt/docker-server/stacks/forgejo/docker-compose.yml",
+    # A served DuckDB file copied while the server writes to it is a torn
+    # page file, the same failure as Metabase's H2 above. Under tini the
+    # CLI stops in well under a second, closing the file before rclone
+    # reads it.
+    "/opt/docker-server/stacks/duckdb/docker-compose.yml",
 )
 
 # The runner stack is deliberately absent from both lists. Its bind
