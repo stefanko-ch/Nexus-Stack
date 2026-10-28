@@ -584,12 +584,28 @@ failure in between leaves the server and its data in place. `latest` in R2
 still points at the previous complete snapshot, or at the new one if the
 script on the server finished after the connection dropped.
 
-**What to do.** Dispatch the teardown again. Its snapshot starts every stack
-an earlier attempt stopped and waits for their databases before dumping, so a
-retry dumps the same databases a first attempt would (#937). Before that fix, a
-retry skipped the stopped databases as "not deployed" and still pointed
-`latest` at the result; on a version without it, run a spin-up on the running
-server first, which starts the stacks without restoring anything.
+**What to do.** Dispatch the teardown again. Its snapshot:
+
+- waits until the earlier run's script on the server has finished, if it is
+  still going, instead of racing it for `latest`;
+- starts every stack the earlier attempt stopped, and waits for their
+  databases before dumping, so a retry dumps the same databases a first
+  attempt would (#937);
+- stops with an error rather than skipping a database container that exists
+  but will not run.
+
+**On a version without #937**, a retry skipped the stopped databases as "not
+deployed" and still pointed `latest` at the result. Start the stopped stacks
+first, in each affected stack directory:
+
+```bash
+ssh nexus 'cd /opt/docker-server/stacks/forgejo && docker compose start'
+```
+
+Do not use a spin-up for this unless `/mnt/nexus-data/.nexus-restored` exists
+on the server (`ssh nexus 'ls /mnt/nexus-data/.nexus-restored'`). Without that
+marker, a spin-up with persistence on restores R2 over the server's newer
+data.
 
 ## General Tips
 
