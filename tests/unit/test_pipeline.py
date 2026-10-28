@@ -143,6 +143,7 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "mark_host_restored": MagicMock(return_value=None),
         # #931: a no-op on anything but a server marked before it.
         "adopt_untracked_databases": MagicMock(return_value=None),
+        "mark_all_databases_restored": MagicMock(return_value=None),
         "setup_wetty_ssh_agent": MagicMock(return_value=None),
         "ssh_keygen_cleanup": MagicMock(),
         "SSHClient": MagicMock(),
@@ -169,6 +170,10 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(
         "nexus_deploy.pipeline._s3_restore.adopt_untracked_databases",
         mocks["adopt_untracked_databases"],
+    )
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.mark_all_databases_restored",
+        mocks["mark_all_databases_restored"],
     )
     monkeypatch.setattr(
         "nexus_deploy.pipeline._setup.setup_wetty_ssh_agent",
@@ -605,6 +610,9 @@ def test_pipeline_restores_only_untracked_databases_on_an_already_restored_host(
     server marked before #931 has its databases adopted first."""
     from nexus_deploy.s3_restore import RESTORED_DATABASES_DIR, S3RestoreApplied
 
+    # Persistence as a developer shell might have it must not reach the
+    # credential guard; only the restore mock decides the outcome here.
+    monkeypatch.setattr("nexus_deploy.pipeline._s3_restore.is_enabled", lambda: False)
     setup_mocks["host_already_restored"].return_value = True
     parent = MagicMock()
     parent.attach_mock(setup_mocks["adopt_untracked_databases"], "adopt")
@@ -691,6 +699,9 @@ def test_pipeline_marks_the_host_after_a_deliberate_skip(
     )
 
     setup_mocks["mark_host_restored"].assert_called_once()
+    # #931: untracked, every database would be restored over its newer
+    # data once persistence is switched on or a snapshot appears.
+    setup_mocks["mark_all_databases_restored"].assert_called_once()
 
 
 def test_pipeline_stops_before_compose_up_when_r2_credentials_are_missing(

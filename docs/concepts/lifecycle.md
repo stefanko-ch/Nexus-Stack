@@ -106,7 +106,9 @@ stack starts, so nobody works in an empty stack that a later restore would overw
 
 Databases are tracked one by one, in `/mnt/nexus-data/.nexus-restored.d/`: a file
 named after the database container, written when that database was restored or the
-snapshot held no dump of it. The Postgres restore can only reach a database whose
+snapshot held no dump of it, and for every database when the spin-up restored nothing
+on purpose (persistence off, or an empty bucket), so that switching persistence on
+later cannot restore over newer data. The Postgres restore can only reach a database whose
 container runs, so a stack that is disabled at the first spin-up gets no file, and
 **a stack enabled later on a running server** gets its saved database back from the
 spin-up that starts it, before anyone works in it (#931). Every database that already

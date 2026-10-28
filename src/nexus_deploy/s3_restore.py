@@ -863,7 +863,27 @@ def mark_host_restored(ssh: SSHClient) -> None:
     that combination as a server marked before #931."""
     marker = shlex.quote(RESTORE_MARKER)
     ssh.run_script(
-        f"mkdir -p {shlex.quote(RESTORED_DATABASES_DIR)}\ntouch {marker}\n",
+        # -e: a failed mkdir must not be followed by the marker.
+        f"set -euo pipefail\nmkdir -p {shlex.quote(RESTORED_DATABASES_DIR)}\ntouch {marker}\n",
+        check=True,
+    )
+
+
+def mark_all_databases_restored(ssh: SSHClient) -> None:
+    """Give every database its file in :data:`RESTORED_DATABASES_DIR`.
+
+    For a Postgres phase that restored nothing on purpose: persistence
+    switched off, or an empty bucket. Left untracked, every database
+    would be restored by the first spin-up after persistence is
+    switched on, or after a snapshot appears, over the data written
+    here since. Existing files are kept."""
+    postgres_targets, _ = standard_targets()
+    marker_dir = PurePosixPath(RESTORED_DATABASES_DIR)
+    touches = "".join(
+        f"touch {shlex.quote(str(marker_dir / pg.container))}\n" for pg in postgres_targets
+    )
+    ssh.run_script(
+        f"set -euo pipefail\nmkdir -p {shlex.quote(str(marker_dir))}\n{touches}",
         check=True,
     )
 

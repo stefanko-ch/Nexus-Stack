@@ -1326,7 +1326,12 @@ def render_restore_script(
                 # is deployed, will be used once it runs, and the later
                 # restore would drop that work. Stop instead, so it is
                 # restored by a re-run before anyone works in it.
-                lines.append(f"  if docker inspect {container} >/dev/null 2>&1; then")
+                # --type container: an image or volume of the same name
+                # (the shared stack's container is called `postgres`)
+                # must not read as a stopped container.
+                lines.append(
+                    f"  if docker inspect --type container {container} >/dev/null 2>&1; then",
+                )
                 lines.append(
                     f'    echo "✗ restore-failed: {pg.container} exists but is not '
                     f'running, so {pg.database} cannot be restored" >&2',

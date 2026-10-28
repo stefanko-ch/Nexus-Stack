@@ -867,6 +867,21 @@ def test_the_host_marker_is_never_written_without_the_database_markers(
     assert (data / ".nexus-restored.d").is_dir()
 
 
+def test_marking_all_databases_keeps_existing_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nexus_deploy import s3_restore
+
+    marker_dir = tmp_path / "nexus-data" / ".nexus-restored.d"
+    monkeypatch.setattr(s3_restore, "RESTORED_DATABASES_DIR", str(marker_dir))
+    marker_dir.mkdir(parents=True)
+    (marker_dir / "forgejo-db").write_text("kept")
+    s3_restore.mark_all_databases_restored(_LocalBash())  # type: ignore[arg-type]
+    postgres, _ = standard_targets()
+    assert sorted(p.name for p in marker_dir.iterdir()) == sorted(pg.container for pg in postgres)
+    assert (marker_dir / "forgejo-db").read_text() == "kept"
+
+
 def test_restore_marker_path_is_outside_every_rsync_target() -> None:
     """Inside a target, a teardown would upload it and every restore
     would bring it back, so even a fresh host would skip its restore."""

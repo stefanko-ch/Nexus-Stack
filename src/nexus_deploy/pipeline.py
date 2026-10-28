@@ -529,6 +529,12 @@ def run_pipeline(
                     f"✓ s3-restore (postgres): applied snapshot "
                     f"{s3_pg_result.snapshot_timestamp}\n",
                 )
+        else:
+            # Persistence off or an empty bucket: nothing was restored,
+            # on purpose. Untracked, every database would be restored
+            # over its newer data by the first spin-up after that
+            # changes. (Missing credentials stopped the run above.)
+            _s3_restore.mark_all_databases_restored(ssh)
         if not already_restored:
             # Both halves returned: after an applied restore, a fresh
             # start or with persistence switched off, data written from

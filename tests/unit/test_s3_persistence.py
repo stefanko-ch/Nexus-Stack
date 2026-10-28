@@ -1621,6 +1621,10 @@ def _run_tracked_restore(
             "RUNNING": " ".join(sorted(running)),
             "STOPPED": " ".join(sorted(stopped)),
         },
+        # The docker stub drains stdin; under `pytest -s` it would
+        # otherwise wait on the terminal.
+        stdin=subprocess.DEVNULL,
+        timeout=60,
         capture_output=True,
         text=True,
     )
@@ -1692,6 +1696,8 @@ def test_a_deployed_database_that_is_down_stops_the_restore(tmp_path: Path) -> N
     )
     assert result.returncode != 0
     assert "b-db exists but is not running" in result.stderr
+    # An image or volume named like the container must not count.
+    assert "docker inspect --type container b-db" in calls
     assert not (markers / "b-db").exists()
     assert not any("pg_restore" in c and " -d b " in c for c in calls)
 
