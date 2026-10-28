@@ -158,6 +158,10 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
        running server the old container keeps writing to the volume
        until compose up replaces it, and those writes would miss the
        copy. compose up starts the stack again right after.
+       The copy goes to a sibling directory that replaces the empty one
+       only once it is complete. A copy that fails halfway therefore
+       leaves the target empty, so the next spin-up migrates again
+       instead of finding a non-empty directory and skipping.
     3. Ownership, per file rather than on the top-level directory only:
        a restore into a directory that already has the right owner
        (a re-run after a spin-up that failed before marking the host)
@@ -168,6 +172,7 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
     uid, gid = owner.split(":")
     p = shlex.quote(path)
     vol = shlex.quote(old_volume)
+    tmp = shlex.quote(path + ".migrating")
     return (
         f"\nmkdir -p {p}\n"
         f'if [ -z "$(ls -A {p})" ] '
@@ -175,7 +180,11 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
         f'&& [ -n "$(ls -A "$OLD_MOUNT")" ]; then\n'
         f"  USERS=$(docker ps -q --filter volume={vol})\n"
         f'  if [ -n "$USERS" ]; then docker stop $USERS >/dev/null; fi\n'
-        f'  cp -a "$OLD_MOUNT"/. {p}/\n'
+        f"  rm -rf {tmp}\n"
+        f"  mkdir {tmp}\n"
+        f'  cp -a "$OLD_MOUNT"/. {tmp}/\n'
+        f"  rmdir {p}\n"
+        f"  mv {tmp} {p}\n"
         f'  echo "  migrated docker volume {old_volume} into {path}"\n'
         f"fi\n"
         f"find {p} \\( ! -user {uid} -o ! -group {gid} \\) -exec chown -h {owner} {{}} +\n"

@@ -121,19 +121,33 @@ spin-up restores it:
 | Flows written in the UI, executions, logs, triggers | `kestra-postgres` | `pg_dump` before the stack stops |
 | Namespace files from the UI's editor, execution outputs | `/mnt/nexus-data/kestra/storage` (bind mount on `/app/storage`) | rsync of the directory, Kestra stopped |
 
-Flows from the workspace repo would come back without this: `system.flow-sync`
-registers them again on every spin-up. A flow that exists only in the UI
-would not.
+**Which copy wins depends on the namespace.** `system.flow-sync` runs on every
+spin-up, after the restore, and loads two namespaces from the workspace repo
+with `delete: true`:
+
+- `nexus-tutorials.*`, from the seeded examples;
+- `my-flows.*`, which a scheduled flow pushes from the UI to the repo every
+  10 minutes.
+
+In those two namespaces the repo is canonical: a flow created or changed in the
+UI less than 10 minutes before a teardown is restored from the dump and then
+replaced, or deleted, by the repo's older version. Flows in **any other
+namespace** are not touched by the sync, so the database dump is what brings
+them back.
 
 The database is restored after `docker compose up`, so Kestra is already
-running on an empty database by then. The restore restarts the `kestra`
-container afterwards, so it loads the restored flows and triggers instead of
-what it cached at start.
+running on an empty database by then. The restore stops the `kestra`
+container before replacing the database and starts it again once `pg_restore`
+has finished. It cannot write into a half-restored database, and it starts on
+the restored flows and triggers instead of what it cached from the empty one.
+If the restore fails, the spin-up stops with Kestra left stopped.
 
 A server that still has the old `kestra_kestra-data` named volume has it
 copied into the bind mount once, while the directory is empty, with the old
-container stopped first so none of its writes miss the copy. The volume is
-left in place.
+container stopped first so none of its writes miss the copy. The copy goes to
+a sibling directory that replaces the empty one only once it is complete, so a
+copy that fails halfway is retried on the next spin-up. The volume is left in
+place.
 
 ### Authentication & RBAC
 

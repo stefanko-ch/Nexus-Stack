@@ -840,7 +840,7 @@ def test_an_unreadable_marker_answer_refuses_rather_than_restores(
 
 def test_kestra_database_target_matches_its_compose_file() -> None:
     """Container, database and role are read from the compose file, so a
-    rename in one place fails here. Kestra itself is restarted after the
+    rename in one place fails here. Kestra itself is kept stopped during the
     restore, because it is already running on the empty database."""
     compose = yaml.safe_load((_REPO_ROOT / "stacks/kestra/docker-compose.yml").read_text())
     db = compose["services"]["kestra-postgres"]
@@ -850,7 +850,7 @@ def test_kestra_database_target_matches_its_compose_file() -> None:
     assert db["container_name"] == target.container
     assert db["environment"]["POSTGRES_DB"] == target.database
     assert db["environment"]["POSTGRES_USER"] == target.user
-    assert target.restart_after == (compose["services"]["kestra"]["container_name"],)
+    assert target.stop_during_restore == (compose["services"]["kestra"]["container_name"],)
 
 
 def test_kestra_storage_target_matches_its_compose_file() -> None:

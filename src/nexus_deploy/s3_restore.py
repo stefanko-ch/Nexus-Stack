@@ -419,14 +419,14 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
         # Kestra's repository and queue: flows, executions, logs and
         # triggers. Flows from the workspace repo come back on their
         # own through system.flow-sync; a flow written in the UI exists
-        # only here. Kestra is restarted afterwards because it is already
-        # running on the empty database by the time the restore replaces
-        # it, and holds flow and trigger state in memory.
+        # only here. Kestra is stopped while the restore replaces it: it is
+        # already running on the empty database by then, would write into
+        # the half-restored one, and holds flow and trigger state in memory.
         _s3.PostgresDumpTarget(
             container="kestra-postgres",
             database="kestra",
             user="nexus-kestra",
-            restart_after=("kestra",),
+            stop_during_restore=("kestra",),
         ),
     )
     rsync = (

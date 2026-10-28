@@ -858,6 +858,44 @@ def test_kestra_storage_is_prepared_before_compose_up() -> None:
     assert path not in captured["script"]
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads an unreadable file")
+def test_a_failed_migration_leaves_the_target_empty_and_retries(tmp_path: Path) -> None:
+    """A copy that fails halfway must not leave a partial tree behind: the
+    next run would find the directory non-empty and never migrate again."""
+    from nexus_deploy.compose_runner import _render_notebook_prep
+
+    target = tmp_path / "storage"
+    volume = tmp_path / "vols" / "old"
+    volume.mkdir(parents=True)
+    (volume / "a.txt").write_text("first")
+    blocked = volume / "b.txt"
+    blocked.write_text("second")
+    blocked.chmod(0)
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(f'#!/bin/bash\ncase "$1" in volume) echo "{volume}" ;; esac\n')
+    stub.chmod(0o755)
+    whoami = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
+    whoami_g = subprocess.run(["id", "-g"], capture_output=True, text=True).stdout.strip()
+    block = "set -euo pipefail\n" + _render_notebook_prep(
+        str(target), f"{whoami}:{whoami_g}", "old"
+    )
+    env = {**os.environ, "PATH": f"{stub.parent}:{os.environ['PATH']}"}
+
+    failed = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert failed.returncode != 0
+    assert target.is_dir()
+    assert list(target.iterdir()) == []
+
+    blocked.chmod(0o644)
+    retried = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert retried.returncode == 0, retried.stderr
+    assert (target / "a.txt").read_text() == "first"
+    assert (target / "b.txt").read_text() == "second"
+    assert not (tmp_path / "storage.migrating").exists()
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
