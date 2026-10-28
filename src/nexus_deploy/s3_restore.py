@@ -292,6 +292,13 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     """Return the (postgres, rsync) target tuples for the stacks whose
     state survives a rebuild teardown.
 
+    The tuples below are the authoritative list; the mappings described
+    further down cover only the first stacks added. Today they hold
+    Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
+    Postgres, Unity Catalog, Lakekeeper and MLflow, and filesystem trees
+    for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB and the
+    notebook stacks (Jupyter, Marimo, code-server).
+
     Hard-coded because:
     1. Stateful stacks are explicitly opted in here. Adding a stack
        to the list is the SINGLE source-of-truth change that wires
@@ -500,6 +507,10 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="code-server-home",
             local_path="/mnt/nexus-data/code-server/home",
             s3_subpath="code-server/home",
+            # The entrypoint writes the Forgejo password into ~/.netrc
+            # in plaintext and rewrites it on every start, so it must
+            # not reach R2 and nothing is lost by leaving it out.
+            excludes=("/.netrc",),
         ),
     )
     return postgres, rsync

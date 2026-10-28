@@ -8,8 +8,10 @@ the parallel-deploy semantics, and CLI integration covering rc=0/1/2.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -686,29 +688,53 @@ def test_run_compose_up_planka_omitted_when_planka_not_in_enabled() -> None:
 
 
 @pytest.mark.parametrize(
-    ("flag", "service", "path", "owner"),
+    ("flag", "service", "path", "owner", "old_volume"),
     [
-        ("jupyter_work_prep", "jupyter", "/mnt/nexus-data/jupyter/work", "1000:100"),
-        ("code_server_home_prep", "code-server", "/mnt/nexus-data/code-server/home", "1000:1000"),
+        (
+            "jupyter_work_prep",
+            "jupyter",
+            "/mnt/nexus-data/jupyter/work",
+            "1000:100",
+            "jupyter_jupyter-data",
+        ),
+        (
+            "marimo_notebooks_prep",
+            "marimo",
+            "/mnt/nexus-data/marimo/notebooks",
+            "1000:1000",
+            "marimo_marimo_data",
+        ),
+        (
+            "code_server_home_prep",
+            "code-server",
+            "/mnt/nexus-data/code-server/home",
+            "1000:1000",
+            "code-server_code-server-data",
+        ),
     ],
 )
-def test_notebook_bind_mount_is_chowned_before_compose_up(
-    flag: str, service: str, path: str, owner: str
+def test_notebook_bind_mount_is_prepared_before_compose_up(
+    flag: str, service: str, path: str, owner: str, old_volume: str
 ) -> None:
-    """Docker creates a missing bind source root-owned and the restore
-    writes as root; neither container can fix that itself. The chown is
-    guarded on the top-level owner so a populated tree is not walked on
-    every deploy, and it runs before any `docker compose up`."""
+    """In order: create the directory, move the pre-backup named volume in
+    while the directory is still empty, then fix ownership per file. All
+    of it before any `docker compose up`. The behaviour of the block is
+    exercised by executing it; this pins its order and its inputs."""
     assert path not in _render_default(**{flag: False})
 
-    script = _render_default(**{flag: True})
-    lines = script.splitlines()
-    if_idx = next(i for i, le in enumerate(lines) if f"stat -c '%u:%g' {path}" in le)
-    fi_idx = next(i for i, le in enumerate(lines) if i > if_idx and le.strip() == "fi")
-    assert f'!= "{owner}"' in lines[if_idx]
-    assert any(f"chown -R {owner} {path}" in le for le in lines[if_idx:fi_idx])
-    first_up = next(i for i, le in enumerate(lines) if "docker compose" in le and " up " in le)
-    assert fi_idx < first_up
+    lines = _render_default(**{flag: True}).splitlines()
+
+    def first(predicate: Any) -> int:
+        return next(i for i, le in enumerate(lines) if predicate(le))
+
+    mkdir_idx = first(lambda le: le == f"mkdir -p {path}")
+    migrate_idx = first(lambda le: "docker volume inspect" in le and old_volume in le)
+    chown_idx = first(lambda le: le.startswith(f"find {path} ") and f"chown -h {owner}" in le)
+    up_idx = first(lambda le: "docker compose" in le and " up " in le)
+    assert mkdir_idx < migrate_idx < chown_idx < up_idx
+    assert f'[ -z "$(ls -A {path})" ]' in lines[migrate_idx]
+    uid, gid = owner.split(":")
+    assert f"! -user {uid} -o ! -group {gid}" in lines[chown_idx]
 
     captured: dict[str, str] = {}
 
@@ -722,6 +748,40 @@ def test_notebook_bind_mount_is_chowned_before_compose_up(
     assert path in captured["script"]
     run_compose_up(["kestra"], script_runner=capture)
     assert path not in captured["script"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_notebook_prep_migrates_once_and_never_overwrites(tmp_path: Path) -> None:
+    """Executes the rendered block against a temporary tree, with a stub
+    `docker` that answers `volume inspect`. Ownership is not asserted
+    here (chown needs root); the copy and no-overwrite logic is."""
+    from nexus_deploy.compose_runner import _render_notebook_prep
+
+    target = tmp_path / "work"
+    volume = tmp_path / "vols" / "old"
+    (volume / "sub").mkdir(parents=True)
+    (volume / "sub" / "a.ipynb").write_text("old work")
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(f'#!/bin/bash\necho "{volume}"\n')
+    stub.chmod(0o755)
+    whoami = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
+    whoami_g = subprocess.run(["id", "-g"], capture_output=True, text=True).stdout.strip()
+    block = "set -euo pipefail\n" + _render_notebook_prep(
+        str(target), f"{whoami}:{whoami_g}", "old"
+    )
+    env = {**os.environ, "PATH": f"{stub.parent}:{os.environ['PATH']}"}
+
+    first = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert first.returncode == 0, first.stderr
+    assert (target / "sub" / "a.ipynb").read_text() == "old work"
+
+    (target / "sub" / "a.ipynb").write_text("new work")
+    (volume / "sub" / "a.ipynb").write_text("stale")
+    second = subprocess.run(["bash", "-c", block], env=env, capture_output=True, text=True)
+    assert second.returncode == 0, second.stderr
+    assert (target / "sub" / "a.ipynb").read_text() == "new work"
+    assert "migrated" not in second.stdout
 
 
 # ---------------------------------------------------------------------------

@@ -611,27 +611,17 @@ def test_pipeline_skips_both_restore_phases_on_an_already_restored_host(
     assert "already restored" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize(
-    ("reason", "marked"),
-    [
-        ("no_endpoint_env", False),
-        ("fresh_start_empty_s3", True),
-        ("feature_flag_off", True),
-    ],
-)
-def test_pipeline_marks_the_host_unless_r2_credentials_were_missing(
+@pytest.mark.parametrize("reason", ["fresh_start_empty_s3", "feature_flag_off"])
+def test_pipeline_marks_the_host_after_a_deliberate_skip(
     project_root: Path,
     fake_tofu_runner: MagicMock,
     setup_mocks: dict[str, Any],
     mock_orchestrator: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
     reason: str,
-    marked: bool,
 ) -> None:
-    """With credentials missing, nothing was restored although
-    persistence was meant to run. Marking the host then would stop the
-    re-run that fixes them from ever restoring. The other skips are
-    deliberate states, after which the server's data is the newest."""
+    """A fresh bucket and switched-off persistence are deliberate states:
+    from here on the server's data is the newest, so it is marked."""
     from nexus_deploy.s3_restore import S3RestoreSkipped
 
     monkeypatch.setattr(
@@ -645,7 +635,36 @@ def test_pipeline_marks_the_host_unless_r2_credentials_were_missing(
         tofu_runner=fake_tofu_runner,
     )
 
-    assert setup_mocks["mark_host_restored"].called is marked
+    setup_mocks["mark_host_restored"].assert_called_once()
+
+
+def test_pipeline_stops_before_compose_up_when_r2_credentials_are_missing(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persistence on, credentials missing: nothing was restored. Starting
+    the stacks would let people work in empty ones, and the re-run after
+    the fix would restore over that work. So the run stops before any
+    stack starts and leaves the host unmarked."""
+    from nexus_deploy.s3_restore import S3RestoreSkipped
+
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.restore_from_s3",
+        lambda _ssh, *, env=None, phase="all": S3RestoreSkipped(reason="no_endpoint_env"),
+    )
+
+    with pytest.raises(PipelineError, match="R2 credentials are missing"):
+        run_pipeline(
+            project_root=project_root,
+            options=PipelineOptions(),
+            tofu_runner=fake_tofu_runner,
+        )
+
+    mock_orchestrator.run_pre_bootstrap.assert_not_called()
+    setup_mocks["mark_host_restored"].assert_not_called()
 
 
 def test_pipeline_does_not_mark_the_host_when_the_postgres_restore_fails(

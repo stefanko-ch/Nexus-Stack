@@ -94,14 +94,25 @@ Everything else — a topic you created in Redpanda, a dashboard you built in a 
 outside the list, files written inside a container — is **gone** on teardown. Not
 corrupted, not recoverable: the disk it lived on no longer exists.
 
-**A spin-up on a server that is already running restores nothing.** Once both
-restore phases of a spin-up have finished, it writes `/mnt/nexus-data/.nexus-restored`,
-unless the restore was skipped because R2 credentials were missing.
-A later spin-up that finds that file skips the restore and keeps the data on the
-server, because that data is newer than the last teardown's snapshot. Before this
-guard (#926), re-running a spin-up on a live server rolled every covered stack back
-to the last teardown. A rebuild teardown destroys the disk and the file with it, so
-the spin-up after it always restores.
+**A spin-up on a server that is already running restores nothing**, once that
+server carries the restore marker. A spin-up writes `/mnt/nexus-data/.nexus-restored`
+after both restore phases have finished. A later spin-up that finds the file skips
+the restore and keeps the data on the server, because that data is newer than the
+last teardown's snapshot. Before this guard (#926), re-running a spin-up on a live
+server rolled every covered stack back to the last teardown. A rebuild teardown
+destroys the disk and the file with it, so the spin-up after it always restores. If
+persistence is on but an R2 credential is missing, the spin-up stops before any
+stack starts, so nobody works in an empty stack that a later restore would overwrite.
+
+Two cases the marker does not cover:
+
+- **A server deployed before the guard** has no marker, so the first spin-up re-run
+  on it still restores. Tear it down and spin it up once to get the marker.
+- **A stack enabled later on a running server** does not get its saved database
+  back. The Postgres restore skips any database whose container is not running, and
+  the marker then stops later spin-ups from trying again. Enable such a stack, then
+  tear down and spin up. Notebook and other filesystem targets are not affected: the
+  restore brings every directory back, whether or not its stack is enabled.
 
 **In `snapshot` mode, everything on the root disk survives**, because the whole disk
 is imaged. That is the main reason to switch.

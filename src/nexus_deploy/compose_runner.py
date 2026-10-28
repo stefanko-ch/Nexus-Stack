@@ -143,6 +143,39 @@ def expand_targets(enabled: list[str]) -> tuple[list[str], list[str]]:
 # ---------------------------------------------------------------------------
 
 
+def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
+    """Prepare a notebook stack's backed-up bind mount before compose up.
+
+    1. ``mkdir -p``: the restore only creates it when R2 holds data for
+       it, and a bind source Docker creates itself is root-owned.
+    2. One-time move off the named volume the stack used before it was
+       backed up. On a server that still has that volume, switching the
+       mount to the empty host directory would hide the students' work,
+       and the next teardown would snapshot the empty directory. Copied
+       only while the directory is empty, so it never overwrites and
+       runs once. The volume itself is left in place, as a fallback.
+    3. Ownership, per file rather than on the top-level directory only:
+       a restore into a directory that already has the right owner
+       (a re-run after a spin-up that failed before marking the host)
+       leaves root-owned files below it, which code-server (coder) and
+       Jupyter (jovyan) cannot write. ``find`` only stats a correctly
+       owned tree and chowns just what is wrong.
+    """
+    uid, gid = owner.split(":")
+    p = shlex.quote(path)
+    vol = shlex.quote(old_volume)
+    return (
+        f"\nmkdir -p {p}\n"
+        f'if [ -z "$(ls -A {p})" ] '
+        f"&& OLD_MOUNT=$(docker volume inspect -f '{{{{.Mountpoint}}}}' {vol} 2>/dev/null) "
+        f'&& [ -n "$(ls -A "$OLD_MOUNT")" ]; then\n'
+        f'  cp -a "$OLD_MOUNT"/. {p}/\n'
+        f'  echo "  migrated docker volume {old_volume} into {path}"\n'
+        f"fi\n"
+        f"find {p} \\( ! -user {uid} -o ! -group {gid} \\) -exec chown -h {owner} {{}} +\n"
+    )
+
+
 def render_remote_script(
     *,
     parents: list[str],
@@ -153,6 +186,7 @@ def render_remote_script(
     hedgedoc_uploads_prep: bool = False,
     planka_data_prep: bool = False,
     jupyter_work_prep: bool = False,
+    marimo_notebooks_prep: bool = False,
     code_server_home_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
@@ -264,33 +298,26 @@ if [ "$(stat -c '%u:%g' /mnt/nexus-data/planka/data)" != "1000:1000" ]; then
 fi
 """
 
-    # Jupyter and code-server keep the students' work in bind mounts
-    # under /mnt/nexus-data so the R2 snapshot/restore cycle covers it.
-    # Docker creates a missing bind source root-owned, and the restore
-    # writes as root too, but neither container can fix that itself:
-    # code-server runs as coder (1000:1000), and Jupyter's start script
-    # only chowns $HOME, not the work dir below it, for jovyan
-    # (1000:100). Same guarded chown as hedgedoc/planka: the recursive
-    # walk only happens when the top-level owner is wrong, which is the
-    # case after a restore or on first start. Marimo needs no block:
-    # its entrypoint runs this same check as root.
-    jupyter_block = ""
-    if jupyter_work_prep:
-        jupyter_block = """
-mkdir -p /mnt/nexus-data/jupyter/work
-if [ "$(stat -c '%u:%g' /mnt/nexus-data/jupyter/work)" != "1000:100" ]; then
-  chown -R 1000:100 /mnt/nexus-data/jupyter/work
-fi
-"""
-
-    code_server_block = ""
-    if code_server_home_prep:
-        code_server_block = """
-mkdir -p /mnt/nexus-data/code-server/home
-if [ "$(stat -c '%u:%g' /mnt/nexus-data/code-server/home)" != "1000:1000" ]; then
-  chown -R 1000:1000 /mnt/nexus-data/code-server/home
-fi
-"""
+    # Jupyter, Marimo and code-server keep the students' work in bind
+    # mounts under /mnt/nexus-data so the R2 snapshot/restore cycle
+    # covers it. See _render_notebook_prep for what each block does.
+    jupyter_block = (
+        _render_notebook_prep("/mnt/nexus-data/jupyter/work", "1000:100", "jupyter_jupyter-data")
+        if jupyter_work_prep
+        else ""
+    )
+    marimo_block = (
+        _render_notebook_prep("/mnt/nexus-data/marimo/notebooks", "1000:1000", "marimo_marimo_data")
+        if marimo_notebooks_prep
+        else ""
+    )
+    code_server_block = (
+        _render_notebook_prep(
+            "/mnt/nexus-data/code-server/home", "1000:1000", "code-server_code-server-data"
+        )
+        if code_server_home_prep
+        else ""
+    )
 
     metabase_block = ""
     if metabase_storage_prep:
@@ -329,7 +356,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{code_server_block}
+{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{marimo_block}{code_server_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -437,6 +464,7 @@ def run_compose_up(
     hedgedoc_uploads_prep: bool | None = None,
     planka_data_prep: bool | None = None,
     jupyter_work_prep: bool | None = None,
+    marimo_notebooks_prep: bool | None = None,
     code_server_home_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
@@ -482,6 +510,9 @@ def run_compose_up(
     )
     actual_planka = planka_data_prep if planka_data_prep is not None else "planka" in enabled
     actual_jupyter = jupyter_work_prep if jupyter_work_prep is not None else "jupyter" in enabled
+    actual_marimo = (
+        marimo_notebooks_prep if marimo_notebooks_prep is not None else "marimo" in enabled
+    )
     actual_code_server = (
         code_server_home_prep if code_server_home_prep is not None else "code-server" in enabled
     )
@@ -495,6 +526,7 @@ def run_compose_up(
         hedgedoc_uploads_prep=actual_hedgedoc,
         planka_data_prep=actual_planka,
         jupyter_work_prep=actual_jupyter,
+        marimo_notebooks_prep=actual_marimo,
         code_server_home_prep=actual_code_server,
     )
 
