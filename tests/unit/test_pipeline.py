@@ -611,6 +611,43 @@ def test_pipeline_skips_both_restore_phases_on_an_already_restored_host(
     assert "already restored" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("reason", "marked"),
+    [
+        ("no_endpoint_env", False),
+        ("fresh_start_empty_s3", True),
+        ("feature_flag_off", True),
+    ],
+)
+def test_pipeline_marks_the_host_unless_r2_credentials_were_missing(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    reason: str,
+    marked: bool,
+) -> None:
+    """With credentials missing, nothing was restored although
+    persistence was meant to run. Marking the host then would stop the
+    re-run that fixes them from ever restoring. The other skips are
+    deliberate states, after which the server's data is the newest."""
+    from nexus_deploy.s3_restore import S3RestoreSkipped
+
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.restore_from_s3",
+        lambda _ssh, *, env=None, phase="all": S3RestoreSkipped(reason=reason),  # type: ignore[arg-type]
+    )
+
+    run_pipeline(
+        project_root=project_root,
+        options=PipelineOptions(),
+        tofu_runner=fake_tofu_runner,
+    )
+
+    assert setup_mocks["mark_host_restored"].called is marked
+
+
 def test_pipeline_does_not_mark_the_host_when_the_postgres_restore_fails(
     project_root: Path,
     fake_tofu_runner: MagicMock,

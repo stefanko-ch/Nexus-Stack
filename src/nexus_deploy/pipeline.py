@@ -485,11 +485,26 @@ def run_pipeline(
                     f"✓ s3-restore (postgres): applied snapshot "
                     f"{s3_pg_result.snapshot_timestamp}\n",
                 )
-            # Both halves returned, so the disk now holds restored
-            # state. Written whatever the outcome (applied, fresh start,
-            # flag off): in every case, data written from here on is
-            # newer than R2 and a later spin-up must not overwrite it.
-            _s3_restore.mark_host_restored(ssh)
+            # Both halves returned. After an applied restore, a fresh
+            # start or with persistence switched off, data written from
+            # here on is newer than R2 and a later spin-up must not
+            # overwrite it, so the host is marked. Not after
+            # no_endpoint_env: persistence was meant to run but its
+            # credentials were missing, so nothing was restored, and a
+            # spin-up re-run once they are fixed has to restore.
+            missing_endpoint = any(
+                isinstance(result, _s3_restore.S3RestoreSkipped)
+                and result.reason == "no_endpoint_env"
+                for result in (s3_fs_result, s3_pg_result)
+            )
+            if missing_endpoint:
+                sys.stderr.write(
+                    f"⚠ s3-restore: {_s3_restore.RESTORE_MARKER} not written, because the "
+                    "restore was skipped for missing R2 credentials; a re-run after "
+                    "fixing them will restore\n",
+                )
+            else:
+                _s3_restore.mark_host_restored(ssh)
         # No need to re-log fresh_start_empty_s3 here — the
         # filesystem halve above already emitted that diagnostic.
 

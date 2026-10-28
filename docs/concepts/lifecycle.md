@@ -95,7 +95,8 @@ outside the list, files written inside a container — is **gone** on teardown. 
 corrupted, not recoverable: the disk it lived on no longer exists.
 
 **A spin-up on a server that is already running restores nothing.** Once both
-restore phases of a spin-up have finished, it writes `/mnt/nexus-data/.nexus-restored`.
+restore phases of a spin-up have finished, it writes `/mnt/nexus-data/.nexus-restored`,
+unless the restore was skipped because R2 credentials were missing.
 A later spin-up that finds that file skips the restore and keeps the data on the
 server, because that data is newer than the last teardown's snapshot. Before this
 guard (#926), re-running a spin-up on a live server rolled every covered stack back
