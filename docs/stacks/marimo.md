@@ -44,9 +44,11 @@ The Marimo container is a thin gRPC client — the driver-JVM lives in the dedic
 
 ### Quickstart
 
+Notebooks live in `/app/notebooks`, bind-mounted from `/mnt/nexus-data/marimo/notebooks` on the host. In the `rebuild` lifecycle a teardown copies it to R2 and the next spin-up restores it, so edits survive even when they were never pushed.
+
 Seven seed notebooks ship under `nexus_seeds/marimo/` and land in `/app/notebooks/<repo>/` on **first** Marimo container launch. The seeds live in the Forgejo workspace repo, and Marimo's entrypoint runs the `git clone` when `FORGEJO_REPO_URL` is set in its env — see [`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml). On a Marimo-only install without Forgejo you'll see an empty `/app/notebooks/` directory and need to author your own notebooks via the UI. With Forgejo enabled, open from `https://marimo.<your-domain>` and hit **Run all** on whichever seed matches what you're trying to learn:
 
-> **Upgrade note:** Marimo's entrypoint only clones the workspace repo when `/app/notebooks/<repo>/.git` is **absent** ([`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On an existing workspace where Marimo was already running before a new seed shipped, `gh workflow run spin-up.yml` won't pull the new file in automatically — the repo dir already exists. Either run `git pull` from inside the Marimo notebook UI's terminal, or wipe the `marimo_data` volume and let the first-launch clone re-fetch (loses any local notebook edits). The new seeds DO appear in fresh stack deployments.
+> **Upgrade note:** Marimo's entrypoint only clones the workspace repo when `/app/notebooks/<repo>/.git` is **absent** ([`stacks/marimo/docker-compose.yml`](../../stacks/marimo/docker-compose.yml)). On an existing workspace where Marimo was already running before a new seed shipped, `gh workflow run spin-up.yml` won't pull the new file in automatically — the repo dir already exists. Either run `git pull` from inside the Marimo notebook UI's terminal, or delete the repo directory under `/mnt/nexus-data/marimo/notebooks/` on the host and let the next launch clone it again (loses any local notebook edits). The new seeds DO appear in fresh stack deployments.
 
 
 - **`Getting_Started_PySpark.py`** — minimal "spin up a SparkSession via Spark Connect, run a job, render results" walkthrough. Start here.

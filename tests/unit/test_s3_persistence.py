@@ -1166,3 +1166,78 @@ def test_rendered_restore_script_is_syntactically_valid_bash(tmp_path: Path) -> 
         check=False,
     )
     assert result.returncode == 0, f"bash -n failed: {result.stderr}"
+
+
+# ---------------------------------------------------------------------------
+# RsyncTarget excludes (keep regenerated credentials out of R2)
+# ---------------------------------------------------------------------------
+
+
+def _home_target() -> RsyncTarget:
+    return RsyncTarget(
+        name="code-server-home",
+        local_path="/mnt/nexus-data/code-server/home",
+        s3_subpath="code-server/home",
+        excludes=("/.netrc",),
+    )
+
+
+def test_excludes_reach_upload_verify_and_restore() -> None:
+    """All three rclone calls must filter alike. Upload only, and the
+    verify reports the missing file as drift, failing every teardown
+    (checked with rclone: rc=1 without the filter, 0 with it). Without
+    it on restore, `rclone sync` deletes the regenerated local file."""
+    snapshot = render_snapshot_script(
+        endpoint=_endpoint(),
+        stack_slug="nexus-test",
+        template_version="v0.86.0",
+        timestamp="20261028T120000Z",
+        postgres_targets=(),
+        rsync_targets=(_home_target(),),
+    )
+    upload = [
+        le
+        for le in snapshot.splitlines()
+        if "rclone sync" in le and "/mnt/nexus-data/code-server/home" in le
+    ]
+    verify = [
+        le
+        for le in snapshot.splitlines()
+        if le.startswith("verify_one /mnt/nexus-data/code-server")
+    ]
+    assert len(upload) == 1
+    assert "--exclude=/.netrc" in upload[0]
+    assert len(verify) == 1
+    assert verify[0].endswith("--exclude=/.netrc")
+    check = next(le for le in snapshot.splitlines() if le.lstrip().startswith("rclone check"))
+    assert '"$@"' in check
+
+    restore = render_restore_script(
+        endpoint=_endpoint(), postgres_targets=(), rsync_targets=(_home_target(),)
+    )
+    pull = [le for le in restore.splitlines() if "rclone sync" in le and "code-server/home" in le]
+    assert len(pull) == 1
+    assert "--exclude=/.netrc" in pull[0]
+
+
+def test_a_target_without_excludes_renders_no_filter() -> None:
+    plain = RsyncTarget(name="planka-data", local_path="/mnt/x", s3_subpath="planka/data")
+    restore = render_restore_script(
+        endpoint=_endpoint(), postgres_targets=(), rsync_targets=(plain,)
+    )
+    assert "--exclude" not in restore
+
+
+@pytest.mark.parametrize("pattern", ["a b", "x;rm -rf /", "$(id)", "--include", "'q'"])
+def test_exclude_patterns_reject_shell_and_flag_injection(pattern: str) -> None:
+    with pytest.raises(S3PersistenceError, match="excludes"):
+        RsyncTarget(name="t", local_path="/mnt/x", s3_subpath="t/x", excludes=(pattern,))
+
+
+def test_code_server_home_keeps_the_forgejo_netrc_out_of_r2() -> None:
+    """The entrypoint writes the Forgejo password into ~/.netrc in
+    plaintext on every start; a whole-home backup would upload it."""
+    from nexus_deploy.s3_restore import standard_targets
+
+    _, rsync = standard_targets()
+    assert {r.name: r for r in rsync}["code-server-home"].excludes == ("/.netrc",)

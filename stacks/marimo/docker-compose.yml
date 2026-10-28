@@ -139,7 +139,13 @@ services:
           # .toPandas() results client-side, raise to 2g.
           memory: 1g
     volumes:
-      - marimo_data:/app/notebooks
+      # A bind mount rather than a named volume, so the R2 snapshot and
+      # restore cycle (s3_restore.standard_targets) can rsync it and the
+      # students' work survives a rebuild teardown. The teardown stops
+      # this stack first, so the copy is taken with nothing writing.
+      # The entrypoint above chowns it to appuser when the top-level
+      # owner is wrong, which covers both a fresh and a restored tree.
+      - /mnt/nexus-data/marimo/notebooks:/app/notebooks
     healthcheck:
       # python3 instead of wget — Marimo's Debian-slim base doesn't
       # include wget (or curl), but python3 is the whole reason this
@@ -152,9 +158,6 @@ services:
       start_period: 30s
     networks:
       - app-network
-
-volumes:
-  marimo_data:
 
 networks:
   app-network:

@@ -489,6 +489,18 @@ class PostgresDumpTarget:
                 )
 
 
+# A filename or a `dir/**`-style glob: no spaces, quotes or shell
+# metacharacters, so the value is safe in the rendered bash even before
+# shlex.quote, and no leading `-`, so it cannot pass for an rclone flag.
+# Rendered as `--exclude=<pattern>` for the same reason.
+_EXCLUDE_PATTERN = re.compile(r"[A-Za-z0-9_.*/][A-Za-z0-9_.*/-]*")
+
+
+def _exclude_flags(target: RsyncTarget) -> str:
+    """`` --exclude=<pattern>`` per exclude, with a leading space, or ``""``."""
+    return "".join(f" {shlex.quote('--exclude=' + p)}" for p in target.excludes)
+
+
 @dataclass(frozen=True)
 class RsyncTarget:
     """One filesystem subtree to mirror to/from S3.
@@ -513,8 +525,20 @@ class RsyncTarget:
     name: str
     local_path: str
     s3_subpath: str
+    # rclone filter patterns (relative to ``local_path``) kept out of the
+    # snapshot. Applied to the upload, the verify and the restore alike:
+    # excluded on upload only, the verify would report drift for the
+    # missing file, and an unfiltered restore would delete it locally.
+    # For files a container regenerates on every start that must not
+    # reach R2, such as a plaintext credential.
+    excludes: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        for pattern in self.excludes:
+            if not _EXCLUDE_PATTERN.fullmatch(pattern):
+                raise S3PersistenceError(
+                    f"RsyncTarget.excludes entries must be simple rclone patterns: {pattern!r}",
+                )
         if not self.local_path.startswith("/"):
             raise S3PersistenceError(
                 f"RsyncTarget.local_path must be absolute: {self.local_path!r}",
@@ -764,7 +788,8 @@ def render_snapshot_script(
         # source IS present but empty (different case).
         lines.append(f"if [ -d {local} ]; then")
         lines.append(
-            f'  rclone sync --create-empty-src-dirs {local} "$BUCKET/$SNAPSHOT_PREFIX/{sub}"',
+            f"  rclone sync --create-empty-src-dirs{_exclude_flags(rs)} {local} "
+            f'"$BUCKET/$SNAPSHOT_PREFIX/{sub}"',
         )
         lines.append("else")
         lines.append(
@@ -820,6 +845,10 @@ def render_snapshot_script(
             '  local src="$1"',
             '  local dst="$2"',
             '  local label="$3"',
+            # Anything after the label is extra rclone flags (the
+            # target's excludes), so the check skips what the upload
+            # skipped.
+            "  shift 3",
             # Same skip-on-missing semantics as the snapshot blocks
             # above. If the source dir isn't on disk (stack not
             # deployed) the corresponding rclone sync was already
@@ -843,7 +872,7 @@ def render_snapshot_script(
             # "drift found" on every snapshot and would have aborted
             # every real teardown. Capturing [2] (grep) makes drift
             # detection actually correct.
-            '  rclone check "$src" "$dst" '
+            '  rclone check "$src" "$dst" "$@" '
             '--one-way --combined - 2>"$LOG_DIR/rclone-check.err" '
             '| tee "$LOG_DIR/rclone-check.out" '
             # Not -q: grep must read everything. With -q it exits at the
@@ -886,7 +915,7 @@ def render_snapshot_script(
         + [
             f"verify_one {shlex.quote(rs.local_path)} "
             f'"$BUCKET/$SNAPSHOT_PREFIX/{shlex.quote(rs.s3_subpath)}" '
-            f"{shlex.quote('rsync:' + rs.name)}"
+            f"{shlex.quote('rsync:' + rs.name)}{_exclude_flags(rs)}"
             for rs in rs_targets
         ]
         + [
@@ -1099,7 +1128,8 @@ def render_restore_script(
             # NOT govern restore destinations.
             local = shlex.quote(rs.local_path)
             lines.append(
-                f'rclone sync "$BUCKET/$SNAPSHOT_PREFIX/{sub}" {local} --create-empty-src-dirs',
+                f'rclone sync "$BUCKET/$SNAPSHOT_PREFIX/{sub}" {local} '
+                f"--create-empty-src-dirs{_exclude_flags(rs)}",
             )
         lines.append("")
 

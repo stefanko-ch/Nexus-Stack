@@ -376,7 +376,36 @@ def run_pipeline(
         # trees (forgejo repos/lfs, dify storage/weaviate/plugins).
         # On a fresh-start the script short-circuits with rc=0; on
         # an existing snapshot rclone-syncs the trees onto local SSD.
-        s3_fs_result = _s3_restore.restore_from_s3(ssh, phase="filesystem")
+        #
+        # Unless this disk was already restored (#926): a spin-up
+        # dispatched again while the stack is up would otherwise roll
+        # every R2-covered stack back to the last teardown. The marker
+        # is written only after BOTH halves below succeed.
+        already_restored = _s3_restore.host_already_restored(ssh)
+        s3_fs_result: _s3_restore.S3RestoreSkipped | _s3_restore.S3RestoreApplied | None = None
+        if already_restored:
+            sys.stderr.write(
+                f"→ s3-restore: skipped, {_s3_restore.RESTORE_MARKER} shows this server was "
+                "already restored; its data is newer than R2 and is kept\n",
+            )
+        else:
+            s3_fs_result = _s3_restore.restore_from_s3(ssh, phase="filesystem")
+            # Persistence is switched on but an R2 credential is
+            # missing, so nothing was restored. Carrying on would bring
+            # the stacks up empty and let people work in them, and the
+            # spin-up re-run once the credential is fixed would then
+            # restore over that work. Stop here, before compose-up,
+            # while there is nothing to lose. restore_from_s3 has
+            # already named the missing variables.
+            if (
+                isinstance(s3_fs_result, _s3_restore.S3RestoreSkipped)
+                and s3_fs_result.reason == "no_endpoint_env"
+            ):
+                raise PipelineError(
+                    "s3-restore: persistence is on but R2 credentials are missing "
+                    "(see the line above); stopping before any stack starts, so a "
+                    "re-run after fixing them can restore without overwriting anything",
+                )
         # rclone writes restored files as the SSH user (root), but
         # forgejo + postgres containers expect their container UIDs
         # on the bind-mount sources. Idempotent — fine to run on
@@ -389,7 +418,7 @@ def run_pipeline(
             sys.stderr.write(
                 f"✓ s3-restore (filesystem): applied snapshot {s3_fs_result.snapshot_timestamp}\n",
             )
-        elif s3_fs_result.reason == "fresh_start_empty_s3":
+        elif s3_fs_result is not None and s3_fs_result.reason == "fresh_start_empty_s3":
             sys.stderr.write(
                 "→ s3-restore: bucket empty, fresh-start (first spinup of new "
                 "persistence bucket)\n",
@@ -465,11 +494,19 @@ def run_pipeline(
         # forgejo database — restored snapshot has to be in place
         # first or forgejo-configure would write into a soon-to-be-
         # clobbered database. Fresh-start short-circuits at rc=0.
-        s3_pg_result = _s3_restore.restore_from_s3(ssh, phase="postgres")
-        if isinstance(s3_pg_result, _s3_restore.S3RestoreApplied):
-            sys.stderr.write(
-                f"✓ s3-restore (postgres): applied snapshot {s3_pg_result.snapshot_timestamp}\n",
-            )
+        if not already_restored:
+            s3_pg_result = _s3_restore.restore_from_s3(ssh, phase="postgres")
+            if isinstance(s3_pg_result, _s3_restore.S3RestoreApplied):
+                sys.stderr.write(
+                    f"✓ s3-restore (postgres): applied snapshot "
+                    f"{s3_pg_result.snapshot_timestamp}\n",
+                )
+            # Both halves returned: after an applied restore, a fresh
+            # start or with persistence switched off, data written from
+            # here on is newer than R2 and a later spin-up must not
+            # overwrite it. (Missing credentials never get here; the
+            # filesystem half stopped the run above.)
+            _s3_restore.mark_host_restored(ssh)
         # No need to re-log fresh_start_empty_s3 here — the
         # filesystem halve above already emitted that diagnostic.
 

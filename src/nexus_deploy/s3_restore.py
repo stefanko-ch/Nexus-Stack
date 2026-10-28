@@ -68,8 +68,10 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import os
+import shlex
 import sys
 from collections.abc import Callable
+from pathlib import PurePosixPath
 from typing import Literal
 
 from nexus_deploy import s3_persistence as _s3
@@ -290,6 +292,13 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     """Return the (postgres, rsync) target tuples for the stacks whose
     state survives a rebuild teardown.
 
+    The tuples below are the authoritative list; the mappings described
+    further down cover only the first stacks added. Today they hold
+    Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
+    Postgres, Unity Catalog, Lakekeeper and MLflow, and filesystem trees
+    for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB and the
+    notebook stacks (Jupyter, Marimo, code-server).
+
     Hard-coded because:
     1. Stateful stacks are explicitly opted in here. Adding a stack
        to the list is the SINGLE source-of-truth change that wires
@@ -476,6 +485,32 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="duckdb-data",
             local_path="/mnt/nexus-data/duckdb",
             s3_subpath="duckdb/data",
+        ),
+        # The notebook stacks: what students write in a course. Before
+        # these entries a rebuild teardown discarded every notebook
+        # that had not been pushed to Forgejo. Each is the bind mount
+        # its compose file declares; the Jupyter and Marimo targets
+        # also hold the workspace repo clone, unpushed commits included.
+        # code-server's is the whole home (settings, extensions, files
+        # outside the repo), so it is the largest of the three.
+        _s3.RsyncTarget(
+            name="jupyter-work",
+            local_path="/mnt/nexus-data/jupyter/work",
+            s3_subpath="jupyter/work",
+        ),
+        _s3.RsyncTarget(
+            name="marimo-notebooks",
+            local_path="/mnt/nexus-data/marimo/notebooks",
+            s3_subpath="marimo/notebooks",
+        ),
+        _s3.RsyncTarget(
+            name="code-server-home",
+            local_path="/mnt/nexus-data/code-server/home",
+            s3_subpath="code-server/home",
+            # The entrypoint writes the Forgejo password into ~/.netrc
+            # in plaintext and rewrites it on every start, so it must
+            # not reach R2 and nothing is lost by leaving it out.
+            excludes=("/.netrc",),
         ),
     )
     return postgres, rsync
@@ -731,6 +766,66 @@ def restore_from_s3(
 
 
 # ---------------------------------------------------------------------------
+# Live-host guard (#926)
+# ---------------------------------------------------------------------------
+
+# Written once both restore phases of a spin-up have finished, so it
+# means "this disk already holds restored state, and anything written
+# since is newer than R2". A spin-up that finds it skips the restore:
+# `rclone sync` would roll every filesystem target back to the last
+# teardown and delete what was added since, and the Postgres phase
+# drops and recreates each database before loading its dump.
+#
+# The marker lives on the server's root disk, which a rebuild teardown
+# destroys with the server, so a fresh host can never carry one: the
+# restore cannot be skipped by mistake on the path that needs it. A
+# disk restored from a Hetzner snapshot does carry it, which is right
+# too, since that disk is newer than R2. It sits beside the rsync
+# targets, not inside one, so no snapshot ever uploads it.
+RESTORE_MARKER = "/mnt/nexus-data/.nexus-restored"
+
+_MARKER_PRESENT = "restore-marker: present"
+_MARKER_ABSENT = "restore-marker: absent"
+
+
+def host_already_restored(ssh: SSHClient) -> bool:
+    """Return True iff this server's disk carries :data:`RESTORE_MARKER`.
+
+    Raises :class:`s3_persistence.S3PersistenceError` when the answer
+    is neither, rather than reading a failed SSH call as "absent":
+    that would restore over a live host, the exact failure this guard
+    exists to prevent. A failing ``ssh`` itself raises
+    ``CalledProcessError`` via ``check=True``.
+    """
+    marker = shlex.quote(RESTORE_MARKER)
+    completed = ssh.run_script(
+        f'if [ -e {marker} ]; then echo "{_MARKER_PRESENT}"; else echo "{_MARKER_ABSENT}"; fi\n',
+        check=True,
+    )
+    lines = completed.stdout.splitlines()
+    if _MARKER_PRESENT in lines:
+        return True
+    if _MARKER_ABSENT in lines:
+        return False
+    raise _s3.S3PersistenceError(
+        f"could not tell whether {RESTORE_MARKER} exists on the server; "
+        f"refusing to restore without knowing. Output: {completed.stdout[:200]!r}",
+    )
+
+
+def mark_host_restored(ssh: SSHClient) -> None:
+    """Write :data:`RESTORE_MARKER`. Call only after both restore phases
+    returned: a spin-up that dies between them must restore again on
+    its next run, and no one can have written anything worth keeping
+    in that window."""
+    marker = shlex.quote(RESTORE_MARKER)
+    ssh.run_script(
+        f"mkdir -p {shlex.quote(str(PurePosixPath(RESTORE_MARKER).parent))}\ntouch {marker}\n",
+        check=True,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Teardown-side snapshot (PR-4)
 # ---------------------------------------------------------------------------
 
@@ -777,6 +872,11 @@ _STANDARD_STOP_COMPOSE_FILES = (
     # CLI stops in well under a second, closing the file before rclone
     # reads it.
     "/opt/docker-server/stacks/duckdb/docker-compose.yml",
+    # A notebook saved mid-copy is a torn file; stopping first means
+    # the snapshot holds the last saved version of each.
+    "/opt/docker-server/stacks/jupyter/docker-compose.yml",
+    "/opt/docker-server/stacks/marimo/docker-compose.yml",
+    "/opt/docker-server/stacks/code-server/docker-compose.yml",
 )
 
 # The runner stack is deliberately absent from both lists. Its bind

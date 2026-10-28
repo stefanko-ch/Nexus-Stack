@@ -26,6 +26,7 @@ Coverage targets:
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -136,6 +137,10 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         # RFC 0001 cutover: mount_persistent_volume replaced by
         # ensure_data_dirs (chown-only; the Hetzner volume is gone).
         "ensure_data_dirs": MagicMock(return_value=None),
+        # Live-host guard (#926): a fresh host by default, so the
+        # restore runs; tests of the skip path set True.
+        "host_already_restored": MagicMock(return_value=False),
+        "mark_host_restored": MagicMock(return_value=None),
         "setup_wetty_ssh_agent": MagicMock(return_value=None),
         "ssh_keygen_cleanup": MagicMock(),
         "SSHClient": MagicMock(),
@@ -150,6 +155,14 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(
         "nexus_deploy.pipeline._setup.ensure_data_dirs",
         mocks["ensure_data_dirs"],
+    )
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.host_already_restored",
+        mocks["host_already_restored"],
+    )
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.mark_host_restored",
+        mocks["mark_host_restored"],
     )
     monkeypatch.setattr(
         "nexus_deploy.pipeline._setup.setup_wetty_ssh_agent",
@@ -508,6 +521,8 @@ def test_pipeline_runs_restore_then_ensure_data_dirs_then_pg_restore(
     parent = MagicMock()
     parent.attach_mock(setup_mocks["ensure_rclone"], "ensure_rclone")
     parent.attach_mock(setup_mocks["ensure_data_dirs"], "ensure_data_dirs")
+    parent.attach_mock(setup_mocks["host_already_restored"], "host_already_restored")
+    parent.attach_mock(setup_mocks["mark_host_restored"], "mark_host_restored")
 
     restore_calls: list[str] = []
 
@@ -548,20 +563,138 @@ def test_pipeline_runs_restore_then_ensure_data_dirs_then_pg_restore(
         if c[0]
         in {
             "ensure_rclone",
+            "host_already_restored",
             "restore_from_s3",
             "ensure_data_dirs",
             "run_pre_bootstrap",
+            "mark_host_restored",
             "run_all",
         }
     ]
     assert relevant == [
         "ensure_rclone",  # MUST come before restore_from_s3
+        "host_already_restored",  # #926: decides whether to restore at all
         "restore_from_s3",  # phase="filesystem"
         "ensure_data_dirs",
         "run_pre_bootstrap",  # compose-up happens here
         "restore_from_s3",  # phase="postgres"
+        "mark_host_restored",  # only once BOTH halves returned
         "run_all",
     ]
+
+
+def test_pipeline_skips_both_restore_phases_on_an_already_restored_host(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """#926: a spin-up dispatched while the stack is up must not roll it
+    back to the last teardown. With the marker present, neither phase
+    runs, but the data-dir ownership step and the deploy still do."""
+    setup_mocks["host_already_restored"].return_value = True
+    restore = MagicMock()
+    monkeypatch.setattr("nexus_deploy.pipeline._s3_restore.restore_from_s3", restore)
+
+    run_pipeline(
+        project_root=project_root,
+        options=PipelineOptions(),
+        tofu_runner=fake_tofu_runner,
+    )
+
+    restore.assert_not_called()
+    setup_mocks["mark_host_restored"].assert_not_called()
+    setup_mocks["ensure_data_dirs"].assert_called_once()
+    mock_orchestrator.run_all.assert_called_once()
+    assert "already restored" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("reason", ["fresh_start_empty_s3", "feature_flag_off"])
+def test_pipeline_marks_the_host_after_a_deliberate_skip(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    reason: str,
+) -> None:
+    """A fresh bucket and switched-off persistence are deliberate states:
+    from here on the server's data is the newest, so it is marked."""
+    from nexus_deploy.s3_restore import S3RestoreSkipped
+
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.restore_from_s3",
+        lambda _ssh, *, env=None, phase="all": S3RestoreSkipped(reason=reason),  # type: ignore[arg-type]
+    )
+
+    run_pipeline(
+        project_root=project_root,
+        options=PipelineOptions(),
+        tofu_runner=fake_tofu_runner,
+    )
+
+    setup_mocks["mark_host_restored"].assert_called_once()
+
+
+def test_pipeline_stops_before_compose_up_when_r2_credentials_are_missing(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persistence on, credentials missing: nothing was restored. Starting
+    the stacks would let people work in empty ones, and the re-run after
+    the fix would restore over that work. So the run stops before any
+    stack starts and leaves the host unmarked."""
+    from nexus_deploy.s3_restore import S3RestoreSkipped
+
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.restore_from_s3",
+        lambda _ssh, *, env=None, phase="all": S3RestoreSkipped(reason="no_endpoint_env"),
+    )
+
+    with pytest.raises(PipelineError, match="R2 credentials are missing"):
+        run_pipeline(
+            project_root=project_root,
+            options=PipelineOptions(),
+            tofu_runner=fake_tofu_runner,
+        )
+
+    mock_orchestrator.run_pre_bootstrap.assert_not_called()
+    setup_mocks["mark_host_restored"].assert_not_called()
+
+
+def test_pipeline_does_not_mark_the_host_when_the_postgres_restore_fails(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A spin-up that dies between the two halves must restore again on
+    its next run. Marking the host first would leave it with restored
+    files and empty databases, and the next teardown would upload
+    those empty databases over the good dumps in R2."""
+    from nexus_deploy.s3_restore import S3RestoreSkipped
+
+    def fake_restore(_ssh: Any, *, env: Any = None, phase: str = "all") -> Any:
+        if phase == "postgres":
+            raise subprocess.CalledProcessError(1, ["ssh", "nexus", "bash", "-s"])
+        return S3RestoreSkipped(reason="fresh_start_empty_s3")
+
+    monkeypatch.setattr("nexus_deploy.pipeline._s3_restore.restore_from_s3", fake_restore)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        run_pipeline(
+            project_root=project_root,
+            options=PipelineOptions(),
+            tofu_runner=fake_tofu_runner,
+        )
+
+    setup_mocks["mark_host_restored"].assert_not_called()
 
 
 def test_pipeline_aborts_when_enabled_services_not_list(

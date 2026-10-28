@@ -19,37 +19,40 @@ RUN apt-get update && \
 # Install uv (fast Python package manager) - pinned version
 RUN curl -LsSf https://astral.sh/uv/0.6.12/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# Install DuckDB CLI (latest stable from GitHub releases, multi-arch).
+# Install DuckDB CLI, pinned, multi-arch.
 # Pattern mirrors stefanko-ch/dbt_codespace_demo's devcontainer Dockerfile.
 #
-# NOTE: DuckDB has a fast release cadence (often monthly minor releases).
-# The ":latest" download URL means every image rebuild picks up whatever
-# version is current — convenient for staying close to upstream, but means
-# students may see a different DuckDB version after a fresh spin-up than
-# they had before. If you need reproducibility across rebuilds, pin to a
-# specific tag (e.g. .../releases/download/v1.1.3/duckdb_cli-linux-amd64.zip).
+# Pinned rather than `releases/latest`: DuckDB 2.0.0 (2026-10-21) renamed
+# its release assets from `duckdb_cli-linux-amd64.zip` to
+# `duckdb-cli-linux-amd64.tar.gz` (and `aarch64` to `arm64`), so the
+# unpinned URL started returning 404 and every code-server build failed.
+# A pin also keeps the CLI version stable across a course. 2.0 is the
+# first version that can attach to the DuckDB stack's Quack server.
+# Bump DUCKDB_CLI_VERSION deliberately, and check the asset names when
+# you do.
+ARG DUCKDB_CLI_VERSION=v2.0.0
 RUN ARCH="$(uname -m)" && \
     case "$ARCH" in \
-      x86_64)        CLI_URL="https://github.com/duckdb/duckdb/releases/latest/download/duckdb_cli-linux-amd64.zip" ;; \
-      aarch64|arm64) CLI_URL="https://github.com/duckdb/duckdb/releases/latest/download/duckdb_cli-linux-aarch64.zip" ;; \
+      x86_64)        CLI_ARCH=amd64 ;; \
+      aarch64|arm64) CLI_ARCH=arm64 ;; \
       *) echo "Unsupported arch $ARCH for DuckDB CLI" && exit 1 ;; \
     esac && \
-    curl -fsSL "$CLI_URL" -o /tmp/duckdb.zip && \
-    unzip -o /tmp/duckdb.zip -d /usr/local/bin && \
-    rm /tmp/duckdb.zip && \
+    curl -fsSL "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_CLI_VERSION}/duckdb-cli-linux-${CLI_ARCH}.tar.gz" -o /tmp/duckdb.tar.gz && \
+    tar -xzf /tmp/duckdb.tar.gz -C /usr/local/bin duckdb && \
+    rm /tmp/duckdb.tar.gz && \
     chmod +x /usr/local/bin/duckdb && \
     duckdb --version
 
 # Create nexus-venv with dbt + notebook tooling pre-installed.
 #
 # LOCATION: /opt/nexus-venv (NOT /home/coder/.nexus-venv).
-# Rationale: docker-compose.yml mounts code-server-data:/home/coder, which
+# Rationale: docker-compose.yml mounts the persistent home (/mnt/nexus-data/code-server/home:/home/coder), which
 # means anything baked into the image at /home/coder/<X> is MASKED by the
 # volume on every container start. Existing volumes never see new venv
 # content from a rebuilt image; users only ever get whatever the volume
 # was first-initialised with. Putting the venv at /opt/nexus-venv —
 # outside the volume mount — guarantees every rebuild's venv is the one
-# students see, regardless of when the code-server-data volume was first
+# students see, regardless of when the persistent home was first
 # created.
 #
 # All packages UNPINNED — every image rebuild pulls the latest from PyPI.
@@ -127,17 +130,17 @@ RUN uv venv /opt/nexus-venv && \
 # /etc/bash.bashrc. The PR #580 strategy of writing to
 # /etc/bash.bashrc never actually triggered in code-server terminals.
 #
-# ~/.bashrc lives in the volume mount (code-server-data:/home/coder),
+# ~/.bashrc lives in the volume mount (the persistent home (/mnt/nexus-data/code-server/home:/home/coder)),
 # so the activate-block has to be APPENDED at container-start time
 # rather than baked into the image. The entrypoint guard
 # ('grep -q ... || append') makes it idempotent across restarts.
 
 # Pre-stage VS Code extensions for seeding into a fresh
-# code-server-data volume.
+# persistent home.
 #
 # LOCATION: /opt/code-server-extensions (NOT /home/coder/.local/share/code-server/extensions).
 # Same rationale as /opt/nexus-venv above: docker-compose mounts
-# code-server-data:/home/coder, so anything baked directly into
+# the persistent home (/mnt/nexus-data/code-server/home:/home/coder), so anything baked directly into
 # /home/coder/<X> is MASKED by the volume on every container start.
 #
 # Strategy: bake the extensions into /opt/ at image-build time,
@@ -169,7 +172,7 @@ RUN uv venv /opt/nexus-venv && \
 #         --install-extension <id>
 # The --extensions-dir flag is mandatory — without it, install-extension
 # lands the extension in the default ~/.local/share/code-server/extensions/
-# which gets masked by the code-server-data volume mount on container
+# which gets masked by the persistent home mount on container
 # start, so the extension disappears on first run. SQLTools + sqltools-driver-pg
 # were pre-installed in #588 but removed again: every SQL-Tools-style
 # extension (SQLTools, cweijan database-client, …) breaks in the
@@ -186,7 +189,7 @@ RUN mkdir -p /opt/code-server-extensions && \
 # Migration scripts called from the compose entrypoint. Currently
 # only the one-time #593 sqltools-settings cleanup (atomic temp-file +
 # rename rewrite of settings.json to strip leftover credential keys).
-# Kept in /opt/ — outside the code-server-data volume mount that
+# Kept in /opt/ — outside the persistent home mount that
 # masks /home/coder/ — so the script is reachable on every container
 # start regardless of volume state.
 COPY scripts/ /opt/code-server-scripts/
