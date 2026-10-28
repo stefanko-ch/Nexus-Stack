@@ -474,13 +474,24 @@ class PostgresDumpTarget:
     container: str
     database: str
     user: str
+    # Application containers to keep stopped while the database is
+    # replaced. The restore runs after compose-up, so the application is
+    # already connected: left running, it could write into the database
+    # while pg_restore fills it, and it would keep what it cached from
+    # the empty database it started with. Stopped before the DROP if
+    # running, and started again once pg_restore has finished.
+    stop_during_restore: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not _S3_REGION.fullmatch(self.container):
-            raise S3PersistenceError(
-                f"PostgresDumpTarget.container must match docker-service-name shape "
-                f"(lowercase alnum + dash): {self.container!r}",
-            )
+        for name, value in (
+            ("container", self.container),
+            *(("stop_during_restore", c) for c in self.stop_during_restore),
+        ):
+            if not _S3_REGION.fullmatch(value):
+                raise S3PersistenceError(
+                    f"PostgresDumpTarget.{name} must match docker-service-name shape "
+                    f"(lowercase alnum + dash): {value!r}",
+                )
         for name, value in (("database", self.database), ("user", self.user)):
             if not _PG_IDENTIFIER.fullmatch(value):
                 raise S3PersistenceError(
@@ -1207,6 +1218,17 @@ def render_restore_script(
             # the same container that a CREATE issued from a template1
             # session succeeds, so no TEMPLATE clause is needed.
             maint_db = "template1" if pg.database == "postgres" else "postgres"
+            if pg.stop_during_restore:
+                lines.append('  STOPPED_APPS=""')
+            for app in pg.stop_during_restore:
+                app_q = shlex.quote(app)
+                lines.append(
+                    f"  if [ \"$(docker inspect --format='{{{{.State.Running}}}}' "
+                    f'{app_q} 2>/dev/null)" = "true" ]; then',
+                )
+                lines.append(f"    docker stop {app_q} >/dev/null")
+                lines.append(f'    STOPPED_APPS="$STOPPED_APPS {app}"')
+                lines.append("  fi")
             lines.append(
                 f"  docker exec {container} psql -U {user_cli} -d {maint_db} "
                 f"-c 'DROP DATABASE IF EXISTS {db_sql} WITH (FORCE);'",
@@ -1220,6 +1242,13 @@ def render_restore_script(
                 f"docker exec -i {container} pg_restore -U {user_cli} -d {db_cli} "
                 "--no-owner --no-acl",
             )
+            if pg.stop_during_restore:
+                # Only what was running before; a container the stack had
+                # stopped stays stopped.
+                lines.append("  for app in $STOPPED_APPS; do")
+                lines.append('    docker start "$app" >/dev/null')
+                lines.append('    echo "  started $app on its restored database"')
+                lines.append("  done")
             lines.append("fi")
         lines.append("")
 

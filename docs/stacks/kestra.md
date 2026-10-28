@@ -31,9 +31,11 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 > to 1.x."* A database that has been through 2.0's Flyway migrations cannot be
 > served by a 1.x image again.
 >
-> Under the default **rebuild** lifecycle this costs nothing — Kestra's Postgres
-> is not in the R2 persistence set and is recreated from migrations on every
-> spin-up, so a pin change is a fresh database either way.
+> Under the default **rebuild** lifecycle Kestra's Postgres is now in the R2
+> persistence set (see [Persistence](#persistence)), so a spin-up restores the
+> previous database and Kestra migrates it on start. Every stack has run 2.0
+> since this pin, so the dumps in R2 are 2.0 databases; restoring a 1.x dump
+> into 2.0 has not been tested.
 >
 > **Under a `snapshot` lifecycle, take a backup first.** `kestra-postgres-data`
 > is a named Docker volume, so the disk image preserves it, and the first
@@ -109,6 +111,44 @@ The stack includes:
 - **Kestra** - Main workflow engine with web UI
 - **PostgreSQL** - Database for workflow state and metadata
 
+### Persistence
+
+Under the `rebuild` lifecycle a teardown saves Kestra to R2 and the next
+spin-up restores it:
+
+| What | Where it lives | How it is saved |
+|---|---|---|
+| Flows written in the UI, executions, logs, triggers | `kestra-postgres` | `pg_dump` before the stack stops |
+| Namespace files from the UI's editor, execution outputs | `/mnt/nexus-data/kestra/storage` (bind mount on `/app/storage`) | rsync of the directory, Kestra stopped |
+
+**Which copy wins depends on the namespace.** `system.flow-sync` runs on every
+spin-up, after the restore, and loads two namespaces from the workspace repo
+with `delete: true`:
+
+- `nexus-tutorials.*`, from the seeded examples;
+- `my-flows.*`, which a scheduled flow pushes from the UI to the repo every
+  10 minutes.
+
+In those two namespaces the repo is canonical: a flow created or changed in the
+UI less than 10 minutes before a teardown is restored from the dump and then
+replaced, or deleted, by the repo's older version. Flows in **any other
+namespace** are not touched by the sync, so the database dump is what brings
+them back.
+
+The database is restored after `docker compose up`, so Kestra is already
+running on an empty database by then. The restore stops the `kestra`
+container before replacing the database and starts it again once `pg_restore`
+has finished. It cannot write into a half-restored database, and it starts on
+the restored flows and triggers instead of what it cached from the empty one.
+If the restore fails, the spin-up stops with Kestra left stopped.
+
+A server that still has the old `kestra_kestra-data` named volume has it
+copied into the bind mount once, while the directory is empty, with the old
+container stopped first so none of its writes miss the copy. The copy goes to
+a sibling directory that replaces the empty one only once it is complete, so a
+copy that fails halfway is retried on the next spin-up. The volume is left in
+place.
+
 ### Authentication & RBAC
 
 | Layer | What it does |
@@ -121,7 +161,7 @@ The stack includes:
 
 Kestra's database runs `postgres:18-alpine`, matching what upstream ships in its own compose file.
 
-Under the default `rebuild` lifecycle this needs no action: the database is not in the S3 persistence set, so it is recreated from Kestra's own migrations on every spin-up.
+Under the default `rebuild` lifecycle this needs no action: the database travels through R2 as a `pg_dump`, which is independent of the PostgreSQL major version, and is restored into a fresh 18 cluster on every spin-up.
 
 ⚠️ **Under the `snapshot` lifecycle an existing data directory carries
 over physically — and the container will refuse to start, deliberately.**

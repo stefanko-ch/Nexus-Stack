@@ -154,6 +154,14 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
        and the next teardown would snapshot the empty directory. Copied
        only while the directory is empty, so it never overwrites and
        runs once. The volume itself is left in place, as a fallback.
+       Any container still using the volume is stopped first: on a
+       running server the old container keeps writing to the volume
+       until compose up replaces it, and those writes would miss the
+       copy. compose up starts the stack again right after.
+       The copy goes to a sibling directory that replaces the empty one
+       only once it is complete. A copy that fails halfway therefore
+       leaves the target empty, so the next spin-up migrates again
+       instead of finding a non-empty directory and skipping.
     3. Ownership, per file rather than on the top-level directory only:
        a restore into a directory that already has the right owner
        (a re-run after a spin-up that failed before marking the host)
@@ -164,12 +172,19 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
     uid, gid = owner.split(":")
     p = shlex.quote(path)
     vol = shlex.quote(old_volume)
+    tmp = shlex.quote(path + ".migrating")
     return (
         f"\nmkdir -p {p}\n"
         f'if [ -z "$(ls -A {p})" ] '
         f"&& OLD_MOUNT=$(docker volume inspect -f '{{{{.Mountpoint}}}}' {vol} 2>/dev/null) "
         f'&& [ -n "$(ls -A "$OLD_MOUNT")" ]; then\n'
-        f'  cp -a "$OLD_MOUNT"/. {p}/\n'
+        f"  USERS=$(docker ps -q --filter volume={vol})\n"
+        f'  if [ -n "$USERS" ]; then docker stop $USERS >/dev/null; fi\n'
+        f"  rm -rf {tmp}\n"
+        f"  mkdir {tmp}\n"
+        f'  cp -a "$OLD_MOUNT"/. {tmp}/\n'
+        f"  rmdir {p}\n"
+        f"  mv {tmp} {p}\n"
         f'  echo "  migrated docker volume {old_volume} into {path}"\n'
         f"fi\n"
         f"find {p} \\( ! -user {uid} -o ! -group {gid} \\) -exec chown -h {owner} {{}} +\n"
@@ -188,6 +203,7 @@ def render_remote_script(
     jupyter_work_prep: bool = False,
     marimo_notebooks_prep: bool = False,
     code_server_home_prep: bool = False,
+    kestra_storage_prep: bool = False,
     stacks_dir: str = _REMOTE_STACKS_DIR,
     global_env: str = _REMOTE_GLOBAL_ENV,
 ) -> str:
@@ -318,6 +334,14 @@ fi
         if code_server_home_prep
         else ""
     )
+    # Kestra's internal storage, backed up the same way. Kestra runs as
+    # root, so the ownership step only ever finds work after something
+    # outside the container wrote there.
+    kestra_block = (
+        _render_notebook_prep("/mnt/nexus-data/kestra/storage", "0:0", "kestra_kestra-data")
+        if kestra_storage_prep
+        else ""
+    )
 
     metabase_block = ""
     if metabase_storage_prep:
@@ -356,7 +380,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{marimo_block}{code_server_block}
+{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{marimo_block}{code_server_block}{kestra_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -466,6 +490,7 @@ def run_compose_up(
     jupyter_work_prep: bool | None = None,
     marimo_notebooks_prep: bool | None = None,
     code_server_home_prep: bool | None = None,
+    kestra_storage_prep: bool | None = None,
     script_runner: ScriptRunner | None = None,
 ) -> ComposeUpResult:
     """Render → exec → parse.
@@ -516,6 +541,7 @@ def run_compose_up(
     actual_code_server = (
         code_server_home_prep if code_server_home_prep is not None else "code-server" in enabled
     )
+    actual_kestra = kestra_storage_prep if kestra_storage_prep is not None else "kestra" in enabled
 
     script = render_remote_script(
         parents=parents,
@@ -528,6 +554,7 @@ def run_compose_up(
         jupyter_work_prep=actual_jupyter,
         marimo_notebooks_prep=actual_marimo,
         code_server_home_prep=actual_code_server,
+        kestra_storage_prep=actual_kestra,
     )
 
     run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))

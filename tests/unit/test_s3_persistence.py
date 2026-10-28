@@ -36,6 +36,7 @@ Coverage focus areas:
 
 from __future__ import annotations
 
+import gzip
 import json
 import shutil
 import subprocess
@@ -345,7 +346,9 @@ def test_postgres_dump_target_rejects_unsafe_identifiers(
     kwargs = {"container": "gitea-db", "database": "gitea", "user": "nexus-gitea"}
     kwargs[field] = value
     with pytest.raises(S3PersistenceError, match=fragment):
-        PostgresDumpTarget(**kwargs)
+        PostgresDumpTarget(
+            container=kwargs["container"], database=kwargs["database"], user=kwargs["user"]
+        )
 
 
 def test_postgres_dump_target_accepts_canonical_values() -> None:
@@ -1241,3 +1244,120 @@ def test_code_server_home_keeps_the_forgejo_netrc_out_of_r2() -> None:
 
     _, rsync = standard_targets()
     assert {r.name: r for r in rsync}["code-server-home"].excludes == ("/.netrc",)
+
+
+# ---------------------------------------------------------------------------
+# Keeping the application stopped while its database is replaced
+# ---------------------------------------------------------------------------
+
+
+def _kestra_target() -> PostgresDumpTarget:
+    return PostgresDumpTarget(
+        container="kestra-postgres",
+        database="kestra",
+        user="nexus-kestra",
+        stop_during_restore=("kestra",),
+    )
+
+
+def _restore_branch(script: str) -> list[str]:
+    """The lines of the branch that actually restores kestra's database."""
+    lines = script.splitlines()
+    start = next(i for i, le in enumerate(lines) if le == '  STOPPED_APPS=""')
+    end = next(i for i in range(start, len(lines)) if lines[i] == "fi")
+    return lines[start:end]
+
+
+def test_a_target_without_stop_during_restore_touches_no_container() -> None:
+    script = render_restore_script(
+        endpoint=_endpoint(),
+        postgres_targets=(
+            PostgresDumpTarget(container="gitea-db", database="gitea", user="nexus-gitea"),
+        ),
+        rsync_targets=(),
+    )
+    assert "docker stop" not in script
+    assert "docker start" not in script
+    assert "STOPPED_APPS" not in script
+
+
+def _run_branch(
+    tmp_path: Path, *, running: str, restore_rc: int = 0
+) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """Runs the rendered branch with a stub `docker` that logs every call."""
+    script = render_restore_script(
+        endpoint=_endpoint(), postgres_targets=(_kestra_target(),), rsync_targets=()
+    )
+    workdir = tmp_path / "work"
+    (workdir / "postgres").mkdir(parents=True)
+    (workdir / "postgres" / "kestra.dump.gz").write_bytes(gzip.compress(b"dump"))
+    log = tmp_path / "calls"
+    stub = tmp_path / "bin" / "docker"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        f'echo "$*" >> {log}\n'
+        "cat >/dev/null 2>&1 || true\n"
+        'case "$1 $2" in\n'
+        f"  inspect*) echo {running} ;;\n"
+        f'  "exec -i") exit {restore_rc} ;;\n'
+        "esac\n"
+    )
+    stub.chmod(0o755)
+    body = "set -euo pipefail\n" + "\n".join(_restore_branch(script)) + "\n"
+    result = subprocess.run(
+        ["bash", "-c", body],
+        env={"PATH": f"{stub.parent}:/usr/bin:/bin", "WORKDIR": str(workdir)},
+        capture_output=True,
+        text=True,
+    )
+    calls = log.read_text().splitlines() if log.exists() else []
+    return result, calls
+
+
+def _index(calls: list[str], fragment: str) -> int:
+    return next(i for i, c in enumerate(calls) if fragment in c)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_running_app_is_stopped_for_the_whole_restore(tmp_path: Path) -> None:
+    """Stopped before the DROP and started only after pg_restore, so it
+    can neither write into the half-restored database nor keep what it
+    cached from the empty one."""
+    result, calls = _run_branch(tmp_path, running="true")
+    assert result.returncode == 0, result.stderr
+    stop = _index(calls, "stop kestra")
+    drop = _index(calls, "DROP DATABASE")
+    restore = _index(calls, "pg_restore")
+    start = _index(calls, "start kestra")
+    assert stop < drop < restore < start
+    assert "started kestra on its restored database" in result.stdout
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_an_app_that_was_not_running_stays_stopped(tmp_path: Path) -> None:
+    result, calls = _run_branch(tmp_path, running="false")
+    assert result.returncode == 0, result.stderr
+    assert not any(c.startswith(("stop ", "start ")) for c in calls)
+    assert any("pg_restore" in c for c in calls)
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_a_failed_restore_fails_loudly_and_starts_nothing(tmp_path: Path) -> None:
+    """The spin-up stops on a failed pg_restore; starting the app on a
+    half-restored database would hide that."""
+    result, calls = _run_branch(tmp_path, running="true", restore_rc=1)
+    assert result.returncode != 0
+    assert any(c.startswith("stop kestra") for c in calls)
+    assert not any(c.startswith("start ") for c in calls)
+
+
+@pytest.mark.parametrize("name", ["Kestra", "kestra;id", "$(id)", ""])
+def test_stop_during_restore_rejects_unsafe_container_names(name: str) -> None:
+    with pytest.raises(S3PersistenceError, match="stop_during_restore"):
+        PostgresDumpTarget(
+            container="kestra-postgres",
+            database="kestra",
+            user="nexus-kestra",
+            stop_during_restore=(name,),
+        )
