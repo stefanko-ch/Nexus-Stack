@@ -99,13 +99,20 @@ shell-style truthy-coercion would hide configuration mistakes."""
 class S3RestoreSkipped:
     """Restore was a no-op. ``reason`` is operator-facing: one of
     ``"feature_flag_off"``, ``"no_endpoint_env"``,
-    ``"fresh_start_empty_s3"``. The first two are configuration
-    states (no S3 path taken at all). The third means the path
-    was taken but S3 had nothing to restore — first-ever
-    spinup of a freshly-provisioned bucket. All three are
+    ``"fresh_start_empty_s3"``, ``"all_databases_restored"``. The
+    first two are configuration states (no S3 path taken at all).
+    The third means the path was taken but S3 had nothing to
+    restore — first-ever spinup of a freshly-provisioned bucket.
+    The fourth means every database already carries its marker on
+    this disk, so R2 was not contacted at all (#931). All four are
     success cases from pipeline.py's perspective."""
 
-    reason: Literal["feature_flag_off", "no_endpoint_env", "fresh_start_empty_s3"]
+    reason: Literal[
+        "feature_flag_off",
+        "no_endpoint_env",
+        "fresh_start_empty_s3",
+        "all_databases_restored",
+    ]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -778,6 +785,8 @@ def restore_from_s3(
 
     if "fresh-start: no snapshot in S3" in output:
         return S3RestoreSkipped(reason="fresh_start_empty_s3")
+    if "restore: every postgres database already restored" in output:
+        return S3RestoreSkipped(reason="all_databases_restored")
 
     # Parse the applied timestamp from "→ restore: using snapshot
     # snapshots/<timestamp>" line. If we can't find it (server-side

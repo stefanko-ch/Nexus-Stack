@@ -529,6 +529,11 @@ def run_pipeline(
                     f"✓ s3-restore (postgres): applied snapshot "
                     f"{s3_pg_result.snapshot_timestamp}\n",
                 )
+        elif s3_pg_result.reason == "all_databases_restored":
+            sys.stderr.write(
+                "✓ s3-restore (postgres): every database already restored on this "
+                "server; R2 not contacted\n",
+            )
         else:
             # Persistence off or an empty bucket: nothing was restored,
             # on purpose. Untracked, every database would be restored

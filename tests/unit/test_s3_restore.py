@@ -445,6 +445,15 @@ def test_restore_from_s3_returns_fresh_start_when_bucket_empty() -> None:
     ssh.run_script.assert_called_once()
 
 
+def test_restore_from_s3_reports_when_every_database_was_already_restored() -> None:
+    """#931: the Postgres phase stopped before R2, so no snapshot was
+    looked up and "applied" would claim one."""
+    ssh = _fake_ssh("→ restore: every postgres database already restored on this server\n")
+    result = restore_from_s3(ssh, env=_good_env(), phase="postgres")
+    assert isinstance(result, S3RestoreSkipped)
+    assert result.reason == "all_databases_restored"
+
+
 def test_restore_from_s3_returns_applied_with_timestamp() -> None:
     """Successful restore → ``Applied`` with the parsed timestamp."""
     ssh = _fake_ssh(

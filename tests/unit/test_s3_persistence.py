@@ -1666,15 +1666,29 @@ def test_a_database_whose_stack_starts_later_is_restored_then_and_alone(
 def test_a_server_whose_databases_are_all_tracked_pulls_and_touches_nothing(
     tmp_path: Path,
 ) -> None:
-    """The common case on a running server: no dump is downloaded and no
-    database is dropped."""
+    """The common case on a running server: R2 is not contacted at all,
+    not even probed, so an R2 outage cannot fail a spin-up that has
+    nothing to restore; and no database is touched."""
     _run_tracked_restore(tmp_path, running={"a-db", "b-db", "c-db"}, dumps={"a", "b"})
     result, calls, _ = _run_tracked_restore(
         tmp_path, running={"a-db", "b-db", "c-db"}, dumps={"a", "b"}
     )
     assert result.returncode == 0, result.stderr
-    assert not any(c.startswith("rclone sync") for c in calls)
-    assert not any(c.startswith("docker exec") for c in calls)
+    assert calls == []
+    assert "every postgres database already restored on this server" in result.stdout
+
+
+@pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")
+def test_one_untracked_database_still_consults_r2(tmp_path: Path) -> None:
+    """The early exit needs every marker; one missing one takes the full
+    path, probes included."""
+    _run_tracked_restore(tmp_path, running={"a-db", "c-db"}, dumps={"a", "b"})
+    result, calls, _ = _run_tracked_restore(
+        tmp_path, running={"a-db", "b-db", "c-db"}, dumps={"a", "b"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert any(c.startswith("rclone lsd") for c in calls)
+    assert "every postgres database already restored" not in result.stdout
 
 
 @pytest.mark.skipif(not _bash_can_be_invoked(), reason="needs bash")

@@ -704,6 +704,35 @@ def test_pipeline_marks_the_host_after_a_deliberate_skip(
     setup_mocks["mark_all_databases_restored"].assert_called_once()
 
 
+def test_pipeline_leaves_markers_alone_when_every_database_was_restored(
+    project_root: Path,
+    fake_tofu_runner: MagicMock,
+    setup_mocks: dict[str, Any],
+    mock_orchestrator: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """#931: nothing to restore and R2 not contacted. The markers are all
+    there already, so marking them again would only cost a round trip."""
+    from nexus_deploy.s3_restore import S3RestoreSkipped
+
+    monkeypatch.setattr(
+        "nexus_deploy.pipeline._s3_restore.restore_from_s3",
+        lambda _ssh, *, env=None, phase="all", restored_marker_dir=None: S3RestoreSkipped(
+            reason="all_databases_restored",
+        ),
+    )
+
+    run_pipeline(
+        project_root=project_root,
+        options=PipelineOptions(),
+        tofu_runner=fake_tofu_runner,
+    )
+
+    setup_mocks["mark_all_databases_restored"].assert_not_called()
+    assert "R2 not contacted" in capsys.readouterr().err
+
+
 def test_pipeline_stops_before_compose_up_when_r2_credentials_are_missing(
     project_root: Path,
     fake_tofu_runner: MagicMock,
