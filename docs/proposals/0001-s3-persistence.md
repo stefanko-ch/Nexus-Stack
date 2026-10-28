@@ -255,10 +255,15 @@ options we use for cross-version restores. The implementation in
 - **Idempotency:** re-running teardown after a partial failure replays steps 1–4. Step 4 short-circuits if hashes already match.
 
 **About `rclone check`'s integrity guarantee.** The default
-`rclone check` compares the per-object hash that rclone has for the
-S3 backend — for R2 (S3-compatible API) that's the object ETag for
-non-multipart uploads, or the etag-of-etags (an MD5-of-MD5s) for
-multipart uploads.
+`rclone check` compares sizes plus the MD5 that rclone has for each
+S3 object. For a single-part upload that MD5 is the ETag R2 returns
+in the listing, i.e. R2's own hash of the stored body — an
+independent check. rclone only accepts an ETag that is a plain
+32-hex MD5; a multipart ETag in the S3 `<hash>-<parts>` form fails
+that test, and rclone then falls back to the
+`X-Amz-Meta-Md5chksum` metadata it wrote itself at upload time
+(rclone 1.60.1, `backend/s3/s3.go`, `setMD5FromEtag` /
+`readMetaData`).
 
 **Multipart-threshold caveat.** An earlier draft of this section
 claimed our typical files are "well under R2's multipart
@@ -267,19 +272,22 @@ not generally true: rclone's S3 backend uses `--s3-upload-cutoff`
 (default ~200 MiB) to decide when to multipart-upload, and the
 default `--s3-chunk-size` is 5 MiB. Plenty of our objects —
 Gitea LFS attachments, larger Postgres dumps, Dify uploads — can
-land above 200 MiB, in which case ETag is the etag-of-etags and
-NOT plain MD5 of the body.
+land above 200 MiB, in which case the ETag is NOT an MD5 of the
+body.
 
-What ``rclone check`` actually guarantees in that case:
-*upload integrity* (every part uploaded matches what rclone
-sent, and the assembled object's etag-of-etags matches rclone's
-locally-computed etag-of-etags) — NOT strict content-equality
-against the source bytes. That's still a strong property —
-network corruption or partial-upload truncation get caught — but
-it's weaker than "bit-for-bit equal to source." A deliberately
-corrupted source could in theory hash-collide its way through
-the etag-of-etags scheme; for our threat model (no adversarial
-operator) we accept that.
+What ``rclone check`` actually guarantees in that case is weaker
+than it looks. The stored MD5 is the one rclone computed from the
+local file before uploading, so comparing it with the local file
+again only shows the source did not change since the upload; the
+size comparison is the only property read back from R2. Neither
+the post-upload HEAD (rclone disables its multipart-ETag check for
+`provider = Cloudflare`: "currently multipart Etags are random")
+nor `rclone check` verifies the assembled object's content. What
+does protect it is *upload integrity*: every part is sent with its
+own `Content-MD5`, so R2 rejects a part corrupted in transit, and a
+truncated upload shows up as a size mismatch. Corruption that keeps
+the size and every part's checksum intact — e.g. a wrong part
+assembly on R2's side — would go undetected.
 
 **v1.0 acceptance.** We accept that the integrity guarantee in
 the multipart case is "upload integrity," not "content equality
@@ -577,12 +585,22 @@ gzip, written under `postgres/` not under each app's subtree).
 [cloudflare-r2]
 type = s3
 provider = Cloudflare
+env_auth = false
 endpoint = https://<account_id>.r2.cloudflarestorage.com
 access_key_id = <from-infisical>
 secret_access_key = <from-infisical>
 region = auto
 acl = private
+no_head = true
 ```
+
+``no_head = true`` skips the HEAD rclone sends after each upload.
+R2 returns ``X-Amz-Version-Id`` on PUT, rclone then reads the object
+back with ``HEAD <key>?versionId=…``, and R2 answers that with
+``501 NotImplemented`` — so without it every upload logs a false
+error and is retried. The rendered profile
+(``render_rclone_config`` in ``src/nexus_deploy/s3_persistence.py``)
+is the source of truth for the full option set.
 
 R2 uses ``region = auto`` (R2 is a single global namespace; the SDK
 doesn't route based on region). The endpoint URL includes the
