@@ -41,7 +41,7 @@ services:
     environment:
       - DUCKDB_QUACK_TOKEN=${DUCKDB_QUACK_TOKEN}
       # The image sets no HOME, and DuckDB keeps downloaded extensions under
-      # ~/.duckdb. Pointing it into the volume means the quack extension is
+      # ~/.duckdb. Pointing it into the data directory means the quack extension is
       # fetched once rather than on every container start — and that the
       # healthcheck below, a second DuckDB process, finds the same copy.
       - HOME=/data
@@ -69,7 +69,7 @@ services:
     # memory_limit is set below the container limit because DuckDB sizes
     # its default from the host's RAM, not the cgroup: it reported 12.5 GiB
     # inside a container capped far lower. temp_directory lets a query that
-    # outgrows it spill to the volume instead of failing.
+    # outgrows it spill to disk instead of failing.
     command:
       - /duckdb
       - -bail
@@ -109,12 +109,15 @@ services:
       retries: 3
       start_period: 30s
     volumes:
-      - duckdb-data:/data
+      # A bind mount rather than a named volume, so the R2 snapshot and
+      # restore cycle (s3_restore.standard_targets) can rsync it and the
+      # database survives a rebuild teardown. The teardown stops this
+      # stack first, so the copy is taken with the file closed. The
+      # container runs as root, so Docker creating the directory on first
+      # start is all the preparation it needs.
+      - /mnt/nexus-data/duckdb:/data
     networks:
       - app-network
-
-volumes:
-  duckdb-data:
 
 networks:
   app-network:

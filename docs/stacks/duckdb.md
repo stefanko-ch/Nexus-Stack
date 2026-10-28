@@ -18,7 +18,7 @@ This stack runs that server with one persistent database file. Notebooks, script
 | Host port | `127.0.0.1:9494`, loopback only, for SSH forwarding |
 | Subdomain | None. The stack is internal-only (see [Why there is no subdomain](#why-there-is-no-subdomain)) |
 | Token | Infisical, `/duckdb/DUCKDB_QUACK_TOKEN` |
-| Database file | `/data/nexus.duckdb` in the `duckdb-data` volume |
+| Database file | `/data/nexus.duckdb`, bind-mounted from `/mnt/nexus-data/duckdb` on the host |
 | Memory | Container limit 2 GB, DuckDB `memory_limit` 1536 MB, spill to `/data/tmp` |
 | Docker image | [`duckdb/duckdb`](https://hub.docker.com/r/duckdb/duckdb), pinned to `2.0.0`, amd64 + arm64 |
 | Licence | MIT |
@@ -161,22 +161,28 @@ The image is distroless. It contains the `duckdb` binary and nothing else, not e
 | `init: true` | The CLI ignores `SIGTERM` as PID 1, so every `docker stop` waited ten seconds and then sent `SIGKILL` mid-write. Under `tini` it stops in about 0.1 s, and every committed row is present after a restart |
 | `-bail` | A failed `quack_serve` left the CLI idle on stdin: a running container that served nothing |
 
-`HOME=/data` puts DuckDB's extension directory in the volume. The `quack` extension downloads from `extensions.duckdb.org` on first start and is reused afterwards, including by the healthcheck.
+`HOME=/data` puts DuckDB's extension directory in the data directory. The `quack` extension downloads from `extensions.duckdb.org` on first start and is reused afterwards, including by the healthcheck.
 
 The healthcheck is a real authenticated round trip, not a port probe. A second DuckDB process runs `quack_query('quack:localhost:9494', 'SELECT 1', token = getenv('DUCKDB_QUACK_TOKEN'))`. It exits non-zero on a wrong token or an unreachable server.
 
-DuckDB sizes its default `memory_limit` from the host's RAM, not from the container's cgroup. It reported 12.5 GiB inside a container capped far lower. The stack therefore sets `memory_limit = '1536MB'` under the 2 GB container limit, and gives queries a `temp_directory` in the volume to spill into.
+DuckDB sizes its default `memory_limit` from the host's RAM, not from the container's cgroup. It reported 12.5 GiB inside a container capped far lower. The stack therefore sets `memory_limit = '1536MB'` under the 2 GB container limit, and gives queries a `temp_directory` in the data directory to spill into.
 
 ### Persistence
 
-The database lives in the `duckdb-data` volume:
+The database lives in `/mnt/nexus-data/duckdb` on the host, mounted at `/data`:
 
-- **Snapshot lifecycle** (`lifecycle_mode = snapshot`): the volume is part of the disk snapshot and survives teardown.
-- **Rebuild lifecycle** (`lifecycle_mode = rebuild`): the volume is **not** in `s3_restore.standard_targets()`, so the database is gone after a teardown. Keep anything that matters in object storage as well. Writing it out with `COPY srv.my_table TO 's3://…' (FORMAT parquet)` is one line.
+- **Snapshot lifecycle** (`lifecycle_mode = snapshot`): the directory is part of the disk snapshot and survives teardown.
+- **Rebuild lifecycle** (`lifecycle_mode = rebuild`): the directory is the `duckdb-data` target in `src/nexus_deploy/s3_restore.py::standard_targets`, so it survives as well when R2 persistence is on (`NEXUS_S3_PERSISTENCE=true`). The teardown stops the stack, then copies the directory to `snapshots/<timestamp>/duckdb/data/` on R2. The next spin-up copies it back before the stack starts.
+
+The stop is what makes the copy consistent. Under `tini` the server exits in well under a second and closes the file before rclone reads it.
+
+The copy has to be the whole directory, not `nexus.duckdb` alone. A stopped server does not necessarily checkpoint first, so recent writes can still be in `nexus.duckdb.wal`. In a test on 2.0.0, 100,001 rows sat in an 800 KB WAL next to a 12 KB database file after `docker compose stop`. A copy of both files restored every row.
+
+A snapshot taken while DuckDB was disabled has no `duckdb/` prefix. Restoring from it leaves the directory empty, and the server starts with a new database.
 
 See [Snapshot lifecycle](../admin-guides/snapshot-lifecycle.md) for how the two modes differ.
 
-A file written by DuckDB 2.0's default storage format cannot be opened by DuckDB 1.x. That matters only if you copy `nexus.duckdb` out of the volume and open it with an older client.
+A file written by DuckDB 2.0's default storage format cannot be opened by DuckDB 1.x. That matters only if you copy `nexus.duckdb` off the server and open it with an older client.
 
 ### Troubleshooting
 
@@ -191,4 +197,4 @@ ssh nexus "docker logs duckdb"                  # the startup line, or the error
 | Client: `Authentication failed` | Wrong token, or a secret whose `SCOPE` does not match the URI you attach |
 | Client: `Serialization Error: Failed to deserialize` or `quack.duckdb_extension not found` | The client is DuckDB 1.x |
 | Client: `SSL connect error … HTTP POST to 'https://duckdb:9494/quack'` | `DISABLE_SSL true` is missing. Non-local URIs default to HTTPS |
-| First start is slow or fails offline | The `quack` extension downloads on first start. It needs outbound HTTPS to `extensions.duckdb.org` once per volume |
+| First start is slow or fails offline | The `quack` extension downloads on first start. It needs outbound HTTPS to `extensions.duckdb.org` once per data directory, which the R2 snapshot carries across a rebuild |

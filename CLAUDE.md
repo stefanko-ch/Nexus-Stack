@@ -137,7 +137,7 @@ gh workflow run destroy-all.yml -f confirm=DESTROY  # Full cleanup
 **Two lifecycles.** `spin-up.yml` / `teardown.yml` destroy and rebuild from
 `ubuntu-26.04`. `spin-up-snapshot.yml` / `teardown-snapshot.yml` take a Hetzner
 disk snapshot and restore from it — faster, and the only path that preserves
-data for stacks outside the five the R2 layer covers.
+data for stacks outside the few the R2 layer covers.
 
 Which pair a stack uses is the D1 config value `lifecycle_mode`
 (`rebuild` | `snapshot`), read by the Control Plane and settable from its
