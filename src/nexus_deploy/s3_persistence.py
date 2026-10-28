@@ -429,12 +429,17 @@ def render_rclone_config(endpoint: S3Endpoint) -> str:
         # the 200 MiB `upload_cutoff`) carries `Content-MD5`, so R2
         # rejects a corrupted body, and rclone takes the ETag from the
         # PUT response for its post-copy hash comparison. Multipart
-        # uploads send `Content-MD5` per part, but their size and
-        # final ETag are assumed rather than read back. That gap is
-        # what the snapshot's verify step closes: it runs
-        # `rclone check --one-way` for every uploaded source against a fresh
-        # listing before `latest.txt` is promoted (see
-        # `render_snapshot_script`).
+        # uploads send `Content-MD5` per part, but their size is now
+        # assumed rather than read back. The HEAD never verified
+        # multipart *content* on R2 anyway: rclone disables its
+        # multipart-ETag check for `provider = Cloudflare` ("currently
+        # multipart Etags are random"). The lost size read-back is
+        # covered by the snapshot's verify step, which runs
+        # `rclone check --one-way` for every uploaded source against a
+        # fresh listing before `latest.txt` is promoted (see
+        # `render_snapshot_script`). For multipart objects that check
+        # compares size plus the MD5 rclone itself stored as metadata,
+        # so it is not an independent byte-level read-back.
         #
         # Reads are unaffected: objects from a plain listing carry no
         # version ID, so the restore's `rclone sync`/`copyto` from R2
