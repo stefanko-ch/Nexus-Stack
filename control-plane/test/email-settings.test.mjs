@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { onRequestPost } from '../functions/api/email-settings.js';
+import { onRequestGet, onRequestPost } from '../functions/api/email-settings.js';
 import { _resetJwksCache } from '../functions/api/_utils/access-jwt.js';
 import { makeKeypair, signToken, jwksFetch } from './helpers.mjs';
 
@@ -33,6 +33,30 @@ function fakeDb() {
       };
     },
   };
+}
+
+const ENV = {
+  ADMIN_EMAIL: 'admin@example.com',
+  USER_EMAIL: 'student@example.com',
+  ACCESS_TEAM_DOMAIN: 'testteam',
+  ACCESS_AUD: 'test-aud',
+};
+
+async function get(email, db) {
+  const { privateKey, jwk, kid } = await makeKeypair();
+  const original = globalThis.fetch;
+  globalThis.fetch = jwksFetch([jwk]);
+  _resetJwksCache();
+  try {
+    const token = await signToken({ privateKey, kid, payload: { email } });
+    const request = new Request(`${ORIGIN}/api/email-settings`, {
+      headers: { 'Cf-Access-Jwt-Assertion': token },
+    });
+    return await onRequestGet({ env: { ...ENV, NEXUS_DB: db }, request });
+  } finally {
+    globalThis.fetch = original;
+    _resetJwksCache();
+  }
 }
 
 async function post(email, payload, db) {
@@ -92,4 +116,22 @@ test('a guest still cannot change them', async () => {
 
   assert.equal(response.status, 403);
   assert.equal(db.rows.size, 0);
+});
+
+test("the stack's user can read the settings the page shows", async () => {
+  const db = fakeDb();
+  db.rows.set('notify_on_spinup', 'false');
+
+  const response = await get('student@example.com', db);
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.settings.notifyOnSpinup, false);
+  assert.equal(body.settings.notifyOnShutdown, true);
+});
+
+test('a guest cannot read them either', async () => {
+  const response = await get('guest@example.com', fakeDb());
+
+  assert.equal(response.status, 403);
 });

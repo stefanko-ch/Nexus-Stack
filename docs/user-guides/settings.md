@@ -93,6 +93,8 @@ Two email notifications can be toggled independently:
 
 Both the admin and the stack's user can change these, since whether you get the mails is your own choice. Guests cannot.
 
-Switching either toggle on also clears **silent mode**, a stack-wide setting that suppresses every automated mail. An operator can still start a single spin-up silently; that applies to that run only and does not change these toggles.
+Switching either toggle on also clears **silent mode**, a stack-wide setting that suppresses every automated mail. The page shows a banner while it is active. If both toggles already show as on and the banner is still there, switch one off and on again: only switching a toggle *on* clears it.
+
+A single spin-up can also be started silently, so that it sends no stack-online mail. That choice exists only where the spin-up workflow is dispatched directly, such as in Nexus-Conductor or the repository's Actions page, not on the Control Plane's Spin Up button. It applies to that run only and does not change these toggles.
 
 Both are sent via Resend using the API key configured during setup. If emails aren't arriving, check the Secrets page — `RESEND_API_KEY` should be under the global folder.
