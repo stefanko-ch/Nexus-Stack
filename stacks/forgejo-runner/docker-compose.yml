@@ -133,8 +133,14 @@ services:
     #
     # Disk is NOT bounded by this. The layer cache has no quota; if CI
     # fills the disk it takes the host with it.
+    #
+    # Three CPUs leave at least one core to everything else even while
+    # every job is busy. Measured on the Conductor-Stack (cpx32, 4 vCPU,
+    # 2026-10-29), the other services together used about 0.4 cores. On
+    # a host with fewer than three vCPUs Docker refuses this value and
+    # the container does not start.
     mem_limit: 4g
-    cpus: 2.0
+    cpus: 3.0
     volumes:
       - forgejo-dind-data:/var/lib/docker
       - forgejo-dind-socket:/run/dind

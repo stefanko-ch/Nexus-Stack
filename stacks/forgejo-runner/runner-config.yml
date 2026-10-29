@@ -22,7 +22,7 @@ runner:
 
   # Four jobs at a time. What keeps CI from starving the other
   # services on the box is not this number but forgejo-dind's
-  # `mem_limit: 4g` / `cpus: 2.0`, which every job container shares.
+  # `mem_limit: 4g` / `cpus: 3.0`, which every job container shares.
   # This only decides how many jobs queue inside that budget.
   #
   # It was 2, and that is too few where the runner drives a class:
