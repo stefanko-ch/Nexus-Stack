@@ -5,7 +5,7 @@
  * Triggers the GitHub Actions destroy-all.yml workflow.
  * Includes validation and error handling.
  */
-import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import { dispatchWorkflow, forgeErrorMessage, forgeErrorStatus } from './_utils/forge.js';
 import { logApiCall, logError } from './_utils/logger.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
@@ -31,24 +31,8 @@ export async function onRequestPost(context) {
     });
   }
 
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/destroy-all.yml/dispatches`;
-
   try {
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Plane',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: {
-          confirm: 'DESTROY'
-        }
-      }),
-    });
+    const response = await dispatchWorkflow(env, 'destroy-all.yml', { confirm: 'DESTROY' });
 
     if (response.status === 204) {
       const tracked = await markDispatched(env.NEXUS_DB, 'destroy');
@@ -65,17 +49,7 @@ export async function onRequestPost(context) {
       });
     }
 
-    const errorText = await response.text();
-    let errorMessage = `Failed to trigger workflow: ${response.status}`;
-
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.message || errorMessage;
-    } catch {
-      if (errorText) {
-        errorMessage = errorText.substring(0, 200);
-      }
-    }
+    const errorMessage = await forgeErrorMessage(response, 'Failed to trigger workflow');
 
     console.error(`Destroy trigger failed: ${response.status} - ${errorMessage}`);
 
@@ -83,7 +57,7 @@ export async function onRequestPost(context) {
       success: false,
       error: errorMessage
     }), {
-      status: response.status,
+      status: forgeErrorStatus(response),
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {

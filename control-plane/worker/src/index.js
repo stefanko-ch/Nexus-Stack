@@ -61,6 +61,82 @@ async function getConfigValue(db, key, defaultValue = null) {
   }
 }
 
+// The forge the stack's repository lives on: GitHub, or a Forgejo when
+// FORGE_URL is set. A copy of functions/api/_utils/forge.js, for the
+// same reason as the lifecycle table below — this file is uploaded as a
+// single script. That file explains the choices; change both together.
+const FORGEJO_DONE_STATUSES = new Set(['success', 'failure', 'cancelled', 'skipped']);
+
+function forgeUrl(env) {
+  return (env.FORGE_URL || '').trim().replace(/\/+$/, '');
+}
+
+function forgeApiBase(env) {
+  return isForgejo(env) ? `${forgeUrl(env)}/api/v1` : 'https://api.github.com';
+}
+
+// From the same normalised value as forgeApiBase, so a FORGE_URL of "/"
+// cannot select Forgejo's auth while the calls still go to GitHub.
+function isForgejo(env) {
+  return Boolean(forgeUrl(env));
+}
+
+function forgeRepoUrl(env, path) {
+  return `${forgeApiBase(env)}/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}${path}`;
+}
+
+function forgeRequestOptions(env, options = {}) {
+  if (!isForgejo(env)) {
+    return {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Nexus-Stack-Scheduled-Teardown',
+        ...(options.headers || {}),
+      },
+    };
+  }
+  const headers = {
+    'Authorization': `token ${env.GITHUB_TOKEN}`,
+    'Accept': 'application/json',
+    'User-Agent': 'Nexus-Stack-Scheduled-Teardown',
+    ...(options.headers || {}),
+  };
+  if (env.FORGE_ACCESS_CLIENT_ID && env.FORGE_ACCESS_CLIENT_SECRET) {
+    headers['CF-Access-Client-Id'] = env.FORGE_ACCESS_CLIENT_ID;
+    headers['CF-Access-Client-Secret'] = env.FORGE_ACCESS_CLIENT_SECRET;
+  }
+  return { ...options, headers, redirect: 'manual' };
+}
+
+function isoOrNull(value) {
+  const ms = value ? Date.parse(value) : NaN;
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : null;
+}
+
+function normalizeForgejoRun(run) {
+  const raw = typeof run.status === 'string' ? run.status : '';
+  let status = 'queued';
+  let conclusion = null;
+  if (FORGEJO_DONE_STATUSES.has(raw)) {
+    status = 'completed';
+    conclusion = raw;
+  } else if (raw === 'running') {
+    status = 'in_progress';
+  }
+  const created = isoOrNull(run.created);
+  return {
+    id: run.id,
+    status,
+    conclusion,
+    created_at: created,
+    updated_at: isoOrNull(run.updated) || isoOrNull(run.stopped) || created,
+    path: typeof run.workflow_id === 'string' ? `.github/workflows/${run.workflow_id}` : '',
+    name: '',
+  };
+}
+
 // Lifecycle workflow selection. The Worker is a standalone bundle
 // deployed by Terraform, so it cannot import the Pages functions'
 // _utils/workflow-selection.js — this is duplicated on purpose. Keep the
@@ -418,17 +494,15 @@ async function checkInfraStatus(env) {
   }
 
   try {
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=100`;
-    const response = await fetchWithTimeout(url, {
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Scheduled-Teardown',
-      },
-    });
+    // Forgejo applies `limit` only together with `page`; see forge.js.
+    const query = isForgejo(env) ? '?page=1&limit=100' : '?per_page=100';
+    const response = await fetchWithTimeout(
+      forgeRepoUrl(env, `/actions/runs${query}`),
+      forgeRequestOptions(env),
+    );
 
     if (!response.ok) {
-      console.warn(`GitHub API returned ${response.status}, cannot determine infra state`);
+      console.warn(`Workflow runs API returned ${response.status}, cannot determine infra state`);
       return 'unknown';
     }
 
@@ -436,6 +510,7 @@ async function checkInfraStatus(env) {
     if (!data.workflow_runs || !Array.isArray(data.workflow_runs)) {
       return 'unknown';
     }
+    const runs = isForgejo(env) ? data.workflow_runs.map(normalizeForgejoRun) : data.workflow_runs;
 
     // Detection lists, not dispatch targets. Both pairs must be
     // recognised regardless of which one is configured, otherwise the
@@ -453,7 +528,7 @@ async function checkInfraStatus(env) {
     // Find the most recent run for each relevant workflow
     const workflows = { initialSetup: null, spinUp: null, teardown: null, destroy: null };
 
-    for (const run of data.workflow_runs) {
+    for (const run of runs) {
       const path = run.path || '';
       const name = run.name || '';
 
@@ -667,23 +742,18 @@ async function triggerTeardown(env, config) {
       await logToD1(env.NEXUS_DB, 'error', message);
       return;
     }
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/${lifecycle.teardown}/dispatches`;
+    const url = forgeRepoUrl(env, `/actions/workflows/${lifecycle.teardown}/dispatches`);
 
-    const response = await fetchWithTimeout(url, {
+    const response = await fetchWithTimeout(url, forgeRequestOptions(env, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Scheduled-Teardown',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ref: 'main',
         inputs: {
           confirm: 'TEARDOWN',
         },
       }),
-    });
+    }));
 
     if (response.status === 204) {
       const message = 'Teardown workflow triggered successfully';

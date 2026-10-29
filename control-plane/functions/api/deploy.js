@@ -7,7 +7,7 @@
  */
 
 import { logApiCall, logError } from './_utils/logger.js';
-import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import { dispatchWorkflow, forgeErrorMessage, forgeErrorStatus } from './_utils/forge.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import { requireAdmin } from './_utils/require-admin.js';
 import { markDispatched } from './_utils/dispatch-marker.js';
@@ -43,19 +43,8 @@ export async function onRequestPost(context) {
     action: 'trigger_setup_control_plane',
   });
 
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/workflows/setup-control-plane.yaml/dispatches`;
-
   try {
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Plane',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ref: 'main' }),
-    });
+    const response = await dispatchWorkflow(env, 'setup-control-plane.yaml');
 
     // GitHub returns 204 No Content on success
     if (response.status === 204) {
@@ -73,18 +62,7 @@ export async function onRequestPost(context) {
     }
 
     // Handle errors
-    const errorText = await response.text();
-    let errorMessage = `Failed to trigger workflow: ${response.status}`;
-
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.message || errorMessage;
-    } catch {
-      // If error is not JSON, use the text as-is
-      if (errorText) {
-        errorMessage = errorText.substring(0, 200); // Limit length
-      }
-    }
+    const errorMessage = await forgeErrorMessage(response, 'Failed to trigger workflow');
 
     console.error(`Deploy trigger failed: ${response.status} - ${errorMessage}`);
 
@@ -92,7 +70,7 @@ export async function onRequestPost(context) {
       success: false,
       error: errorMessage
     }), {
-      status: response.status,
+      status: forgeErrorStatus(response),
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {

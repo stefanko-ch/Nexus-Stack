@@ -1421,6 +1421,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN || secrets.GH_SECRETS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DOMAIN: ${{ secrets.DOMAIN }}
+          # Set only on a fork whose repository lives on a Forgejo
+          # (Nexus-Conductor provides them). FORGE_URL is the forge's
+          # public web address; the Access pair is the service token for
+          # the Cloudflare Access application in front of it. Unset means
+          # GitHub, as before. See control-plane/functions/api/_utils/forge.js.
+          FORGE_URL: ${{ secrets.FORGE_URL }}
+          FORGE_ACCESS_CLIENT_ID: ${{ secrets.FORGE_ACCESS_CLIENT_ID }}
+          FORGE_ACCESS_CLIENT_SECRET: ${{ secrets.FORGE_ACCESS_CLIENT_SECRET }}
         run: |
           echo "⚙️  Setting Scheduled Teardown Worker secrets..."
           # Derive worker name from domain (must match Terraform naming: ${local.resource_prefix}-worker)
@@ -1444,6 +1452,34 @@ jobs:
             fi
           else
             echo "  ⏭️  RESEND_API_KEY not provided - email notifications disabled"
+          fi
+
+
+          # The forge settings. Without FORGE_URL a Forgejo-hosted stack's
+          # Worker sends its calls to api.github.com and gets "Bad
+          # credentials" back, so a failure to store it fails the step.
+          # The Access pair is both-or-neither: one half authenticates
+          # nothing, and Access would answer every call with its login page.
+          if [ -n "$FORGE_URL" ]; then
+            echo "  Setting FORGE_URL..."
+            if ! printf '%s' "$FORGE_URL" | npx wrangler@4.129.0 secret put FORGE_URL --name="$WORKER_NAME" 2>&1; then
+              echo "❌ Failed to set FORGE_URL - the Worker cannot reach this repository's forge"
+              exit 1
+            fi
+            if [ -n "$FORGE_ACCESS_CLIENT_ID" ] && [ -n "$FORGE_ACCESS_CLIENT_SECRET" ]; then
+              echo "  Setting FORGE_ACCESS_CLIENT_ID and FORGE_ACCESS_CLIENT_SECRET..."
+              if ! printf '%s' "$FORGE_ACCESS_CLIENT_ID" | npx wrangler@4.129.0 secret put FORGE_ACCESS_CLIENT_ID --name="$WORKER_NAME" 2>&1 \
+                 || ! printf '%s' "$FORGE_ACCESS_CLIENT_SECRET" | npx wrangler@4.129.0 secret put FORGE_ACCESS_CLIENT_SECRET --name="$WORKER_NAME" 2>&1; then
+                echo "❌ Failed to set the forge's Access service token"
+                exit 1
+              fi
+            elif [ -n "$FORGE_ACCESS_CLIENT_ID" ] || [ -n "$FORGE_ACCESS_CLIENT_SECRET" ]; then
+              echo "❌ Only one of FORGE_ACCESS_CLIENT_ID / FORGE_ACCESS_CLIENT_SECRET is set."
+              echo "   Set both, or neither if the forge is not behind Cloudflare Access."
+              exit 1
+            else
+              echo "  ⏭️  No forge Access service token - calls go to $FORGE_URL without one"
+            fi
           fi
 
           echo "✅ Worker secrets configured"
@@ -1575,6 +1611,14 @@ jobs:
           BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
           SUBDOMAIN_SEPARATOR: ${{ secrets.SUBDOMAIN_SEPARATOR || '.' }}
           ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
+          # Set only on a fork whose repository lives on a Forgejo
+          # (Nexus-Conductor provides them). FORGE_URL is the forge's
+          # public web address; the Access pair is the service token for
+          # the Cloudflare Access application in front of it. Unset means
+          # GitHub, as before. See control-plane/functions/api/_utils/forge.js.
+          FORGE_URL: ${{ secrets.FORGE_URL }}
+          FORGE_ACCESS_CLIENT_ID: ${{ secrets.FORGE_ACCESS_CLIENT_ID }}
+          FORGE_ACCESS_CLIENT_SECRET: ${{ secrets.FORGE_ACCESS_CLIENT_SECRET }}
           USER_EMAIL: ${{ secrets.TF_VAR_user_email }}
           # Optional. Set it when CLOUDFLARE_API_TOKEN lacks the Access
           # Organizations read permission the step below would otherwise use.
@@ -1866,6 +1910,37 @@ jobs:
             fi
           else
             echo "  ⏭️  RESEND_API_KEY not provided - email sending will be disabled"
+          fi
+
+
+          # The forge settings. Without FORGE_URL a Forgejo-hosted stack's
+          # Control Plane sends its calls to api.github.com and gets "Bad
+          # credentials" back, so a failure to store it fails the step.
+          # The Access pair is both-or-neither: one half authenticates
+          # nothing, and Access would answer every call with its login page.
+          if [ -n "$FORGE_URL" ]; then
+            echo "  Setting FORGE_URL..."
+            if ! printf '%s' "$FORGE_URL" | npx wrangler@4.129.0 pages secret put FORGE_URL \
+                 --project-name="$PROJECT_NAME" 2>&1; then
+              echo "❌ Failed to set FORGE_URL - the Control Plane cannot reach this repository's forge"
+              exit 1
+            fi
+            if [ -n "$FORGE_ACCESS_CLIENT_ID" ] && [ -n "$FORGE_ACCESS_CLIENT_SECRET" ]; then
+              echo "  Setting FORGE_ACCESS_CLIENT_ID and FORGE_ACCESS_CLIENT_SECRET..."
+              if ! printf '%s' "$FORGE_ACCESS_CLIENT_ID" | npx wrangler@4.129.0 pages secret put FORGE_ACCESS_CLIENT_ID \
+                 --project-name="$PROJECT_NAME" 2>&1 \
+                 || ! printf '%s' "$FORGE_ACCESS_CLIENT_SECRET" | npx wrangler@4.129.0 pages secret put FORGE_ACCESS_CLIENT_SECRET \
+                 --project-name="$PROJECT_NAME" 2>&1; then
+                echo "❌ Failed to set the forge's Access service token"
+                exit 1
+              fi
+            elif [ -n "$FORGE_ACCESS_CLIENT_ID" ] || [ -n "$FORGE_ACCESS_CLIENT_SECRET" ]; then
+              echo "❌ Only one of FORGE_ACCESS_CLIENT_ID / FORGE_ACCESS_CLIENT_SECRET is set."
+              echo "   Set both, or neither if the forge is not behind Cloudflare Access."
+              exit 1
+            else
+              echo "  ⏭️  No forge Access service token - calls go to $FORGE_URL without one"
+            fi
           fi
 
           echo "✅ Control Plane secrets configured"
