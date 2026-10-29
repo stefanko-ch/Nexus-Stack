@@ -29,21 +29,16 @@
  * than one of the two named identities. "Cloudflare Access is in front of
  * this" was never something this code could check.
  */
-import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import {
+  forgeConfig, forgeErrorMessage, forgeErrorStatus, forgeFetch, forgeHeaders,
+  listWorkflowRuns, repoApiUrl,
+} from './_utils/forge.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 import { deriveProgress } from './_utils/run-progress.js';
 import { readDispatchMarkers, DISPATCH_GRACE_MS, DISPATCH_SKEW_MS } from './_utils/dispatch-marker.js';
 import { requireViewer } from './_utils/require-viewer.js';
 
 const FAMILY_ORDER = ['initialSetup', 'setup', 'spinUp', 'teardown', 'destroy'];
-
-function githubHeaders(token) {
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/vnd.github.v3+json',
-    'User-Agent': 'Nexus-Stack-Control-Plane',
-  };
-}
 
 /** The wire shape for one run. Only fields the UI needs; never the raw run. */
 function summarise(run) {
@@ -66,9 +61,15 @@ function summarise(run) {
  * the step list could not be read instead of showing an empty one.
  */
 async function fetchProgress(env, run) {
-  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs/${run.id}/jobs?per_page=100`;
+  // Forgejo has no job list for a run on the versions this targets
+  // (absent on 15.0.7; where present, its jobs carry no steps), so the
+  // step list is reported as unavailable rather than requested.
+  if (forgeConfig(env).kind !== 'github') {
+    return { ...deriveProgress(run, null), unavailable: true };
+  }
+  const url = repoApiUrl(env, `/actions/runs/${run.id}/jobs?per_page=100`);
   try {
-    const response = await fetchWithTimeout(url, { headers: githubHeaders(env.GITHUB_TOKEN) });
+    const response = await forgeFetch(env, url, { headers: forgeHeaders(env) });
     if (!response.ok) {
       // Status code only. The body is GitHub's, but this project does not
       // forward API bodies it has not looked at.
@@ -138,19 +139,17 @@ export async function onRequestGet(context) {
   };
 
   try {
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=100`;
+    const listed = await listWorkflowRuns(env, 100);
+    const { response } = listed;
 
-    const response = await fetchWithTimeout(url, { headers: githubHeaders(env.GITHUB_TOKEN) });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`GitHub API error: ${response.status} - ${errorText}`);
+    if (!listed.ok && !listed.invalid) {
+      console.error(`Workflow runs API error: ${response.status}`);
 
       return new Response(JSON.stringify({
         success: false,
-        error: `Failed to fetch workflow status: ${response.status}`
+        error: await forgeErrorMessage(response, 'Failed to fetch workflow status')
       }), {
-        status: response.status,
+        status: forgeErrorStatus(response),
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -165,12 +164,10 @@ export async function onRequestGet(context) {
     const remainingValue = remainingHeader === null ? NaN : Number(remainingHeader);
     const rateLimitRemaining = Number.isFinite(remainingValue) ? remainingValue : null;
 
-    const data = await response.json();
-
-    if (!data.workflow_runs || !Array.isArray(data.workflow_runs)) {
+    if (listed.invalid) {
       return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid response from GitHub API'
+        error: 'Invalid response from the workflow runs API'
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -194,7 +191,7 @@ export async function onRequestGet(context) {
 
     // Newest run per family. The list is newest-first, so first match wins.
     const workflows = { initialSetup: null, setup: null, spinUp: null, teardown: null, destroy: null };
-    for (const run of data.workflow_runs) {
+    for (const run of listed.runs) {
       const family = classify(run);
       if (!family || workflows[family]) continue;
       if (predatesDispatch(family, run)) continue;

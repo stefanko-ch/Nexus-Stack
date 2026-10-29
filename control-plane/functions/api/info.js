@@ -5,7 +5,7 @@
  * Returns server info, time information, scheduled teardown details, and workflow details
  * Configuration stored in Cloudflare D1 database
  */
-import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import { listWorkflowRuns } from './_utils/forge.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 import { timeInTimezoneToUTC } from './_utils/timezone.js';
 import { requireViewer } from './_utils/require-viewer.js';
@@ -175,19 +175,11 @@ export async function onRequestGet(context) {
       }
     }
 
-    // Get workflow details from GitHub API
-    const workflowUrl = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/actions/runs?per_page=20`;
-    const workflowResponse = await fetchWithTimeout(workflowUrl, {
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Plane',
-      },
-    });
+    // Get workflow details from the forge's Actions API
+    const listed = await listWorkflowRuns(env, 20);
 
-    if (workflowResponse.ok) {
-      const workflowData = await workflowResponse.json();
-      const runs = workflowData.workflow_runs || [];
+    if (listed.ok) {
+      const runs = listed.runs;
 
       // Find last successful spin-up (preferred) or setup
       const lastSpinUp = runs.find(r =>

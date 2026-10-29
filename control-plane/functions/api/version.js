@@ -11,7 +11,9 @@
  * owner/repo already printed in this repository's README. The hostname
  * check in functions/_middleware.js still applies.
  */
-import { fetchWithTimeout } from './_utils/fetch-with-timeout.js';
+import {
+  forgeErrorMessage, forgeErrorStatus, forgeFetch, forgeHeaders, repoApiUrl, repoWebUrl,
+} from './_utils/forge.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
@@ -59,15 +61,9 @@ export async function onRequestGet(context) {
 
   try {
     // Fetch the latest release from GitHub
-    const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/releases/latest`;
+    const url = repoApiUrl(env, '/releases/latest');
 
-    const response = await fetchWithTimeout(url, {
-      headers: {
-        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Nexus-Stack-Control-Plane',
-      },
-    });
+    const response = await forgeFetch(env, url, { headers: forgeHeaders(env) });
 
     if (!response.ok) {
       // If no releases exist yet, return a default version
@@ -76,7 +72,7 @@ export async function onRequestGet(context) {
           success: true,
           version: 'dev',
           name: 'Development',
-          url: `https://github.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}`,
+          url: repoWebUrl(env),
           publishedAt: null,
         }), {
           headers: {
@@ -86,14 +82,13 @@ export async function onRequestGet(context) {
         });
       }
 
-      const errorText = await response.text();
-      console.error(`GitHub API error: ${response.status} - ${errorText}`);
+      console.error(`Releases API error: ${response.status}`);
 
       return new Response(JSON.stringify({
         success: false,
-        error: `Failed to fetch version: ${response.status}`
+        error: await forgeErrorMessage(response, 'Failed to fetch version')
       }), {
-        status: response.status,
+        status: forgeErrorStatus(response),
         headers: { 'Content-Type': 'application/json' },
       });
     }
