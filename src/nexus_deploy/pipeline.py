@@ -385,9 +385,20 @@ def run_pipeline(
         s3_fs_result: _s3_restore.S3RestoreSkipped | _s3_restore.S3RestoreApplied | None = None
         if already_restored:
             sys.stderr.write(
-                f"→ s3-restore: skipped, {_s3_restore.RESTORE_MARKER} shows this server was "
-                "already restored; its data is newer than R2 and is kept\n",
+                f"→ s3-restore: filesystem skipped, {_s3_restore.RESTORE_MARKER} shows this "
+                "server was already restored; its data is newer than R2 and is kept\n",
             )
+            _s3_restore.adopt_untracked_databases(ssh)
+            # The Postgres half below still runs, for any database not
+            # restored here yet (#931). Without credentials it would
+            # skip, the newly started stack would be used empty, and
+            # the re-run after the fix would restore over that work.
+            if _s3_restore.is_enabled() and _s3_restore.build_endpoint_from_env() is None:
+                raise PipelineError(
+                    "s3-restore: persistence is on but R2 credentials are missing; "
+                    "stopping before any stack starts, so a database not yet restored "
+                    "on this server can still be restored after fixing them",
+                )
         else:
             s3_fs_result = _s3_restore.restore_from_s3(ssh, phase="filesystem")
             # Persistence is switched on but an R2 credential is
@@ -494,13 +505,42 @@ def run_pipeline(
         # forgejo database — restored snapshot has to be in place
         # first or forgejo-configure would write into a soon-to-be-
         # clobbered database. Fresh-start short-circuits at rc=0.
-        if not already_restored:
-            s3_pg_result = _s3_restore.restore_from_s3(ssh, phase="postgres")
-            if isinstance(s3_pg_result, _s3_restore.S3RestoreApplied):
+        #
+        # On an already-restored server this runs too, and restores
+        # only the databases without a file in RESTORED_DATABASES_DIR:
+        # a stack enabled since the first spin-up gets its saved
+        # database now, before anyone works in it (#931).
+        s3_pg_result = _s3_restore.restore_from_s3(
+            ssh,
+            phase="postgres",
+            restored_marker_dir=_s3_restore.RESTORED_DATABASES_DIR,
+        )
+        if isinstance(s3_pg_result, _s3_restore.S3RestoreApplied):
+            if already_restored:
+                # Usually every database is skipped here, so "applied"
+                # would claim a restore that did not happen.
+                sys.stderr.write(
+                    f"✓ s3-restore (postgres): checked against snapshot "
+                    f"{s3_pg_result.snapshot_timestamp}; the lines above name each "
+                    "database restored or skipped\n",
+                )
+            else:
                 sys.stderr.write(
                     f"✓ s3-restore (postgres): applied snapshot "
                     f"{s3_pg_result.snapshot_timestamp}\n",
                 )
+        elif s3_pg_result.reason == "all_databases_restored":
+            sys.stderr.write(
+                "✓ s3-restore (postgres): every database already restored on this "
+                "server; R2 not contacted\n",
+            )
+        else:
+            # Persistence off or an empty bucket: nothing was restored,
+            # on purpose. Untracked, every database would be restored
+            # over its newer data by the first spin-up after that
+            # changes. (Missing credentials stopped the run above.)
+            _s3_restore.mark_all_databases_restored(ssh)
+        if not already_restored:
             # Both halves returned: after an applied restore, a fresh
             # start or with persistence switched off, data written from
             # here on is newer than R2 and a later spin-up must not

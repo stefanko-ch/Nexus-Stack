@@ -99,13 +99,20 @@ shell-style truthy-coercion would hide configuration mistakes."""
 class S3RestoreSkipped:
     """Restore was a no-op. ``reason`` is operator-facing: one of
     ``"feature_flag_off"``, ``"no_endpoint_env"``,
-    ``"fresh_start_empty_s3"``. The first two are configuration
-    states (no S3 path taken at all). The third means the path
-    was taken but S3 had nothing to restore — first-ever
-    spinup of a freshly-provisioned bucket. All three are
+    ``"fresh_start_empty_s3"``, ``"all_databases_restored"``. The
+    first two are configuration states (no S3 path taken at all).
+    The third means the path was taken but S3 had nothing to
+    restore — first-ever spinup of a freshly-provisioned bucket.
+    The fourth means every database already carries its marker on
+    this disk, so R2 was not contacted at all (#931). All four are
     success cases from pipeline.py's perspective."""
 
-    reason: Literal["feature_flag_off", "no_endpoint_env", "fresh_start_empty_s3"]
+    reason: Literal[
+        "feature_flag_off",
+        "no_endpoint_env",
+        "fresh_start_empty_s3",
+        "all_databases_restored",
+    ]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -550,6 +557,7 @@ def render_combined_restore_script(
     rsync_targets: tuple[_s3.RsyncTarget, ...],
     local_root: str = "/mnt/nexus-data",
     phase: Literal["all", "filesystem", "postgres"] = "all",
+    restored_marker_dir: str | None = None,
 ) -> str:
     """Render a single bash script that does BOTH:
 
@@ -591,6 +599,7 @@ def render_combined_restore_script(
         rsync_targets=rsync_targets,
         local_root=local_root,
         phase=phase,
+        restored_marker_dir=restored_marker_dir,
     )
     # Strip the shebang + outer ``set -euo pipefail`` from the
     # restore body — the wrapper script provides them. Keeping
@@ -671,6 +680,7 @@ def restore_from_s3(
     *,
     env: dict[str, str] | None = None,
     phase: Literal["all", "filesystem", "postgres"] = "all",
+    restored_marker_dir: str | None = None,
 ) -> S3RestoreSkipped | S3RestoreApplied:
     """Pull the latest snapshot from R2 onto the server's local SSD.
 
@@ -721,6 +731,11 @@ def restore_from_s3(
       and uses the split filesystem→postgres calls instead. The
       "all" phase exists for one-off operator scripts and tests
       that restore against an already-running stack.
+
+    ``restored_marker_dir`` restores only the databases not restored
+    on this disk before (see
+    :func:`s3_persistence.render_restore_script`); the pipeline
+    passes :data:`RESTORED_DATABASES_DIR` (#931).
     """
     if not is_enabled(env):
         return S3RestoreSkipped(reason="feature_flag_off")
@@ -749,6 +764,7 @@ def restore_from_s3(
         postgres_targets=postgres_targets,
         rsync_targets=rsync_targets,
         phase=phase,
+        restored_marker_dir=restored_marker_dir,
     )
 
     # The rendered restore script either:
@@ -769,6 +785,8 @@ def restore_from_s3(
 
     if "fresh-start: no snapshot in S3" in output:
         return S3RestoreSkipped(reason="fresh_start_empty_s3")
+    if "restore: every postgres database already restored" in output:
+        return S3RestoreSkipped(reason="all_databases_restored")
 
     # Parse the applied timestamp from "→ restore: using snapshot
     # snapshots/<timestamp>" line. If we can't find it (server-side
@@ -806,6 +824,14 @@ def restore_from_s3(
 # targets, not inside one, so no snapshot ever uploads it.
 RESTORE_MARKER = "/mnt/nexus-data/.nexus-restored"
 
+# The host marker covers the filesystem phase, which restores every
+# directory whether or not its stack is enabled. The Postgres phase
+# can only restore a database whose container runs, so it is tracked
+# per database (#931): a file named after the container, written once
+# that database was restored or had no dump. A stack enabled later on
+# a running server has none, and the next spin-up restores it then.
+RESTORED_DATABASES_DIR = "/mnt/nexus-data/.nexus-restored.d"
+
 _MARKER_PRESENT = "restore-marker: present"
 _MARKER_ABSENT = "restore-marker: absent"
 
@@ -839,12 +865,77 @@ def mark_host_restored(ssh: SSHClient) -> None:
     """Write :data:`RESTORE_MARKER`. Call only after both restore phases
     returned: a spin-up that dies between them must restore again on
     its next run, and no one can have written anything worth keeping
-    in that window."""
+    in that window.
+
+    Creates :data:`RESTORED_DATABASES_DIR` first, so a host marker
+    never exists without it; :func:`adopt_untracked_databases` reads
+    that combination as a server marked before #931."""
     marker = shlex.quote(RESTORE_MARKER)
     ssh.run_script(
-        f"mkdir -p {shlex.quote(str(PurePosixPath(RESTORE_MARKER).parent))}\ntouch {marker}\n",
+        # -e: a failed mkdir must not be followed by the marker.
+        f"set -euo pipefail\nmkdir -p {shlex.quote(RESTORED_DATABASES_DIR)}\ntouch {marker}\n",
         check=True,
     )
+
+
+def mark_all_databases_restored(ssh: SSHClient) -> None:
+    """Give every database its file in :data:`RESTORED_DATABASES_DIR`.
+
+    For a Postgres phase that restored nothing on purpose: persistence
+    switched off, or an empty bucket. Left untracked, every database
+    would be restored by the first spin-up after persistence is
+    switched on, or after a snapshot appears, over the data written
+    here since. Existing files are kept."""
+    postgres_targets, _ = standard_targets()
+    marker_dir = PurePosixPath(RESTORED_DATABASES_DIR)
+    touches = "".join(
+        f"touch {shlex.quote(str(marker_dir / pg.container))}\n" for pg in postgres_targets
+    )
+    ssh.run_script(
+        f"set -euo pipefail\nmkdir -p {shlex.quote(str(marker_dir))}\n{touches}",
+        check=True,
+    )
+
+
+def adopt_untracked_databases(ssh: SSHClient) -> None:
+    """On a server marked before #931, mark every database as restored.
+
+    Such a server has the host marker but no
+    :data:`RESTORED_DATABASES_DIR`, so nothing says which databases
+    hold restored or newer data. A database enabled after its
+    spin-up may have been used since, and one disabled with
+    ``compose down`` keeps its data on disk, so restoring any of them
+    could overwrite work. They are all marked instead, which keeps
+    the behaviour such a server had; the rebuild teardown after it
+    starts the tracking from scratch. Does nothing on any other
+    server.
+    """
+    postgres_targets, _ = standard_targets()
+    # Filled under a temporary name and renamed into place, so a run
+    # cut off half-way cannot leave a directory that marks only some
+    # databases, which the next run would then trust.
+    staging = PurePosixPath(RESTORED_DATABASES_DIR + ".adopting")
+    touches = "".join(
+        f"  touch {shlex.quote(str(staging / pg.container))}\n" for pg in postgres_targets
+    )
+    completed = ssh.run_script(
+        "set -euo pipefail\n"
+        f"if [ -e {shlex.quote(RESTORE_MARKER)} ] && "
+        f"[ ! -d {shlex.quote(RESTORED_DATABASES_DIR)} ]; then\n"
+        f"  mkdir -p {shlex.quote(str(staging))}\n"
+        f"{touches}"
+        # The destination was just found absent, so this is a rename.
+        f"  mv {shlex.quote(str(staging))} {shlex.quote(RESTORED_DATABASES_DIR)}\n"
+        '  echo "restore-markers: adopted"\n'
+        "fi\n",
+        check=True,
+    )
+    if "restore-markers: adopted" in completed.stdout.splitlines():
+        sys.stderr.write(
+            f"→ s3-restore: this server was marked before databases were tracked one by "
+            f"one; marked all of them restored in {RESTORED_DATABASES_DIR}, so none is "
+            "overwritten\n",
+        )
 
 
 # ---------------------------------------------------------------------------

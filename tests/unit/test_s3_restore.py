@@ -445,6 +445,15 @@ def test_restore_from_s3_returns_fresh_start_when_bucket_empty() -> None:
     ssh.run_script.assert_called_once()
 
 
+def test_restore_from_s3_reports_when_every_database_was_already_restored() -> None:
+    """#931: the Postgres phase stopped before R2, so no snapshot was
+    looked up and "applied" would claim one."""
+    ssh = _fake_ssh("→ restore: every postgres database already restored on this server\n")
+    result = restore_from_s3(ssh, env=_good_env(), phase="postgres")
+    assert isinstance(result, S3RestoreSkipped)
+    assert result.reason == "all_databases_restored"
+
+
 def test_restore_from_s3_returns_applied_with_timestamp() -> None:
     """Successful restore → ``Applied`` with the parsed timestamp."""
     ssh = _fake_ssh(
@@ -801,6 +810,9 @@ def test_restore_marker_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     marker = tmp_path / "nexus-data" / ".nexus-restored"
     monkeypatch.setattr(s3_restore, "RESTORE_MARKER", str(marker))
+    monkeypatch.setattr(
+        s3_restore, "RESTORED_DATABASES_DIR", str(tmp_path / "nexus-data" / ".nexus-restored.d")
+    )
     ssh: Any = _LocalBash()
 
     assert s3_restore.host_already_restored(ssh) is False
@@ -809,14 +821,85 @@ def test_restore_marker_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert s3_restore.host_already_restored(ssh) is True
 
 
+def _adopt_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, host_marker: bool, tracked: bool
+) -> Path:
+    from nexus_deploy import s3_restore
+
+    data = tmp_path / "nexus-data"
+    data.mkdir()
+    marker_dir = data / ".nexus-restored.d"
+    monkeypatch.setattr(s3_restore, "RESTORE_MARKER", str(data / ".nexus-restored"))
+    monkeypatch.setattr(s3_restore, "RESTORED_DATABASES_DIR", str(marker_dir))
+    if host_marker:
+        (data / ".nexus-restored").touch()
+    if tracked:
+        marker_dir.mkdir()
+    s3_restore.adopt_untracked_databases(_LocalBash())  # type: ignore[arg-type]
+    return marker_dir
+
+
+def test_a_server_marked_before_931_has_every_database_adopted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Nothing on such a server says which databases were restored, and
+    one enabled since may hold work. Restoring none keeps its behaviour."""
+    marker_dir = _adopt_on(tmp_path, monkeypatch, host_marker=True, tracked=False)
+    postgres, _ = standard_targets()
+    assert sorted(p.name for p in marker_dir.iterdir()) == sorted(pg.container for pg in postgres)
+    assert not (tmp_path / "nexus-data" / ".nexus-restored.d.adopting").exists()
+    assert "marked before databases were tracked" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("host_marker", "tracked"), [(True, True), (False, False)])
+def test_adoption_leaves_every_other_server_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host_marker: bool, tracked: bool
+) -> None:
+    """A tracked server keeps its own markers, so a database still
+    untracked there is restored; a fresh one restores everything."""
+    marker_dir = _adopt_on(tmp_path, monkeypatch, host_marker=host_marker, tracked=tracked)
+    assert not marker_dir.exists() or not any(marker_dir.iterdir())
+
+
+def test_the_host_marker_is_never_written_without_the_database_markers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A host marker alone means "marked before #931", and every database
+    on it would be adopted, including one this spin-up just found
+    untracked because its stack was disabled."""
+    from nexus_deploy import s3_restore
+
+    data = tmp_path / "nexus-data"
+    monkeypatch.setattr(s3_restore, "RESTORE_MARKER", str(data / ".nexus-restored"))
+    monkeypatch.setattr(s3_restore, "RESTORED_DATABASES_DIR", str(data / ".nexus-restored.d"))
+    s3_restore.mark_host_restored(_LocalBash())  # type: ignore[arg-type]
+    assert (data / ".nexus-restored.d").is_dir()
+
+
+def test_marking_all_databases_keeps_existing_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nexus_deploy import s3_restore
+
+    marker_dir = tmp_path / "nexus-data" / ".nexus-restored.d"
+    monkeypatch.setattr(s3_restore, "RESTORED_DATABASES_DIR", str(marker_dir))
+    marker_dir.mkdir(parents=True)
+    (marker_dir / "forgejo-db").write_text("kept")
+    s3_restore.mark_all_databases_restored(_LocalBash())  # type: ignore[arg-type]
+    postgres, _ = standard_targets()
+    assert sorted(p.name for p in marker_dir.iterdir()) == sorted(pg.container for pg in postgres)
+    assert (marker_dir / "forgejo-db").read_text() == "kept"
+
+
 def test_restore_marker_path_is_outside_every_rsync_target() -> None:
     """Inside a target, a teardown would upload it and every restore
     would bring it back, so even a fresh host would skip its restore."""
-    from nexus_deploy.s3_restore import RESTORE_MARKER
+    from nexus_deploy.s3_restore import RESTORE_MARKER, RESTORED_DATABASES_DIR
 
     _, rsync = standard_targets()
     for target in rsync:
-        assert not RESTORE_MARKER.startswith(target.local_path.rstrip("/") + "/")
+        for path in (RESTORE_MARKER, RESTORED_DATABASES_DIR):
+            assert not path.startswith(target.local_path.rstrip("/") + "/")
 
 
 def test_an_unreadable_marker_answer_refuses_rather_than_restores(

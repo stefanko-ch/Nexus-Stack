@@ -94,25 +94,40 @@ Everything else — a topic you created in Redpanda, a dashboard you built in a 
 outside the list, files written inside a container — is **gone** on teardown. Not
 corrupted, not recoverable: the disk it lived on no longer exists.
 
-**A spin-up on a server that is already running restores nothing**, once that
-server carries the restore marker. A spin-up writes `/mnt/nexus-data/.nexus-restored`
-after both restore phases have finished. A later spin-up that finds the file skips
-the restore and keeps the data on the server, because that data is newer than the
-last teardown's snapshot. Before this guard (#926), re-running a spin-up on a live
-server rolled every covered stack back to the last teardown. A rebuild teardown
+**A spin-up on a server that is already running restores only what it has not
+restored yet.** A spin-up writes `/mnt/nexus-data/.nexus-restored` after both
+restore phases have finished. A later spin-up that finds the file skips the
+filesystem restore and keeps those directories, because their data is newer than
+the last teardown's snapshot. Before this guard (#926), re-running a spin-up on a
+live server rolled every covered stack back to the last teardown. A rebuild teardown
 destroys the disk and the file with it, so the spin-up after it always restores. If
 persistence is on but an R2 credential is missing, the spin-up stops before any
 stack starts, so nobody works in an empty stack that a later restore would overwrite.
 
-Two cases the marker does not cover:
+Databases are tracked one by one, in `/mnt/nexus-data/.nexus-restored.d/`: a file
+named after the database container, written when that database was restored or the
+snapshot held no dump of it, and for every database when the spin-up restored nothing
+on purpose (persistence off, or an empty bucket), so that switching persistence on
+later cannot restore over newer data. The Postgres restore can only reach a database whose
+container runs, so a stack that is disabled at the first spin-up gets no file, and
+**a stack enabled later on a running server** gets its saved database back from the
+spin-up that starts it, before anyone works in it (#931). Every database that already
+has a file is left alone. If a database container exists but is not running when the
+restore reaches it, the spin-up fails rather than leave it to be restored later over
+whatever is written once it runs. Notebook and other filesystem targets need none of
+this: the restore brings every directory back, whether or not its stack is enabled.
+
+Two cases the tracking does not cover:
 
 - **A server deployed before the guard** has no marker, so the first spin-up re-run
   on it still restores. Tear it down and spin it up once to get the marker.
-- **A stack enabled later on a running server** does not get its saved database
-  back. The Postgres restore skips any database whose container is not running, and
-  the marker then stops later spin-ups from trying again. Enable such a stack, then
-  tear down and spin up. Notebook and other filesystem targets are not affected: the
-  restore brings every directory back, whether or not its stack is enabled.
+- **A server marked before #931** has the host marker but no per-database files, so
+  nothing says which of its databases hold newer data. The first spin-up with #931
+  marks all of them restored and restores none, which keeps the old behaviour. On
+  such a server, enable a stack only after a rebuild teardown, so that the spin-up
+  starting it restores its database. Enabled on the running server, it starts empty,
+  and the next teardown puts that empty database into the snapshot `latest` points
+  to. The next rebuild teardown starts the tracking from scratch.
 
 **In `snapshot` mode, everything on the root disk survives**, because the whole disk
 is imaged. That is the main reason to switch.
