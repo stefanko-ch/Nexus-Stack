@@ -367,10 +367,18 @@ loopback is #742. Until then, treat anything a stack publishes on
 `0.0.0.0` as reachable by everyone who can push a workflow.
 
 **Resource ceilings.** `forgejo-dind` carries `mem_limit: 4g` and
-`cpus: 2.0`, and job containers are its children, so the limit applies
-to their aggregate. `runner.capacity: 2` bounds how many jobs run at
+`cpus: 3.0`, and job containers are its children, so the limit applies
+to their aggregate. `runner.capacity: 4` bounds how many jobs run at
 once; it does not bound what each may consume, which is why both are
-needed.
+needed. The ceiling, not the job count, is what protects the other
+services: the jobs share three CPUs and 4 GB however many run, which
+on a host with four or more vCPUs leaves at least one core to the rest
+of the box. A host with exactly three would have none left, and one
+with fewer than three cannot start `forgejo-dind` with this value.
+Four rather than two because a Nexus-Conductor class runs one
+lifecycle job per student, mostly waiting on remote servers, and at
+two jobs at a time a class-wide spin-up for twenty students needs ten
+rounds.
 
 Note these use `mem_limit` rather than the `deploy.resources.limits`
 the rest of the repo uses, and the reason is uncertainty rather than a

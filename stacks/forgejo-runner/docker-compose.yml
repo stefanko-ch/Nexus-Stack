@@ -118,7 +118,7 @@ services:
     command: ["dockerd", "--host=unix:///run/dind/docker.sock", "--group=1001"]
     # This is the container that runs whatever a student pushed. Without
     # a ceiling one job can starve the other services on the box —
-    # `runner.capacity: 2` bounds how many jobs run, not what each may
+    # `runner.capacity: 4` bounds how many jobs run, not what each may
     # consume. Job containers are children of this daemon, so the limit
     # applies to their aggregate.
     #
@@ -133,8 +133,15 @@ services:
     #
     # Disk is NOT bounded by this. The layer cache has no quota; if CI
     # fills the disk it takes the host with it.
+    #
+    # On a host with four or more vCPUs, three CPUs leave at least one
+    # core to everything else even while every job is busy (every
+    # default server type has at least four). Measured on the Conductor-Stack (cpx32, 4 vCPU,
+    # 2026-10-29), the other services together used about 0.4 cores. On
+    # a host with fewer than three vCPUs Docker refuses this value and
+    # the container does not start.
     mem_limit: 4g
-    cpus: 2.0
+    cpus: 3.0
     volumes:
       - forgejo-dind-data:/var/lib/docker
       - forgejo-dind-socket:/run/dind
