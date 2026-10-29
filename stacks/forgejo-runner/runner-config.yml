@@ -20,9 +20,17 @@ runner:
   # the same path create-runner-file writes at container start.
   file: .runner
 
-  # Two jobs at a time. The stack shares a cx43 with 40+ other
-  # containers; unbounded concurrency here would starve them.
-  capacity: 2
+  # Four jobs at a time. What keeps CI from starving the other
+  # services on the box is not this number but forgejo-dind's
+  # `mem_limit: 4g` / `cpus: 2.0`, which every job container shares.
+  # This only decides how many jobs queue inside that budget.
+  #
+  # It was 2, and that is too few where the runner drives a class:
+  # a Conductor class's morning spin-up is one lifecycle job per
+  # student, and each one spends most of its time waiting on OpenTofu,
+  # SSH and the student's own server rather than using CPU here. At 2,
+  # twenty spin-ups of ~15 minutes need ten rounds.
+  capacity: 4
 
   # The Forgejo instance caps a job at 3h anyway. Half an hour is a
   # teaching workload's honest ceiling — a job still running after that

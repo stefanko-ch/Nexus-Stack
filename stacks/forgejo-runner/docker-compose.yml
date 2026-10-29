@@ -118,7 +118,7 @@ services:
     command: ["dockerd", "--host=unix:///run/dind/docker.sock", "--group=1001"]
     # This is the container that runs whatever a student pushed. Without
     # a ceiling one job can starve the other services on the box —
-    # `runner.capacity: 2` bounds how many jobs run, not what each may
+    # `runner.capacity: 4` bounds how many jobs run, not what each may
     # consume. Job containers are children of this daemon, so the limit
     # applies to their aggregate.
     #
