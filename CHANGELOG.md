@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.86.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.85.0...v0.86.0) (2026-10-29)
+
+
+### 🚀 Features
+
+* **stacks:** Add DuckDB 2.0 as a server over the Quack protocol ([#925](https://github.com/stefanko-ch/Nexus-Stack/issues/925)) ([edec321](https://github.com/stefanko-ch/Nexus-Stack/commit/edec3216cd133b01c72e0b1ef7a7afaea2a2b1d8))
+* **stacks:** Introduce stack tiers (core / proven / best-effort) and pin every core and proven image ([#940](https://github.com/stefanko-ch/Nexus-Stack/issues/940)) ([4590a46](https://github.com/stefanko-ch/Nexus-Stack/commit/4590a46a3cbd0cffc629371e066681f41e5fb82d))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Queue a dispatched spin-up behind every other lifecycle run ([#935](https://github.com/stefanko-ch/Nexus-Stack/issues/935)) ([ad80987](https://github.com/stefanko-ch/Nexus-Stack/commit/ad809879f829ab05d5951952d5c0ab7632d68e83))
+* **deploy:** Back up Kestra's database and storage across a rebuild teardown ([#936](https://github.com/stefanko-ch/Nexus-Stack/issues/936)) ([7231f73](https://github.com/stefanko-ch/Nexus-Stack/commit/7231f7396b561692df2e2ae57ee10f8850e4826d))
+* **deploy:** Back up notebook work and never restore over a live host ([#930](https://github.com/stefanko-ch/Nexus-Stack/issues/930)) ([5ca38da](https://github.com/stefanko-ch/Nexus-Stack/commit/5ca38dacc8ad5fdfc3b965a540a40dc0fab72506))
+* **deploy:** Restore a database whose stack is enabled on a running server ([#939](https://github.com/stefanko-ch/Nexus-Stack/issues/939)) ([8ecaebb](https://github.com/stefanko-ch/Nexus-Stack/commit/8ecaebb50f0c71f1b9a72e626e828c786a8b8036))
+* **deploy:** Start what a failed teardown stopped before dumping again ([#938](https://github.com/stefanko-ch/Nexus-Stack/issues/938)) ([2bbc33c](https://github.com/stefanko-ch/Nexus-Stack/commit/2bbc33c649bdf221f00c04731104fc8fec6d28f2))
+* **scripts:** Skip rclone's post-upload HEAD that R2 answers with 501 ([#929](https://github.com/stefanko-ch/Nexus-Stack/issues/929)) ([83dfc7f](https://github.com/stefanko-ch/Nexus-Stack/commit/83dfc7f26b90b967992f2856838b203dbf5be5a5))
+
 ## [0.85.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.84.0...v0.85.0) (2026-10-27)
 
 
