@@ -34,7 +34,7 @@ on:
         default: ''
         type: string
       silent_mode:
-        description: 'Suppress all automated emails for this run'
+        description: 'Suppress the stack-online email for this run only'
         required: false
         default: false
         type: boolean

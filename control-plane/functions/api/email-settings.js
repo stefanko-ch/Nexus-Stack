@@ -4,9 +4,13 @@
  * POST /api/email-settings - Update notification preferences
  *
  * Configuration stored in Cloudflare D1 database
+ *
+ * Open to the user role, not only the admin: whether a stack's owner
+ * receives its notification mails is that person's own choice. Guests
+ * still cannot change it — they are on the Access list to look.
  */
 import { logApiCall, logError } from './_utils/logger.js';
-import { requireAdmin } from './_utils/require-admin.js';
+import { requireOperator } from './_utils/require-operator.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 
 async function getConfig(db, key, defaultValue = null) {
@@ -23,7 +27,7 @@ async function setConfig(db, key, value) {
 }
 
 export async function onRequestGet(context) {
-  const denial = await requireAdmin(context.env, context.request);
+  const denial = await requireOperator(context.env, context.request);
   if (denial) return denial;
 
   const db = context.env.NEXUS_DB;
@@ -65,7 +69,7 @@ export async function onRequestPost(context) {
   // valid Access session, so authenticating it first proves nothing.
   const crossSite = requireSameOrigin(context.request);
   if (crossSite) return crossSite;
-  const denial = await requireAdmin(context.env, context.request);
+  const denial = await requireOperator(context.env, context.request);
   if (denial) return denial;
 
   const db = context.env.NEXUS_DB;

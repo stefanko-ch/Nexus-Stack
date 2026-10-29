@@ -9,7 +9,7 @@ on:
         default: ''
         type: string
       silent_mode:
-        description: 'Suppress all automated emails during initial setup (persists in D1 until reset via toggle-silent-mode workflow)'
+        description: 'Suppress the stack-online email of this setup''s spin-up (the stack''s own notification settings are left as they are)'
         required: false
         default: false
         type: boolean

@@ -14,7 +14,7 @@ on:
         default: true
         type: boolean
       silent_mode:
-        description: 'Suppress all automated emails for this run (persists in D1 until reset via toggle-silent-mode workflow)'
+        description: 'Suppress the stack-online email for this run only (the stack''s own notification settings are left as they are)'
         required: false
         default: false
         type: boolean
@@ -46,7 +46,7 @@ on:
         default: ''
         type: string
       silent_mode:
-        description: 'Suppress all automated emails (passed from initial-setup)'
+        description: 'Suppress the stack-online email for this run only (passed from initial-setup)'
         required: false
         default: false
         type: boolean
@@ -945,10 +945,14 @@ jobs:
             npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('$key', '$escaped', datetime('now'))"
           done
 
-          if [ "${{ inputs.silent_mode }}" = "true" ]; then
-            npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('silent_mode', 'true', datetime('now'))"
-            echo "🔇 Silent mode enabled - automated emails suppressed"
-          fi
+          # `silent_mode` is deliberately NOT written to D1 here any more.
+          # It used to be, and nothing ever reset it: one silent dispatch
+          # (Nexus-Conductor sent every single-user operation silently)
+          # muted the stack's mails for good, overriding the toggles its
+          # owner sets on the Settings page. The input now suppresses this
+          # run's stack-online email only; see that step. A stack-wide
+          # mute is still available on purpose, through
+          # toggle-silent-mode.yml.
 
           echo "✅ Infrastructure config written to D1"
 
@@ -1389,6 +1393,8 @@ jobs:
 
       - name: Send stack online email via Resend
         env:
+          # Per run: the dispatcher asked for no mail this time.
+          RUN_SILENT: ${{ inputs.silent_mode }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ADMIN_EMAIL: ${{ secrets.TF_VAR_admin_email }}
           USER_EMAIL: ${{ secrets.TF_VAR_user_email }}
@@ -1396,6 +1402,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          if [ "$RUN_SILENT" = "true" ]; then
+            echo "🔇 This run was started silently - skipping stack online email"
+            exit 0
+          fi
+
           if [ -n "$RESEND_API_KEY" ]; then
             D1_DB_NAME="nexus-${DOMAIN//./-}-db"
 
