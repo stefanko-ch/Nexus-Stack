@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.87.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.86.0...v0.87.0) (2026-10-29)
+
+
+### 🚀 Features
+
+* **control-plane:** Drive the lifecycle buttons on a Forgejo-hosted fork ([#946](https://github.com/stefanko-ch/Nexus-Stack/issues/946)) ([b04a57e](https://github.com/stefanko-ch/Nexus-Stack/commit/b04a57e5d923931a48286e0ece5ecccf028ffc1f))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Let destroy-all run on a stack that has no D1 database ([#945](https://github.com/stefanko-ch/Nexus-Stack/issues/945)) ([d6485a0](https://github.com/stefanko-ch/Nexus-Stack/commit/d6485a0dd03cbaab5465c71c8be485a975340c91))
+* **stacks:** Let the Forgejo runner take four jobs on three CPUs ([#944](https://github.com/stefanko-ch/Nexus-Stack/issues/944)) ([4cc3fc3](https://github.com/stefanko-ch/Nexus-Stack/commit/4cc3fc39a9ed2677121c58930ad78c0d3ed15a71))
+
 ## [0.86.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.85.0...v0.86.0) (2026-10-29)
 
 
