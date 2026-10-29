@@ -204,7 +204,29 @@ jobs:
             D1_QUERY_FAILED=1
           fi
 
+          # A stack that never got a Control Plane has no database at all,
+          # and destroying it must still work: Nexus-Conductor runs destroy
+          # on users that were set up and never deployed, and refuses to
+          # delete their repository until a destroy succeeds. So when the
+          # query fails, ask whether the database exists. Only a positive
+          # "not in the account's list" counts; a failed or unparsable
+          # listing is still a failure. An empty list is safe to destroy
+          # with -- `tofu destroy` acts on the state, and the later steps
+          # skip the destroy when the state bucket does not exist either.
+          D1_DB_ABSENT=0
           if [ "$D1_QUERY_FAILED" -ne 0 ]; then
+            if D1_LIST_JSON=$(npx wrangler@4.129.0 d1 list --json 2>/dev/null) \
+               && printf '%s' "$D1_LIST_JSON" \
+                  | jq -e --arg n "$D1_DATABASE_NAME" 'map(.name) | index($n) == null' >/dev/null 2>&1; then
+              D1_DB_ABSENT=1
+            fi
+          fi
+
+          if [ "$D1_DB_ABSENT" -eq 1 ]; then
+            echo "⚠️  D1 database $D1_DATABASE_NAME does not exist — the Control Plane was never deployed or is already gone."
+            echo "   Destroying with no enabled services; OpenTofu acts on whatever the state holds."
+            D1_SERVICES_JSON='[{"results":[]}]'
+          elif [ "$D1_QUERY_FAILED" -ne 0 ]; then
             echo "❌ Could not read the enabled services from D1."
             echo "   Continuing would act on a service list this step never obtained."
             D1_ERR=$(tr '\n\r' '  ' < /tmp/d1-services.err 2>/dev/null | head -c 400)
