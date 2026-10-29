@@ -134,6 +134,7 @@ import RunProgress from '../components/RunProgress.astro';
 
       let badges = '';
       if (service.core) badges += '<span class="badge badge-core">core</span>';
+      if (service.tier === 'proven') badges += '<span class="badge badge-proven" title="Promised to work on every release, across a teardown and restore">proven</span>';
       if (service.admin_only) badges += '<span class="badge badge-admin">admin</span>';
       if (service.public) badges += '<span class="badge badge-public">public</span>';
       if (!service.subdomain) badges += '<span class="badge badge-internal">internal</span>';

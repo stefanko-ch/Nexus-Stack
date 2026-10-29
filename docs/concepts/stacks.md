@@ -12,9 +12,10 @@ actually need.
 
 Most are opt-in — you switch them on in the Control Plane and off again when you
 are done. A few are marked `core` and are always on, because the deployment does
-not work without them; the Control Plane will not let you disable those. Which are
-which is in `services.yaml`, not in this page, so that this page cannot go stale
-about it.
+not work without them; the Control Plane will not let you disable those. A few
+more are marked `proven`, which promises more than the rest (see [What each tier
+promises](#what-each-tier-promises)). Which are which is in `services.yaml`, not in
+this page, so that this page cannot go stale about it.
 
 Every stack has at least these two things in this repository:
 
@@ -27,6 +28,39 @@ Many need more than that, and about a third do: a `Dockerfile` where no usable
 upstream image exists, seed SQL, config templates, notebooks. Those live in the same
 `stacks/<name>/` directory. What there is *not* is a plugin system or a registry —
 a stack is files in this repository, and adding one is adding files.
+
+## What each tier promises
+
+A project with 100+ stacks cannot test all of them before every release, so it
+does not pretend to. Every stack is in one of three tiers, and the tier says
+exactly what you can rely on:
+
+| Tier | Which stacks | Promise |
+|---|---|---|
+| **core** | `core: true` in `services.yaml` | Part of the platform. Always deployed, cannot be disabled. |
+| **proven** | `tier: proven` in `services.yaml` | Works on every release, across a teardown and a restore. Issues about it are handled first. |
+| **best-effort** | everything else | Available and maintained, but not tested before a release and not prioritised. |
+
+The `proven` stacks are the ones courses run on, and the set is kept small on
+purpose: the promise only holds if every one of them can be tested on one server,
+before every release, in reasonable time.
+
+**What "works" means.** Starting and answering on its port is not enough. A
+`proven` stack has to keep what a user made in it — a notebook, a flow, a file —
+across a teardown and the following spin-up. The failures found while preparing
+a course were of that kind: a stack that came up healthy and empty.
+
+**What is enforced today, and what is not yet.** Every image a core or `proven`
+stack uses is one exact release, never a line of releases such as `17-alpine` or
+`v2.0`. For a stack built from its own `Dockerfile`, that covers the base image
+and every Python package too. `tests/unit/test_stack_conventions.py` fails CI on
+any violation, so a version only changes when someone changes it. The release
+test itself, which would block a release when a `proven` stack fails, is not
+automated yet ([#712](https://github.com/stefanko-ch/Nexus-Stack/issues/712)).
+Until it is, the check before a release is manual.
+
+The Control Plane marks `proven` stacks with a badge and can filter for them.
+`best-effort` stacks carry no badge.
 
 ## Catalogue, state, and reality
 

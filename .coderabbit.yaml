@@ -96,8 +96,13 @@ reviews:
         Per CLAUDE.md ("Adding New Stacks", "Service Account Naming"):
         - Stateful services MUST pin image versions (no :latest except
           for the documented allow-list: drawio, it-tools, wetty,
-          code-server, jupyter, marimo, adminer, excalidraw,
-          evidence). Flag any new :latest outside that list.
+          jupyter, adminer, excalidraw, evidence). Flag any new :latest
+          outside that list.
+        - Core stacks and `tier: proven` stacks in services.yaml
+          (code-server, kestra, marimo, spark) need one exact release,
+          not a line: flag `17-alpine`, `v2.0` or `11.6` there, even
+          though those are fine for a best-effort stack. Issues and PRs
+          about these stacks take priority (CLAUDE.md, "Stack Tiers").
         - Service accounts MUST use the `nexus-` prefix
           (nexus-postgres, nexus-<service>). Flag `admin`, `postgres`,
           `root` or service-name-alone usage.

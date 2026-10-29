@@ -10,6 +10,9 @@ import StackTable from '../components/StackTable.astro';
     <div class="panel-header">
       <h2>Stack Management</h2>
       <div class="panel-controls">
+        <div class="view-toggle" role="group" aria-label="Filter">
+          <button id="filter-proven" aria-pressed="false" title="Stacks promised to work on every release, across a teardown and restore">Proven only</button>
+        </div>
         <div class="view-toggle" role="group" aria-label="View">
           <button id="view-grid" aria-pressed="true">Grid</button>
           <button id="view-list" aria-pressed="false">List</button>
@@ -46,6 +49,8 @@ import StackTable from '../components/StackTable.astro';
   }
 
   .panel-header h2 { margin: 0; }
+
+  .panel-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
   .search-panel {
     position: relative;
@@ -130,7 +135,7 @@ import StackTable from '../components/StackTable.astro';
   let loadError = null;
   let currentView = (localStorage.getItem(VIEW_KEY) === 'list') ? 'list' : 'grid';
   let currentQuery = '';
-  let currentFilter = null; // 'pending' from ?filter=pending query param
+  let currentFilter = null; // 'pending' or 'proven', from ?filter= or the Proven only button
 
   function setView(view) {
     currentView = view;
@@ -169,6 +174,8 @@ import StackTable from '../components/StackTable.astro';
     let services = allServices.slice();
     if (currentFilter === 'pending') {
       services = services.filter(function(s) { return s.pending; });
+    } else if (currentFilter === 'proven') {
+      services = services.filter(function(s) { return s.tier === 'proven'; });
     }
     if (currentQuery) {
       const q = currentQuery.toLowerCase();
@@ -268,7 +275,11 @@ import StackTable from '../components/StackTable.astro';
     // Pending filter is most useful in list view — auto-switch.
     currentView = 'list';
     localStorage.setItem(VIEW_KEY, 'list');
+  } else if (urlParams.get('filter') === 'proven') {
+    currentFilter = 'proven';
+    currentView = 'list';
   }
+  document.getElementById('filter-proven').setAttribute('aria-pressed', currentFilter === 'proven');
   const initialQuery = urlParams.get('q') || '';
   if (initialQuery) currentQuery = initialQuery;
 
@@ -276,8 +287,23 @@ import StackTable from '../components/StackTable.astro';
   if (initialQuery) document.getElementById('stacks-search').value = initialQuery;
 
   // Event wiring
-  document.getElementById('view-grid').addEventListener('click', function() { setView('grid'); });
+  // The grid counts per category, and a category card opens the
+  // unfiltered category page, so the Proven only filter lives in the list
+  // view: turning it on switches there, and switching to the grid drops it.
+  document.getElementById('view-grid').addEventListener('click', function() {
+    if (currentFilter === 'proven') {
+      currentFilter = null;
+      document.getElementById('filter-proven').setAttribute('aria-pressed', false);
+    }
+    setView('grid');
+  });
   document.getElementById('view-list').addEventListener('click', function() { setView('list'); });
+  document.getElementById('filter-proven').addEventListener('click', function() {
+    currentFilter = currentFilter === 'proven' ? null : 'proven';
+    this.setAttribute('aria-pressed', currentFilter === 'proven');
+    if (currentFilter === 'proven') setView('list');
+    else applyFilterAndRender();
+  });
 
   let searchTimer;
   const searchInput = document.getElementById('stacks-search');

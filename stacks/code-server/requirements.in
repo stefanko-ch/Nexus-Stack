@@ -1,0 +1,15 @@
+# Top-level packages of the code-server nexus-venv. requirements.txt is
+# the full pinned set compiled from this file; the Dockerfile installs
+# that one.
+dbt-core
+dbt-postgres
+dbt-duckdb
+dbt-clickhouse
+dbt-spark
+dbt-trino
+dbt-databricks
+jupyterlab
+jupysql
+polars
+plotly
+duckdb

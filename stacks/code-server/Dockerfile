@@ -1,4 +1,7 @@
-FROM codercom/code-server:latest
+# Exact version: code-server is a `proven` stack (docs/concepts/stacks.md),
+# and `latest` handed every fresh server whatever upstream had published
+# that day. 4.143.1 is what `latest` resolved to when this was pinned.
+FROM codercom/code-server:4.143.1
 
 USER root
 
@@ -55,13 +58,11 @@ RUN ARCH="$(uname -m)" && \
 # students see, regardless of when the persistent home was first
 # created.
 #
-# All packages UNPINNED — every image rebuild pulls the latest from PyPI.
-# Trade-off vs. pinning (e.g. 'dbt-core>=1.9,<1.10' as in
-# stefanko-ch/dbt_codespace_demo): stays current with security fixes and
-# new features, but new minor/major versions may introduce breaking changes
-# mid-semester if you trigger a rebuild during a course run. Operator's
-# pick — add explicit version constraints if you need stability for a
-# specific semester.
+# Every package PINNED, transitive ones included, in requirements.txt
+# (compiled from requirements.in). Unpinned, a rebuild in the middle of a
+# course pulled whatever PyPI held that day — a new dbt minor could change
+# behaviour between two lessons. Bump deliberately by recompiling; the
+# command is in the file's header.
 #
 # dbt stack — adapters chosen to match the data-services Nexus-Stack
 # ships as stacks (so students can model against any of them without
@@ -105,20 +106,11 @@ RUN ARCH="$(uname -m)" && \
 # - jupysql: SQL magic cells (%sql, %%sql) against any adapter
 # - polars / plotly: fast dataframes + visualisation
 # - duckdb: Python bindings (separate from the CLI binary above)
+COPY requirements.txt /tmp/nexus-venv-requirements.txt
 RUN uv venv /opt/nexus-venv && \
     uv pip install --python /opt/nexus-venv/bin/python --no-cache-dir \
-      dbt-core \
-      dbt-postgres \
-      dbt-duckdb \
-      dbt-clickhouse \
-      dbt-spark \
-      dbt-trino \
-      dbt-databricks \
-      jupyterlab \
-      jupysql \
-      polars \
-      plotly \
-      duckdb && \
+      -r /tmp/nexus-venv-requirements.txt && \
+    rm /tmp/nexus-venv-requirements.txt && \
     chown -R coder:coder /opt/nexus-venv
 
 # Nexus-venv auto-activation: handled at container-start time by the

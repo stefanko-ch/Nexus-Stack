@@ -6,6 +6,8 @@ title: "Kestra"
 
 ![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)
 
+> **Tier: proven** — promised to work on every release, across a teardown and restore, and fixed first. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
+
 **Modern workflow orchestration for data pipelines & automation**
 
 A powerful, event-driven workflow orchestration platform for building data pipelines, ETL processes, and infrastructure automation:
@@ -24,8 +26,9 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 | Website | [kestra.io](https://kestra.io) |
 | Source | [GitHub](https://github.com/kestra-io/kestra) |
 
-> ⚠️ **Kestra 2.0, and there is no way back.** The stack runs `kestra/kestra:v2.0`,
-> which is also the `latest-lts` tag (identical digest — checked). Upstream is
+> ⚠️ **Kestra 2.0, and there is no way back.** The stack runs `kestra/kestra:v2.0.8`,
+> the release the `v2.0` tag pointed to when it was pinned (identical digest —
+> checked). Kestra is a `proven` stack, so it takes no patch release unasked. Upstream is
 > explicit that the upgrade is one-way: *"Several 2.0 migrations are
 > irreversible: in particular, the BasicAuth password rehash prevents rollback
 > to 1.x."* A database that has been through 2.0's Flyway migrations cannot be

@@ -46,10 +46,17 @@ A small set of services are marked **core** and cannot be disabled:
 - **Grafana** — monitoring and observability
 - **Infisical** — secrets store
 - **Portainer** — container dashboard, the first stop when a service misbehaves
+- **SFTPGo** — browser for the deployment's object storage
 
 Core stacks are shown with a **CORE** badge and their toggle is locked.
 
 ![A stack tile marked with a CORE badge and a locked toggle, showing that the service cannot be disabled](./assets/stacks-core-badge.png)
+
+## Proven stacks
+
+A few more stacks carry a **PROVEN** badge: code-server, Kestra, Marimo and Spark. They are the ones courses run on, and they are promised to work on every release, across a teardown and restore. Issues about them are fixed first. Unlike core stacks, you can switch them on and off like any other.
+
+Click **Proven only** at the top of the Stacks page to list just these; it switches to the List view, and switching back to Grid clears the filter. Every other stack is *best-effort*: available, but not tested before each release. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
 
 ## What happens when you disable a stack
 

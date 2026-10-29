@@ -329,6 +329,21 @@ AWS CLI with `.github/scripts/install-tool.sh <tool>`; uv with
 `tests/unit/test_job_toolchain.py` enforces it, and
 `docs/stacks/forgejo-runner.md` lists what the image contains.
 
+### Stack Tiers: core / proven / best-effort
+
+Every stack is in one tier (#712, `docs/concepts/stacks.md#what-each-tier-promises`):
+
+- **core** — `core: true`. Always deployed.
+- **proven** — `tier: proven` in `services.yaml`: code-server, Kestra, Marimo, Spark, the stacks courses run on. Promised to work on every release across a teardown and restore. The automated release gate is not built yet, so before a release that check is manual.
+- **best-effort** — no `tier` field. Everything else.
+
+What that means for work in this repo:
+
+- **Issues about a core or `proven` stack come first.** When choosing what to fix next, or triaging, rank them above everything that only touches best-effort stacks. Label them `tier:proven`.
+- **A change to a `proven` stack is not done until it survived a teardown and spin-up** with something a user made in it, not just a healthy container. Say in the PR whether that ran.
+- **Exact pins only** for core and `proven` (see "Pin Docker image versions" above).
+- **Adding a stack to `proven` is a decision, not a field edit:** it adds to what every release has to test, and the set must fit on one server. `test_proven_services_are_the_documented_set` makes it explicit.
+
 ### Service Account Naming Convention
 
 All service accounts MUST use the `nexus-` prefix to prevent default username guessing:
@@ -376,7 +391,8 @@ When adding a new Docker stack, **all locations must be updated**:
 
 3. **Pin Docker image versions:**
    - **CRITICAL:** Always use specific version tags, NOT `latest`
-   - **Exception:** Only use `latest` for non-critical standalone tools (drawio, it-tools, wetty, code-server, jupyter, marimo, adminer, excalidraw, evidence). Common property: presentation-layer or dev-tool, no persistent state beyond cache; upstream publishes no semver tags (only `:latest`), so digest pinning would still require manual update on every refresh and offers no real predictability win.
+   - **Exception:** Only use `latest` for non-critical standalone tools (drawio, it-tools, wetty, jupyter, adminer, excalidraw, evidence). Common property: presentation-layer or dev-tool, no persistent state beyond cache; upstream publishes no semver tags (only `:latest`), so digest pinning would still require manual update on every refresh and offers no real predictability win.
+   - **Core and `proven` stacks pin harder:** one exact release (`v2.0.8`, `17.11-alpine`), never a line (`v2.0`, `17-alpine`). For a stack with its own `Dockerfile` that includes the `FROM` base and every Python package (`==`, or a lock file installed with `-r`). See the tiers below; `tests/unit/test_stack_conventions.py` enforces it.
    - **Pin versions for:**
      - All data storage services (databases, object storage, data lakes)
      - Services with persistent state or databases

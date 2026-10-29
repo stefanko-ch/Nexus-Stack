@@ -6,6 +6,8 @@ title: "Apache Spark"
 
 ![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)
 
+> **Tier: proven** — promised to work on every release, across a teardown and restore, and fixed first. See [what each tier promises](../concepts/stacks.md#what-each-tier-promises).
+
 **Distributed data processing engine with standalone cluster (Master + Worker + Spark Connect)**
 
 Apache Spark provides a unified analytics engine for large-scale data processing. This stack runs a standalone cluster with one master, one worker, and a Spark Connect server, pre-configured with Hetzner Object Storage (S3) access.

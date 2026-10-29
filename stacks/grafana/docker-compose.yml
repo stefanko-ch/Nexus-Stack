@@ -20,7 +20,7 @@ services:
   # Grafana - Dashboards & Visualization
   # ---------------------------------------------------------------------------
   grafana:
-    image: ${IMAGE_GRAFANA:-grafana/grafana:11.6}
+    image: ${IMAGE_GRAFANA:-grafana/grafana:11.6.16}
     container_name: grafana
     env_file:
       - .env
@@ -78,7 +78,7 @@ services:
   # Loki - Log Aggregation
   # ---------------------------------------------------------------------------
   loki:
-    image: ${IMAGE_LOKI:-grafana/loki:3}
+    image: ${IMAGE_LOKI:-grafana/loki:3.7.9}
     container_name: grafana-loki
     restart: unless-stopped
     command: -config.file=/etc/loki/loki-config.yml
@@ -92,7 +92,7 @@ services:
   # Promtail - Log Collector (ships Docker logs to Loki)
   # ---------------------------------------------------------------------------
   promtail:
-    image: ${IMAGE_PROMTAIL:-grafana/promtail:3}
+    image: ${IMAGE_PROMTAIL:-grafana/promtail:3.6.8}
     container_name: grafana-promtail
     restart: unless-stopped
     command: -config.file=/etc/promtail/promtail-config.yml
@@ -109,7 +109,7 @@ services:
   # cAdvisor - Container Metrics
   # ---------------------------------------------------------------------------
   cadvisor:
-    image: ${IMAGE_CADVISOR:-ghcr.io/google/cadvisor:0.56}
+    image: ${IMAGE_CADVISOR:-ghcr.io/google/cadvisor:0.56.2}
     container_name: grafana-cadvisor
     restart: unless-stopped
     # Deliberately NOT privileged. cAdvisor's own docs name two cases that

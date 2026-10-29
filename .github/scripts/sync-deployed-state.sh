@@ -65,10 +65,27 @@ for COL_SQL in \
   "ALTER TABLE services ADD COLUMN website TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN long_description TEXT DEFAULT ''" \
   "ALTER TABLE services ADD COLUMN landing_path TEXT DEFAULT ''" \
-  "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0"; do
-  set +e
-  npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>/dev/null
-  set -e
+  "ALTER TABLE services ADD COLUMN api_only INTEGER DEFAULT 0" \
+  "ALTER TABLE services ADD COLUMN tier TEXT DEFAULT 'best-effort'"; do
+  # An existing column is the expected answer on every run after the
+  # first. Anything else is a real failure: the INSERT/UPDATE batches
+  # below name every one of these columns and would fail on a missing
+  # one anyway, later and less clearly. Same handling as migrate_column
+  # in setup-control-plane.yaml.
+  MIGRATE_FAILED=0
+  MIGRATE_ERROR=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --command "$COL_SQL" 2>&1) || MIGRATE_FAILED=1
+  if [ "$MIGRATE_FAILED" -ne 0 ]; then
+    # `case` rather than `grep -q`: an early-exiting reader under
+    # pipefail can fail the pipe on SIGPIPE (test_sigpipe_under_pipefail).
+    case "$(printf '%s' "$MIGRATE_ERROR" | tr '[:upper:]' '[:lower:]')" in
+      *"duplicate column"* | *"already exists"*) ;;
+      *)
+        echo "❌ D1 migration failed: $COL_SQL"
+        echo "   wrangler output: ${MIGRATE_ERROR:-(no output)}"
+        exit 1
+        ;;
+    esac
+  fi
 done
 echo "  ✅ Schema migrations complete (new columns added or already exist)"
 
@@ -188,6 +205,14 @@ for name, config in services.items():
     core = 1 if config.get('core', False) else 0
     admin_only = 1 if config.get('admin_only', False) else 0
     api_only = 1 if config.get('api_only', False) else 0
+    # One of three fixed strings, never the raw yaml value, so nothing from
+    # the file reaches the SQL below unchecked (#712).
+    if core:
+        tier = 'core'
+    elif config.get('tier') == 'proven':
+        tier = 'proven'
+    else:
+        tier = 'best-effort'
     description = config.get('description', '')
     category = config.get('category', '')
     website = config.get('website', '')
@@ -228,13 +253,13 @@ for name, config in services.items():
 
     # INSERT OR IGNORE - only creates if not exists (preserves enabled state if already exists)
     # New services: core services enabled, others disabled
-    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', '{category}', '{website}', '{long_description}', '{landing_path}', {api_only}, datetime('now'));"
+    insert_sql = f"INSERT OR IGNORE INTO services (name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only, tier, updated_at) VALUES ('{name}', {enabled}, {enabled}, '{subdomain}', {port}, {public}, {core}, {admin_only}, '{description}', '{category}', '{website}', '{long_description}', '{landing_path}', {api_only}, '{tier}', datetime('now'));"
     insert_statements.append(insert_sql)
 
     # UPDATE - sync metadata for existing services (preserve enabled state from D1)
     # This ensures subdomain, port, description, core, public, category, website,
     # long_description, landing_path are always in sync with yaml
-    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', category = '{category}', website = '{website}', long_description = '{long_description}', landing_path = '{landing_path}', api_only = {api_only}, updated_at = datetime('now') WHERE name = '{name}';"
+    update_sql = f"UPDATE services SET subdomain = '{subdomain}', port = {port}, public = {public}, core = {core}, admin_only = {admin_only}, description = '{description}', category = '{category}', website = '{website}', long_description = '{long_description}', landing_path = '{landing_path}', api_only = {api_only}, tier = '{tier}', updated_at = datetime('now') WHERE name = '{name}';"
     update_statements.append(update_sql)
 
 # Write to temp files

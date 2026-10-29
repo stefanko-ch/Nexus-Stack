@@ -6,8 +6,8 @@
  * Service metadata is synced to D1 by .github/scripts/sync-deployed-state.sh, which
  * runs at the end of the spin-up workflow. D1 column migrations (e.g. landing_path)
  * run in setup-control-plane.yaml's "Apply D1 schema" step + idempotently from the
- * sync script too — so the new Pages frontend never reads a column that doesn't
- * exist in D1 yet.
+ * sync script too. spin-up.yml deploys Pages before that sync, so the newest
+ * column (tier) is read with a fallback; see _utils/services-query.js.
  * D1 is the single source of truth for service state:
  *   - enabled: what the user wants (staged state)
  *   - deployed: what is currently running
@@ -17,6 +17,7 @@ import { logApiCall, logError } from './_utils/logger.js';
 import { requireSameOrigin } from './_utils/require-same-origin.js';
 import { requireOperator } from './_utils/require-operator.js';
 import { requireViewer } from './_utils/require-viewer.js';
+import { selectServices } from './_utils/services-query.js';
 
 /**
  * Validate service name to prevent injection attacks
@@ -66,23 +67,7 @@ export async function onRequestGet(context) {
     const url = new URL(request.url);
     const categoryFilter = url.searchParams.get('category');
 
-    let stmt;
-    if (categoryFilter) {
-      stmt = env.NEXUS_DB.prepare(`
-        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only
-        FROM services
-        WHERE category = ?
-        ORDER BY name
-      `).bind(categoryFilter);
-    } else {
-      stmt = env.NEXUS_DB.prepare(`
-        SELECT name, enabled, deployed, subdomain, port, public, core, admin_only, description, category, website, long_description, landing_path, api_only
-        FROM services
-        ORDER BY name
-      `);
-    }
-
-    const results = await stmt.all();
+    const results = await selectServices(env.NEXUS_DB, categoryFilter);
 
     let pendingChangesCount = 0;
     const categoryCounts = {};
@@ -119,6 +104,7 @@ export async function onRequestGet(context) {
         long_description: row.long_description || '',
         landing_path: row.landing_path || '',
         api_only: row.api_only === 1,
+        tier: row.tier || 'best-effort',
         enabled,
         deployed,
         pending: hasPendingChange,
