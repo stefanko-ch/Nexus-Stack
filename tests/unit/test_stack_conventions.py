@@ -911,6 +911,11 @@ def _dockerfile_instructions(dockerfile: Path) -> list[str]:
     return instructions
 
 
+# The pip executable in every spelling a Dockerfile uses: `pip`, `pip3`,
+# `pip3.13`, a full path to any of them, and the `pip` of `python -m pip`
+# and `uv pip`.
+_PIP_EXECUTABLE = re.compile(r"^(?:.*/)?pip(?:\d+(?:\.\d+)?)?$")
+
 # pip / uv options that take a value, so the next token is not a package.
 _PIP_VALUE_OPTIONS = {"--python", "-c", "--constraint", "--index-url", "--extra-index-url"}
 
@@ -934,7 +939,7 @@ def _unpinned_python_packages(dockerfile: Path) -> list[str]:
             continue
         for command in re.split(r"&&|;", instruction[4:]):
             tokens = shlex.split(command)
-            if "install" not in tokens or "pip" not in tokens:
+            if "install" not in tokens or not any(_PIP_EXECUTABLE.match(t) for t in tokens):
                 continue
             args = tokens[tokens.index("install") + 1 :]
             skip_next = False
@@ -1060,6 +1065,16 @@ def test_unpinned_python_packages_are_found(tmp_path: Path) -> None:
         "    uv pip install --python /opt/venv/bin/python -r /tmp/requirements.txt\n"
     )
     assert _unpinned_python_packages(dockerfile) == ["polars", "requirements.txt: loose"]
+
+
+@pytest.mark.parametrize(
+    "pip",
+    ["pip", "pip3", "pip3.13", "/usr/local/bin/pip3", "python3 -m pip", "uv pip"],
+)
+def test_every_pip_spelling_is_checked(tmp_path: Path, pip: str) -> None:
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(f"FROM python:3.13.5-slim\nRUN {pip} install requests\n")
+    assert _unpinned_python_packages(dockerfile) == ["requests"]
 
 
 # Hosts a shipped Evidence source may name without being defined in
