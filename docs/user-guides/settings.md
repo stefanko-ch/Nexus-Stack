@@ -91,4 +91,8 @@ Two email notifications can be toggled independently:
 - **Shutdown Warning Email** — Sent before the scheduled daily teardown as a heads-up.
 - **Stack Online Email** — Sent when the stack is back online after a spin-up.
 
+Both the admin and the stack's user can change these, since whether you get the mails is your own choice. Guests cannot.
+
+Switching either toggle on also clears **silent mode**, a stack-wide setting that suppresses every automated mail. An operator can still start a single spin-up silently; that applies to that run only and does not change these toggles.
+
 Both are sent via Resend using the API key configured during setup. If emails aren't arriving, check the Secrets page — `RESEND_API_KEY` should be under the global folder.

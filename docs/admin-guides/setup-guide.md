@@ -371,7 +371,8 @@ Plane enforces the difference itself:
 | Open host firewall ports | ✅ | — | — |
 | Redeploy the Control Plane | ✅ | — | — |
 | Email the Infisical credentials | ✅ | — | — |
-| Change email and teardown settings | ✅ | — | — |
+| Turn the stack's notification mails on or off | ✅ | ✅ | — |
+| Change teardown settings | ✅ | — | — |
 | Databricks configuration and sync | ✅ | — | — |
 | SSH to the server | ✅ | — | — |
 
