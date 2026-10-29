@@ -372,8 +372,9 @@ to their aggregate. `runner.capacity: 4` bounds how many jobs run at
 once; it does not bound what each may consume, which is why both are
 needed. The ceiling, not the job count, is what protects the other
 services: the jobs share three CPUs and 4 GB however many run, which
-leaves at least one core to the rest of the box. A host with fewer than
-three vCPUs cannot start `forgejo-dind` with this value.
+on a host with four or more vCPUs leaves at least one core to the rest
+of the box. A host with exactly three would have none left, and one
+with fewer than three cannot start `forgejo-dind` with this value.
 Four rather than two because a Nexus-Conductor class runs one
 lifecycle job per student, mostly waiting on remote servers, and at
 two jobs at a time a class-wide spin-up for twenty students needs ten
