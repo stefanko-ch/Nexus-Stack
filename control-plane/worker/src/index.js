@@ -67,13 +67,18 @@ async function getConfigValue(db, key, defaultValue = null) {
 // single script. That file explains the choices; change both together.
 const FORGEJO_DONE_STATUSES = new Set(['success', 'failure', 'cancelled', 'skipped']);
 
-function forgeApiBase(env) {
-  const forgeUrl = (env.FORGE_URL || '').trim().replace(/\/+$/, '');
-  return forgeUrl ? `${forgeUrl}/api/v1` : 'https://api.github.com';
+function forgeUrl(env) {
+  return (env.FORGE_URL || '').trim().replace(/\/+$/, '');
 }
 
+function forgeApiBase(env) {
+  return isForgejo(env) ? `${forgeUrl(env)}/api/v1` : 'https://api.github.com';
+}
+
+// From the same normalised value as forgeApiBase, so a FORGE_URL of "/"
+// cannot select Forgejo's auth while the calls still go to GitHub.
 function isForgejo(env) {
-  return Boolean((env.FORGE_URL || '').trim());
+  return Boolean(forgeUrl(env));
 }
 
 function forgeRepoUrl(env, path) {
