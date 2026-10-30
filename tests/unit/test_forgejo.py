@@ -2552,6 +2552,33 @@ def test_create_repo_for_user_5xx_returns_failed() -> None:
 
 
 @responses.activate
+def test_create_repo_for_user_transport_error_returns_failed() -> None:
+    responses.add(
+        responses.POST,
+        f"{BASE_URL}/api/v1/admin/users/stefan/repos",
+        body=requests.ConnectionError("down"),
+    )
+    result = _client(token="t").create_repo_for_user("stefan", "myrepo_stefan")
+    assert result.status == "failed"
+    assert "transport" in result.detail
+
+
+@responses.activate
+def test_rename_repo_transport_error_returns_false() -> None:
+    responses.add(
+        responses.PATCH,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-x",
+        body=requests.ConnectionError("down"),
+    )
+    assert not _client(token="t").rename_repo("admin", "mirror-readonly-x", "course-x")
+
+
+def test_from_token_rejects_empty_token() -> None:
+    with pytest.raises(ValueError, match="non-empty token"):
+        ForgejoClient.from_token(BASE_URL, admin_username="admin", token="")
+
+
+@responses.activate
 def test_rename_repo_200_returns_true_and_sends_new_name() -> None:
     responses.add(
         responses.PATCH,
@@ -2781,6 +2808,34 @@ def test_run_mirror_setup_returns_no_admin_uid_early() -> None:
     assert result.is_success is False
     assert result.mirrors == ()
     assert len(responses.calls) == 1
+
+
+@responses.activate
+def test_run_mirror_setup_admin_uid_error_is_surfaced() -> None:
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=503)
+
+    result = _run(["https://github.com/o/myrepo.git"])
+
+    assert result.admin_uid is None
+    assert "503" in result.admin_uid_error
+
+
+@responses.activate
+def test_run_mirror_setup_existence_check_errors_fall_through_to_migrate() -> None:
+    """A 5xx on either existence check is read as "absent": the course
+    repo is migrated (409/422 there would report already_exists), and a
+    blank entry in the URL list is skipped."""
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 500)
+    _add_repo_get("mirror-readonly-myrepo", 500)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=201, json={"id": 3})
+    _add_course_followups("course-myrepo", user=None)
+
+    result = _run(["  ", "https://github.com/o/myrepo.git"], user=None)
+
+    assert result.is_success is True
+    assert [m.status for m in result.mirrors] == ["created"]
+    assert not _calls("PATCH", "/mirror-readonly-myrepo")
 
 
 @responses.activate
