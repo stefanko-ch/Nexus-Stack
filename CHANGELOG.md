@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.88.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.88.0...v0.88.1) (2026-10-30)
+
+
+### 🐛 Bug Fixes
+
+* **deploy:** Recreate the empty git directories a restore loses ([#952](https://github.com/stefanko-ch/Nexus-Stack/issues/952)) ([57acf6e](https://github.com/stefanko-ch/Nexus-Stack/commit/57acf6e15c279524a19aa79aaaf2730c24808434))
+
 ## [0.88.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.87.0...v0.88.0) (2026-10-29)
 
 
