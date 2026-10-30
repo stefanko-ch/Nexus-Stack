@@ -7,10 +7,13 @@ GH_MIRROR_REPOS, ...).
 
 Three repo-derivation branches:
 
-1. **mirror + user_email** — first GH_MIRROR_REPOS repo gets forked into
-   the user's namespace as ``<repo>_<sanitized_user>``. Owner = user.
-2. **mirror + no_user_email** — admin gets the mirror as
-   ``mirror-readonly-<repo>``. Owner = admin.
+1. **mirror + user_email** — the user's workspace,
+   ``<repo>_<sanitized_user>`` in the user's namespace, named after the
+   first GH_MIRROR_REPOS repo. An ordinary repository; the course
+   material stays in the read-only ``course-<repo>`` mirrors, which the
+   git-integrated stacks clone next to it. Owner = user.
+2. **mirror + no_user_email** — no user to own a workspace, so the
+   admin's read-only ``course-<repo>`` mirror stands in. Owner = admin.
 3. **no mirror** — admin gets a default repo named
    ``nexus-<domain-dashed>-workspace``. Owner = admin.
 
@@ -83,7 +86,7 @@ class WorkspaceCoords:
 
     Mutable mirrors live on ``OrchestratorState`` so later phases
     (notably ``_phase_mirror_setup``) can override e.g. ``repo_name``
-    with the user's fork. This dataclass itself is frozen — the
+    with the user's workspace. This dataclass itself is frozen — the
     initial derivation is final.
     """
 
@@ -107,7 +110,7 @@ HttpRunner = Callable[[str, str], str]
 def _sanitize_username(username: str) -> str:
     """Replace any non-alphanumeric character with ``_``.
 
-    Used when constructing the per-user fork name from a Forgejo
+    Used when constructing the per-user workspace name from a Forgejo
     username that may contain dots / hyphens.
     """
     return re.sub(r"[^a-zA-Z0-9]", "_", username)
@@ -146,7 +149,7 @@ def _basename(github_url: str) -> str:
     """Extract the bare repo name from a GitHub URL.
 
     Take the last path segment of a GitHub URL and strip the
-    trailing ``.git``. Used to construct ``mirror-readonly-<repo>``
+    trailing ``.git``. Used to construct ``course-<repo>``
     and ``<repo>_<sanitized_user>``.
     """
     name = github_url.rstrip("/").split("/")[-1]
@@ -222,7 +225,7 @@ def _resolve_default_branch(
 
 
 def _resolve_workspace_username(inputs: WorkspaceInputs) -> str:
-    """User-side username derivation, used both in the per-user fork
+    """User-side username derivation, used both in the per-user workspace
     name and in the GIT_AUTHOR identity. When ``FORGEJO_USER_EMAIL`` is
     set, the username = local-part of the email (``foo@bar`` → ``foo``).
     Otherwise falls back to ``ADMIN_USERNAME``.
@@ -240,22 +243,22 @@ def _resolve_repo_coords(
     """Return ``(repo_name, forgejo_repo_owner, forgejo_repo_url)`` for
     the current input combination. Three branches:
 
-    1. mirror + user_email      → fork in user's namespace
-    2. mirror + no_user_email   → admin's read-only mirror
+    1. mirror + user_email      → workspace in the user's namespace
+    2. mirror + no_user_email   → admin's read-only course mirror
     3. no mirror                → admin's default empty repo
     """
     if inputs.gh_mirror_repos and inputs.forgejo_user_email:
-        # Branch 1: mirror + user → fork
+        # Branch 1: mirror + user → the user's workspace
         first_mirror = _parse_first_mirror(inputs.gh_mirror_repos)
         upstream_repo = _basename(first_mirror)
         sanitized = _sanitize_username(workspace_username)
         repo_name = f"{upstream_repo}_{sanitized}"
         owner = workspace_username
     elif inputs.gh_mirror_repos:
-        # Branch 2: mirror + no user → mirror-readonly
+        # Branch 2: mirror + no user → the read-only course mirror
         first_mirror = _parse_first_mirror(inputs.gh_mirror_repos)
         upstream_repo = _basename(first_mirror)
-        repo_name = f"mirror-readonly-{upstream_repo}"
+        repo_name = f"course-{upstream_repo}"
         owner = inputs.admin_username
     else:
         # Branch 3: no mirror → default workspace name

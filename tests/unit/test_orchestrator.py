@@ -26,10 +26,10 @@ from nexus_deploy.forgejo import (
     CreateRepoResult,
     CreateUserResult,
     ForgejoResult,
-    ForkResult,
     MirrorResult,
     MirrorSetupResult,
     OAuthAppResult,
+    WorkspaceResult,
 )
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.orchestrator import (
@@ -265,7 +265,7 @@ def test_state_handoff_woodpecker_creds_populated(
 def test_state_handoff_fork_populated_from_mirror(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """R-state: mirror-setup populates state.fork_name + fork_owner
+    """R-state: mirror-setup populates state.workspace_name + workspace_owner
     when a fork is provisioned."""
     orchestrator.gh_mirror_repos = ["https://github.com/owner/repo"]
     orchestrator.gh_mirror_token = "gh-tok"
@@ -277,9 +277,8 @@ def test_state_handoff_fork_populated_from_mirror(
             admin_uid=1,
             admin_uid_error="",
             mirrors=(MirrorResult(name="repo", status="created"),),
-            fork=ForkResult(owner="user", name="user-fork", status="created"),
+            workspace=WorkspaceResult(owner="user", name="user-fork", status="created"),
             collaborator_added_count=1,
-            fork_synced=True,
         )
 
     monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
@@ -303,8 +302,8 @@ def test_state_handoff_fork_populated_from_mirror(
         monkeypatch.setattr(orchestrator, phase_name, lambda _ssh, n=phase_name: _ok_phase(n))
 
     result = orchestrator.run_all()
-    assert result.state.fork_name == "user-fork"
-    assert result.state.fork_owner == "user"
+    assert result.state.workspace_name == "user-fork"
+    assert result.state.workspace_owner == "user"
 
 
 # ---------------------------------------------------------------------------
@@ -700,7 +699,7 @@ def test_cli_run_all_no_forgejo_token_in_stdout(
 ) -> None:
     """R-state-confinement: forgejo_token must NOT leak to stdout —
     it's consumed entirely inside the orchestrator. Same for
-    fork_name / fork_owner."""
+    workspace_name / workspace_owner."""
     from nexus_deploy.__main__ import _run_all
 
     for var, val in (
@@ -719,8 +718,8 @@ def test_cli_run_all_no_forgejo_token_in_stdout(
         phases=(PhaseResult("p1", "ok"),),
         state=OrchestratorState(
             forgejo_token="SECRET-TOKEN-ABCDEF",
-            fork_name="some-fork",
-            fork_owner="some-owner",
+            workspace_name="some-fork",
+            workspace_owner="some-owner",
         ),
     )
     with patch.object(Orchestrator, "run_all", return_value=fake_result):
@@ -1289,7 +1288,7 @@ def test_mirror_finalize_waits_for_the_flow_sync_execution(
         lambda *_a, **_k: RestartResult(restarted=0, failed=0),
     )
     orchestrator.gh_mirror_repos = ["owner/repo"]
-    orchestrator.state.fork_name = "user/fork"
+    orchestrator.state.workspace_name = "user/fork"
     orchestrator.enabled_services = ["kestra"]
 
     result = orchestrator._phase_mirror_finalize(_ssh_with_tunnel())
@@ -1467,9 +1466,8 @@ def test_phase_mirror_setup_partial_when_some_mirrors_failed(
                 MirrorResult(name="x", status="created"),
                 MirrorResult(name="y", status="failed"),
             ),
-            fork=None,
+            workspace=None,
             collaborator_added_count=0,
-            fork_synced=False,
         )
 
     monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
@@ -1477,15 +1475,12 @@ def test_phase_mirror_setup_partial_when_some_mirrors_failed(
     assert result.status == "partial"
 
 
-def test_phase_mirror_setup_surfaces_sync_detail_in_phase_result(
+def test_phase_mirror_setup_detail_lists_mirrors_and_workspace(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression (PR #589 review): the sync_detail from run_mirror_setup
-    must reach PhaseResult.detail so operators can see whether the
-    upstream-fetch landed during this spin-up. Without this plumbing,
-    a regression that drops sync_detail from the phase output would
-    pass the lower-level test_run_mirror_setup_* tests but silently
-    leave the operator without their diagnostic."""
+    """The phase detail names every course repo with its status and the
+    workspace, so an operator can see a rename from mirror-readonly-*
+    and whether the workspace was created or reused."""
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
     orchestrator.state.forgejo_token = "tok"
@@ -1494,27 +1489,21 @@ def test_phase_mirror_setup_surfaces_sync_detail_in_phase_result(
         return MirrorSetupResult(
             admin_uid=1,
             admin_uid_error="",
-            mirrors=(MirrorResult(name="y", status="created"),),
-            fork=ForkResult(owner="user", name="user-fork", status="created"),
+            mirrors=(MirrorResult(name="course-y", status="renamed"),),
+            workspace=WorkspaceResult(owner="user", name="y_user", status="already_exists"),
             collaborator_added_count=1,
-            fork_synced=True,
-            sync_detail="mirror synced (oldsha12 -> newsha34), merge_upstream=200",
         )
 
     monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "ok"
-    assert "mirrors=1" in result.detail
-    assert "mirror synced (oldsha12 -> newsha34)" in result.detail
-    assert "merge_upstream=200" in result.detail
+    assert result.detail == "mirrors=1 | course-y=renamed | workspace=user/y_user (already_exists)"
 
 
-def test_phase_mirror_setup_omits_sync_detail_when_empty(
+def test_phase_mirror_setup_detail_without_workspace(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """sync_detail is empty when no fork-sync was attempted (e.g. no
-    user configured); PhaseResult.detail should NOT contain a trailing
-    ' | ' separator for an absent diagnostic."""
+    """No user configured → no workspace part in the detail."""
     orchestrator.gh_mirror_repos = ["https://github.com/x/y"]
     orchestrator.gh_mirror_token = "gh-tok"
     orchestrator.state.forgejo_token = "tok"
@@ -1523,17 +1512,15 @@ def test_phase_mirror_setup_omits_sync_detail_when_empty(
         return MirrorSetupResult(
             admin_uid=1,
             admin_uid_error="",
-            mirrors=(MirrorResult(name="y", status="created"),),
-            fork=None,
+            mirrors=(MirrorResult(name="course-y", status="created"),),
+            workspace=None,
             collaborator_added_count=0,
-            fork_synced=False,
-            sync_detail="",
         )
 
     monkeypatch.setattr("nexus_deploy.orchestrator._forgejo.run_mirror_setup", fake_mirror)
     result = orchestrator._phase_mirror_setup(_ssh_with_tunnel())
     assert result.status == "ok"
-    assert result.detail == "mirrors=1"
+    assert result.detail == "mirrors=1 | course-y=created"
 
 
 def test_phase_secret_sync_jupyter_skipped_when_not_enabled(
@@ -2899,15 +2886,15 @@ def test_phase_mirror_seed_rerun_skipped_when_not_mirror(
     assert "not mirror mode" in result.detail
 
 
-def test_phase_mirror_seed_rerun_skipped_when_no_fork(
+def test_phase_mirror_seed_rerun_skipped_when_no_workspace(
     orchestrator: Orchestrator,
 ) -> None:
     orchestrator.gh_mirror_repos = ["https://github.com/o/r.git"]
-    orchestrator.state.fork_name = None
+    orchestrator.state.workspace_name = None
     orchestrator.state.forgejo_token = "tok"
     result = orchestrator._phase_mirror_seed_rerun(MagicMock())
     assert result.status == "skipped"
-    assert "no fork" in result.detail
+    assert "no workspace" in result.detail
 
 
 def test_phase_mirror_seed_rerun_mutates_state_to_fork_target(
@@ -2918,8 +2905,8 @@ def test_phase_mirror_seed_rerun_mutates_state_to_fork_target(
     from nexus_deploy.seeder import SeedResult
 
     orchestrator.gh_mirror_repos = ["https://github.com/o/r.git"]
-    orchestrator.state.fork_name = "user-fork"
-    orchestrator.state.fork_owner = "user"
+    orchestrator.state.workspace_name = "user-fork"
+    orchestrator.state.workspace_owner = "user"
     orchestrator.state.forgejo_token = "tok"
     orchestrator.state.repo_name = "mirror-readonly-r"  # was mirror name
     orchestrator.state.forgejo_repo_owner = "admin"
@@ -2954,7 +2941,7 @@ def test_phase_mirror_finalize_skipped_when_no_fork(
     orchestrator: Orchestrator,
 ) -> None:
     orchestrator.gh_mirror_repos = ["https://github.com/o/r.git"]
-    orchestrator.state.fork_name = None
+    orchestrator.state.workspace_name = None
     result = orchestrator._phase_mirror_finalize(MagicMock())
     assert result.status == "skipped"
 
@@ -3535,7 +3522,7 @@ def mirror_finalize_ready(orchestrator: Orchestrator) -> Orchestrator:
     + admin email — the all-prereqs-met setup that exercises the
     flow-sync + git-restart code paths."""
     orchestrator.gh_mirror_repos = ["https://github.com/o/r.git"]
-    orchestrator.state.fork_name = "user-fork"
+    orchestrator.state.workspace_name = "user-fork"
     orchestrator.enabled_services = ["kestra", "jupyter", "marimo"]
     return orchestrator
 

@@ -10,7 +10,7 @@ Woodpecker .env write logic:
 * ``WOODPECKER_FORGEJO_CLIENT`` — written into stacks/woodpecker/.env
 * ``WOODPECKER_FORGEJO_SECRET`` — written into stacks/woodpecker/.env
 
-Other state (``FORGEJO_TOKEN``, ``FORK_NAME``, ``FORK_OWNER``) is
+Other state (``FORGEJO_TOKEN``, the workspace name and owner) is
 consumed entirely inside the orchestrator and never exits Python.
 
 Phase order (deterministic):
@@ -21,7 +21,7 @@ Phase order (deterministic):
 4. seed                           (push examples/workspace-seeds/ to repo)
 5. kestra register-system-flows   (system.git-sync + flow-sync)
 6. forgejo woodpecker-oauth         (provision OAuth app for Woodpecker CI)
-7. forgejo mirror-setup             (per-mirror migrate + fork; if mirrors)
+7. forgejo mirror-setup             (course mirrors + user workspace; if mirrors)
 8. secret-sync jupyter            (Infisical → Jupyter .infisical.env)
 9. secret-sync marimo             (Infisical → Marimo .infisical.env)
 
@@ -88,15 +88,15 @@ class OrchestratorState:
     The ``restart_services`` + ``woodpecker_*`` fields are
     additionally emitted to stdout at the end so the surviving
     shell glue (compose-restart loop + Woodpecker .env writer)
-    can consume them. ``forgejo_token`` / ``fork_*`` stay in-process.
+    can consume them. ``forgejo_token`` / ``workspace_*`` stay in-process.
     """
 
     forgejo_token: str | None = None
     restart_services: tuple[str, ...] = ()
     woodpecker_client_id: str | None = None
     woodpecker_client_secret: str | None = None
-    fork_name: str | None = None
-    fork_owner: str | None = None
+    workspace_name: str | None = None
+    workspace_owner: str | None = None
     # infisical_token + project_id are POPULATED by
     # _phase_infisical_provision (running BEFORE _phase_infisical_bootstrap),
     # so pre-bootstrap callers don't need to pass them in the
@@ -118,7 +118,7 @@ class OrchestratorState:
     # emission) AND self.* on the orchestrator (for downstream
     # phases that gate on the orchestrator fields).
     # _phase_mirror_setup later mutates state.repo_name +
-    # state.forgejo_repo_owner to point at the user's fork (so the
+    # state.forgejo_repo_owner to point at the user's workspace (so the
     # mirror-seed-rerun + git-restart phases hit the right repo).
     repo_name: str | None = None
     forgejo_repo_owner: str | None = None
@@ -146,7 +146,7 @@ _SECRET_ASSIGNMENT_RE = re.compile(
 
 
 # How long mirror-finalize waits for the onboarding flow-sync to
-# settle. Generous: it clones the fork and walks nexus_seeds/.
+# settle. Generous: it clones the workspace and walks nexus_seeds/.
 _FLOW_SYNC_TIMEOUT_S = 120.0
 
 
@@ -344,7 +344,7 @@ class Orchestrator:
             #   - compose-restart consumes state.restart_services from forgejo
             #   - kestra-secret-sync runs BEFORE kestra-register
             #   - woodpecker-apply consumes state.woodpecker_* from oauth
-            #   - mirror-seed-rerun consumes state.fork_* from mirror-setup
+            #   - mirror-seed-rerun consumes state.workspace_* from mirror-setup
             #   - mirror-finalize is best-effort wakeup after mirror-seed
             phases: list[Callable[[SSHClient], PhaseResult]] = [
                 self._phase_infisical_bootstrap,
@@ -580,11 +580,10 @@ class Orchestrator:
         """Push examples/workspace-seeds/ to the workspace repo via
         :func:`seeder.run_seed_for_repo`. Needs ``state.forgejo_token``.
 
-        In mirror mode this phase MUST skip — seeding the read-only
-        ``mirror-readonly-<repo>`` returns HTTP 423 (Forgejo pull-mirror
-        lock). Re-seeding against the user's fork happens later via
-        ``_phase_mirror_seed_rerun``, after ``_phase_mirror_setup``
-        populates ``state.fork_*``.
+        In mirror mode this phase skips: the user's workspace is only
+        ensured later, by ``_phase_mirror_setup``, and seeding happens
+        against it in ``_phase_mirror_seed_rerun`` once ``state.workspace_*``
+        names it.
         """
         # Mirror-mode skip — without this gate mirror deploys would
         # 423 here even though the phase itself has no bug.
@@ -665,7 +664,7 @@ class Orchestrator:
                 status="partial",
                 detail="ADMIN_EMAIL missing",
             )
-        # In mirror mode the fork does not exist yet: this phase runs
+        # In mirror mode the workspace may not exist yet: this phase runs
         # before _phase_mirror_setup creates it and before
         # _phase_mirror_seed_rerun writes the seed files into it. Firing
         # system.flow-sync here asks Kestra to clone a repository that is
@@ -723,7 +722,7 @@ class Orchestrator:
                 status="ok",
                 detail=(
                     f"flows={len(result.flows)} execution=deferred "
-                    "(mirror mode — mirror-finalize triggers it once the fork exists)"
+                    "(mirror mode — mirror-finalize triggers it once the workspace exists)"
                 ),
             )
         return PhaseResult(
@@ -800,8 +799,8 @@ class Orchestrator:
 
     def _phase_mirror_setup(self, ssh: SSHClient) -> PhaseResult:
         """Mirror-mode provisioning via :func:`forgejo.run_mirror_setup`.
-        Populates ``state.fork_name`` + ``state.fork_owner`` if a fork
-        was created. Skipped when no GH_MIRROR_REPOS configured."""
+        Populates ``state.workspace_name`` + ``state.workspace_owner`` with the
+        user's workspace. Skipped when no GH_MIRROR_REPOS configured."""
         if not self.gh_mirror_repos:
             return PhaseResult(
                 name="mirror-setup", status="skipped", detail="no mirrors configured"
@@ -818,19 +817,12 @@ class Orchestrator:
                 status="partial",
                 detail="GH_MIRROR_TOKEN missing",
             )
-        if self.forgejo_user_username and not self.config.forgejo_admin_password:
-            return PhaseResult(
-                name="mirror-setup",
-                status="partial",
-                detail="FORGEJO_ADMIN_PASS required for fork-mode mirror",
-            )
         local_port = _allocate_free_port()
         try:
             with ssh.port_forward(local_port, "localhost", 3202) as port:
                 result = _forgejo.run_mirror_setup(
                     base_url=f"http://localhost:{port}",
                     admin_username=self.config.admin_username or DEFAULT_ADMIN_USERNAME,
-                    admin_password=self.config.forgejo_admin_password or "",
                     forgejo_token=self.state.forgejo_token,
                     forgejo_user_username=self.forgejo_user_username,
                     gh_mirror_repos=self.gh_mirror_repos,
@@ -851,21 +843,20 @@ class Orchestrator:
                 status="failed",
                 detail=f"unexpected ({type(exc).__name__})",
             )
-        if result.fork is not None and result.fork.status in ("created", "already_exists"):
-            self.state.fork_name = result.fork.name
-            self.state.fork_owner = result.fork.owner
+        ws = result.workspace
+        if ws is not None and ws.status in ("created", "already_exists"):
+            self.state.workspace_name = ws.name
+            self.state.workspace_owner = ws.owner
         if not result.is_success:
             return PhaseResult(
                 name="mirror-setup",
                 status="partial",
                 detail=f"mirrors={len(result.mirrors)} (some failed)",
             )
-        # Surface the sync-detail when present so operators can see whether
-        # the upstream fetch actually landed during this spin-up (vs. silently
-        # leaving the fork at a stale commit).
         detail_parts = [f"mirrors={len(result.mirrors)}"]
-        if result.sync_detail:
-            detail_parts.append(result.sync_detail)
+        detail_parts.extend(f"{m.name}={m.status}" for m in result.mirrors)
+        if ws is not None:
+            detail_parts.append(f"workspace={ws.owner}/{ws.name} ({ws.status})")
         return PhaseResult(name="mirror-setup", status="ok", detail=" | ".join(detail_parts))
 
     def _phase_secret_sync(self, ssh: SSHClient, stack: str) -> PhaseResult:
@@ -1038,6 +1029,13 @@ class Orchestrator:
                     git_author_email=forgejo_user_email_value or "",
                     repo_name=self.repo_name,
                     workspace_branch=self.workspace_branch,
+                    course_repo_urls=tuple(
+                        "http://forgejo:3000/"
+                        f"{self.config.admin_username or DEFAULT_ADMIN_USERNAME}/"
+                        f"{_forgejo.course_repo_name(url)}.git"
+                        for url in self.gh_mirror_repos
+                        if url.strip()
+                    ),
                 )
                 appended = _service_env.append_forgejo_workspace_block(
                     cfg,
@@ -1866,8 +1864,8 @@ class Orchestrator:
     #                                CLI invoke → restart-readiness wait
     # 3. _phase_woodpecker_apply — write stacks/woodpecker/.env, rsync,
     #                              ssh docker compose up -d
-    # 4. _phase_mirror_seed_rerun — re-seed the user's fork after
-    #                               state.fork_* is populated
+    # 4. _phase_mirror_seed_rerun — seed the user's workspace after
+    #                               state.workspace_* is populated
     # 5. _phase_mirror_finalize  — flow-sync re-trigger + git-restart
     #                              loop (combined; both best-effort)
     # ---------------------------------------------------------------------
@@ -2206,14 +2204,14 @@ class Orchestrator:
         )
 
     def _phase_mirror_seed_rerun(self, ssh: SSHClient) -> PhaseResult:
-        """Re-seed examples/workspace-seeds/ against the user's fork.
+        """Re-seed examples/workspace-seeds/ against the user's workspace.
 
         In mirror mode ``_phase_seed`` skipped; this phase runs after
-        ``_phase_mirror_setup`` populates ``state.fork_name`` +
-        ``state.fork_owner`` and re-uses the seeder helper against the
-        fork.
+        ``_phase_mirror_setup`` populates ``state.workspace_name`` +
+        ``state.workspace_owner`` and re-uses the seeder helper against the
+        workspace.
 
-        Skipped when not in mirror mode OR no fork was created.
+        Skipped when not in mirror mode OR no workspace was ensured.
         """
         del ssh  # seeder uses its own HTTP runner
         if not self.gh_mirror_repos:
@@ -2222,13 +2220,13 @@ class Orchestrator:
                 status="skipped",
                 detail="not mirror mode",
             )
-        fork_name = self.state.fork_name
-        fork_owner = self.state.fork_owner
-        if not fork_name or not fork_owner:
+        workspace_name = self.state.workspace_name
+        workspace_owner = self.state.workspace_owner
+        if not workspace_name or not workspace_owner:
             return PhaseResult(
                 name="mirror-seed-rerun",
                 status="skipped",
-                detail="no fork populated by _phase_mirror_setup",
+                detail="no workspace populated by _phase_mirror_setup",
             )
         if not self.state.forgejo_token:
             return PhaseResult(
@@ -2245,8 +2243,8 @@ class Orchestrator:
             )
         try:
             result = _seeder.run_seed_for_repo(
-                repo_owner=fork_owner,
-                repo_name=fork_name,
+                repo_owner=workspace_owner,
+                repo_name=workspace_name,
                 root=seeds_root,
                 token=self.state.forgejo_token,
             )
@@ -2276,19 +2274,19 @@ class Orchestrator:
                     f"created={result.created} skipped={result.skipped} failed={result.failed}"
                 ),
             )
-        # In mirror mode the fork inherited many files from upstream;
+        # On every spin-up after the first the seeds are already there;
         # POST returns 422 for those (existing-already), counted as
         # "skipped" — that's the expected steady-state.
         # Mutate state.repo_name + state.forgejo_repo_owner here so the
         # downstream mirror-finalize phase (and any later observer)
-        # sees the user's fork as the canonical workspace target.
-        self.state.repo_name = fork_name
-        self.state.forgejo_repo_owner = fork_owner
+        # sees the user's workspace as the canonical target.
+        self.state.repo_name = workspace_name
+        self.state.forgejo_repo_owner = workspace_owner
         return PhaseResult(
             name="mirror-seed-rerun",
             status="ok",
             detail=(
-                f"created={result.created} skipped={result.skipped} target={fork_owner}/{fork_name}"
+                f"created={result.created} skipped={result.skipped} target={workspace_owner}/{workspace_name}"
             ),
         )
 
@@ -2296,7 +2294,7 @@ class Orchestrator:
         """Mirror-mode wakeup: flow-sync re-trigger + git-restart loop.
 
         Combined into one phase because both share the ``mirror mode``
-        gate AND are best-effort post-fork-population wakeups (failure
+        gate AND are best-effort post-workspace wakeups (failure
         of either is non-blocking; one combined PhaseResult is fine).
 
         - **Flow-sync re-trigger**: POST
@@ -2304,8 +2302,10 @@ class Orchestrator:
           appears in Kestra's UI within ~10s. Runs only if Kestra is
           enabled + admin-creds available.
         - **Git-restart loop**: restart jupyter / marimo / code-server /
-          meltano / prefect to pick up the latest fork content. Runs
-          for whichever subset of those is enabled.
+          meltano / prefect so they clone the workspace (it may only
+          exist since this run) and reset their ``course/`` clones to
+          the mirrors' newest commit. Runs for whichever subset of those
+          is enabled.
         """
         if not self.gh_mirror_repos:
             return PhaseResult(
@@ -2313,11 +2313,11 @@ class Orchestrator:
                 status="skipped",
                 detail="not mirror mode",
             )
-        if not self.state.fork_name:
+        if not self.state.workspace_name:
             return PhaseResult(
                 name="mirror-finalize",
                 status="skipped",
-                detail="no fork populated",
+                detail="no workspace populated",
             )
 
         flow_triggered = False
@@ -2341,7 +2341,7 @@ class Orchestrator:
                     flow_triggered = True
                     # Firing it is not finishing it. Since kestra-register
                     # defers the onboarding execution in mirror mode — the
-                    # fork does not exist when that phase runs — this is
+                    # workspace may not exist when that phase runs — this is
                     # now the only place it happens. A POST that returns an
                     # id while the execution then fails would leave Kestra
                     # without the seeded flows and nothing would say so.
@@ -2434,7 +2434,7 @@ class Orchestrator:
         rc=1 stdout emission (state) nor into a downstream call to
         :meth:`run_all` whose post-bootstrap phases gate on the fields.
         Caught in PR #532 R1 #4 (state) and R2 #3 (fields). Other state
-        slots (forgejo_token / woodpecker_* / fork_*) stay because they're
+        slots (forgejo_token / woodpecker_* / workspace_*) stay because they're
         populated by post-bootstrap phases and a re-run would naturally
         re-set them.
 
@@ -2464,7 +2464,7 @@ class Orchestrator:
         # workspace-coords slots: clear BOTH state.* AND self.* so a
         # re-run on the same instance can't carry stale values into
         # the second run's stdout emission. Other state slots
-        # (forgejo_token / woodpecker_* / fork_*) reset themselves
+        # (forgejo_token / woodpecker_* / workspace_*) reset themselves
         # naturally in run_all.
         self.state.repo_name = None
         self.state.forgejo_repo_owner = None

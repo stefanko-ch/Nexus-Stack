@@ -818,18 +818,18 @@ See [Website Sync Guide](docs-website-sync.md) for setup instructions. Sync requ
 
 ## Kestra ↔ Forgejo bi-directional flow sync
 
-When the `kestra` service is enabled the orchestrator registers three system-namespace flows that sync flow definitions between Kestra and the user's Forgejo workspace fork.
+When the `kestra` service is enabled the orchestrator registers three system-namespace flows that sync flow definitions between Kestra and the user's Forgejo workspace repository.
 
 ### Two-namespace model
 
-Flows live in two distinct Kestra namespaces, each tied to a separate path in the Forgejo fork:
+Flows live in two distinct Kestra namespaces, each tied to a separate path in the Forgejo workspace:
 
-| Kestra namespace | Forgejo path in fork | Meaning |
+| Kestra namespace | Forgejo path in workspace | Meaning |
 |---|---|---|
 | `nexus-tutorials.*` | `nexus_seeds/kestra/flows/` | **Seeded reference flows** shipped by Nexus-Stack. Read-mostly from the student's perspective. NEVER pushed back from the UI (would corrupt the upstream tutorial baseline). |
 | `my-flows.*` | `kestra/flows/` | **Student's own work** — clones of seeded flows, new flows. UI-edits in this namespace auto-push to Git every 10 min. |
 
-The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-authored flows live at the repo root under `kestra/flows/` to make the ownership distinction visible at a glance in the Forgejo fork tree.
+The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-authored flows live at the repo root under `kestra/flows/` to make the ownership distinction visible at a glance in the Forgejo workspace tree.
 
 ### The three system flows
 
@@ -861,7 +861,7 @@ The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-auth
                                    │
                                    ▼  (POSTed by _phase_seed at first deploy)
                   ┌─────────────────────────────────────────┐
-                  │  Forgejo fork                             │
+                  │  Forgejo workspace                      │
                   │  ├── nexus_seeds/kestra/flows/  (seeds) │◀──┐
                   │  └── kestra/flows/             (user)   │   │
                   └────────────────┬───────────────┬────────┘   │
@@ -882,16 +882,16 @@ The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-auth
 
 - **Cadence:** `cron: "*/10 * * * *"` (every 10 minutes). A stack crash loses at most ~10 minutes of student work in `my-flows.*`. Faster (every 5 min) would multiply commits + R2 egress for marginal recovery; slower (hourly) would lose unacceptable amounts.
 - **Source namespace:** `my-flows` only. The PushFlows plugin has no exclude-list, so positive-only namespace scoping is the only way to (a) prevent the exporter from pushing itself (`system.*` echo-loop) AND (b) protect `nexus-tutorials.*` seeds from getting overwritten with student edits.
-- **`delete: false`:** a UI-side delete does *not* propagate to Git. To permanently delete a `my-flows.*` flow, the operator commits the removal directly in the Forgejo fork; the next `flow-sync` (at next spin-up) drops it from Kestra.
+- **`delete: false`:** a UI-side delete does *not* propagate to Git. To permanently delete a `my-flows.*` flow, the operator commits the removal directly in the Forgejo workspace; the next `flow-sync` (at next spin-up) drops it from Kestra.
 - **Commit identity:** `Kestra Auto-Export <kestra@nexus-stack.local>` (synthetic, never a real user). The Forgejo push log still attributes the push to whoever owns the admin token, but Git blame stays clean.
-- **Conflict behaviour:** `REJECTED_NONFASTFORWARD` is fail-loud — visible as an execution failure in the Kestra UI, manually resolvable by an operator. Happens when someone commits directly to the fork between two export ticks.
+- **Conflict behaviour:** `REJECTED_NONFASTFORWARD` is fail-loud — visible as an execution failure in the Kestra UI, manually resolvable by an operator. Happens when someone commits directly to the workspace between two export ticks.
 
-### What students see in the Forgejo fork
+### What students see in the Forgejo workspace
 
-Two directories under the fork:
+Two directories under the workspace:
 
 ```
-<fork-root>/
+<workspace-root>/
 ├── nexus_seeds/
 │   └── kestra/
 │       ├── flows/                         ← seeded tutorial flows

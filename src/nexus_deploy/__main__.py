@@ -1262,18 +1262,19 @@ def _forgejo_woodpecker_oauth(args: list[str]) -> int:
 def _forgejo_mirror_setup(args: list[str]) -> int:
     """`nexus-deploy forgejo mirror-setup`.
 
-    Provisions GH_MIRROR_REPOS as Forgejo pull-mirrors plus per-user
-    forks. Per-mirror operations:
+    Provisions GH_MIRROR_REPOS as read-only course repositories plus
+    the user's own workspace. Per-mirror operations:
 
-    1. Migrate (clone-mirror via Forgejo's /api/v1/repos/migrate +
-       GitHub PAT) — idempotent: already_exists is soft-success
-    2. On the FIRST mirror with a configured user: fork into the
-       user's namespace via temp user-token (created+deleted
-       around the fork POST)
-    3. Add the user as read-collaborator on every mirror
-    4. On the first iteration where a fork was created/exists:
-       trigger mirror-sync + merge-upstream so the fork is
-       fast-forwarded from upstream
+    1. ``course-<basename>``: rename an existing
+       ``mirror-readonly-<basename>``, or migrate (clone-mirror via
+       Forgejo's /api/v1/repos/migrate + GitHub PAT). Idempotent:
+       already_exists is soft-success
+    2. Trigger a mirror sync, best effort
+    3. Add the user as read-collaborator on every course repository
+    4. On the FIRST mirror with a configured user: ensure the
+       workspace ``<basename>_<user>`` exists in the user's namespace.
+       It is an ordinary repository, not a fork; one that already
+       exists (including a fork from before) is left untouched
 
     Required env:
 
@@ -1283,13 +1284,6 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
     - ``GH_MIRROR_TOKEN`` — GitHub PAT (Contents:read for private
       sources)
 
-    Conditionally required env:
-
-    - ``FORGEJO_ADMIN_PASS`` — admin password (basic-auth for the
-      temp user-token mint inside the fork flow). Required ONLY
-      when ``FORGEJO_USER_USERNAME`` is set; mirrors-only mode
-      (no user, no fork) doesn't need it. (Copilot R6)
-
     Optional env:
 
     - ``ADMIN_USERNAME`` — admin username, path-validated (default
@@ -1298,28 +1292,24 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
       default so the CLI works without an explicit env-passing layer
       when invoked manually. (Same default as
       ``forgejo woodpecker-oauth`` — Copilot R1 consistency fix.)
-    - ``FORGEJO_USER_USERNAME`` — Forgejo username for the per-user fork.
-      If unset, the fork step is skipped (mirrors-only mode);
-      ``FORGEJO_ADMIN_PASS`` becomes optional in this case.
-    - ``WORKSPACE_BRANCH`` — branch for the merge-upstream step
-      (default ``main``). The orchestrator resolves this from the
-      GitHub API ahead of time and exports it.
+    - ``FORGEJO_USER_USERNAME`` — Forgejo username for the workspace.
+      If unset, the workspace step is skipped (mirrors-only mode).
     - ``FORGEJO_HOST`` — SSH host alias (default ``nexus``)
 
-    **stdout** (eval-able, only when fork was created/exists):
+    **stdout** (eval-able, only when the workspace was created/exists):
 
-    - ``FORK_NAME=<name>``
+    - ``FORK_NAME=<name>`` (the key keeps its old name for the handoff)
     - ``FORGEJO_REPO_OWNER=<user>``
 
     These two are consumed by the seed phase so the seed POST hits
-    the user's fork rather than the per-iteration mirror name.
-    When no fork was created/exists, no stdout output is emitted.
+    the user's workspace rather than a read-only course repository.
+    When no workspace was created/exists, no stdout output is emitted.
 
     Exit codes:
 
-    - 0: every mirror succeeded (created or already_exists), fork
-      (if attempted) succeeded too
-    - 1: at least one mirror failed OR fork failed. Caller keeps
+    - 0: every mirror succeeded (created, renamed or already_exists),
+      the workspace (if attempted) succeeded too
+    - 1: at least one mirror failed OR the workspace failed. Caller keeps
       going (next spin-up retries; mirrors are idempotent).
     - 2: bad args / missing required env / SSH tunnel / unexpected
       exception. Abort.
@@ -1329,12 +1319,10 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
         return 2
 
     admin_username = os.environ.get("ADMIN_USERNAME") or DEFAULT_ADMIN_USERNAME
-    admin_password = os.environ.get("FORGEJO_ADMIN_PASS") or ""
     forgejo_token = os.environ.get("FORGEJO_TOKEN") or ""
     gh_mirror_repos_csv = os.environ.get("GH_MIRROR_REPOS") or ""
     gh_mirror_token = os.environ.get("GH_MIRROR_TOKEN") or ""
     forgejo_user_username = os.environ.get("FORGEJO_USER_USERNAME") or None
-    workspace_branch = os.environ.get("WORKSPACE_BRANCH") or "main"
     ssh_host = os.environ.get("FORGEJO_HOST") or "nexus"
 
     missing: list[str] = []
@@ -1344,12 +1332,6 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
         missing.append("GH_MIRROR_REPOS")
     if not gh_mirror_token:
         missing.append("GH_MIRROR_TOKEN")
-    # FORGEJO_ADMIN_PASS is only consumed by the fork flow's temp
-    # user-token mint (basic-auth: admin acts on behalf of user).
-    # Mirrors-only mode (no FORGEJO_USER_USERNAME) doesn't need it.
-    # (Copilot R6)
-    if forgejo_user_username and not admin_password:
-        missing.append("FORGEJO_ADMIN_PASS (required when FORGEJO_USER_USERNAME is set)")
     if missing:
         print(
             f"forgejo mirror-setup: missing required env: {', '.join(missing)}",
@@ -1372,12 +1354,11 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
             result = run_mirror_setup(
                 base_url=f"http://localhost:{port}",
                 admin_username=admin_username,
-                admin_password=admin_password,
                 forgejo_token=forgejo_token,
                 forgejo_user_username=forgejo_user_username,
                 gh_mirror_repos=repos,
                 gh_mirror_token=gh_mirror_token,
-                workspace_branch=workspace_branch,
+                workspace_branch=os.environ.get("WORKSPACE_BRANCH") or "main",
             )
     except SSHError as exc:
         print(f"forgejo mirror-setup: ssh tunnel failed: {exc}", file=sys.stderr)
@@ -1419,25 +1400,24 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
         sys.stderr.write(
             f"  • mirror: {m.name} → {m.status}{(' — ' + m.detail) if m.detail else ''}\n"
         )
-    if result.fork is not None:
+    ws = result.workspace
+    if ws is not None:
         sys.stderr.write(
-            f"  • fork: {result.fork.owner}/{result.fork.name} → {result.fork.status}"
-            f"{(' — ' + result.fork.detail) if result.fork.detail else ''}\n"
+            f"  • workspace: {ws.owner}/{ws.name} → {ws.status}"
+            f"{(' — ' + ws.detail) if ws.detail else ''}\n"
         )
     if result.collaborator_added_count > 0:
         sys.stderr.write(f"  • collaborator added on {result.collaborator_added_count} mirror(s)\n")
-    if result.fork_synced:
-        sys.stderr.write("  • fork merge-upstream attempted\n")
 
     # Eval-able stdout: emit FORK_NAME + FORGEJO_REPO_OWNER iff the
-    # fork is in a usable state. The seed phase reads these to point
-    # its POST at the user's fork rather than at any iteration's
-    # mirror name.
+    # workspace is in a usable state. The seed phase reads these to
+    # point its POST at the user's workspace rather than at a
+    # read-only course repository.
     import shlex as _shlex
 
-    if result.fork is not None and result.fork.status in ("created", "already_exists"):
-        sys.stdout.write(f"FORK_NAME={_shlex.quote(result.fork.name)}\n")
-        sys.stdout.write(f"FORGEJO_REPO_OWNER={_shlex.quote(result.fork.owner)}\n")
+    if ws is not None and ws.status in ("created", "already_exists"):
+        sys.stdout.write(f"FORK_NAME={_shlex.quote(ws.name)}\n")
+        sys.stdout.write(f"FORGEJO_REPO_OWNER={_shlex.quote(ws.owner)}\n")
 
     return 0 if result.is_success else 1
 
@@ -2009,6 +1989,11 @@ def _service_env(args: list[str]) -> int:
             git_author_email=git_author_email,
             repo_name=repo_name,
             workspace_branch=workspace_branch,
+            course_repo_urls=tuple(
+                u.strip()
+                for u in (os.environ.get("COURSE_REPO_URLS") or "").split(",")
+                if u.strip()
+            ),
         )
         appended = append_forgejo_workspace_block(cfg, enabled, stacks_dir=stacks_dir)
         for svc in appended:
