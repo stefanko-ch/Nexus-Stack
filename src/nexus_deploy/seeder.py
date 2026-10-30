@@ -26,11 +26,22 @@ R5. ``Path.resolve()`` rejects ``..``-escape from ``root``.
 R6. Symlinks skipped (regular files only).
 R7. File ordering deterministic (operators rely on it for log debug).
 R8. Token never in stdout / stderr / exception messages.
+
+Seeding is create-only: a file that already exists (422) is left as it
+is, because the user may have edited it. The one exception is a file
+whose content is still byte-for-byte a version Nexus-Stack shipped
+earlier — nobody has touched it, so it is updated to the current
+version. Earlier versions are listed as git blob SHAs in
+``examples/workspace-seeds-history.json`` (see :func:`seed_history_from_git`);
+Forgejo's contents API reports the same SHA for the existing file, so
+the comparison needs no download. This is how a fix to a seeded example
+reaches workspaces that were seeded before it.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
 import shlex
@@ -67,10 +78,16 @@ _VALID_REPO_PATH_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 # runner (``RESULT key=value key=value ...``) so the parser can stay simple.
 _RESULT_PATTERN = re.compile(
     r"^RESULT created=(?P<created>\d+) "
+    r"updated=(?P<updated>\d+) "
     r"skipped=(?P<skipped>\d+) "
     r"failed=(?P<failed>\d+)$",
     re.MULTILINE,
 )
+
+# Name of the history manifest, a sibling of the seed root:
+# examples/workspace-seeds/ → examples/workspace-seeds-history.json.
+# A sibling and not inside the root, so it is never seeded itself.
+_HISTORY_SUFFIX = "-history.json"
 
 
 @dataclass(frozen=True)
@@ -91,6 +108,9 @@ class SeedFile:
     url_path: str
     content_b64: str
     commit_message: str
+    # Git blob SHAs of earlier shipped versions of this file. An
+    # existing workspace file with one of these is updated in place.
+    superseded: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -114,11 +134,14 @@ class SeedResult:
     created: int
     skipped: int
     failed: int
+    # Existing files that were still an earlier shipped version and
+    # were brought up to date.
+    updated: int = 0
 
     @property
     def is_partial(self) -> bool:
         """True if any file failed but at least one succeeded."""
-        return self.failed > 0 and (self.created + self.skipped) > 0
+        return self.failed > 0 and (self.created + self.updated + self.skipped) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +166,76 @@ def _url_encode_path(path: str) -> str:
     return "/".join(quote(seg, safe="") for seg in path.split("/"))
 
 
+def git_blob_sha(data: bytes) -> str:
+    """The SHA git (and Forgejo's contents API) reports for ``data``."""
+    return hashlib.sha1(  # noqa: S324 — git's object id, not a security hash
+        b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+    ).hexdigest()
+
+
+def history_path(root: Path) -> Path:
+    """Where the history manifest for seed root ``root`` lives."""
+    return root.parent / f"{root.name}{_HISTORY_SUFFIX}"
+
+
+def load_seed_history(root: Path) -> dict[str, tuple[str, ...]]:
+    """Read the history manifest: seed-relative path → earlier blob SHAs.
+
+    A missing manifest means no history — every existing file is
+    skipped, as before the manifest existed.
+    """
+    path = history_path(root)
+    if not path.is_file():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {str(k): tuple(str(v) for v in vs) for k, vs in raw.items()}
+
+
+def seed_history_from_git(repo_root: Path, root: Path) -> dict[str, list[str]]:
+    """Every earlier version of each current seed file, from git history.
+
+    For each regular file under ``root``, the blob SHAs it has had at
+    exactly that path, minus the current one. Versions from before a
+    rename are left out: a workspace holds a file at the path it was
+    seeded from, and that path no longer receives a seed. Needs the
+    full history (a shallow clone yields a shorter list).
+    """
+    history: dict[str, list[str]] = {}
+    for local_path in sorted(root.rglob("*")):
+        if local_path.is_symlink() or not local_path.is_file():
+            continue
+        rel = local_path.relative_to(root).as_posix()
+        repo_rel = local_path.resolve().relative_to(repo_root.resolve()).as_posix()
+        out = subprocess.run(
+            ["git", "log", "--format=", "--raw", "--no-abbrev", "--no-renames", "--", repo_rel],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        current = git_blob_sha(local_path.read_bytes())
+        shas: list[str] = []
+        for line in out.splitlines():
+            # ":100644 100644 <old> <new> M\t<path>"
+            fields = line.split()
+            if len(fields) < 5 or not line.startswith(":"):
+                continue
+            new = fields[3]
+            if set(new) != {"0"} and new != current and new not in shas:
+                shas.append(new)
+        if shas:
+            history[rel] = sorted(shas)
+    return history
+
+
+def write_seed_history(repo_root: Path, root: Path) -> Path:
+    """Regenerate the manifest from git history; returns its path."""
+    path = history_path(root)
+    data = seed_history_from_git(repo_root, root)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def list_seed_files(root: Path, prefix: str = "nexus_seeds/") -> list[SeedFile]:
     """Walk ``root`` recursively, return SeedFiles sorted by ``repo_path``.
 
@@ -165,6 +258,7 @@ def list_seed_files(root: Path, prefix: str = "nexus_seeds/") -> list[SeedFile]:
         return []
 
     root_resolved = root.resolve()
+    history = load_seed_history(root)
     results: list[SeedFile] = []
 
     for local_path in sorted(root.rglob("*")):
@@ -197,6 +291,7 @@ def list_seed_files(root: Path, prefix: str = "nexus_seeds/") -> list[SeedFile]:
                 commit_message=(
                     f"chore(seed): add {repo_path} from Nexus-Stack examples/workspace-seeds/"
                 ),
+                superseded=history.get(rel.as_posix(), ()),
             )
         )
 
@@ -222,6 +317,10 @@ def encode_payloads(files: list[SeedFile]) -> dict[str, str]:
                 "url_path": f.url_path,
                 "content": f.content_b64,
                 "message": f.commit_message,
+                "superseded": list(f.superseded),
+                "update_message": (
+                    f"chore(seed): update {f.repo_path} to the current Nexus-Stack version"
+                ),
             },
             separators=(",", ":"),
             sort_keys=True,
@@ -248,8 +347,9 @@ def render_remote_loop(*, token: str, repo_owner: str, repo_name: str) -> str:
       2. For each ``$PUSH_DIR/seed-*.json``:
          - Extract ``url_path`` via jq.
          - POST ``{content, message}`` body to ``contents/<url_path>``.
-         - Dispatch HTTP code: 200|201 → created, 422 → skipped,
-           else → failed.
+         - Dispatch HTTP code: 200|201 → created, else → failed, and
+           422 (exists) → updated via PUT when its blob SHA is in
+           ``superseded``, skipped otherwise.
       3. Cleanup via EXIT trap.
       4. Emit RESULT line.
     """
@@ -282,11 +382,11 @@ printf 'header = "Authorization: token %s"\\n' "$TOKEN" > "$CFG"
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "  ⚠ jq is not installed on the remote VM — seeder needs jq, install with: sudo apt-get install -y jq" >&2
-    echo "RESULT created=0 skipped=0 failed=0"
+    echo "RESULT created=0 updated=0 skipped=0 failed=0"
     exit 0
 fi
 
-CREATED=0; SKIPPED=0; FAILED=0
+CREATED=0; UPDATED=0; SKIPPED=0; FAILED=0
 
 # `nullglob` so an empty push-dir produces an empty loop (not a literal
 # "$PUSH_DIR/seed-*.json" string that fails jq).
@@ -305,7 +405,36 @@ for f in "$PUSH_DIR"/seed-*.json; do
         --data-binary @- 2>/dev/null) || HTTP_CODE=000
     case "$HTTP_CODE" in
         200|201) CREATED=$((CREATED+1)) ;;
-        422)     SKIPPED=$((SKIPPED+1)) ;;
+        422)
+            # The file exists. Leave it alone unless it is still an
+            # earlier shipped version, byte for byte (its blob SHA is
+            # in .superseded) — then nobody edited it, and it is
+            # brought up to date. A failed lookup leaves it alone too.
+            if ! jq -e '(.superseded // []) | length > 0' "$f" >/dev/null; then
+                SKIPPED=$((SKIPPED+1))
+                continue
+            fi
+            CUR_SHA=$(curl -s --config "$CFG" \
+                "$BASE_URL/api/v1/repos/$OWNER/$REPO/contents/$URL_PATH" 2>/dev/null \
+                | jq -r '.sha // empty' 2>/dev/null) || CUR_SHA=""
+            if [ -z "$CUR_SHA" ] || ! jq -e --arg s "$CUR_SHA" '.superseded | index($s) != null' "$f" >/dev/null; then
+                SKIPPED=$((SKIPPED+1))
+                continue
+            fi
+            PUT_CODE=$(jq -c --arg s "$CUR_SHA" '{{content, sha: $s, message: .update_message}}' "$f" \
+                | curl -s -o /dev/null -w '%{{http_code}}' \
+                    -X PUT "$BASE_URL/api/v1/repos/$OWNER/$REPO/contents/$URL_PATH" \
+                    --config "$CFG" \
+                    -H 'Content-Type: application/json' \
+                    --data-binary @- 2>/dev/null) || PUT_CODE=000
+            case "$PUT_CODE" in
+                200|201) UPDATED=$((UPDATED+1)) ;;
+                *)
+                    FAILED=$((FAILED+1))
+                    echo "  ⚠ Seed update PUT $URL_PATH returned HTTP $PUT_CODE" >&2
+                    ;;
+            esac
+            ;;
         *)
             FAILED=$((FAILED+1))
             echo "  ⚠ Seed POST $URL_PATH returned HTTP $HTTP_CODE" >&2
@@ -313,7 +442,7 @@ for f in "$PUSH_DIR"/seed-*.json; do
     esac
 done
 
-echo "RESULT created=$CREATED skipped=$SKIPPED failed=$FAILED"
+echo "RESULT created=$CREATED updated=$UPDATED skipped=$SKIPPED failed=$FAILED"
 """
 
 
@@ -331,6 +460,7 @@ def parse_result(stdout: str) -> SeedResult | None:
         created=int(g["created"]),
         skipped=int(g["skipped"]),
         failed=int(g["failed"]),
+        updated=int(g["updated"]),
     )
 
 
@@ -412,3 +542,11 @@ def run_seed_for_repo(
         # No RESULT line — count as failure (rc=2 territory in the CLI).
         return SeedResult(created=0, skipped=0, failed=len(files))
     return result
+
+
+if __name__ == "__main__":  # pragma: no cover — maintenance entry point
+    # uv run python -m nexus_deploy.seeder
+    # Regenerates examples/workspace-seeds-history.json after a seed
+    # file changed. Needs the full git history (not a shallow clone).
+    _repo = Path(__file__).resolve().parents[2]
+    print(write_seed_history(_repo, _repo / "examples" / "workspace-seeds"))

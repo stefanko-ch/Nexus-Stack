@@ -149,6 +149,12 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history: test_seed_history_manifest_matches_git_history
+          # compares examples/workspace-seeds-history.json with it, and
+          # skips on a shallow clone — which would let a stale manifest
+          # through.
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
