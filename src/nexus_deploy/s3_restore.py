@@ -441,6 +441,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="gitea-repos",
             local_path="/mnt/nexus-data/gitea/repos",
             s3_subpath="gitea/repos",
+            git_repos=True,
         ),
         _s3.RsyncTarget(
             name="gitea-lfs",
@@ -451,6 +452,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="forgejo-repos",
             local_path="/mnt/nexus-data/forgejo/repos",
             s3_subpath="forgejo/repos",
+            git_repos=True,
         ),
         _s3.RsyncTarget(
             name="forgejo-lfs",
