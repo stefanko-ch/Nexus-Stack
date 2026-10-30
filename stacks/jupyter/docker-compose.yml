@@ -51,6 +51,27 @@ services:
             fi;
           fi;
         fi;
+        # Course repositories: read-only material, reset to the mirror's
+        # head on every start (see code-server for the rationale).
+        for url in $$(echo \"$$COURSE_REPO_URLS\" | tr ',' ' '); do
+          name=$$(basename \"$$url\" .git); name=$${name#course-};
+          dir=/home/jovyan/work/course/$$name;
+          if [ -d \"$$dir/.git\" ]; then
+            if git -C \"$$dir\" fetch -q origin && git -C \"$$dir\" reset -q --hard origin/HEAD && git -C \"$$dir\" clean -qfd; then
+              echo '[jupyter] Updated course repo '$$name;
+            else
+              echo '[jupyter] Warning: Failed to update course repo '$$name >&2;
+            fi;
+          else
+            mkdir -p /home/jovyan/work/course;
+            if git clone -q \"$$url\" \"$$dir\"; then
+              echo '[jupyter] Cloned course repo into '$$dir;
+            else
+              echo '[jupyter] Warning: Failed to clone course repo '$$url >&2;
+            fi;
+          fi;
+        done;
+        if [ -d /home/jovyan/work/course ]; then chown -R 1000:100 /home/jovyan/work/course; fi;
         mkdir -p /home/jovyan/.ipython/profile_pyspark/startup;
         cp /opt/spark-init.py /home/jovyan/.ipython/profile_pyspark/startup/00-spark-init.py;
         cp /home/jovyan/.ipython/profile_default/startup/00-sparksql.py /home/jovyan/.ipython/profile_pyspark/startup/01-sparksql.py;

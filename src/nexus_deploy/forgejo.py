@@ -12,7 +12,8 @@ runners:
   Woodpecker CI uses to authenticate against Forgejo, returns
   client-id + client-secret for the Woodpecker .env writer.
 * :func:`run_mirror_setup` — handles ``GH_MIRROR_REPOS`` mirror mode:
-  per-mirror migrate + per-user fork.
+  per-mirror migrate into a read-only course repository, plus the
+  user's own workspace repository.
 
 Two transports, used deliberately:
 
@@ -56,7 +57,6 @@ from __future__ import annotations
 import re
 import shlex
 import time
-import urllib.parse
 from dataclasses import dataclass
 from typing import Literal
 
@@ -205,19 +205,19 @@ def _validate_path_segment(value: str, *, kind: str) -> None:
         raise ForgejoError(f"unsafe {kind}: {value!r}")
 
 
-_USER_FORK_SANITIZE_RE: re.Pattern[str] = re.compile(r"[^a-zA-Z0-9]")
+_USER_WORKSPACE_SANITIZE_RE: re.Pattern[str] = re.compile(r"[^a-zA-Z0-9]")
 
 
-def _sanitize_user_for_fork_name(username: str) -> str:
+def _sanitize_user_for_workspace_name(username: str) -> str:
     """Replace every non-alphanumeric char in ``username`` with ``_``.
 
-    Used to derive a fork repo name like ``<orig>_<sanitized_user>``
+    Used to derive the workspace name ``<orig>_<sanitized_user>``
     where the user's username may contain dots or hyphens that
     Forgejo allows in usernames but operators want flattened in repo
-    names. The naming scheme is byte-stable so existing forks across
-    re-deploys keep matching.
+    names. The naming scheme is byte-stable so an existing workspace —
+    including one that is still a fork from before — keeps matching.
     """
-    return _USER_FORK_SANITIZE_RE.sub("_", username)
+    return _USER_WORKSPACE_SANITIZE_RE.sub("_", username)
 
 
 def _basename_no_git(repo_url: str) -> str:
@@ -342,18 +342,25 @@ class CreateRepoResult:
     detail: str = ""
 
 
-MirrorStatus = Literal["created", "already_exists", "failed"]
-ForkStatus = Literal["created", "already_exists", "failed"]
+MirrorStatus = Literal["created", "renamed", "already_exists", "failed"]
+WorkspaceStatus = Literal["created", "already_exists", "failed"]
+
+# Names of the read-only course mirrors. ``mirror-readonly-`` is the
+# name they had while the user's workspace was a fork of them; an
+# existing one is renamed on the next spin-up.
+COURSE_REPO_PREFIX = "course-"
+LEGACY_MIRROR_PREFIX = "mirror-readonly-"
 
 
 @dataclass(frozen=True)
 class MirrorResult:
     """One pull-mirror entry from the GH_MIRROR_REPOS loop.
 
-    ``name`` is the Forgejo-side repo name (``mirror-readonly-<basename>``),
+    ``name`` is the Forgejo-side repo name (``course-<basename>``),
     NOT the upstream GitHub URL. ``status`` distinguishes the
     idempotent re-deploy paths: ``already_exists`` is a soft-success
-    (the mirror was created on a previous spin-up), ``created`` means
+    (the mirror was created on a previous spin-up), ``renamed`` means a
+    ``mirror-readonly-<basename>`` from before was renamed, ``created`` means
     Forgejo ran the migration this call, ``failed`` means the migrate
     POST didn't return a usable id (caller routes to a yellow warning).
     """
@@ -364,24 +371,21 @@ class MirrorResult:
 
 
 @dataclass(frozen=True)
-class ForkResult:
-    """The user-fork carved off the FIRST mirror in the loop.
+class WorkspaceResult:
+    """The user's workspace repository, ``<first basename>_<user>``.
 
-    Only the first iteration's fork is created (matching the legacy
-    bash's ``FORKED_WORKSPACE`` flag) — there's exactly one workspace
-    repo per stack. ``status`` is one of ``created`` (POST 202),
-    ``already_exists`` (POST 409 — fork survived a prior deploy),
-    or ``failed`` (HTTP non-2xx-non-409, transport, or temp-token
-    mint failed before the fork POST could run).
+    Exactly one per stack, ensured from the first successful mirror.
+    ``status`` is ``created`` (POST 201), ``already_exists`` (POST 409 —
+    from a previous spin-up, or a fork from before the workspace stopped
+    being one) or ``failed``.
 
-    The no-user-configured branch (``FORGEJO_USER_USERNAME`` empty)
-    leaves :class:`MirrorSetupResult.fork` as ``None`` — no
-    ``ForkResult`` is constructed at all on that path.
+    The no-user-configured branch leaves
+    :class:`MirrorSetupResult.workspace` as ``None``.
     """
 
     name: str
     owner: str
-    status: ForkStatus
+    status: WorkspaceStatus
     detail: str = ""
 
 
@@ -742,6 +746,19 @@ class ForgejoClient:
         self._auth: tuple[str, str] | None = (admin_username, admin_password)
         self._token: str | None = None
 
+    @classmethod
+    def from_token(cls, base_url: str, *, admin_username: str, token: str) -> ForgejoClient:
+        """A token-only client, for callers that never need basic-auth."""
+        if not token:
+            raise ValueError("from_token requires a non-empty token")
+        _validate_path_segment(admin_username, kind="admin_username")
+        new = cls.__new__(cls)
+        new.base_url = base_url.rstrip("/")
+        new.admin_username = admin_username
+        new._auth = None
+        new._token = token
+        return new
+
     def with_token(self, token: str) -> ForgejoClient:
         """Return a NEW client that uses token-auth instead of basic-auth.
 
@@ -1058,195 +1075,66 @@ class ForgejoClient:
             return False
         return resp.status_code == 200
 
-    def get_branch_head_sha(self, owner: str, name: str, branch: str) -> str | None:
-        """``GET /api/v1/repos/<o>/<n>/branches/<branch>`` — return the
-        commit SHA of the branch tip, or ``None`` on any failure
-        (transport, 4xx, malformed response).
+    def create_repo_for_user(
+        self,
+        username: str,
+        name: str,
+        *,
+        private: bool = True,
+        auto_init: bool = True,
+        default_branch: str = "main",
+        description: str = "",
+    ) -> CreateRepoResult:
+        """``POST /api/v1/admin/users/<u>/repos`` — create in the user's namespace.
 
-        Used by :func:`run_mirror_setup` to poll for mirror-sync
-        completion: trigger the sync, then watch the mirror's HEAD
-        SHA until it changes from the pre-sync baseline.
-
-        Branch names may legitimately contain slashes (``feat/foo``,
-        ``release/1.2``); URL-encode the branch segment rather than
-        validating it as a single path segment so those don't raise
-        before the GET is even sent. Owner + repo name are still
-        single-segment-validated (no slashes allowed there).
+        Needs an admin token. 409 → ``already_exists``: the repository is
+        left exactly as it is, whatever it holds.
         """
-        _validate_path_segment(owner, kind="owner")
+        _validate_path_segment(username, kind="owner")
         _validate_path_segment(name, kind="repo_name")
-        encoded_branch = urllib.parse.quote(branch, safe="")
-        try:
-            resp = requests.get(
-                f"{self.base_url}/api/v1/repos/{owner}/{name}/branches/{encoded_branch}",
-                timeout=_HTTP_TIMEOUT,
-                **self._request_kwargs(),  # type: ignore[arg-type]
-            )
-        except (requests.ConnectionError, requests.Timeout):
-            return None
-        if resp.status_code != 200:
-            return None
-        try:
-            payload = resp.json()
-        except ValueError:
-            return None
-        commit = payload.get("commit") if isinstance(payload, dict) else None
-        if not isinstance(commit, dict):
-            return None
-        sha = commit.get("id")
-        return sha if isinstance(sha, str) else None
-
-    def merge_upstream(self, owner: str, name: str, branch: str) -> str:
-        """``POST /api/v1/repos/<o>/<n>/merge-upstream`` — fast-forward fork
-        from its parent's branch. Returns HTTP status code as a string
-        for the caller's dispatch.
-
-        Forgejo's responses:
-        - 200: merged (fork advanced)
-        - 409: already up to date
-        - 404: fork doesn't have a parent / branch missing on upstream
-        - 5xx: server-side error
-
-        Returns ``"200"`` / ``"409"`` / etc. or ``"transport"`` on
-        connection failure — caller pattern-matches like the legacy
-        bash's HTTP-code dispatch.
-        """
-        _validate_path_segment(owner, kind="owner")
-        _validate_path_segment(name, kind="repo_name")
-        # Branch may contain a slash (e.g. ``feat/branch``), so it's
-        # passed in the body, not as a URL segment — no path-validation
-        # needed for branch.
+        body = {
+            "name": name,
+            "description": description,
+            "private": private,
+            "auto_init": auto_init,
+            "default_branch": default_branch,
+        }
         try:
             resp = requests.post(
-                f"{self.base_url}/api/v1/repos/{owner}/{name}/merge-upstream",
-                json={"branch": branch},
+                f"{self.base_url}/api/v1/admin/users/{username}/repos",
+                json=body,
                 timeout=_HTTP_TIMEOUT,
                 **self._request_kwargs(),  # type: ignore[arg-type]
             )
-        except (requests.ConnectionError, requests.Timeout):
-            return "transport"
-        return str(resp.status_code)
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            return CreateRepoResult(
+                name=name, status="failed", detail=f"transport ({type(exc).__name__})"
+            )
+        if resp.status_code in (200, 201):
+            return CreateRepoResult(name=name, status="created", detail="POST 201")
+        if resp.status_code == 409:
+            return CreateRepoResult(name=name, status="already_exists", detail="POST 409")
+        return CreateRepoResult(name=name, status="failed", detail=f"POST {resp.status_code}")
 
-    def create_user_token(
-        self,
-        username: str,
-        token_name: str,
-        scopes: list[str],
-        *,
-        admin_username: str,
-        admin_password: str,
-    ) -> str | None:
-        """Mint a token for ``username`` using admin's basic-auth.
+    def rename_repo(self, owner: str, name: str, new_name: str) -> bool:
+        """``PATCH /api/v1/repos/<o>/<n>`` with ``{"name": new_name}``.
 
-        Used by the fork flow: forking a mirror needs a token that
-        belongs to the target user (else the fork lands in admin's
-        namespace, not the user's). Admin can create tokens on behalf
-        of other users via basic-auth (NOT token-auth — token bearer
-        only acts on its own user). Idempotent: on any first-attempt
-        failure (non-200/201, transport, JSON parse, missing sha1)
-        it deletes the token by name and retries once. (Copilot R6 —
-        the previous "201-failure" wording was confusing because 201
-        is the success code; the retry trigger is anything-not-success.)
-
-        Returns the sha1 string on success, None on persistent failure
-        (both attempts return non-success). None routes to a yellow
-        warning + skip-fork at the orchestrator level.
+        Forgejo keeps a redirect from the old name, so links and remotes
+        that still use it keep working.
         """
-        _validate_path_segment(username, kind="username")
-        _validate_path_segment(token_name, kind="token_name")
-        body = {"name": token_name, "scopes": scopes}
-        auth = (admin_username, admin_password)
-
-        def _attempt() -> str | None:
-            try:
-                resp = requests.post(
-                    f"{self.base_url}/api/v1/users/{username}/tokens",
-                    json=body,
-                    auth=auth,
-                    timeout=_HTTP_TIMEOUT,
-                )
-            except (requests.ConnectionError, requests.Timeout):
-                return None
-            if resp.status_code not in (200, 201):
-                return None
-            try:
-                payload = resp.json()
-            except ValueError:
-                return None
-            sha1 = payload.get("sha1") if isinstance(payload, dict) else None
-            return sha1 if isinstance(sha1, str) and sha1 else None
-
-        sha1 = _attempt()
-        if sha1:
-            return sha1
-        # First attempt failed — token name may already exist.
-        # Delete and retry once. Errors here are silenced; the next
-        # _attempt() will surface any persistent failure as None.
-        self.delete_user_token(
-            username,
-            token_name,
-            admin_username=admin_username,
-            admin_password=admin_password,
-        )
-        return _attempt()
-
-    def delete_user_token(
-        self,
-        username: str,
-        token_name: str,
-        *,
-        admin_username: str,
-        admin_password: str,
-    ) -> bool:
-        """``DELETE /api/v1/users/<u>/tokens/<n>`` with admin basic-auth.
-
-        Idempotent: 204 + 404 → True. Used by the fork flow to clean
-        up a temp user-token after the fork POST settles, AND to
-        clear a stale token before retrying create_user_token.
-        """
-        _validate_path_segment(username, kind="username")
-        _validate_path_segment(token_name, kind="token_name")
+        _validate_path_segment(owner, kind="owner")
+        _validate_path_segment(name, kind="repo_name")
+        _validate_path_segment(new_name, kind="repo_name")
         try:
-            resp = requests.delete(
-                f"{self.base_url}/api/v1/users/{username}/tokens/{token_name}",
-                auth=(admin_username, admin_password),
+            resp = requests.patch(
+                f"{self.base_url}/api/v1/repos/{owner}/{name}",
+                json={"name": new_name},
                 timeout=_HTTP_TIMEOUT,
+                **self._request_kwargs(),  # type: ignore[arg-type]
             )
         except (requests.ConnectionError, requests.Timeout):
             return False
-        return resp.status_code in (204, 404)
-
-    def fork_repo_as_user(
-        self,
-        source_owner: str,
-        source_name: str,
-        fork_name: str,
-        *,
-        user_token: str,
-    ) -> str:
-        """``POST /api/v1/repos/<o>/<n>/forks`` with the USER's bearer token.
-
-        Returns HTTP status code as a string — caller dispatches:
-        - ``"202"``: Forgejo accepted the fork (queued)
-        - ``"409"``: fork already exists in user's namespace
-        - other: failure
-
-        Uses the user's token (not admin's) so the fork lands in the
-        user's namespace.
-        """
-        _validate_path_segment(source_owner, kind="owner")
-        _validate_path_segment(source_name, kind="repo_name")
-        _validate_path_segment(fork_name, kind="fork_name")
-        try:
-            resp = requests.post(
-                f"{self.base_url}/api/v1/repos/{source_owner}/{source_name}/forks",
-                json={"name": fork_name},
-                headers={"Authorization": f"token {user_token}"},
-                timeout=_HTTP_TIMEOUT,
-            )
-        except (requests.ConnectionError, requests.Timeout):
-            return "transport"
-        return str(resp.status_code)
+        return resp.status_code == 200
 
     # -------------------------------------------------------------------
     # OAuth2 application management (Woodpecker CI integration)
@@ -1745,14 +1633,33 @@ def run_woodpecker_oauth_setup(
 class MirrorSetupResult:
     """Aggregate result of a GH_MIRROR_REPOS spin-up.
 
-    The CLI handler emits ``FORK_NAME=<name>`` + ``FORGEJO_REPO_OWNER=<owner>``
-    on stdout when ``fork`` reached ``created`` or ``already_exists``,
-    so the orchestrator can call the existing seed-into-fork wrapper post-eval.
+    Two kinds of repository come out of it, with separate roles:
 
-    ``is_success`` is True iff every mirror reached ``created`` or
-    ``already_exists`` AND (if a fork was attempted) the fork did
-    too. The CLI maps False → rc=1 (yellow warn, deploy continues —
-    next spin-up retries).
+    * one read-only **course** repository per URL, ``course-<basename>``,
+      a pull mirror owned by the admin that Forgejo keeps current;
+    * one **workspace** for the user, ``<first basename>_<user>``, an
+      ordinary repository in the user's namespace where their work and
+      the seeds live.
+
+    The workspace used to be a fork of the first mirror. A fork carries
+    the seeds as commits of its own from the first spin-up on, so it
+    diverges from the mirror at once, and Forgejo 15 can then neither
+    fast-forward it (``sync_fork`` refuses a diverged fork) nor merge
+    into it (``merge-upstream`` is a Gitea route Forgejo does not have).
+    Course updates therefore never reached the user. Keeping the course
+    read-only and the workspace separate removes the need to merge at
+    all. A workspace that is still such a fork is kept as it is — it is
+    the user's work — and simply no longer synced.
+
+    The CLI handler emits ``FORK_NAME=<name>`` + ``FORGEJO_REPO_OWNER=<owner>``
+    on stdout when ``workspace`` reached ``created`` or ``already_exists``,
+    so the orchestrator can seed it post-eval. The ``FORK_NAME`` key is
+    kept for compatibility with that handoff.
+
+    ``is_success`` is True iff every mirror reached ``created``,
+    ``renamed`` or ``already_exists`` AND (if a workspace was attempted)
+    it did too. The CLI maps False → rc=1 (yellow warn, deploy
+    continues — next spin-up retries).
     """
 
     admin_uid: int | None
@@ -1763,16 +1670,8 @@ class MirrorSetupResult:
     # admin_uid was successfully resolved. (Copilot R4)
     admin_uid_error: str
     mirrors: tuple[MirrorResult, ...]
-    fork: ForkResult | None
+    workspace: WorkspaceResult | None
     collaborator_added_count: int
-    fork_synced: bool
-    # Diagnostic for the mirror-sync + merge-upstream chain on the
-    # first iteration where the fork existed. Surfaced in the
-    # orchestrator's PhaseResult.detail so operators can see WHY a
-    # fork didn't pick up new upstream commits (most common cause:
-    # GitHub upstream took longer than the settle timeout). Empty
-    # string when no sync was attempted (no fork yet).
-    sync_detail: str = ""
 
     @property
     def is_success(self) -> bool:
@@ -1780,70 +1679,58 @@ class MirrorSetupResult:
             return False
         if any(m.status == "failed" for m in self.mirrors):
             return False
-        return not (self.fork is not None and self.fork.status == "failed")
+        return not (self.workspace is not None and self.workspace.status == "failed")
+
+
+def course_repo_name(repo_url: str) -> str:
+    """The Forgejo name of the read-only course mirror for ``repo_url``."""
+    return f"{COURSE_REPO_PREFIX}{_basename_no_git(repo_url)}"
+
+
+def workspace_repo_name(repo_url: str, username: str) -> str:
+    """The user's workspace name: ``<basename>_<sanitized user>``.
+
+    Byte-identical to the name the fork used to get, so a stack whose
+    workspace is still such a fork finds it under the same name.
+    """
+    return f"{_basename_no_git(repo_url)}_{_sanitize_user_for_workspace_name(username)}"
 
 
 def run_mirror_setup(
     *,
     base_url: str,
     admin_username: str,
-    admin_password: str,
     forgejo_token: str,
     forgejo_user_username: str | None,
     gh_mirror_repos: list[str],
     gh_mirror_token: str,
-    workspace_branch: str,
-    fork_token_name: str = "nexus-workspace-fork",  # noqa: S107
-    mirror_sync_poll_seconds: float = 30.0,
-    mirror_sync_poll_interval_seconds: float = 1.5,
 ) -> MirrorSetupResult:
     """End-to-end GH_MIRROR_REPOS provisioning.
 
     1. GET admin's UID (required by Forgejo's migrate API).
     2. For each repo URL in ``gh_mirror_repos``:
-       a. Compute mirror name ``mirror-readonly-<basename>``.
-       b. POST /repos/migrate (or skip if 409/already_exists).
-       c. Add the user as a read-collaborator on the mirror —
-          MUST happen before (d) because the mirror is created
-          private and the user's token (used in (d)) sees a
-          private repo as 404 until collab is granted.
-       d. On the FIRST mirror with a configured user, fork it
-          into the user's namespace via a temp user-token
-          (created + deleted on this call).
-       e. If the fork was created on this iteration: snapshot the
-          mirror's HEAD SHA, trigger ``mirror-sync`` on the mirror,
-          then poll the mirror's HEAD up to
-          ``mirror_sync_poll_seconds`` (with
-          ``mirror_sync_poll_interval_seconds`` between polls) waiting
-          for the upstream-fetch to land. Whether or not the SHA
-          actually changed, call ``merge-upstream`` on the fork at
-          ``workspace_branch`` (best-effort — the mirror may already
-          be ahead from Forgejo's periodic cron-tick or the initial
-          migrate-fetch). The pre/post SHA + merge result land in
-          ``MirrorSetupResult.sync_detail`` so operators can tell
-          'sync landed', 'sync skipped (no change)', and 'sync
-          failed but merged anyway' apart.
+       a. Course name ``course-<basename>``. If it does not exist but
+          the old ``mirror-readonly-<basename>`` does, rename that one
+          (Forgejo keeps a redirect from the old name). Otherwise
+          POST /repos/migrate, or skip when it already exists.
+       b. Trigger a mirror sync, best effort, so the clones the
+          containers make on this spin-up see the newest commit rather
+          than the one from Forgejo's last scheduled fetch.
+       c. Add the user as a **read** collaborator — the mirror is
+          private, and a pull mirror refuses pushes anyway.
+       d. For the FIRST successful mirror with a configured user,
+          ensure the user's workspace ``<basename>_<user>`` exists as a
+          private repository in the user's namespace. An existing one,
+          including a fork from before this change, is left untouched.
 
-    The fork creation (step c) and fork-sync (step e) happen ONLY
-    on the first iteration that has both a successful migrate AND a
-    configured user — single-fork-per-stack semantics. Later
-    iterations still do mirror+collab.
-
-    All admin actions use ``forgejo_token`` (token-bearer). The fork
-    creation step uses a temporary token minted on behalf of
-    ``forgejo_user_username`` via admin basic-auth, then deleted right
-    after. Both ``forgejo_token`` and ``admin_password`` reach REST as
-    request-auth only, never argv.
+    All admin actions use ``forgejo_token`` (token-bearer), which
+    reaches REST as request-auth only, never argv.
     """
     # Path safety on admin_username — used in URL interpolation
     # immediately below.
     _validate_path_segment(admin_username, kind="admin_username")
 
-    client = ForgejoClient(
-        base_url=base_url,
-        admin_username=admin_username,
-        admin_password=admin_password,
-    ).with_token(forgejo_token)
+    client = ForgejoClient.from_token(base_url, admin_username=admin_username, token=forgejo_token)
 
     # 1. Admin UID lookup. Failure → no migrate possible. Distinguish
     # three failure modes so the CLI can surface the real cause
@@ -1867,27 +1754,25 @@ def run_mirror_setup(
             admin_uid=None,
             admin_uid_error=admin_uid_error,
             mirrors=(),
-            fork=None,
+            workspace=None,
             collaborator_added_count=0,
-            fork_synced=False,
         )
 
     mirrors: list[MirrorResult] = []
-    fork: ForkResult | None = None
-    last_fork_failure: ForkResult | None = None
-    fork_synced = False
+    workspace: WorkspaceResult | None = None
+    last_workspace_failure: WorkspaceResult | None = None
     collaborator_added_count = 0
-    sync_detail = ""
 
     for repo_url in gh_mirror_repos:
         repo_url = repo_url.strip()
         if not repo_url:
             continue
         orig_name = _basename_no_git(repo_url)
-        mirror_name = f"mirror-readonly-{orig_name}"
+        mirror_name = course_repo_name(repo_url)
+        legacy_name = f"{LEGACY_MIRROR_PREFIX}{orig_name}"
 
-        # Validate the derived mirror_name BEFORE calling repo_exists
-        # / migrate_mirror — both internally invoke
+        # Validate the derived names BEFORE calling repo_exists /
+        # migrate_mirror — both internally invoke
         # ``_validate_path_segment`` which raises ForgejoError on
         # unsafe values. Without this guard, one bad URL with
         # shell-meta chars in the basename (e.g.
@@ -1897,6 +1782,7 @@ def run_mirror_setup(
         # (Copilot R1)
         try:
             _validate_path_segment(mirror_name, kind="mirror_name")
+            _validate_path_segment(legacy_name, kind="mirror_name")
         except ForgejoError as exc:
             mirrors.append(
                 MirrorResult(
@@ -1907,7 +1793,7 @@ def run_mirror_setup(
             )
             continue
 
-        # Idempotent re-deploy: skip migration if mirror already exists.
+        # Idempotent re-deploy: skip migration if the course repo exists.
         try:
             already_present = client.repo_exists(admin_username, mirror_name)
         except ForgejoError:
@@ -1920,197 +1806,76 @@ def run_mirror_setup(
                 detail="GET /repos returned 200",
             )
         else:
-            mirror_result = client.migrate_mirror(mirror_name, repo_url, admin_uid, gh_mirror_token)
+            try:
+                legacy_present = client.repo_exists(admin_username, legacy_name)
+            except ForgejoError:
+                legacy_present = False
+            if legacy_present:
+                if client.rename_repo(admin_username, legacy_name, mirror_name):
+                    mirror_result = MirrorResult(
+                        name=mirror_name,
+                        status="renamed",
+                        detail=f"from {legacy_name}",
+                    )
+                else:
+                    mirror_result = MirrorResult(
+                        name=mirror_name,
+                        status="failed",
+                        detail=f"rename from {legacy_name} refused",
+                    )
+            else:
+                mirror_result = client.migrate_mirror(
+                    mirror_name, repo_url, admin_uid, gh_mirror_token
+                )
         mirrors.append(mirror_result)
 
         if mirror_result.status == "failed":
-            # Don't try to fork off a failed mirror; continue to next
-            # iteration so a single bad URL doesn't abort the loop.
+            # Continue to next iteration so a single bad URL doesn't
+            # abort the loop.
             continue
 
-        # Grant the user read-only access to the (private) mirror BEFORE
-        # the fork attempt below. ``migrate_mirror`` creates the repo with
-        # ``"private": True``, and ``fork_repo_as_user`` runs as
-        # ``forgejo_user_username`` — without prior collaborator access the
-        # user cannot see the mirror at all and Forgejo returns 404 on
-        # ``POST .../forks`` (Forgejo conflates not-found with permission-
-        # denied on private repos). Doing the add here guarantees the
-        # user can see the mirror by the time the fork POST hits.
+        # Best effort: a failed trigger only means the clones see the
+        # commit from Forgejo's last scheduled fetch.
+        client.trigger_mirror_sync(admin_username, mirror_name)
+
         if forgejo_user_username and client.add_collaborator(
             admin_username, mirror_name, forgejo_user_username, permission="read"
         ):
             collaborator_added_count += 1
 
-        # Fork the FIRST successful mirror into the user's namespace
-        # (idempotent across spin-ups via the existing-fork 409 branch).
-        # On transient failure (token mint glitch, fork POST 5xx),
-        # retry on the next mirror iteration. Without retry, a
-        # single bad first mirror would prevent the fork on every
-        # later mirror in the same loop too. (Copilot R3)
-        if fork is None and forgejo_user_username:
-            sanitized = _sanitize_user_for_fork_name(forgejo_user_username)
-            fork_name = f"{orig_name}_{sanitized}"
-
-            user_token = client.create_user_token(
+        # The workspace is created once, from the first successful
+        # mirror. On a transient failure, retry on the next iteration.
+        if workspace is None and forgejo_user_username:
+            name = workspace_repo_name(repo_url, forgejo_user_username)
+            created = client.create_repo_for_user(
                 forgejo_user_username,
-                fork_token_name,
-                ["all"],
-                admin_username=admin_username,
-                admin_password=admin_password,
+                name,
+                private=True,
+                auto_init=True,
+                default_branch="main",
+                description="Your own work — course material is in the course repository",
             )
-            if user_token is None:
-                attempt: ForkResult = ForkResult(
-                    name=fork_name,
-                    owner=forgejo_user_username,
-                    status="failed",
-                    detail="could not create user token for fork",
-                )
-            else:
-                try:
-                    fork_status = client.fork_repo_as_user(
-                        admin_username,
-                        mirror_name,
-                        fork_name,
-                        user_token=user_token,
-                    )
-                finally:
-                    # Always cleanup the temp user-token regardless
-                    # of fork outcome.
-                    client.delete_user_token(
-                        forgejo_user_username,
-                        fork_token_name,
-                        admin_username=admin_username,
-                        admin_password=admin_password,
-                    )
-
-                if fork_status == "202":
-                    attempt = ForkResult(
-                        name=fork_name,
-                        owner=forgejo_user_username,
-                        status="created",
-                        detail="POST 202",
-                    )
-                elif fork_status == "409":
-                    attempt = ForkResult(
-                        name=fork_name,
-                        owner=forgejo_user_username,
-                        status="already_exists",
-                        detail="POST 409",
-                    )
-                else:
-                    attempt = ForkResult(
-                        name=fork_name,
-                        owner=forgejo_user_username,
-                        status="failed",
-                        detail=f"POST {fork_status}",
-                    )
-
+            attempt = WorkspaceResult(
+                name=name,
+                owner=forgejo_user_username,
+                status=created.status,
+                detail=created.detail,
+            )
             if attempt.status in ("created", "already_exists"):
-                # Finalize — no more fork attempts on later iterations.
-                fork = attempt
+                workspace = attempt
             else:
-                # Transient failure: keep ``fork=None`` so the next
-                # iteration retries. Save the most recent attempt's
-                # diagnostic so the FINAL result still surfaces the
-                # last failure if every iteration fails.
-                last_fork_failure = attempt
+                last_workspace_failure = attempt
 
-        # Sync the fork from upstream — only on the first iteration
-        # where the fork was actually created/already-existed.
-        if fork is not None and fork.status in ("created", "already_exists") and not fork_synced:
-            fork_synced = True  # set even if the chain below soft-fails
-            # Step 1: snapshot the mirror's HEAD SHA so we can detect
-            # when the upstream-fetch lands.
-            before_sha = client.get_branch_head_sha(admin_username, mirror_name, workspace_branch)
-            triggered = client.trigger_mirror_sync(admin_username, mirror_name)
-            if not triggered:
-                # Don't return early — the mirror may ALREADY be ahead
-                # of the fork from (a) Forgejo's periodic mirror cron-tick
-                # that ran between spin-ups, or (b) the migrate that
-                # ran a few seconds ago (which performs an initial
-                # fetch as part of repo creation). Skipping merge here
-                # would regress the legacy bash's best-effort behavior
-                # for those cases. Record the trigger failure but
-                # still try merge_upstream against whatever's currently
-                # in the mirror.
-                merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
-                sync_detail = (
-                    "trigger_mirror_sync returned non-200 (token / repo state); "
-                    f"merge_upstream against current mirror HEAD: {merge_status}"
-                )
-            else:
-                # Step 2: poll the mirror's branch HEAD until it changes
-                # from the pre-sync snapshot. The previous fixed 3-second
-                # sleep was too short for medium repos — GitHub's clone
-                # finished but Forgejo's mirror-fetch hadn't propagated by
-                # the time merge_upstream ran, so the fork merged the OLD
-                # mirror state and silently returned 409 "already up to
-                # date". Polling catches a freshly-arrived commit even on
-                # slow upstream fetches; the cap (mirror_sync_poll_seconds)
-                # protects against a wedged mirror.
-                deadline = time.monotonic() + mirror_sync_poll_seconds
-                landed = False
-                while time.monotonic() < deadline:
-                    after_sha = client.get_branch_head_sha(
-                        admin_username, mirror_name, workspace_branch
-                    )
-                    if after_sha is not None and after_sha != before_sha:
-                        landed = True
-                        break
-                    time.sleep(mirror_sync_poll_interval_seconds)
-                if landed:
-                    # Sync landed (after_sha differed from before_sha,
-                    # or before_sha was None but the poll observed any
-                    # SHA) — merge fork from the now-updated mirror.
-                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
-                    sync_detail = (
-                        f"mirror synced ({(before_sha or 'unknown')[:8]} -> "
-                        f"{(after_sha or '')[:8]}), merge_upstream={merge_status}"
-                    )
-                elif before_sha is None:
-                    # Mirror branch couldn't be read pre-sync (404 /
-                    # transport) AND polling never observed a SHA
-                    # either — we have no way to *verify* the sync,
-                    # but the mirror may still be ahead of the fork
-                    # from Forgejo's periodic cron or the initial
-                    # migrate-fetch. Best-effort merge so fork_synced
-                    # (which is set unconditionally above) actually
-                    # corresponds to an attempted merge call —
-                    # otherwise the CLI would report "merge attempted"
-                    # when nothing happened.
-                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
-                    sync_detail = (
-                        "could not snapshot mirror HEAD before sync (no SHA observed during poll either); "
-                        f"merge_upstream against current mirror HEAD: {merge_status}"
-                    )
-                else:
-                    # Sync was triggered but the mirror's HEAD didn't
-                    # move within the timeout. Could be: (a) upstream
-                    # unchanged (legitimate no-op), or (b) Forgejo's
-                    # fetcher is wedged / token rejected. We still
-                    # call merge_upstream — it'll return 409 in case
-                    # (a), giving us a clean diagnostic.
-                    merge_status = client.merge_upstream(fork.owner, fork.name, workspace_branch)
-                    sync_detail = (
-                        f"mirror HEAD unchanged after {mirror_sync_poll_seconds:.0f}s "
-                        f"(before={(before_sha or '')[:8]}, "
-                        f"merge_upstream={merge_status})"
-                    )
-
-    # If every fork attempt across the loop failed, surface the last
-    # one's diagnostic in the final result so the operator can see WHY
-    # the fork never succeeded. (Copilot R3 — without this, a multi-
-    # mirror loop where every fork POST fails would return fork=None
-    # which is indistinguishable from the no-user-configured branch.)
-    if fork is None and last_fork_failure is not None:
-        fork = last_fork_failure
+    # If every workspace attempt failed, surface the last one's
+    # diagnostic — otherwise the result would read like the
+    # no-user-configured branch.
+    if workspace is None and last_workspace_failure is not None:
+        workspace = last_workspace_failure
 
     return MirrorSetupResult(
         admin_uid=admin_uid,
         admin_uid_error="",  # admin_uid resolved successfully
         mirrors=tuple(mirrors),
-        fork=fork,
+        workspace=workspace,
         collaborator_added_count=collaborator_added_count,
-        fork_synced=fork_synced,
-        sync_detail=sync_detail,
     )

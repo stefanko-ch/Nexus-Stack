@@ -93,11 +93,34 @@ https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 
 **How it works:**
 - During each spin-up, the orchestrator's mirror-setup phase creates a pull mirror in Forgejo for each configured URL
-- The mirrored repo is named `mirror-<repo>` (e.g. GitHub `course-2025` → Forgejo `mirror-course-2025`)
-- Forgejo syncs from GitHub **every 10 minutes** (delta fetch — only new commits are transferred)
-- Mirrored repos are **private** in Forgejo (accessible only via Cloudflare Access)
-- The student user (derived from `TF_VAR_user_email`) is automatically added as a **read-only** collaborator
-- The operation is **idempotent**: re-running spin-up skips mirrors that already exist
+- The mirror is the **course repository**, named `course-<repo>` (e.g. GitHub `course-2025` → Forgejo `course-course-2025`), owned by the admin
+- Forgejo syncs from GitHub **every 10 minutes** (delta fetch — only new commits are transferred), and each spin-up triggers one extra sync so the stack starts on the newest commit
+- Course repositories are **private** in Forgejo (accessible only via Cloudflare Access)
+- The student user (derived from `TF_VAR_user_email`) is added as a **read-only** collaborator; a pull mirror refuses pushes anyway
+- The student also gets a **workspace repository** of their own, `<first repo>_<user>`, an ordinary private repository in their namespace. Their work and the [seeded examples](https://github.com/stefanko-ch/Nexus-Stack/blob/main/examples/README.md) go there, and Kestra's flow sync reads and writes it
+- The operation is **idempotent**: re-running spin-up skips course repositories and workspaces that already exist
+
+**Course material and your workspace.** Jupyter, Marimo and code-server clone
+each course repository into a `course/` folder next to the workspace, and reset
+it to the course repository's newest commit on every start:
+
+| Service | Course clone | Workspace clone |
+|---------|--------------|-----------------|
+| Jupyter | `/home/jovyan/work/course/<repo>` | `/home/jovyan/work/<workspace>` |
+| Marimo | `/app/notebooks/course/<repo>` | `/app/notebooks/<workspace>` |
+| code-server | `/home/coder/course/<repo>` | `/home/coder/<workspace>` |
+
+> ⚠️ **Changes inside `course/` are discarded on the next start.** That is
+> what keeps the material current without merges or conflicts. To work on a
+> course file, copy it into your workspace first and edit the copy there.
+
+**Stacks from before the course/workspace split** had a mirror named
+`mirror-readonly-<repo>` and a workspace that was a **fork** of it. The first
+spin-up on the new version renames the mirror to `course-<repo>` (Forgejo keeps
+a redirect from the old name) and keeps the fork as the workspace, untouched,
+because the workspace name is the same. The fork simply stops being synced —
+which it never was in practice: Forgejo can neither fast-forward a fork that has
+commits of its own nor merge into one.
 
 **GitHub rate limits:** 10-minute intervals = 6 git fetches/hour per repo. These are Git-protocol fetches, not REST calls, so the 5,000/hour PAT limit does not apply to them — GitHub rate-limits Git traffic separately and does not publish a fixed figure. Six per hour per repo is far below any threshold that has been observed to bite.
 

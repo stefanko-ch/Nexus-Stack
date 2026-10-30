@@ -3337,6 +3337,12 @@ class ForgejoWorkspaceConfig:
     # Fresh installs still get a working clone via the env-var
     # default in the seed manifest if this field were ever empty.
     workspace_branch: str = "main"
+    # Internal clone URLs of the read-only course repositories, one per
+    # GH_MIRROR_REPOS entry. The git-integrated stacks clone each into a
+    # ``course/`` directory next to the workspace and reset it to the
+    # mirror's head on every start; see their compose entrypoints. Empty
+    # when the stack has no course repositories.
+    course_repo_urls: tuple[str, ...] = ()
 
 
 def _strip_forgejo_block(content: str) -> str:
@@ -3367,6 +3373,7 @@ GIT_COMMITTER_NAME={cfg.git_author_name}
 GIT_COMMITTER_EMAIL={cfg.git_author_email}
 REPO_NAME={cfg.repo_name}
 WORKSPACE_BRANCH={cfg.workspace_branch}
+COURSE_REPO_URLS={",".join(cfg.course_repo_urls)}
 {_FORGEJO_BLOCK_END}
 """
 
