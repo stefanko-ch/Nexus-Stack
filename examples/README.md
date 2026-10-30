@@ -87,10 +87,18 @@ If a new stack needs its own per-stack folder, add it under `workspace-seeds/<st
 The orchestrator's `_phase_seed` (in `src/nexus_deploy/orchestrator.py`, delegating to `run_seed_for_repo` in `src/nexus_deploy/seeder.py`), after the workspace repo exists, walks every file under `examples/workspace-seeds/`, base64-encodes it, and POSTs it to the internal Forgejo API (`http://localhost:3202/api/v1/repos/<owner>/<repo>/contents/<path>`, accessed via SSH from the runner) with the relative path. `<owner>` is the Forgejo admin in the default workspace-repo case, or the user's Forgejo username in the GH_MIRROR_REPOS+user-fork case (`workspace_coords.py` resolves this and the pipeline passes it as `FORGEJO_REPO_OWNER`).
 
 - HTTP **201/200** → file created. Counted as `SEEDED`.
-- HTTP **422** → file already exists. Counted as `SKIPPED`. **Existing files are never overwritten** — user edits persist across re-deploys.
+- HTTP **422** → file already exists. Then:
+  - if its content is still byte-for-byte a version Nexus-Stack shipped earlier, nobody has edited it, and it is **updated** to the current version (`PUT`, counted as `updated`);
+  - otherwise it is left exactly as it is (counted as `SKIPPED`) — user edits persist across re-deploys.
 - Anything else → `FAILED`, logged as a warning.
 
-Because seeds use `POST` (create-only) instead of `PUT` (upsert), the seed step is safe to re-run after every spin-up. The trade-off: when you publish a new version of a seed file in a Nexus-Stack release, users who already have the file get the old version. If you need to push an updated example, give it a new filename or version-suffix it.
+"Shipped earlier" is defined by [`workspace-seeds-history.json`](workspace-seeds-history.json): for every seed file, the git blob SHAs it has had at its current path. Forgejo's contents API reports the same SHA for the file in the workspace, so the comparison needs no download. The file is generated from git history and must be regenerated whenever a seed file changes:
+
+```bash
+uv run python -m nexus_deploy.seeder
+```
+
+`tests/unit/test_seeder.py` compares it with git history and fails when it is stale, so a forgotten regeneration fails CI instead of leaving workspaces on the old version. A seed that was **renamed or moved** is a new file to the workspace: the old copy stays at its old path, and the new one is created next to it.
 
 ## Rules for seeded files
 

@@ -25,10 +25,14 @@ from nexus_deploy.seeder import (
     _is_safe_repo_path,
     _url_encode_path,
     encode_payloads,
+    git_blob_sha,
+    history_path,
     list_seed_files,
     parse_result,
     render_remote_loop,
     run_seed_for_repo,
+    seed_history_from_git,
+    write_seed_history,
 )
 
 FIXTURE_ROOT = Path(__file__).resolve().parent.parent / "fixtures" / "workspace_seeds_minimal"
@@ -260,6 +264,8 @@ def test_encode_payloads_json_shape() -> None:
         "url_path": "nexus_seeds/x.txt",
         "content": "aGVsbG8=",
         "message": "chore(seed): add x",
+        "superseded": [],
+        "update_message": "chore(seed): update nexus_seeds/x.txt to the current Nexus-Stack version",
     }
 
 
@@ -269,10 +275,16 @@ def test_encode_payloads_minimal_fixture_snapshot() -> None:
     payloads = encode_payloads(files)
     # 4 files in the fixture
     assert len(payloads) == 4
-    # All bodies parse as JSON with the 3 expected keys
+    # All bodies parse as JSON with the 5 expected keys
     for body_str in payloads.values():
         body = json.loads(body_str)
-        assert set(body.keys()) == {"url_path", "content", "message"}
+        assert set(body.keys()) == {
+            "url_path",
+            "content",
+            "message",
+            "superseded",
+            "update_message",
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -379,7 +391,8 @@ def test_round_4_dispatch_present_in_rendered_script() -> None:
     """Static check: the rendered script contains the same case form."""
     script = _render_default()
     assert "200|201) CREATED=" in script
-    assert "422)     SKIPPED=" in script
+    assert "        422)\n" in script
+    assert "UPDATED=$((UPDATED+1))" in script
     assert "*)" in script
 
 
@@ -452,13 +465,13 @@ def test_round_8_token_never_leaks_on_runtime_failure(
 
 
 def test_parse_result_happy() -> None:
-    out = "RESULT created=10 skipped=2 failed=0"
+    out = "RESULT created=10 updated=0 skipped=2 failed=0"
     assert parse_result(out) == SeedResult(created=10, skipped=2, failed=0)
 
 
 def test_parse_result_with_warnings_above() -> None:
     """RESULT line is found even when stderr noise precedes it."""
-    out = "  ⚠ Seed POST nexus_seeds/foo.txt returned HTTP 500\nRESULT created=3 skipped=0 failed=1"
+    out = "  ⚠ Seed POST nexus_seeds/foo.txt returned HTTP 500\nRESULT created=3 updated=0 skipped=0 failed=1"
     result = parse_result(out)
     assert result == SeedResult(created=3, skipped=0, failed=1)
 
@@ -486,7 +499,7 @@ def _noop_rsync(_src: Path, _dst: str) -> subprocess.CompletedProcess[str]:
 
 def test_run_seed_happy_path(tmp_path: Path) -> None:
     """End-to-end with mocked runners — fixture seeds, RESULT parsed."""
-    out = "RESULT created=4 skipped=0 failed=0"
+    out = "RESULT created=4 updated=0 skipped=0 failed=0"
     result = run_seed_for_repo(
         repo_owner="admin",
         repo_name="ws",
@@ -523,7 +536,7 @@ def test_run_seed_forwards_remote_warnings_to_local_stderr(
     remote_out = (
         "  ⚠ Seed POST nexus_seeds/x.txt returned HTTP 500\n"
         "  ⚠ Seed payload missing url_path: seed-9999.json\n"
-        "RESULT created=2 skipped=0 failed=2"
+        "RESULT created=2 updated=0 skipped=0 failed=2"
     )
     run_seed_for_repo(
         repo_owner="admin",
@@ -628,7 +641,7 @@ def test_run_seed_clears_stale_payloads_from_push_dir(tmp_path: Path) -> None:
         root=FIXTURE_ROOT,
         token="t",
         push_dir=push_dir,
-        script_runner=_ok_script_runner("RESULT created=4 skipped=0 failed=0"),
+        script_runner=_ok_script_runner("RESULT created=4 updated=0 skipped=0 failed=0"),
         rsync_runner=_noop_rsync,
     )
     # Fixture has 4 files → seed-0000..0003. Stale 0009/0010 must be gone.
@@ -672,7 +685,7 @@ def test_run_seed_writes_payloads_to_push_dir(tmp_path: Path) -> None:
         root=FIXTURE_ROOT,
         token="t",
         push_dir=push_dir,
-        script_runner=_ok_script_runner("RESULT created=4 skipped=0 failed=0"),
+        script_runner=_ok_script_runner("RESULT created=4 updated=0 skipped=0 failed=0"),
         rsync_runner=_noop_rsync,
     )
     assert push_dir.is_dir()
@@ -782,3 +795,217 @@ def test_cli_seed_prefix_validation(prefix: str, valid: bool) -> None:
     else:
         assert rc == 2
         assert "invalid --prefix" in err
+
+
+# ---------------------------------------------------------------------------
+# Updating seeds that are still an earlier shipped version
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SEEDS_ROOT = REPO_ROOT / "examples" / "workspace-seeds"
+
+
+def test_git_blob_sha_matches_git_hash_object(tmp_path: Path) -> None:
+    f = tmp_path / "x"
+    f.write_bytes(b"hello\nworld\n")
+    expected = subprocess.run(
+        ["git", "hash-object", str(f)], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert git_blob_sha(f.read_bytes()) == expected
+
+
+def _is_shallow() -> bool:
+    out = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return out.returncode != 0 or out.stdout.strip() != "false"
+
+
+@pytest.mark.skipif(_is_shallow(), reason="needs the full git history")
+def test_seed_history_manifest_matches_git_history() -> None:
+    """The manifest must list every earlier version of every seed file.
+
+    A seed changed without regenerating it would leave workspaces on the
+    old version for good. Fix: ``uv run python -m nexus_deploy.seeder``.
+    """
+    on_disk = json.loads(history_path(SEEDS_ROOT).read_text(encoding="utf-8"))
+    assert on_disk == seed_history_from_git(REPO_ROOT, SEEDS_ROOT)
+
+
+def test_write_seed_history_from_a_real_git_repo(tmp_path: Path) -> None:
+    """Earlier versions at the current path are listed; the current one,
+    a deletion's all-zero SHA and a single-version file are not."""
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+    git("init", "-q")
+    seeds = tmp_path / "seeds"
+    (seeds / "k").mkdir(parents=True)
+    flow = seeds / "k" / "flow.yaml"
+    only = seeds / "only.txt"
+    versions = []
+    for text in ("v1\n", "v2\n"):
+        flow.write_text(text)
+        only.write_text("same\n")
+        versions.append(git_blob_sha(text.encode()))
+        git("add", "-A")
+        git("commit", "-qm", text.strip())
+    flow.unlink()
+    git("add", "-A")
+    git("commit", "-qm", "delete")
+    flow.write_text("v3\n")
+    git("add", "-A")
+    git("commit", "-qm", "v3")
+
+    path = write_seed_history(tmp_path, seeds)
+
+    assert path == history_path(seeds)
+    assert json.loads(path.read_text()) == {"k/flow.yaml": sorted(versions)}
+
+
+def test_seed_history_never_lists_the_current_version() -> None:
+    """Listing the current version would PUT a file onto itself on
+    every spin-up — a commit per file per deploy."""
+    history = json.loads(history_path(SEEDS_ROOT).read_text(encoding="utf-8"))
+    for rel, shas in history.items():
+        current = git_blob_sha((SEEDS_ROOT / rel).read_bytes())
+        assert current not in shas, rel
+
+
+def test_list_seed_files_attaches_history(tmp_path: Path) -> None:
+    root = tmp_path / "seeds"
+    (root / "a").mkdir(parents=True)
+    (root / "a" / "f.yaml").write_text("new\n")
+    (root / "g.txt").write_text("other\n")
+    history_path(root).write_text(json.dumps({"a/f.yaml": ["1" * 40]}))
+
+    files = {f.repo_path: f for f in list_seed_files(root)}
+
+    assert files["nexus_seeds/a/f.yaml"].superseded == ("1" * 40,)
+    assert files["nexus_seeds/g.txt"].superseded == ()
+    payload = json.loads(next(iter(encode_payloads([files["nexus_seeds/a/f.yaml"]]).values())))
+    assert payload["superseded"] == ["1" * 40]
+    assert "update" in payload["update_message"]
+
+
+def test_parse_result_reads_updated() -> None:
+    assert parse_result("RESULT created=1 updated=2 skipped=3 failed=0") == SeedResult(
+        created=1, updated=2, skipped=3, failed=0
+    )
+
+
+_FAKE_CURL = r"""#!/usr/bin/env bash
+# Stands in for curl: logs the method, answers from env.
+method=GET
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -X) method="$2"; shift ;;
+    esac
+    shift
+done
+echo "$method" >> "$FAKE_LOG"
+case "$method" in
+    POST) cat > /dev/null; printf '%s' "$FAKE_POST" ;;
+    GET)  printf '%s' "$FAKE_GET" ;;
+    PUT)  cat > "$FAKE_PUT_BODY"; printf '%s' "$FAKE_PUT" ;;
+esac
+"""
+
+
+def _exec_loop(
+    tmp_path: Path, *, superseded: list[str], post: str, get: str = "", put: str = "200"
+) -> tuple[str, list[str], dict[str, Any] | None]:
+    """Run the real rendered script against a fake curl, one seed file."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    (bindir / "curl").write_text(_FAKE_CURL)
+    (bindir / "curl").chmod(0o755)
+    push = tmp_path / "push"
+    push.mkdir()
+    (push / "seed-0000.json").write_text(
+        json.dumps(
+            {
+                "url_path": "nexus_seeds/f.yaml",
+                "content": "bmV3",
+                "message": "add",
+                "superseded": superseded,
+                "update_message": "update",
+            }
+        )
+    )
+    script = render_remote_loop(token="tok", repo_owner="u", repo_name="ws").replace(
+        "PUSH_DIR=/tmp/seed-push", f"PUSH_DIR={push}"
+    )
+    assert f"PUSH_DIR={push}" in script  # the replacement must land
+    log = tmp_path / "calls"
+    put_body = tmp_path / "put.json"
+    env = {
+        **os.environ,
+        "PATH": f"{bindir}:{os.environ['PATH']}",
+        "FAKE_LOG": str(log),
+        "FAKE_POST": post,
+        "FAKE_GET": get,
+        "FAKE_PUT": put,
+        "FAKE_PUT_BODY": str(put_body),
+    }
+    out = subprocess.run(
+        ["bash", "-c", script], capture_output=True, text=True, env=env, check=True
+    ).stdout
+    calls = log.read_text().split() if log.exists() else []
+    body = json.loads(put_body.read_text()) if put_body.exists() else None
+    return out.strip().splitlines()[-1], calls, body
+
+
+OLD = "a" * 40
+
+
+def test_loop_creates_new_file(tmp_path: Path) -> None:
+    result, calls, _ = _exec_loop(tmp_path, superseded=[OLD], post="201")
+    assert result == "RESULT created=1 updated=0 skipped=0 failed=0"
+    assert calls == ["POST"]
+
+
+def test_loop_skips_existing_file_without_history(tmp_path: Path) -> None:
+    result, calls, _ = _exec_loop(tmp_path, superseded=[], post="422")
+    assert result == "RESULT created=0 updated=0 skipped=1 failed=0"
+    assert calls == ["POST"]  # no lookup at all
+
+
+def test_loop_updates_file_still_at_an_earlier_version(tmp_path: Path) -> None:
+    result, calls, body = _exec_loop(
+        tmp_path, superseded=[OLD], post="422", get=json.dumps({"sha": OLD})
+    )
+    assert result == "RESULT created=0 updated=1 skipped=0 failed=0"
+    assert calls == ["POST", "GET", "PUT"]
+    assert body == {"content": "bmV3", "sha": OLD, "message": "update"}
+
+
+def test_loop_keeps_file_the_user_edited(tmp_path: Path) -> None:
+    result, calls, _ = _exec_loop(
+        tmp_path, superseded=[OLD], post="422", get=json.dumps({"sha": "b" * 40})
+    )
+    assert result == "RESULT created=0 updated=0 skipped=1 failed=0"
+    assert calls == ["POST", "GET"]
+
+
+def test_loop_keeps_file_when_lookup_fails(tmp_path: Path) -> None:
+    result, calls, _ = _exec_loop(tmp_path, superseded=[OLD], post="422", get="not json")
+    assert result == "RESULT created=0 updated=0 skipped=1 failed=0"
+    assert "PUT" not in calls
+
+
+def test_loop_counts_rejected_update_as_failed(tmp_path: Path) -> None:
+    result, _, _ = _exec_loop(
+        tmp_path, superseded=[OLD], post="422", get=json.dumps({"sha": OLD}), put="409"
+    )
+    assert result == "RESULT created=0 updated=0 skipped=0 failed=1"

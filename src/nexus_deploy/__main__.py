@@ -602,10 +602,10 @@ def _seed(args: list[str]) -> int:
 
     print(
         f"seed: {repo_owner}/{repo_name} — created={result.created} "
-        f"skipped={result.skipped} failed={result.failed}"
+        f"updated={result.updated} skipped={result.skipped} failed={result.failed}"
     )
     if result.failed > 0:
-        if result.created + result.skipped == 0:
+        if result.created + result.updated + result.skipped == 0:
             return 2
         return 1
     return 0
