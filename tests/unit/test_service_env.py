@@ -8,6 +8,7 @@ pg-ducklake SQL escape, SeaweedFS/Garage sidecar files, LakeFS
 
 from __future__ import annotations
 
+import dataclasses
 import stat
 from pathlib import Path
 from unittest.mock import patch
@@ -2085,6 +2086,39 @@ def test_append_forgejo_workspace_block_idempotent(tmp_path: Path) -> None:
     assert "FORGEJO_PASSWORD=pw\n" not in content2  # old password gone
     # Original content preserved
     assert "EXISTING=value" in content2
+
+
+def test_append_forgejo_workspace_block_lists_course_repos(tmp_path: Path) -> None:
+    """COURSE_REPO_URLS is comma-joined for the git consumers' entrypoints,
+    and present but empty when the stack has no course repositories."""
+    stacks = tmp_path / "stacks"
+    (stacks / "jupyter").mkdir(parents=True)
+    (stacks / "jupyter" / ".env").write_text("")
+
+    base = ForgejoWorkspaceConfig(
+        forgejo_repo_url="http://forgejo:3000/u/repo_u.git",
+        forgejo_username="u",
+        forgejo_password="pw",
+        git_author_name="u",
+        git_author_email="u@example.com",
+        repo_name="repo_u",
+    )
+    cfg = dataclasses.replace(
+        base,
+        course_repo_urls=(
+            "http://forgejo:3000/nexus/course-a.git",
+            "http://forgejo:3000/nexus/course-b.git",
+        ),
+    )
+    append_forgejo_workspace_block(cfg, ["jupyter"], stacks_dir=stacks)
+    content = (stacks / "jupyter" / ".env").read_text()
+    assert (
+        "COURSE_REPO_URLS=http://forgejo:3000/nexus/course-a.git,"
+        "http://forgejo:3000/nexus/course-b.git\n"
+    ) in content
+
+    append_forgejo_workspace_block(base, ["jupyter"], stacks_dir=stacks)
+    assert "COURSE_REPO_URLS=\n" in (stacks / "jupyter" / ".env").read_text()
 
 
 def test_append_forgejo_skips_disabled_services(tmp_path: Path) -> None:

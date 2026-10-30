@@ -31,18 +31,21 @@ from nexus_deploy.forgejo import (
     ForgejoError,
     ForgejoResult,
     MirrorResult,
+    MirrorSetupResult,
     OAuthAppResult,
     _basename_no_git,
     _compute_restart_services,
     _escape_sql_string_literal,
     _parse_admin_list_for_user,
     _render_db_pw_sync_script,
-    _sanitize_user_for_fork_name,
+    _sanitize_user_for_workspace_name,
     _validate_path_segment,
+    course_repo_name,
     render_ready_preamble,
     run_configure_forgejo,
     run_mirror_setup,
     run_woodpecker_oauth_setup,
+    workspace_repo_name,
 )
 
 BASE_URL = "http://localhost:3300"
@@ -2374,8 +2377,8 @@ def test_basename_no_git(url: str, expected: str) -> None:
         ("UPPER_lower", "UPPER_lower"),  # underscore is alphanumeric-safe-ish in regex
     ],
 )
-def test_sanitize_user_for_fork_name(user: str, expected: str) -> None:
-    assert _sanitize_user_for_fork_name(user) == expected
+def test_sanitize_user_for_workspace_name(user: str, expected: str) -> None:
+    assert _sanitize_user_for_workspace_name(user) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -2507,141 +2510,75 @@ def test_trigger_mirror_sync_returns_false_on_non_200() -> None:
 
 
 @responses.activate
-def test_merge_upstream_returns_status_string() -> None:
+def test_create_repo_for_user_201_returns_created() -> None:
     responses.add(
         responses.POST,
-        f"{BASE_URL}/api/v1/repos/user/fork/merge-upstream",
-        status=200,
+        f"{BASE_URL}/api/v1/admin/users/stefan/repos",
+        status=201,
+        json={"id": 7},
     )
-    rc = _client(token="t").merge_upstream("user", "fork", "main")
-    assert rc == "200"
+    result = _client(token="t").create_repo_for_user("stefan", "myrepo_stefan")
+    assert result.status == "created"
     body = json.loads(responses.calls[0].request.body)  # type: ignore[arg-type]
-    assert body == {"branch": "main"}
+    assert body["name"] == "myrepo_stefan"
+    assert body["private"] is True
+    assert body["auto_init"] is True
+    assert body["default_branch"] == "main"
 
 
 @responses.activate
-def test_merge_upstream_409_already_up_to_date() -> None:
+def test_create_repo_for_user_409_returns_already_exists() -> None:
+    """An existing workspace — including a fork from before #956 — is
+    reported, never touched."""
     responses.add(
         responses.POST,
-        f"{BASE_URL}/api/v1/repos/user/fork/merge-upstream",
+        f"{BASE_URL}/api/v1/admin/users/stefan/repos",
         status=409,
     )
-    assert _client(token="t").merge_upstream("user", "fork", "main") == "409"
+    result = _client(token="t").create_repo_for_user("stefan", "myrepo_stefan")
+    assert result.status == "already_exists"
 
 
 @responses.activate
-def test_merge_upstream_handles_non_main_branch() -> None:
-    """merge-upstream supports any branch — `master`-default upstreams
-    were broken when the caller hardcoded `main`. Verify the body
-    branch is whatever caller passes.
-    """
+def test_create_repo_for_user_5xx_returns_failed() -> None:
     responses.add(
         responses.POST,
-        f"{BASE_URL}/api/v1/repos/user/fork/merge-upstream",
+        f"{BASE_URL}/api/v1/admin/users/stefan/repos",
+        status=500,
+    )
+    result = _client(token="t").create_repo_for_user("stefan", "myrepo_stefan")
+    assert result.status == "failed"
+    assert "500" in result.detail
+
+
+@responses.activate
+def test_rename_repo_200_returns_true_and_sends_new_name() -> None:
+    responses.add(
+        responses.PATCH,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-x",
         status=200,
+        json={"name": "course-x"},
     )
-    _client(token="t").merge_upstream("user", "fork", "master")
-    body = json.loads(responses.calls[0].request.body)  # type: ignore[arg-type]
-    assert body["branch"] == "master"
+    assert _client(token="t").rename_repo("admin", "mirror-readonly-x", "course-x")
+    assert json.loads(responses.calls[0].request.body) == {"name": "course-x"}  # type: ignore[arg-type]
 
 
 @responses.activate
-def test_create_user_token_uses_basic_auth_not_bearer() -> None:
-    """Admin creating a token on behalf of a user MUST use basic-auth.
-
-    Token-bearer auth would only let admin act on its own user
-    (Forgejo constraint). Regression test pins this contract: the
-    request must carry an Authorization: Basic ... header, not
-    a token header.
-    """
+def test_rename_repo_non_200_returns_false() -> None:
     responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "abc-user-token"},
+        responses.PATCH,
+        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-x",
+        status=422,
     )
-    sha1 = _client().create_user_token(
-        "stefan",
-        "nexus-workspace-fork",
-        ["all"],
-        admin_username="admin",
-        admin_password="admin-pw",
-    )
-    assert sha1 == "abc-user-token"
-    auth_header = responses.calls[0].request.headers.get("Authorization", "")
-    assert auth_header.startswith("Basic ")
-    # NOT a token-bearer
-    assert not auth_header.startswith("token ")
+    assert not _client(token="t").rename_repo("admin", "mirror-readonly-x", "course-x")
 
 
-@responses.activate
-def test_create_user_token_retries_via_delete_on_first_failure() -> None:
-    """On first 4xx (token name conflict), delete + retry once."""
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=409,
+def test_course_and_workspace_repo_names() -> None:
+    assert course_repo_name("https://github.com/o/CAS_DEADS8.git") == "course-CAS_DEADS8"
+    # Byte-identical to the old fork name, so an existing fork is reused.
+    assert workspace_repo_name("https://github.com/o/CAS_DEADS8.git", "a.b@x") == (
+        f"CAS_DEADS8_{_sanitize_user_for_workspace_name('a.b@x')}"
     )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "fresh-token"},
-    )
-    sha1 = _client().create_user_token(
-        "stefan",
-        "nexus-workspace-fork",
-        ["all"],
-        admin_username="admin",
-        admin_password="admin-pw",
-    )
-    assert sha1 == "fresh-token"
-    assert [c.request.method for c in responses.calls] == ["POST", "DELETE", "POST"]
-
-
-@responses.activate
-def test_create_user_token_returns_none_on_persistent_failure() -> None:
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-    sha1 = _client().create_user_token(
-        "stefan",
-        "nexus-workspace-fork",
-        ["all"],
-        admin_username="admin",
-        admin_password="admin-pw",
-    )
-    assert sha1 is None
-
-
-@responses.activate
-def test_fork_repo_as_user_uses_user_token_not_admin_token() -> None:
-    """Fork POST must use the USER's bearer token so the fork lands in
-    the user's namespace, not admin's. Regression test pins the auth.
-    """
-    user_token = "user-bearer-do-not-leak"
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-x/forks",
-        status=202,
-    )
-    rc = _client(token="ADMIN-TOKEN-WRONG").fork_repo_as_user(
-        "admin", "mirror-readonly-x", "x_stefan", user_token=user_token
-    )
-    assert rc == "202"
-    auth = responses.calls[0].request.headers.get("Authorization", "")
-    # User token in header, NOT admin token
-    assert auth == f"token {user_token}"
-    assert "ADMIN-TOKEN-WRONG" not in auth
 
 
 # ---------------------------------------------------------------------------
@@ -2649,1016 +2586,262 @@ def test_fork_repo_as_user_uses_user_token_not_admin_token() -> None:
 # ---------------------------------------------------------------------------
 
 
-@responses.activate
-def test_run_mirror_setup_happy_path_with_user() -> None:
-    """One mirror, one user → mirror created, fork created, collab added,
-    fork synced via mirror-sync + merge-upstream.
-    """
-    # admin UID lookup
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    # Idempotent existence check (mirror does not exist yet)
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
-        status=404,
-    )
-    # migrate POST
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 10},
-    )
-    # user-token mint (basic-auth)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    # fork POST (user's bearer)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=202,
-    )
-    # cleanup user-token
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    # collaborator add
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
-        status=204,
-    )
-    # mirror-sync
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=200,
-    )
-    # merge-upstream (fork)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=200,
-    )
+def _add_admin_uid() -> None:
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
 
-    result = run_mirror_setup(
+
+def _add_repo_get(name: str, status: int) -> None:
+    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/{name}", status=status)
+
+
+def _add_course_followups(name: str, *, user: str | None = "stefan") -> None:
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/admin/{name}/mirror-sync", status=200)
+    if user:
+        responses.add(
+            responses.PUT,
+            f"{BASE_URL}/api/v1/repos/admin/{name}/collaborators/{user}",
+            status=204,
+        )
+
+
+def _run(repos: list[str], user: str | None = "stefan") -> MirrorSetupResult:
+    return run_mirror_setup(
         base_url=BASE_URL,
         admin_username="admin",
-        admin_password="admin-pw",
         forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        forgejo_user_username=user,
+        gh_mirror_repos=repos,
         gh_mirror_token="ghp_xxx",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,  # don't poll in tests
     )
+
+
+def _calls(method: str, suffix: str) -> list[Any]:
+    return [
+        c
+        for c in responses.calls
+        if c.request.method == method and (c.request.url or "").endswith(suffix)
+    ]
+
+
+@responses.activate
+def test_run_mirror_setup_fresh_creates_course_and_workspace() -> None:
+    """Nothing exists yet → migrate course-<repo>, sync it, add the user
+    as read collaborator, create the workspace in the user's namespace."""
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 404)
+    _add_repo_get("mirror-readonly-myrepo", 404)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=201, json={"id": 10})
+    _add_course_followups("course-myrepo")
+    responses.add(
+        responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201, json={}
+    )
+
+    result = _run(["https://github.com/o/myrepo.git"])
+
     assert result.is_success is True
-    assert result.admin_uid == 1
-    assert len(result.mirrors) == 1
+    assert result.mirrors[0].name == "course-myrepo"
     assert result.mirrors[0].status == "created"
-    assert result.fork is not None
-    assert result.fork.owner == "stefan"
-    assert result.fork.name == "myrepo_stefan"
-    assert result.fork.status == "created"
+    assert json.loads(_calls("POST", "/repos/migrate")[0].request.body)["repo_name"] == (
+        "course-myrepo"
+    )
+    collab = _calls("PUT", "/collaborators/stefan")[0]
+    assert json.loads(collab.request.body) == {"permission": "read"}
+    assert result.workspace is not None
+    assert (result.workspace.owner, result.workspace.name) == ("stefan", "myrepo_stefan")
+    assert result.workspace.status == "created"
     assert result.collaborator_added_count == 1
-    assert result.fork_synced is True
+    # No fork, no merge, no user token any more.
+    assert not any("/forks" in (c.request.url or "") for c in responses.calls)
+    assert not any("merge-upstream" in (c.request.url or "") for c in responses.calls)
+    assert not any("/tokens" in (c.request.url or "") for c in responses.calls)
 
 
 @responses.activate
-def test_run_mirror_setup_sync_detail_landed() -> None:
-    """When the mirror HEAD changes during the polling window, the
-    sync_detail surfaces the SHA transition and that merge_upstream
-    was called — this is the new diagnostic that makes 'why didn't
-    the fork pick up upstream commits' observable in PhaseResult."""
-    # Admin UID + mirror migrate
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+def test_run_mirror_setup_renames_legacy_mirror() -> None:
+    """A stack from before #956 has mirror-readonly-<repo>: rename it in
+    place instead of migrating a second copy."""
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 404)
+    _add_repo_get("mirror-readonly-myrepo", 200)
     responses.add(
-        responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=404
+        responses.PATCH, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=200
     )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 42, "name": "mirror-readonly-myrepo"},
-    )
-    # User-token + fork
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=202,
-        json={"id": 99},
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
-        status=204,
-    )
-    # First branch-HEAD lookup (before sync): old SHA.
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
-        status=200,
-        json={"commit": {"id": "old1234567890abcdef"}},
-    )
-    # trigger_mirror_sync → 200
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=200,
-    )
-    # Second branch-HEAD lookup (poll iteration 1): NEW SHA — sync landed.
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
-        status=200,
-        json={"commit": {"id": "new9876543210fedcba"}},
-    )
-    # merge_upstream → 200
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=200,
-    )
+    _add_course_followups("course-myrepo")
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=409)
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
-        gh_mirror_token="ghp_xxx",
-        workspace_branch="main",
-        # 30s poll budget is fine — the loop returns on first successful
-        # SHA-change observation, not the full 30s.
-        mirror_sync_poll_seconds=30.0,
-        mirror_sync_poll_interval_seconds=0.0,
-    )
-    assert result.fork_synced is True
-    assert "mirror synced" in result.sync_detail
-    assert "old12345" in result.sync_detail
-    assert "new98765" in result.sync_detail
-    assert "merge_upstream=200" in result.sync_detail
+    result = _run(["https://github.com/o/myrepo.git"])
 
-
-@responses.activate
-def test_run_mirror_setup_sync_detail_unchanged() -> None:
-    """When the mirror HEAD doesn't move within the poll window
-    (upstream genuinely unchanged, OR Forgejo's fetch wedged), the
-    detail says so + still calls merge_upstream so the operator
-    sees the 409 'already up to date' case explicitly."""
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
-    responses.add(
-        responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=404
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 42},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=202,
-        json={"id": 99},
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
-        status=204,
-    )
-    # branch HEAD never changes across all poll iterations.
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
-        status=200,
-        json={"commit": {"id": "stable000000000abc"}},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=200,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=409,
-    )
-
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
-        gh_mirror_token="ghp_xxx",
-        workspace_branch="main",
-        # Tiny budget so the test doesn't actually wait — guaranteed
-        # to expire after one no-change observation.
-        mirror_sync_poll_seconds=0.1,
-        mirror_sync_poll_interval_seconds=0.0,
-    )
-    assert "mirror HEAD unchanged" in result.sync_detail
-    assert "merge_upstream=409" in result.sync_detail
-
-
-@responses.activate
-def test_run_mirror_setup_sync_lands_even_when_pre_snapshot_failed() -> None:
-    """Edge case (PR #589 review): if the pre-sync HEAD lookup returns
-    None (transient 404 / transport), but the polling loop later
-    observes a real after_sha, we should still call merge_upstream —
-    a transient pre-snapshot failure shouldn't leave the fork stale
-    when the mirror actually did update."""
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
-        status=404,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 42},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=202,
-        json={"id": 99},
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
-        status=204,
-    )
-    # Pre-sync HEAD lookup: 404 -> before_sha=None.
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
-        status=404,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=200,
-    )
-    # Poll iteration: HEAD resolvable now -> after_sha != None != before_sha
-    # -> landed=True. Must still call merge_upstream.
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
-        status=200,
-        json={"commit": {"id": "actuallyhere1234567"}},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=200,
-    )
-
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
-        gh_mirror_token="ghp_xxx",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=30.0,
-        mirror_sync_poll_interval_seconds=0.0,
-    )
-    assert "mirror synced" in result.sync_detail
-    assert "unknown" in result.sync_detail
-    assert "actually" in result.sync_detail
-    assert "merge_upstream=200" in result.sync_detail
-
-
-@responses.activate
-def test_run_mirror_setup_sync_branch_with_slash_does_not_raise() -> None:
-    """Regression (PR #589 review): get_branch_head_sha must accept
-    branch names containing '/' (e.g. 'feat/foo'). Previously
-    _validate_path_segment rejected them before the GET was sent,
-    raising ForgejoError. Fix: URL-encode the branch segment."""
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
-        status=404,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 42},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=202,
-        json={"id": 99},
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
-        status=204,
-    )
-    # URL-encoded branch in the GET path: 'feat/foo' -> 'feat%2Ffoo'.
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/feat%2Ffoo",
-        status=200,
-        json={"commit": {"id": "samesha000000abcdef"}},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=200,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=409,
-    )
-
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
-        gh_mirror_token="ghp_xxx",
-        workspace_branch="feat/foo",
-        mirror_sync_poll_seconds=0.1,
-        mirror_sync_poll_interval_seconds=0.0,
-    )
-    # No ForgejoError raised => success. Sync didn't land (same SHA),
-    # but the slash-branch didn't blow up.
     assert result.is_success is True
-    assert "mirror HEAD unchanged" in result.sync_detail
+    assert result.mirrors[0].status == "renamed"
+    assert "mirror-readonly-myrepo" in result.mirrors[0].detail
+    assert json.loads(_calls("PATCH", "/mirror-readonly-myrepo")[0].request.body) == {
+        "name": "course-myrepo"
+    }
+    assert not _calls("POST", "/repos/migrate")
+    # The existing workspace (the old fork) is kept as it is.
+    assert result.workspace is not None
+    assert result.workspace.status == "already_exists"
 
 
 @responses.activate
-def test_run_mirror_setup_idempotent_skips_existing_mirror() -> None:
-    """Mirror already exists → skip migrate, still do fork+collab+sync."""
+def test_run_mirror_setup_rename_refused_marks_failed() -> None:
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 404)
+    _add_repo_get("mirror-readonly-myrepo", 200)
     responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    # existence check returns 200 — skip migrate
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
-        status=200,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=409,  # fork already exists too
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
-        status=204,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=200,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=409,
+        responses.PATCH, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=403
     )
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
+    result = _run(["https://github.com/o/myrepo.git"])
+
+    assert result.is_success is False
+    assert result.mirrors[0].status == "failed"
+    assert result.workspace is None
+
+
+@responses.activate
+def test_run_mirror_setup_idempotent_when_course_exists() -> None:
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 200)
+    _add_course_followups("course-myrepo")
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=409)
+
+    result = _run(["https://github.com/o/myrepo.git"])
+
     assert result.is_success is True
     assert result.mirrors[0].status == "already_exists"
-    assert result.fork is not None
-    assert result.fork.status == "already_exists"
-    # POST migrate must NOT have been issued (idempotent skip).
-    assert all(c.request.url != f"{BASE_URL}/api/v1/repos/migrate" for c in responses.calls)
+    assert not _calls("GET", "/mirror-readonly-myrepo")
+    assert not _calls("POST", "/repos/migrate")
+    assert len(_calls("POST", "/course-myrepo/mirror-sync")) == 1
 
 
 @responses.activate
-def test_run_mirror_setup_trigger_fail_still_attempts_merge_upstream() -> None:
-    """Regression (PR #589 review round 2): when trigger_mirror_sync
-    returns non-200 (e.g. token rejected, repo state), the orchestrator
-    must STILL attempt merge_upstream — the mirror may already be ahead
-    of the fork from Forgejo's periodic cron-tick or from the initial
-    migrate that ran a few seconds ago. Skipping merge would regress
-    the legacy bash's best-effort behavior."""
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
+def test_run_mirror_setup_sync_trigger_failure_is_not_fatal() -> None:
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 200)
     responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo",
-        status=404,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 42},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/forks",
-        status=202,
-        json={"id": 99},
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
+        responses.POST, f"{BASE_URL}/api/v1/repos/admin/course-myrepo/mirror-sync", status=500
     )
     responses.add(
         responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/collaborators/stefan",
+        f"{BASE_URL}/api/v1/repos/admin/course-myrepo/collaborators/stefan",
         status=204,
     )
-    # Pre-sync HEAD lookup (doesn't matter for this test, returns 200).
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/branches/main",
-        status=200,
-        json={"commit": {"id": "anysha000000000000"}},
-    )
-    # trigger_mirror_sync FAILS (e.g. 403 because GH_MIRROR_TOKEN lost
-    # access to the upstream repo).
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo/mirror-sync",
-        status=403,
-    )
-    # merge_upstream MUST still be called against the current mirror HEAD.
-    # The mirror could already be ahead from the periodic cron-tick or the
-    # initial migrate's fetch; merge_upstream surfaces that with 200.
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream",
-        status=200,
-    )
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=409)
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/myrepo.git"],
-        gh_mirror_token="ghp_xxx",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    # sync_detail must record both the trigger-failure AND the merge attempt.
-    assert "trigger_mirror_sync returned non-200" in result.sync_detail
-    assert "merge_upstream against current mirror HEAD: 200" in result.sync_detail
-    # merge_upstream actually got hit.
-    assert any(
-        c.request.url == f"{BASE_URL}/api/v1/repos/stefan/myrepo_stefan/merge-upstream"
-        for c in responses.calls
-    )
+    result = _run(["https://github.com/o/myrepo.git"])
+
+    assert result.is_success is True
 
 
 @responses.activate
-def test_run_mirror_setup_no_user_skips_fork() -> None:
-    """forgejo_user_username=None → mirror+collab branches skipped where
-    user-dependent. fork=None.
-    """
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-x",
-        status=404,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 10},
-    )
-    # No fork mocks, no collab mock — should not be called.
+def test_run_mirror_setup_no_user_skips_workspace() -> None:
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 200)
+    _add_course_followups("course-myrepo", user=None)
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username=None,
-        gh_mirror_repos=["https://github.com/o/x.git"],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
+    result = _run(["https://github.com/o/myrepo.git"], user=None)
+
     assert result.is_success is True
-    assert result.fork is None
+    assert result.workspace is None
     assert result.collaborator_added_count == 0
-    assert result.fork_synced is False
+    assert not _calls("POST", "/admin/users/stefan/repos")
 
 
 @responses.activate
 def test_run_mirror_setup_returns_no_admin_uid_early() -> None:
-    """Admin UID lookup 404 → return early with admin_uid=None and
-    is_success=False (CLI rc=1).
-    """
     responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=404)
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/x.git"],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
+
+    result = _run(["https://github.com/o/myrepo.git"])
+
     assert result.admin_uid is None
+    assert result.is_success is False
     assert result.mirrors == ()
-    assert result.fork is None
-    assert result.is_success is False
+    assert len(responses.calls) == 1
 
 
 @responses.activate
-def test_run_mirror_setup_fork_only_first_iteration() -> None:
-    """Multi-mirror: fork only happens on the first successful mirror
-    even when later iterations also succeed (matches the legacy
-    FORKED_WORKSPACE flag scoped to first iteration).
-    """
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    # Two mirrors, both new
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r1", status=404)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 10},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "tok"},
-    )
-    # Fork the FIRST one
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r1/forks",
-        status=202,
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    # First-iteration collab + sync
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r1/collaborators/stefan",
-        status=204,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r1/mirror-sync",
-        status=200,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/r1_stefan/merge-upstream",
-        status=200,
-    )
-    # Second iteration: mirror still gets created + collab, but no fork
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r2", status=404)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 11},
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r2/collaborators/stefan",
-        status=204,
-    )
+def test_run_mirror_setup_workspace_only_from_first_course() -> None:
+    """Two course repos → both get the user as collaborator, but only
+    one workspace is created, named after the first."""
+    _add_admin_uid()
+    for name in ("course-a", "course-b"):
+        _add_repo_get(name, 200)
+        _add_course_followups(name)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=[
-            "https://github.com/o/r1.git",
-            "https://github.com/o/r2.git",
-        ],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    assert result.is_success is True
-    assert len(result.mirrors) == 2
-    assert all(m.status == "created" for m in result.mirrors)
-    # Only ONE fork (from the first mirror)
-    assert result.fork is not None
-    assert result.fork.name == "r1_stefan"
-    # Both mirrors got the collaborator
-    assert result.collaborator_added_count == 2
-    # No fork POST against r2
-    fork_calls = [c for c in responses.calls if "/forks" in (c.request.url or "")]
-    assert len(fork_calls) == 1
-    assert "mirror-readonly-r1" in (fork_calls[0].request.url or "")
+    result = _run(["https://github.com/o/a.git", "https://github.com/o/b.git"])
 
-
-@responses.activate
-def test_run_mirror_setup_fork_retries_on_next_iteration_after_transient_failure() -> None:
-    """Multi-mirror loop: first fork attempt fails (transient
-    user-token mint glitch), second iteration retries the fork
-    against the next mirror and succeeds. Final result shows the
-    successful fork — not the earlier transient failure.
-
-    Mirrors the legacy bash's FORKED_WORKSPACE flag semantics:
-    only set on HTTP 202/409 success, so failure leaves the flag
-    unset and later iterations get another attempt. (Copilot R3)
-    """
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
-    # First mirror: created OK
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r1", status=404)
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=201, json={"id": 10})
-    # First user-token mint: persistent failure (initial + delete + retry)
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-    # First-iteration collab still happens
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r1/collaborators/stefan",
-        status=204,
-    )
-    # Second mirror: created OK
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r2", status=404)
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=201, json={"id": 11})
-    # Second iteration: user-token mint succeeds this time
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/users/stefan/tokens",
-        status=201,
-        json={"sha1": "user-tok"},
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r2/forks",
-        status=202,
-    )
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r2/collaborators/stefan",
-        status=204,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r2/mirror-sync",
-        status=200,
-    )
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/stefan/r2_stefan/merge-upstream",
-        status=200,
-    )
-
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=[
-            "https://github.com/o/r1.git",
-            "https://github.com/o/r2.git",
-        ],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    # Final fork is the SECOND mirror's successful fork, NOT the
-    # first iteration's transient failure.
-    assert result.fork is not None
-    assert result.fork.status == "created"
-    assert result.fork.name == "r2_stefan"
     assert result.is_success is True
     assert result.collaborator_added_count == 2
+    assert result.workspace is not None
+    assert result.workspace.name == "a_stefan"
+    assert len(_calls("POST", "/admin/users/stefan/repos")) == 1
 
 
 @responses.activate
-def test_run_mirror_setup_surfaces_last_fork_failure_when_every_attempt_fails() -> None:
-    """Multi-mirror loop where every fork attempt fails — final
-    result surfaces the LAST attempt's diagnostic in
-    ``fork.status="failed"`` so the operator can debug. Without
-    this, fork=None would be ambiguous with the no-user-configured
-    branch. (Copilot R3)
-    """
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/users/admin", status=200, json={"id": 1})
-    # Both mirrors create OK; both fork attempts fail (user-token
-    # mint persistent fail).
-    for repo in ("r1", "r2"):
-        responses.add(
-            responses.GET,
-            f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-{repo}",
-            status=404,
-        )
-        responses.add(
-            responses.POST,
-            f"{BASE_URL}/api/v1/repos/migrate",
-            status=201,
-            json={"id": 10},
-        )
-        responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-        responses.add(
-            responses.DELETE,
-            f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-            status=204,
-        )
-        responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-        responses.add(
-            responses.PUT,
-            f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-{repo}/collaborators/stefan",
-            status=204,
-        )
+def test_run_mirror_setup_workspace_retried_on_next_course_after_failure() -> None:
+    _add_admin_uid()
+    for name in ("course-a", "course-b"):
+        _add_repo_get(name, 200)
+        _add_course_followups(name)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=503)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=[
-            "https://github.com/o/r1.git",
-            "https://github.com/o/r2.git",
-        ],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    # fork=last_fork_failure (the second iteration's attempt) so the
-    # operator sees a diagnostic — not None.
-    assert result.fork is not None
-    assert result.fork.status == "failed"
-    assert result.fork.name == "r2_stefan"
-    assert "user token" in result.fork.detail
+    result = _run(["https://github.com/o/a.git", "https://github.com/o/b.git"])
+
+    assert result.is_success is True
+    assert result.workspace is not None
+    assert result.workspace.name == "b_stefan"
+    assert result.workspace.status == "created"
+
+
+@responses.activate
+def test_run_mirror_setup_surfaces_last_workspace_failure() -> None:
+    _add_admin_uid()
+    _add_repo_get("course-a", 200)
+    _add_course_followups("course-a")
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=503)
+
+    result = _run(["https://github.com/o/a.git"])
+
     assert result.is_success is False
+    assert result.workspace is not None
+    assert result.workspace.status == "failed"
+    assert "503" in result.workspace.detail
 
 
 @responses.activate
 def test_run_mirror_setup_unsafe_basename_marks_failed_and_continues() -> None:
-    """A repo URL whose basename contains shell-meta chars (e.g.
-    ``?`` or ``;``) derives an unsafe ``mirror_name``. Without the
-    pre-validation guard, ``_validate_path_segment`` inside
-    ``repo_exists`` / ``migrate_mirror`` would raise ForgejoError out
-    of the loop → CLI rc=2 (hard abort) — defeating the per-mirror
-    failed-result intent. (Copilot R1)
+    _add_admin_uid()
+    _add_repo_get("course-good", 200)
+    _add_course_followups("course-good")
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
 
-    Now: bad mirror_name → MirrorResult(failed) + continue, the
-    second mirror still gets processed.
-    """
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    # Second mirror succeeds normally.
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-good", status=404)
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=201, json={"id": 10})
+    result = _run(["https://github.com/o/bad;rm", "https://github.com/o/good.git"])
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username=None,
-        gh_mirror_repos=[
-            # Basename "repo?evil" contains '?' — unsafe in path
-            # segment, must NOT propagate as a raised exception.
-            "https://github.com/o/repo?evil.git",
-            "https://github.com/o/good.git",
-        ],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    # Loop did NOT abort — both URLs got processed.
-    assert len(result.mirrors) == 2
-    assert result.mirrors[0].status == "failed"
+    assert [m.status for m in result.mirrors] == ["failed", "already_exists"]
     assert "path validation" in result.mirrors[0].detail
-    assert result.mirrors[1].status == "created"
+    assert result.workspace is not None
+    assert result.workspace.name == "good_stefan"
 
 
 @responses.activate
 def test_run_mirror_setup_partial_failure_continues_loop() -> None:
-    """One failed mirror in a multi-mirror loop doesn't abort —
-    is_success becomes False but other mirrors still get processed.
-    """
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    # First mirror fails
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-bad", status=404)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=503,
-    )
-    # Second mirror succeeds
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-good", status=404)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 10},
-    )
+    _add_admin_uid()
+    _add_repo_get("course-a", 404)
+    _add_repo_get("mirror-readonly-a", 404)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=500)
+    _add_repo_get("course-b", 200)
+    _add_course_followups("course-b")
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
 
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username=None,  # no fork to keep test focused
-        gh_mirror_repos=[
-            "https://github.com/o/bad.git",
-            "https://github.com/o/good.git",
-        ],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    assert len(result.mirrors) == 2
-    assert result.mirrors[0].status == "failed"
-    assert result.mirrors[1].status == "created"
-    assert result.is_success is False  # because one mirror failed
+    result = _run(["https://github.com/o/a.git", "https://github.com/o/b.git"])
 
-
-@responses.activate
-def test_run_mirror_setup_user_token_failure_marks_fork_failed() -> None:
-    """user-token mint persistently fails → fork status='failed', no
-    fork POST attempted.
-    """
-    responses.add(
-        responses.GET,
-        f"{BASE_URL}/api/v1/users/admin",
-        status=200,
-        json={"id": 1},
-    )
-    responses.add(responses.GET, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r", status=404)
-    responses.add(
-        responses.POST,
-        f"{BASE_URL}/api/v1/repos/migrate",
-        status=201,
-        json={"id": 10},
-    )
-    # Both user-token POST attempts fail (initial + post-delete retry)
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-    responses.add(
-        responses.DELETE,
-        f"{BASE_URL}/api/v1/users/stefan/tokens/nexus-workspace-fork",
-        status=204,
-    )
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/users/stefan/tokens", status=500)
-    responses.add(
-        responses.PUT,
-        f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-r/collaborators/stefan",
-        status=204,
-    )
-
-    result = run_mirror_setup(
-        base_url=BASE_URL,
-        admin_username="admin",
-        admin_password="admin-pw",
-        forgejo_token="admin-tok",
-        forgejo_user_username="stefan",
-        gh_mirror_repos=["https://github.com/o/r.git"],
-        gh_mirror_token="ghp",
-        workspace_branch="main",
-        mirror_sync_poll_seconds=0.0,
-    )
-    assert result.fork is not None
-    assert result.fork.status == "failed"
-    assert "user token" in result.fork.detail
+    assert [m.status for m in result.mirrors] == ["failed", "already_exists"]
     assert result.is_success is False
-    # Collab still attempted
-    assert result.collaborator_added_count == 1
-    # No fork POST issued
-    fork_calls = [c for c in responses.calls if "/forks" in (c.request.url or "")]
-    assert len(fork_calls) == 0
+    assert result.workspace is not None
+    assert result.workspace.name == "b_stefan"
 
 
 # ---------------------------------------------------------------------------
@@ -3705,26 +2888,35 @@ def test_cli_mirror_setup_missing_env_returns_rc_2(
     assert "FORGEJO_ADMIN_PASS" not in err
 
 
-def test_cli_mirror_setup_admin_pass_required_when_user_set(
+def test_cli_mirror_setup_admin_pass_not_required_when_user_set(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Fork mode (FORGEJO_USER_USERNAME set) → FORGEJO_ADMIN_PASS
-    becomes required because the temp user-token mint inside the
-    fork flow uses admin basic-auth. (Copilot R6)
-    """
+    """The workspace is created with the admin token, so a configured
+    user no longer makes FORGEJO_ADMIN_PASS required (it was, for the
+    temporary user token the fork flow minted)."""
     monkeypatch.setenv("FORGEJO_USER_USERNAME", "stefan")
     monkeypatch.setenv("FORGEJO_TOKEN", "x")
     monkeypatch.setenv("GH_MIRROR_REPOS", "https://x.git")
     monkeypatch.setenv("GH_MIRROR_TOKEN", "x")
     monkeypatch.delenv("FORGEJO_ADMIN_PASS", raising=False)
+    _setup_fake_ssh(monkeypatch)
+
+    from nexus_deploy.forgejo import MirrorSetupResult
+
+    fake_result = MirrorSetupResult(
+        admin_uid=42,
+        admin_uid_error="",
+        mirrors=(MirrorResult(name="course-x", status="created"),),
+        workspace=None,
+        collaborator_added_count=1,
+    )
+    monkeypatch.setattr("nexus_deploy.__main__.run_mirror_setup", lambda **kwargs: fake_result)
 
     from nexus_deploy.__main__ import _forgejo_mirror_setup
 
     rc = _forgejo_mirror_setup([])
-    assert rc == 2
-    err = capsys.readouterr().err
-    assert "FORGEJO_ADMIN_PASS" in err
-    assert "when FORGEJO_USER_USERNAME is set" in err
+    assert rc == 0
+    assert "FORGEJO_ADMIN_PASS" not in capsys.readouterr().err
 
 
 def test_cli_mirror_setup_empty_repos_csv_returns_rc_2(
@@ -3742,13 +2934,13 @@ def test_cli_mirror_setup_empty_repos_csv_returns_rc_2(
     assert "no repo URLs" in capsys.readouterr().err
 
 
-def test_cli_mirror_setup_emits_fork_name_and_owner_on_success(
+def test_cli_mirror_setup_emits_workspace_name_and_owner_on_success(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Happy path stdout: FORK_NAME=<name> + FORGEJO_REPO_OWNER=<user>
     eval-able. Required by the caller's seed_workspace_files post-eval.
     """
-    from nexus_deploy.forgejo import ForkResult, MirrorSetupResult
+    from nexus_deploy.forgejo import MirrorSetupResult, WorkspaceResult
 
     monkeypatch.setenv("FORGEJO_ADMIN_PASS", "x")
     monkeypatch.setenv("FORGEJO_TOKEN", "x")
@@ -3761,9 +2953,8 @@ def test_cli_mirror_setup_emits_fork_name_and_owner_on_success(
         admin_uid=42,
         admin_uid_error="",
         mirrors=(MirrorResult(name="m", status="created"),),
-        fork=ForkResult(name="myrepo_stefan", owner="stefan", status="created"),
+        workspace=WorkspaceResult(name="myrepo_stefan", owner="stefan", status="created"),
         collaborator_added_count=1,
-        fork_synced=True,
     )
     monkeypatch.setattr("nexus_deploy.__main__.run_mirror_setup", lambda **kwargs: fake_result)
 
@@ -3776,10 +2967,10 @@ def test_cli_mirror_setup_emits_fork_name_and_owner_on_success(
     assert "FORGEJO_REPO_OWNER='stefan'" in out or "FORGEJO_REPO_OWNER=stefan" in out
 
 
-def test_cli_mirror_setup_omits_stdout_when_no_fork(
+def test_cli_mirror_setup_omits_stdout_when_no_workspace(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """No fork (no user, or fork failed) → empty stdout. the caller's
+    """No workspace (no user, or creation failed) → empty stdout. the caller's
     seed wrapper falls back to its existing $REPO_NAME / $FORGEJO_REPO_OWNER.
     """
     from nexus_deploy.forgejo import MirrorSetupResult
@@ -3795,9 +2986,8 @@ def test_cli_mirror_setup_omits_stdout_when_no_fork(
         admin_uid=42,
         admin_uid_error="",
         mirrors=(MirrorResult(name="m", status="created"),),
-        fork=None,
+        workspace=None,
         collaborator_added_count=0,
-        fork_synced=False,
     )
     monkeypatch.setattr("nexus_deploy.__main__.run_mirror_setup", lambda **kwargs: fake_result)
 
@@ -3828,9 +3018,8 @@ def test_cli_mirror_setup_admin_uid_none_404_returns_rc_1(
         admin_uid=None,
         admin_uid_error="",  # genuine 404
         mirrors=(),
-        fork=None,
+        workspace=None,
         collaborator_added_count=0,
-        fork_synced=False,
     )
     monkeypatch.setattr("nexus_deploy.__main__.run_mirror_setup", lambda **kwargs: fake_result)
 
@@ -3864,9 +3053,8 @@ def test_cli_mirror_setup_admin_uid_lookup_failure_surfaces_diagnostic(
         admin_uid=None,
         admin_uid_error="get_user_id HTTP 503",
         mirrors=(),
-        fork=None,
+        workspace=None,
         collaborator_added_count=0,
-        fork_synced=False,
     )
     monkeypatch.setattr("nexus_deploy.__main__.run_mirror_setup", lambda **kwargs: fake_result)
 
