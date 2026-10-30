@@ -32,6 +32,7 @@ from nexus_deploy.seeder import (
     render_remote_loop,
     run_seed_for_repo,
     seed_history_from_git,
+    write_seed_history,
 )
 
 FIXTURE_ROOT = Path(__file__).resolve().parent.parent / "fixtures" / "workspace_seeds_minimal"
@@ -833,6 +834,43 @@ def test_seed_history_manifest_matches_git_history() -> None:
     """
     on_disk = json.loads(history_path(SEEDS_ROOT).read_text(encoding="utf-8"))
     assert on_disk == seed_history_from_git(REPO_ROOT, SEEDS_ROOT)
+
+
+def test_write_seed_history_from_a_real_git_repo(tmp_path: Path) -> None:
+    """Earlier versions at the current path are listed; the current one,
+    a deletion's all-zero SHA and a single-version file are not."""
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+    git("init", "-q")
+    seeds = tmp_path / "seeds"
+    (seeds / "k").mkdir(parents=True)
+    flow = seeds / "k" / "flow.yaml"
+    only = seeds / "only.txt"
+    versions = []
+    for text in ("v1\n", "v2\n"):
+        flow.write_text(text)
+        only.write_text("same\n")
+        versions.append(git_blob_sha(text.encode()))
+        git("add", "-A")
+        git("commit", "-qm", text.strip())
+    flow.unlink()
+    git("add", "-A")
+    git("commit", "-qm", "delete")
+    flow.write_text("v3\n")
+    git("add", "-A")
+    git("commit", "-qm", "v3")
+
+    path = write_seed_history(tmp_path, seeds)
+
+    assert path == history_path(seeds)
+    assert json.loads(path.read_text()) == {"k/flow.yaml": sorted(versions)}
 
 
 def test_seed_history_never_lists_the_current_version() -> None:
