@@ -198,8 +198,8 @@ and came back without `refs/` at all, which git does not accept as a
 repository: Forgejo showed *The Git data underlying this repository
 cannot be read*. The restore therefore recreates `refs/heads`,
 `refs/tags`, `objects/info` and `objects/pack` in every bare repository
-that lacks them, owned like the repository, so snapshots taken before
-this was fixed restore correctly too.
+that lacks them, before the tree is handed to uid 1000. Snapshots taken
+before this was fixed restore correctly too.
 
 That coverage was added when Forgejo became core. While the stack was
 opt-in an operator enabling it accepted the risk, but once it is on

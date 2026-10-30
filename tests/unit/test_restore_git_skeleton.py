@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -58,10 +57,7 @@ def test_restore_repairs_only_the_git_trees_and_after_their_sync() -> None:
     assert "find /mnt/l" not in script
 
 
-@pytest.mark.skipif(
-    sys.platform != "linux" or shutil.which("git") is None,
-    reason="runs the rendered bash, which uses GNU chown --reference",
-)
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git to build a real mirror")
 def test_repair_makes_a_packed_mirror_readable_again(tmp_path: Path) -> None:
     def git(*args: str, cwd: Path = tmp_path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(

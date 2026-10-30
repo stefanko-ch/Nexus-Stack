@@ -586,11 +586,11 @@ def _render_git_skeleton_repair(local_path: str) -> list[str]:
     """Bash that recreates missing empty directories in every bare repo.
 
     Only directories named ``*.git`` that hold a ``HEAD`` file count as
-    repositories, so nothing else under the tree is touched. A recreated
-    directory takes the owner and group of its repository: the restore
-    runs as root, and a root-owned ``refs/heads`` would stop Forgejo
-    (uid 1000) from updating any ref there. Idempotent — ``mkdir -p`` on
-    an intact repository changes nothing.
+    repositories, so nothing else under the tree is touched. Ownership is
+    not set here: everything rclone restores is root's at this point, and
+    the pipeline's ``setup.ensure_data_dirs`` runs ``chown -R 1000:1000``
+    over the whole tree afterwards, before Forgejo starts. Idempotent —
+    ``mkdir -p`` on an intact repository changes nothing.
     """
     root = shlex.quote(local_path)
     dirs = " ".join(f'"$repo/{d}"' for d in _GIT_SKELETON_DIRS)
@@ -599,10 +599,7 @@ def _render_git_skeleton_repair(local_path: str) -> list[str]:
         f"  find {root} -type d -name '*.git' -prune -print | while IFS= read -r repo; do",
         '    [ -f "$repo/HEAD" ] || continue',
         f"    for d in {dirs}; do",
-        '      if [ ! -d "$d" ]; then',
-        '        mkdir -p "$d"',
-        '        chown --reference="$repo" "$(dirname "$d")" "$d"',
-        "      fi",
+        '      mkdir -p "$d"',
         "    done",
         "  done",
         "fi",
