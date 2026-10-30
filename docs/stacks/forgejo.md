@@ -191,6 +191,16 @@ wholesale; a rebuild teardown copies the repositories and LFS objects
 to R2 and takes a `pg_dump` of the database before destroying the
 server.
 
+R2 stores files, not directories, so the copy loses every empty one. A
+repository whose references are all packed — every pull mirror, and any
+repository after a `git gc` — has an empty `refs/heads` and `refs/tags`,
+and came back without `refs/` at all, which git does not accept as a
+repository: Forgejo showed *The Git data underlying this repository
+cannot be read*. The restore therefore recreates `refs/heads`,
+`refs/tags`, `objects/info` and `objects/pack` in every bare repository
+that lacks them, owned like the repository, so snapshots taken before
+this was fixed restore correctly too.
+
 That coverage was added when Forgejo became core. While the stack was
 opt-in an operator enabling it accepted the risk, but once it is on
 every server by default, a git forge that silently loses its

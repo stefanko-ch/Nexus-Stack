@@ -543,6 +543,16 @@ class RsyncTarget:
     # For files a container regenerates on every start that must not
     # reach R2, such as a plaintext credential.
     excludes: tuple[str, ...] = ()
+    # The tree holds bare git repositories (``<owner>/<name>.git``).
+    # R2 stores objects, not directories, so a snapshot keeps no empty
+    # directory — ``--create-empty-src-dirs`` notwithstanding. A
+    # repository whose refs are all packed (every pull mirror, and any
+    # repository after a ``git gc``) has an empty ``refs/heads`` and
+    # ``refs/tags``, so it came back without ``refs/`` at all, and git —
+    # and Forgejo with it — no longer recognised it as a repository.
+    # Set, the restore puts the skeleton back; see
+    # ``_render_git_skeleton_repair``.
+    git_repos: bool = False
 
     def __post_init__(self) -> None:
         for pattern in self.excludes:
@@ -564,6 +574,39 @@ class RsyncTarget:
             raise S3PersistenceError(
                 f"RsyncTarget.s3_subpath must not contain '..' segments: {self.s3_subpath!r}",
             )
+
+
+# The directories a bare repository needs that can be empty, and so do
+# not survive a round trip through R2. ``refs/`` is the one git itself
+# checks for; the object directories are where it writes next.
+_GIT_SKELETON_DIRS = ("refs/heads", "refs/tags", "objects/info", "objects/pack")
+
+
+def _render_git_skeleton_repair(local_path: str) -> list[str]:
+    """Bash that recreates missing empty directories in every bare repo.
+
+    Only directories named ``*.git`` that hold a ``HEAD`` file count as
+    repositories, so nothing else under the tree is touched. A recreated
+    directory takes the owner and group of its repository: the restore
+    runs as root, and a root-owned ``refs/heads`` would stop Forgejo
+    (uid 1000) from updating any ref there. Idempotent — ``mkdir -p`` on
+    an intact repository changes nothing.
+    """
+    root = shlex.quote(local_path)
+    dirs = " ".join(f'"$repo/{d}"' for d in _GIT_SKELETON_DIRS)
+    return [
+        f"if [ -d {root} ]; then",
+        f"  find {root} -type d -name '*.git' -prune -print | while IFS= read -r repo; do",
+        '    [ -f "$repo/HEAD" ] || continue',
+        f"    for d in {dirs}; do",
+        '      if [ ! -d "$d" ]; then',
+        '        mkdir -p "$d"',
+        '        chown --reference="$repo" "$(dirname "$d")" "$d"',
+        "      fi",
+        "    done",
+        "  done",
+        "fi",
+    ]
 
 
 def render_snapshot_script(
@@ -1260,6 +1303,8 @@ def render_restore_script(
                 f'rclone sync "$BUCKET/$SNAPSHOT_PREFIX/{sub}" {local} '
                 f"--create-empty-src-dirs{_exclude_flags(rs)}",
             )
+            if rs.git_repos:
+                lines.extend(_render_git_skeleton_repair(rs.local_path))
         lines.append("")
 
     if pg_targets and include_pg:
