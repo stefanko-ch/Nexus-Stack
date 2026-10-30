@@ -1704,6 +1704,7 @@ def run_mirror_setup(
     forgejo_user_username: str | None,
     gh_mirror_repos: list[str],
     gh_mirror_token: str,
+    workspace_branch: str = "main",
 ) -> MirrorSetupResult:
     """End-to-end GH_MIRROR_REPOS provisioning.
 
@@ -1720,8 +1721,10 @@ def run_mirror_setup(
           private, and a pull mirror refuses pushes anyway.
        d. For the FIRST successful mirror with a configured user,
           ensure the user's workspace ``<basename>_<user>`` exists as a
-          private repository in the user's namespace. An existing one,
-          including a fork from before this change, is left untouched.
+          private repository in the user's namespace, on
+          ``workspace_branch`` — the branch the seeder and the git
+          consumers use. An existing one, including a fork from before
+          this change, is left untouched.
 
     All admin actions use ``forgejo_token`` (token-bearer), which
     reaches REST as request-auth only, never argv.
@@ -1852,7 +1855,7 @@ def run_mirror_setup(
                 name,
                 private=True,
                 auto_init=True,
-                default_branch="main",
+                default_branch=workspace_branch,
                 description="Your own work — course material is in the course repository",
             )
             attempt = WorkspaceResult(
