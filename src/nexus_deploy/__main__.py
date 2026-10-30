@@ -1358,6 +1358,7 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
                 forgejo_user_username=forgejo_user_username,
                 gh_mirror_repos=repos,
                 gh_mirror_token=gh_mirror_token,
+                workspace_branch=os.environ.get("WORKSPACE_BRANCH") or "main",
             )
     except SSHError as exc:
         print(f"forgejo mirror-setup: ssh tunnel failed: {exc}", file=sys.stderr)

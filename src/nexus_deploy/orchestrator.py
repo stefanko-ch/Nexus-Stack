@@ -827,6 +827,7 @@ class Orchestrator:
                     forgejo_user_username=self.forgejo_user_username,
                     gh_mirror_repos=self.gh_mirror_repos,
                     gh_mirror_token=self.gh_mirror_token,
+                    workspace_branch=self.workspace_branch,
                 )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
             return PhaseResult(

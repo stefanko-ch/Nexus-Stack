@@ -2657,6 +2657,29 @@ def test_run_mirror_setup_fresh_creates_course_and_workspace() -> None:
 
 
 @responses.activate
+def test_run_mirror_setup_creates_workspace_on_given_branch() -> None:
+    """The workspace is created on the branch the seeder and the git
+    consumers use, which in mirror mode is the upstream's default."""
+    _add_admin_uid()
+    _add_repo_get("course-myrepo", 200)
+    _add_course_followups("course-myrepo")
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
+
+    run_mirror_setup(
+        base_url=BASE_URL,
+        admin_username="admin",
+        forgejo_token="admin-tok",
+        forgejo_user_username="stefan",
+        gh_mirror_repos=["https://github.com/o/myrepo.git"],
+        gh_mirror_token="ghp_xxx",
+        workspace_branch="master",
+    )
+
+    body = json.loads(_calls("POST", "/admin/users/stefan/repos")[0].request.body)
+    assert body["default_branch"] == "master"
+
+
+@responses.activate
 def test_run_mirror_setup_renames_legacy_mirror() -> None:
     """A stack from before #956 has mirror-readonly-<repo>: rename it in
     place instead of migrating a second copy."""
