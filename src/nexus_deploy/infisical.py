@@ -98,6 +98,20 @@ class BootstrapEnv:
     monitoring_token: str | None = None
     tenant_id: str | None = None
 
+    @property
+    def kestra_username(self) -> str:
+        """The Kestra basic-auth login: the stack user's email, else the admin's.
+
+        Issue #960: with ``admin_email`` every student of a class saw the
+        instructor's address as their Kestra login. Same rule as the Mage
+        and Wiki.js logins. Every place that renders or authenticates as
+        this account reads it here, so the rendered ``KESTRA_ADMIN_USER``,
+        the Infisical entry and the API clients cannot drift apart.
+        Kestra 2.0.8 saves the configured credentials over its stored ones
+        on every start, so an existing stack switches on its next spin-up.
+        """
+        return self.forgejo_user_email or self.admin_email or ""
+
 
 @dataclass(frozen=True)
 class FolderSpec:
@@ -608,7 +622,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "kestra",
             _filter_empty(
                 {
-                    "KESTRA_USERNAME": env.admin_email,
+                    "KESTRA_USERNAME": env.kestra_username,
                     "KESTRA_PASSWORD": config.kestra_admin_password,
                 }
             ),

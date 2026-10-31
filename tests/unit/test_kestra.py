@@ -1496,6 +1496,57 @@ def test_cli_kestra_happy_path_returns_zero(
     assert "system.flow-sync: updated" in captured.err
 
 
+@pytest.mark.parametrize(
+    ("user_email", "expected"),
+    [
+        ("student@example.com", "student@example.com"),
+        (None, "admin@example.com"),
+    ],
+)
+def test_cli_kestra_authenticates_as_the_stack_user(
+    monkeypatch: pytest.MonkeyPatch, user_email: str | None, expected: str
+) -> None:
+    """Issue #960: the CLI logs in as the account the deploy rendered —
+    the stack user's email when FORGEJO_USER_EMAIL is set, the admin's
+    otherwise. A mismatch would 401 every call."""
+    from contextlib import contextmanager
+
+    from nexus_deploy.__main__ import _kestra_register_system_flows
+
+    _set_required_env(monkeypatch)
+    if user_email is None:
+        monkeypatch.delenv("FORGEJO_USER_EMAIL", raising=False)
+    else:
+        monkeypatch.setenv("FORGEJO_USER_EMAIL", user_email)
+    monkeypatch.setattr("sys.stdin.read", lambda: '{"kestra_admin_password": "kp"}')
+
+    seen: dict[str, Any] = {}
+
+    def fake_run(*_args: Any, **kwargs: Any) -> SystemFlowsResult:
+        seen.update(kwargs)
+        return SystemFlowsResult(flows=(), execution_state="SUCCESS")
+
+    monkeypatch.setattr("nexus_deploy.__main__.run_register_system_flows", fake_run)
+
+    class _OkSSH:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pass
+
+        def __enter__(self) -> _OkSSH:
+            return self
+
+        def __exit__(self, *_exc: Any) -> None:
+            return None
+
+        @contextmanager
+        def port_forward(self, *_args: Any, **_kwargs: Any) -> Any:
+            yield 8085
+
+    monkeypatch.setattr("nexus_deploy.__main__.SSHClient", _OkSSH)
+    _kestra_register_system_flows([])
+    assert seen["admin_email"] == expected
+
+
 def test_cli_kestra_partial_failure_returns_one(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

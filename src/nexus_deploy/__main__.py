@@ -800,7 +800,9 @@ def _kestra_register_system_flows(args: list[str]) -> int:
     repo coordinates from environment variables — same handoff pattern
     as ``services configure``:
 
-    - ``ADMIN_EMAIL`` — Kestra basic-auth username
+    - ``ADMIN_EMAIL`` — Kestra basic-auth username, unless
+      ``FORGEJO_USER_EMAIL`` is set: the stack user's email wins, the
+      same rule ``BootstrapEnv.kestra_username`` applies at render time
     - ``FORGEJO_REPO_OWNER`` — owner of the workspace repo (admin in
       non-mirror, the user in mirror+user mode)
     - ``REPO_NAME`` — workspace repo name
@@ -824,7 +826,10 @@ def _kestra_register_system_flows(args: list[str]) -> int:
     repo_owner = os.environ.get("FORGEJO_REPO_OWNER") or ""
     repo_name = os.environ.get("REPO_NAME") or ""
     branch = os.environ.get("WORKSPACE_BRANCH") or "main"
-    admin_email = os.environ.get("ADMIN_EMAIL") or ""
+    kestra_username = BootstrapEnv(
+        admin_email=os.environ.get("ADMIN_EMAIL") or None,
+        forgejo_user_email=os.environ.get("FORGEJO_USER_EMAIL") or None,
+    ).kestra_username
     ssh_host = os.environ.get("KESTRA_HOST") or "nexus"
 
     missing = [
@@ -832,7 +837,7 @@ def _kestra_register_system_flows(args: list[str]) -> int:
         for name, val in (
             ("FORGEJO_REPO_OWNER", repo_owner),
             ("REPO_NAME", repo_name),
-            ("ADMIN_EMAIL", admin_email),
+            ("ADMIN_EMAIL", kestra_username),
         )
         if not val
     ]
@@ -879,7 +884,7 @@ def _kestra_register_system_flows(args: list[str]) -> int:
                 repo_owner=repo_owner,
                 repo_name=repo_name,
                 branch=branch,
-                admin_email=admin_email,
+                admin_email=kestra_username,
             )
     except SSHError as exc:
         # SSHError is the typed transport-failure path from ssh.py.

@@ -39,6 +39,23 @@ from nexus_deploy.infisical import (
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
+@pytest.mark.parametrize(
+    ("admin_email", "user_email", "expected"),
+    [
+        ("admin@example.com", "student@example.com", "student@example.com"),
+        ("admin@example.com", None, "admin@example.com"),
+        ("admin@example.com", "", "admin@example.com"),
+        (None, None, ""),
+    ],
+)
+def test_kestra_username_prefers_the_stack_user(
+    admin_email: str | None, user_email: str | None, expected: str
+) -> None:
+    """Issue #960: students saw the instructor's address as their Kestra login."""
+    env = BootstrapEnv(admin_email=admin_email, forgejo_user_email=user_email)
+    assert env.kestra_username == expected
+
+
 # ---------------------------------------------------------------------------
 # _filter_empty — skip-empty rule
 # ---------------------------------------------------------------------------
