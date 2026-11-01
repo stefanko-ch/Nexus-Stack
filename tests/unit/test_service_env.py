@@ -4700,3 +4700,16 @@ def test_nifi_refuses_credentials_it_would_replace(
 
     with pytest.raises(ServiceEnvError, match="NiFi"):
         _render_nifi(full_config.model_copy(update=update), full_env)
+
+
+def test_starrocks_refuses_a_passwordless_root(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_starrocks
+
+    rendered = _render_starrocks(
+        full_config.model_copy(update={"starrocks_root_password": "s"}), full_env
+    )
+    assert rendered.env_vars == {"STARROCKS_ROOT_PASSWORD": "s"}
+    with pytest.raises(ServiceEnvError, match="STARROCKS_ROOT_PASS"):
+        _render_starrocks(full_config.model_copy(update={"starrocks_root_password": ""}), full_env)

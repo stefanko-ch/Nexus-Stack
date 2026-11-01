@@ -1910,6 +1910,24 @@ def _render_nifi(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """StarRocks: the root password start.sh sets on the first start.
+
+    Without it root would keep the image's empty password, open to every
+    container on app-network.
+    """
+    if _empty(c.starrocks_root_password):
+        raise ServiceEnvError(
+            "StarRocks enabled but STARROCKS_ROOT_PASS is empty -- it comes from "
+            "the tofu output `starrocks_root_password` "
+            "(random_password.starrocks_root). Aborting rather than starting "
+            "StarRocks with a passwordless root.",
+        )
+    return RenderedEnv(
+        env_vars={"STARROCKS_ROOT_PASSWORD": c.starrocks_root_password or ""}, mode=0o600
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3232,6 +3250,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("flowise", _is_enabled("flowise"), _render_flowise),
     EnvSpec("open-notebook", _is_enabled("open-notebook"), _render_open_notebook),
     EnvSpec("nifi", _is_enabled("nifi"), _render_nifi),
+    EnvSpec("starrocks", _is_enabled("starrocks"), _render_starrocks),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

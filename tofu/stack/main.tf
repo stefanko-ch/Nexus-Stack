@@ -588,6 +588,16 @@ resource "random_password" "nifi_sensitive_props_key" {
   special = false
 }
 
+# StarRocks root password. stacks/starrocks/start.sh sets it on the first
+# start and hands it to the image's scripts afterwards. Kept across a
+# rebuild teardown (teardown.yml excludes it): the restored FE metadata
+# holds the password root was given, and with a different one the image's
+# own start script fails and shuts the container down.
+resource "random_password" "starrocks_root" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

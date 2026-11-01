@@ -270,6 +270,9 @@ output "secrets" {
     nifi_password            = random_password.nifi.result
     nifi_sensitive_props_key = random_password.nifi_sensitive_props_key.result
 
+    # StarRocks (OLAP database)
+    starrocks_root_password = random_password.starrocks_root.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

@@ -321,6 +321,10 @@
     'ssh': dict({
       'SSH_PRIVATE_KEY_BASE64': 'snapshot-ssh-base64',
     }),
+    'starrocks': dict({
+      'STARROCKS_PASSWORD': 'starrocks_root_password-VALUE',
+      'STARROCKS_USERNAME': 'root',
+    }),
     'superset': dict({
       'SUPERSET_DB_PASSWORD': 'superset_db_password-VALUE',
       'SUPERSET_PASSWORD': 'superset_admin_password-VALUE',

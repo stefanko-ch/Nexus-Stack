@@ -131,6 +131,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Open Notebook | `lfnovo/open_notebook` | `1.15.0` | Exact |
 | Apache NiFi | `apache/nifi` | `2.12.0` | Exact |
 | Apache Hop (Hop Web) | `apache/hop-web` | `2.19.0` | Exact |
+| StarRocks (all-in-one) | `starrocks/allin1-ubuntu` | `4.1.7` | Exact |
 | nginx (NiFi proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | SurrealDB (Open Notebook) | `surrealdb/surrealdb` | `v2.7.0` | Exact |
 | PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
@@ -331,6 +332,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Shiny Server** | R web applications | [shiny.md](shiny.md) |
 | **Sling** | Database-to-database transfers | [sling.md](sling.md) |
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
+| **StarRocks** | MPP analytics database with lakehouse catalogs | [starrocks.md](starrocks.md) |
 | **Streamlit** | Python data apps, one server for all of them | [streamlit.md](streamlit.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |

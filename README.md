@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (112)
+## Available Stacks (113)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -178,6 +178,7 @@ After deployment you'll have:
 [![Sling](https://img.shields.io/badge/Sling-FF6B35?logo=data&logoColor=white)](https://slingdata.io)
 [![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)](https://www.soda.io)
 [![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org)
+[![StarRocks](https://img.shields.io/badge/StarRocks-1F4FFF?logo=apache&logoColor=white)](https://www.starrocks.io)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Superset](https://img.shields.io/badge/Apache_Superset-20A6A4?logo=apachesuperset&logoColor=white)](https://superset.apache.org)
 [![Telegraf](https://img.shields.io/badge/Telegraf-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/time-series-platform/telegraf/)
@@ -293,6 +294,7 @@ After deployment you'll have:
 | **Sling** | Lightweight CLI for database-to-database and file-to-database transfers | [slingdata.io](https://slingdata.io) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
 | **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |
+| **StarRocks** | Fast MPP analytics database (MySQL protocol) that queries Iceberg, Delta Lake and Parquet in place (internal-only) | [starrocks.io](https://www.starrocks.io) |
 | **Streamlit** | Python data apps — one server runs every app in the workspace repository | [streamlit.io](https://streamlit.io) |
 | **Superset** | Modern data exploration and visualization platform with SQL Lab | [superset.apache.org](https://superset.apache.org) |
 | **Telegraf** | Metrics collection agent with 300+ plugins (CLI-only, no web UI) | [influxdata.com](https://www.influxdata.com/time-series-platform/telegraf/) |

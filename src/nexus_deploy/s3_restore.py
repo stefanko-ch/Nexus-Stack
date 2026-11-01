@@ -305,7 +305,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     Postgres, Unity Catalog, Lakekeeper, MLflow and Kestra, and filesystem
     trees for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB,
     Langflow, Label Studio, Memgraph, Open WebUI, Flowise, Open Notebook, NiFi,
-    Hop, the notebook stacks (Jupyter,
+    Hop, StarRocks, the notebook stacks (Jupyter,
     Marimo, code-server) and Kestra's internal storage.
 
     Hard-coded because:
@@ -570,6 +570,13 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="hop-project",
             local_path="/mnt/nexus-data/hop",
             s3_subpath="hop/project",
+        ),
+        # StarRocks: FE metadata and BE storage, both from one stopped
+        # container, so the two match when restored.
+        _s3.RsyncTarget(
+            name="starrocks-data",
+            local_path="/mnt/nexus-data/starrocks",
+            s3_subpath="starrocks/data",
         ),
         # The notebook stacks: what students write in a course. Before
         # these entries a rebuild teardown discarded every notebook
@@ -1060,6 +1067,7 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/open-notebook/docker-compose.yml",
     "/opt/docker-server/stacks/nifi/docker-compose.yml",
     "/opt/docker-server/stacks/hop/docker-compose.yml",
+    "/opt/docker-server/stacks/starrocks/docker-compose.yml",
     # A notebook saved mid-copy is a torn file; stopping first means
     # the snapshot holds the last saved version of each.
     "/opt/docker-server/stacks/jupyter/docker-compose.yml",

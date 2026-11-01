@@ -3372,3 +3372,16 @@ def test_nifi_listens_on_every_interface() -> None:
     and nifi-proxy's connections were refused (measured)."""
     # The value under test, not a bind in this process.
     assert _service_env("nifi", "nifi")["NIFI_WEB_HTTPS_HOST"] == "0.0.0.0"  # noqa: S104
+
+
+def test_starrocks_start_script_handles_the_first_start() -> None:
+    """With MYSQL_PWD set on a first start the image's director script
+    fails ("Password error") and shuts down -- measured on 4.1.7. The
+    wrapper must leave it unset then, and set it on every later start."""
+    script = (STACKS_DIR / "starrocks" / "start.sh").read_text()
+    assert "unset MYSQL_PWD" in script
+    assert 'export MYSQL_PWD="$STARROCKS_ROOT_PASSWORD"' in script
+    assert script.rstrip().endswith("exec ./entrypoint.sh")
+    # The memory caps the 16 GB server depends on.
+    assert "-Xmx2048m" in script
+    assert "mem_limit = 3G" in script
