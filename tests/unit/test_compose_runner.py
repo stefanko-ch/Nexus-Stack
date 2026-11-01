@@ -1088,3 +1088,34 @@ def test_data_dir_prep_is_valid_bash() -> None:
     )
     assert "find /mnt/nexus-data/memgraph \\( ! -user 101 -o ! -group 103 \\)" in script
     subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+
+
+@pytest.mark.parametrize("service", ["ollama", "litellm", "langflow"])
+def test_ollama_internal_is_created_for_every_stack_that_joins_it(service: str) -> None:
+    """A compose file naming the external `ollama-internal` network fails
+    to start if it does not exist, so every stack that joins it must make
+    the deploy create it -- including with Ollama itself disabled."""
+    seen: list[str] = []
+
+    def runner(script: str) -> subprocess.CompletedProcess[str]:
+        seen.append(script)
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up([service], script_runner=runner)
+    assert "docker network create --label managed-by=nexus-stack ollama-internal" in seen[0]
+
+
+def test_every_stack_on_ollama_internal_is_registered() -> None:
+    import yaml
+
+    from nexus_deploy.compose_runner import _OLLAMA_CLIENTS
+
+    root = Path(__file__).resolve().parents[2] / "stacks"
+    joined = {
+        f.parent.name
+        for f in root.glob("*/docker-compose.yml")
+        if "ollama-internal" in (yaml.safe_load(f.read_text()).get("networks") or {})
+    }
+    assert joined == set(_OLLAMA_CLIENTS)

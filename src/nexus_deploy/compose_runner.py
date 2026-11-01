@@ -191,6 +191,12 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
     )
 
 
+# Stacks whose compose file joins the external `ollama-internal` network,
+# Ollama's only network. Any of them enabled means the network must exist
+# before compose up, whether or not Ollama itself is enabled.
+_OLLAMA_CLIENTS = ("ollama", "litellm", "langflow")
+
+
 # Backed-up bind mounts of stacks whose container runs as a non-root user,
 # keyed by service: (host path, owner the image's process runs as). Docker
 # creates a missing bind source root-owned, and so does the R2 restore, so
@@ -557,7 +563,7 @@ def run_compose_up(
     actual_ollama_internal = (
         ollama_internal_network_prep
         if ollama_internal_network_prep is not None
-        else ("litellm" in enabled or "ollama" in enabled)
+        else any(svc in enabled for svc in _OLLAMA_CLIENTS)
     )
     actual_hedgedoc = (
         hedgedoc_uploads_prep if hedgedoc_uploads_prep is not None else "hedgedoc" in enabled

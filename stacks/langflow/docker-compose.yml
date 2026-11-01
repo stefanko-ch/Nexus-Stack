@@ -76,7 +76,15 @@ services:
       start_period: 120s
     networks:
       - app-network
+      # Ollama is attached to this network only, not to app-network, so
+      # joining it is what makes http://ollama:11434 resolve -- the same
+      # arrangement as LiteLLM. compose_runner creates it whenever
+      # langflow is enabled, so this works with Ollama disabled too.
+      - ollama-internal
 
 networks:
   app-network:
     external: true
+  ollama-internal:
+    external: true
+    name: ollama-internal
