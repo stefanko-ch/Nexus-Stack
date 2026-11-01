@@ -127,6 +127,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
 | Langflow | `langflowai/langflow` | `1.13.0` | Exact |
+| Flowise | `flowiseai/flowise` | `3.1.4` | Exact |
+| PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -255,6 +257,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Apache Flink** | Distributed stream and batch processing | [flink.md](flink.md) |
+| **Flowise** | Visual builder for LLM chatflows and agents | [flowise.md](flowise.md) |
 | **Forgejo** | Git forge with built-in Actions CI | [forgejo.md](forgejo.md) |
 | **Forgejo Runner** | Actions CI runner for Forgejo (optional) | [forgejo-runner.md](forgejo-runner.md) |
 | **Garage** | S3-compatible object storage | [garage.md](garage.md) |

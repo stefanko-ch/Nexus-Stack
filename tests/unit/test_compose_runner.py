@@ -1049,7 +1049,7 @@ def _compose_mount_sources(service: str) -> list[str]:
     return [m.split(":")[0] for m in compose["services"][service].get("volumes", [])]
 
 
-@pytest.mark.parametrize("service", ["langflow", "label-studio", "memgraph"])
+@pytest.mark.parametrize("service", ["langflow", "label-studio", "memgraph", "flowise"])
 def test_data_dir_is_the_compose_mount_and_a_snapshot_target(service: str) -> None:
     """The directory chowned here, the one the container writes and the one
     the R2 snapshot copies must be the same path. A drift in any one of the
@@ -1090,7 +1090,7 @@ def test_data_dir_prep_is_valid_bash() -> None:
     subprocess.run(["bash", "-n"], input=script, text=True, check=True)
 
 
-@pytest.mark.parametrize("service", ["ollama", "litellm", "langflow"])
+@pytest.mark.parametrize("service", ["ollama", "litellm", "langflow", "flowise"])
 def test_ollama_internal_is_created_for_every_stack_that_joins_it(service: str) -> None:
     """A compose file naming the external `ollama-internal` network fails
     to start if it does not exist, so every stack that joins it must make

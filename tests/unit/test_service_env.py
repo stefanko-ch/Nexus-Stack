@@ -4588,3 +4588,38 @@ def test_open_webui_refuses_an_empty_password(
     )
     with pytest.raises(ServiceEnvError, match="OPEN_WEBUI_ADMIN_PASSWORD"):
         _render_ollama(config, full_env)
+
+
+def test_flowise_renders_the_owner_and_its_public_url(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_flowise
+
+    config = full_config.model_copy(
+        update={"flowise_db_password": "fw-db", "flowise_admin_password": "Fw-Pass1"}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_flowise(config, env)
+    assert rendered.env_vars == {
+        "FLOWISE_DB_PASSWORD": "fw-db",
+        "FLOWISE_ADMIN_EMAIL": "user@example.com",
+        "FLOWISE_ADMIN_PASSWORD": "Fw-Pass1",
+        "FLOWISE_URL": "https://flowise-alice.example.com",
+    }
+    assert rendered.mode == 0o600
+
+
+def test_flowise_refuses_an_empty_owner_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Without it flowise-init cannot claim the instance and the first
+    visitor would become owner."""
+    from nexus_deploy.service_env import _render_flowise
+
+    config = full_config.model_copy(
+        update={"flowise_db_password": "fw-db", "flowise_admin_password": ""}
+    )
+    with pytest.raises(ServiceEnvError, match="FLOWISE_ADMIN_PASSWORD"):
+        _render_flowise(config, full_env)

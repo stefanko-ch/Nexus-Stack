@@ -1,0 +1,139 @@
+# =============================================================================
+# Flowise - Visual builder for LLM apps, chatflows and agents
+# =============================================================================
+# Access via: https://flowise.<domain>
+#
+# Chatflows and agent flows are drawn from LangChain/LlamaIndex nodes and
+# served as chat widgets or API endpoints. Lighter than Langflow, with a
+# large catalogue of ready nodes. Models: Ollama at http://ollama:11434
+# (this stack joins Ollama's network) or LiteLLM at http://litellm:4000;
+# vector stores Qdrant, Chroma and Weaviate on app-network.
+#
+# Login: Flowise has no setting that creates the owner. In the open-source
+# edition the first registration becomes owner of the only organisation
+# and every later one is refused ("You can only have one organization").
+# flowise-init makes that first registration with the stack user's email
+# and a generated password (Infisical -> folder `flowise`) as soon as
+# Flowise answers, so nobody else can claim the instance.
+#
+# Database: PostgreSQL, not the default SQLite. Measured on 3.1.4, the
+# SQLite session store crashes the server at startup
+# ("TypeError: this.db.exec is not a function" in connect-sqlite3), on
+# amd64 and arm64 alike; with Postgres it starts.
+#
+# Image: flowiseai/flowise (amd64 + arm64).
+# Docs: https://docs.flowiseai.com
+# =============================================================================
+
+services:
+  flowise:
+    image: ${IMAGE_FLOWISE:-flowiseai/flowise:3.1.4}
+    container_name: flowise
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3011:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_TYPE: postgres
+      DATABASE_HOST: flowise-db
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: flowise
+      DATABASE_USER: nexus-flowise
+      DATABASE_PASSWORD: ${FLOWISE_DB_PASSWORD:?must be set in .env (rendered by service_env._render_flowise)}
+      # Everything else Flowise keeps on disk lives here: the credential
+      # encryption key, the generated JWT and session secrets, uploads and
+      # logs. Backed up to R2 together with the database dump, so a
+      # restored database finds the keys it was written with.
+      SECRETKEY_PATH: /home/node/.flowise
+      BLOB_STORAGE_PATH: /home/node/.flowise/storage
+      LOG_PATH: /home/node/.flowise/logs
+      APP_URL: ${FLOWISE_URL:?must be set in .env (rendered by service_env._render_flowise)}
+      CORS_ORIGINS: ${FLOWISE_URL}
+      DISABLE_FLOWISE_TELEMETRY: "true"
+    volumes:
+      - /mnt/nexus-data/flowise:/home/node/.flowise
+    depends_on:
+      flowise-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/v1/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+      - flowise-internal
+      # Ollama is on this network only; joining it is what makes
+      # http://ollama:11434 resolve. compose_runner creates it whenever
+      # flowise is enabled.
+      - ollama-internal
+
+  # One-shot: registers the owner, then exits. Idempotent -- on a later
+  # start Flowise answers "You can only have one organization", which is
+  # the expected outcome and exits 0. Anything else fails loudly.
+  flowise-init:
+    image: ${IMAGE_FLOWISE:-flowiseai/flowise:3.1.4}
+    container_name: flowise-init
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until curl -fsS -o /dev/null http://flowise:3000/api/v1/ping; do sleep 3; done
+        body=$$(printf '{"user":{"name":"Nexus","email":"%s","credential":"%s"}}' "$$FLOWISE_ADMIN_EMAIL" "$$FLOWISE_ADMIN_PASSWORD")
+        code=$$(printf '%s' "$$body" | curl -s -o /tmp/register.out -w '%{http_code}' -X POST http://flowise:3000/api/v1/account/register -H 'Content-Type: application/json' --data-binary @-) || code=000
+        if [ "$$code" = 201 ]; then
+          echo "flowise-init: owner created"
+        elif [ "$$code" = 400 ] && grep -q 'only have one organization' /tmp/register.out; then
+          echo "flowise-init: owner already exists"
+        else
+          echo "flowise-init: registration failed (HTTP $$code): $$(head -c 300 /tmp/register.out 2>/dev/null)" >&2
+          exit 1
+        fi
+    environment:
+      FLOWISE_ADMIN_EMAIL: ${FLOWISE_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_flowise)}
+      FLOWISE_ADMIN_PASSWORD: ${FLOWISE_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_flowise)}
+    depends_on:
+      flowise:
+        condition: service_healthy
+    networks:
+      - flowise-internal
+
+  flowise-db:
+    image: ${IMAGE_FLOWISE_DB:-postgres:17-alpine}
+    container_name: flowise-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-flowise
+      POSTGRES_PASSWORD: ${FLOWISE_DB_PASSWORD}
+      POSTGRES_DB: flowise
+    volumes:
+      - flowise-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    networks:
+      - flowise-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-flowise -d flowise"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  flowise-db-data:
+
+networks:
+  app-network:
+    external: true
+  flowise-internal:
+    driver: bridge
+  ollama-internal:
+    external: true
+    name: ollama-internal

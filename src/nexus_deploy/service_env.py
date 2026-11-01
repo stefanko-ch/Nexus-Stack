@@ -1820,6 +1820,34 @@ def _render_ollama(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_flowise(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Flowise: its database password, and the owner flowise-init registers.
+
+    Flowise has no setting that creates an owner; the first registration
+    becomes one and every later one is refused. An empty value here would
+    leave flowise-init unable to claim the instance, and the first visitor
+    would become owner instead -- so it fails the deploy.
+    """
+    required = {
+        "FLOWISE_DB_PASSWORD": c.flowise_db_password,
+        "FLOWISE_ADMIN_EMAIL": stack_user_email(e),
+        "FLOWISE_ADMIN_PASSWORD": c.flowise_admin_password,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Flowise enabled but {', '.join(missing)} empty -- the passwords "
+            "come from the tofu outputs `flowise_db_password` and "
+            "`flowise_admin_password`, the email from admin_email or the stack "
+            "user's email in config.tfvars. Aborting rather than leaving the "
+            "Flowise owner to whoever registers first.",
+        )
+    url = f"https://{service_host('flowise', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "FLOWISE_URL": url},
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3139,6 +3167,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("label-studio", _is_enabled("label-studio"), _render_label_studio),
     EnvSpec("memgraph", _is_enabled("memgraph"), _render_memgraph),
     EnvSpec("ollama", _is_enabled("ollama"), _render_ollama),
+    EnvSpec("flowise", _is_enabled("flowise"), _render_flowise),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

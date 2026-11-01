@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (108)
+## Available Stacks (109)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -108,6 +108,7 @@ After deployment you'll have:
 [![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
 [![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)](https://www.filestash.app)
 [![Flink](https://img.shields.io/badge/Apache_Flink-E6526F?logo=apacheflink&logoColor=white)](https://flink.apache.org)
+[![Flowise](https://img.shields.io/badge/Flowise-4F46E5?logo=langchain&logoColor=white)](https://flowiseai.com)
 [![Forgejo](https://img.shields.io/badge/Forgejo-FB923C?logo=forgejo&logoColor=white)](https://forgejo.org)
 [![Forgejo Runner](https://img.shields.io/badge/Forgejo_Runner-FB923C?logo=forgejo&logoColor=white)](docs/stacks/forgejo-runner.md)
 [![Garage](https://img.shields.io/badge/Garage-59C6A6?logo=amazons3&logoColor=white)](https://garagehq.deuxfleurs.fr)
@@ -219,6 +220,7 @@ After deployment you'll have:
 | **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
 | **Flink** | Distributed stream and batch processing engine (JobManager + TaskManager cluster) | [flink.apache.org](https://flink.apache.org) |
+| **Flowise** | Visual builder for LLM chatflows and agents, with a large catalogue of ready-made LangChain nodes | [flowiseai.com](https://flowiseai.com) |
 | **Forgejo** | Community-governed Git forge with built-in Actions CI | [forgejo.org](https://forgejo.org) |
 | **Forgejo Runner** | Actions CI runner for Forgejo — optional, carries a privileged container | [Documentation](docs/stacks/forgejo-runner.md) |
 | **Garage** | Lightweight S3-compatible object storage for self-hosting | [garagehq.deuxfleurs.fr](https://garagehq.deuxfleurs.fr) |

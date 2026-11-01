@@ -702,6 +702,18 @@ services:
     long_description: "Langflow draws LLM applications as flows: models, prompts, retrievers, vector stores and tools are components on a canvas, connected by their inputs and outputs, and every flow runs from the UI or as an API endpoint. It is the hands-on way to see how a RAG pipeline or an agent is put together before writing it in code. Here the components point at what already runs in the stack — Ollama for local models, Qdrant, Chroma and Weaviate as vector stores, LiteLLM as an OpenAI-compatible gateway. Langflow's own login is a superuser created on first start with the stack user's email and a generated password (Infisical → folder `langflow`); sign-up is disabled. Flows are stored in SQLite under /mnt/nexus-data and survive a teardown."
     image: "langflowai/langflow:1.13.0"
 
+  flowise:
+    subdomain: "flowise"
+    port: 3011
+    public: false
+    category: "ai-ml"
+    website: "https://flowiseai.com"
+    description: "Visual builder for LLM chatflows and agents, with a large catalogue of ready-made LangChain nodes."
+    long_description: "Flowise builds LLM applications from nodes on a canvas — chat models, prompts, document loaders, splitters, vector stores, memory, tools and agents — and serves each chatflow as an embeddable chat widget or an API endpoint. Next to Langflow it is the lighter, more catalogue-driven of the two: most flows are a handful of ready nodes rather than custom code. It reaches Ollama directly (it joins Ollama's network) and Qdrant, Chroma, Weaviate and LiteLLM on app-network. The owner account is registered on first start with the stack user's email and a generated password (Infisical → folder `flowise`); once an owner exists, Flowise refuses every further registration. Flows live in a dedicated PostgreSQL, keys and uploads under /mnt/nexus-data, and both survive a teardown."
+    image: "flowiseai/flowise:3.1.4"
+    support_images:
+      flowise-db: "postgres:17-alpine"
+
   label-studio:
     subdomain: "label-studio"
     port: 8280

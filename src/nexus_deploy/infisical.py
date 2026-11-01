@@ -1085,6 +1085,20 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "flowise",
+            _filter_empty(
+                {
+                    # Flowise signs in by email.
+                    "FLOWISE_USERNAME": stack_user_email(env),
+                    "FLOWISE_PASSWORD": config.flowise_admin_password,
+                    "FLOWISE_DB_USERNAME": "nexus-flowise",
+                    "FLOWISE_DB_PASSWORD": config.flowise_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

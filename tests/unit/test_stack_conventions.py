@@ -3345,3 +3345,9 @@ def test_label_studio_accepts_the_bootstrap_api_token() -> None:
     401 unless legacy tokens are switched on (measured on 1.23.2)."""
     env = _service_env("label-studio", "label-studio")
     assert env["LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN"] == "true"
+
+
+def test_flowise_does_not_use_the_sqlite_default() -> None:
+    """Flowise 3.1.4's SQLite session store crashes the server at startup
+    (measured on amd64 and arm64)."""
+    assert _service_env("flowise", "flowise")["DATABASE_TYPE"] == "postgres"

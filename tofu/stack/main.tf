@@ -529,6 +529,27 @@ resource "random_password" "open_webui_secret_key" {
   special = false
 }
 
+# Flowise owner password. Flowise refuses a password without a lower- and
+# upper-case letter, a digit and a special character ("Invalid Password",
+# measured on 3.1.4), so the minima are set and the special characters are
+# limited to two that travel safely through .env, JSON and a shell.
+# Excluded from the rebuild teardown's destroy: the restored database
+# keeps the account it was registered with.
+resource "random_password" "flowise_admin" {
+  length           = 24
+  special          = true
+  override_special = "-_"
+  min_lower        = 1
+  min_upper        = 1
+  min_numeric      = 1
+  min_special      = 1
+}
+
+resource "random_password" "flowise_db" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

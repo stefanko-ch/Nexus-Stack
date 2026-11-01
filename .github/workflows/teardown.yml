@@ -337,7 +337,7 @@ jobs:
           # Control Plane is now in separate state (tofu/control-plane/)
           #
           # Except credentials that the restored data already holds.
-          # Langflow, Label Studio, Memgraph and Open WebUI create their login only
+          # Langflow, Label Studio, Memgraph, Open WebUI and Flowise create their login only
           # on the first start with an empty data directory, and the R2
           # restore brings that directory back. A regenerated password
           # would land in Infisical but never reach the account, and a
@@ -352,7 +352,8 @@ jobs:
             -exclude=random_password.label_studio_user_token \
             -exclude=random_password.memgraph \
             -exclude=random_password.open_webui_admin \
-            -exclude=random_password.open_webui_secret_key
+            -exclude=random_password.open_webui_secret_key \
+            -exclude=random_password.flowise_admin
 
       - name: Confirm teardown
         run: |

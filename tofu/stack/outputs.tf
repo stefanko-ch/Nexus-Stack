@@ -257,6 +257,10 @@ output "secrets" {
     open_webui_admin_password = random_password.open_webui_admin.result
     open_webui_secret_key     = random_password.open_webui_secret_key.result
 
+    # Flowise (visual LLM app builder)
+    flowise_admin_password = random_password.flowise_admin.result
+    flowise_db_password    = random_password.flowise_db.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

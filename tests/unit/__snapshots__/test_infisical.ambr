@@ -73,6 +73,12 @@
       'FILESTASH_ADMIN_PASSWORD': 'filestash_admin_password-VALUE',
       'FILESTASH_S3_BUCKET': 'hetzner_s3_bucket_general-VALUE',
     }),
+    'flowise': dict({
+      'FLOWISE_DB_PASSWORD': 'flowise_db_password-VALUE',
+      'FLOWISE_DB_USERNAME': 'nexus-flowise',
+      'FLOWISE_PASSWORD': 'flowise_admin_password-VALUE',
+      'FLOWISE_USERNAME': 'user@snapshot.test',
+    }),
     'forgejo': dict({
       'FORGEJO_ADMIN_USERNAME': 'nexus-test-user',
       'FORGEJO_REPO_URL_PUBLIC': 'https://git.snapshot.test/snapshot-org/snapshot-repo.git',
