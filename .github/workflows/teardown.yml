@@ -335,7 +335,22 @@ jobs:
 
           # Destroy all resources in nexus-stack state
           # Control Plane is now in separate state (tofu/control-plane/)
-          tofu destroy -var-file=config.tfvars -auto-approve
+          #
+          # Except credentials that the restored data already holds.
+          # Langflow, Label Studio and Memgraph create their login only
+          # on the first start with an empty data directory, and the R2
+          # restore brings that directory back. A regenerated password
+          # would land in Infisical but never reach the account, and a
+          # new Langflow secret key would make every credential stored in
+          # a flow unreadable. Kept in the state, the next spin-up reuses
+          # them. destroy-all.yml runs its own untargeted destroy and
+          # still removes them.
+          tofu destroy -var-file=config.tfvars -auto-approve \
+            -exclude=random_password.langflow_superuser \
+            -exclude=random_password.langflow_secret_key \
+            -exclude=random_password.label_studio_admin \
+            -exclude=random_password.label_studio_user_token \
+            -exclude=random_password.memgraph
 
       - name: Confirm teardown
         run: |

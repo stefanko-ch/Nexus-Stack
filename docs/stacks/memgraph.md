@@ -43,7 +43,7 @@ Bolt is not published on the host: 7687 there belongs to Neo4j, and Bolt cannot 
 
 ### Authentication
 
-Memgraph creates `nexus-memgraph` from `MEMGRAPH_USER` / `MEMGRAPH_PASSWORD` on the first start with an empty data directory, and keeps an existing user unchanged. The deploy refuses to start Memgraph without a password, because with no user at all Memgraph accepts every connection.
+Memgraph creates `nexus-memgraph` from `MEMGRAPH_USER` / `MEMGRAPH_PASSWORD` on the first start with an empty data directory, and keeps an existing user unchanged. The R2 restore brings that user back, so the rebuild teardown excludes the password from its destroy and Infisical keeps matching it. The deploy refuses to start Memgraph without a password, because with no user at all Memgraph accepts every connection.
 
 ### Memory
 

@@ -137,6 +137,10 @@ passwords on every spin-up and pushes them to Infisical. A password you wrote do
 last week is not the password today; the Control Plane and Infisical always have the
 current one.
 
+The exceptions are Langflow's, Label Studio's and Memgraph's logins. Those apps create
+their account only once, the R2 restore brings it back, and a regenerated password
+would never reach it, so a rebuild teardown leaves these credentials in place.
+
 ## Scheduled teardown
 
 A Cloudflare Worker runs daily and tears the deployment down if scheduled teardown

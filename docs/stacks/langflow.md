@@ -32,7 +32,7 @@ Langflow's components reach the AI stacks on `app-network` by service name:
 | Weaviate | `http://weaviate:8080` |
 | LiteLLM (OpenAI-compatible) | `http://litellm:4000` |
 
-Langflow blocks connector URLs that resolve to private addresses (its SSRF protection), and every container here has one. The compose file therefore allows exactly these five hostnames with `LANGFLOW_SSRF_ALLOWED_HOSTS`. Any other in-cluster service has to be added there first.
+Langflow's SSRF protection makes its built-in connectors refuse URLs that resolve to private addresses, and every container here has one. `LANGFLOW_SSRF_ALLOWED_HOSTS` lists these five hostnames as exceptions, so the connectors can reach them; another in-cluster service needs adding there before a built-in connector will call it. Public URLs are not affected. The list is a convenience for the built-in components, not an access boundary: a custom Python component runs on the server and can make any request it likes, and the superuser can write one.
 
 ### Login
 
@@ -43,7 +43,7 @@ Cloudflare Access is the outer gate. Langflow then asks for its own login, a sup
 
 Both are in Infisical, folder `langflow`, as `LANGFLOW_USERNAME` and `LANGFLOW_PASSWORD`. Sign-up is disabled, and so is the superuser CLI inside the container.
 
-Langflow sets the password only when it creates the user. An existing data directory keeps the password it was created with, so after a full `destroy-all` and a fresh deploy the restored data and the new password would not match.
+Langflow sets the password only when it creates the user, and the R2 restore brings an existing user back. The rebuild teardown therefore excludes the superuser password and `LANGFLOW_SECRET_KEY` from its destroy, so after a teardown and spin-up Infisical still holds the password the restored account has. `destroy-all` removes them like everything else; restoring old data into a fresh deploy afterwards would leave the two out of step.
 
 ### Persistence
 
