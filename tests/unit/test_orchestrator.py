@@ -3106,6 +3106,15 @@ def test_phase_kestra_secret_sync_constructs_correct_stack_target(
     assert mock_client_cls.call_args.kwargs["username"] == "admin@example.com"
 
 
+def test_phase_kestra_secret_sync_partial_without_a_login(
+    orchestrator: Orchestrator,
+) -> None:
+    orchestrator.bootstrap_env = BootstrapEnv(domain="example.com")
+    result = orchestrator._phase_kestra_secret_sync(_ssh_with_tunnel())
+    assert result.status == "partial"
+    assert result.detail == "ADMIN_EMAIL missing"
+
+
 def test_phase_kestra_secret_sync_authenticates_as_the_stack_user(
     orchestrator: Orchestrator,
 ) -> None:

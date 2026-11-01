@@ -46,6 +46,12 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
         ("admin@example.com", None, "admin@example.com"),
         ("admin@example.com", "", "admin@example.com"),
         (None, None, ""),
+        # Addresses Kestra 2.0.8 refuses: keeping them would leave Kestra on
+        # its old stored login and 401 every client, so the admin stays.
+        ("admin@example.com", "josé@example.com", "admin@example.com"),
+        ("admin@example.com", "student", "admin@example.com"),
+        ("admin@example.com", "a b@example.com", "admin@example.com"),
+        ("admin@example.com", "o'brien+kurs@stud.example.ch", "o'brien+kurs@stud.example.ch"),
     ],
 )
 def test_kestra_username_prefers_the_stack_user(

@@ -51,6 +51,12 @@ _REMOTE_PUSH_DIR = "/tmp/infisical-push"  # noqa: S108 — transient, removed by
 _REMOTE_TOKEN_FALLBACK_FILE = "/opt/docker-server/.infisical-token"  # noqa: S105 — file PATH, not a credential value
 
 
+# Kestra 2.0.8's own check on the basic-auth username, copied verbatim from
+# BasicAuthService.EMAIL_PATTERN (Java `matches()` is a full match). Kept
+# in step with the pinned Kestra image; see BootstrapEnv.kestra_username.
+_KESTRA_EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9_!#$%&'*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+")
+
+
 @dataclass(frozen=True)
 class BootstrapEnv:
     """Configuration values that come from outside ``SECRETS_JSON``.
@@ -109,8 +115,18 @@ class BootstrapEnv:
         the Infisical entry and the API clients cannot drift apart.
         Kestra 2.0.8 saves the configured credentials over its stored ones
         on every start, so an existing stack switches on its next spin-up.
+
+        A user email Kestra would refuse falls back to the admin. Kestra
+        validates the username against an ASCII-only pattern
+        (``_KESTRA_EMAIL_PATTERN``); on a mismatch it records a
+        configuration error and keeps the OLD stored login, so every
+        client using the new name would get 401 — a broken stack to fix
+        a cosmetic problem.
         """
-        return self.forgejo_user_email or self.admin_email or ""
+        user = self.forgejo_user_email or ""
+        if user and _KESTRA_EMAIL_PATTERN.fullmatch(user):
+            return user
+        return self.admin_email or ""
 
 
 @dataclass(frozen=True)
