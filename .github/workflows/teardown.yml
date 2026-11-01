@@ -335,7 +335,15 @@ jobs:
 
           # Destroy all resources in nexus-stack state
           # Control Plane is now in separate state (tofu/control-plane/)
-          tofu destroy -var-file=config.tfvars -auto-approve
+          #
+          # Except the Kestra admin password (#942). It is the one service
+          # credential a person types into a browser login, and browsers
+          # keep sending the remembered one: after every regeneration each
+          # user got 401 until they cleared their site data. It stays in
+          # the state, so the next spin-up reuses it. destroy-all.yml runs
+          # its own untargeted destroy and still removes it.
+          tofu destroy -var-file=config.tfvars -auto-approve \
+            -exclude=random_password.kestra_admin
 
       - name: Confirm teardown
         run: |

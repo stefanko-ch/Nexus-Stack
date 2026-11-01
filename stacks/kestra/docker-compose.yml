@@ -55,25 +55,17 @@ services:
             password: ${KESTRA_DB_PASSWORD}
         kestra:
           server:
-            # Cloudflare Access (email OTP) already gates kestra.<domain>
-            # at the edge — students authenticate ONCE via the OTP and
-            # land in the UI. Re-prompting with Kestra's own basic-auth
-            # popup adds zero security (the request never reaches the
-            # container without a valid CF JWT) and forces students to
-            # look up the rotated KESTRA_ADMIN_PASSWORD in Infisical
-            # every session. Same model as Grafana / Forgejo / Infisical:
-            # CF Access at the perimeter, app handles RBAC internally.
-            # Trade-off: with basic-auth OFF, Kestra logs actions as
-            # anon/system instead of as the single shared $KESTRA_ADMIN_USER.
-            # Either way it's NOT per-user attribution — every student
-            # logs in as the same admin, so basic-auth ON would just
-            # attribute everything to "admin", not to the individual
-            # student. Real per-user attribution only exists with Kestra
-            # EE + SSO/OIDC where each session carries the real user.
-            # Re-enable basic-auth only if you want the shared-admin
-            # name in Kestra's audit log, or if you've moved to EE
-            # (issue #484); CF Access's edge log already records who
-            # actually authenticated the session at the perimeter.
+            # `enabled: false` was meant to drop Kestra's own login behind
+            # Cloudflare Access. On 2.0 it does not: the credentials below
+            # are still saved and enforced, `GET /api/v1/configs/login`
+            # answers `isBasicAuthInitialized: true`, and the UI's API
+            # calls get 401 until the user logs in (#942, measured on
+            # 2026-10-29). So users do see a Kestra login, with
+            # KESTRA_ADMIN_USER / KESTRA_ADMIN_PASSWORD from Infisical.
+            # That password survives a rebuild teardown (teardown.yml
+            # excludes it from the destroy) so a remembered browser login
+            # keeps working. It is one shared account, not per-user
+            # attribution; that needs Kestra EE + SSO (issue #484).
             basic-auth:
               enabled: false
               username: ${KESTRA_ADMIN_USER}

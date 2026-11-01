@@ -88,6 +88,12 @@ resource "random_password" "dagster_db" {
 #
 # `min_numeric/upper/lower = 1` enforces Kestra's rule on every
 # regenerated password.
+#
+# Survives a rebuild teardown: teardown.yml destroys with
+# `-exclude=random_password.kestra_admin`, because browsers keep the
+# remembered Kestra login and a new password meant 401 for every user
+# after every teardown (#942). Renaming this resource breaks that
+# exclusion; tests/unit/test_kestra_password_lifecycle.py pins both.
 resource "random_password" "kestra_admin" {
   length      = 24
   special     = false

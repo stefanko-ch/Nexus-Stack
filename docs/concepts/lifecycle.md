@@ -137,6 +137,10 @@ passwords on every spin-up and pushes them to Infisical. A password you wrote do
 last week is not the password today; the Control Plane and Infisical always have the
 current one.
 
+The one exception is Kestra's login password. A rebuild teardown leaves it in place,
+because it is the credential people type into a browser, and a browser that remembers
+the old one keeps sending it and gets locked out after every teardown.
+
 ## Scheduled teardown
 
 A Cloudflare Worker runs daily and tears the deployment down if scheduled teardown
