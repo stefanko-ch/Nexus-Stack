@@ -130,6 +130,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Flowise | `flowiseai/flowise` | `3.1.4` | Exact |
 | Open Notebook | `lfnovo/open_notebook` | `1.15.0` | Exact |
 | Apache NiFi | `apache/nifi` | `2.12.0` | Exact |
+| Apache Hop (Hop Web) | `apache/hop-web` | `2.19.0` | Exact |
 | nginx (NiFi proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | SurrealDB (Open Notebook) | `surrealdb/surrealdb` | `v2.7.0` | Exact |
 | PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
@@ -270,6 +271,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
+| **Hop** | Visual ETL pipelines and workflows | [hop.md](hop.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
 | **Hue** | SQL editor and data browser | [hue.md](hue.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |

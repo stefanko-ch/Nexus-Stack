@@ -108,6 +108,7 @@ TCP_PORTS_ALLOWED = {
 # an unauthenticated interface on the public internet, so they must never
 # appear in TCP_PORTS_ALLOWED. The check below enforces exactly that overlap.
 NO_OWN_AUTH = {
+    "hop",  # Hop Web has no login; its /hop server API none either
     "lakekeeper",
     "marquez",
     "questdb",  # the console has none; its Postgres wire protocol does

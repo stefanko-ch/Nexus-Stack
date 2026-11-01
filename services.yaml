@@ -740,6 +740,17 @@ services:
     support_images:
       nifi-proxy: "nginx:1.30.4-alpine"
 
+  hop:
+    subdomain: "hop"
+    port: 8182
+    public: false
+    category: "orchestration"
+    website: "https://hop.apache.org"
+    description: "Visual ETL — build, run and debug data pipelines and workflows in the browser (Hop Web)."
+    long_description: "Apache Hop builds data integration visually: pipelines transform data row by row — read, filter, join, aggregate, write — and workflows orchestrate jobs with conditions and error paths, all designed, run and debugged in the browser. It is the successor of Pentaho Data Integration (Kettle) and a gentle way into ETL before writing pipelines as code. The bundled JDBC drivers include PostgreSQL, so the databases on the internal network are one connection away. Hop Web has no login of its own; Cloudflare Access is the only gate. Pipelines and workflows live in the project folder under /mnt/nexus-data and survive a teardown."
+    image: "apache/hop-web:2.19.0"
+    landing_path: "/ui"
+
   label-studio:
     subdomain: "label-studio"
     port: 8280

@@ -1,0 +1,62 @@
+# =============================================================================
+# Apache Hop - Visual ETL pipelines and workflows (Hop Web)
+# =============================================================================
+# Access via: https://hop.<domain>/ui
+#
+# Pipelines (row-by-row data transformation) and workflows (orchestration
+# of jobs) are built by dragging transforms onto a canvas, then run and
+# debugged in the browser. Successor of Pentaho Data Integration (Kettle),
+# and a gentle way into ETL before writing pipelines as code. The bundled
+# JDBC drivers include PostgreSQL, so `postgres:5432` and the other
+# databases on app-network can be read and written directly.
+#
+# Login: none. Hop Web has no login of its own (its docs only describe
+# adding Tomcat basic auth by hand), so Cloudflare Access is the only gate
+# -- the same position as Lakekeeper or Temporal here, and enforced by
+# tests/unit/test_stack_conventions.py (NO_OWN_AUTH). The same web app
+# also serves the Hop Server API under /hop, unauthenticated; the port is
+# published on 127.0.0.1 only and the tunnel route is behind Access.
+#
+# Storage: the project `nexus` in /project, bind-mounted from
+# /mnt/nexus-data/hop and backed up to R2. The image registers the project
+# from HOP_PROJECT_NAME / HOP_PROJECT_FOLDER on every start, so the
+# container itself holds nothing worth keeping. compose_runner chowns the
+# directory to the image's user (501:501) before compose up.
+#
+# Image: apache/hop-web (amd64 + arm64).
+# Docs: https://hop.apache.org/manual/latest/hop-gui/hop-web.html
+# =============================================================================
+
+services:
+  hop:
+    image: ${IMAGE_HOP:-apache/hop-web:2.19.0}
+    container_name: hop
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8182:8080"
+    environment:
+      HOP_PROJECT_NAME: nexus
+      HOP_PROJECT_FOLDER: /project
+      # Replaces the image default -XX:+AggressiveHeap, which sizes the
+      # heap from the memory the JVM can see. The resourceLocation part
+      # is the image's own and must stay.
+      HOP_OPTIONS: "-Xms256m -Xmx768m -Dorg.eclipse.rap.rwt.resourceLocation=/tmp/rwt-resources"
+    volumes:
+      - /mnt/nexus-data/hop:/project
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      # curl ships in the image; /ui is the Hop Web entry point.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/ui"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

@@ -210,6 +210,7 @@ _DATA_DIRS: dict[str, tuple[str, str]] = {
     "memgraph": ("/mnt/nexus-data/memgraph", "101:103"),
     "flowise": ("/mnt/nexus-data/flowise", "1000:1000"),
     "nifi": ("/mnt/nexus-data/nifi", "1000:1000"),
+    "hop": ("/mnt/nexus-data/hop", "501:501"),
 }
 
 # Backed-up bind mounts that replaced a named volume, keyed by service:
