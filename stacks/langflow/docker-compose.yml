@@ -56,7 +56,9 @@ services:
       # Langflow blocks connector URLs that resolve to private addresses
       # (SSRF protection, on by default). The in-cluster services the
       # components are meant to use all resolve to app-network addresses,
-      # so they are allowed by name and nothing else is.
+      # so they are listed as exceptions. This only steers the built-in
+      # connectors; a custom component runs arbitrary Python and is not
+      # bound by it.
       LANGFLOW_SSRF_ALLOWED_HOSTS: "ollama,qdrant,chroma,litellm,weaviate"
     volumes:
       - /mnt/nexus-data/langflow:/app/langflow

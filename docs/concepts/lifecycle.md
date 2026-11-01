@@ -138,10 +138,14 @@ Infisical. A password you wrote down last week is not the password today; the Co
 Plane and Infisical always have the current one. In `snapshot` mode they stay as they
 are, because that teardown destroys only the server.
 
-Two credentials are exceptions in `rebuild` mode. Kestra's login password stays in place,
+A few credentials are exceptions in `rebuild` mode. Kestra's login password stays in place,
 because it is the credential people type into a browser, and a browser that remembers
 the old one keeps sending it and gets locked out after every teardown. The Forgejo
 Access service token survives too, as described above (#892).
+
+So are Langflow's, Label Studio's and Memgraph's logins. Those apps create
+their account only once, the R2 restore brings it back, and a regenerated password
+would never reach it, so a rebuild teardown leaves these credentials in place.
 
 ## Scheduled teardown
 

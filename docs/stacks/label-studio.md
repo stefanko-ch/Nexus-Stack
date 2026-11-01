@@ -30,7 +30,7 @@ Cloudflare Access is the outer gate. Label Studio then asks for its own account,
 
 All three are in Infisical, folder `label-studio`: `LABEL_STUDIO_USERNAME`, `LABEL_STUDIO_PASSWORD`, `LABEL_STUDIO_API_TOKEN`. Sign-up without an invitation link is disabled.
 
-Label Studio creates the account only if it does not exist yet, so the password belongs to the data directory it was first started with.
+Label Studio creates the account only if it does not exist yet, and the R2 restore brings an existing account back. The rebuild teardown therefore excludes the password and the token from its destroy, so Infisical keeps matching the restored account across a teardown and spin-up.
 
 The API token is what Label Studio calls a *legacy* token, and 1.23 rejects those unless `LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN=true`, which the compose file sets. The newer personal access tokens can only be created in the UI, so this is the one that works without a UI visit.
 
