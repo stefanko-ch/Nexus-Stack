@@ -323,7 +323,7 @@
     }),
     'starrocks': dict({
       'STARROCKS_PASSWORD': 'starrocks_root_password-VALUE',
-      'STARROCKS_USERNAME': 'root',
+      'STARROCKS_USERNAME': 'nexus-starrocks',
     }),
     'superset': dict({
       'SUPERSET_DB_PASSWORD': 'superset_db_password-VALUE',

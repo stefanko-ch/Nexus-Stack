@@ -137,9 +137,12 @@ passwords on every spin-up and pushes them to Infisical. A password you wrote do
 last week is not the password today; the Control Plane and Infisical always have the
 current one.
 
-The exceptions are Langflow's, Label Studio's, Memgraph's, Open WebUI's and Flowise's logins. Those apps create
-their account only once, the R2 restore brings it back, and a regenerated password
-would never reach it, so a rebuild teardown leaves these credentials in place.
+The exceptions are credentials that the restored data already depends on: the logins
+of Langflow, Label Studio, Memgraph, Open WebUI and Flowise, which those apps create only
+once; StarRocks' root password and Open Notebook's database password, which the restored
+databases hold; and the keys that encrypt stored secrets — Langflow's, Open WebUI's,
+Open Notebook's and NiFi's. A regenerated value would never reach the restored data,
+so a rebuild teardown leaves these in place.
 
 ## Scheduled teardown
 

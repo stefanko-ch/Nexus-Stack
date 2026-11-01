@@ -4713,3 +4713,9 @@ def test_starrocks_refuses_a_passwordless_root(
     assert rendered.env_vars == {"STARROCKS_ROOT_PASSWORD": "s"}
     with pytest.raises(ServiceEnvError, match="STARROCKS_ROOT_PASS"):
         _render_starrocks(full_config.model_copy(update={"starrocks_root_password": ""}), full_env)
+    # start.sh embeds it in SQL quotes.
+    for bad in ("pw'; DROP USER root; --", "pässwort1"):
+        with pytest.raises(ServiceEnvError, match="alphanumeric"):
+            _render_starrocks(
+                full_config.model_copy(update={"starrocks_root_password": bad}), full_env
+            )

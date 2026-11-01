@@ -14,9 +14,10 @@
 # describes it as meant for local testing; it is the right size for a
 # teaching stack and has no high availability.
 #
-# Login: `root`, password generated per deployment (Infisical -> folder
-# `starrocks`). start.sh sets it on the first start and hands it to the
-# image's own scripts afterwards; see the comment there for why.
+# Login: `nexus-starrocks` (admin role), password generated per deployment
+# (Infisical -> folder `starrocks`). start.sh creates it after the first
+# bootstrap and gives root the same password, which the image's own scripts
+# need; see the comment there for why.
 #
 # Storage: FE metadata and BE storage under /mnt/nexus-data/starrocks,
 # backed up to R2 with the stack stopped. `hostname` is fixed because a
@@ -43,6 +44,9 @@ services:
       STARROCKS_ROOT_PASSWORD: ${STARROCKS_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_starrocks)}
     volumes:
       - ./start.sh:/opt/nexus/start.sh:ro
+      # start.sh's marker that the credentials were set; inside the backed-up
+      # directory, so a restore carries it with the data it describes.
+      - /mnt/nexus-data/starrocks/nexus:/opt/nexus/state
       - /mnt/nexus-data/starrocks/fe-meta:/data/deploy/starrocks/fe/meta
       - /mnt/nexus-data/starrocks/be-storage:/data/deploy/starrocks/be/storage
     deploy:

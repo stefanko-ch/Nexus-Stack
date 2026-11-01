@@ -1911,10 +1911,12 @@ def _render_nifi(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """StarRocks: the root password start.sh sets on the first start.
+    """StarRocks: the password start.sh gives root and nexus-starrocks.
 
     Without it root would keep the image's empty password, open to every
-    container on app-network.
+    container on app-network. start.sh quotes it inside SQL, so only an
+    alphanumeric value -- what random_password.starrocks_root generates --
+    is let through; anything else could break or change the statement.
     """
     if _empty(c.starrocks_root_password):
         raise ServiceEnvError(
@@ -1922,6 +1924,16 @@ def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "the tofu output `starrocks_root_password` "
             "(random_password.starrocks_root). Aborting rather than starting "
             "StarRocks with a passwordless root.",
+        )
+    if (
+        not (c.starrocks_root_password or "").isascii()
+        or not (c.starrocks_root_password or "").isalnum()
+    ):
+        # Deliberately says nothing about the value: this lands in a public log.
+        raise ServiceEnvError(
+            "StarRocks enabled but STARROCKS_ROOT_PASS is not alphanumeric. "
+            "stacks/starrocks/start.sh embeds it in SQL; it should come from "
+            "random_password.starrocks_root, which has special = false.",
         )
     return RenderedEnv(
         env_vars={"STARROCKS_ROOT_PASSWORD": c.starrocks_root_password or ""}, mode=0o600

@@ -3381,6 +3381,10 @@ def test_starrocks_start_script_handles_the_first_start() -> None:
     script = (STACKS_DIR / "starrocks" / "start.sh").read_text()
     assert "unset MYSQL_PWD" in script
     assert 'export MYSQL_PWD="$STARROCKS_ROOT_PASSWORD"' in script
+    # Decided by a marker written after the SQL succeeded, not by "metadata
+    # exists": a failed attempt must not hand MYSQL_PWD to the next start.
+    assert 'if [ -f "$MARKER" ]; then' in script
+    assert script.index('touch "$MARKER"') > script.index("ALTER USER")
     assert script.rstrip().endswith("exec ./entrypoint.sh")
     # The memory caps the 16 GB server depends on.
     assert "-Xmx2048m" in script

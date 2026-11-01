@@ -1128,7 +1128,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             _filter_empty(
                 {
                     # MySQL protocol: starrocks:9030 in-cluster.
-                    "STARROCKS_USERNAME": "root",
+                    "STARROCKS_USERNAME": "nexus-starrocks",
                     "STARROCKS_PASSWORD": config.starrocks_root_password,
                 }
             ),
