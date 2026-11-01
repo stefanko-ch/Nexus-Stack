@@ -1793,6 +1793,33 @@ def _render_memgraph(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={"MEMGRAPH_PASSWORD": c.memgraph_password or ""}, mode=0o600)
 
 
+def _render_ollama(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Ollama stack: the Open WebUI admin it creates on first start.
+
+    Sign-up is disabled in the compose file, so without an admin from here
+    nobody could log in at all -- an empty value fails the deploy rather
+    than starting a chat UI with no way in.
+    """
+    required = {
+        "OPEN_WEBUI_ADMIN_EMAIL": stack_user_email(e),
+        "OPEN_WEBUI_ADMIN_PASSWORD": c.open_webui_admin_password,
+        "OPEN_WEBUI_SECRET_KEY": c.open_webui_secret_key,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Ollama enabled but {', '.join(missing)} empty -- the password and "
+            "key come from the tofu outputs `open_webui_admin_password` and "
+            "`open_webui_secret_key`, the email from admin_email or the stack "
+            "user's email in config.tfvars. Aborting: Open WebUI has sign-up "
+            "disabled, so it would come up with no account to log in with.",
+        )
+    url = f"https://{service_host('ollama', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "OPEN_WEBUI_URL": url},
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3111,6 +3138,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("langflow", _is_enabled("langflow"), _render_langflow),
     EnvSpec("label-studio", _is_enabled("label-studio"), _render_label_studio),
     EnvSpec("memgraph", _is_enabled("memgraph"), _render_memgraph),
+    EnvSpec("ollama", _is_enabled("ollama"), _render_ollama),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

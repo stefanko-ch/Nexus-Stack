@@ -114,7 +114,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | Ollama | `ollama/ollama` | `0.15.1` | Exact ¹ |
-| Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.8.3` | Exact ¹ |
+| Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.12.5` | Exact ¹ |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `nexus-marimo` (custom build) | `0.23.4-sql-spark` | Exact ³ ⁷ |

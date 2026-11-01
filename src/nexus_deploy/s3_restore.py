@@ -304,7 +304,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
     Postgres, Unity Catalog, Lakekeeper, MLflow and Kestra, and filesystem
     trees for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB,
-    Langflow, Label Studio, Memgraph, the notebook stacks (Jupyter,
+    Langflow, Label Studio, Memgraph, Open WebUI, the notebook stacks (Jupyter,
     Marimo, code-server) and Kestra's internal storage.
 
     Hard-coded because:
@@ -528,6 +528,16 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="memgraph-data",
             local_path="/mnt/nexus-data/memgraph",
             s3_subpath="memgraph/data",
+        ),
+        # Open WebUI (ollama stack): chats, uploads and its SQLite database.
+        # The downloaded Ollama models are deliberately not covered: they
+        # are gigabytes that `ollama pull` reproduces.
+        _s3.RsyncTarget(
+            name="open-webui-data",
+            local_path="/mnt/nexus-data/open-webui",
+            # Under the stack's name, which is how the stop list and the
+            # tests pair a target with the compose file stopped for it.
+            s3_subpath="ollama/open-webui",
         ),
         # The notebook stacks: what students write in a course. Before
         # these entries a rebuild teardown discarded every notebook
@@ -1013,6 +1023,7 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/langflow/docker-compose.yml",
     "/opt/docker-server/stacks/label-studio/docker-compose.yml",
     "/opt/docker-server/stacks/memgraph/docker-compose.yml",
+    "/opt/docker-server/stacks/ollama/docker-compose.yml",
     # A notebook saved mid-copy is a torn file; stopping first means
     # the snapshot holds the last saved version of each.
     "/opt/docker-server/stacks/jupyter/docker-compose.yml",

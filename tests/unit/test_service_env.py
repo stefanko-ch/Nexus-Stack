@@ -4555,3 +4555,36 @@ def test_memgraph_renders_and_refuses_an_empty_password(
     assert rendered.env_vars == {"MEMGRAPH_PASSWORD": "mg"}
     with pytest.raises(ServiceEnvError, match="MEMGRAPH_PASS"):
         _render_memgraph(full_config.model_copy(update={"memgraph_password": ""}), full_env)
+
+
+def test_open_webui_admin_is_the_stack_user(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_ollama
+
+    config = full_config.model_copy(
+        update={"open_webui_admin_password": "ow-pw", "open_webui_secret_key": "ow-key"}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_ollama(config, env)
+    assert rendered.env_vars == {
+        "OPEN_WEBUI_ADMIN_EMAIL": "user@example.com",
+        "OPEN_WEBUI_ADMIN_PASSWORD": "ow-pw",
+        "OPEN_WEBUI_SECRET_KEY": "ow-key",
+        "OPEN_WEBUI_URL": "https://ollama-alice.example.com",
+    }
+    assert rendered.mode == 0o600
+
+
+def test_open_webui_refuses_an_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_ollama
+
+    config = full_config.model_copy(
+        update={"open_webui_admin_password": "", "open_webui_secret_key": "ow-key"}
+    )
+    with pytest.raises(ServiceEnvError, match="OPEN_WEBUI_ADMIN_PASSWORD"):
+        _render_ollama(config, full_env)

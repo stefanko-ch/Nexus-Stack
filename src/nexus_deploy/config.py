@@ -117,6 +117,8 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("LABEL_STUDIO_ADMIN_PASS", "label_studio_admin_password", ""),
     ("LABEL_STUDIO_USER_TOKEN", "label_studio_user_token", ""),
     ("MEMGRAPH_PASS", "memgraph_password", ""),
+    ("OPEN_WEBUI_ADMIN_PASS", "open_webui_admin_password", ""),
+    ("OPEN_WEBUI_SECRET_KEY", "open_webui_secret_key", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -292,6 +294,8 @@ class NexusConfig(BaseModel):
     label_studio_admin_password: str | None = None
     label_studio_user_token: str | None = None
     memgraph_password: str | None = None
+    open_webui_admin_password: str | None = None
+    open_webui_secret_key: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

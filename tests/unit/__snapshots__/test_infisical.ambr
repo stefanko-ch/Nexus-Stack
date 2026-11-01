@@ -228,6 +228,10 @@
       'NUSSKNACKER_ADMIN_PASSWORD': 'nussknacker-admin-pw',
       'NUSSKNACKER_ADMIN_USERNAME': 'nexus-nussknacker',
     }),
+    'open-webui': dict({
+      'OPEN_WEBUI_PASSWORD': 'open_webui_admin_password-VALUE',
+      'OPEN_WEBUI_USERNAME': 'user@snapshot.test',
+    }),
     'openmetadata': dict({
       'OPENMETADATA_DB_PASSWORD': 'openmetadata_db_password-VALUE',
       'OPENMETADATA_PASSWORD': 'openmetadata_admin_password-VALUE',

@@ -513,6 +513,22 @@ resource "random_password" "memgraph" {
   special = false
 }
 
+# Open WebUI admin password. Open WebUI creates the admin only while its
+# user table is empty, so like the three above it is kept across a rebuild
+# teardown (teardown.yml excludes it) to stay matched to the restored
+# account.
+resource "random_password" "open_webui_admin" {
+  length  = 24
+  special = false
+}
+
+# Open WebUI session-signing key. Stable for the same reason: a new key
+# with a restored data directory would sign everyone out.
+resource "random_password" "open_webui_secret_key" {
+  length  = 48
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

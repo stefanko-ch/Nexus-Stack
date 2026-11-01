@@ -84,7 +84,7 @@ data" — it is "some of your data, depending on the mode".
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —
 currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB, Kestra, Langflow,
-Label Studio, Memgraph and the notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
+Label Studio, Memgraph, Open WebUI and the notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
 shared Postgres database and of the Unity Catalog, Lakekeeper and MLflow catalogues. Two kinds of target sit in that list: a `pg_dump` of a
 stack's database, and an rsync of the directories it writes — Forgejo and Gitea
 have both, since a forge is repositories as much as it is a database. Read that function rather than trusting a number in a document:
@@ -137,7 +137,7 @@ passwords on every spin-up and pushes them to Infisical. A password you wrote do
 last week is not the password today; the Control Plane and Infisical always have the
 current one.
 
-The exceptions are Langflow's, Label Studio's and Memgraph's logins. Those apps create
+The exceptions are Langflow's, Label Studio's, Memgraph's and Open WebUI's logins. Those apps create
 their account only once, the R2 restore brings it back, and a regenerated password
 would never reach it, so a rebuild teardown leaves these credentials in place.
 

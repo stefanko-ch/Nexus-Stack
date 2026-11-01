@@ -253,6 +253,10 @@ output "secrets" {
     # Memgraph (in-memory graph database)
     memgraph_password = random_password.memgraph.result
 
+    # Open WebUI (chat interface in the ollama stack)
+    open_webui_admin_password = random_password.open_webui_admin.result
+    open_webui_secret_key     = random_password.open_webui_secret_key.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

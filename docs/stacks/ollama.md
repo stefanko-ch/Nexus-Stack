@@ -25,7 +25,7 @@ as a ChatGPT-like chat interface. No data leaves your server.
 | Container | Image | Purpose |
 |-----------|-------|---------|
 | `ollama` | `ollama/ollama:0.15.1` | LLM inference engine (internal only) |
-| `open-webui` | `ghcr.io/open-webui/open-webui:v0.8.3` | Chat interface (exposed via subdomain) |
+| `open-webui` | `ghcr.io/open-webui/open-webui:v0.12.5` | Chat interface (exposed via subdomain) |
 
 Ollama runs on an internal-only network (`ollama-internal`) and is not exposed externally.
 Open WebUI connects to both `app-network` (for Cloudflare Tunnel access) and `ollama-internal`
@@ -33,15 +33,20 @@ Open WebUI connects to both `app-network` (for Cloudflare Tunnel access) and `ol
 
 ### Data Storage
 
-| Volume | Content |
-|--------|---------|
-| `ollama-data` | Downloaded LLM models |
-| `open-webui-data` | Conversation history, user accounts, settings |
+| Location | Content | Survives a rebuild teardown |
+|--------|---------|---|
+| `ollama-data` (Docker volume) | Downloaded LLM models | No — pull them again |
+| `/mnt/nexus-data/open-webui` (bind mount) | Conversation history, uploads, user accounts, settings | Yes, backed up to R2 |
+
+Open WebUI's data used to live in the Docker volume `open-webui-data`, which every rebuild teardown destroyed. On a server that still has that volume (snapshot lifecycle), the first spin-up after the change copies it into the new directory once.
 
 ### Credentials
 
-No pre-configured credentials. The **first user to register** becomes the admin.
-After initial registration, additional users can be managed from the admin panel.
+Open WebUI creates an admin on first start: the stack user's email (on a class stack, the student's), else `ADMIN_EMAIL`, with a generated password. Both are in Infisical, folder `open-webui`, as `OPEN_WEBUI_USERNAME` and `OPEN_WEBUI_PASSWORD`. Sign-up is disabled; the admin can add users in the admin panel.
+
+Open WebUI creates the admin only while it has no users, and the R2 restore brings existing users back, so the rebuild teardown keeps the password and the session key (`WEBUI_SECRET_KEY`) rather than regenerating them.
+
+Until v0.12.5 in this stack, sign-up was open and the first person to register became admin.
 
 ### CPU-Only Mode
 

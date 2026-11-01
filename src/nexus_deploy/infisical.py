@@ -1073,6 +1073,18 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "open-webui",
+            _filter_empty(
+                {
+                    # Open WebUI signs in by email.
+                    "OPEN_WEBUI_USERNAME": stack_user_email(env),
+                    "OPEN_WEBUI_PASSWORD": config.open_webui_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

@@ -24,6 +24,8 @@ PRESERVED = (
     "random_password.label_studio_admin",
     "random_password.label_studio_user_token",
     "random_password.memgraph",
+    "random_password.open_webui_admin",
+    "random_password.open_webui_secret_key",
 )
 
 

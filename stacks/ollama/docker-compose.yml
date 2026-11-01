@@ -12,7 +12,7 @@
 #   - RAG (Retrieval-Augmented Generation) support
 #
 # Access: https://ollama.YOUR_DOMAIN
-# First user to register becomes admin.
+# Login: the admin account created on first start (Infisical -> `open-webui`).
 #
 # Note: No GPU on Hetzner ARM servers - models run on CPU.
 # Smaller models (1B-7B parameters) recommended for acceptable performance.
@@ -44,22 +44,45 @@ services:
   # ---------------------------------------------------------------------------
   # Open WebUI - Chat Interface
   # ---------------------------------------------------------------------------
+  # Login: an admin account created on first start from
+  # WEBUI_ADMIN_EMAIL / WEBUI_ADMIN_PASSWORD (the stack user's email and a
+  # generated password, Infisical -> folder `open-webui`). Open WebUI does
+  # this only while its user table is empty, and stores
+  # `enable_signup=false` with it, so nobody else can register. It used to
+  # be "first visitor to register becomes admin", with sign-up left open.
   open-webui:
-    image: ${IMAGE_OLLAMA_OPEN_WEBUI:-ghcr.io/open-webui/open-webui:v0.8.3}
+    image: ${IMAGE_OLLAMA_OPEN_WEBUI:-ghcr.io/open-webui/open-webui:v0.12.5}
     container_name: open-webui
     restart: unless-stopped
     ports:
-      - "8093:8080"
+      - "127.0.0.1:8093:8080"
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       WEBUI_AUTH: "true"
-      ENABLE_SIGNUP: "true"
+      ENABLE_SIGNUP: "false"
+      WEBUI_ADMIN_EMAIL: ${OPEN_WEBUI_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_ollama)}
+      WEBUI_ADMIN_PASSWORD: ${OPEN_WEBUI_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_ollama)}
+      WEBUI_ADMIN_NAME: "Nexus"
+      # Signs sessions. Set explicitly: otherwise start.sh writes a random
+      # one into the data directory, and a restored directory and a new
+      # key would log everyone out.
+      WEBUI_SECRET_KEY: ${OPEN_WEBUI_SECRET_KEY:?must be set in .env (rendered by service_env._render_ollama)}
+      WEBUI_URL: ${OPEN_WEBUI_URL:-}
       WEBUI_NAME: "Nexus AI"
+      # The public side is HTTPS (Cloudflare).
+      WEBUI_SESSION_COOKIE_SECURE: "true"
+      WEBUI_AUTH_COOKIE_SECURE: "true"
+      ENABLE_VERSION_UPDATE_CHECK: "false"
       SCARF_NO_ANALYTICS: "true"
       DO_NOT_TRACK: "true"
       ANONYMIZED_TELEMETRY: "false"
     volumes:
-      - open-webui-data:/app/backend/data
+      # A bind mount, so the R2 snapshot covers chats, uploads and the
+      # SQLite database and a rebuild teardown keeps them. It used to be
+      # the named volume `open-webui-data`, which every rebuild teardown
+      # destroyed; compose_runner copies a still-existing one into this
+      # directory once, on a server that has it.
+      - /mnt/nexus-data/open-webui:/app/backend/data
     depends_on:
       ollama:
         condition: service_healthy
@@ -69,7 +92,6 @@ services:
 
 volumes:
   ollama-data:
-  open-webui-data:
 
 networks:
   app-network:

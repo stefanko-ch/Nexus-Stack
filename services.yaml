@@ -968,7 +968,7 @@ services:
     long_description: "Run large language models locally with Ollama and interact through Open WebUI's ChatGPT-like interface. Supports Llama, Mistral, Gemma, and many other models. Features include conversation history, model switching, RAG with document upload, and API compatibility with OpenAI format."
     image: "ollama/ollama:0.15.1"
     support_images:
-      ollama-open-webui: "ghcr.io/open-webui/open-webui:v0.8.3"
+      ollama-open-webui: "ghcr.io/open-webui/open-webui:v0.12.5"
 
   openmetadata:
     subdomain: "openmetadata"

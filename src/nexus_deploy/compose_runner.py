@@ -210,6 +210,15 @@ _DATA_DIRS: dict[str, tuple[str, str]] = {
     "memgraph": ("/mnt/nexus-data/memgraph", "101:103"),
 }
 
+# Backed-up bind mounts that replaced a named volume, keyed by service:
+# (host path, owner, the old volume). Rendered with _render_notebook_prep,
+# which copies a still-existing volume into the empty directory once, so a
+# server on the snapshot lifecycle keeps what the volume held.
+_MIGRATED_DATA_DIRS: dict[str, tuple[str, str, str]] = {
+    # Open WebUI in the ollama stack (compose project `ollama`).
+    "ollama": ("/mnt/nexus-data/open-webui", "0:0", "ollama_open-webui-data"),
+}
+
 
 def _render_data_dir_prep(path: str, owner: str) -> str:
     """``mkdir -p`` plus a per-file ownership fix, like the notebook prep
@@ -228,6 +237,7 @@ def render_remote_script(
     parents: list[str],
     leaves: list[str],
     data_dirs: tuple[tuple[str, str], ...] = (),
+    migrated_data_dirs: tuple[tuple[str, str, str], ...] = (),
     dify_storage_prep: bool = False,
     metabase_storage_prep: bool = False,
     ollama_internal_network_prep: bool = False,
@@ -398,7 +408,11 @@ if [ "$(stat -c '%u:%g' /mnt/nexus-data/metabase)" != "2000:2000" ]; then
 fi
 """
 
-    data_dirs_block = "".join(_render_data_dir_prep(path, owner) for path, owner in data_dirs)
+    data_dirs_block = "".join(
+        _render_data_dir_prep(path, owner) for path, owner in data_dirs
+    ) + "".join(
+        _render_notebook_prep(path, owner, volume) for path, owner, volume in migrated_data_dirs
+    )
 
     return f"""set -euo pipefail
 
@@ -582,6 +596,9 @@ def run_compose_up(
         parents=parents,
         leaves=leaves,
         data_dirs=tuple(spec for svc, spec in _DATA_DIRS.items() if svc in enabled),
+        migrated_data_dirs=tuple(
+            spec for svc, spec in _MIGRATED_DATA_DIRS.items() if svc in enabled
+        ),
         dify_storage_prep=actual_dify,
         metabase_storage_prep=actual_metabase,
         ollama_internal_network_prep=actual_ollama_internal,

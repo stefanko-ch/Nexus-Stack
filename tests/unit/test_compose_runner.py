@@ -1119,3 +1119,34 @@ def test_every_stack_on_ollama_internal_is_registered() -> None:
         if "ollama-internal" in (yaml.safe_load(f.read_text()).get("networks") or {})
     }
     assert joined == set(_OLLAMA_CLIENTS)
+
+
+def test_open_webui_data_dir_migrates_the_old_volume_once() -> None:
+    """The ollama stack's Open WebUI moved from the named volume to a bind
+    mount. A snapshot-lifecycle server still has the volume, and switching
+    to an empty directory would hide every chat; the prep copies it once."""
+    import yaml
+
+    from nexus_deploy.compose_runner import _MIGRATED_DATA_DIRS
+    from nexus_deploy.s3_restore import standard_targets
+
+    seen: list[str] = []
+
+    def runner(script: str) -> subprocess.CompletedProcess[str]:
+        seen.append(script)
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["ollama"], script_runner=runner)
+    path, _owner, volume = _MIGRATED_DATA_DIRS["ollama"]
+    assert f"docker volume inspect -f '{{{{.Mountpoint}}}}' {volume}" in seen[0]
+    assert f"mkdir -p {path}" in seen[0]
+
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parents[2] / "stacks/ollama/docker-compose.yml").read_text()
+    )
+    mounts = [m.split(":")[0] for m in compose["services"]["open-webui"]["volumes"]]
+    assert path in mounts
+    _, rsync = standard_targets()
+    assert path in {r.local_path for r in rsync}
