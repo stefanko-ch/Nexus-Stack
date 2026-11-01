@@ -475,6 +475,15 @@ def _filter_empty(items: Mapping[str, str | None]) -> dict[str, str]:
     return {k: v for k, v in items.items() if v is not None and v != ""}
 
 
+def stack_user_email(env: BootstrapEnv) -> str:
+    """The email a per-user app login is created for: the stack user's,
+    else the admin's. On a class stack that is the student, not the
+    instructor — the same rule as the Mage and Wiki.js logins. The
+    renderer that creates the account and the Infisical entry that names
+    it both read it here, so they cannot disagree."""
+    return env.forgejo_user_email or env.admin_email or ""
+
+
 def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     """Build the ordered list of Infisical folders to push.
 
@@ -1052,6 +1061,42 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                     # It goes in the `api-key` header (or the dashboard's
                     # "Set API Key" dialog) and gates REST and gRPC alike.
                     "QDRANT_API_KEY": config.qdrant_api_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "langflow",
+            _filter_empty(
+                {
+                    "LANGFLOW_USERNAME": stack_user_email(env),
+                    "LANGFLOW_PASSWORD": config.langflow_superuser_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "label-studio",
+            _filter_empty(
+                {
+                    # Label Studio signs in by email.
+                    "LABEL_STUDIO_USERNAME": stack_user_email(env),
+                    "LABEL_STUDIO_PASSWORD": config.label_studio_admin_password,
+                    # `Authorization: Token <value>` for the SDK and REST API.
+                    "LABEL_STUDIO_API_TOKEN": config.label_studio_user_token,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "memgraph",
+            _filter_empty(
+                {
+                    "MEMGRAPH_USERNAME": "nexus-memgraph",
+                    "MEMGRAPH_PASSWORD": config.memgraph_password,
                 }
             ),
         )

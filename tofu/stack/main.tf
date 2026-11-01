@@ -480,6 +480,45 @@ resource "random_password" "qdrant_api_key" {
   special = false
 }
 
+# Langflow superuser password. Langflow refuses to start with auto-login
+# off and an empty superuser password, and rejects the legacy "langflow".
+# It sets the password on first start only: an existing user keeps the one
+# it was created with, so this value matches the login only for the data
+# directory it was first used on.
+resource "random_password" "langflow_superuser" {
+  length  = 24
+  special = false
+}
+
+# Langflow encrypts stored credentials (API keys in flows) with this key.
+# Langflow warns below 32 characters, and a changed key makes every stored
+# credential unreadable, which is why it is set explicitly rather than left
+# to the file Langflow would generate.
+resource "random_password" "langflow_secret_key" {
+  length  = 48
+  special = false
+}
+
+# Label Studio admin password. Its own minimum is 8 characters.
+resource "random_password" "label_studio_admin" {
+  length  = 24
+  special = false
+}
+
+# Label Studio API token for the admin, so notebooks can use the SDK
+# without a UI visit. Label Studio applies it only at 6+ characters.
+resource "random_password" "label_studio_user_token" {
+  length  = 40
+  special = false
+}
+
+# Memgraph password for the nexus-memgraph account. Created on the first
+# start with an empty data directory; later starts keep the existing user.
+resource "random_password" "memgraph" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

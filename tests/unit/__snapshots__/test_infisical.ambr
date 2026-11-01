@@ -134,6 +134,11 @@
       'KEYCLOAK_DB_PASSWORD': 'keycloak_db_password-VALUE',
       'KEYCLOAK_DB_USERNAME': 'nexus-keycloak',
     }),
+    'label-studio': dict({
+      'LABEL_STUDIO_API_TOKEN': 'label_studio_user_token-VALUE',
+      'LABEL_STUDIO_PASSWORD': 'label_studio_admin_password-VALUE',
+      'LABEL_STUDIO_USERNAME': 'user@snapshot.test',
+    }),
     'lakefs': dict({
       'LAKEFS_ACCESS_KEY_ID': 'lakefs_admin_access_key-VALUE',
       'LAKEFS_DB_PASSWORD': 'lakefs_db_password-VALUE',
@@ -141,6 +146,10 @@
     }),
     'lakekeeper': dict({
       'LAKEKEEPER_DB_PASSWORD': 'lakekeeper_db_password-VALUE',
+    }),
+    'langflow': dict({
+      'LANGFLOW_PASSWORD': 'langflow_superuser_password-VALUE',
+      'LANGFLOW_USERNAME': 'user@snapshot.test',
     }),
     'langfuse': dict({
       'LANGFUSE_CLICKHOUSE_PASSWORD': 'langfuse_clickhouse_password-VALUE',
@@ -173,6 +182,10 @@
     }),
     'meltano': dict({
       'MELTANO_DB_PASSWORD': 'meltano_db_password-VALUE',
+    }),
+    'memgraph': dict({
+      'MEMGRAPH_PASSWORD': 'memgraph_password-VALUE',
+      'MEMGRAPH_USERNAME': 'nexus-memgraph',
     }),
     'metabase': dict({
       'METABASE_PASSWORD': 'metabase_admin_password-VALUE',

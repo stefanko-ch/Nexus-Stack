@@ -43,7 +43,7 @@ from typing import Literal
 import bcrypt
 
 from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
-from nexus_deploy.infisical import BootstrapEnv
+from nexus_deploy.infisical import BootstrapEnv, stack_user_email
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -1710,6 +1710,89 @@ def _render_qdrant(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_langflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Langflow: the superuser it creates on first start, and the key it
+    encrypts stored credentials with.
+
+    The login is the stack user's email (``stack_user_email``), the same
+    value Infisical's ``langflow/LANGFLOW_USERNAME`` holds. Langflow raises
+    at startup when auto-login is off and the superuser password is empty,
+    so an empty value fails here, naming the tofu output, rather than as a
+    crash-looping container.
+    """
+    required = {
+        "LANGFLOW_SUPERUSER_PASSWORD": c.langflow_superuser_password,
+        "LANGFLOW_SECRET_KEY": c.langflow_secret_key,
+        "LANGFLOW_SUPERUSER": stack_user_email(e),
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Langflow enabled but {', '.join(missing)} empty -- the passwords "
+            "come from the tofu outputs `langflow_superuser_password` and "
+            "`langflow_secret_key`, the login from admin_email or the stack "
+            "user's email in config.tfvars. Aborting rather than starting a "
+            "Langflow that refuses to boot without a superuser password.",
+        )
+    return RenderedEnv(env_vars={k: v or "" for k, v in required.items()}, mode=0o600)
+
+
+def _render_label_studio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Label Studio: the admin it creates on first start, and its public
+    URL.
+
+    The public URL matters behind the tunnel. Django checks a login POST's
+    Origin against ``CSRF_TRUSTED_ORIGINS``, and Label Studio sets no
+    forwarded-proto handling, so without the https origin listed here every
+    login through Cloudflare would end in a 403.
+    """
+    required = {
+        "LABEL_STUDIO_USERNAME": stack_user_email(e),
+        "LABEL_STUDIO_PASSWORD": c.label_studio_admin_password,
+        "LABEL_STUDIO_USER_TOKEN": c.label_studio_user_token,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Label Studio enabled but {', '.join(missing)} empty -- the "
+            "password and token come from the tofu outputs "
+            "`label_studio_admin_password` and `label_studio_user_token`, the "
+            "login from admin_email or the stack user's email in "
+            "config.tfvars. Aborting: with sign-up disabled, Label Studio "
+            "would come up with no account anyone can log in with.",
+        )
+    if _empty(e.domain):
+        raise ServiceEnvError(
+            "Label Studio enabled but DOMAIN is empty -- it builds "
+            "LABEL_STUDIO_HOST and CSRF_TRUSTED_ORIGINS, without which every "
+            "login through the tunnel is refused with a CSRF 403.",
+        )
+    url = f"https://{service_host('label-studio', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in required.items()},
+            "LABEL_STUDIO_URL": url,
+        },
+        mode=0o600,
+    )
+
+
+def _render_memgraph(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Memgraph: the password of the ``nexus-memgraph`` account.
+
+    Memgraph creates that account from ``MEMGRAPH_USER`` /
+    ``MEMGRAPH_PASSWORD`` on the first start with an empty data directory.
+    Without a password it would start with no user at all, which Memgraph
+    treats as authentication off.
+    """
+    if _empty(c.memgraph_password):
+        raise ServiceEnvError(
+            "Memgraph enabled but MEMGRAPH_PASS is empty -- it comes from the "
+            "tofu output `memgraph_password` (random_password.memgraph). "
+            "Aborting rather than starting Memgraph with no user, which "
+            "leaves it open to every container on app-network.",
+        )
+    return RenderedEnv(env_vars={"MEMGRAPH_PASSWORD": c.memgraph_password or ""}, mode=0o600)
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3024,6 +3107,9 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("nussknacker", _is_enabled("nussknacker"), _render_nussknacker),
     EnvSpec("influxdb", _is_enabled("influxdb"), _render_influxdb),
     EnvSpec("qdrant", _is_enabled("qdrant"), _render_qdrant),
+    EnvSpec("langflow", _is_enabled("langflow"), _render_langflow),
+    EnvSpec("label-studio", _is_enabled("label-studio"), _render_label_studio),
+    EnvSpec("memgraph", _is_enabled("memgraph"), _render_memgraph),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),
