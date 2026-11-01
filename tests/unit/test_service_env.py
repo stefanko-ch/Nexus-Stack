@@ -4623,3 +4623,43 @@ def test_flowise_refuses_an_empty_owner_password(
     )
     with pytest.raises(ServiceEnvError, match="FLOWISE_ADMIN_PASSWORD"):
         _render_flowise(config, full_env)
+
+
+def test_open_notebook_renders_its_public_url_and_secrets(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """API_URL is the public URL: left unset, the browser would call
+    <host>:5055, which the tunnel does not route."""
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_open_notebook
+
+    config = full_config.model_copy(
+        update={
+            "open_notebook_password": "on-pw",
+            "open_notebook_encryption_key": "on-key",
+            "open_notebook_db_password": "on-db",
+        }
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_open_notebook(config, env)
+    assert rendered.env_vars["OPEN_NOTEBOOK_URL"] == "https://open-notebook-alice.example.com"
+    assert rendered.env_vars["OPEN_NOTEBOOK_PASSWORD"] == "on-pw"
+    assert rendered.mode == 0o600
+
+
+def test_open_notebook_refuses_to_run_without_a_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Open Notebook without a password runs with authentication off."""
+    from nexus_deploy.service_env import _render_open_notebook
+
+    config = full_config.model_copy(
+        update={
+            "open_notebook_password": "",
+            "open_notebook_encryption_key": "on-key",
+            "open_notebook_db_password": "on-db",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="OPEN_NOTEBOOK_PASSWORD"):
+        _render_open_notebook(config, full_env)

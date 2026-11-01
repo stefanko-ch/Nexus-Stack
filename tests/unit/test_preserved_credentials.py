@@ -27,6 +27,8 @@ PRESERVED = (
     "random_password.open_webui_admin",
     "random_password.open_webui_secret_key",
     "random_password.flowise_admin",
+    "random_password.open_notebook_encryption_key",
+    "random_password.open_notebook_db",
 )
 
 

@@ -550,6 +550,28 @@ resource "random_password" "flowise_db" {
   special = false
 }
 
+# Open Notebook: one shared password for the UI and the REST API.
+resource "random_password" "open_notebook" {
+  length  = 24
+  special = false
+}
+
+# Encrypts the provider credentials Open Notebook stores in its database.
+# Kept across a rebuild teardown (teardown.yml excludes it): a new key with
+# a restored database would make every stored credential unreadable.
+resource "random_password" "open_notebook_encryption_key" {
+  length  = 48
+  special = false
+}
+
+# SurrealDB root user for Open Notebook. Kept across a rebuild teardown for
+# the same reason as the key: the restored database holds the user it was
+# created with.
+resource "random_password" "open_notebook_db" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

@@ -1090,7 +1090,7 @@ def test_data_dir_prep_is_valid_bash() -> None:
     subprocess.run(["bash", "-n"], input=script, text=True, check=True)
 
 
-@pytest.mark.parametrize("service", ["ollama", "litellm", "langflow", "flowise"])
+@pytest.mark.parametrize("service", ["ollama", "litellm", "langflow", "flowise", "open-notebook"])
 def test_ollama_internal_is_created_for_every_stack_that_joins_it(service: str) -> None:
     """A compose file naming the external `ollama-internal` network fails
     to start if it does not exist, so every stack that joins it must make

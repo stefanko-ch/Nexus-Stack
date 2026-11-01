@@ -1099,6 +1099,20 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "open-notebook",
+            _filter_empty(
+                {
+                    # No username: one shared password for the UI and the
+                    # API (`Authorization: Bearer <password>`).
+                    "OPEN_NOTEBOOK_PASSWORD": config.open_notebook_password,
+                    "OPEN_NOTEBOOK_DB_USERNAME": "nexus-open-notebook",
+                    "OPEN_NOTEBOOK_DB_PASSWORD": config.open_notebook_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

@@ -128,6 +128,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
 | Langflow | `langflowai/langflow` | `1.13.0` | Exact |
 | Flowise | `flowiseai/flowise` | `3.1.4` | Exact |
+| Open Notebook | `lfnovo/open_notebook` | `1.15.0` | Exact |
+| SurrealDB (Open Notebook) | `surrealdb/surrealdb` | `v2.7.0` | Exact |
 | PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
@@ -299,6 +301,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
+| **Open Notebook** | Self-hosted NotebookLM alternative | [open-notebook.md](open-notebook.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |

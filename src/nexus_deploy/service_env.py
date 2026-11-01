@@ -1848,6 +1848,34 @@ def _render_flowise(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_open_notebook(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Open Notebook: its shared password, the key for stored provider
+    credentials, the SurrealDB password, and the public URL the browser
+    calls the API at.
+
+    The password matters most: without OPEN_NOTEBOOK_PASSWORD Open
+    Notebook runs with authentication off and does not warn.
+    """
+    required = {
+        "OPEN_NOTEBOOK_PASSWORD": c.open_notebook_password,
+        "OPEN_NOTEBOOK_ENCRYPTION_KEY": c.open_notebook_encryption_key,
+        "OPEN_NOTEBOOK_DB_PASSWORD": c.open_notebook_db_password,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Open Notebook enabled but {', '.join(missing)} empty -- they come "
+            "from the tofu outputs `open_notebook_password`, "
+            "`open_notebook_encryption_key` and `open_notebook_db_password`. "
+            "Aborting: without the password Open Notebook runs with "
+            "authentication off.",
+        )
+    url = f"https://{service_host('open-notebook', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "OPEN_NOTEBOOK_URL": url},
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3168,6 +3196,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("memgraph", _is_enabled("memgraph"), _render_memgraph),
     EnvSpec("ollama", _is_enabled("ollama"), _render_ollama),
     EnvSpec("flowise", _is_enabled("flowise"), _render_flowise),
+    EnvSpec("open-notebook", _is_enabled("open-notebook"), _render_open_notebook),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

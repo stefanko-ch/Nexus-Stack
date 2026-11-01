@@ -261,6 +261,11 @@ output "secrets" {
     flowise_admin_password = random_password.flowise_admin.result
     flowise_db_password    = random_password.flowise_db.result
 
+    # Open Notebook (self-hosted NotebookLM alternative)
+    open_notebook_password       = random_password.open_notebook.result
+    open_notebook_encryption_key = random_password.open_notebook_encryption_key.result
+    open_notebook_db_password    = random_password.open_notebook_db.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

@@ -714,6 +714,18 @@ services:
     support_images:
       flowise-db: "postgres:17-alpine"
 
+  open-notebook:
+    subdomain: "open-notebook"
+    port: 8503
+    public: false
+    category: "ai-ml"
+    website: "https://github.com/lfnovo/open-notebook"
+    description: "Self-hosted NotebookLM alternative — ask questions about your own sources with local models."
+    long_description: "Open Notebook collects sources — PDFs, web pages, text, audio — into notebooks and lets you ask questions about them, generate summaries and notes, and search across everything, in the spirit of Google's NotebookLM but on your own server. With Ollama as the model provider nothing leaves it: Open Notebook joins Ollama's network and uses it for chat and embeddings, or LiteLLM as an OpenAI-compatible gateway. Models are set up once in the UI. One shared password protects the UI and the REST API (Infisical → folder `open-notebook`). Notebooks live in a SurrealDB sidecar under /mnt/nexus-data and survive a teardown."
+    image: "lfnovo/open_notebook:1.15.0"
+    support_images:
+      open-notebook-db: "surrealdb/surrealdb:v2.7.0"
+
   label-studio:
     subdomain: "label-studio"
     port: 8280
