@@ -22,7 +22,7 @@ Langflow draws an LLM application as a flow: models, prompts, retrievers, vector
 
 ### Using the rest of the stack
 
-Langflow's components reach the AI stacks on `app-network` by service name:
+Langflow's components reach the AI stacks by service name — Ollama through the `ollama-internal` network it shares with LiteLLM (Ollama is on no other network), the rest on `app-network`:
 
 | Component | URL |
 |---|---|
