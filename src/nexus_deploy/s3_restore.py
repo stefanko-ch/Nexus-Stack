@@ -304,8 +304,8 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
     Postgres, Unity Catalog, Lakekeeper, MLflow and Kestra, and filesystem
     trees for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB,
-    the notebook stacks (Jupyter, Marimo, code-server) and Kestra's
-    internal storage.
+    Langflow, Label Studio, Memgraph, the notebook stacks (Jupyter,
+    Marimo, code-server) and Kestra's internal storage.
 
     Hard-coded because:
     1. Stateful stacks are explicitly opted in here. Adding a stack
@@ -507,6 +507,27 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="duckdb-data",
             local_path="/mnt/nexus-data/duckdb",
             s3_subpath="duckdb/data",
+        ),
+        # Langflow and Label Studio keep everything in SQLite plus files
+        # in one directory, and Memgraph its snapshots and write-ahead log.
+        # Each is stopped first (see the stop list), so the SQLite files
+        # and the WAL are closed when rclone reads them. Memgraph writes a
+        # snapshot on exit by default, so a stopped Memgraph leaves the
+        # whole graph on disk.
+        _s3.RsyncTarget(
+            name="langflow-data",
+            local_path="/mnt/nexus-data/langflow",
+            s3_subpath="langflow/data",
+        ),
+        _s3.RsyncTarget(
+            name="label-studio-data",
+            local_path="/mnt/nexus-data/label-studio",
+            s3_subpath="label-studio/data",
+        ),
+        _s3.RsyncTarget(
+            name="memgraph-data",
+            local_path="/mnt/nexus-data/memgraph",
+            s3_subpath="memgraph/data",
         ),
         # The notebook stacks: what students write in a course. Before
         # these entries a rebuild teardown discarded every notebook
@@ -987,6 +1008,11 @@ _STANDARD_STOP_COMPOSE_FILES = (
     # CLI stops in well under a second, closing the file before rclone
     # reads it.
     "/opt/docker-server/stacks/duckdb/docker-compose.yml",
+    # SQLite (Langflow, Label Studio) and Memgraph's WAL copied while
+    # written are torn files; stopped, they are closed.
+    "/opt/docker-server/stacks/langflow/docker-compose.yml",
+    "/opt/docker-server/stacks/label-studio/docker-compose.yml",
+    "/opt/docker-server/stacks/memgraph/docker-compose.yml",
     # A notebook saved mid-copy is a torn file; stopping first means
     # the snapshot holds the last saved version of each.
     "/opt/docker-server/stacks/jupyter/docker-compose.yml",

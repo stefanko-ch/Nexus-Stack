@@ -1,0 +1,82 @@
+# =============================================================================
+# Label Studio - Data labelling for machine-learning datasets
+# =============================================================================
+# Access via: https://label-studio.<domain>
+#
+# Annotate text, images, audio and tabular data in configurable labelling
+# interfaces, then export the result for training (JSON, CSV, COCO, YOLO,
+# ...). Notebooks reach it in-cluster at http://label-studio:8080 with the
+# label-studio-sdk and the API token from Infisical.
+#
+# Login: Cloudflare Access is the outer gate; Label Studio then asks for
+# its own account, created on first start from LABEL_STUDIO_USERNAME /
+# LABEL_STUDIO_PASSWORD (the stack user's email and a generated password,
+# Infisical → folder `label-studio`). Label Studio creates the user only if
+# it does not exist, so the password belongs to the data directory it was
+# first started with.
+#
+# Storage: SQLite, uploaded media and the generated Django secret key, all
+# in /label-studio/data. A bind mount under /mnt/nexus-data, so the R2
+# snapshot covers it and a rebuild teardown keeps the projects.
+# compose_runner chowns it to the image's user (1001:0) before compose up.
+#
+# Image: heartexlabs/label-studio (amd64 + arm64).
+# Docs: https://labelstud.io/guide/
+# =============================================================================
+
+services:
+  label-studio:
+    image: ${IMAGE_LABEL_STUDIO:-heartexlabs/label-studio:1.23.2}
+    container_name: label-studio
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8280:8080"
+    environment:
+      LABEL_STUDIO_USERNAME: ${LABEL_STUDIO_USERNAME:?must be set in .env (rendered by service_env._render_label_studio)}
+      LABEL_STUDIO_PASSWORD: ${LABEL_STUDIO_PASSWORD:?must be set in .env (rendered by service_env._render_label_studio)}
+      LABEL_STUDIO_USER_TOKEN: ${LABEL_STUDIO_USER_TOKEN:?must be set in .env (rendered by service_env._render_label_studio)}
+      LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK: "true"
+      # LABEL_STUDIO_USER_TOKEN is a "legacy" token, and 1.23 rejects those
+      # by default ("legacy token authentication has been disabled for this
+      # organization", 401). The newer personal access tokens can only be
+      # created in the UI, so this is what lets a notebook use the SDK with
+      # the token from Infisical without a UI visit first.
+      LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN: "true"
+      # Must start with https://, or Label Studio ignores it silently.
+      LABEL_STUDIO_HOST: ${LABEL_STUDIO_URL:?must be set in .env (rendered by service_env._render_label_studio)}
+      # Django checks a login POST's Origin against this list. Behind the
+      # tunnel it sees the public https origin; without it every login is
+      # a CSRF 403.
+      CSRF_TRUSTED_ORIGINS: ${LABEL_STUDIO_URL}
+      # The cookies travel over HTTPS on the public side. Both are parsed
+      # with int() in settings/base.py, so they take 1: "true" crashes the
+      # server at import (measured on 1.23.2).
+      CSRF_COOKIE_SECURE: "1"
+      SESSION_COOKIE_SECURE: "1"
+      # No usage analytics, and no error reports to the Sentry DSNs the
+      # settings default to.
+      LABEL_STUDIO_COLLECT_ANALYTICS: "false"
+      LABEL_STUDIO_SENTRY_DSN: ""
+      LABEL_STUDIO_FRONTEND_SENTRY_DSN: ""
+      # Serving files from the container's filesystem is off; data is
+      # uploaded through the UI or the API.
+      LOCAL_FILES_SERVING_ENABLED: "false"
+    volumes:
+      - /mnt/nexus-data/label-studio:/label-studio/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # curl ships in the image; /health answers {"status":"UP"}.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

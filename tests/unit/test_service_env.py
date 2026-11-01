@@ -4463,3 +4463,95 @@ def test_hue_raises_without_a_domain(full_config: NexusConfig, full_env: Bootstr
 
     with pytest.raises(ServiceEnvError, match="DOMAIN"):
         _render_hue(full_config, _env_with(full_env, domain=""))
+
+
+# ---------------------------------------------------------------------------
+# Langflow, Label Studio, Memgraph
+# ---------------------------------------------------------------------------
+
+
+def test_langflow_superuser_is_the_stack_user(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_langflow
+
+    config = full_config.model_copy(
+        update={"langflow_superuser_password": "lf-pw", "langflow_secret_key": "lf-key"}
+    )
+    rendered = _render_langflow(config, full_env)
+    assert rendered.env_vars == {
+        "LANGFLOW_SUPERUSER": "user@example.com",
+        "LANGFLOW_SUPERUSER_PASSWORD": "lf-pw",
+        "LANGFLOW_SECRET_KEY": "lf-key",
+    }
+    assert rendered.mode == 0o600
+
+
+def test_langflow_refuses_an_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_langflow
+
+    config = full_config.model_copy(
+        update={"langflow_superuser_password": "", "langflow_secret_key": "lf-key"}
+    )
+    with pytest.raises(ServiceEnvError, match="LANGFLOW_SUPERUSER_PASSWORD"):
+        _render_langflow(config, full_env)
+
+
+def test_label_studio_url_follows_the_subdomain_separator(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """The URL feeds CSRF_TRUSTED_ORIGINS: on a class stack (separator
+    "-") a dot-form origin would refuse every login with a 403."""
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_label_studio
+
+    config = full_config.model_copy(
+        update={"label_studio_admin_password": "ls-pw", "label_studio_user_token": "ls-token"}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_label_studio(config, env)
+    assert rendered.env_vars["LABEL_STUDIO_URL"] == "https://label-studio-alice.example.com"
+    assert rendered.env_vars["LABEL_STUDIO_USERNAME"] == "user@example.com"
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize("missing", ["label_studio_admin_password", "label_studio_user_token"])
+def test_label_studio_refuses_missing_credentials(
+    full_config: NexusConfig, full_env: BootstrapEnv, missing: str
+) -> None:
+    from nexus_deploy.service_env import _render_label_studio
+
+    values = {"label_studio_admin_password": "ls-pw", "label_studio_user_token": "ls-token"}
+    values[missing] = ""
+    with pytest.raises(ServiceEnvError, match="Label Studio"):
+        _render_label_studio(full_config.model_copy(update=values), full_env)
+
+
+def test_label_studio_refuses_an_empty_domain(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_label_studio
+
+    config = full_config.model_copy(
+        update={"label_studio_admin_password": "ls-pw", "label_studio_user_token": "ls-token"}
+    )
+    with pytest.raises(ServiceEnvError, match="CSRF"):
+        _render_label_studio(config, replace(full_env, domain=""))
+
+
+def test_memgraph_renders_and_refuses_an_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_memgraph
+
+    rendered = _render_memgraph(
+        full_config.model_copy(update={"memgraph_password": "mg"}), full_env
+    )
+    assert rendered.env_vars == {"MEMGRAPH_PASSWORD": "mg"}
+    with pytest.raises(ServiceEnvError, match="MEMGRAPH_PASS"):
+        _render_memgraph(full_config.model_copy(update={"memgraph_password": ""}), full_env)
