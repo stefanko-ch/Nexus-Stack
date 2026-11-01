@@ -1049,7 +1049,7 @@ def _compose_mount_sources(service: str) -> list[str]:
     return [m.split(":")[0] for m in compose["services"][service].get("volumes", [])]
 
 
-@pytest.mark.parametrize("service", ["langflow", "label-studio", "memgraph", "flowise"])
+@pytest.mark.parametrize("service", ["langflow", "label-studio", "memgraph", "flowise", "nifi"])
 def test_data_dir_is_the_compose_mount_and_a_snapshot_target(service: str) -> None:
     """The directory chowned here, the one the container writes and the one
     the R2 snapshot copies must be the same path. A drift in any one of the

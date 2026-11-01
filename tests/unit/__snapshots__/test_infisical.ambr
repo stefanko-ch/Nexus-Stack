@@ -224,6 +224,10 @@
       'NEO4J_PASSWORD': 'neo4jAdminPw0123456789',
       'NEO4J_USERNAME': 'nexus-neo4j',
     }),
+    'nifi': dict({
+      'NIFI_PASSWORD': 'nifi_password-VALUE',
+      'NIFI_USERNAME': 'user@snapshot.test',
+    }),
     'nocodb': dict({
       'NOCODB_DB_PASSWORD': 'nocodb_db_password-VALUE',
       'NOCODB_JWT_SECRET': 'nocodb_jwt_secret-VALUE',

@@ -726,6 +726,20 @@ services:
     support_images:
       open-notebook-db: "surrealdb/surrealdb:v2.7.0"
 
+  nifi:
+    subdomain: "nifi"
+    # nifi-proxy, which takes the tunnel's HTTP and opens TLS to NiFi.
+    port: 8445
+    public: false
+    category: "orchestration"
+    website: "https://nifi.apache.org"
+    description: "Visual data-flow automation — ingest, route, transform and deliver data with full provenance."
+    long_description: "Apache NiFi moves data. Processors on a canvas pull from files, HTTP APIs, databases, Kafka and object storage, route and transform each record, and deliver it onward, with back-pressure, retries and a provenance trail for every record. Where Kestra and Airflow orchestrate jobs, NiFi is the pipe the data flows through, and a classic of data-engineering teaching. NiFi 2.x serves HTTPS only; a small nginx in the stack takes the tunnel's HTTP and talks TLS to it. The login is the stack user's email with a generated password (Infisical → folder `nifi`). The flow is kept under /mnt/nexus-data and survives a teardown."
+    image: "apache/nifi:2.12.0"
+    landing_path: "/nifi"
+    support_images:
+      nifi-proxy: "nginx:1.30.4-alpine"
+
   label-studio:
     subdomain: "label-studio"
     port: 8280

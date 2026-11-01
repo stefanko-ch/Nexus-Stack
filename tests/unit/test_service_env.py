@@ -4663,3 +4663,40 @@ def test_open_notebook_refuses_to_run_without_a_password(
     )
     with pytest.raises(ServiceEnvError, match="OPEN_NOTEBOOK_PASSWORD"):
         _render_open_notebook(config, full_env)
+
+
+def test_nifi_allows_exactly_its_public_host(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """nifi-proxy passes the tunnel's Host on as X-ProxyHost, and NiFi
+    refuses (421) any host not on this list -- measured locally."""
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_nifi
+
+    config = full_config.model_copy(
+        update={"nifi_password": "a" * 24, "nifi_sensitive_props_key": "b" * 32}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_nifi(config, env)
+    assert rendered.env_vars["NIFI_PROXY_HOSTS"] == "nifi-alice.example.com"
+    assert rendered.env_vars["NIFI_USERNAME"] == "user@example.com"
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"nifi_password": "", "nifi_sensitive_props_key": "b" * 32},
+        {"nifi_password": "short", "nifi_sensitive_props_key": "b" * 32},
+        {"nifi_password": "a" * 24, "nifi_sensitive_props_key": "short"},
+    ],
+)
+def test_nifi_refuses_credentials_it_would_replace(
+    full_config: NexusConfig, full_env: BootstrapEnv, update: dict[str, str]
+) -> None:
+    """Under 12 characters NiFi swaps in a random login it only logs."""
+    from nexus_deploy.service_env import _render_nifi
+
+    with pytest.raises(ServiceEnvError, match="NiFi"):
+        _render_nifi(full_config.model_copy(update=update), full_env)

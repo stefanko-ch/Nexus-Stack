@@ -29,6 +29,7 @@ PRESERVED = (
     "random_password.flowise_admin",
     "random_password.open_notebook_encryption_key",
     "random_password.open_notebook_db",
+    "random_password.nifi_sensitive_props_key",
 )
 
 

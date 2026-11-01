@@ -1113,6 +1113,17 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "nifi",
+            _filter_empty(
+                {
+                    "NIFI_USERNAME": stack_user_email(env),
+                    "NIFI_PASSWORD": config.nifi_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

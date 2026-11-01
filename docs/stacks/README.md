@@ -129,6 +129,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Langflow | `langflowai/langflow` | `1.13.0` | Exact |
 | Flowise | `flowiseai/flowise` | `3.1.4` | Exact |
 | Open Notebook | `lfnovo/open_notebook` | `1.15.0` | Exact |
+| Apache NiFi | `apache/nifi` | `2.12.0` | Exact |
+| nginx (NiFi proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | SurrealDB (Open Notebook) | `surrealdb/surrealdb` | `v2.7.0` | Exact |
 | PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
@@ -298,6 +300,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **Neo4j** | Graph database with Cypher and Neo4j Browser | [neo4j.md](neo4j.md) |
+| **NiFi** | Visual data-flow automation | [nifi.md](nifi.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |

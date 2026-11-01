@@ -572,6 +572,22 @@ resource "random_password" "open_notebook_db" {
   special = false
 }
 
+# NiFi single-user password. NiFi needs at least 12 characters and
+# otherwise falls back to a random login it only prints to its log. It is
+# set from the environment on every start, so it needs no preserving.
+resource "random_password" "nifi" {
+  length  = 24
+  special = false
+}
+
+# Encrypts the sensitive properties inside a NiFi flow. Kept across a
+# rebuild teardown (teardown.yml excludes it): the restored flow can only
+# be decrypted with the key it was written with.
+resource "random_password" "nifi_sensitive_props_key" {
+  length  = 32
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

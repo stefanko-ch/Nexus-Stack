@@ -266,6 +266,10 @@ output "secrets" {
     open_notebook_encryption_key = random_password.open_notebook_encryption_key.result
     open_notebook_db_password    = random_password.open_notebook_db.result
 
+    # Apache NiFi (data-flow automation)
+    nifi_password            = random_password.nifi.result
+    nifi_sensitive_props_key = random_password.nifi_sensitive_props_key.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

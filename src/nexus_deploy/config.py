@@ -124,6 +124,8 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("OPEN_NOTEBOOK_PASS", "open_notebook_password", ""),
     ("OPEN_NOTEBOOK_ENCRYPTION_KEY", "open_notebook_encryption_key", ""),
     ("OPEN_NOTEBOOK_DB_PASS", "open_notebook_db_password", ""),
+    ("NIFI_PASS", "nifi_password", ""),
+    ("NIFI_SENSITIVE_PROPS_KEY", "nifi_sensitive_props_key", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -306,6 +308,8 @@ class NexusConfig(BaseModel):
     open_notebook_password: str | None = None
     open_notebook_encryption_key: str | None = None
     open_notebook_db_password: str | None = None
+    nifi_password: str | None = None
+    nifi_sensitive_props_key: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

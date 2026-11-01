@@ -1876,6 +1876,40 @@ def _render_open_notebook(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_nifi(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """NiFi: its single-user login, the flow's sensitive-properties key,
+    and the host names it may be reached under.
+
+    NIFI_PROXY_HOSTS is the public host: NiFi refuses (421) a request whose
+    X-ProxyHost is not on that list, and nifi-proxy passes the tunnel's
+    Host through as X-ProxyHost. NiFi also falls back to a random login on
+    a password under 12 characters, so a short one fails here instead.
+    """
+    required = {
+        "NIFI_USERNAME": stack_user_email(e),
+        "NIFI_PASSWORD": c.nifi_password,
+        "NIFI_SENSITIVE_PROPS_KEY": c.nifi_sensitive_props_key,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"NiFi enabled but {', '.join(missing)} empty -- the password and key "
+            "come from the tofu outputs `nifi_password` and "
+            "`nifi_sensitive_props_key`, the username from admin_email or the "
+            "stack user's email in config.tfvars.",
+        )
+    if any(len(v or "") < 12 for v in (c.nifi_password, c.nifi_sensitive_props_key)):
+        raise ServiceEnvError(
+            "NiFi needs NIFI_PASS and NIFI_SENSITIVE_PROPS_KEY of at least 12 "
+            "characters; with a shorter password it silently replaces the login "
+            "with a random one that only appears in its log.",
+        )
+    host = service_host("nifi", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "NIFI_PROXY_HOSTS": host},
+        mode=0o600,
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3197,6 +3231,7 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("ollama", _is_enabled("ollama"), _render_ollama),
     EnvSpec("flowise", _is_enabled("flowise"), _render_flowise),
     EnvSpec("open-notebook", _is_enabled("open-notebook"), _render_open_notebook),
+    EnvSpec("nifi", _is_enabled("nifi"), _render_nifi),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

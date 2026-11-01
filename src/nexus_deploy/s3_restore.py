@@ -304,8 +304,8 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
     Postgres, Unity Catalog, Lakekeeper, MLflow and Kestra, and filesystem
     trees for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB,
-    Langflow, Label Studio, Memgraph, Open WebUI, Flowise, Open Notebook, the
-    notebook stacks (Jupyter,
+    Langflow, Label Studio, Memgraph, Open WebUI, Flowise, Open Notebook, NiFi,
+    the notebook stacks (Jupyter,
     Marimo, code-server) and Kestra's internal storage.
 
     Hard-coded because:
@@ -556,6 +556,13 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="open-notebook-data",
             local_path="/mnt/nexus-data/open-notebook",
             s3_subpath="open-notebook/data",
+        ),
+        # NiFi: the flow (flow.json.gz) and its archive. The repositories
+        # for data in flight stay in the container on purpose.
+        _s3.RsyncTarget(
+            name="nifi-flow",
+            local_path="/mnt/nexus-data/nifi",
+            s3_subpath="nifi/flow",
         ),
         # The notebook stacks: what students write in a course. Before
         # these entries a rebuild teardown discarded every notebook
@@ -1044,6 +1051,7 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/ollama/docker-compose.yml",
     "/opt/docker-server/stacks/flowise/docker-compose.yml",
     "/opt/docker-server/stacks/open-notebook/docker-compose.yml",
+    "/opt/docker-server/stacks/nifi/docker-compose.yml",
     # A notebook saved mid-copy is a torn file; stopping first means
     # the snapshot holds the last saved version of each.
     "/opt/docker-server/stacks/jupyter/docker-compose.yml",
