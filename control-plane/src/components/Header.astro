@@ -55,21 +55,39 @@ const navItems = [
   const ROLE_LABELS: Record<string, string> = { admin: 'Admin', user: 'User', guest: 'Guest' };
 
   async function fetchIdentity() {
+    const box = document.getElementById('signed-in');
+    const role = document.getElementById('signed-in-role');
+    const email = document.getElementById('signed-in-email');
+    if (!box || !role || !email) return;
     try {
       const r = await fetch('/api/me', { credentials: 'same-origin' });
-      if (!r.ok) return;
+      if (!r.ok) {
+        // A 403 after a sign-out in another tab lands here too, so the
+        // badge goes rather than keep naming the previous account.
+        box.hidden = true;
+        console.warn(`Identity lookup failed: /api/me answered ${r.status}`);
+        return;
+      }
       const d = await r.json();
-      const box = document.getElementById('signed-in');
-      const role = document.getElementById('signed-in-role');
-      const email = document.getElementById('signed-in-email');
-      if (!box || !role || !email || !d.email) return;
+      if (!d.email) {
+        box.hidden = true;
+        return;
+      }
       role.textContent = ROLE_LABELS[d.role] || d.role;
       email.textContent = d.email;
       box.title = `Signed in as ${d.email}`;
       box.hidden = false;
-    } catch {}
+    } catch (err) {
+      console.warn('Identity lookup failed:', err);
+    }
   }
   fetchIdentity();
+
+  // The Access session is shared by every tab, so re-read it when this one
+  // comes back into view, as PendingBar does for its own state.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) fetchIdentity();
+  });
 </script>
 
 <style>
@@ -90,8 +108,10 @@ const navItems = [
     padding-bottom: 1rem;
   }
 
-  /* Who is signed in, top right. On a narrow screen it would sit on top of
-     the logo, so there it drops into the flow above it instead. */
+  /* Who is signed in, top right. Its width is capped at the space right of
+     the centred 360px logo, so a long address is cut off with an ellipsis
+     instead of running into the artwork. Below 900px that space gets too
+     small to read, and the badge drops into the flow above the logo. */
   .signed-in {
     position: absolute;
     top: 0;
@@ -99,7 +119,8 @@ const navItems = [
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    max-width: 45%;
+    box-sizing: border-box;
+    max-width: calc(50% - 180px - 0.5rem);
     padding: 0.35rem 0.7rem;
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -124,7 +145,7 @@ const navItems = [
     white-space: nowrap;
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 900px) {
     .signed-in {
       position: static;
       justify-content: center;
