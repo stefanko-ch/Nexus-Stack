@@ -178,6 +178,16 @@ def render_ssh_config_block(spec: SSHConfigSpec) -> str:
         "  User root",
         f"  IdentityFile {spec.identity_file}",
         "  IdentitiesOnly yes",
+        # Keepalive (#941). The teardown's snapshot runs rclone uploads
+        # that print nothing for minutes, and the session twice dropped
+        # with `Broken pipe` (rc=255) in such a stretch, failing the
+        # teardown before `tofu destroy` and leaving the server billing.
+        # An idle timeout on the Cloudflare Access path is the suspected
+        # cause, not a proven one; these probes keep traffic flowing
+        # through any idle stretch. 15 s x 8 tolerates two minutes of a
+        # genuinely unresponsive server before ssh gives up.
+        "  ServerAliveInterval 15",
+        "  ServerAliveCountMax 8",
     ]
     if spec.has_service_token:
         # ProxyCommand uses the `env VAR=val cmd` form (Round-2 PR

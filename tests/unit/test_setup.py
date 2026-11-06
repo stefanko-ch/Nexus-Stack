@@ -64,6 +64,24 @@ def test_render_with_service_token_emits_env_proxycommand() -> None:
     assert "bash -c" not in block
 
 
+@pytest.mark.parametrize("token", [True, False])
+def test_render_keeps_the_session_alive_through_silent_stretches(token: bool) -> None:
+    """#941: the teardown snapshot's rclone uploads print nothing for
+    minutes, and the session dropped with `Broken pipe` in such a stretch.
+    Both ProxyCommand forms get the keepalive, and it sits inside the
+    `Host nexus` block, not after it, where ssh would read it as global."""
+    spec = SSHConfigSpec(
+        ssh_host="ssh.example.com",
+        cf_client_id="client-abc" if token else None,
+        cf_client_secret="secret-xyz" if token else None,
+    )
+    lines = [ln.strip() for ln in render_ssh_config_block(spec).splitlines() if ln.strip()]
+    assert lines[0] == "Host nexus"
+    assert "ServerAliveInterval 15" in lines
+    assert "ServerAliveCountMax 8" in lines
+    assert not any(ln.startswith("Host ") for ln in lines[1:])
+
+
 def test_render_with_token_containing_single_quote_is_safe() -> None:
     """Round-2 PR #524: a token with a single quote MUST round-trip
     safely through the rendered ProxyCommand. shlex.quote handles
