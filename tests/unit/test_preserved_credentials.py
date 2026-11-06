@@ -58,3 +58,18 @@ def test_destroy_all_still_removes_everything() -> None:
     assert commands, "destroy-all.yml no longer destroys anything"
     for command in commands:
         assert "-exclude" not in command, command
+
+
+def test_the_langflow_key_is_a_valid_fernet_key_length() -> None:
+    """Langflow pads a key of 32+ characters and hands it to Fernet as
+    base64, which must decode to exactly 32 bytes: 43 characters. A
+    48-character key failed every credential save. The value is alphanumeric
+    (special = false), so it is valid base64url as it stands.
+    """
+    main_tf = (REPO_ROOT / "tofu" / "stack" / "main.tf").read_text()
+    block = re.search(
+        r'resource "random_password" "langflow_secret_key" \{(.*?)\n\}', main_tf, re.S
+    )
+    assert block, "langflow_secret_key resource not found"
+    assert re.search(r"^\s*length\s*=\s*43\s*$", block.group(1), re.M), block.group(1)
+    assert re.search(r"^\s*special\s*=\s*false\s*$", block.group(1), re.M), block.group(1)

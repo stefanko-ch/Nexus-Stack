@@ -491,11 +491,16 @@ resource "random_password" "langflow_superuser" {
 }
 
 # Langflow encrypts stored credentials (API keys in flows) with this key.
-# Langflow warns below 32 characters, and a changed key makes every stored
-# credential unreadable, which is why it is set explicitly rather than left
-# to the file Langflow would generate.
+# A changed key makes every stored credential unreadable, which is why it is
+# set explicitly rather than left to the file Langflow would generate.
+#
+# Exactly 43 characters. From 32 characters on, Langflow pads the string
+# and hands it to Fernet as a base64 key, which must decode to 32 bytes:
+# 43 characters do, 48 decode to 36 and every save of a credential fails
+# ("Fernet key must be 32 url-safe base64-encoded bytes", checked against
+# ensure_fernet_key in 1.13.0). Below 32 it would hash the string instead.
 resource "random_password" "langflow_secret_key" {
-  length  = 48
+  length  = 43
   special = false
 }
 

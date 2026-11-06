@@ -1046,7 +1046,11 @@ def _compose_mount_sources(service: str) -> list[str]:
     compose = yaml.safe_load(
         (Path(__file__).resolve().parents[2] / f"stacks/{service}/docker-compose.yml").read_text()
     )
-    return [m.split(":")[0] for m in compose["services"][service].get("volumes", [])]
+    # Short form "source:target[:mode]" or long form {"source": ..., ...}.
+    return [
+        m["source"] if isinstance(m, dict) else m.split(":")[0]
+        for m in compose["services"][service].get("volumes", [])
+    ]
 
 
 @pytest.mark.parametrize(
