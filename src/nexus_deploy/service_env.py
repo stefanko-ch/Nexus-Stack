@@ -1710,6 +1710,25 @@ def _render_qdrant(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _langflow_key_is_usable(key: str) -> bool:
+    """Whether Langflow 1.13.0's ``ensure_fernet_key`` yields a working
+    Fernet key from ``key``.
+
+    Under 32 characters Langflow hashes the key, so any value works. From
+    32 on it pads the string to a multiple of 4 and hands it to Fernet as
+    a url-safe base64 key, which must decode to exactly 32 bytes: 43
+    characters do, 48 decode to 36 and every credential save fails.
+    """
+    if len(key) < 32:
+        return True
+    padded = key + "=" * (-len(key) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(padded)
+    except ValueError:  # binascii.Error is a ValueError
+        return False
+    return len(decoded) == 32
+
+
 def _render_langflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Langflow: the superuser it creates on first start, and the key it
     encrypts stored credentials with.
@@ -1732,6 +1751,14 @@ def _render_langflow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "`langflow_secret_key`, the login from admin_email or the stack "
             "user's email in config.tfvars. Aborting rather than starting a "
             "Langflow that refuses to boot without a superuser password.",
+        )
+    if not _langflow_key_is_usable(c.langflow_secret_key or ""):
+        raise ServiceEnvError(
+            "Langflow enabled but LANGFLOW_SECRET_KEY is not a key Langflow can "
+            "use: from 32 characters on it must be url-safe base64 decoding to "
+            "32 bytes (43 alphanumeric characters do). The tofu resource "
+            "`random_password.langflow_secret_key` generates one. Aborting "
+            "rather than starting a Langflow that cannot save a credential.",
         )
     return RenderedEnv(env_vars={k: v or "" for k, v in required.items()}, mode=0o600)
 

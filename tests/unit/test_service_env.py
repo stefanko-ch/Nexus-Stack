@@ -4529,6 +4529,34 @@ def test_langflow_refuses_an_empty_password(
         _render_langflow(config, full_env)
 
 
+@pytest.mark.parametrize(
+    ("key", "usable"),
+    [
+        ("lf-key", True),  # under 32: Langflow hashes it
+        ("a" * 31, True),
+        ("a" * 43, True),  # what tofu generates: decodes to 32 bytes
+        ("a" * 44, False),  # the padded form of 43 chars + one more
+        ("a" * 48, False),  # the old length: decodes to 36 bytes
+        ("a" * 42 + "!", False),  # not base64
+    ],
+)
+def test_langflow_key_must_be_one_fernet_accepts(
+    full_config: NexusConfig, full_env: BootstrapEnv, key: str, usable: bool
+) -> None:
+    """A 48-character key passed the empty-check but broke every
+    credential save in Langflow; such a key fails the render instead."""
+    from nexus_deploy.service_env import _render_langflow
+
+    config = full_config.model_copy(
+        update={"langflow_superuser_password": "lf-pw", "langflow_secret_key": key}
+    )
+    if usable:
+        assert _render_langflow(config, full_env).env_vars["LANGFLOW_SECRET_KEY"] == key
+    else:
+        with pytest.raises(ServiceEnvError, match="cannot save a credential"):
+            _render_langflow(config, full_env)
+
+
 def test_label_studio_url_follows_the_subdomain_separator(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
