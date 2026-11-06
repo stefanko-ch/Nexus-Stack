@@ -1299,6 +1299,8 @@ def _forgejo_mirror_setup(args: list[str]) -> int:
       ``forgejo woodpecker-oauth`` — Copilot R1 consistency fix.)
     - ``FORGEJO_USER_USERNAME`` — Forgejo username for the workspace.
       If unset, the workspace step is skipped (mirrors-only mode).
+    - ``WORKSPACE_BRANCH`` — branch for a newly created workspace
+      (default ``main``). Set it to the branch the stacks use.
     - ``FORGEJO_HOST`` — SSH host alias (default ``nexus``)
 
     **stdout** (eval-able, only when the workspace was created/exists):

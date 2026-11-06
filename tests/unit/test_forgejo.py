@@ -41,6 +41,7 @@ from nexus_deploy.forgejo import (
     _sanitize_user_for_workspace_name,
     _validate_path_segment,
     course_repo_name,
+    is_valid_course_repo_name,
     render_ready_preamble,
     run_configure_forgejo,
     run_mirror_setup,
@@ -2600,6 +2601,11 @@ def test_rename_repo_non_200_returns_false() -> None:
     assert not _client(token="t").rename_repo("admin", "mirror-readonly-x", "course-x")
 
 
+def test_is_valid_course_repo_name() -> None:
+    assert is_valid_course_repo_name("https://github.com/o/good.git") is True
+    assert is_valid_course_repo_name("https://github.com/o/bad;rm") is False
+
+
 def test_course_and_workspace_repo_names() -> None:
     assert course_repo_name("https://github.com/o/CAS_DEADS8.git") == "course-CAS_DEADS8"
     # Byte-identical to the old fork name, so an existing fork is reused.
@@ -2741,12 +2747,17 @@ def test_run_mirror_setup_rename_refused_marks_failed() -> None:
     responses.add(
         responses.PATCH, f"{BASE_URL}/api/v1/repos/admin/mirror-readonly-myrepo", status=403
     )
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
 
     result = _run(["https://github.com/o/myrepo.git"])
 
     assert result.is_success is False
     assert result.mirrors[0].status == "failed"
-    assert result.workspace is None
+    # The workspace does not depend on the course repo, so it is still
+    # ensured — under the name the service environment already uses.
+    assert result.workspace is not None
+    assert result.workspace.name == "myrepo_stefan"
+    assert result.workspace.status == "created"
 
 
 @responses.activate
@@ -2858,20 +2869,25 @@ def test_run_mirror_setup_workspace_only_from_first_course() -> None:
 
 
 @responses.activate
-def test_run_mirror_setup_workspace_retried_on_next_course_after_failure() -> None:
+def test_run_mirror_setup_workspace_named_after_first_url_when_its_course_fails() -> None:
+    """course-a fails, course-b succeeds → the workspace is still a_<user>,
+    the name workspace_coords.derive gives the service environment.
+    Naming it after the first *successful* mirror would create b_<user>
+    while the stacks clone a_<user>."""
     _add_admin_uid()
-    for name in ("course-a", "course-b"):
-        _add_repo_get(name, 200)
-        _add_course_followups(name)
-    responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=503)
+    _add_repo_get("course-a", 404)
+    _add_repo_get("mirror-readonly-a", 404)
+    responses.add(responses.POST, f"{BASE_URL}/api/v1/repos/migrate", status=500)
+    _add_repo_get("course-b", 200)
+    _add_course_followups("course-b")
     responses.add(responses.POST, f"{BASE_URL}/api/v1/admin/users/stefan/repos", status=201)
 
     result = _run(["https://github.com/o/a.git", "https://github.com/o/b.git"])
 
-    assert result.is_success is True
     assert result.workspace is not None
-    assert result.workspace.name == "b_stefan"
+    assert result.workspace.name == "a_stefan"
     assert result.workspace.status == "created"
+    assert len(_calls("POST", "/admin/users/stefan/repos")) == 1
 
 
 @responses.activate
@@ -2900,8 +2916,12 @@ def test_run_mirror_setup_unsafe_basename_marks_failed_and_continues() -> None:
 
     assert [m.status for m in result.mirrors] == ["failed", "already_exists"]
     assert "path validation" in result.mirrors[0].detail
+    # The workspace is named after the first URL, whose basename is
+    # unsafe — so it fails rather than silently moving to good_stefan.
     assert result.workspace is not None
-    assert result.workspace.name == "good_stefan"
+    assert result.workspace.status == "failed"
+    assert "path validation" in result.workspace.detail
+    assert _calls("POST", "/admin/users/stefan/repos") == []
 
 
 @responses.activate
@@ -2919,7 +2939,7 @@ def test_run_mirror_setup_partial_failure_continues_loop() -> None:
     assert [m.status for m in result.mirrors] == ["failed", "already_exists"]
     assert result.is_success is False
     assert result.workspace is not None
-    assert result.workspace.name == "b_stefan"
+    assert result.workspace.name == "a_stefan"
 
 
 # ---------------------------------------------------------------------------

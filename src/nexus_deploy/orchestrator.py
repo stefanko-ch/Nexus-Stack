@@ -1037,7 +1037,7 @@ class Orchestrator:
                         f"{self.config.admin_username or DEFAULT_ADMIN_USERNAME}/"
                         f"{_forgejo.course_repo_name(url)}.git"
                         for url in self.gh_mirror_repos
-                        if url.strip()
+                        if url.strip() and _forgejo.is_valid_course_repo_name(url)
                     ),
                 )
                 appended = _service_env.append_forgejo_workspace_block(

@@ -1687,6 +1687,18 @@ def course_repo_name(repo_url: str) -> str:
     return f"{COURSE_REPO_PREFIX}{_basename_no_git(repo_url)}"
 
 
+def is_valid_course_repo_name(repo_url: str) -> bool:
+    """Whether ``course_repo_name(repo_url)`` is a name
+    :func:`run_mirror_setup` would create. The service environment uses
+    this to leave out course repos setup refuses, so no stack tries to
+    clone one that never exists."""
+    try:
+        _validate_path_segment(course_repo_name(repo_url), kind="mirror_name")
+    except ForgejoError:
+        return False
+    return True
+
+
 def workspace_repo_name(repo_url: str, username: str) -> str:
     """The user's workspace name: ``<basename>_<sanitized user>``.
 
@@ -1719,12 +1731,15 @@ def run_mirror_setup(
           than the one from Forgejo's last scheduled fetch.
        c. Add the user as a **read** collaborator — the mirror is
           private, and a pull mirror refuses pushes anyway.
-       d. For the FIRST successful mirror with a configured user,
-          ensure the user's workspace ``<basename>_<user>`` exists as a
-          private repository in the user's namespace, on
-          ``workspace_branch`` — the branch the seeder and the git
-          consumers use. An existing one, including a fork from before
-          this change, is left untouched.
+    3. With a configured user, ensure the user's workspace
+       ``<first basename>_<user>`` exists as a private repository in
+       the user's namespace, on ``workspace_branch`` — the branch the
+       seeder and the git consumers use. An existing one, including a
+       fork from before this change, is left untouched. The name comes
+       from the FIRST URL whether or not its course repo succeeded:
+       ``workspace_coords.derive`` names the workspace the same way for
+       the service environment, and an ordinary repository does not
+       need the mirror to exist.
 
     All admin actions use ``forgejo_token`` (token-bearer), which
     reaches REST as request-auth only, never argv.
@@ -1763,7 +1778,6 @@ def run_mirror_setup(
 
     mirrors: list[MirrorResult] = []
     workspace: WorkspaceResult | None = None
-    last_workspace_failure: WorkspaceResult | None = None
     collaborator_added_count = 0
 
     for repo_url in gh_mirror_repos:
@@ -1846,10 +1860,14 @@ def run_mirror_setup(
         ):
             collaborator_added_count += 1
 
-        # The workspace is created once, from the first successful
-        # mirror. On a transient failure, retry on the next iteration.
-        if workspace is None and forgejo_user_username:
-            name = workspace_repo_name(repo_url, forgejo_user_username)
+    # One workspace, always named after the FIRST URL — the name
+    # workspace_coords.derive gives the service environment. Taking it
+    # from the first *successful* mirror instead would create b_<user>
+    # whenever course-a failed, while the stacks clone a_<user>.
+    first_url = next((u.strip() for u in gh_mirror_repos if u.strip()), "")
+    if forgejo_user_username and first_url:
+        name = workspace_repo_name(first_url, forgejo_user_username)
+        try:
             created = client.create_repo_for_user(
                 forgejo_user_username,
                 name,
@@ -1858,22 +1876,19 @@ def run_mirror_setup(
                 default_branch=workspace_branch,
                 description="Your own work — course material is in the course repository",
             )
-            attempt = WorkspaceResult(
+            workspace = WorkspaceResult(
                 name=name,
                 owner=forgejo_user_username,
                 status=created.status,
                 detail=created.detail,
             )
-            if attempt.status in ("created", "already_exists"):
-                workspace = attempt
-            else:
-                last_workspace_failure = attempt
-
-    # If every workspace attempt failed, surface the last one's
-    # diagnostic — otherwise the result would read like the
-    # no-user-configured branch.
-    if workspace is None and last_workspace_failure is not None:
-        workspace = last_workspace_failure
+        except ForgejoError as exc:
+            workspace = WorkspaceResult(
+                name=name,
+                owner=forgejo_user_username,
+                status="failed",
+                detail=f"path validation: {exc}",
+            )
 
     return MirrorSetupResult(
         admin_uid=admin_uid,

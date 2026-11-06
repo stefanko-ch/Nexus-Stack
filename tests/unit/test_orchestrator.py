@@ -2514,6 +2514,54 @@ def test_phase_service_env_skips_forgejo_block_on_incomplete_coords(
     )
 
 
+def test_phase_service_env_leaves_out_course_repos_setup_refuses(
+    orchestrator: Orchestrator,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """A course URL whose derived name run_mirror_setup rejects never
+    becomes a repository, so it must not reach COURSE_REPO_URLS either —
+    otherwise the git-integrated stacks try to clone it."""
+    from nexus_deploy.service_env import ServiceEnvResult, ServiceRenderResult
+
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._service_env.render_all_env_files",
+        lambda *_a, **_kw: ServiceEnvResult(
+            services=(ServiceRenderResult(service="postgres", status="rendered"),),
+        ),
+    )
+    captured: list[Any] = []
+
+    def _spy_append(cfg: Any, *_a: Any, **_kw: Any) -> tuple[str, ...]:
+        captured.append(cfg)
+        return ()
+
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._service_env.append_forgejo_workspace_block",
+        _spy_append,
+    )
+    orchestrator.bootstrap_env = type(orchestrator.bootstrap_env)(
+        domain="example.com",
+        admin_email="admin@example.com",
+        forgejo_repo_owner="owner",
+        forgejo_user_email="ops@example.com",
+    )
+    orchestrator.forgejo_user_username = "ops"
+    orchestrator.forgejo_user_password = "pw"
+    orchestrator.enabled_services = [*orchestrator.enabled_services, "forgejo"]
+    orchestrator.gh_mirror_repos = [
+        "https://github.com/o/bad;rm",
+        "  ",
+        "https://github.com/o/good.git",
+    ]
+    orchestrator.project_root = tmp_path
+
+    orchestrator._phase_service_env()
+
+    assert len(captured) == 1
+    assert captured[0].course_repo_urls == ("http://forgejo:3000/admin/course-good.git",)
+
+
 # ---------------------------------------------------------------------------
 # `nexus-deploy run-pre-bootstrap` CLI handler tests.
 # ---------------------------------------------------------------------------
