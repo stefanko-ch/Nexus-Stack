@@ -194,7 +194,7 @@ The workflow log names the reason.
 
 Symptom: every spin-up rebuilds fresh, and the log says the snapshot was rejected on epoch.
 
-Cause: the Rebuild teardown (`teardown.yml`) ran at some point. Its untargeted `tofu destroy` destroys all 81 `random_password` / `random_id` / `random_string` resources, so every service credential is regenerated on the next spin-up. A snapshot taken before that holds Postgres roles and admin accounts with the old passwords; restoring it would produce a stack that boots and then authenticates nowhere.
+Cause: the Rebuild teardown (`teardown.yml`) ran at some point. Its `tofu destroy` destroys every `random_password` / `random_id` / `random_string` resource except Kestra's login password, which it excludes (#942), so the service credentials are regenerated on the next spin-up. A snapshot taken before that holds Postgres roles and admin accounts with the old passwords; restoring it would produce a stack that boots and then authenticates nowhere.
 
 The guard exists precisely to prevent that, so this is the mechanism working. The snapshot is dead, though — take a fresh one on the next teardown.
 

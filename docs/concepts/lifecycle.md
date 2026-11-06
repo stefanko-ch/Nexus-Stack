@@ -132,10 +132,16 @@ Two cases the tracking does not cover:
 **In `snapshot` mode, everything on the root disk survives**, because the whole disk
 is imaged. That is the main reason to switch.
 
-**Service credentials are regenerated, not preserved.** OpenTofu creates fresh
-passwords on every spin-up and pushes them to Infisical. A password you wrote down
-last week is not the password today; the Control Plane and Infisical always have the
-current one.
+**In `rebuild` mode, service credentials are regenerated, not preserved.** OpenTofu
+creates fresh passwords on the spin-up after a rebuild teardown and pushes them to
+Infisical. A password you wrote down last week is not the password today; the Control
+Plane and Infisical always have the current one. In `snapshot` mode they stay as they
+are, because that teardown destroys only the server.
+
+Two credentials are exceptions in `rebuild` mode. Kestra's login password stays in place,
+because it is the credential people type into a browser, and a browser that remembers
+the old one keeps sending it and gets locked out after every teardown. The Forgejo
+Access service token survives too, as described above (#892).
 
 ## Scheduled teardown
 
