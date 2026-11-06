@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.89.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.88.1...v0.89.0) (2026-11-06)
+
+
+### 🚀 Features
+
+* **control-plane:** Show who is signed in, top right ([#971](https://github.com/stefanko-ch/Nexus-Stack/issues/971)) ([036df9b](https://github.com/stefanko-ch/Nexus-Stack/commit/036df9b9cbd15c9f030267bea432e4ffe922f5d6))
+* **forgejo:** Replace the course-repo fork with a read-only course repo ([#957](https://github.com/stefanko-ch/Nexus-Stack/issues/957)) ([d2afa9c](https://github.com/stefanko-ch/Nexus-Stack/commit/d2afa9cfe5b90c94c4f00870ec501624f0bbdbeb))
+* **seed:** Update seeded files that nobody edited ([#959](https://github.com/stefanko-ch/Nexus-Stack/issues/959)) ([7700f36](https://github.com/stefanko-ch/Nexus-Stack/commit/7700f368bba36ba1c0fb2f732fa1731a68922a70))
+* **stacks:** Add Flowise, Open Notebook, NiFi, Hop and StarRocks; lock down Open WebUI ([#968](https://github.com/stefanko-ch/Nexus-Stack/issues/968)) ([368ec24](https://github.com/stefanko-ch/Nexus-Stack/commit/368ec24f9916fd3b8adc7545513839f842a252d6))
+* **stacks:** Add Langflow, Label Studio and Memgraph ([#964](https://github.com/stefanko-ch/Nexus-Stack/issues/964)) ([8b2e2ec](https://github.com/stefanko-ch/Nexus-Stack/commit/8b2e2eca75f47fe5382001b4eb71abc81bc8d1a3))
+
+
+### 🐛 Bug Fixes
+
+* **control-plane:** Show the deployed version after a spin-up ([#967](https://github.com/stefanko-ch/Nexus-Stack/issues/967)) ([dfcdf96](https://github.com/stefanko-ch/Nexus-Stack/commit/dfcdf969273518df9b75a9d4b56f5d132376ceac))
+* **deploy:** Keep the SSH session alive through silent snapshot uploads ([#966](https://github.com/stefanko-ch/Nexus-Stack/issues/966)) ([6a2d2e9](https://github.com/stefanko-ch/Nexus-Stack/commit/6a2d2e9e1c7f3726eefc092d3904a7911b0f7739))
+* **examples:** Run the taxi stats with Queries for Kestra 2 ([#958](https://github.com/stefanko-ch/Nexus-Stack/issues/958)) ([ef7b92a](https://github.com/stefanko-ch/Nexus-Stack/commit/ef7b92ace17d47d6ef2cf090f134be2d3ef7a04a))
+* **kestra:** Keep the login password across a rebuild teardown ([#963](https://github.com/stefanko-ch/Nexus-Stack/issues/963)) ([bf6984a](https://github.com/stefanko-ch/Nexus-Stack/commit/bf6984a4adfb3d57829859d8d2954006caccdbd5))
+* **kestra:** Log students in with their own email, not the stack admin's ([#961](https://github.com/stefanko-ch/Nexus-Stack/issues/961)) ([fbcf94c](https://github.com/stefanko-ch/Nexus-Stack/commit/fbcf94c46849a5e95f99e317261bf0eea7483596))
+* **stacks:** Advertise Forgejo under the host it is routed at ([#965](https://github.com/stefanko-ch/Nexus-Stack/issues/965)) ([ab7cd53](https://github.com/stefanko-ch/Nexus-Stack/commit/ab7cd533385b678272ec69faa8d52874c20f1d80))
+* **stacks:** Give SQLAlchemy 2.1 the PostgreSQL driver it expects ([#970](https://github.com/stefanko-ch/Nexus-Stack/issues/970)) ([8d79c11](https://github.com/stefanko-ch/Nexus-Stack/commit/8d79c11b7f72d905c8faac502be4fbc6207fdb20))
+
 ## [0.88.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.88.0...v0.88.1) (2026-10-30)
 
 
