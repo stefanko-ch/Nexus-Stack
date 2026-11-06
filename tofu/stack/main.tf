@@ -1608,6 +1608,14 @@ resource "cloudflare_zero_trust_access_application" "services" {
   # Other services use 24h for better user experience
   session_duration  = each.key == "wetty" ? "1h" : "24h"
   skip_interstitial = true
+
+  # Mark the CF_Authorization session cookie HttpOnly, as the Control
+  # Plane's app already does. A stack's own frontend can then neither
+  # read nor delete it. Flowise's sign-in clears every cookie it can see
+  # with document.cookie; without this it removed the Access session,
+  # Access answered the login POST with a cross-origin redirect, and the
+  # page went blank. Nothing here reads the cookie from JavaScript.
+  http_only_cookie_attribute = true
 }
 
 # Dynamic Access Policies for private services (Email OTP)

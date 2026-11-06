@@ -49,6 +49,9 @@ one-time-password policy, created by OpenTofu from the service list. Practically
   reaches the container. The list of allowed emails is deployment-wide.
 - **Sessions are time-boxed** — 24 hours for ordinary services, one hour for Wetty,
   which is a shell in a browser.
+- **The session cookie is HttpOnly.** A service's own JavaScript can neither read
+  nor delete the Access session. Some apps clear every cookie they can see on
+  sign-in (Flowise does), which would otherwise log you out of Access mid-login.
 - **Headless access uses service tokens**, not passwords, so CI and automation can
   reach what they need without a human at an inbox. One exists for SSH (paired with
   short-lived certificates), one for Infisical, and one — opt-in, off by default —
