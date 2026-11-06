@@ -1033,3 +1033,93 @@ def test_compose_up_cli_rc2_on_transport_failure(
     assert "transport failure" in captured.err
     assert "with-secret-arg" not in captured.err
     assert "with-secret-arg" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _DATA_DIRS — backed-up bind mounts of non-root stacks
+# ---------------------------------------------------------------------------
+
+
+def _compose_mount_sources(service: str) -> list[str]:
+    import yaml
+
+    compose = yaml.safe_load(
+        (Path(__file__).resolve().parents[2] / f"stacks/{service}/docker-compose.yml").read_text()
+    )
+    # Short form "source:target[:mode]" or long form {"source": ..., ...}.
+    return [
+        m["source"] if isinstance(m, dict) else m.split(":")[0]
+        for m in compose["services"][service].get("volumes", [])
+    ]
+
+
+@pytest.mark.parametrize("service", ["langflow", "label-studio", "memgraph"])
+def test_data_dir_is_the_compose_mount_and_a_snapshot_target(service: str) -> None:
+    """The directory chowned here, the one the container writes and the one
+    the R2 snapshot copies must be the same path. A drift in any one of the
+    three leaves the stack either unable to write or not backed up."""
+    from nexus_deploy.compose_runner import _DATA_DIRS
+    from nexus_deploy.s3_restore import _STANDARD_STOP_COMPOSE_FILES, standard_targets
+
+    path, _owner = _DATA_DIRS[service]
+    assert path in _compose_mount_sources(service)
+    _, rsync = standard_targets()
+    assert path in {r.local_path for r in rsync}
+    # Stopped before the copy, so SQLite files and WALs are closed.
+    assert f"/opt/docker-server/stacks/{service}/docker-compose.yml" in _STANDARD_STOP_COMPOSE_FILES
+
+
+def test_data_dirs_are_prepared_only_for_enabled_stacks() -> None:
+    seen: list[str] = []
+
+    def runner(script: str) -> subprocess.CompletedProcess[str]:
+        seen.append(script)
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up(["langflow"], script_runner=runner)
+    script = seen[0]
+    assert "mkdir -p /mnt/nexus-data/langflow" in script
+    assert "-exec chown -h 1000:0 {} +" in script
+    assert "/mnt/nexus-data/memgraph" not in script
+    assert "/mnt/nexus-data/label-studio" not in script
+
+
+def test_data_dir_prep_is_valid_bash() -> None:
+    script = render_remote_script(
+        parents=[], leaves=["memgraph"], data_dirs=(("/mnt/nexus-data/memgraph", "101:103"),)
+    )
+    assert "find /mnt/nexus-data/memgraph \\( ! -user 101 -o ! -group 103 \\)" in script
+    subprocess.run(["bash", "-n"], input=script, text=True, check=True)
+
+
+@pytest.mark.parametrize("service", ["ollama", "litellm", "langflow"])
+def test_ollama_internal_is_created_for_every_stack_that_joins_it(service: str) -> None:
+    """A compose file naming the external `ollama-internal` network fails
+    to start if it does not exist, so every stack that joins it must make
+    the deploy create it -- including with Ollama itself disabled."""
+    seen: list[str] = []
+
+    def runner(script: str) -> subprocess.CompletedProcess[str]:
+        seen.append(script)
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout="RESULT started=1 failed=0", stderr=""
+        )
+
+    run_compose_up([service], script_runner=runner)
+    assert "docker network create --label managed-by=nexus-stack ollama-internal" in seen[0]
+
+
+def test_every_stack_on_ollama_internal_is_registered() -> None:
+    import yaml
+
+    from nexus_deploy.compose_runner import _OLLAMA_CLIENTS
+
+    root = Path(__file__).resolve().parents[2] / "stacks"
+    joined = {
+        f.parent.name
+        for f in root.glob("*/docker-compose.yml")
+        if "ollama-internal" in (yaml.safe_load(f.read_text()).get("networks") or {})
+    }
+    assert joined == set(_OLLAMA_CLIENTS)

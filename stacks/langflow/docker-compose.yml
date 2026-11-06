@@ -1,0 +1,90 @@
+# =============================================================================
+# Langflow - Visual builder for LLM flows, RAG pipelines and agents
+# =============================================================================
+# Access via: https://langflow.<domain>
+#
+# Flows are drawn on a canvas from components (models, prompts, vector
+# stores, tools) and run from the UI or as an API endpoint. In this stack
+# the components point at what is already on app-network: Ollama
+# (http://ollama:11434), Qdrant (http://qdrant:6333), Chroma
+# (http://chroma:8000) and LiteLLM (http://litellm:4000).
+#
+# Login: Cloudflare Access is the outer gate; Langflow then asks for its own
+# superuser, created on first start from LANGFLOW_SUPERUSER /
+# LANGFLOW_SUPERUSER_PASSWORD (the stack user's email and a generated
+# password, Infisical → folder `langflow`). Langflow sets the password only
+# when it creates the user, so a later change of the variable does not
+# reach an existing data directory.
+#
+# Storage: SQLite in LANGFLOW_CONFIG_DIR, together with the secret-key file
+# and uploaded files. A bind mount under /mnt/nexus-data, so the R2
+# snapshot covers it and a rebuild teardown keeps the students' flows.
+# compose_runner chowns it to the image's user (1000:0) before compose up.
+#
+# Image: langflowai/langflow (amd64 + arm64).
+# Docs: https://docs.langflow.org
+# =============================================================================
+
+services:
+  langflow:
+    image: ${IMAGE_LANGFLOW:-langflowai/langflow:1.13.0}
+    container_name: langflow
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7860:7860"
+    environment:
+      LANGFLOW_CONFIG_DIR: /app/langflow
+      # Explicit, because the default is NOT the config dir: measured on
+      # 1.13.0, Langflow put langflow.db inside its Python package
+      # (/app/.venv/lib/python3.14/site-packages/langflow/), in the
+      # container's writable layer, so every flow would vanish with the
+      # container and the R2 snapshot would copy a directory without them.
+      LANGFLOW_DATABASE_URL: sqlite:////app/langflow/langflow.db
+      LANGFLOW_AUTO_LOGIN: "false"
+      LANGFLOW_SUPERUSER: ${LANGFLOW_SUPERUSER:?must be set in .env (rendered by service_env._render_langflow)}
+      LANGFLOW_SUPERUSER_PASSWORD: ${LANGFLOW_SUPERUSER_PASSWORD:?must be set in .env (rendered by service_env._render_langflow)}
+      LANGFLOW_SECRET_KEY: ${LANGFLOW_SECRET_KEY:?must be set in .env (rendered by service_env._render_langflow)}
+      # No self-service accounts; the superuser can still create users.
+      LANGFLOW_ENABLE_SIGNUP: "false"
+      # The superuser CLI would let anything with `docker exec` mint
+      # another superuser; the account above is the only one needed.
+      LANGFLOW_ENABLE_SUPERUSER_CLI: "false"
+      DO_NOT_TRACK: "true"
+      # The public side is HTTPS (Cloudflare), so the auth cookies can say so.
+      LANGFLOW_ACCESS_SECURE: "true"
+      LANGFLOW_REFRESH_SECURE: "true"
+      # Langflow blocks connector URLs that resolve to private addresses
+      # (SSRF protection, on by default). The in-cluster services the
+      # components are meant to use all resolve to app-network addresses,
+      # so they are listed as exceptions. This only steers the built-in
+      # connectors; a custom component runs arbitrary Python and is not
+      # bound by it.
+      LANGFLOW_SSRF_ALLOWED_HOSTS: "ollama,qdrant,chroma,litellm,weaviate"
+    volumes:
+      - /mnt/nexus-data/langflow:/app/langflow
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # curl ships in the image. /health answers without a database check;
+      # it says the server is up, which is what a container probe needs.
+      test: ["CMD", "curl", "-fsS", "http://localhost:7860/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+      # Ollama is attached to this network only, not to app-network, so
+      # joining it is what makes http://ollama:11434 resolve -- the same
+      # arrangement as LiteLLM. compose_runner creates it whenever
+      # langflow is enabled, so this works with Ollama disabled too.
+      - ollama-internal
+
+networks:
+  app-network:
+    external: true
+  ollama-internal:
+    external: true
+    name: ollama-internal

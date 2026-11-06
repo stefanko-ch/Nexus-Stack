@@ -3316,3 +3316,32 @@ def test_the_streamlit_launcher_keeps_every_url_path_unique() -> None:
         "the launcher stopped looping until the url_path is actually free"
     )
     assert "seen.add(url_path)" in source
+
+
+def _service_env(stack: str, service: str) -> dict[str, Any]:
+    compose = yaml.safe_load((STACKS_DIR / stack / "docker-compose.yml").read_text())
+    env: dict[str, Any] = compose["services"][service]["environment"]
+    return env
+
+
+def test_langflow_keeps_its_database_in_the_mounted_config_dir() -> None:
+    """Measured on 1.13.0: without LANGFLOW_DATABASE_URL Langflow writes
+    langflow.db inside its Python package, in the container layer, so the
+    flows vanish with the container and the R2 snapshot misses them."""
+    env = _service_env("langflow", "langflow")
+    config_dir = env["LANGFLOW_CONFIG_DIR"]
+    assert env["LANGFLOW_DATABASE_URL"] == f"sqlite:///{config_dir}/langflow.db"
+
+
+@pytest.mark.parametrize("flag", ["CSRF_COOKIE_SECURE", "SESSION_COOKIE_SECURE"])
+def test_label_studio_cookie_flags_are_integers(flag: str) -> None:
+    """settings/base.py parses both with int(); "true" crashes the server
+    at import (measured on 1.23.2)."""
+    assert _service_env("label-studio", "label-studio")[flag] == "1"
+
+
+def test_label_studio_accepts_the_bootstrap_api_token() -> None:
+    """LABEL_STUDIO_USER_TOKEN is a legacy token, which 1.23 rejects with
+    401 unless legacy tokens are switched on (measured on 1.23.2)."""
+    env = _service_env("label-studio", "label-studio")
+    assert env["LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN"] == "true"

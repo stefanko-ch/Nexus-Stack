@@ -126,6 +126,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgREST | `postgrest/postgrest` | `v14.12` | Exact ¹ |
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
+| Langflow | `langflowai/langflow` | `1.13.0` | Exact |
+| Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
 | PostgreSQL (Langfuse DB) | `postgres` | `17-alpine` | Major |
@@ -160,6 +162,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Qdrant | `qdrant/qdrant` | `v1.19.1` | Exact ¹ |
 | Neo4j | `neo4j` | `2026.08.1-community` | Exact |
 | nginx (Neo4j proxy) | `nginx` | `1.30.4-alpine` | Exact |
+| Memgraph (MAGE) | `memgraph/memgraph-mage` | `3.14.0` | Exact |
+| Memgraph Lab | `memgraph/lab` | `3.14.1` | Exact |
 | SeaweedFS | `chrislusf/seaweedfs` | `3.82` | Minor |
 | Redpanda | `redpandadata/redpanda` | `v24.3` | Minor |
 | Redpanda Console | `redpandadata/console` | `v2.8` | Minor |
@@ -269,8 +273,10 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI | [kafdrop.md](kafdrop.md) |
 | **Kafka-UI** | Kafka/Redpanda management UI | [kafka-ui.md](kafka-ui.md) |
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |
+| **Label Studio** | Data labelling for machine-learning datasets | [label-studio.md](label-studio.md) |
 | **LakeFS** | Git-like version control for data lakes | [lakefs.md](lakefs.md) |
 | **Lakekeeper** | Iceberg REST Catalog (Rust) for multi-engine lakehouse | [lakekeeper.md](lakekeeper.md) |
+| **Langflow** | Visual builder for LLM flows, RAG pipelines and agents | [langflow.md](langflow.md) |
 | **Langfuse** | LLM observability: tracing, evaluations, prompt management | [langfuse.md](langfuse.md) |
 | **LiteLLM Proxy** | Unified OpenAI-compatible proxy for 100+ LLM providers | [litellm.md](litellm.md) |
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
@@ -279,6 +285,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Marquez** | OpenLineage backend — data lineage across the orchestrators | [marquez.md](marquez.md) |
 | **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
+| **Memgraph** | In-memory graph database with MAGE and Memgraph Lab | [memgraph.md](memgraph.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |

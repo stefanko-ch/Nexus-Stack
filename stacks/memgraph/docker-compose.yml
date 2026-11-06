@@ -1,0 +1,97 @@
+# =============================================================================
+# Memgraph - In-memory graph database with MAGE algorithms and Memgraph Lab
+# =============================================================================
+# Access via: https://memgraph.<domain>  (Memgraph Lab)
+#
+# A Cypher graph database that holds the graph in memory, with the MAGE
+# library of graph algorithms (PageRank, community detection, centrality,
+# shortest paths, ...) callable from Cypher. It complements Neo4j here:
+# Neo4j is the classic disk-based graph store; Memgraph is the one for
+# graph analytics and streaming graphs (it consumes Kafka/Redpanda topics
+# directly).
+#
+# Two containers:
+#   - memgraph      the database. Bolt on 7687, reachable only in-cluster
+#                   as bolt://memgraph:7687 (7687 on the host belongs to
+#                   Neo4j, and Bolt cannot cross the HTTPS tunnel anyway).
+#   - memgraph-lab  the web UI, published through the tunnel. Lab opens
+#                   Bolt from its own backend (the browser only calls Lab),
+#                   so memgraph:7687 never has to cross the tunnel. New
+#                   connection is pre-filled with memgraph:7687; the
+#                   username and password are typed in once (Memgraph
+#                   documents no way to pre-fill them).
+#
+# Login: account `nexus-memgraph`, password generated per deployment
+# (Infisical → folder `memgraph`). Memgraph creates it on the first start
+# with an empty data directory and keeps an existing user as it is.
+#
+# Storage: Memgraph snapshots and its write-ahead log in /var/lib/memgraph,
+# bind-mounted from /mnt/nexus-data so the R2 snapshot covers it.
+# compose_runner chowns it to the image's user (101:103) before compose up.
+#
+# Images: memgraph/memgraph-mage, memgraph/lab (amd64 + arm64).
+# Docs: https://memgraph.com/docs
+# =============================================================================
+
+services:
+  memgraph:
+    image: ${IMAGE_MEMGRAPH:-memgraph/memgraph-mage:3.14.0}
+    container_name: memgraph
+    restart: unless-stopped
+    command:
+      - --telemetry-enabled=false
+      # Memgraph's own ceiling, below the container limit: a query that
+      # outgrows it fails with an error instead of the container being
+      # OOM-killed and the graph reloaded from disk.
+      - --memory-limit=1536
+      - --also-log-to-stderr=true
+      - --log-level=WARNING
+    environment:
+      MEMGRAPH_USER: nexus-memgraph
+      MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD:?must be set in .env (rendered by service_env._render_memgraph)}
+    volumes:
+      - /mnt/nexus-data/memgraph:/var/lib/memgraph
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # The image ships bash but neither curl, wget nor mgconsole. A TCP
+      # connect to Bolt says the server is listening; it does not log in.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/7687"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+  memgraph-lab:
+    image: ${IMAGE_MEMGRAPH_LAB:-memgraph/lab:3.14.1}
+    container_name: memgraph-lab
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3010:3000"
+    environment:
+      QUICK_CONNECT_MG_HOST: memgraph
+      QUICK_CONNECT_MG_PORT: "7687"
+    depends_on:
+      memgraph:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      # Node is what the image runs on, so it is certain to be there.
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

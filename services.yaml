@@ -692,6 +692,26 @@ services:
       langfuse-clickhouse: "clickhouse/clickhouse-server:26.3.33.24"
       langfuse-redis: "redis:7-alpine"
 
+  langflow:
+    subdomain: "langflow"
+    port: 7860
+    public: false
+    category: "ai-ml"
+    website: "https://www.langflow.org"
+    description: "Visual builder for LLM flows, RAG pipelines and agents, wired to the models and vector stores in the stack."
+    long_description: "Langflow draws LLM applications as flows: models, prompts, retrievers, vector stores and tools are components on a canvas, connected by their inputs and outputs, and every flow runs from the UI or as an API endpoint. It is the hands-on way to see how a RAG pipeline or an agent is put together before writing it in code. Here the components point at what already runs in the stack — Ollama for local models, Qdrant, Chroma and Weaviate as vector stores, LiteLLM as an OpenAI-compatible gateway. Langflow's own login is a superuser created on first start with the stack user's email and a generated password (Infisical → folder `langflow`); sign-up is disabled. Flows are stored in SQLite under /mnt/nexus-data and survive a teardown."
+    image: "langflowai/langflow:1.13.0"
+
+  label-studio:
+    subdomain: "label-studio"
+    port: 8280
+    public: false
+    category: "ai-ml"
+    website: "https://labelstud.io"
+    description: "Data labelling for text, images, audio and tables — build training datasets for machine learning."
+    long_description: "Label Studio is an open-source annotation tool. A project defines a labelling interface — classification, named entities, bounding boxes, segmentation, transcription, ranking — and tasks are imported, labelled in the browser and exported in the formats training code expects (JSON, CSV, COCO, YOLO, spaCy and more). It covers the step before model training that nothing else in the stack does. Notebooks reach it in-cluster at http://label-studio:8080 with the label-studio-sdk. The account is the stack user's email with a generated password, plus an API token for the SDK (Infisical → folder `label-studio`); sign-up is disabled. Projects, annotations and uploaded files live in SQLite under /mnt/nexus-data and survive a teardown."
+    image: "heartexlabs/label-studio:1.23.2"
+
   litellm:
     subdomain: "litellm"
     port: 4000
@@ -901,6 +921,20 @@ services:
     image: "neo4j:2026.08.1-community"
     support_images:
       neo4j-proxy: "nginx:1.30.4-alpine"
+
+  memgraph:
+    subdomain: "memgraph"
+    # Memgraph Lab, the web UI. The database's Bolt port stays in-cluster
+    # (bolt://memgraph:7687); 7687 on the host belongs to Neo4j.
+    port: 3010
+    public: false
+    category: "databases"
+    website: "https://memgraph.com"
+    description: "In-memory graph database with the MAGE algorithm library and Memgraph Lab for Cypher queries and graph analytics."
+    long_description: "Memgraph is a Cypher-compatible graph database that keeps the graph in memory, built for graph analytics and streaming graphs. This stack runs the MAGE image, so graph algorithms — PageRank, community detection, betweenness centrality, shortest paths and more — are callable straight from Cypher, and Memgraph can consume Kafka or Redpanda topics into the graph. Next to Neo4j, the classic disk-based graph store, it is the one for analysing a graph rather than just storing it. Memgraph Lab is the web UI for queries and graph visualisation; notebooks connect to bolt://memgraph:7687. The account is nexus-memgraph with a generated password (Infisical → folder `memgraph`). Snapshots and the write-ahead log live under /mnt/nexus-data and survive a teardown."
+    image: "memgraph/memgraph-mage:3.14.0"
+    support_images:
+      memgraph-lab: "memgraph/lab:3.14.1"
 
   nocodb:
     subdomain: "nocodb"

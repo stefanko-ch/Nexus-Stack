@@ -242,6 +242,17 @@ output "secrets" {
     # Qdrant (vector database)
     qdrant_api_key = random_password.qdrant_api_key.result
 
+    # Langflow (visual LLM flow builder)
+    langflow_superuser_password = random_password.langflow_superuser.result
+    langflow_secret_key         = random_password.langflow_secret_key.result
+
+    # Label Studio (data labelling)
+    label_studio_admin_password = random_password.label_studio_admin.result
+    label_studio_user_token     = random_password.label_studio_user_token.result
+
+    # Memgraph (in-memory graph database)
+    memgraph_password = random_password.memgraph.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

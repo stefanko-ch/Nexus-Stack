@@ -191,10 +191,43 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
     )
 
 
+# Stacks whose compose file joins the external `ollama-internal` network,
+# Ollama's only network. Any of them enabled means the network must exist
+# before compose up, whether or not Ollama itself is enabled.
+_OLLAMA_CLIENTS = ("ollama", "litellm", "langflow")
+
+
+# Backed-up bind mounts of stacks whose container runs as a non-root user,
+# keyed by service: (host path, owner the image's process runs as). Docker
+# creates a missing bind source root-owned, and so does the R2 restore, so
+# without this the container cannot write its own data directory. Newer
+# stacks register here instead of growing another *_prep flag; the paths
+# must match their compose files and s3_restore.standard_targets, which
+# tests/unit/test_compose_runner.py checks.
+_DATA_DIRS: dict[str, tuple[str, str]] = {
+    "langflow": ("/mnt/nexus-data/langflow", "1000:0"),
+    "label-studio": ("/mnt/nexus-data/label-studio", "1001:0"),
+    "memgraph": ("/mnt/nexus-data/memgraph", "101:103"),
+}
+
+
+def _render_data_dir_prep(path: str, owner: str) -> str:
+    """``mkdir -p`` plus a per-file ownership fix, like the notebook prep
+    without its one-time volume migration: these stacks never used a
+    named volume. ``find`` only stats a correctly owned tree."""
+    uid, gid = owner.split(":")
+    p = shlex.quote(path)
+    return (
+        f"\nmkdir -p {p}\n"
+        f"find {p} \\( ! -user {uid} -o ! -group {gid} \\) -exec chown -h {owner} {{}} +\n"
+    )
+
+
 def render_remote_script(
     *,
     parents: list[str],
     leaves: list[str],
+    data_dirs: tuple[tuple[str, str], ...] = (),
     dify_storage_prep: bool = False,
     metabase_storage_prep: bool = False,
     ollama_internal_network_prep: bool = False,
@@ -365,6 +398,8 @@ if [ "$(stat -c '%u:%g' /mnt/nexus-data/metabase)" != "2000:2000" ]; then
 fi
 """
 
+    data_dirs_block = "".join(_render_data_dir_prep(path, owner) for path, owner in data_dirs)
+
     return f"""set -euo pipefail
 
 STACKS_DIR={stacks_q}
@@ -380,7 +415,7 @@ fi
 
 PARENTS=({parents_q})
 LEAVES=({leaves_q})
-{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{marimo_block}{code_server_block}{kestra_block}
+{ollama_internal_block}{dify_block}{metabase_block}{hedgedoc_block}{planka_block}{jupyter_block}{marimo_block}{code_server_block}{kestra_block}{data_dirs_block}
 STARTED=0
 FAILED=0
 PIDS=()
@@ -528,7 +563,7 @@ def run_compose_up(
     actual_ollama_internal = (
         ollama_internal_network_prep
         if ollama_internal_network_prep is not None
-        else ("litellm" in enabled or "ollama" in enabled)
+        else any(svc in enabled for svc in _OLLAMA_CLIENTS)
     )
     actual_hedgedoc = (
         hedgedoc_uploads_prep if hedgedoc_uploads_prep is not None else "hedgedoc" in enabled
@@ -546,6 +581,7 @@ def run_compose_up(
     script = render_remote_script(
         parents=parents,
         leaves=leaves,
+        data_dirs=tuple(spec for svc, spec in _DATA_DIRS.items() if svc in enabled),
         dify_storage_prep=actual_dify,
         metabase_storage_prep=actual_metabase,
         ollama_internal_network_prep=actual_ollama_internal,

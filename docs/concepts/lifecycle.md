@@ -83,8 +83,8 @@ data" — it is "some of your data, depending on the mode".
 
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —
-currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB, Kestra and the
-notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
+currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB, Kestra, Langflow,
+Label Studio, Memgraph and the notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
 shared Postgres database and of the Unity Catalog, Lakekeeper and MLflow catalogues. Two kinds of target sit in that list: a `pg_dump` of a
 stack's database, and an rsync of the directories it writes — Forgejo and Gitea
 have both, since a forge is repositories as much as it is a database. Read that function rather than trusting a number in a document:
@@ -138,10 +138,14 @@ Infisical. A password you wrote down last week is not the password today; the Co
 Plane and Infisical always have the current one. In `snapshot` mode they stay as they
 are, because that teardown destroys only the server.
 
-Two credentials are exceptions in `rebuild` mode. Kestra's login password stays in place,
+A few credentials are exceptions in `rebuild` mode. Kestra's login password stays in place,
 because it is the credential people type into a browser, and a browser that remembers
 the old one keeps sending it and gets locked out after every teardown. The Forgejo
 Access service token survives too, as described above (#892).
+
+So are Langflow's, Label Studio's and Memgraph's logins. Those apps create
+their account only once, the R2 restore brings it back, and a regenerated password
+would never reach it, so a rebuild teardown leaves these credentials in place.
 
 ## Scheduled teardown
 

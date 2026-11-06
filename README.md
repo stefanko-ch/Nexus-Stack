@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (105)
+## Available Stacks (108)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -126,8 +126,10 @@ After deployment you'll have:
 [![Kafdrop](https://img.shields.io/badge/Kafdrop-000000?logo=apachekafka&logoColor=white)](https://github.com/obsidiandynamics/kafdrop)
 [![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)](https://docs.kafka-ui.provectus.io/)
 [![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)](https://kestra.io)
+[![Label Studio](https://img.shields.io/badge/Label_Studio-FF7557?logo=labelstudio&logoColor=white)](https://labelstud.io)
 [![LakeFS](https://img.shields.io/badge/LakeFS-00B4D8?logo=git&logoColor=white)](https://lakefs.io)
 [![Lakekeeper](https://img.shields.io/badge/Lakekeeper-B7410E?logo=rust&logoColor=white)](https://lakekeeper.io)
+[![Langflow](https://img.shields.io/badge/Langflow-7528FC?logo=langchain&logoColor=white)](https://www.langflow.org)
 [![Langfuse](https://img.shields.io/badge/Langfuse-0A0A0A?logo=opentelemetry&logoColor=white)](https://langfuse.com)
 [![LiteLLM](https://img.shields.io/badge/LiteLLM-00BFFF?logo=openai&logoColor=white)](https://www.litellm.ai)
 [![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)](https://mage.ai)
@@ -136,6 +138,7 @@ After deployment you'll have:
 [![Marquez](https://img.shields.io/badge/Marquez-1F5C99?logo=apacheairflow&logoColor=white)](https://marquezproject.ai)
 [![Meilisearch](https://img.shields.io/badge/Meilisearch-FF5CAA?logo=meilisearch&logoColor=white)](https://www.meilisearch.com)
 [![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)](https://meltano.com)
+[![Memgraph](https://img.shields.io/badge/Memgraph-FB6E00?logo=memgraph&logoColor=white)](https://memgraph.com)
 [![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)](https://www.metabase.com)
 [![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
@@ -234,8 +237,10 @@ After deployment you'll have:
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI for browsing topics and consumer groups | [GitHub](https://github.com/obsidiandynamics/kafdrop) |
 | **Kafka-UI** | Modern web UI for Apache Kafka / Redpanda management | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
+| **Label Studio** | Data labelling for text, images, audio and tables — build training datasets for machine learning | [labelstud.io](https://labelstud.io) |
 | **LakeFS** | Git-like version control for data lakes (Hetzner Object Storage backend) | [lakefs.io](https://lakefs.io) |
 | **Lakekeeper** | Modern Iceberg REST Catalog (Rust) — Spark / Trino / DuckDB / PyIceberg share Iceberg tables on the existing object storage | [lakekeeper.io](https://lakekeeper.io) |
+| **Langflow** | Visual builder for LLM flows, RAG pipelines and agents, wired to the models and vector stores in the stack | [langflow.org](https://www.langflow.org) |
 | **Langfuse** | LLM observability — traces, evaluations and prompt management for every model call | [langfuse.com](https://langfuse.com) |
 | **LiteLLM** | Unified OpenAI-compatible proxy for 100+ LLM providers (Ollama, OpenAI, Anthropic, Mistral, ...) — single SDK, per-key budgets, cost tracking | [litellm.ai](https://www.litellm.ai) |
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
@@ -244,6 +249,7 @@ After deployment you'll have:
 | **Marquez** | OpenLineage reference backend — which job produced which dataset, and what breaks when one changes | [marquezproject.ai](https://marquezproject.ai) |
 | **Meilisearch** | Lightning-fast Rust full-text search — sub-100ms typo-tolerant, schema-less | [meilisearch.com](https://www.meilisearch.com) |
 | **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
+| **Memgraph** | In-memory graph database with MAGE graph algorithms and Memgraph Lab | [memgraph.com](https://memgraph.com) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
 | **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
