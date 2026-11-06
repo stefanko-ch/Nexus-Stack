@@ -1109,6 +1109,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                     # Open WebUI signs in by email.
                     "OPEN_WEBUI_USERNAME": stack_user_email(env),
                     "OPEN_WEBUI_PASSWORD": config.open_webui_admin_password,
+                    "OPEN_WEBUI_SECRET_KEY": config.open_webui_secret_key,
                 }
             ),
         )
@@ -1137,6 +1138,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                     "OPEN_NOTEBOOK_PASSWORD": config.open_notebook_password,
                     "OPEN_NOTEBOOK_DB_USERNAME": "nexus-open-notebook",
                     "OPEN_NOTEBOOK_DB_PASSWORD": config.open_notebook_db_password,
+                    "OPEN_NOTEBOOK_ENCRYPTION_KEY": config.open_notebook_encryption_key,
                 }
             ),
         )
@@ -1148,6 +1150,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                 {
                     "NIFI_USERNAME": stack_user_email(env),
                     "NIFI_PASSWORD": config.nifi_password,
+                    "NIFI_SENSITIVE_PROPS_KEY": config.nifi_sensitive_props_key,
                 }
             ),
         )

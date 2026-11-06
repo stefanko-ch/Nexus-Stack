@@ -226,6 +226,7 @@
     }),
     'nifi': dict({
       'NIFI_PASSWORD': 'nifi_password-VALUE',
+      'NIFI_SENSITIVE_PROPS_KEY': 'nifi_sensitive_props_key-VALUE',
       'NIFI_USERNAME': 'user@snapshot.test',
     }),
     'nocodb': dict({
@@ -241,10 +242,12 @@
     'open-notebook': dict({
       'OPEN_NOTEBOOK_DB_PASSWORD': 'open_notebook_db_password-VALUE',
       'OPEN_NOTEBOOK_DB_USERNAME': 'nexus-open-notebook',
+      'OPEN_NOTEBOOK_ENCRYPTION_KEY': 'open_notebook_encryption_key-VALUE',
       'OPEN_NOTEBOOK_PASSWORD': 'open_notebook_password-VALUE',
     }),
     'open-webui': dict({
       'OPEN_WEBUI_PASSWORD': 'open_webui_admin_password-VALUE',
+      'OPEN_WEBUI_SECRET_KEY': 'open_webui_secret_key-VALUE',
       'OPEN_WEBUI_USERNAME': 'user@snapshot.test',
     }),
     'openmetadata': dict({
