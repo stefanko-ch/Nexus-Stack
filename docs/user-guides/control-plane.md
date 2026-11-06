@@ -28,6 +28,8 @@ On first visit Cloudflare Access redirects you to an email-OTP challenge.
 
  Enter the email address the stack was deployed for, check your inbox, click the one-time code — and you're in. The session lasts 24 hours.
 
+The top-right corner of every page shows who you are signed in as: your email address and your role. **Admin** is the stack operator, **User** is one of the people the stack was deployed for, and **Guest** can look but not act. On a narrow screen it moves above the logo.
+
 ## Navigation
 
 The top nav has seven sections:

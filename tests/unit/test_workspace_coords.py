@@ -129,9 +129,9 @@ def test_repo_coords_branch1_mirror_plus_user_email_produces_fork() -> None:
     assert url == "http://forgejo:3000/alice.bob/Bsc_EDS_GIS_alice_bob.git"
 
 
-def test_repo_coords_branch2_mirror_no_user_email_produces_mirror_readonly() -> None:
+def test_repo_coords_branch2_mirror_no_user_email_produces_course_repo() -> None:
     """Branch 2: GH_MIRROR_REPOS set, no user email → admin's
-    read-only mirror as ``mirror-readonly-<repo>``."""
+    read-only course repo ``course-<repo>``."""
     inputs = WorkspaceInputs(
         domain="example.com",
         admin_username="admin",
@@ -140,9 +140,9 @@ def test_repo_coords_branch2_mirror_no_user_email_produces_mirror_readonly() -> 
         gh_mirror_repos="https://github.com/upstream/Bsc_EDS_GIS.git",
     )
     repo_name, owner, url = _resolve_repo_coords(inputs, workspace_username="admin")
-    assert repo_name == "mirror-readonly-Bsc_EDS_GIS"
+    assert repo_name == "course-Bsc_EDS_GIS"
     assert owner == "admin"
-    assert url == "http://forgejo:3000/admin/mirror-readonly-Bsc_EDS_GIS.git"
+    assert url == "http://forgejo:3000/admin/course-Bsc_EDS_GIS.git"
 
 
 def test_repo_coords_branch3_no_mirror_produces_default_workspace() -> None:
@@ -421,7 +421,7 @@ def test_derive_mirror_no_user_falls_back_to_main_when_no_token() -> None:
         gh_mirror_token=None,
     )
     coords = derive(inputs)
-    assert coords.repo_name == "mirror-readonly-Bsc_EDS_GIS"
+    assert coords.repo_name == "course-Bsc_EDS_GIS"
     assert coords.forgejo_repo_owner == "admin"
     assert coords.workspace_branch == "main"
 

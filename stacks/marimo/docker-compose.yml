@@ -48,6 +48,24 @@ services:
               echo \"[marimo] Warning: Failed to clone $$FORGEJO_REPO_URL\" >&2;
             fi;
           fi;
+          for url in $$(echo \"$$COURSE_REPO_URLS\" | tr \",\" \" \"); do
+            name=$$(basename \"$$url\" .git); name=$${name#course-};
+            dir=/app/notebooks/course/$$name;
+            if [ -d \"$$dir/.git\" ]; then
+              if git -C \"$$dir\" fetch -q origin && git -C \"$$dir\" reset -q --hard origin/HEAD && git -C \"$$dir\" clean -qfd; then
+                echo \"[marimo] Updated course repo $$name\";
+              else
+                echo \"[marimo] Warning: Failed to update course repo $$name\" >&2;
+              fi;
+            else
+              mkdir -p /app/notebooks/course;
+              if git clone -q \"$$url\" \"$$dir\"; then
+                echo \"[marimo] Cloned course repo into $$dir\";
+              else
+                echo \"[marimo] Warning: Failed to clone course repo $$url\" >&2;
+              fi;
+            fi;
+          done;
         ';
         exec gosu appuser marimo edit --host 0.0.0.0 --port 8080 --no-token /app/notebooks
       "

@@ -121,6 +121,7 @@ Every package is pinned, dependencies included, in `stacks/code-server/requireme
 | `polars` | `2.1.0` | Fast Rust-backed dataframes |
 | `plotly` | `7.1.0` | Charting |
 | `duckdb` (Python) | `2.0.0` | Python bindings (separate from the CLI binary below) |
+| `psycopg[binary]` | `3.3.8` | PostgreSQL driver SQLAlchemy 2.1 uses for a plain `postgresql://` URL (`create_engine`, `pandas.read_sql`, `%sql`). `psycopg2` from `dbt-postgres` stays installed for `postgresql+psycopg2://`. |
 
 **System binaries** (installed via apt / direct download into `/usr/local/bin`, not in the venv):
 

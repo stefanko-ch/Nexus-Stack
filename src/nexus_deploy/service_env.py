@@ -2446,24 +2446,23 @@ def _render_forgejo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(
         env_vars={
             "FORGEJO_DB_PASSWORD": c.forgejo_db_password or "",
-            # The public hostname. Composed here rather than inline in
-            # the compose file so the reasoning has somewhere to live —
-            # and it is deliberately a plain dot, NOT service_host().
+            # The public hostname, composed with the subdomain separator
+            # like KESTRA_URL and the SSH host (#947). ROOT_URL drives the
+            # clone URLs and every OAuth redirect, so it has to name the
+            # host that is actually routed.
             #
-            # An earlier revision used the separator, on the reasoning
-            # that a flat-subdomain tenant should get
-            # `forgejo-user1.example.com`. That was wrong: the stack's
-            # DNS record, tunnel ingress and Access application are all
-            # built as `${subdomain}.${var.domain}` in main.tf, and
-            # `variables.tf` says so outright — "no stack-side resource
-            # references var.subdomain_separator today". Composing with
-            # the separator would have Forgejo advertise a host nothing
-            # provisions.
-            #
-            # ROOT_URL drives clone URLs and every OAuth redirect, so it
-            # has to match what is actually routed, not what a different
-            # layer might prefer.
-            "FORGEJO_HOST": f"forgejo.{e.domain or ''}",
+            # Until #947 this was a plain dot, reasoning that main.tf
+            # builds every DNS record as `${subdomain}.${var.domain}`
+            # whatever the separator. True for the template on its own,
+            # but the only setup that sets the separator to "-" is a
+            # Nexus-Conductor fork, and Conductor's setup patch rewrites
+            # those records — and every `.${DOMAIN}` in stacks/** — to
+            # the dash form. It cannot reach this Python, so Forgejo kept
+            # advertising `forgejo.<user>.<base>`, which does not resolve,
+            # while it was served at `forgejo-<user>.<base>`; every clone
+            # URL a student copied failed. With "." the result is the
+            # same dot form as before.
+            "FORGEJO_HOST": service_host("forgejo", e.domain or "", e.subdomain_separator),
             "DOMAIN": e.domain or "",
         },
         # 0600, not the 0644 most stacks use. This file carries the
@@ -3575,6 +3574,12 @@ class ForgejoWorkspaceConfig:
     # Fresh installs still get a working clone via the env-var
     # default in the seed manifest if this field were ever empty.
     workspace_branch: str = "main"
+    # Internal clone URLs of the read-only course repositories, one per
+    # GH_MIRROR_REPOS entry. The git-integrated stacks clone each into a
+    # ``course/`` directory next to the workspace and reset it to the
+    # mirror's head on every start; see their compose entrypoints. Empty
+    # when the stack has no course repositories.
+    course_repo_urls: tuple[str, ...] = ()
 
 
 def _strip_forgejo_block(content: str) -> str:
@@ -3605,6 +3610,7 @@ GIT_COMMITTER_NAME={cfg.git_author_name}
 GIT_COMMITTER_EMAIL={cfg.git_author_email}
 REPO_NAME={cfg.repo_name}
 WORKSPACE_BRANCH={cfg.workspace_branch}
+COURSE_REPO_URLS={",".join(cfg.course_repo_urls)}
 {_FORGEJO_BLOCK_END}
 """
 

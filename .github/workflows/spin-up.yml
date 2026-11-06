@@ -1061,6 +1061,35 @@ jobs:
             echo "  ⚠️  Infisical service token not available - Secrets page may not work if Cloudflare Access blocks API calls"
           fi
 
+          # TEMPLATE_VERSION (#954): the release the header shows. Only
+          # setup-control-plane.yaml set it, so a Conductor *upgrade*
+          # followed by spin-ups -- the normal path for a class -- kept the
+          # version of the last deploy: deads8-test ran v0.88.1 and showed
+          # V0.87.0. Refreshed here from the same `.template-version` file,
+          # before the redeploy below makes it live.
+          TEMPLATE_VERSION=""
+          if [ -f .template-version ]; then
+            TEMPLATE_VERSION=$(tr -d '[:space:]' < .template-version)
+          fi
+          if [ -n "$TEMPLATE_VERSION" ]; then
+            if printf '%s' "$TEMPLATE_VERSION" | npx wrangler@4.129.0 pages secret put TEMPLATE_VERSION --project-name "$PAGES_PROJECT" >/dev/null 2>&1; then
+              echo "  ✅ TEMPLATE_VERSION stored ($TEMPLATE_VERSION)"
+            else
+              echo "  ⚠️  Failed to store TEMPLATE_VERSION - the header keeps showing the previous version"
+            fi
+          else
+            # No file: not a Conductor fork. A secret left from earlier
+            # would pin a stale number, so remove it and let /api/version
+            # fall back to the GitHub API. "Not found" is the normal case.
+            if DEL_ERR=$(echo y | npx wrangler@4.129.0 pages secret delete TEMPLATE_VERSION --project-name "$PAGES_PROJECT" 2>&1); then
+              echo "  Removed stale TEMPLATE_VERSION secret"
+            elif printf '%s' "$DEL_ERR" | grep -qiE "not found|does not exist|no secret"; then
+              echo "  No .template-version and no TEMPLATE_VERSION secret - nothing to refresh"
+            else
+              echo "  ⚠️  Could not remove the TEMPLATE_VERSION secret - the header may show a stale version"
+            fi
+          fi
+
           echo "✅ Credentials stored"
           if [ -f .github/scripts/log-to-d1.sh ]; then
             .github/scripts/log-to-d1.sh info "Credentials stored in Cloudflare Secrets"

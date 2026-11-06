@@ -35,6 +35,28 @@ services:
             echo '[code-server] Warning: Failed to clone '$$FORGEJO_REPO_URL >&2;
           fi;
         fi;
+        # Course repositories: read-only material, kept current. Each is
+        # cloned into ~/course/<name> and reset to the mirror's head on
+        # every start, so local edits there do not survive a restart —
+        # copy a file into the workspace to work on it.
+        for url in $$(echo \"$$COURSE_REPO_URLS\" | tr ',' ' '); do
+          name=$$(basename \"$$url\" .git); name=$${name#course-};
+          dir=/home/coder/course/$$name;
+          if [ -d \"$$dir/.git\" ]; then
+            if git -C \"$$dir\" fetch -q origin && git -C \"$$dir\" reset -q --hard origin/HEAD && git -C \"$$dir\" clean -qfd; then
+              echo '[code-server] Updated course repo '$$name;
+            else
+              echo '[code-server] Warning: Failed to update course repo '$$name >&2;
+            fi;
+          else
+            mkdir -p /home/coder/course;
+            if git clone -q \"$$url\" \"$$dir\"; then
+              echo '[code-server] Cloned course repo into '$$dir;
+            else
+              echo '[code-server] Warning: Failed to clone course repo '$$url >&2;
+            fi;
+          fi;
+        done;
         USER_EXT_DIR=/home/coder/.local/share/code-server/extensions;
         mkdir -p \"$$USER_EXT_DIR\";
         # Seed baked extensions from /opt/ into the user dir when

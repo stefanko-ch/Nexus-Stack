@@ -13,3 +13,8 @@ jupysql
 polars
 plotly
 duckdb
+# SQLAlchemy 2.1 resolves a bare postgresql:// URL to psycopg 3, and
+# dbt-postgres brings only psycopg2-binary, so without this a student's
+# create_engine("postgresql://...") or %sql postgresql://... fails with
+# "No module named 'psycopg'".
+psycopg[binary]
