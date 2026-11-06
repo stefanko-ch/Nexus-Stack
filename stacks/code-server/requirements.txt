@@ -126,6 +126,8 @@ prometheus-client==0.26.0
 prompt-toolkit==3.0.53
 protobuf==6.33.6
 psutil==7.2.2 ; sys_platform != 'cygwin' and sys_platform != 'emscripten'
+psycopg==3.3.8
+psycopg-binary==3.3.8 ; implementation_name != 'pypy'
 psycopg2-binary==2.9.13
 ptyprocess==0.7.0 ; os_name != 'nt' or (sys_platform != 'emscripten' and sys_platform != 'win32')
 pure-eval==0.2.4
