@@ -1949,6 +1949,18 @@ def _render_nifi(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _non_alnum(values: dict[str, str | None]) -> list[str]:
+    """Names of the values that are not plain ASCII letters and digits.
+
+    For secrets that land inside a connection URL, a JSON body built with
+    printf, or an unquoted config line. Every one of them comes from a
+    ``random_password`` with ``special = false``; this keeps that coupling
+    from failing silently if one ever changes. Returns names only, never
+    values, because the caller's message lands in a public log.
+    """
+    return sorted(k for k, v in values.items() if not ((v or "").isascii() and (v or "").isalnum()))
+
+
 def _render_bytebase(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Bytebase: its database password, its external URL, and the admin.
 
@@ -1968,6 +1980,20 @@ def _render_bytebase(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "`bytebase_admin_password`, the email from admin_email or the stack "
             "user's email in config.tfvars. Aborting rather than leaving the "
             "Bytebase admin to whoever signs up first.",
+        )
+    # The database password sits inside PG_URL, the admin password inside
+    # the JSON bytebase-init builds with printf.
+    if bad := _non_alnum(
+        {
+            "BYTEBASE_DB_PASSWORD": c.bytebase_db_password,
+            "BYTEBASE_ADMIN_PASSWORD": c.bytebase_admin_password,
+        }
+    ):
+        raise ServiceEnvError(
+            f"Bytebase enabled but {', '.join(bad)} not alphanumeric -- the "
+            "database password goes into a connection URL and the admin password "
+            "into a JSON body. Both should come from random_password with "
+            "special = false.",
         )
     url = f"https://{service_host('bytebase', e.domain or '', e.subdomain_separator)}"
     return RenderedEnv(
@@ -1993,6 +2019,12 @@ def _render_hasura(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "tofu outputs `hasura_db_password` and `hasura_admin_secret`. "
             "Aborting rather than starting Hasura without an admin secret.",
         )
+    if _non_alnum({"HASURA_DB_PASSWORD": c.hasura_db_password}):
+        raise ServiceEnvError(
+            "Hasura enabled but HASURA_DB_PASSWORD is not alphanumeric -- it goes "
+            "into the database connection URL. It should come from "
+            "random_password.hasura_db, which has special = false.",
+        )
     return RenderedEnv(env_vars={k: v or "" for k, v in required.items()}, mode=0o600)
 
 
@@ -2004,6 +2036,13 @@ def _render_valkey(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "Valkey enabled but VALKEY_PASS is empty -- it comes from the tofu "
             "output `valkey_password` (random_password.valkey). Aborting rather "
             "than starting Valkey without a password.",
+        )
+    if _non_alnum({"VALKEY_PASSWORD": c.valkey_password}):
+        raise ServiceEnvError(
+            "Valkey enabled but VALKEY_PASS is not alphanumeric -- the container "
+            "writes it unquoted into a requirepass line, where a space or quote "
+            "would change the config. It should come from random_password.valkey, "
+            "which has special = false.",
         )
     return RenderedEnv(env_vars={"VALKEY_PASSWORD": c.valkey_password or ""}, mode=0o600)
 

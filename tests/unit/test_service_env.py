@@ -4691,14 +4691,14 @@ def test_bytebase_renders_the_admin_and_its_external_url(
     from nexus_deploy.service_env import _render_bytebase
 
     config = full_config.model_copy(
-        update={"bytebase_db_password": "bb-db", "bytebase_admin_password": "Bb-Pass1"}
+        update={"bytebase_db_password": "bbdb1", "bytebase_admin_password": "BbPass1"}
     )
     env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
     rendered = _render_bytebase(config, env)
     assert rendered.env_vars == {
-        "BYTEBASE_DB_PASSWORD": "bb-db",
+        "BYTEBASE_DB_PASSWORD": "bbdb1",
         "BYTEBASE_ADMIN_EMAIL": "user@example.com",
-        "BYTEBASE_ADMIN_PASSWORD": "Bb-Pass1",
+        "BYTEBASE_ADMIN_PASSWORD": "BbPass1",
         "BYTEBASE_URL": "https://bytebase-alice.example.com",
     }
     assert rendered.mode == 0o600
@@ -4712,7 +4712,7 @@ def test_bytebase_refuses_an_empty_admin_password(
     from nexus_deploy.service_env import _render_bytebase
 
     config = full_config.model_copy(
-        update={"bytebase_db_password": "bb-db", "bytebase_admin_password": ""}
+        update={"bytebase_db_password": "bbdb1", "bytebase_admin_password": ""}
     )
     with pytest.raises(ServiceEnvError, match="BYTEBASE_ADMIN_PASSWORD"):
         _render_bytebase(config, full_env)
@@ -4726,14 +4726,50 @@ def test_hasura_renders_and_refuses_an_empty_admin_secret(
     from nexus_deploy.service_env import _render_hasura
 
     config = full_config.model_copy(
-        update={"hasura_db_password": "hs-db", "hasura_admin_secret": "hs-secret"}
+        update={"hasura_db_password": "hsdb1", "hasura_admin_secret": "hssecret1"}
     )
     rendered = _render_hasura(config, full_env)
-    assert rendered.env_vars == {"HASURA_DB_PASSWORD": "hs-db", "HASURA_ADMIN_SECRET": "hs-secret"}
+    assert rendered.env_vars == {"HASURA_DB_PASSWORD": "hsdb1", "HASURA_ADMIN_SECRET": "hssecret1"}
     assert rendered.mode == 0o600
 
     with pytest.raises(ServiceEnvError, match="HASURA_ADMIN_SECRET"):
         _render_hasura(config.model_copy(update={"hasura_admin_secret": ""}), full_env)
+
+
+@pytest.mark.parametrize(
+    ("renderer", "update", "name"),
+    [
+        ("_render_bytebase", {"bytebase_db_password": "a b"}, "BYTEBASE_DB_PASSWORD"),
+        ("_render_bytebase", {"bytebase_admin_password": 'a"b'}, "BYTEBASE_ADMIN_PASSWORD"),
+        ("_render_hasura", {"hasura_db_password": "a@b"}, "HASURA_DB_PASSWORD"),
+        ("_render_valkey", {"valkey_password": "a b"}, "VALKEY_PASS"),
+    ],
+)
+def test_secrets_embedded_in_urls_or_config_must_be_alphanumeric(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    update: dict[str, str],
+    name: str,
+) -> None:
+    """Each of these lands in a connection URL, a printf-built JSON body or
+    an unquoted config line, where a space, quote or @ changes the meaning.
+    The error names the variable and never echoes the value."""
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(
+        update={
+            "bytebase_db_password": "bbdb",
+            "bytebase_admin_password": "BbPass1",
+            "hasura_db_password": "hsdb",
+            "hasura_admin_secret": "hssecret",
+            "valkey_password": "vkpass",
+            **update,
+        }
+    )
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    assert next(iter(update.values())) not in str(excinfo.value)
 
 
 def test_valkey_renders_and_refuses_an_empty_password(
@@ -4741,9 +4777,9 @@ def test_valkey_renders_and_refuses_an_empty_password(
 ) -> None:
     from nexus_deploy.service_env import _render_valkey
 
-    config = full_config.model_copy(update={"valkey_password": "vk-pass"})
+    config = full_config.model_copy(update={"valkey_password": "vkpass1"})
     rendered = _render_valkey(config, full_env)
-    assert rendered.env_vars == {"VALKEY_PASSWORD": "vk-pass"}
+    assert rendered.env_vars == {"VALKEY_PASSWORD": "vkpass1"}
     assert rendered.mode == 0o600
 
     with pytest.raises(ServiceEnvError, match="VALKEY_PASS"):
