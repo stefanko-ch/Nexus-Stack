@@ -1,0 +1,56 @@
+# =============================================================================
+# Apache Kafka - event streaming, KRaft mode
+# =============================================================================
+# Internal only: kafka:9092 on app-network. The Kafka protocol cannot cross
+# the HTTPS tunnel.
+#
+# One node that is both broker and controller (KRaft, no ZooKeeper), sized
+# for teaching. The listener is PLAINTEXT without authentication, which is
+# why the stack is internal only and on the NO_OWN_AUTH list: anything on
+# app-network can produce and consume. Redpanda is the Kafka-compatible
+# alternative that already ships here; this is the Apache implementation.
+#
+# Topic data in the kafka-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  kafka:
+    image: ${IMAGE_KAFKA:-apache/kafka:4.4.0}
+    container_name: kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  kafka-data:
+
+networks:
+  app-network:
+    external: true

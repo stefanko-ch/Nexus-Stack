@@ -4683,6 +4683,73 @@ def test_flowise_refuses_an_empty_owner_password(
         _render_flowise(config, full_env)
 
 
+def test_bytebase_renders_the_admin_and_its_external_url(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_bytebase
+
+    config = full_config.model_copy(
+        update={"bytebase_db_password": "bb-db", "bytebase_admin_password": "Bb-Pass1"}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_bytebase(config, env)
+    assert rendered.env_vars == {
+        "BYTEBASE_DB_PASSWORD": "bb-db",
+        "BYTEBASE_ADMIN_EMAIL": "user@example.com",
+        "BYTEBASE_ADMIN_PASSWORD": "Bb-Pass1",
+        "BYTEBASE_URL": "https://bytebase-alice.example.com",
+    }
+    assert rendered.mode == 0o600
+
+
+def test_bytebase_refuses_an_empty_admin_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Without it bytebase-init cannot claim the admin, and the first
+    visitor to sign up would become it."""
+    from nexus_deploy.service_env import _render_bytebase
+
+    config = full_config.model_copy(
+        update={"bytebase_db_password": "bb-db", "bytebase_admin_password": ""}
+    )
+    with pytest.raises(ServiceEnvError, match="BYTEBASE_ADMIN_PASSWORD"):
+        _render_bytebase(config, full_env)
+
+
+def test_hasura_renders_and_refuses_an_empty_admin_secret(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Without an admin secret Hasura serves its whole API, schema changes
+    included, to anyone who reaches it."""
+    from nexus_deploy.service_env import _render_hasura
+
+    config = full_config.model_copy(
+        update={"hasura_db_password": "hs-db", "hasura_admin_secret": "hs-secret"}
+    )
+    rendered = _render_hasura(config, full_env)
+    assert rendered.env_vars == {"HASURA_DB_PASSWORD": "hs-db", "HASURA_ADMIN_SECRET": "hs-secret"}
+    assert rendered.mode == 0o600
+
+    with pytest.raises(ServiceEnvError, match="HASURA_ADMIN_SECRET"):
+        _render_hasura(config.model_copy(update={"hasura_admin_secret": ""}), full_env)
+
+
+def test_valkey_renders_and_refuses_an_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_valkey
+
+    config = full_config.model_copy(update={"valkey_password": "vk-pass"})
+    rendered = _render_valkey(config, full_env)
+    assert rendered.env_vars == {"VALKEY_PASSWORD": "vk-pass"}
+    assert rendered.mode == 0o600
+
+    with pytest.raises(ServiceEnvError, match="VALKEY_PASS"):
+        _render_valkey(config.model_copy(update={"valkey_password": ""}), full_env)
+
+
 def test_open_notebook_renders_its_public_url_and_secrets(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:

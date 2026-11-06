@@ -1,0 +1,53 @@
+# =============================================================================
+# SQLMesh - SQL transformations with plans, environments and tests
+# =============================================================================
+# URL: https://sqlmesh.<domain>
+#
+# The dbt alternative that computes a plan before applying changes, keeps
+# virtual environments per branch and backfills only what changed. This
+# stack runs SQLMesh's browser IDE on a project in the sqlmesh-project
+# volume, created on first start as the example project on DuckDB.
+#
+# Upstream marks the browser UI as deprecated in favour of its VS Code
+# extension; it still ships and runs in the pinned 0.236.4. The same
+# project works from code-server with `pip install sqlmesh`.
+#
+# No login of its own, so Cloudflare Access is the only gate (NO_OWN_AUTH
+# in the conventions test). Built locally (see Dockerfile) for amd64 and
+# arm64.
+#
+# The project volume survives a restart and the snapshot lifecycle, not a
+# rebuild teardown. Keep a project in Git (Forgejo) if it should outlive one.
+# =============================================================================
+
+services:
+  sqlmesh:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_SQLMESH:-nexus-sqlmesh:0.236.4}
+    container_name: sqlmesh
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8116:8000"
+    volumes:
+      - sqlmesh-project:/project
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/meta', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  sqlmesh-project:
+
+networks:
+  app-network:
+    external: true

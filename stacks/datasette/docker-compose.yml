@@ -1,0 +1,44 @@
+# =============================================================================
+# Datasette - explore and publish SQLite databases
+# =============================================================================
+# URL: https://datasette.<domain>
+#
+# Serves every *.db file in the datasette-data volume, read-only, with a
+# table browser, faceting, SQL queries and a JSON API for each table. It
+# has no login of its own, so Cloudflare Access is the only gate
+# (NO_OWN_AUTH in the conventions test).
+#
+# Built locally (see Dockerfile) so the image works on amd64 and arm64.
+# =============================================================================
+
+services:
+  datasette:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_DATASETTE:-nexus-datasette:0.65.5}
+    container_name: datasette
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8115:8001"
+    volumes:
+      - datasette-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/-/versions.json', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  datasette-data:
+
+networks:
+  app-network:
+    external: true

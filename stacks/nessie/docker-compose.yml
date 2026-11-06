@@ -1,0 +1,55 @@
+# =============================================================================
+# Project Nessie - transactional catalog with Git semantics for Iceberg
+# =============================================================================
+# URL: https://nessie.<domain>   (web UI and REST API on one port)
+# In-cluster: http://nessie:19120/api/v2
+#
+# Branches, tags and commits across a whole set of Iceberg tables. Spark,
+# Flink, Trino and PyIceberg reach it at http://nessie:19120/api/v2 and
+# bring their own warehouse location. Nessie's own Iceberg REST endpoint
+# needs a warehouse bucket configured here, which this stack does not set,
+# so it answers 500 until one is added.
+#
+# No authentication: Nessie runs with AuthN/AuthZ off and logs a warning
+# saying so. Cloudflare Access is the only gate (NO_OWN_AUTH in the
+# conventions test).
+#
+# Commit history in RocksDB in the nessie-data volume, which survives a
+# restart and the snapshot lifecycle, not a rebuild teardown. The volume is
+# mounted at /deployments/data because the image owns that directory as
+# its nessie user (10000); a fresh named volume takes over that owner.
+# =============================================================================
+
+services:
+  nessie:
+    image: ${IMAGE_NESSIE:-ghcr.io/projectnessie/nessie:0.110.0}
+    container_name: nessie
+    restart: unless-stopped
+    environment:
+      nessie.version.store.type: ROCKSDB
+      nessie.version.store.persist.rocks.database-path: /deployments/data/rocks
+      JAVA_OPTS_APPEND: "-XX:MaxRAMPercentage=70"
+    ports:
+      - "127.0.0.1:19120:19120"
+    volumes:
+      - nessie-data:/deployments/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # Quarkus health on the management port, inside the container only.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:9000/q/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  nessie-data:
+
+networks:
+  app-network:
+    external: true

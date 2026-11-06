@@ -1,0 +1,52 @@
+# =============================================================================
+# Valkey - Redis-compatible in-memory data store
+# =============================================================================
+# Internal only: valkey:6379 on app-network. The Redis protocol cannot cross
+# the HTTPS tunnel, and there is no web UI.
+#
+# Password protected (requirepass), from Infisical folder `valkey`. The
+# password is written into a config file at start rather than passed on the
+# command line, so it does not show up in `docker inspect` or `ps`.
+# Append-only persistence in the valkey-data volume, which survives a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  valkey:
+    image: ${IMAGE_VALKEY:-valkey/valkey:9.1.3-alpine}
+    container_name: valkey
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?must be set in .env (rendered by service_env._render_valkey)}
+    # The image's entrypoint drops to the valkey user and owns /data only
+    # when its first argument is valkey-server, so the config is written
+    # first and the entrypoint is called explicitly.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        printf 'requirepass %s\nappendonly yes\ndir /data\nmaxmemory 384mb\nmaxmemory-policy noeviction\n' "$$VALKEY_PASSWORD" > /tmp/valkey.conf
+        chown valkey:valkey /tmp/valkey.conf
+        exec docker-entrypoint.sh valkey-server /tmp/valkey.conf
+    volumes:
+      - valkey-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli ping | grep -q PONG"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+volumes:
+  valkey-data:
+
+networks:
+  app-network:
+    external: true

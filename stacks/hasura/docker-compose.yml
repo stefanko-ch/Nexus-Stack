@@ -1,0 +1,78 @@
+# =============================================================================
+# Hasura - instant GraphQL and REST API over PostgreSQL
+# =============================================================================
+# URL: https://hasura.<domain>/console
+# In-cluster: http://hasura:8080/v1/graphql
+#
+# Tables created in the console (or any SQL client) on hasura-db get a
+# GraphQL API with queries, mutations and subscriptions. hasura-db is also
+# Hasura's metadata store. Every request needs the admin secret
+# (x-hasura-admin-secret, Infisical folder `hasura`); the console asks for
+# it once and keeps it in the browser.
+#
+# Data in the hasura-db-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  hasura:
+    image: ${IMAGE_HASURA:-hasura/graphql-engine:v2.51.4}
+    container_name: hasura
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8114:8080"
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://nexus-hasura:${HASURA_DB_PASSWORD:?must be set in .env (rendered by service_env._render_hasura)}@hasura-db:5432/hasura
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://nexus-hasura:${HASURA_DB_PASSWORD}@hasura-db:5432/hasura
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET:?must be set in .env (rendered by service_env._render_hasura)}
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "false"
+      HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log
+    depends_on:
+      hasura-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+      - hasura-internal
+
+  hasura-db:
+    image: ${IMAGE_HASURA_DB:-postgres:17-alpine}
+    container_name: hasura-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-hasura
+      POSTGRES_PASSWORD: ${HASURA_DB_PASSWORD}
+      POSTGRES_DB: hasura
+    volumes:
+      - hasura-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-hasura -d hasura"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hasura-internal
+
+volumes:
+  hasura-db-data:
+
+networks:
+  app-network:
+    external: true
+  hasura-internal:
+    driver: bridge
