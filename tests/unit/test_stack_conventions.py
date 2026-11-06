@@ -108,6 +108,7 @@ TCP_PORTS_ALLOWED = {
 # an unauthenticated interface on the public internet, so they must never
 # appear in TCP_PORTS_ALLOWED. The check below enforces exactly that overlap.
 NO_OWN_AUTH = {
+    "hop",  # Hop Web has no login; its /hop server API none either
     "lakekeeper",
     "marquez",
     "questdb",  # the console has none; its Postgres wire protocol does
@@ -3345,3 +3346,46 @@ def test_label_studio_accepts_the_bootstrap_api_token() -> None:
     401 unless legacy tokens are switched on (measured on 1.23.2)."""
     env = _service_env("label-studio", "label-studio")
     assert env["LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN"] == "true"
+
+
+def test_flowise_does_not_use_the_sqlite_default() -> None:
+    """Flowise 3.1.4's SQLite session store crashes the server at startup
+    (measured on amd64 and arm64)."""
+    assert _service_env("flowise", "flowise")["DATABASE_TYPE"] == "postgres"
+
+
+def test_nifi_keeps_its_flow_in_the_mounted_directory() -> None:
+    """The image rewrites conf/ on every start and an empty bind mount over
+    conf/ would hide its files, so the entrypoint moves only the flow."""
+    compose = yaml.safe_load((STACKS_DIR / "nifi" / "docker-compose.yml").read_text())
+    nifi = compose["services"]["nifi"]
+    entry = " ".join(nifi["entrypoint"])
+    mounts = {m.split(":")[1]: m.split(":")[0] for m in nifi["volumes"]}
+    persist = mounts["/opt/nifi/persist"]
+    assert persist == "/mnt/nexus-data/nifi"
+    assert "nifi.flow.configuration.file=/opt/nifi/persist/flow.json.gz" in entry
+    assert entry.rstrip().endswith("exec ../scripts/start.sh")
+
+
+def test_nifi_listens_on_every_interface() -> None:
+    """Bound to its host name, NiFi answers on one of its two networks only,
+    and nifi-proxy's connections were refused (measured)."""
+    # The value under test, not a bind in this process.
+    assert _service_env("nifi", "nifi")["NIFI_WEB_HTTPS_HOST"] == "0.0.0.0"  # noqa: S104
+
+
+def test_starrocks_start_script_handles_the_first_start() -> None:
+    """With MYSQL_PWD set on a first start the image's director script
+    fails ("Password error") and shuts down -- measured on 4.1.7. The
+    wrapper must leave it unset then, and set it on every later start."""
+    script = (STACKS_DIR / "starrocks" / "start.sh").read_text()
+    assert "unset MYSQL_PWD" in script
+    assert 'export MYSQL_PWD="$STARROCKS_ROOT_PASSWORD"' in script
+    # Decided by a marker written after the SQL succeeded, not by "metadata
+    # exists": a failed attempt must not hand MYSQL_PWD to the next start.
+    assert 'if [ -f "$MARKER" ]; then' in script
+    assert script.index('touch "$MARKER"') > script.index("ALTER USER")
+    assert script.rstrip().endswith("exec ./entrypoint.sh")
+    # The memory caps the 16 GB server depends on.
+    assert "-Xmx2048m" in script
+    assert "mem_limit = 3G" in script

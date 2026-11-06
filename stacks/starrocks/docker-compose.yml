@@ -1,0 +1,68 @@
+# =============================================================================
+# StarRocks - Fast OLAP database with direct lakehouse access
+# =============================================================================
+# In-cluster only: mysql://starrocks:9030 (MySQL protocol). No web UI.
+#
+# A columnar, MPP analytics database: sub-second aggregations over large
+# tables, materialized views, and external catalogs that query Iceberg,
+# Delta Lake, Hive and Paimon tables -- or Parquet straight from S3 with
+# FILES() -- without loading them first. Any MySQL client works: CloudBeaver
+# or Adminer in the stack, `mysql` from a notebook, or SQLAlchemy with the
+# `starrocks` dialect.
+#
+# Image: the all-in-one image (one FE + one BE in a container). StarRocks
+# describes it as meant for local testing; it is the right size for a
+# teaching stack and has no high availability.
+#
+# Login: `nexus-starrocks` (admin role), password generated per deployment
+# (Infisical -> folder `starrocks`). start.sh creates it after the first
+# bootstrap and gives root the same password, which the image's own scripts
+# need; see the comment there for why.
+#
+# Storage: FE metadata and BE storage under /mnt/nexus-data/starrocks,
+# backed up to R2 with the stack stopped. `hostname` is fixed because a
+# persisted FE refuses to start under a different host name.
+#
+# Memory: heavy. The FE heap is capped at 2 GB and the BE at 3 GB by
+# start.sh; the container limit is 6 GB.
+#
+# Docs: https://docs.starrocks.io
+# =============================================================================
+
+services:
+  starrocks:
+    image: ${IMAGE_STARROCKS:-starrocks/allin1-ubuntu:4.1.7}
+    container_name: starrocks
+    hostname: starrocks
+    restart: unless-stopped
+    command: ["bash", "/opt/nexus/start.sh"]
+    ports:
+      # MySQL protocol, loopback only: for `ssh -N -L 9030:localhost:9030
+      # nexus` from a laptop. In-cluster clients use starrocks:9030.
+      - "127.0.0.1:9030:9030"
+    environment:
+      STARROCKS_ROOT_PASSWORD: ${STARROCKS_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_starrocks)}
+    volumes:
+      - ./start.sh:/opt/nexus/start.sh:ro
+      # start.sh's marker that the credentials were set; inside the backed-up
+      # directory, so a restore carries it with the data it describes.
+      - /mnt/nexus-data/starrocks/nexus:/opt/nexus/state
+      - /mnt/nexus-data/starrocks/fe-meta:/data/deploy/starrocks/fe/meta
+      - /mnt/nexus-data/starrocks/be-storage:/data/deploy/starrocks/be/storage
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+    healthcheck:
+      # The image's own check: bootstrap finished, FE and BE /api/health.
+      test: ["CMD", "/data/deploy/health_check.sh"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

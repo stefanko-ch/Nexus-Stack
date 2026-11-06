@@ -1820,6 +1820,165 @@ def _render_memgraph(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={"MEMGRAPH_PASSWORD": c.memgraph_password or ""}, mode=0o600)
 
 
+def _render_ollama(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Ollama stack: the Open WebUI admin it creates on first start.
+
+    Sign-up is disabled in the compose file, so without an admin from here
+    nobody could log in at all -- an empty value fails the deploy rather
+    than starting a chat UI with no way in.
+    """
+    required = {
+        "OPEN_WEBUI_ADMIN_EMAIL": stack_user_email(e),
+        "OPEN_WEBUI_ADMIN_PASSWORD": c.open_webui_admin_password,
+        "OPEN_WEBUI_SECRET_KEY": c.open_webui_secret_key,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Ollama enabled but {', '.join(missing)} empty -- the password and "
+            "key come from the tofu outputs `open_webui_admin_password` and "
+            "`open_webui_secret_key`, the email from admin_email or the stack "
+            "user's email in config.tfvars. Aborting: Open WebUI has sign-up "
+            "disabled, so it would come up with no account to log in with.",
+        )
+    url = f"https://{service_host('ollama', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "OPEN_WEBUI_URL": url},
+        mode=0o600,
+    )
+
+
+def _render_flowise(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Flowise: its database password, and the owner flowise-init registers.
+
+    Flowise has no setting that creates an owner; the first registration
+    becomes one and every later one is refused. An empty value here would
+    leave flowise-init unable to claim the instance, and the first visitor
+    would become owner instead -- so it fails the deploy.
+    """
+    required = {
+        "FLOWISE_DB_PASSWORD": c.flowise_db_password,
+        "FLOWISE_ADMIN_EMAIL": stack_user_email(e),
+        "FLOWISE_ADMIN_PASSWORD": c.flowise_admin_password,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Flowise enabled but {', '.join(missing)} empty -- the passwords "
+            "come from the tofu outputs `flowise_db_password` and "
+            "`flowise_admin_password`, the email from admin_email or the stack "
+            "user's email in config.tfvars. Aborting rather than leaving the "
+            "Flowise owner to whoever registers first.",
+        )
+    url = f"https://{service_host('flowise', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "FLOWISE_URL": url},
+        mode=0o600,
+    )
+
+
+def _render_open_notebook(
+    c: NexusConfig, e: BootstrapEnv, *, crawl4ai_enabled: bool = False
+) -> RenderedEnv:
+    """Open Notebook: its shared password, the key for stored provider
+    credentials, the SurrealDB password, the public URL the browser
+    calls the API at, and the Crawl4AI stack when it is deployed.
+
+    The password matters most: without OPEN_NOTEBOOK_PASSWORD Open
+    Notebook runs with authentication off and does not warn.
+
+    CRAWL4AI_API_URL points content-core's URL extraction at the
+    ``crawl4ai`` stack over app-network. It is set only when that stack
+    is enabled; empty, the "auto" engine chain (jina, crawl4ai, simple)
+    falls past Crawl4AI instead of waiting on a container that is not
+    there. The stack has no token, so none is set.
+    """
+    required = {
+        "OPEN_NOTEBOOK_PASSWORD": c.open_notebook_password,
+        "OPEN_NOTEBOOK_ENCRYPTION_KEY": c.open_notebook_encryption_key,
+        "OPEN_NOTEBOOK_DB_PASSWORD": c.open_notebook_db_password,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Open Notebook enabled but {', '.join(missing)} empty -- they come "
+            "from the tofu outputs `open_notebook_password`, "
+            "`open_notebook_encryption_key` and `open_notebook_db_password`. "
+            "Aborting: without the password Open Notebook runs with "
+            "authentication off.",
+        )
+    url = f"https://{service_host('open-notebook', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in required.items()},
+            "OPEN_NOTEBOOK_URL": url,
+            "CRAWL4AI_API_URL": "http://crawl4ai:11235" if crawl4ai_enabled else "",
+        },
+        mode=0o600,
+    )
+
+
+def _render_nifi(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """NiFi: its single-user login, the flow's sensitive-properties key,
+    and the host names it may be reached under.
+
+    NIFI_PROXY_HOSTS is the public host: NiFi refuses (421) a request whose
+    X-ProxyHost is not on that list, and nifi-proxy passes the tunnel's
+    Host through as X-ProxyHost. NiFi also falls back to a random login on
+    a password under 12 characters, so a short one fails here instead.
+    """
+    required = {
+        "NIFI_USERNAME": stack_user_email(e),
+        "NIFI_PASSWORD": c.nifi_password,
+        "NIFI_SENSITIVE_PROPS_KEY": c.nifi_sensitive_props_key,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"NiFi enabled but {', '.join(missing)} empty -- the password and key "
+            "come from the tofu outputs `nifi_password` and "
+            "`nifi_sensitive_props_key`, the username from admin_email or the "
+            "stack user's email in config.tfvars.",
+        )
+    if any(len(v or "") < 12 for v in (c.nifi_password, c.nifi_sensitive_props_key)):
+        raise ServiceEnvError(
+            "NiFi needs NIFI_PASS and NIFI_SENSITIVE_PROPS_KEY of at least 12 "
+            "characters; with a shorter password it silently replaces the login "
+            "with a random one that only appears in its log.",
+        )
+    host = service_host("nifi", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "NIFI_PROXY_HOSTS": host},
+        mode=0o600,
+    )
+
+
+def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """StarRocks: the password start.sh gives root and nexus-starrocks.
+
+    Without it root would keep the image's empty password, open to every
+    container on app-network. start.sh quotes it inside SQL, so only an
+    alphanumeric value -- what random_password.starrocks_root generates --
+    is let through; anything else could break or change the statement.
+    """
+    if _empty(c.starrocks_root_password):
+        raise ServiceEnvError(
+            "StarRocks enabled but STARROCKS_ROOT_PASS is empty -- it comes from "
+            "the tofu output `starrocks_root_password` "
+            "(random_password.starrocks_root). Aborting rather than starting "
+            "StarRocks with a passwordless root.",
+        )
+    if (
+        not (c.starrocks_root_password or "").isascii()
+        or not (c.starrocks_root_password or "").isalnum()
+    ):
+        # Deliberately says nothing about the value: this lands in a public log.
+        raise ServiceEnvError(
+            "StarRocks enabled but STARROCKS_ROOT_PASS is not alphanumeric. "
+            "stacks/starrocks/start.sh embeds it in SQL; it should come from "
+            "random_password.starrocks_root, which has special = false.",
+        )
+    return RenderedEnv(
+        env_vars={"STARROCKS_ROOT_PASSWORD": c.starrocks_root_password or ""}, mode=0o600
+    )
+
+
 def _render_questdb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """QuestDB: time-series database. One secret — the PostgreSQL-wire
     password, replacing QuestDB's documented default of ``quest`` for the
@@ -3137,6 +3296,11 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("langflow", _is_enabled("langflow"), _render_langflow),
     EnvSpec("label-studio", _is_enabled("label-studio"), _render_label_studio),
     EnvSpec("memgraph", _is_enabled("memgraph"), _render_memgraph),
+    EnvSpec("ollama", _is_enabled("ollama"), _render_ollama),
+    EnvSpec("flowise", _is_enabled("flowise"), _render_flowise),
+    EnvSpec("open-notebook", _is_enabled("open-notebook"), _render_open_notebook),
+    EnvSpec("nifi", _is_enabled("nifi"), _render_nifi),
+    EnvSpec("starrocks", _is_enabled("starrocks"), _render_starrocks),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),
@@ -3352,6 +3516,8 @@ def render_all_env_files(
             rendered = _render_grafana(config, env, prometheus_template=prometheus_template)
         elif spec.service_name == "litellm":
             rendered = _render_litellm(config, env, litellm_config_template=litellm_config_template)
+        elif spec.service_name == "open-notebook":
+            rendered = _render_open_notebook(config, env, crawl4ai_enabled="crawl4ai" in enabled)
         else:
             rendered = spec.render(config, env)
 

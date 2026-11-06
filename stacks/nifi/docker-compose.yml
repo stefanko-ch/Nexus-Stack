@@ -1,0 +1,114 @@
+# =============================================================================
+# Apache NiFi - Visual data-flow automation
+# =============================================================================
+# Access via: https://nifi.<domain>/nifi
+#
+# NiFi moves data: processors on a canvas ingest from files, APIs,
+# databases and queues, route and transform it, and deliver it elsewhere,
+# with back-pressure, retries and full provenance of every record. Where
+# Kestra and Airflow orchestrate jobs, NiFi is the pipe the data flows
+# through.
+#
+# Two containers:
+#   - nifi        NiFi 2.x. HTTPS only, with a self-signed certificate.
+#   - nifi-proxy  nginx; the tunnel's origin. Takes HTTP, opens TLS to
+#                 `nifi`, and passes the public host name on (nginx.conf).
+#
+# Login: NiFi's single-user login, set on every start from
+# SINGLE_USER_CREDENTIALS_USERNAME / _PASSWORD (the stack user's email and
+# a generated password, Infisical -> folder `nifi`).
+#
+# Storage: the flow (flow.json.gz) and its archive in /opt/nifi/persist,
+# bind-mounted from /mnt/nexus-data/nifi and backed up to R2. The image
+# rewrites conf/ on every start, and an empty bind mount over conf/ would
+# hide the files it ships, so instead of mounting conf/ the entrypoint
+# points nifi.flow.configuration.file into the mounted directory. The
+# FlowFile, content and provenance repositories stay in the container:
+# data in flight, not the flow.
+#
+# Image: apache/nifi (amd64 + arm64).
+# Docs: https://nifi.apache.org/documentation/
+# =============================================================================
+
+services:
+  nifi:
+    image: ${IMAGE_NIFI:-apache/nifi:2.12.0}
+    container_name: nifi
+    # The certificate NiFi generates names this host; nifi-proxy connects
+    # to it under the same name.
+    hostname: nifi
+    restart: unless-stopped
+    entrypoint:
+      - bash
+      - -c
+      - >-
+        sed -i
+        -e 's#^nifi.flow.configuration.file=.*#nifi.flow.configuration.file=/opt/nifi/persist/flow.json.gz#'
+        -e 's#^nifi.flow.configuration.archive.dir=.*#nifi.flow.configuration.archive.dir=/opt/nifi/persist/archive/#'
+        conf/nifi.properties
+        && exec ../scripts/start.sh
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME:?must be set in .env (rendered by service_env._render_nifi)}
+      # At least 12 characters, or NiFi silently falls back to a random
+      # username and password it only prints to its log.
+      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD:?must be set in .env (rendered by service_env._render_nifi)}
+      # Encrypts the sensitive properties (passwords, keys) inside the
+      # flow. Without it NiFi generates one into conf/, which is not kept,
+      # and a restored flow could not be decrypted.
+      NIFI_SENSITIVE_PROPS_KEY: ${NIFI_SENSITIVE_PROPS_KEY:?must be set in .env (rendered by service_env._render_nifi)}
+      NIFI_WEB_PROXY_HOST: ${NIFI_PROXY_HOSTS:?must be set in .env (rendered by service_env._render_nifi)}
+      # Listen on every interface. The default is the container's host
+      # name, which resolves to one network only: NiFi is on app-network
+      # (to reach the data sources) and nifi-internal (for nifi-proxy), and
+      # the proxy's connections were refused (measured).
+      NIFI_WEB_HTTPS_HOST: 0.0.0.0
+      NIFI_JVM_HEAP_INIT: 512m
+      NIFI_JVM_HEAP_MAX: 1g
+    volumes:
+      - /mnt/nexus-data/nifi:/opt/nifi/persist
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # Any HTTP answer means the listener is up; a 401 is fine. curl ships
+      # in the image; -k because the certificate is self-signed. `nifi`,
+      # not localhost: NiFi binds the HTTPS listener to its host name only,
+      # and localhost gets no connection at all (curl exit 7, measured).
+      test: ["CMD-SHELL", "code=$$(curl -ks -o /dev/null -w '%{http_code}' https://nifi:8443/nifi-api/access/config) && [ \"$$code\" != 000 ]"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    networks:
+      - app-network
+      - nifi-internal
+
+  nifi-proxy:
+    image: ${IMAGE_NIFI_PROXY:-nginx:1.30.4-alpine}
+    container_name: nifi-proxy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8445:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      nifi:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 5 -O /dev/null http://127.0.0.1:8080/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - nifi-internal
+
+networks:
+  app-network:
+    external: true
+  nifi-internal:
+    driver: bridge

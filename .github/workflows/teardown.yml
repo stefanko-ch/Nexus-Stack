@@ -343,12 +343,15 @@ jobs:
           # the remembered one: after every regeneration each user got 401
           # until they cleared their site data.
           #
-          # Langflow, Label Studio and Memgraph create their login only on
-          # the first start with an empty data directory, and the R2
-          # restore brings that directory back. A regenerated password
-          # would land in Infisical but never reach the account, and a new
-          # Langflow secret key would make every credential stored in a
-          # flow unreadable.
+          # The others are held by data the R2 restore brings back:
+          # Langflow, Label Studio, Memgraph, Open WebUI and Flowise create
+          # their login only on the first start with an empty data
+          # directory; Open Notebook keeps its SurrealDB user and credential
+          # key, NiFi the key its flow is encrypted with, and StarRocks the
+          # root password in its metadata. A regenerated value would land in
+          # Infisical but never reach the restored data, and a new Langflow
+          # secret key would make every credential stored in a flow
+          # unreadable.
           #
           # Kept in the state, the next spin-up reuses them. destroy-all.yml
           # runs its own untargeted destroy and still removes them.
@@ -358,7 +361,14 @@ jobs:
             -exclude=random_password.langflow_secret_key \
             -exclude=random_password.label_studio_admin \
             -exclude=random_password.label_studio_user_token \
-            -exclude=random_password.memgraph
+            -exclude=random_password.memgraph \
+            -exclude=random_password.open_webui_admin \
+            -exclude=random_password.open_webui_secret_key \
+            -exclude=random_password.flowise_admin \
+            -exclude=random_password.open_notebook_encryption_key \
+            -exclude=random_password.open_notebook_db \
+            -exclude=random_password.nifi_sensitive_props_key \
+            -exclude=random_password.starrocks_root
 
       - name: Confirm teardown
         run: |

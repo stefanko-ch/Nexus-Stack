@@ -524,6 +524,91 @@ resource "random_password" "memgraph" {
   special = false
 }
 
+# Open WebUI admin password. Open WebUI creates the admin only while its
+# user table is empty, so like the three above it is kept across a rebuild
+# teardown (teardown.yml excludes it) to stay matched to the restored
+# account.
+resource "random_password" "open_webui_admin" {
+  length  = 24
+  special = false
+}
+
+# Open WebUI session-signing key. Stable for the same reason: a new key
+# with a restored data directory would sign everyone out.
+resource "random_password" "open_webui_secret_key" {
+  length  = 48
+  special = false
+}
+
+# Flowise owner password. Flowise refuses a password without a lower- and
+# upper-case letter, a digit and a special character ("Invalid Password",
+# measured on 3.1.4), so the minima are set and the special characters are
+# limited to two that travel safely through .env, JSON and a shell.
+# Excluded from the rebuild teardown's destroy: the restored database
+# keeps the account it was registered with.
+resource "random_password" "flowise_admin" {
+  length           = 24
+  special          = true
+  override_special = "-_"
+  min_lower        = 1
+  min_upper        = 1
+  min_numeric      = 1
+  min_special      = 1
+}
+
+resource "random_password" "flowise_db" {
+  length  = 24
+  special = false
+}
+
+# Open Notebook: one shared password for the UI and the REST API.
+resource "random_password" "open_notebook" {
+  length  = 24
+  special = false
+}
+
+# Encrypts the provider credentials Open Notebook stores in its database.
+# Kept across a rebuild teardown (teardown.yml excludes it): a new key with
+# a restored database would make every stored credential unreadable.
+resource "random_password" "open_notebook_encryption_key" {
+  length  = 48
+  special = false
+}
+
+# SurrealDB root user for Open Notebook. Kept across a rebuild teardown for
+# the same reason as the key: the restored database holds the user it was
+# created with.
+resource "random_password" "open_notebook_db" {
+  length  = 24
+  special = false
+}
+
+# NiFi single-user password. NiFi needs at least 12 characters and
+# otherwise falls back to a random login it only prints to its log. It is
+# set from the environment on every start, so it needs no preserving.
+resource "random_password" "nifi" {
+  length  = 24
+  special = false
+}
+
+# Encrypts the sensitive properties inside a NiFi flow. Kept across a
+# rebuild teardown (teardown.yml excludes it): the restored flow can only
+# be decrypted with the key it was written with.
+resource "random_password" "nifi_sensitive_props_key" {
+  length  = 32
+  special = false
+}
+
+# StarRocks root password. stacks/starrocks/start.sh sets it on the first
+# start and hands it to the image's scripts afterwards. Kept across a
+# rebuild teardown (teardown.yml excludes it): the restored FE metadata
+# holds the password root was given, and with a different one the image's
+# own start script fails and shuts the container down.
+resource "random_password" "starrocks_root" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other
@@ -1523,6 +1608,14 @@ resource "cloudflare_zero_trust_access_application" "services" {
   # Other services use 24h for better user experience
   session_duration  = each.key == "wetty" ? "1h" : "24h"
   skip_interstitial = true
+
+  # Mark the CF_Authorization session cookie HttpOnly, as the Control
+  # Plane's app already does. A stack's own frontend can then neither
+  # read nor delete it. Flowise's sign-in clears every cookie it can see
+  # with document.cookie; without this it removed the Access session,
+  # Access answered the login POST with a cross-origin redirect, and the
+  # page went blank. Nothing here reads the cookie from JavaScript.
+  http_only_cookie_attribute = true
 }
 
 # Dynamic Access Policies for private services (Email OTP)

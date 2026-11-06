@@ -73,6 +73,12 @@
       'FILESTASH_ADMIN_PASSWORD': 'filestash_admin_password-VALUE',
       'FILESTASH_S3_BUCKET': 'hetzner_s3_bucket_general-VALUE',
     }),
+    'flowise': dict({
+      'FLOWISE_DB_PASSWORD': 'flowise_db_password-VALUE',
+      'FLOWISE_DB_USERNAME': 'nexus-flowise',
+      'FLOWISE_PASSWORD': 'flowise_admin_password-VALUE',
+      'FLOWISE_USERNAME': 'user@snapshot.test',
+    }),
     'forgejo': dict({
       'FORGEJO_ADMIN_USERNAME': 'nexus-test-user',
       'FORGEJO_REPO_URL_PUBLIC': 'https://git.snapshot.test/snapshot-org/snapshot-repo.git',
@@ -218,6 +224,11 @@
       'NEO4J_PASSWORD': 'neo4jAdminPw0123456789',
       'NEO4J_USERNAME': 'nexus-neo4j',
     }),
+    'nifi': dict({
+      'NIFI_PASSWORD': 'nifi_password-VALUE',
+      'NIFI_SENSITIVE_PROPS_KEY': 'nifi_sensitive_props_key-VALUE',
+      'NIFI_USERNAME': 'user@snapshot.test',
+    }),
     'nocodb': dict({
       'NOCODB_DB_PASSWORD': 'nocodb_db_password-VALUE',
       'NOCODB_JWT_SECRET': 'nocodb_jwt_secret-VALUE',
@@ -227,6 +238,17 @@
     'nussknacker': dict({
       'NUSSKNACKER_ADMIN_PASSWORD': 'nussknacker-admin-pw',
       'NUSSKNACKER_ADMIN_USERNAME': 'nexus-nussknacker',
+    }),
+    'open-notebook': dict({
+      'OPEN_NOTEBOOK_DB_PASSWORD': 'open_notebook_db_password-VALUE',
+      'OPEN_NOTEBOOK_DB_USERNAME': 'nexus-open-notebook',
+      'OPEN_NOTEBOOK_ENCRYPTION_KEY': 'open_notebook_encryption_key-VALUE',
+      'OPEN_NOTEBOOK_PASSWORD': 'open_notebook_password-VALUE',
+    }),
+    'open-webui': dict({
+      'OPEN_WEBUI_PASSWORD': 'open_webui_admin_password-VALUE',
+      'OPEN_WEBUI_SECRET_KEY': 'open_webui_secret_key-VALUE',
+      'OPEN_WEBUI_USERNAME': 'user@snapshot.test',
     }),
     'openmetadata': dict({
       'OPENMETADATA_DB_PASSWORD': 'openmetadata_db_password-VALUE',
@@ -301,6 +323,10 @@
     }),
     'ssh': dict({
       'SSH_PRIVATE_KEY_BASE64': 'snapshot-ssh-base64',
+    }),
+    'starrocks': dict({
+      'STARROCKS_PASSWORD': 'starrocks_root_password-VALUE',
+      'STARROCKS_USERNAME': 'nexus-starrocks',
     }),
     'superset': dict({
       'SUPERSET_DB_PASSWORD': 'superset_db_password-VALUE',

@@ -304,7 +304,8 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
     Postgres dumps for Gitea, Dify, HedgeDoc, Planka, Forgejo, the shared
     Postgres, Unity Catalog, Lakekeeper, MLflow and Kestra, and filesystem
     trees for Gitea, Forgejo, Dify, Metabase, HedgeDoc, Planka, DuckDB,
-    Langflow, Label Studio, Memgraph, the notebook stacks (Jupyter,
+    Langflow, Label Studio, Memgraph, Open WebUI, Flowise, Open Notebook, NiFi,
+    Hop, StarRocks, the notebook stacks (Jupyter,
     Marimo, code-server) and Kestra's internal storage.
 
     Hard-coded because:
@@ -365,6 +366,7 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
         _s3.PostgresDumpTarget(container="dify-db", database="dify", user="nexus-dify"),
         _s3.PostgresDumpTarget(container="hedgedoc-db", database="hedgedoc", user="nexus-hedgedoc"),
         _s3.PostgresDumpTarget(container="planka-db", database="planka", user="nexus-planka"),
+        _s3.PostgresDumpTarget(container="flowise-db", database="flowise", user="nexus-flowise"),
         # Forgejo. Added when Forgejo became a core service: it is now
         # deployed on every stack, and under the default `rebuild`
         # lifecycle an unlisted stack's bind mounts are destroyed with
@@ -528,6 +530,53 @@ def standard_targets() -> tuple[tuple[_s3.PostgresDumpTarget, ...], tuple[_s3.Rs
             name="memgraph-data",
             local_path="/mnt/nexus-data/memgraph",
             s3_subpath="memgraph/data",
+        ),
+        # Open WebUI (ollama stack): chats, uploads and its SQLite database.
+        # The downloaded Ollama models are deliberately not covered: they
+        # are gigabytes that `ollama pull` reproduces.
+        _s3.RsyncTarget(
+            name="open-webui-data",
+            local_path="/mnt/nexus-data/open-webui",
+            # Under the stack's name, which is how the stop list and the
+            # tests pair a target with the compose file stopped for it.
+            s3_subpath="ollama/open-webui",
+        ),
+        # Flowise: the credential encryption key, the generated JWT and
+        # session secrets, uploads and logs. Its flows are in the database
+        # dump above; the two belong together.
+        _s3.RsyncTarget(
+            name="flowise-data",
+            local_path="/mnt/nexus-data/flowise",
+            s3_subpath="flowise/data",
+        ),
+        # Open Notebook: SurrealDB's RocksDB files and the app's uploads,
+        # one directory each under the same root. Stopped first, so
+        # RocksDB is closed when rclone reads it.
+        _s3.RsyncTarget(
+            name="open-notebook-data",
+            local_path="/mnt/nexus-data/open-notebook",
+            s3_subpath="open-notebook/data",
+        ),
+        # NiFi: the flow (flow.json.gz) and its archive. The repositories
+        # for data in flight stay in the container on purpose.
+        _s3.RsyncTarget(
+            name="nifi-flow",
+            local_path="/mnt/nexus-data/nifi",
+            s3_subpath="nifi/flow",
+        ),
+        # Apache Hop: the `nexus` project -- pipelines, workflows and
+        # project metadata.
+        _s3.RsyncTarget(
+            name="hop-project",
+            local_path="/mnt/nexus-data/hop",
+            s3_subpath="hop/project",
+        ),
+        # StarRocks: FE metadata and BE storage, both from one stopped
+        # container, so the two match when restored.
+        _s3.RsyncTarget(
+            name="starrocks-data",
+            local_path="/mnt/nexus-data/starrocks",
+            s3_subpath="starrocks/data",
         ),
         # The notebook stacks: what students write in a course. Before
         # these entries a rebuild teardown discarded every notebook
@@ -1013,6 +1062,12 @@ _STANDARD_STOP_COMPOSE_FILES = (
     "/opt/docker-server/stacks/langflow/docker-compose.yml",
     "/opt/docker-server/stacks/label-studio/docker-compose.yml",
     "/opt/docker-server/stacks/memgraph/docker-compose.yml",
+    "/opt/docker-server/stacks/ollama/docker-compose.yml",
+    "/opt/docker-server/stacks/flowise/docker-compose.yml",
+    "/opt/docker-server/stacks/open-notebook/docker-compose.yml",
+    "/opt/docker-server/stacks/nifi/docker-compose.yml",
+    "/opt/docker-server/stacks/hop/docker-compose.yml",
+    "/opt/docker-server/stacks/starrocks/docker-compose.yml",
     # A notebook saved mid-copy is a torn file; stopping first means
     # the snapshot holds the last saved version of each.
     "/opt/docker-server/stacks/jupyter/docker-compose.yml",

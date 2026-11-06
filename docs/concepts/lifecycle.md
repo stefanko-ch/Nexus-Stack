@@ -84,8 +84,8 @@ data" — it is "some of your data, depending on the mode".
 **In `rebuild` mode, service data only for the stacks the R2 layer covers.** That is
 a hard-coded list in `src/nexus_deploy/s3_restore.py` (`standard_targets()`) —
 currently Forgejo, Gitea, Dify, Metabase, HedgeDoc, Planka, DuckDB, Kestra, Langflow,
-Label Studio, Memgraph and the notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
-shared Postgres database and of the Unity Catalog, Lakekeeper and MLflow catalogues. Two kinds of target sit in that list: a `pg_dump` of a
+Label Studio, Memgraph, Open WebUI, Flowise, Open Notebook, NiFi, Hop, StarRocks and the notebook stacks (Jupyter, Marimo, code-server), plus dumps of the
+shared Postgres database, of Flowise's, and of the Unity Catalog, Lakekeeper and MLflow catalogues. Two kinds of target sit in that list: a `pg_dump` of a
 stack's database, and an rsync of the directories it writes — Forgejo and Gitea
 have both, since a forge is repositories as much as it is a database. Read that function rather than trusting a number in a document:
 the list grows when someone extends it, and this page will not notice.
@@ -143,9 +143,12 @@ because it is the credential people type into a browser, and a browser that reme
 the old one keeps sending it and gets locked out after every teardown. The Forgejo
 Access service token survives too, as described above (#892).
 
-So are Langflow's, Label Studio's and Memgraph's logins. Those apps create
-their account only once, the R2 restore brings it back, and a regenerated password
-would never reach it, so a rebuild teardown leaves these credentials in place.
+So are the credentials that the restored data already depends on: the logins
+of Langflow, Label Studio, Memgraph, Open WebUI and Flowise, which those apps create only
+once; StarRocks' root password and Open Notebook's database password, which the restored
+databases hold; and the keys that encrypt stored secrets — Langflow's, Open WebUI's,
+Open Notebook's and NiFi's. A regenerated value would never reach the restored data,
+so a rebuild teardown leaves these in place.
 
 ## Scheduled teardown
 

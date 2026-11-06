@@ -1103,6 +1103,72 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "open-webui",
+            _filter_empty(
+                {
+                    # Open WebUI signs in by email.
+                    "OPEN_WEBUI_USERNAME": stack_user_email(env),
+                    "OPEN_WEBUI_PASSWORD": config.open_webui_admin_password,
+                    "OPEN_WEBUI_SECRET_KEY": config.open_webui_secret_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "flowise",
+            _filter_empty(
+                {
+                    # Flowise signs in by email.
+                    "FLOWISE_USERNAME": stack_user_email(env),
+                    "FLOWISE_PASSWORD": config.flowise_admin_password,
+                    "FLOWISE_DB_USERNAME": "nexus-flowise",
+                    "FLOWISE_DB_PASSWORD": config.flowise_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "open-notebook",
+            _filter_empty(
+                {
+                    # No username: one shared password for the UI and the
+                    # API (`Authorization: Bearer <password>`).
+                    "OPEN_NOTEBOOK_PASSWORD": config.open_notebook_password,
+                    "OPEN_NOTEBOOK_DB_USERNAME": "nexus-open-notebook",
+                    "OPEN_NOTEBOOK_DB_PASSWORD": config.open_notebook_db_password,
+                    "OPEN_NOTEBOOK_ENCRYPTION_KEY": config.open_notebook_encryption_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "nifi",
+            _filter_empty(
+                {
+                    "NIFI_USERNAME": stack_user_email(env),
+                    "NIFI_PASSWORD": config.nifi_password,
+                    "NIFI_SENSITIVE_PROPS_KEY": config.nifi_sensitive_props_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "starrocks",
+            _filter_empty(
+                {
+                    # MySQL protocol: starrocks:9030 in-cluster.
+                    "STARROCKS_USERNAME": "nexus-starrocks",
+                    "STARROCKS_PASSWORD": config.starrocks_root_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

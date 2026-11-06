@@ -114,7 +114,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | Ollama | `ollama/ollama` | `0.15.1` | Exact ¹ |
-| Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.8.3` | Exact ¹ |
+| Open WebUI | `ghcr.io/open-webui/open-webui` | `v0.12.5` | Exact ¹ |
 | RustFS | `rustfs/rustfs` | `1.0.0-alpha.82` | Exact ¹ |
 | S3 Manager | `cloudlena/s3manager` | `latest` | Latest ² |
 | Marimo | `nexus-marimo` (custom build) | `0.23.4-sql-spark` | Exact ³ ⁷ |
@@ -127,6 +127,14 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Lakekeeper | `quay.io/lakekeeper/catalog` | `v0.13.3` | Exact ¹ |
 | PostgreSQL (Lakekeeper DB) | `postgres` | `17-alpine` | Major |
 | Langflow | `langflowai/langflow` | `1.13.0` | Exact |
+| Flowise | `flowiseai/flowise` | `3.1.4` | Exact |
+| Open Notebook | `lfnovo/open_notebook` | `1.15.0` | Exact |
+| Apache NiFi | `apache/nifi` | `2.12.0` | Exact |
+| Apache Hop (Hop Web) | `apache/hop-web` | `2.19.0` | Exact |
+| StarRocks (all-in-one) | `starrocks/allin1-ubuntu` | `4.1.7` | Exact |
+| nginx (NiFi proxy) | `nginx` | `1.30.4-alpine` | Exact |
+| SurrealDB (Open Notebook) | `surrealdb/surrealdb` | `v2.7.0` | Exact |
+| PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -255,6 +263,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Apache Flink** | Distributed stream and batch processing | [flink.md](flink.md) |
+| **Flowise** | Visual builder for LLM chatflows and agents | [flowise.md](flowise.md) |
 | **Forgejo** | Git forge with built-in Actions CI | [forgejo.md](forgejo.md) |
 | **Forgejo Runner** | Actions CI runner for Forgejo (optional) | [forgejo-runner.md](forgejo-runner.md) |
 | **Garage** | S3-compatible object storage | [garage.md](garage.md) |
@@ -263,6 +272,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
+| **Hop** | Visual ETL pipelines and workflows | [hop.md](hop.md) |
 | **Hoppscotch** | API testing platform | [hoppscotch.md](hoppscotch.md) |
 | **Hue** | SQL editor and data browser | [hue.md](hue.md) |
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
@@ -293,9 +303,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **Neo4j** | Graph database with Cypher and Neo4j Browser | [neo4j.md](neo4j.md) |
+| **NiFi** | Visual data-flow automation | [nifi.md](nifi.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
+| **Open Notebook** | Self-hosted NotebookLM alternative | [open-notebook.md](open-notebook.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |
@@ -320,6 +332,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Shiny Server** | R web applications | [shiny.md](shiny.md) |
 | **Sling** | Database-to-database transfers | [sling.md](sling.md) |
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
+| **StarRocks** | MPP analytics database with lakehouse catalogs | [starrocks.md](starrocks.md) |
 | **Streamlit** | Python data apps, one server for all of them | [streamlit.md](streamlit.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |

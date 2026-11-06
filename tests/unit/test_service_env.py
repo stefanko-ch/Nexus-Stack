@@ -4613,3 +4613,195 @@ def test_memgraph_renders_and_refuses_an_empty_password(
     assert rendered.env_vars == {"MEMGRAPH_PASSWORD": "mg"}
     with pytest.raises(ServiceEnvError, match="MEMGRAPH_PASS"):
         _render_memgraph(full_config.model_copy(update={"memgraph_password": ""}), full_env)
+
+
+def test_open_webui_admin_is_the_stack_user(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_ollama
+
+    config = full_config.model_copy(
+        update={"open_webui_admin_password": "ow-pw", "open_webui_secret_key": "ow-key"}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_ollama(config, env)
+    assert rendered.env_vars == {
+        "OPEN_WEBUI_ADMIN_EMAIL": "user@example.com",
+        "OPEN_WEBUI_ADMIN_PASSWORD": "ow-pw",
+        "OPEN_WEBUI_SECRET_KEY": "ow-key",
+        "OPEN_WEBUI_URL": "https://ollama-alice.example.com",
+    }
+    assert rendered.mode == 0o600
+
+
+def test_open_webui_refuses_an_empty_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_ollama
+
+    config = full_config.model_copy(
+        update={"open_webui_admin_password": "", "open_webui_secret_key": "ow-key"}
+    )
+    with pytest.raises(ServiceEnvError, match="OPEN_WEBUI_ADMIN_PASSWORD"):
+        _render_ollama(config, full_env)
+
+
+def test_flowise_renders_the_owner_and_its_public_url(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_flowise
+
+    config = full_config.model_copy(
+        update={"flowise_db_password": "fw-db", "flowise_admin_password": "Fw-Pass1"}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_flowise(config, env)
+    assert rendered.env_vars == {
+        "FLOWISE_DB_PASSWORD": "fw-db",
+        "FLOWISE_ADMIN_EMAIL": "user@example.com",
+        "FLOWISE_ADMIN_PASSWORD": "Fw-Pass1",
+        "FLOWISE_URL": "https://flowise-alice.example.com",
+    }
+    assert rendered.mode == 0o600
+
+
+def test_flowise_refuses_an_empty_owner_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Without it flowise-init cannot claim the instance and the first
+    visitor would become owner."""
+    from nexus_deploy.service_env import _render_flowise
+
+    config = full_config.model_copy(
+        update={"flowise_db_password": "fw-db", "flowise_admin_password": ""}
+    )
+    with pytest.raises(ServiceEnvError, match="FLOWISE_ADMIN_PASSWORD"):
+        _render_flowise(config, full_env)
+
+
+def test_open_notebook_renders_its_public_url_and_secrets(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """API_URL is the public URL: left unset, the browser would call
+    <host>:5055, which the tunnel does not route."""
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_open_notebook
+
+    config = full_config.model_copy(
+        update={
+            "open_notebook_password": "on-pw",
+            "open_notebook_encryption_key": "on-key",
+            "open_notebook_db_password": "on-db",
+        }
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_open_notebook(config, env)
+    assert rendered.env_vars["OPEN_NOTEBOOK_URL"] == "https://open-notebook-alice.example.com"
+    assert rendered.env_vars["OPEN_NOTEBOOK_PASSWORD"] == "on-pw"
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize(
+    ("enabled", "expected"),
+    [(["open-notebook"], ""), (["open-notebook", "crawl4ai"], "http://crawl4ai:11235")],
+)
+def test_open_notebook_uses_crawl4ai_only_when_it_is_deployed(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    tmp_path: Path,
+    enabled: list[str],
+    expected: str,
+) -> None:
+    """Through render_all_env_files, so the dispatch that passes the flag
+    is covered, not only the renderer."""
+    from nexus_deploy.service_env import render_all_env_files
+
+    config = full_config.model_copy(
+        update={
+            "open_notebook_password": "on-pw",
+            "open_notebook_encryption_key": "on-key",
+            "open_notebook_db_password": "on-db",
+        }
+    )
+    (tmp_path / "open-notebook").mkdir()
+    render_all_env_files(config, full_env, enabled, stacks_dir=tmp_path)
+    lines = (tmp_path / "open-notebook" / ".env").read_text().splitlines()
+    assert f"CRAWL4AI_API_URL={expected}" in lines
+
+
+def test_open_notebook_refuses_to_run_without_a_password(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """Open Notebook without a password runs with authentication off."""
+    from nexus_deploy.service_env import _render_open_notebook
+
+    config = full_config.model_copy(
+        update={
+            "open_notebook_password": "",
+            "open_notebook_encryption_key": "on-key",
+            "open_notebook_db_password": "on-db",
+        }
+    )
+    with pytest.raises(ServiceEnvError, match="OPEN_NOTEBOOK_PASSWORD"):
+        _render_open_notebook(config, full_env)
+
+
+def test_nifi_allows_exactly_its_public_host(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    """nifi-proxy passes the tunnel's Host on as X-ProxyHost, and NiFi
+    refuses (421) any host not on this list -- measured locally."""
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_nifi
+
+    config = full_config.model_copy(
+        update={"nifi_password": "a" * 24, "nifi_sensitive_props_key": "b" * 32}
+    )
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    rendered = _render_nifi(config, env)
+    assert rendered.env_vars["NIFI_PROXY_HOSTS"] == "nifi-alice.example.com"
+    assert rendered.env_vars["NIFI_USERNAME"] == "user@example.com"
+    assert rendered.mode == 0o600
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        {"nifi_password": "", "nifi_sensitive_props_key": "b" * 32},
+        {"nifi_password": "short", "nifi_sensitive_props_key": "b" * 32},
+        {"nifi_password": "a" * 24, "nifi_sensitive_props_key": "short"},
+    ],
+)
+def test_nifi_refuses_credentials_it_would_replace(
+    full_config: NexusConfig, full_env: BootstrapEnv, update: dict[str, str]
+) -> None:
+    """Under 12 characters NiFi swaps in a random login it only logs."""
+    from nexus_deploy.service_env import _render_nifi
+
+    with pytest.raises(ServiceEnvError, match="NiFi"):
+        _render_nifi(full_config.model_copy(update=update), full_env)
+
+
+def test_starrocks_refuses_a_passwordless_root(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy.service_env import _render_starrocks
+
+    rendered = _render_starrocks(
+        full_config.model_copy(update={"starrocks_root_password": "s"}), full_env
+    )
+    assert rendered.env_vars == {"STARROCKS_ROOT_PASSWORD": "s"}
+    with pytest.raises(ServiceEnvError, match="STARROCKS_ROOT_PASS"):
+        _render_starrocks(full_config.model_copy(update={"starrocks_root_password": ""}), full_env)
+    # start.sh embeds it in SQL quotes.
+    for bad in ("pw'; DROP USER root; --", "pässwort1"):
+        with pytest.raises(ServiceEnvError, match="alphanumeric"):
+            _render_starrocks(
+                full_config.model_copy(update={"starrocks_root_password": bad}), full_env
+            )

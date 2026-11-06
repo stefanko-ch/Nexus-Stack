@@ -1,0 +1,119 @@
+# =============================================================================
+# Open Notebook - Self-hosted NotebookLM alternative
+# =============================================================================
+# Access via: https://open-notebook.<domain>
+#
+# Collect sources (PDFs, web pages, text, audio) into notebooks, then ask
+# questions about them, generate summaries and notes, and search across
+# everything -- with local models through Ollama, so nothing leaves the
+# server. Models are configured in the UI (Manage -> Models): Ollama at
+# http://ollama:11434 (this stack joins Ollama's network) or LiteLLM at
+# http://litellm:4000/v1 as an OpenAI-compatible provider.
+#
+# Two containers:
+#   - open-notebook     Next.js UI (8502) + FastAPI (5055) + worker. Only
+#                       the UI is published; it forwards /api to the API
+#                       inside the container, so one hostname is enough.
+#   - open-notebook-db  SurrealDB, the database.
+#
+# Login: one shared password (OPEN_NOTEBOOK_PASSWORD, Infisical -> folder
+# `open-notebook`), required by the UI and the REST API alike. Without it
+# Open Notebook runs with authentication off and does not warn.
+#
+# Storage: /mnt/nexus-data/open-notebook/{data,db}, backed up to R2 with
+# the stack stopped. Both containers run as root.
+#
+# Images: lfnovo/open_notebook, surrealdb/surrealdb (amd64 + arm64).
+# Docs: https://github.com/lfnovo/open-notebook/tree/main/docs
+# =============================================================================
+
+services:
+  open-notebook:
+    image: ${IMAGE_OPEN_NOTEBOOK:-lfnovo/open_notebook:1.15.0}
+    container_name: open-notebook
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8503:8502"
+    environment:
+      # The browser calls the API at this URL. Left unset, it guesses
+      # <host>:5055, a port the tunnel does not route; set to the public
+      # URL, the UI's own server forwards /api to the API in-container.
+      API_URL: ${OPEN_NOTEBOOK_URL:?must be set in .env (rendered by service_env._render_open_notebook)}
+      OPEN_NOTEBOOK_PASSWORD: ${OPEN_NOTEBOOK_PASSWORD:?must be set in .env (rendered by service_env._render_open_notebook)}
+      # Encrypts the provider credentials stored in the database. A
+      # changed key makes every stored credential unreadable, so it is
+      # generated once and kept across a rebuild teardown.
+      OPEN_NOTEBOOK_ENCRYPTION_KEY: ${OPEN_NOTEBOOK_ENCRYPTION_KEY:?must be set in .env (rendered by service_env._render_open_notebook)}
+      # URL extraction through the crawl4ai stack, over app-network.
+      # Empty when that stack is not enabled (service_env renders it).
+      CRAWL4AI_API_URL: ${CRAWL4AI_API_URL:-}
+      # Plain ws:// on purpose: SurrealDB is reachable only on
+      # open-notebook-internal, a bridge network this container alone
+      # shares with it, and publishes no port. Nothing leaves the host,
+      # as with every Postgres connection between containers here.
+      SURREAL_URL: ws://open-notebook-db:8000/rpc
+      SURREAL_USER: nexus-open-notebook
+      SURREAL_PASSWORD: ${OPEN_NOTEBOOK_DB_PASSWORD:?must be set in .env (rendered by service_env._render_open_notebook)}
+      SURREAL_NAMESPACE: open_notebook
+      SURREAL_DATABASE: open_notebook
+      # Local models answer slowly; one task at a time keeps the worker
+      # from queueing several CPU-bound generations at once.
+      OPEN_NOTEBOOK_WORKER_MAX_TASKS: "1"
+      LOGURU_LEVEL: INFO
+    volumes:
+      - /mnt/nexus-data/open-notebook/data:/app/data
+    depends_on:
+      open-notebook-db:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # curl ships in the image; /health on the API is open without the
+      # password.
+      test: ["CMD", "curl", "-fsS", "http://localhost:5055/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+      - open-notebook-internal
+      # Ollama is on this network only; joining it is what makes
+      # http://ollama:11434 resolve. compose_runner creates it whenever
+      # open-notebook is enabled.
+      - ollama-internal
+
+  open-notebook-db:
+    image: ${IMAGE_OPEN_NOTEBOOK_DB:-surrealdb/surrealdb:v2.7.0}
+    container_name: open-notebook-db
+    restart: unless-stopped
+    # Root, as upstream's compose does: the image's own user cannot write
+    # a bind mount Docker creates root-owned.
+    user: root
+    command:
+      - start
+      - rocksdb:/mydata/open-notebook.db
+    environment:
+      # Environment rather than --user/--pass, so the password is not in
+      # the process list on the host.
+      SURREAL_USER: nexus-open-notebook
+      SURREAL_PASS: ${OPEN_NOTEBOOK_DB_PASSWORD}
+    volumes:
+      - /mnt/nexus-data/open-notebook/db:/mydata
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    networks:
+      - open-notebook-internal
+
+networks:
+  app-network:
+    external: true
+  open-notebook-internal:
+    driver: bridge
+  ollama-internal:
+    external: true
+    name: ollama-internal

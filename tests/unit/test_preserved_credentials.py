@@ -24,6 +24,13 @@ PRESERVED = (
     "random_password.label_studio_admin",
     "random_password.label_studio_user_token",
     "random_password.memgraph",
+    "random_password.open_webui_admin",
+    "random_password.open_webui_secret_key",
+    "random_password.flowise_admin",
+    "random_password.open_notebook_encryption_key",
+    "random_password.open_notebook_db",
+    "random_password.nifi_sensitive_props_key",
+    "random_password.starrocks_root",
 )
 
 

@@ -702,6 +702,68 @@ services:
     long_description: "Langflow draws LLM applications as flows: models, prompts, retrievers, vector stores and tools are components on a canvas, connected by their inputs and outputs, and every flow runs from the UI or as an API endpoint. It is the hands-on way to see how a RAG pipeline or an agent is put together before writing it in code. Here the components point at what already runs in the stack — Ollama for local models, Qdrant, Chroma and Weaviate as vector stores, LiteLLM as an OpenAI-compatible gateway. Langflow's own login is a superuser created on first start with the stack user's email and a generated password (Infisical → folder `langflow`); sign-up is disabled. Flows are stored in SQLite under /mnt/nexus-data and survive a teardown."
     image: "langflowai/langflow:1.13.0"
 
+  flowise:
+    subdomain: "flowise"
+    port: 3011
+    public: false
+    category: "ai-ml"
+    website: "https://flowiseai.com"
+    description: "Visual builder for LLM chatflows and agents, with a large catalogue of ready-made LangChain nodes."
+    long_description: "Flowise builds LLM applications from nodes on a canvas — chat models, prompts, document loaders, splitters, vector stores, memory, tools and agents — and serves each chatflow as an embeddable chat widget or an API endpoint. Next to Langflow it is the lighter, more catalogue-driven of the two: most flows are a handful of ready nodes rather than custom code. It reaches Ollama directly (it joins Ollama's network) and Qdrant, Chroma, Weaviate and LiteLLM on app-network. The owner account is registered on first start with the stack user's email and a generated password (Infisical → folder `flowise`); once an owner exists, Flowise refuses every further registration. Flows live in a dedicated PostgreSQL, keys and uploads under /mnt/nexus-data, and both survive a teardown."
+    image: "flowiseai/flowise:3.1.4"
+    support_images:
+      flowise-db: "postgres:17-alpine"
+
+  open-notebook:
+    subdomain: "open-notebook"
+    port: 8503
+    public: false
+    category: "ai-ml"
+    website: "https://github.com/lfnovo/open-notebook"
+    description: "Self-hosted NotebookLM alternative — ask questions about your own sources with local models."
+    long_description: "Open Notebook collects sources — PDFs, web pages, text, audio — into notebooks and lets you ask questions about them, generate summaries and notes, and search across everything, in the spirit of Google's NotebookLM but on your own server. With Ollama as the model provider nothing leaves it: Open Notebook joins Ollama's network and uses it for chat and embeddings, or LiteLLM as an OpenAI-compatible gateway. Models are set up once in the UI. One shared password protects the UI and the REST API (Infisical → folder `open-notebook`). Notebooks live in a SurrealDB sidecar under /mnt/nexus-data and survive a teardown."
+    image: "lfnovo/open_notebook:1.15.0"
+    support_images:
+      open-notebook-db: "surrealdb/surrealdb:v2.7.0"
+
+  nifi:
+    subdomain: "nifi"
+    # nifi-proxy, which takes the tunnel's HTTP and opens TLS to NiFi.
+    port: 8445
+    public: false
+    category: "orchestration"
+    website: "https://nifi.apache.org"
+    description: "Visual data-flow automation — ingest, route, transform and deliver data with full provenance."
+    long_description: "Apache NiFi moves data. Processors on a canvas pull from files, HTTP APIs, databases, Kafka and object storage, route and transform each record, and deliver it onward, with back-pressure, retries and a provenance trail for every record. Where Kestra and Airflow orchestrate jobs, NiFi is the pipe the data flows through, and a classic of data-engineering teaching. NiFi 2.x serves HTTPS only; a small nginx in the stack takes the tunnel's HTTP and talks TLS to it. The login is the stack user's email with a generated password (Infisical → folder `nifi`). The flow is kept under /mnt/nexus-data and survives a teardown."
+    image: "apache/nifi:2.12.0"
+    landing_path: "/nifi"
+    support_images:
+      nifi-proxy: "nginx:1.30.4-alpine"
+
+  hop:
+    subdomain: "hop"
+    port: 8182
+    public: false
+    category: "orchestration"
+    website: "https://hop.apache.org"
+    description: "Visual ETL — build, run and debug data pipelines and workflows in the browser (Hop Web)."
+    long_description: "Apache Hop builds data integration visually: pipelines transform data row by row — read, filter, join, aggregate, write — and workflows orchestrate jobs with conditions and error paths, all designed, run and debugged in the browser. It is the successor of Pentaho Data Integration (Kettle) and a gentle way into ETL before writing pipelines as code. The bundled JDBC drivers include PostgreSQL, so the databases on the internal network are one connection away. Hop Web has no login of its own; Cloudflare Access is the only gate. Pipelines and workflows live in the project folder under /mnt/nexus-data and survive a teardown."
+    image: "apache/hop-web:2.19.0"
+    landing_path: "/ui"
+
+  starrocks:
+    # Internal-only: no web UI worth a hostname, and its clients speak the
+    # MySQL protocol, which the HTTPS tunnel cannot carry. Published on
+    # 127.0.0.1 only, for `ssh -N -L 9030:localhost:9030 nexus`.
+    port: 9030
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.starrocks.io"
+    description: "Fast MPP analytics database (MySQL protocol) that queries Iceberg, Delta Lake and Parquet in place."
+    long_description: "StarRocks is a columnar, massively parallel OLAP database built for sub-second aggregations over large tables. Beyond its own tables it queries the lakehouse in place: external catalogs read Iceberg, Delta Lake, Hive and Paimon tables, and FILES() reads Parquet straight from S3-compatible storage — the same data Spark, Trino and DuckDB see here. It speaks the MySQL protocol, so CloudBeaver, Adminer, `mysql` and SQLAlchemy work as clients at starrocks:9030. This stack runs the all-in-one image (one frontend, one backend), right-sized for teaching, with memory capped at 2 GB heap plus 3 GB for the backend. The account is nexus-starrocks with a password generated per deployment (Infisical → folder `starrocks`); data lives under /mnt/nexus-data and survives a teardown."
+    image: "starrocks/allin1-ubuntu:4.1.7"
+
   label-studio:
     subdomain: "label-studio"
     port: 8280
@@ -968,7 +1030,7 @@ services:
     long_description: "Run large language models locally with Ollama and interact through Open WebUI's ChatGPT-like interface. Supports Llama, Mistral, Gemma, and many other models. Features include conversation history, model switching, RAG with document upload, and API compatibility with OpenAI format."
     image: "ollama/ollama:0.15.1"
     support_images:
-      ollama-open-webui: "ghcr.io/open-webui/open-webui:v0.8.3"
+      ollama-open-webui: "ghcr.io/open-webui/open-webui:v0.12.5"
 
   openmetadata:
     subdomain: "openmetadata"
