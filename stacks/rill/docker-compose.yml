@@ -1,0 +1,53 @@
+# =============================================================================
+# Rill - BI dashboards on DuckDB
+# =============================================================================
+# URL: https://rill.<domain>
+#
+# Rill Developer: models in SQL, metrics views and dashboards, all in one
+# project directory, computed by an embedded DuckDB. It has no login of its
+# own, so Cloudflare Access is the only gate (NO_OWN_AUTH in the
+# conventions test).
+#
+# The project lives in /home/rill/project inside the rill-home volume. The
+# volume is mounted at the home directory, not at the project, because the
+# image owns /home/rill as its rill user (1001) and a fresh named volume
+# takes over that owner; mounted at a path the image lacks, it would be
+# root's and Rill could not write. Under the rebuild lifecycle the volume
+# does not survive a teardown; under snapshot it does. Keep a project in
+# Git (Forgejo) if it should outlive a rebuild.
+#
+# The image is amd64 only, which the cx/cpx servers are.
+# =============================================================================
+
+services:
+  rill:
+    image: ${IMAGE_RILL:-rilldata/rill:v0.91.1}
+    container_name: rill
+    restart: unless-stopped
+    # --pull-env=false: Rill would otherwise try Rill Cloud for environment
+    # variables on every start. An empty /home/rill/project is initialised
+    # as a new project on first start.
+    command: ["start", "/home/rill/project", "--no-open", "--pull-env=false", "--port", "9009"]
+    ports:
+      - "127.0.0.1:9009:9009"
+    volumes:
+      - rill-home:/home/rill
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:9009/v1/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  rill-home:
+
+networks:
+  app-network:
+    external: true

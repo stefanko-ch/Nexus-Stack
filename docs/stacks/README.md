@@ -135,6 +135,16 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | nginx (NiFi proxy) | `nginx` | `1.30.4-alpine` | Exact |
 | SurrealDB (Open Notebook) | `surrealdb/surrealdb` | `v2.7.0` | Exact |
 | PostgreSQL (Flowise DB) | `postgres` | `17-alpine` | Major |
+| Apache Kafka | `apache/kafka` | `4.4.0` | Exact |
+| Bytebase | `bytebase/bytebase` | `3.24.1` | Exact |
+| PostgreSQL (Bytebase DB) | `postgres` | `17-alpine` | Major |
+| Datasette (custom build) | `nexus-datasette` | `0.65.5` | Exact |
+| Hasura GraphQL Engine | `hasura/graphql-engine` | `v2.51.4` | Exact |
+| PostgreSQL (Hasura DB) | `postgres` | `17-alpine` | Major |
+| Project Nessie | `ghcr.io/projectnessie/nessie` | `0.110.0` | Exact |
+| Rill | `rilldata/rill` | `v0.91.1` | Exact |
+| SQLMesh (custom build) | `nexus-sqlmesh` | `0.236.4` | Exact |
+| Valkey | `valkey/valkey` | `9.1.3-alpine` | Exact |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -237,11 +247,13 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **AKHQ** | Kafka/Redpanda management GUI | [akhq.md](akhq.md) |
 | **Adminer** | Lightweight database management tool | [adminer.md](adminer.md) |
 | **Apache Airflow** | DAG-based workflow orchestration | [airflow.md](airflow.md) |
+| **Apache Kafka** | Event-streaming broker in KRaft mode, internal only | [kafka.md](kafka.md) |
 | **Apache Spark** | Distributed data processing engine | [spark.md](spark.md) |
 | **Apicurio Registry** | Schema and API-contract registry | [apicurio.md](apicurio.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
+| **Bytebase** | Reviewed, versioned database schema changes | [bytebase.md](bytebase.md) |
 | **Cassandra** | Wide-column distributed database | [cassandra.md](cassandra.md) |
 | **Chroma** | Embedding (vector) database for LLM / RAG | [chroma.md](chroma.md) |
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
@@ -253,6 +265,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Data Contract API** | Tests ODCS contracts against the stack's own data | [datacontract-api.md](datacontract-api.md) |
 | **Data Contract Editor** | Browser editor for ODCS data contracts | [datacontract-editor.md](datacontract-editor.md) |
 | **Dagster** | Python data orchestration | [dagster.md](dagster.md) |
+| **Datasette** | Explore and publish SQLite databases in the browser | [datasette.md](datasette.md) |
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
@@ -270,6 +283,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Git Proxy** | Public Git HTTPS proxy | [git-proxy.md](git-proxy.md) |
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
+| **Hasura** | Instant GraphQL API over PostgreSQL | [hasura.md](hasura.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
 | **Hop** | Visual ETL pipelines and workflows | [hop.md](hop.md) |
@@ -317,6 +331,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema | [postgrest.md](postgrest.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
+| **Project Nessie** | Iceberg catalog with branches and commits | [nessie.md](nessie.md) |
 | **Qdrant** | Vector database with a built-in web dashboard | [qdrant.md](qdrant.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **QuestDB** | Time-series database with web console | [questdb.md](questdb.md) |
@@ -324,6 +339,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Redpanda Console** | Redpanda web UI | [redpanda-console.md](redpanda-console.md) |
 | **Redpanda Connect** | Stream processing framework | [redpanda-connect.md](redpanda-connect.md) |
 | **Redpanda Datagen** | Test data generator | [redpanda-datagen.md](redpanda-datagen.md) |
+| **Rill** | BI dashboards on DuckDB | [rill.md](rill.md) |
 | **RisingWave** | Streaming SQL database | [risingwave.md](risingwave.md) |
 | **RustFS** | Rust-based S3-compatible storage | [rustfs.md](rustfs.md) |
 | **S3 Manager** | S3 bucket browser | [s3manager.md](s3manager.md) |
@@ -332,6 +348,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Shiny Server** | R web applications | [shiny.md](shiny.md) |
 | **Sling** | Database-to-database transfers | [sling.md](sling.md) |
 | **Soda Core** | Data quality testing | [soda.md](soda.md) |
+| **SQLMesh** | SQL transformations with plans and virtual environments | [sqlmesh.md](sqlmesh.md) |
 | **StarRocks** | MPP analytics database with lakehouse catalogs | [starrocks.md](starrocks.md) |
 | **Streamlit** | Python data apps, one server for all of them | [streamlit.md](streamlit.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
@@ -341,6 +358,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Trino** | Distributed SQL query engine | [trino.md](trino.md) |
 | **Unity Catalog** | Catalog for Delta & Iceberg tables, volumes and AI assets | [unity-catalog.md](unity-catalog.md) |
 | **Uptime Kuma** | Self-hosted monitoring tool | [uptime-kuma.md](uptime-kuma.md) |
+| **Valkey** | Redis-compatible in-memory data store, internal only | [valkey.md](valkey.md) |
 | **Vector** | Observability data pipeline | [vector.md](vector.md) |
 | **Weaviate** | Vector database with hybrid BM25 + vector search | [weaviate.md](weaviate.md) |
 | **Wetty** | Web-based SSH terminal | [wetty.md](wetty.md) |

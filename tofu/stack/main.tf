@@ -609,6 +609,38 @@ resource "random_password" "starrocks_root" {
   special = false
 }
 
+# Bytebase: its metadata database, and the workspace admin bytebase-init
+# claims on first start (the first sign-up becomes the admin). Alphanumeric
+# because the database password sits inside the PG_URL connection string.
+resource "random_password" "bytebase_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "bytebase_admin" {
+  length  = 24
+  special = false
+}
+
+# Hasura: its database (also the metadata store) and the admin secret every
+# request needs. Alphanumeric for the same connection-string reason.
+resource "random_password" "hasura_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "hasura_admin_secret" {
+  length  = 32
+  special = false
+}
+
+# Valkey requirepass. Written into a config file at container start, never
+# onto the command line.
+resource "random_password" "valkey" {
+  length  = 32
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

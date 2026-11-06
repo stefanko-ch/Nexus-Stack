@@ -1169,6 +1169,45 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "bytebase",
+            _filter_empty(
+                {
+                    # The login is the stack user's email; bytebase-init signs
+                    # it up as the workspace admin on first start.
+                    "BYTEBASE_PASSWORD": config.bytebase_admin_password,
+                    "BYTEBASE_DB_PASSWORD": config.bytebase_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "hasura",
+            _filter_empty(
+                {
+                    # Sent as x-hasura-admin-secret; the console asks for it.
+                    "HASURA_ADMIN_SECRET": config.hasura_admin_secret,
+                    "HASURA_DB_USERNAME": "nexus-hasura",
+                    "HASURA_DB_PASSWORD": config.hasura_db_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "valkey",
+            _filter_empty(
+                {
+                    # Redis protocol: valkey:6379 in-cluster. The built-in
+                    # `default` user is switched off.
+                    "VALKEY_USERNAME": "nexus-valkey",
+                    "VALKEY_PASSWORD": config.valkey_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

@@ -127,6 +127,11 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("NIFI_PASS", "nifi_password", ""),
     ("NIFI_SENSITIVE_PROPS_KEY", "nifi_sensitive_props_key", ""),
     ("STARROCKS_ROOT_PASS", "starrocks_root_password", ""),
+    ("BYTEBASE_DB_PASS", "bytebase_db_password", ""),
+    ("BYTEBASE_ADMIN_PASS", "bytebase_admin_password", ""),
+    ("HASURA_DB_PASS", "hasura_db_password", ""),
+    ("HASURA_ADMIN_SECRET", "hasura_admin_secret", ""),
+    ("VALKEY_PASS", "valkey_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -312,6 +317,11 @@ class NexusConfig(BaseModel):
     nifi_password: str | None = None
     nifi_sensitive_props_key: str | None = None
     starrocks_root_password: str | None = None
+    bytebase_db_password: str | None = None
+    bytebase_admin_password: str | None = None
+    hasura_db_password: str | None = None
+    hasura_admin_secret: str | None = None
+    valkey_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None
