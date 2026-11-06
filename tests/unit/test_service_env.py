@@ -4718,7 +4718,10 @@ def test_bytebase_refuses_an_empty_admin_password(
         _render_bytebase(config, full_env)
 
 
-@pytest.mark.parametrize("email", ['a"b@example.com', "a\\b@example.com", "a b@example.com"])
+@pytest.mark.parametrize(
+    "email",
+    ['a"b@example.com', "a\\b@example.com", "a b@example.com", "not-an-email", "a@localhost"],
+)
 def test_bytebase_refuses_an_email_it_cannot_put_into_json(
     full_config: NexusConfig, full_env: BootstrapEnv, email: str
 ) -> None:

@@ -1990,6 +1990,15 @@ def _render_bytebase(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "Bytebase enabled but the admin email contains a quote, backslash or "
             "whitespace, which bytebase-init cannot put into its sign-up request.",
         )
+    local, _, domain = email.partition("@")
+    if not local or "." not in domain:
+        # Bytebase refuses such a sign-up, and bytebase-init would exit with
+        # no admin claimed; failing here names the cause instead.
+        raise ServiceEnvError(
+            "Bytebase enabled but the admin email is not an address of the form "
+            "name@domain -- check admin_email and the stack user's email in "
+            "config.tfvars.",
+        )
     # The database password sits inside PG_URL, the admin password inside
     # the JSON bytebase-init builds with printf.
     if bad := _non_alnum(

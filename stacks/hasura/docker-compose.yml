@@ -4,9 +4,10 @@
 # URL: https://hasura.<domain>/console
 # In-cluster: http://hasura:8080/v1/graphql
 #
-# Tables created in the console (or any SQL client) on hasura-db get a
-# GraphQL API with queries, mutations and subscriptions. hasura-db is also
-# Hasura's metadata store. Every request needs the admin secret
+# Tables created in the console on hasura-db get a GraphQL API with
+# queries, mutations and subscriptions at once; tables created with another
+# SQL client appear after they are tracked under Data -> Untracked tables.
+# hasura-db is also Hasura's metadata store. Every request needs the admin secret
 # (x-hasura-admin-secret, Infisical folder `hasura`); the console asks for
 # it once and keeps it in the browser.
 #

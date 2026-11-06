@@ -47,4 +47,4 @@ The project is `/home/rill/project`, inside the `rill-home` volume. The volume i
 
 ### Architecture
 
-The image is published for `linux/amd64` only. The default servers are x86, so this is not a restriction today.
+The image is published for `linux/amd64` only. The default servers are x86 (`cx43`), so it runs natively. On an ARM server (`cax*`) it would need amd64 emulation (binfmt/QEMU), which the deploy does not set up. Use an x86 server for Rill.

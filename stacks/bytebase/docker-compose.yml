@@ -49,7 +49,10 @@ services:
   bytebase-init:
     image: ${IMAGE_BYTEBASE:-bytebase/bytebase:3.24.1}
     container_name: bytebase-init
-    restart: "no"
+    # Retries a transient failure (a sign-up or settings call that times
+    # out) a few times. Each run is idempotent: it logs in when the account
+    # exists. A lost admin claim fails every retry the same way.
+    restart: "on-failure:3"
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |

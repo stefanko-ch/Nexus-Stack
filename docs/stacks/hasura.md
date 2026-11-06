@@ -29,7 +29,7 @@ Hasura generates a GraphQL API from a PostgreSQL schema. Every table gets querie
 ### First steps
 
 1. Open the console and enter the admin secret: Infisical, folder `hasura`, key `HASURA_ADMIN_SECRET`. The console keeps it in the browser.
-2. Under **Data**, create a table in the `default` database. That database is `hasura-db`, Hasura's own PostgreSQL.
+2. Under **Data**, create a table in the `default` database. That database is `hasura-db`, Hasura's own PostgreSQL. A table created in the console is tracked, so it is in the API at once. A table created with any other SQL client is not: track it under **Data → default → public → Untracked tables** first.
 3. Under **API**, query it right away:
 
 ```graphql

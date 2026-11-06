@@ -27,7 +27,7 @@ Project Nessie versions a whole lakehouse the way Git versions code. You create 
 
 ### Connecting
 
-Spark, Flink, Trino, Dremio and PyIceberg use Nessie through its API at `http://nessie:19120/api/v2`, and each brings its own warehouse location. For Spark, for example:
+Spark, Flink, Trino and Dremio use Nessie through its API at `http://nessie:19120/api/v2`, and each brings its own warehouse location. PyIceberg does not: it has no Nessie catalog type (its types are `rest`, `hive`, `glue`, `dynamodb`, `sql`, `in-memory` and `bigquery` in 0.12.0), so it needs Nessie's Iceberg REST endpoint, which is not set up here (see below). For Spark, for example:
 
 ```python
 spark = (
@@ -43,7 +43,7 @@ spark = (
 
 The Iceberg and Nessie Spark extensions must be on the classpath, and the warehouse needs S3 credentials for one of the storage stacks (MinIO, Garage, SeaweedFS).
 
-**Nessie's own Iceberg REST endpoint** (`/iceberg`) is not set up. It needs a warehouse bucket configured on the Nessie server, which this stack leaves to the course, and until then it answers 500. The Nessie API above works without it.
+**Nessie's own Iceberg REST endpoint** (`/iceberg`) is not set up. It needs a warehouse bucket and object-store credentials configured on the Nessie server, which this stack leaves to the course, and until then it answers 500. The Nessie API above works without it; PyIceberg and other REST-only clients need the endpoint.
 
 ### Authentication
 

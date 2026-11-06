@@ -5,10 +5,11 @@
 # In-cluster: http://nessie:19120/api/v2
 #
 # Branches, tags and commits across a whole set of Iceberg tables. Spark,
-# Flink, Trino and PyIceberg reach it at http://nessie:19120/api/v2 and
-# bring their own warehouse location. Nessie's own Iceberg REST endpoint
-# needs a warehouse bucket configured here, which this stack does not set,
-# so it answers 500 until one is added.
+# Flink, Trino and Dremio reach it at http://nessie:19120/api/v2 and bring
+# their own warehouse location. Nessie's own Iceberg REST endpoint, which
+# REST-only clients such as PyIceberg need, wants a warehouse bucket and
+# object-store credentials configured here; this stack sets none, so it
+# answers 500 until they are added.
 #
 # No authentication: Nessie runs with AuthN/AuthZ off and logs a warning
 # saying so. Cloudflare Access is the only gate (NO_OWN_AUTH in the
