@@ -39,6 +39,29 @@ from nexus_deploy.infisical import (
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
+@pytest.mark.parametrize(
+    ("admin_email", "user_email", "expected"),
+    [
+        ("admin@example.com", "student@example.com", "student@example.com"),
+        ("admin@example.com", None, "admin@example.com"),
+        ("admin@example.com", "", "admin@example.com"),
+        (None, None, ""),
+        # Addresses Kestra 2.0.8 refuses: keeping them would leave Kestra on
+        # its old stored login and 401 every client, so the admin stays.
+        ("admin@example.com", "josé@example.com", "admin@example.com"),
+        ("admin@example.com", "student", "admin@example.com"),
+        ("admin@example.com", "a b@example.com", "admin@example.com"),
+        ("admin@example.com", "o'brien+kurs@stud.example.ch", "o'brien+kurs@stud.example.ch"),
+    ],
+)
+def test_kestra_username_prefers_the_stack_user(
+    admin_email: str | None, user_email: str | None, expected: str
+) -> None:
+    """Issue #960: students saw the instructor's address as their Kestra login."""
+    env = BootstrapEnv(admin_email=admin_email, forgejo_user_email=user_email)
+    assert env.kestra_username == expected
+
+
 # ---------------------------------------------------------------------------
 # _filter_empty — skip-empty rule
 # ---------------------------------------------------------------------------

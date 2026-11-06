@@ -51,6 +51,12 @@ _REMOTE_PUSH_DIR = "/tmp/infisical-push"  # noqa: S108 — transient, removed by
 _REMOTE_TOKEN_FALLBACK_FILE = "/opt/docker-server/.infisical-token"  # noqa: S105 — file PATH, not a credential value
 
 
+# Kestra 2.0.8's own check on the basic-auth username, copied verbatim from
+# BasicAuthService.EMAIL_PATTERN (Java `matches()` is a full match). Kept
+# in step with the pinned Kestra image; see BootstrapEnv.kestra_username.
+_KESTRA_EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9_!#$%&'*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+")
+
+
 @dataclass(frozen=True)
 class BootstrapEnv:
     """Configuration values that come from outside ``SECRETS_JSON``.
@@ -97,6 +103,30 @@ class BootstrapEnv:
     monitoring_endpoint: str | None = None
     monitoring_token: str | None = None
     tenant_id: str | None = None
+
+    @property
+    def kestra_username(self) -> str:
+        """The Kestra basic-auth login: the stack user's email, else the admin's.
+
+        Issue #960: with ``admin_email`` every student of a class saw the
+        instructor's address as their Kestra login. Same rule as the Mage
+        and Wiki.js logins. Every place that renders or authenticates as
+        this account reads it here, so the rendered ``KESTRA_ADMIN_USER``,
+        the Infisical entry and the API clients cannot drift apart.
+        Kestra 2.0.8 saves the configured credentials over its stored ones
+        on every start, so an existing stack switches on its next spin-up.
+
+        A user email Kestra would refuse falls back to the admin. Kestra
+        validates the username against an ASCII-only pattern
+        (``_KESTRA_EMAIL_PATTERN``); on a mismatch it records a
+        configuration error and keeps the OLD stored login, so every
+        client using the new name would get 401 — a broken stack to fix
+        a cosmetic problem.
+        """
+        user = self.forgejo_user_email or ""
+        if user and _KESTRA_EMAIL_PATTERN.fullmatch(user):
+            return user
+        return self.admin_email or ""
 
 
 @dataclass(frozen=True)
@@ -608,7 +638,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "kestra",
             _filter_empty(
                 {
-                    "KESTRA_USERNAME": env.admin_email,
+                    "KESTRA_USERNAME": env.kestra_username,
                     "KESTRA_PASSWORD": config.kestra_admin_password,
                 }
             ),

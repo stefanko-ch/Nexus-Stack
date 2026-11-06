@@ -658,8 +658,8 @@ class Orchestrator:
                 status="partial",
                 detail="KESTRA_PASS missing — basic-auth would 401",
             )
-        admin_email = self.bootstrap_env.admin_email or ""
-        if not admin_email:
+        kestra_username = self.bootstrap_env.kestra_username
+        if not kestra_username:
             return PhaseResult(
                 name="kestra-register",
                 status="partial",
@@ -685,7 +685,7 @@ class Orchestrator:
                     repo_owner=self.forgejo_repo_owner,
                     repo_name=self.repo_name,
                     branch=self.workspace_branch,
-                    admin_email=admin_email,
+                    admin_email=kestra_username,
                     trigger_onboarding=trigger_onboarding,
                 )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
@@ -1957,8 +1957,8 @@ class Orchestrator:
                 status="partial",
                 detail="KESTRA_PASS missing — readiness probe would 401",
             )
-        admin_email = self.bootstrap_env.admin_email or ""
-        if not admin_email:
+        kestra_username = self.bootstrap_env.kestra_username
+        if not kestra_username:
             return PhaseResult(
                 name="kestra-secret-sync",
                 status="partial",
@@ -1969,7 +1969,7 @@ class Orchestrator:
             with ssh.port_forward(local_port, "localhost", 8085) as port:
                 client = _kestra.KestraClient(
                     base_url=f"http://localhost:{port}",
-                    username=admin_email,
+                    username=kestra_username,
                     password=self.config.kestra_admin_password,
                 )
                 # Step 1: wait for Kestra to be ready. 480s = 60x8s budget.
@@ -2327,14 +2327,14 @@ class Orchestrator:
         if (
             "kestra" in self.enabled_services
             and self.config.kestra_admin_password
-            and self.bootstrap_env.admin_email
+            and self.bootstrap_env.kestra_username
         ):
             local_port = _allocate_free_port()
             try:
                 with ssh.port_forward(local_port, "localhost", 8085) as port:
                     client = _kestra.KestraClient(
                         base_url=f"http://localhost:{port}",
-                        username=self.bootstrap_env.admin_email,
+                        username=self.bootstrap_env.kestra_username,
                         password=self.config.kestra_admin_password,
                     )
                     exec_id = client.execute_flow("system", "flow-sync")

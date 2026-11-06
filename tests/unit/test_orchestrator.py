@@ -1181,6 +1181,32 @@ def test_phase_kestra_register_ok(
     assert "execution=SUCCESS" in result.detail
 
 
+def _with_student(orchestrator: Orchestrator) -> Orchestrator:
+    """Issue #960: a stack that belongs to a student, as Conductor builds it."""
+    from dataclasses import replace
+
+    orchestrator.bootstrap_env = replace(
+        orchestrator.bootstrap_env, forgejo_user_email="student@example.com"
+    )
+    return orchestrator
+
+
+def test_phase_kestra_register_authenticates_as_the_stack_user(
+    orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nexus_deploy.kestra import SystemFlowsResult
+
+    seen: dict[str, Any] = {}
+
+    def fake_run(*_a: Any, **kw: Any) -> SystemFlowsResult:
+        seen.update(kw)
+        return SystemFlowsResult(flows=(), execution_state="SUCCESS")
+
+    monkeypatch.setattr("nexus_deploy.orchestrator._kestra.run_register_system_flows", fake_run)
+    _with_student(orchestrator)._phase_kestra_register(_ssh_with_tunnel())
+    assert seen["admin_email"] == "student@example.com"
+
+
 def test_phase_kestra_register_partial_names_the_failed_flows(
     orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3076,6 +3102,43 @@ def test_phase_kestra_secret_sync_constructs_correct_stack_target(
     assert target.env_file_basename == ".env"
     assert target.legacy_env_file_basename is None
     assert target.force_recreate is True
+    # Issue #960: no student here, so the admin is the Kestra login.
+    assert mock_client_cls.call_args.kwargs["username"] == "admin@example.com"
+
+
+def test_phase_kestra_secret_sync_partial_without_a_login(
+    orchestrator: Orchestrator,
+) -> None:
+    orchestrator.bootstrap_env = BootstrapEnv(domain="example.com")
+    result = orchestrator._phase_kestra_secret_sync(_ssh_with_tunnel())
+    assert result.status == "partial"
+    assert result.detail == "ADMIN_EMAIL missing"
+
+
+def test_phase_kestra_secret_sync_authenticates_as_the_stack_user(
+    orchestrator: Orchestrator,
+) -> None:
+    from nexus_deploy.secret_sync import SyncResult
+
+    with (
+        patch(
+            "nexus_deploy.orchestrator._secret_sync.run_sync_for_stack",
+            return_value=SyncResult(
+                pushed=0,
+                skipped_invalid_name=0,
+                skipped_multiline=0,
+                failed_folders=0,
+                collisions=0,
+                succeeded_folders=1,
+                wrote=True,
+            ),
+        ),
+        patch("nexus_deploy.orchestrator._kestra.KestraClient") as mock_client_cls,
+    ):
+        mock_client_cls.return_value.wait_ready.return_value = True
+        _with_student(orchestrator)._phase_kestra_secret_sync(_ssh_with_tunnel())
+
+    assert mock_client_cls.call_args.kwargs["username"] == "student@example.com"
 
 
 # --- _phase_global_env ---
@@ -3570,6 +3633,20 @@ def test_phase_mirror_finalize_happy_path_flow_and_restarts(
     assert "flow_triggered=True" in result.detail
     assert "git_restarted=2" in result.detail
     kestra_client.execute_flow.assert_called_once_with("system", "flow-sync")
+
+
+def test_phase_mirror_finalize_authenticates_as_the_stack_user(
+    mirror_finalize_ready: Orchestrator,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_cls = MagicMock()
+    monkeypatch.setattr("nexus_deploy.orchestrator._kestra.KestraClient", client_cls)
+    monkeypatch.setattr(
+        "nexus_deploy.orchestrator._compose_restart.run_restart",
+        MagicMock(return_value=MagicMock(restarted=0, failed=0)),
+    )
+    _with_student(mirror_finalize_ready)._phase_mirror_finalize(_ssh_with_tunnel())
+    assert client_cls.call_args.kwargs["username"] == "student@example.com"
 
 
 def test_phase_mirror_finalize_partial_when_kestra_not_enabled(
