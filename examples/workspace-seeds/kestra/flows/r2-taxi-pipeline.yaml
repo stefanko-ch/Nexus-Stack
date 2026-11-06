@@ -98,9 +98,16 @@ tasks:
   #    `nexus-tutorials/NYC/yellow_tripdata_2025-*.parquet` matches
   #    every month present in R2 — so this query automatically widens
   #    when you extend `values:` above.
+  #
+  #    `Queries`, not `Query`: since Kestra 2 the `Query` task rejects
+  #    more than one statement ("Query task support only a single SQL
+  #    statement"), and the DuckDB session needs INSTALL/LOAD/SET first.
+  #    `Queries` returns a list with one entry per statement that has a
+  #    result set; the SELECT is the last statement, so the log below
+  #    reads `outputs.stats.outputs | last`.
   # ---------------------------------------------------------------------
   - id: stats
-    type: io.kestra.plugin.jdbc.duckdb.Query
+    type: io.kestra.plugin.jdbc.duckdb.Queries
     sql: |
       INSTALL httpfs;
       LOAD httpfs;
@@ -140,9 +147,9 @@ tasks:
     type: io.kestra.plugin.core.log.Log
     message: |
       ─── NYC Taxi 2025 — Quick-Stats ────────────────────────
-        Trips:           {{ outputs.stats.row.total_trips }}
-        Avg distance:    {{ outputs.stats.row.avg_distance_mi }} mi
-        Avg fare:        $ {{ outputs.stats.row.avg_fare_usd }}
-        Avg passengers:  {{ outputs.stats.row.avg_passengers }}
-        Date range:      {{ outputs.stats.row.earliest_pickup }} → {{ outputs.stats.row.latest_pickup }}
+        Trips:           {{ (outputs.stats.outputs | last).row.total_trips }}
+        Avg distance:    {{ (outputs.stats.outputs | last).row.avg_distance_mi }} mi
+        Avg fare:        $ {{ (outputs.stats.outputs | last).row.avg_fare_usd }}
+        Avg passengers:  {{ (outputs.stats.outputs | last).row.avg_passengers }}
+        Date range:      {{ (outputs.stats.outputs | last).row.earliest_pickup }} → {{ (outputs.stats.outputs | last).row.latest_pickup }}
       ────────────────────────────────────────────────────────
