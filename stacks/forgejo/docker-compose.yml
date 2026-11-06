@@ -56,11 +56,10 @@ services:
       FORGEJO__database__USER: nexus-forgejo
       FORGEJO__database__PASSWD: ${FORGEJO_DB_PASSWORD}
       # FORGEJO_HOST rather than an inline `forgejo.${DOMAIN}`, so the
-      # reasoning lives with the renderer. Note it composes a plain dot
-      # and deliberately does NOT use subdomain_separator: the DNS
-      # record, tunnel ingress and Access application in main.tf are
-      # all `${subdomain}.${var.domain}`, so anything else would have
-      # Forgejo advertise a host nothing routes to.
+      # reasoning lives with the renderer. It is composed with the
+      # subdomain separator (#947): on a Nexus-Conductor fork the routed
+      # host is `forgejo-<user>.<base>`, and an inline `.${DOMAIN}` here
+      # would only be right because Conductor's patch rewrites it.
       FORGEJO__server__ROOT_URL: https://${FORGEJO_HOST}
       FORGEJO__server__SSH_DOMAIN: ${FORGEJO_HOST}
       # No SSH port is published and the tunnel's SSH ingress is a

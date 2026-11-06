@@ -3152,20 +3152,16 @@ def test_forgejo_compose_gives_the_runner_secret_only_to_the_runner() -> None:
     assert holders == ["forgejo-runner"]
 
 
-def test_forgejo_host_matches_what_tofu_provisions_not_the_separator(
+def test_forgejo_host_follows_the_subdomain_separator(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:
-    """Deliberately a plain dot, even when the separator says otherwise.
+    """#947: the host Forgejo advertises is the one that is routed.
 
-    An earlier revision composed this with `service_host()`, reasoning
-    that a flat-subdomain tenant should get `forgejo-user1.example.com`.
-    That was wrong. The stack's DNS record, tunnel ingress and Access
-    application are all built as `${subdomain}.${var.domain}` in
-    `main.tf`, and `variables.tf` states outright that no stack-side
-    resource references `subdomain_separator`. Composing with it would
-    have Forgejo advertise a host nothing provisions — and ROOT_URL
-    drives clone URLs and every OAuth redirect, so it has to match what
-    is actually routed.
+    A separator of "-" exists only on Nexus-Conductor forks, whose setup
+    patch rewrites the DNS records to `forgejo-<user>.<base>`. The dot
+    form this used to render (`forgejo.<user>.<base>`) does not resolve
+    there — observed on deads8-test — so every clone URL failed. ROOT_URL
+    drives clone URLs and OAuth redirects, so it must match the dash form.
     """
     import dataclasses
 
@@ -3173,7 +3169,7 @@ def test_forgejo_host_matches_what_tofu_provisions_not_the_separator(
 
     flat = dataclasses.replace(full_env, domain="user1.example.com", subdomain_separator="-")
     assert (
-        _render_forgejo(full_config, flat).env_vars["FORGEJO_HOST"] == "forgejo.user1.example.com"
+        _render_forgejo(full_config, flat).env_vars["FORGEJO_HOST"] == "forgejo-user1.example.com"
     )
 
     dotted = dataclasses.replace(full_env, domain="example.com", subdomain_separator=".")
