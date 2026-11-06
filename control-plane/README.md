@@ -89,6 +89,16 @@ Response includes:
 - `scheduledTeardown`: enabled, timezone, nextTeardown
 - `workflows`: lastDeploy, lastSpinUp, lastTeardown details
 
+### GET /api/me
+Returns the signed-in identity that the header shows: the email from the
+verified Access token and its role (`admin`, `user` or `guest`). Any
+identity on the whitelist may call it, and it only ever describes the
+caller. Sent with `Cache-Control: private, no-store`.
+
+```bash
+curl https://control.YOUR_DOMAIN/api/me
+```
+
 ### GET /api/debug
 Returns environment variable status for troubleshooting. Set/missing only —
 never a value, `ADMIN_EMAIL` included. Admin-only.

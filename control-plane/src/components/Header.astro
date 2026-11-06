@@ -19,6 +19,10 @@ const navItems = [
 ---
 
 <header>
+  <div id="signed-in" class="signed-in" hidden>
+    <span id="signed-in-role" class="signed-in-role"></span>
+    <span id="signed-in-email" class="signed-in-email"></span>
+  </div>
   <div class="logo" role="img" aria-label="Nexus Stack"></div>
   <h1>{stackLabel || 'NEXUS STACK'}</h1>
   <p class="tagline">
@@ -45,6 +49,27 @@ const navItems = [
     } catch {}
   }
   fetchVersion();
+
+  // Stays hidden unless /api/me answers: a missing badge is better than
+  // one that names somebody who is not signed in.
+  const ROLE_LABELS: Record<string, string> = { admin: 'Admin', user: 'User', guest: 'Guest' };
+
+  async function fetchIdentity() {
+    try {
+      const r = await fetch('/api/me', { credentials: 'same-origin' });
+      if (!r.ok) return;
+      const d = await r.json();
+      const box = document.getElementById('signed-in');
+      const role = document.getElementById('signed-in-role');
+      const email = document.getElementById('signed-in-email');
+      if (!box || !role || !email || !d.email) return;
+      role.textContent = ROLE_LABELS[d.role] || d.role;
+      email.textContent = d.email;
+      box.title = `Signed in as ${d.email}`;
+      box.hidden = false;
+    } catch {}
+  }
+  fetchIdentity();
 </script>
 
 <style>
@@ -58,10 +83,55 @@ const navItems = [
      `--accent-rgb` — would make the operator supply the colour twice, in
      two notations. */
   header {
+    position: relative;
     text-align: center;
     border-bottom: none;
     margin-bottom: 2rem;
     padding-bottom: 1rem;
+  }
+
+  /* Who is signed in, top right. On a narrow screen it would sit on top of
+     the logo, so there it drops into the flow above it instead. */
+  .signed-in {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 45%;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .signed-in[hidden] {
+    display: none;
+  }
+
+  .signed-in-role {
+    flex-shrink: 0;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .signed-in-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 700px) {
+    .signed-in {
+      position: static;
+      justify-content: center;
+      max-width: 100%;
+      margin: 0 auto 1rem;
+      width: fit-content;
+    }
   }
 
   /* The logo is painted, not drawn: a box filled with the accent, masked to
