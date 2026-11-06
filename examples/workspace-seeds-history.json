@@ -1,0 +1,88 @@
+{
+  "kestra/flows/http-fetch-to-r2.yaml": [
+    "36ece44a4cd42f8d80d3a141a3fa8c4c1f379765",
+    "51957f47f1f16284d487ca970903d8e14e73c9db",
+    "7ccd8245a7f547188ddf411b579047282c66fe8e"
+  ],
+  "kestra/flows/parallel-http-fetch-to-r2.yaml": [
+    "4faa905bce1a53b8fe0d5afc0c86464b67cf1fbc",
+    "555eadd5ba8f694e9a3d5eb505ba7f50b52160f7",
+    "84f2ebbdc1622e1a93cdad84788272fe744f5cef",
+    "c3c92664718e855d6b3896b8ef45b492e677ac55",
+    "da6dfeb628d5a5f65e8a98c6533d5b1d5d1bc90c",
+    "e01fe0c92b9c01d0b3229a2f2a733da4a5e80a21"
+  ],
+  "kestra/flows/r2-taxi-pipeline.yaml": [
+    "163c482d2bf70e2508062a7981fb631ff76eb1c8",
+    "43f081d3e712701a18e85623aa8108d8730757fc",
+    "5b91f78787f05c255462850a16fdd094d73879cc",
+    "747ff358f8be2f9033b8ff9a66465645f6033e5b",
+    "c04b645d681c0d003b612578fbeab9880a2235f5",
+    "cfda7299367dc9848a265e39075a9b9082486447",
+    "dcb9b05c5c39cbea37032d3962c11ebf5874cb4c",
+    "f704fa3812afb9472060c53eb1593cb896ee1b7e"
+  ],
+  "kestra/workflows/.gitkeep": [
+    "4c2e76cbe9cd9c3cb2a603b2ea0f87a2ea4921a9"
+  ],
+  "marimo/Getting_Started_DuckDB.py": [
+    "2fb576e8974cf0f002df6adb2916fff9e9ea4a76",
+    "3ae2a991b621954bc2cea463dcdd101c6fd8ed7e",
+    "55402643acc32fd8bf484295becc1cdc50c39f0b",
+    "7567d396d215681464c1a74ee083f32c6eb21d3d",
+    "99050a82a9dbbafeac0eff3ca5d651fa5e578167",
+    "ee54141b5b4bba762f3066a0d948629f249162e3",
+    "f80404ad18de7d676ebeda1bf5cef03391539aa5"
+  ],
+  "marimo/Getting_Started_Lakekeeper.py": [
+    "e8330a21c8f0284327dff4becb0e9e0693a2447f"
+  ],
+  "marimo/Getting_Started_PostgREST.py": [
+    "12cdd883ff9d93e409c720e18fa55fd3f76f26b9",
+    "e04a16237619cc309fcde579ca3e25fa80f586e5"
+  ],
+  "marimo/Getting_Started_PySpark.py": [
+    "1ae8b1cd1981f243e76deb60941ef651dce9bcaa",
+    "3c76e56018c4888859a929013c9535a9943f3c12",
+    "45d20f1b026e4279bbdcb6ee71891ea1d1e6f1cb",
+    "4f2d2aeb2c0e12768d1c66ee43b52bddb570cac1",
+    "6363639faafb2bce11ff72ede785eb6ac7532a34",
+    "faf4aea49c9f283146dd54abef378ff676411fda"
+  ],
+  "marimo/Getting_Started_Unity_Catalog.py": [
+    "16b165901fe9b82bcfb3285cd5a6f1a53d488b6f",
+    "584572bbe6b6a5ab49ccf3df05f14201953deee3",
+    "758185f4fd18ff56b64028a511cc61b2cc58c308",
+    "a77c68daa8393001ab2b24c498d58f037cdb2975"
+  ],
+  "marimo/NYC_Taxi_Pipeline.py": [
+    "1a227417a04496d3b199e61d2a62aa6477345a45",
+    "7568bdf5b699cfb9581b8db012a070e215ecdf02",
+    "b32fc7e0f3fe445e9fec465963795d5a76329a1b",
+    "d42c0ede1c702d987301619f6e47596f70b096f9",
+    "e78ae13b2323a9ed0af637431c12f62f0ec903c7"
+  ],
+  "marimo/Verify_Spark_And_S3.py": [
+    "df692516eb684b14e876154e48a5622907f22343"
+  ],
+  "marimo/_nexus_spark.py": [
+    "2e16f815f315067d31a287a2bc4e8066730139e6"
+  ],
+  "prefect/flows/nyc_green_taxi_pipeline.py": [
+    "0cf34b5cdbd2d3a3e84e8f9ca8cea2743c2a536c",
+    "39899e8e45a9e0eafffefd7f2a30905fd9da53d2",
+    "3cd61c7b96684c7e8c8b66ddddb661b52f3dedd9",
+    "9c83dbb0d4799d4e6526df34bde51b5dfe07fbd2",
+    "b3b13f73f716a7736540d825a8f45c14c6a59eab",
+    "c87a544c855c4cf34e19eaef3a9fd3805a491432",
+    "ff77dedc3664ec478a48744995de3f56c83421c9"
+  ],
+  "prefect/prefect.yaml": [
+    "0ea0aaef0c84e448ebbfd71385182c2a8f5425d8",
+    "3eaf2148ba5645ff4909d2e3b93f4cc93af831d5",
+    "48e98a04835b8503592328f873ed119e30f0ec6e",
+    "8c91492c181fcb3cbdd8ab795f5bc7b347be533c",
+    "baae7b4b3c854a7e0ebbc8835006340b9a0b6b8d",
+    "c96169d500cab6c5001d7c263c6797e97fdebd91"
+  ]
+}

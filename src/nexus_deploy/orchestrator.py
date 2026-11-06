@@ -627,7 +627,7 @@ class Orchestrator:
                 detail=f"unexpected ({type(exc).__name__})",
             )
         if result.failed > 0:
-            if result.created + result.skipped == 0:
+            if result.created + result.updated + result.skipped == 0:
                 return PhaseResult(
                     name="seed",
                     status="failed",
@@ -636,12 +636,15 @@ class Orchestrator:
             return PhaseResult(
                 name="seed",
                 status="partial",
-                detail=f"created={result.created} skipped={result.skipped} failed={result.failed}",
+                detail=(
+                    f"created={result.created} updated={result.updated} "
+                    f"skipped={result.skipped} failed={result.failed}"
+                ),
             )
         return PhaseResult(
             name="seed",
             status="ok",
-            detail=f"created={result.created} skipped={result.skipped}",
+            detail=(f"created={result.created} updated={result.updated} skipped={result.skipped}"),
         )
 
     def _phase_kestra_register(self, ssh: SSHClient) -> PhaseResult:
