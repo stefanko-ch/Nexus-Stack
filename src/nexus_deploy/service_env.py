@@ -1875,13 +1875,21 @@ def _render_flowise(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
-def _render_open_notebook(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+def _render_open_notebook(
+    c: NexusConfig, e: BootstrapEnv, *, crawl4ai_enabled: bool = False
+) -> RenderedEnv:
     """Open Notebook: its shared password, the key for stored provider
-    credentials, the SurrealDB password, and the public URL the browser
-    calls the API at.
+    credentials, the SurrealDB password, the public URL the browser
+    calls the API at, and the Crawl4AI stack when it is deployed.
 
     The password matters most: without OPEN_NOTEBOOK_PASSWORD Open
     Notebook runs with authentication off and does not warn.
+
+    CRAWL4AI_API_URL points content-core's URL extraction at the
+    ``crawl4ai`` stack over app-network. It is set only when that stack
+    is enabled; empty, the "auto" engine chain (jina, crawl4ai, simple)
+    falls past Crawl4AI instead of waiting on a container that is not
+    there. The stack has no token, so none is set.
     """
     required = {
         "OPEN_NOTEBOOK_PASSWORD": c.open_notebook_password,
@@ -1898,7 +1906,11 @@ def _render_open_notebook(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
         )
     url = f"https://{service_host('open-notebook', e.domain or '', e.subdomain_separator)}"
     return RenderedEnv(
-        env_vars={**{k: v or "" for k, v in required.items()}, "OPEN_NOTEBOOK_URL": url},
+        env_vars={
+            **{k: v or "" for k, v in required.items()},
+            "OPEN_NOTEBOOK_URL": url,
+            "CRAWL4AI_API_URL": "http://crawl4ai:11235" if crawl4ai_enabled else "",
+        },
         mode=0o600,
     )
 
@@ -3504,6 +3516,8 @@ def render_all_env_files(
             rendered = _render_grafana(config, env, prometheus_template=prometheus_template)
         elif spec.service_name == "litellm":
             rendered = _render_litellm(config, env, litellm_config_template=litellm_config_template)
+        elif spec.service_name == "open-notebook":
+            rendered = _render_open_notebook(config, env, crawl4ai_enabled="crawl4ai" in enabled)
         else:
             rendered = spec.render(config, env)
 

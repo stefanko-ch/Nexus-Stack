@@ -44,6 +44,13 @@ services:
       # changed key makes every stored credential unreadable, so it is
       # generated once and kept across a rebuild teardown.
       OPEN_NOTEBOOK_ENCRYPTION_KEY: ${OPEN_NOTEBOOK_ENCRYPTION_KEY:?must be set in .env (rendered by service_env._render_open_notebook)}
+      # URL extraction through the crawl4ai stack, over app-network.
+      # Empty when that stack is not enabled (service_env renders it).
+      CRAWL4AI_API_URL: ${CRAWL4AI_API_URL:-}
+      # Plain ws:// on purpose: SurrealDB is reachable only on
+      # open-notebook-internal, a bridge network this container alone
+      # shares with it, and publishes no port. Nothing leaves the host,
+      # as with every Postgres connection between containers here.
       SURREAL_URL: ws://open-notebook-db:8000/rpc
       SURREAL_USER: nexus-open-notebook
       SURREAL_PASSWORD: ${OPEN_NOTEBOOK_DB_PASSWORD:?must be set in .env (rendered by service_env._render_open_notebook)}

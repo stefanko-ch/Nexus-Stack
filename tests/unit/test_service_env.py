@@ -4706,6 +4706,34 @@ def test_open_notebook_renders_its_public_url_and_secrets(
     assert rendered.mode == 0o600
 
 
+@pytest.mark.parametrize(
+    ("enabled", "expected"),
+    [(["open-notebook"], ""), (["open-notebook", "crawl4ai"], "http://crawl4ai:11235")],
+)
+def test_open_notebook_uses_crawl4ai_only_when_it_is_deployed(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    tmp_path: Path,
+    enabled: list[str],
+    expected: str,
+) -> None:
+    """Through render_all_env_files, so the dispatch that passes the flag
+    is covered, not only the renderer."""
+    from nexus_deploy.service_env import render_all_env_files
+
+    config = full_config.model_copy(
+        update={
+            "open_notebook_password": "on-pw",
+            "open_notebook_encryption_key": "on-key",
+            "open_notebook_db_password": "on-db",
+        }
+    )
+    (tmp_path / "open-notebook").mkdir()
+    render_all_env_files(config, full_env, enabled, stacks_dir=tmp_path)
+    lines = (tmp_path / "open-notebook" / ".env").read_text().splitlines()
+    assert f"CRAWL4AI_API_URL={expected}" in lines
+
+
 def test_open_notebook_refuses_to_run_without_a_password(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:

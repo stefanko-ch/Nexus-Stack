@@ -39,6 +39,10 @@ Alternatively use **OpenAI Compatible** with base URL `http://litellm:4000/v1` a
 
 Podcasts need a text-to-speech model, which Ollama does not provide; that feature stays unavailable without an external TTS provider.
 
+### Web pages through Crawl4AI
+
+When the [Crawl4AI](./crawl4ai.md) stack is enabled too, Open Notebook extracts web-page sources through it (`CRAWL4AI_API_URL=http://crawl4ai:11235`, over `app-network`). This takes effect on the next spin-up after enabling it. With the default *auto* engine, Open Notebook tries Jina first, then Crawl4AI, then a plain fetch, so Crawl4AI is a fallback; choose *crawl4ai* as the URL engine in Open Notebook's settings to use it first. Without the Crawl4AI stack the variable stays empty and *auto* skips it.
+
 ### One hostname, one port
 
 The image runs the Next.js UI (8502), the FastAPI API (5055) and a worker. Only the UI is published. `API_URL` is set to the stack's public URL, so the browser calls the API there and the UI forwards `/api` to the API inside the container. Left unset, the browser would try `<host>:5055`, which the tunnel does not route.
