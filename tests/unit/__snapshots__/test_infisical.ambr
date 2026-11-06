@@ -132,7 +132,7 @@
     }),
     'kestra': dict({
       'KESTRA_PASSWORD': 'has spaces and\trabs',
-      'KESTRA_USERNAME': 'admin@snapshot.test',
+      'KESTRA_USERNAME': 'user@snapshot.test',
     }),
     'keycloak': dict({
       'KEYCLOAK_ADMIN_PASSWORD': 'keycloak_admin_password-VALUE',

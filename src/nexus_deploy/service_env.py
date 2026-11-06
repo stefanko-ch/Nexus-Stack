@@ -411,7 +411,7 @@ def _render_dagster(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 def _render_kestra(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(
         env_vars={
-            "KESTRA_ADMIN_USER": e.admin_email or "",
+            "KESTRA_ADMIN_USER": e.kestra_username,
             "KESTRA_ADMIN_PASSWORD": c.kestra_admin_password or "",
             "KESTRA_DB_PASSWORD": c.kestra_db_password or "",
             "KESTRA_URL": f"https://{service_host('kestra', e.domain or '', e.subdomain_separator)}",

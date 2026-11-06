@@ -336,19 +336,27 @@ jobs:
           # Destroy all resources in nexus-stack state
           # Control Plane is now in separate state (tofu/control-plane/)
           #
-          # Except credentials that the restored data already holds.
-          # Langflow, Label Studio, Memgraph, Open WebUI and Flowise create their login only
-          # (and Open Notebook its SurrealDB user and credential key, NiFi
-          # the key its restored flow is encrypted with, StarRocks the root
-          # password its restored metadata holds)
-          # on the first start with an empty data directory, and the R2
-          # restore brings that directory back. A regenerated password
-          # would land in Infisical but never reach the account, and a
-          # new Langflow secret key would make every credential stored in
-          # a flow unreadable. Kept in the state, the next spin-up reuses
-          # them. destroy-all.yml runs its own untargeted destroy and
-          # still removes them.
+          # Except credentials a person or the restored data already holds.
+          #
+          # The Kestra admin password (#942) is the one service credential
+          # a person types into a browser login, and browsers keep sending
+          # the remembered one: after every regeneration each user got 401
+          # until they cleared their site data.
+          #
+          # The others are held by data the R2 restore brings back:
+          # Langflow, Label Studio, Memgraph, Open WebUI and Flowise create
+          # their login only on the first start with an empty data
+          # directory; Open Notebook keeps its SurrealDB user and credential
+          # key, NiFi the key its flow is encrypted with, and StarRocks the
+          # root password in its metadata. A regenerated value would land in
+          # Infisical but never reach the restored data, and a new Langflow
+          # secret key would make every credential stored in a flow
+          # unreadable.
+          #
+          # Kept in the state, the next spin-up reuses them. destroy-all.yml
+          # runs its own untargeted destroy and still removes them.
           tofu destroy -var-file=config.tfvars -auto-approve \
+            -exclude=random_password.kestra_admin \
             -exclude=random_password.langflow_superuser \
             -exclude=random_password.langflow_secret_key \
             -exclude=random_password.label_studio_admin \

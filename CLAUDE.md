@@ -146,8 +146,9 @@ Settings page. In the Actions UI the pairs appear as **Lifecycle: …
 `legacy`; it was renamed because the pair is a permanent fallback rather than
 something deprecated, and `schema.sql` migrates existing rows on every
 Control Plane deploy. **Never dispatch the two pairs at the same stack
-interchangeably**: the rebuild teardown runs an
-untargeted `tofu destroy` that regenerates all 81 service credentials, and the
+interchangeably**: the rebuild teardown runs a
+`tofu destroy` that regenerates the service credentials (all but Kestra's login
+and the Forgejo service token, which it preserves), and the
 epoch guard then correctly refuses any existing snapshot. That is why it is one
 config key rather than one per workflow.
 

@@ -106,7 +106,9 @@ A powerful, event-driven workflow orchestration platform for building data pipel
 > plus the basic-auth credentials 2.0 now requires for such calls. The two URLs
 > are deliberately different: `kestra.url` stays public for the browser.
 
-> ✅ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge. Kestra's own Basic-Auth popup is **disabled** by default to avoid double-authentication — students authenticate once via the CF OTP and land directly in the UI. `enabled: false` turns off the **UI** prompt only — the REST API still demands authentication on 2.0. Measured on the running server: `GET /ui/` without credentials returns 200, `GET /api/v1/main/flows/...` returns 401, and 200 with them. So `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` are **not** spare forward-compat values: they are what `kestra.tasks.sdk.authentication` (above) hands to `git.PushFlows` / `git.SyncFlows`, and removing them breaks those tasks while leaving the UI working — a failure that looks unrelated to auth.
+> ⚠️ **Auth:** Cloudflare Access (email OTP) gates the UI at the edge, and Kestra 2.0 adds its own login behind it. `basic-auth: enabled: false` does not remove that: the UI page loads without credentials, but its API calls get 401 until the user logs in, and `GET /api/v1/configs/login` answers `isBasicAuthInitialized: true` (#942). Measured on the running server: `GET /ui/` without credentials returns 200, `GET /api/v1/main/flows/...` returns 401, and 200 with them. The login is `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` from Infisical. The password survives a rebuild teardown, which excludes it from the destroy, so a login the browser remembered keeps working. So `KESTRA_ADMIN_USER` / `KESTRA_ADMIN_PASSWORD` are **not** spare forward-compat values: they are what `kestra.tasks.sdk.authentication` (above) hands to `git.PushFlows` / `git.SyncFlows`, and removing them breaks those tasks while leaving the UI working — a failure that looks unrelated to auth.
+
+**Which email is the login.** `KESTRA_ADMIN_USER` (Infisical: `kestra/KESTRA_USERNAME`) is the stack user's email — the first entry of `user_email` — and `ADMIN_EMAIL` only on a stack without one (`BootstrapEnv.kestra_username`, #960). It is also `ADMIN_EMAIL` when the user's address is one Kestra refuses: Kestra accepts only ASCII addresses, and on a refused one it keeps its old stored login, so the deploy's API calls would get 401. Before, it was always `ADMIN_EMAIL`, so every student of a class saw the instructor's address in Kestra. Kestra writes the configured credentials over its stored ones on every start, so an existing stack switches on its next spin-up without a database change.
 
 ### Architecture
 
@@ -157,7 +159,7 @@ place.
 | Layer | What it does |
 |---|---|
 | **Cloudflare Access** (edge) | Email OTP. No unauthenticated request ever reaches the container. Audit log of who authenticated lives in the CF dashboard. |
-| **Kestra Basic-Auth** | **Disabled** by default — see `stacks/kestra/docker-compose.yml` for the rationale comment. Re-enable only if you want the single shared `KESTRA_ADMIN_USER` name to appear in Kestra's audit log (instead of `anon/system`), or once you've moved to Kestra Enterprise with SSO/OIDC. Basic-Auth in OSS Kestra is a single shared admin — **it does NOT give per-user attribution**; every student would log in as the same admin. Real per-user attribution requires EE + SSO. |
+| **Kestra Basic-Auth** | Set to `enabled: false`, but Kestra 2.0 enforces the login anyway — see the Auth note above and `stacks/kestra/docker-compose.yml`. Basic-Auth in OSS Kestra is a single shared account — **it does NOT give per-user attribution**. Real per-user attribution requires EE + SSO. |
 | **Kestra namespaces** | Flow-level access boundaries (`my-flows.*`, `nexus-tutorials.*`). Independent of who's logged in — used for organizing flows, not gating them. |
 
 ## PostgreSQL 18
