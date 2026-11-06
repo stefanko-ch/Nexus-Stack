@@ -1198,7 +1198,9 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "valkey",
             _filter_empty(
                 {
-                    # Redis protocol: valkey:6379 in-cluster, default user.
+                    # Redis protocol: valkey:6379 in-cluster. The built-in
+                    # `default` user is switched off.
+                    "VALKEY_USERNAME": "nexus-valkey",
                     "VALKEY_PASSWORD": config.valkey_password,
                 }
             ),

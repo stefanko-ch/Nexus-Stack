@@ -361,6 +361,7 @@
     }),
     'valkey': dict({
       'VALKEY_PASSWORD': 'valkey_password-VALUE',
+      'VALKEY_USERNAME': 'nexus-valkey',
     }),
     'wikijs': dict({
       'WIKIJS_DB_PASSWORD': 'wikijs_db_password-VALUE',

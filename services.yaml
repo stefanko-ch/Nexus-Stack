@@ -824,7 +824,7 @@ services:
     category: "orchestration"
     website: "https://sqlmesh.com"
     description: "SQL transformations with plans, virtual environments and tests — the dbt alternative, with a browser IDE."
-    long_description: "SQLMesh transforms data with SQL or Python models like dbt, but understands the SQL: it computes a plan of what a change affects before applying it, keeps a cheap virtual environment per branch, backfills only what changed, and runs unit tests and audits on models. This stack runs SQLMesh's browser IDE on a project created on first start from the example on DuckDB. Upstream has marked the browser UI as deprecated in favour of its VS Code extension; it still ships in the pinned version, and the same project works from code-server. The IDE has no accounts, so Cloudflare Access is the only gate. The image is built here from python:slim, for amd64 and arm64. The project volume survives the snapshot lifecycle, not a rebuild teardown."
+    long_description: "SQLMesh transforms data with SQL or Python models like dbt, but understands the SQL: it computes a plan of what a change affects before applying it, keeps a cheap virtual environment per branch, backfills only what changed, and runs unit tests and audits on models. This stack runs SQLMesh's browser IDE on a project created on first start from the example on DuckDB; PostgreSQL works as a target too. Upstream has marked the browser UI as deprecated in favour of its VS Code extension; it still ships in the pinned version, and the same project works from code-server. The IDE has no accounts, so Cloudflare Access is the only gate. The image is built here from python:slim, for amd64 and arm64. The project volume survives the snapshot lifecycle, not a rebuild teardown."
     image: "nexus-sqlmesh:0.236.4"
 
   starrocks:
@@ -1505,7 +1505,7 @@ services:
     category: "databases"
     website: "https://valkey.io"
     description: "Redis-compatible in-memory data store: caching, queues, pub/sub and streams."
-    long_description: "Valkey is the open-source fork of Redis, maintained under the Linux Foundation and wire-compatible with it, so every Redis client and redis-cli command works. Keys, hashes, lists, sorted sets, pub/sub and streams make it the usual choice for caching, rate limits, job queues and lightweight event streams. Clients connect to valkey:6379 on app-network with the password from Infisical (folder `valkey`); the stack is internal only. Memory is capped at 384 MB with eviction off, so a full store answers with an error instead of dropping keys. Data is persisted with an append-only file in a Docker volume, which survives a restart and the snapshot lifecycle, not a rebuild teardown."
+    long_description: "Valkey is the open-source fork of Redis, maintained under the Linux Foundation and wire-compatible with it, so every Redis client and redis-cli command works. Keys, hashes, lists, sorted sets, pub/sub and streams make it the usual choice for caching, rate limits, job queues and lightweight event streams. Clients connect to valkey:6379 on app-network as nexus-valkey with the password from Infisical (folder `valkey`); the built-in default user is switched off, and the stack is internal only. Memory is capped at 384 MB with eviction off, so a full store answers with an error instead of dropping keys. Data is persisted with an append-only file in a Docker volume, which survives a restart and the snapshot lifecycle, not a rebuild teardown."
     image: "valkey/valkey:9.1.3-alpine"
 
   vector:

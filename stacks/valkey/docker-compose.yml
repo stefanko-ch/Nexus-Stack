@@ -4,9 +4,12 @@
 # Internal only: valkey:6379 on app-network. The Redis protocol cannot cross
 # the HTTPS tunnel, and there is no web UI.
 #
-# Password protected (requirepass), from Infisical folder `valkey`. The
-# password is written into a config file at start rather than passed on the
-# command line, so it does not show up in `docker inspect` or `ps`.
+# Clients authenticate as the ACL user nexus-valkey with the password from
+# Infisical folder `valkey`; the built-in `default` user is switched off, so
+# no account with a well-known name accepts logins. The password reaches the
+# container as an environment variable, like every other stack's secrets, and
+# is written into a 0600 config file at start rather than passed as an
+# argument, so it is not in the process list or in `.Config.Cmd`.
 # Append-only persistence in the valkey-data volume, which survives a
 # restart and the snapshot lifecycle, not a rebuild teardown.
 # =============================================================================
@@ -26,7 +29,7 @@ services:
       - |
         set -eu
         umask 077
-        printf 'requirepass %s\nappendonly yes\ndir /data\nmaxmemory 384mb\nmaxmemory-policy noeviction\n' "$$VALKEY_PASSWORD" > /tmp/valkey.conf
+        printf 'user default off\nuser nexus-valkey on >%s ~* &* +@all\nappendonly yes\ndir /data\nmaxmemory 384mb\nmaxmemory-policy noeviction\n' "$$VALKEY_PASSWORD" > /tmp/valkey.conf
         chown valkey:valkey /tmp/valkey.conf
         exec docker-entrypoint.sh valkey-server /tmp/valkey.conf
     volumes:
@@ -36,7 +39,7 @@ services:
         limits:
           memory: 512m
     healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli ping | grep -q PONG"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli --user nexus-valkey ping | grep -q PONG"]
       interval: 15s
       timeout: 5s
       retries: 5

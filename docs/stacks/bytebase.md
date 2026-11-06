@@ -29,7 +29,7 @@ Bytebase manages PostgreSQL, MySQL, ClickHouse, MongoDB and more, so the databas
 
 The first account to sign up becomes the workspace admin. So that this is never a stranger, `bytebase-init` claims it on the first start with the stack user's email (or `admin_email` if no user is configured) and a generated password, Infisical folder `bytebase`, key `BYTEBASE_PASSWORD`. It also turns off Bytebase's metric collection.
 
-On every later start it logs in instead and stops if the password no longer matches. A failed claim fails the container visibly rather than leaving the admin unclaimed.
+On every later start it logs in instead and stops if the password no longer matches. The claim races anyone who opens the page in the seconds after Bytebase becomes healthy, so `bytebase-init` polls every second. If someone does sign up first, the generated account becomes a member, the settings change is refused with 403, and `bytebase-init` exits with a message saying so. The smoke check reports an init container that exits non-zero. Resetting `bytebase-db` lets the next start claim the admin again.
 
 **Further sign-ups stay open.** Turning them off is a paid feature (`FEATURE_DISALLOW_SELF_SERVICE_SIGNUP` is a TEAM feature), so anyone who reaches the page can create an account. Bytebase makes such accounts workspace members, not admins, and only people on the Cloudflare Access whitelist reach the page at all.
 

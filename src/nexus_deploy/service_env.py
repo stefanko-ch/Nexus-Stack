@@ -1981,6 +1981,15 @@ def _render_bytebase(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
             "user's email in config.tfvars. Aborting rather than leaving the "
             "Bytebase admin to whoever signs up first.",
         )
+    # bytebase-init puts the email into a JSON string with printf; a quote,
+    # backslash or whitespace would break the request. No real address in
+    # admin_email or user_email has one.
+    email = stack_user_email(e) or ""
+    if any(ch in email for ch in '"\\') or any(ch.isspace() for ch in email):
+        raise ServiceEnvError(
+            "Bytebase enabled but the admin email contains a quote, backslash or "
+            "whitespace, which bytebase-init cannot put into its sign-up request.",
+        )
     # The database password sits inside PG_URL, the admin password inside
     # the JSON bytebase-init builds with printf.
     if bad := _non_alnum(
@@ -2040,7 +2049,7 @@ def _render_valkey(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     if _non_alnum({"VALKEY_PASSWORD": c.valkey_password}):
         raise ServiceEnvError(
             "Valkey enabled but VALKEY_PASS is not alphanumeric -- the container "
-            "writes it unquoted into a requirepass line, where a space or quote "
+            "writes it unquoted into an ACL line, where a space or quote "
             "would change the config. It should come from random_password.valkey, "
             "which has special = false.",
         )

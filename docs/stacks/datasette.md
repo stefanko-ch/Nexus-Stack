@@ -32,7 +32,8 @@ Datasette serves every `*.db` file in `/data`, read-only. It reads the directory
 `sqlite-utils` is in the image, so a CSV becomes a table with one command:
 
 ```bash
-ssh nexus "docker cp cities.csv datasette:/tmp/cities.csv"
+scp cities.csv nexus:/tmp/cities.csv
+ssh nexus "docker cp /tmp/cities.csv datasette:/tmp/cities.csv"
 ssh nexus "docker exec datasette sqlite-utils insert /data/demo.db cities /tmp/cities.csv --csv"
 ssh nexus "docker restart datasette"
 ```

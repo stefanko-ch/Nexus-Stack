@@ -22,7 +22,7 @@ This stack runs SQLMesh's browser IDE.
 | Suggested Subdomain | `sqlmesh` |
 | Public Access | No (protected by Cloudflare Access) |
 | Credentials | None — the IDE has no accounts |
-| Engine | DuckDB, inside the project directory |
+| Engine | DuckDB inside the project directory; PostgreSQL available |
 | Persistence | Docker volume `sqlmesh-project` (see [Persistence](#persistence)) |
 | Website | [sqlmesh.com](https://sqlmesh.com) |
 | Source | [GitHub](https://github.com/TobikoData/sqlmesh) |
@@ -47,7 +47,7 @@ dbt is in the [code-server](code-server.md) image. Both read SQL models from a p
 
 ### Image
 
-SQLMesh publishes no Docker image. `stacks/sqlmesh/Dockerfile` builds one from `python:3.12-slim` with `sqlmesh[web]==0.236.4`, so it is arch-correct on amd64 and arm64. Other engines' extras are left out. `postgres`, for instance, needs a compiler and `pg_config` to build `psycopg2`.
+SQLMesh publishes no Docker image. `stacks/sqlmesh/Dockerfile` builds one from `python:3.12-slim` with `sqlmesh[web]==0.236.4`, so it is arch-correct on amd64 and arm64. `psycopg2-binary==2.9.13` is added so a project can also target PostgreSQL, for example the shared `postgres` stack at `postgres:5432`. The `postgres` extra itself is not used, because it builds `psycopg2` from source and needs a compiler and `pg_config`. Other engines' extras are left out.
 
 ### Authentication
 

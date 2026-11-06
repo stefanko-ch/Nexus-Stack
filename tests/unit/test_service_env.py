@@ -4718,6 +4718,24 @@ def test_bytebase_refuses_an_empty_admin_password(
         _render_bytebase(config, full_env)
 
 
+@pytest.mark.parametrize("email", ['a"b@example.com', "a\\b@example.com", "a b@example.com"])
+def test_bytebase_refuses_an_email_it_cannot_put_into_json(
+    full_config: NexusConfig, full_env: BootstrapEnv, email: str
+) -> None:
+    """bytebase-init builds its sign-up JSON with printf, so a quote,
+    backslash or whitespace in the email would break the request."""
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_bytebase
+
+    config = full_config.model_copy(
+        update={"bytebase_db_password": "bbdb1", "bytebase_admin_password": "BbPass1"}
+    )
+    env = replace(full_env, forgejo_user_email=email)
+    with pytest.raises(ServiceEnvError, match="admin email"):
+        _render_bytebase(config, env)
+
+
 def test_hasura_renders_and_refuses_an_empty_admin_secret(
     full_config: NexusConfig, full_env: BootstrapEnv
 ) -> None:

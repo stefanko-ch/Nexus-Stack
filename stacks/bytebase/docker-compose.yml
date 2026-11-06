@@ -55,7 +55,15 @@ services:
       - |
         set -eu
         api=http://bytebase:8080
-        until curl -fsS -o /dev/null "$$api/healthz"; do sleep 3; done
+        # The first sign-up becomes the workspace admin, so the claim races
+        # anyone who opens the page first. Poll every second to keep that
+        # window short; depends_on already waits for the health check.
+        i=0
+        until curl -fsS -o /dev/null "$$api/healthz"; do
+          i=$$((i + 1))
+          if [ "$$i" -ge 300 ]; then echo "bytebase-init: Bytebase not healthy after 300s" >&2; exit 1; fi
+          sleep 1
+        done
         # Log in first: on every start after the first the admin exists,
         # and a sign-up with a taken email is an error, not a no-op.
         login() {
@@ -72,7 +80,9 @@ services:
             echo "bytebase-init: sign-up failed (HTTP $$scode): $$(head -c 300 /tmp/signup.out 2>/dev/null)" >&2
             exit 1
           fi
-          echo "bytebase-init: admin created"
+          # Admin or member is only known once the settings change below
+          # is accepted or refused.
+          echo "bytebase-init: account created"
           code=$$(login) || code=000
         else
           echo "bytebase-init: admin already exists"
@@ -88,6 +98,11 @@ services:
           --data-binary '{"name":"settings/WORKSPACE_PROFILE","value":{"workspaceProfile":{"enableMetricCollection":false}}}') || mcode=000
         if [ "$$mcode" = 200 ]; then
           echo "bytebase-init: metric collection off"
+        elif [ "$$mcode" = 403 ]; then
+          # Only a workspace admin may change settings. A 403 here means
+          # the generated account is a member: someone signed up first.
+          echo "bytebase-init: the generated account is not the workspace admin -- another account signed up first. Reset bytebase-db to reclaim it." >&2
+          exit 1
         else
           echo "bytebase-init: could not turn off metric collection (HTTP $$mcode): $$(head -c 200 /tmp/metrics.out 2>/dev/null)" >&2
           exit 1

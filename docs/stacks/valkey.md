@@ -18,7 +18,7 @@ Valkey is the open-source fork of Redis, maintained under the Linux Foundation a
 |---------|-------|
 | Address | `valkey:6379`, inside `app-network` only |
 | Public Access | None — internal only |
-| Credentials | Default user, password generated per deployment (Infisical folder `valkey`) |
+| Credentials | `nexus-valkey`, password generated per deployment (Infisical folder `valkey`); the built-in `default` user is off |
 | Memory | `maxmemory 384mb`, `noeviction`; container limit 512 MB |
 | Persistence | Append-only file in the Docker volume `valkey-data` |
 | Website | [valkey.io](https://valkey.io) |
@@ -31,7 +31,7 @@ From a notebook on `app-network`, with the standard Redis client:
 ```python
 import redis
 
-r = redis.Redis(host="valkey", port=6379, password="<VALKEY_PASSWORD>")
+r = redis.Redis(host="valkey", port=6379, username="nexus-valkey", password="<VALKEY_PASSWORD>")
 r.set("greeting", "hello")
 r.get("greeting")
 ```
@@ -39,12 +39,14 @@ r.get("greeting")
 From the server:
 
 ```bash
-ssh nexus 'docker exec -it valkey sh -c "REDISCLI_AUTH=\"\$VALKEY_PASSWORD\" valkey-cli"'
+ssh nexus 'docker exec -it valkey sh -c "REDISCLI_AUTH=\"\$VALKEY_PASSWORD\" valkey-cli --user nexus-valkey"'
 ```
 
-### Password
+### Account and password
 
-The password goes into the config file `/tmp/valkey.conf` when the container starts, with mode `600` and owned by `valkey`. It is not on the command line, so `docker inspect` and `ps` do not show it. The deploy refuses to start Valkey without a password, because every container on `app-network` could otherwise read and write it.
+Clients log in as the ACL user `nexus-valkey`. The built-in `default` user is switched off, so no account with a well-known name accepts logins; a client that sends only a password authenticates as `default` and is refused.
+
+The password reaches the container as the environment variable `VALKEY_PASSWORD`, like every other stack's secrets, so it is visible to anyone who can run `docker inspect` on the server. At start it is written into `/tmp/valkey.conf` (mode `600`, owned by `valkey`), not passed as an argument, so it is not in the process list or in the container's command. The deploy refuses to start Valkey without a password, or with one that is not alphanumeric.
 
 ### Memory
 
