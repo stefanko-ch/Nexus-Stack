@@ -148,6 +148,13 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("MSSQL_SA_PASS", "mssql_sa_password", ""),
     ("MSSQL_PASS", "mssql_password", ""),
     ("CONDUIT_API_TOKEN", "conduit_api_token", ""),
+    ("RABBITMQ_PASS", "rabbitmq_password", ""),
+    ("MOSQUITTO_PASS", "mosquitto_password", ""),
+    ("NODE_RED_ADMIN_PASS", "node_red_admin_password", ""),
+    ("NODE_RED_CREDENTIAL_SECRET", "node_red_credential_secret", ""),
+    ("MYSQL_ROOT_PASS", "mysql_root_password", ""),
+    ("MYSQL_PASS", "mysql_password", ""),
+    ("RSTUDIO_PASS", "rstudio_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -354,6 +361,13 @@ class NexusConfig(BaseModel):
     mssql_sa_password: str | None = None
     mssql_password: str | None = None
     conduit_api_token: str | None = None
+    rabbitmq_password: str | None = None
+    mosquitto_password: str | None = None
+    node_red_admin_password: str | None = None
+    node_red_credential_secret: str | None = None
+    mysql_root_password: str | None = None
+    mysql_password: str | None = None
+    rstudio_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

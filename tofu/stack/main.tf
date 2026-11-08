@@ -733,6 +733,43 @@ resource "random_password" "conduit_api_token" {
   special = false
 }
 
+# RabbitMQ, Mosquitto, Node-RED, MySQL and RStudio. Alphanumeric, like
+# the rest: they go into JSON, SQL and config files.
+resource "random_password" "rabbitmq" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "mosquitto" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "node_red_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "node_red_credential_secret" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "mysql_root" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "mysql" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "rstudio" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

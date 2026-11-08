@@ -1337,6 +1337,64 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "rabbitmq",
+            _filter_empty(
+                {
+                    # Management UI and AMQP (amqp://rabbitmq:5672).
+                    "RABBITMQ_USERNAME": "nexus-rabbitmq",
+                    "RABBITMQ_PASSWORD": config.rabbitmq_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "mosquitto",
+            _filter_empty(
+                {
+                    # MQTT at mosquitto:1883; anonymous access is off.
+                    "MOSQUITTO_USERNAME": "nexus-mosquitto",
+                    "MOSQUITTO_PASSWORD": config.mosquitto_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "node-red",
+            _filter_empty(
+                {
+                    "NODE_RED_USERNAME": "nexus-admin",
+                    "NODE_RED_PASSWORD": config.node_red_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "mysql",
+            _filter_empty(
+                {
+                    # mysql:3306, database `nexus`; root is not handed out.
+                    "MYSQL_USERNAME": "nexus-mysql",
+                    "MYSQL_PASSWORD": config.mysql_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "rstudio",
+            _filter_empty(
+                {
+                    "RSTUDIO_USERNAME": "nexus-rstudio",
+                    "RSTUDIO_PASSWORD": config.rstudio_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

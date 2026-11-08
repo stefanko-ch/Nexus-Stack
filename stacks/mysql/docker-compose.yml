@@ -1,0 +1,52 @@
+# =============================================================================
+# MySQL 8.4 LTS
+# =============================================================================
+# The most widely used open-source relational database, and the usual
+# source in Debezium CDC exercises: binary logging is on in 8.4 by default,
+# in ROW format, which is what Debezium reads.
+#
+# No web UI, so no subdomain and no tunnel ingress (`internal_only` in
+# services.yaml). Clients on app-network connect to mysql:3306 as
+# nexus-mysql, database `nexus` (Infisical folder `mysql`); CloudBeaver and
+# Adminer speak MySQL. The root password is generated too and not handed
+# out.
+#
+# Data in the mysql-data volume, which survives a restart and the snapshot
+# lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  mysql:
+    image: ${IMAGE_MYSQL:-mysql:8.4.13}
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      # All read only when the data volume is empty.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_mysql)}
+      MYSQL_USER: nexus-mysql
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?must be set in .env (rendered by service_env._render_mysql)}
+      MYSQL_DATABASE: nexus
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Replication grants for Debezium, applied on first initialisation.
+      - ./01-cdc-grants.sql:/docker-entrypoint-initdb.d/01-cdc-grants.sql:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # MYSQL_PWD rather than -p keeps the password out of the process list.
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u nexus-mysql --silent"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  mysql-data:
+
+networks:
+  app-network:
+    external: true
