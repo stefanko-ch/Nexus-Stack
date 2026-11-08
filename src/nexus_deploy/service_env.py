@@ -1949,6 +1949,122 @@ def _render_nifi(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _non_alnum(values: dict[str, str | None]) -> list[str]:
+    """Names of the values that are not plain ASCII letters and digits.
+
+    For secrets that land inside a connection URL, a JSON body built with
+    printf, or an unquoted config line. Every one of them comes from a
+    ``random_password`` with ``special = false``; this keeps that coupling
+    from failing silently if one ever changes. Returns names only, never
+    values, because the caller's message lands in a public log.
+    """
+    return sorted(k for k, v in values.items() if not ((v or "").isascii() and (v or "").isalnum()))
+
+
+def _render_bytebase(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Bytebase: its database password, its external URL, and the admin.
+
+    The first account to sign up becomes the workspace admin. bytebase-init
+    claims it with these values; empty ones would leave the admin to
+    whoever opens the page first, so they fail the deploy.
+    """
+    required = {
+        "BYTEBASE_DB_PASSWORD": c.bytebase_db_password,
+        "BYTEBASE_ADMIN_EMAIL": stack_user_email(e),
+        "BYTEBASE_ADMIN_PASSWORD": c.bytebase_admin_password,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Bytebase enabled but {', '.join(missing)} empty -- the passwords "
+            "come from the tofu outputs `bytebase_db_password` and "
+            "`bytebase_admin_password`, the email from admin_email or the stack "
+            "user's email in config.tfvars. Aborting rather than leaving the "
+            "Bytebase admin to whoever signs up first.",
+        )
+    # bytebase-init puts the email into a JSON string with printf; a quote,
+    # backslash or whitespace would break the request. No real address in
+    # admin_email or user_email has one.
+    email = stack_user_email(e) or ""
+    if any(ch in email for ch in '"\\') or any(ch.isspace() for ch in email):
+        raise ServiceEnvError(
+            "Bytebase enabled but the admin email contains a quote, backslash or "
+            "whitespace, which bytebase-init cannot put into its sign-up request.",
+        )
+    local, _, domain = email.partition("@")
+    if not local or "." not in domain:
+        # Bytebase refuses such a sign-up, and bytebase-init would exit with
+        # no admin claimed; failing here names the cause instead.
+        raise ServiceEnvError(
+            "Bytebase enabled but the admin email is not an address of the form "
+            "name@domain -- check admin_email and the stack user's email in "
+            "config.tfvars.",
+        )
+    # The database password sits inside PG_URL, the admin password inside
+    # the JSON bytebase-init builds with printf.
+    if bad := _non_alnum(
+        {
+            "BYTEBASE_DB_PASSWORD": c.bytebase_db_password,
+            "BYTEBASE_ADMIN_PASSWORD": c.bytebase_admin_password,
+        }
+    ):
+        raise ServiceEnvError(
+            f"Bytebase enabled but {', '.join(bad)} not alphanumeric -- the "
+            "database password goes into a connection URL and the admin password "
+            "into a JSON body. Both should come from random_password with "
+            "special = false.",
+        )
+    url = f"https://{service_host('bytebase', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in required.items()}, "BYTEBASE_URL": url},
+        mode=0o600,
+    )
+
+
+def _render_hasura(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Hasura: its database password and the admin secret.
+
+    Without HASURA_GRAPHQL_ADMIN_SECRET Hasura serves its whole API, schema
+    changes included, to anyone who reaches it, so an empty secret fails
+    the deploy.
+    """
+    required = {
+        "HASURA_DB_PASSWORD": c.hasura_db_password,
+        "HASURA_ADMIN_SECRET": c.hasura_admin_secret,
+    }
+    if missing := sorted(k for k, v in required.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"Hasura enabled but {', '.join(missing)} empty -- they come from the "
+            "tofu outputs `hasura_db_password` and `hasura_admin_secret`. "
+            "Aborting rather than starting Hasura without an admin secret.",
+        )
+    if _non_alnum({"HASURA_DB_PASSWORD": c.hasura_db_password}):
+        raise ServiceEnvError(
+            "Hasura enabled but HASURA_DB_PASSWORD is not alphanumeric -- it goes "
+            "into the database connection URL. It should come from "
+            "random_password.hasura_db, which has special = false.",
+        )
+    return RenderedEnv(env_vars={k: v or "" for k, v in required.items()}, mode=0o600)
+
+
+def _render_valkey(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Valkey: its requirepass. Without one, every container on app-network
+    could read and write it."""
+    if _empty(c.valkey_password):
+        raise ServiceEnvError(
+            "Valkey enabled but VALKEY_PASS is empty -- it comes from the tofu "
+            "output `valkey_password` (random_password.valkey). Aborting rather "
+            "than starting Valkey without a password.",
+        )
+    if _non_alnum({"VALKEY_PASSWORD": c.valkey_password}):
+        raise ServiceEnvError(
+            "Valkey enabled but VALKEY_PASS is not alphanumeric -- the container "
+            "writes it unquoted into an ACL line, where a space or quote "
+            "would change the config. It should come from random_password.valkey, "
+            "which has special = false.",
+        )
+    return RenderedEnv(env_vars={"VALKEY_PASSWORD": c.valkey_password or ""}, mode=0o600)
+
+
 def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """StarRocks: the password start.sh gives root and nexus-starrocks.
 
@@ -3301,6 +3417,9 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("open-notebook", _is_enabled("open-notebook"), _render_open_notebook),
     EnvSpec("nifi", _is_enabled("nifi"), _render_nifi),
     EnvSpec("starrocks", _is_enabled("starrocks"), _render_starrocks),
+    EnvSpec("bytebase", _is_enabled("bytebase"), _render_bytebase),
+    EnvSpec("hasura", _is_enabled("hasura"), _render_hasura),
+    EnvSpec("valkey", _is_enabled("valkey"), _render_valkey),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

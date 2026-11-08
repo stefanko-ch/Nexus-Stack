@@ -1,0 +1,152 @@
+# =============================================================================
+# Bytebase - database schema changes as reviewed, versioned work
+# =============================================================================
+# URL: https://bytebase.<domain>
+#
+# SQL review, change plans and approval flows for PostgreSQL, MySQL,
+# ClickHouse and more. Bytebase keeps its own state in bytebase-db.
+#
+# The first account to sign up becomes the workspace admin, so bytebase-init
+# claims it on first start with the stack user's email and a generated
+# password (Infisical folder `bytebase`), and turns off Bytebase's metric
+# collection. Turning off further sign-ups is a paid feature; later sign-ups
+# are workspace members, and only people on the Access whitelist reach the
+# page at all.
+#
+# Data in the bytebase-db-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  bytebase:
+    image: ${IMAGE_BYTEBASE:-bytebase/bytebase:3.24.1}
+    container_name: bytebase
+    restart: unless-stopped
+    command: ["--port", "8080", "--data", "/var/opt/bytebase", "--external-url", "${BYTEBASE_URL:?must be set in .env (rendered by service_env._render_bytebase)}"]
+    ports:
+      - "127.0.0.1:8113:8080"
+    environment:
+      PG_URL: postgresql://nexus-bytebase:${BYTEBASE_DB_PASSWORD:?must be set in .env (rendered by service_env._render_bytebase)}@bytebase-db:5432/bytebase
+    volumes:
+      - bytebase-data:/var/opt/bytebase
+    depends_on:
+      bytebase-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+      - bytebase-internal
+
+  bytebase-init:
+    image: ${IMAGE_BYTEBASE:-bytebase/bytebase:3.24.1}
+    container_name: bytebase-init
+    # Retries a transient failure (a sign-up or settings call that times
+    # out) a few times. Each run is idempotent: it logs in when the account
+    # exists. A lost admin claim fails every retry the same way.
+    restart: "on-failure:3"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        api=http://bytebase:8080
+        # The first sign-up becomes the workspace admin, so the claim races
+        # anyone who opens the page first. Poll every second to keep that
+        # window short; depends_on already waits for the health check.
+        i=0
+        until curl -fsS -o /dev/null "$$api/healthz"; do
+          i=$$((i + 1))
+          if [ "$$i" -ge 300 ]; then echo "bytebase-init: Bytebase not healthy after 300s" >&2; exit 1; fi
+          sleep 1
+        done
+        # Log in first: on every start after the first the admin exists,
+        # and a sign-up with a taken email is an error, not a no-op.
+        login() {
+          printf '{"email":"%s","password":"%s","web":true}' "$$BYTEBASE_ADMIN_EMAIL" "$$BYTEBASE_ADMIN_PASSWORD" \
+            | curl -s -c /tmp/cookies -o /tmp/login.out -w '%{http_code}' \
+                -H 'Content-Type: application/json' -X POST "$$api/v1/auth/login" --data-binary @-
+        }
+        code=$$(login) || code=000
+        if [ "$$code" != 200 ]; then
+          body=$$(printf '{"email":"%s","title":"Nexus","password":"%s"}' "$$BYTEBASE_ADMIN_EMAIL" "$$BYTEBASE_ADMIN_PASSWORD")
+          scode=$$(printf '%s' "$$body" | curl -s -o /tmp/signup.out -w '%{http_code}' \
+            -H 'Content-Type: application/json' -X POST "$$api/v1/auth/signup" --data-binary @-) || scode=000
+          if [ "$$scode" != 200 ]; then
+            echo "bytebase-init: sign-up failed (HTTP $$scode): $$(head -c 300 /tmp/signup.out 2>/dev/null)" >&2
+            exit 1
+          fi
+          # Admin or member is only known once the settings change below
+          # is accepted or refused.
+          echo "bytebase-init: account created"
+          code=$$(login) || code=000
+        else
+          echo "bytebase-init: admin already exists"
+        fi
+        if [ "$$code" != 200 ]; then
+          echo "bytebase-init: login as the admin failed (HTTP $$code) -- the account exists with a different password" >&2
+          exit 1
+        fi
+        token=$$(awk '$$6 == "access-token" { print $$7 }' /tmp/cookies)
+        mcode=$$(curl -s -o /tmp/metrics.out -w '%{http_code}' -H "Authorization: Bearer $$token" \
+          -H 'Content-Type: application/json' -X PATCH \
+          "$$api/v1/settings/WORKSPACE_PROFILE?updateMask=value.workspace_profile.enable_metric_collection" \
+          --data-binary '{"name":"settings/WORKSPACE_PROFILE","value":{"workspaceProfile":{"enableMetricCollection":false}}}') || mcode=000
+        if [ "$$mcode" = 200 ]; then
+          echo "bytebase-init: metric collection off"
+        elif [ "$$mcode" = 403 ]; then
+          # Only a workspace admin may change settings. A 403 here means
+          # the generated account is a member: someone signed up first.
+          echo "bytebase-init: the generated account is not the workspace admin -- another account signed up first. Reset bytebase-db to reclaim it." >&2
+          exit 1
+        else
+          echo "bytebase-init: could not turn off metric collection (HTTP $$mcode): $$(head -c 200 /tmp/metrics.out 2>/dev/null)" >&2
+          exit 1
+        fi
+    environment:
+      BYTEBASE_ADMIN_EMAIL: ${BYTEBASE_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_bytebase)}
+      BYTEBASE_ADMIN_PASSWORD: ${BYTEBASE_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_bytebase)}
+    depends_on:
+      bytebase:
+        condition: service_healthy
+    networks:
+      - bytebase-internal
+
+  bytebase-db:
+    image: ${IMAGE_BYTEBASE_DB:-postgres:17-alpine}
+    container_name: bytebase-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-bytebase
+      POSTGRES_PASSWORD: ${BYTEBASE_DB_PASSWORD}
+      POSTGRES_DB: bytebase
+    volumes:
+      - bytebase-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-bytebase -d bytebase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bytebase-internal
+
+volumes:
+  bytebase-data:
+  bytebase-db-data:
+
+networks:
+  app-network:
+    external: true
+  bytebase-internal:
+    driver: bridge

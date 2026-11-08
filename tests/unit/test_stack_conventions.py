@@ -108,10 +108,15 @@ TCP_PORTS_ALLOWED = {
 # an unauthenticated interface on the public internet, so they must never
 # appear in TCP_PORTS_ALLOWED. The check below enforces exactly that overlap.
 NO_OWN_AUTH = {
+    "datasette",  # read-only browser and JSON API, no accounts
     "hop",  # Hop Web has no login; its /hop server API none either
+    "kafka",  # PLAINTEXT listener; internal only
     "lakekeeper",
     "marquez",
+    "nessie",  # runs with AuthN/AuthZ off
     "questdb",  # the console has none; its Postgres wire protocol does
+    "rill",  # Rill Developer has no accounts
+    "sqlmesh",  # the browser IDE has no accounts
     "temporal",  # neither the Web UI nor the gRPC frontend authenticates
     "unity-catalog",
 }

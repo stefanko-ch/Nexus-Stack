@@ -15,6 +15,11 @@
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',
     }),
+    'bytebase': dict({
+      'BYTEBASE_DB_PASSWORD': 'bytebase_db_password-VALUE',
+      'BYTEBASE_EMAIL': 'user@snapshot.test',
+      'BYTEBASE_PASSWORD': 'bytebase_admin_password-VALUE',
+    }),
     'cassandra': dict({
       'CASSANDRA_PASSWORD': 'cassandra_admin_password-VALUE',
       'CASSANDRA_USERNAME': 'nexus-cassandra',
@@ -96,6 +101,11 @@
     'grafana': dict({
       'GRAFANA_PASSWORD': 'grafana_admin_password-VALUE',
       'GRAFANA_USERNAME': 'nexus-test-user',
+    }),
+    'hasura': dict({
+      'HASURA_ADMIN_SECRET': 'hasura_admin_secret-VALUE',
+      'HASURA_DB_PASSWORD': 'hasura_db_password-VALUE',
+      'HASURA_DB_USERNAME': 'nexus-hasura',
     }),
     'hedgedoc': dict({
       'HEDGEDOC_PASSWORD': 'hedgedoc_admin_password-VALUE',
@@ -349,6 +359,10 @@
     'uptime-kuma': dict({
       'UPTIME_KUMA_PASSWORD': 'kuma_admin_password-VALUE',
       'UPTIME_KUMA_USERNAME': 'nexus-test-user',
+    }),
+    'valkey': dict({
+      'VALKEY_PASSWORD': 'valkey_password-VALUE',
+      'VALKEY_USERNAME': 'nexus-valkey',
     }),
     'wikijs': dict({
       'WIKIJS_DB_PASSWORD': 'wikijs_db_password-VALUE',

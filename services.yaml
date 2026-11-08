@@ -129,6 +129,18 @@ services:
     long_description: "Big-AGI is a stateless browser-based UI for interacting with multiple large language model providers. Connect to OpenAI, Anthropic, local Ollama, or custom OpenAI-compatible endpoints. Conversation history lives in the browser's LocalStorage — no server-side database. Features include conversation export/import, prompt templates, model switching, persona management, and markdown rendering."
     image: "ghcr.io/enricoros/big-agi:v2.0.4"
 
+  bytebase:
+    subdomain: "bytebase"
+    port: 8113
+    public: false
+    category: "db-management"
+    website: "https://www.bytebase.com"
+    description: "Database schema changes as reviewed, versioned work: SQL review, change plans and approval flows."
+    long_description: "Bytebase brings code review to database changes. A change is a plan with one or more SQL statements, checked by SQL review rules (naming, missing WHERE, dropping columns and more) before it runs, rolled out per environment, and recorded with its author, so every schema has a history. It manages PostgreSQL, MySQL, ClickHouse, MongoDB and more, so the databases already running here can be added as instances. The workspace admin is the stack user's email with a generated password (Infisical → folder `bytebase`), claimed by bytebase-init before anyone else can sign up. Bytebase's own state lives in a dedicated PostgreSQL in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "bytebase/bytebase:3.24.1"
+    support_images:
+      bytebase-db: "postgres:17-alpine"
+
   cloudbeaver:
     subdomain: "cloudbeaver"
     port: 8978
@@ -239,6 +251,16 @@ services:
     image: "nexus-dagster:1.12.21"
     support_images:
       dagster-postgres: "postgres:16-alpine"
+
+  datasette:
+    subdomain: "datasette"
+    port: 8115
+    public: false
+    category: "analytics"
+    website: "https://datasette.io"
+    description: "Explore and publish SQLite databases in the browser: table browsing, facets, SQL queries and a JSON API."
+    long_description: "Datasette turns SQLite files into a website: every table gets a browsable, filterable view with facets, every query a shareable URL, and everything a JSON and CSV API. It is the quickest way to look at a dataset someone hands over, or to give a notebook's results a read-only front end. sqlite-utils is in the image, so CSV and JSON load into a database with one command. Every *.db file in the data volume is served, read-only; a new file appears after a restart. Datasette has no accounts, so Cloudflare Access is the only gate. The image is built here from python:slim, for amd64 and arm64. The volume survives the snapshot lifecycle, not a rebuild teardown."
+    image: "nexus-datasette:0.65.5"
 
   debezium:
     port: 8097
@@ -478,6 +500,18 @@ services:
       cadvisor: "ghcr.io/google/cadvisor:0.56.2"
       node-exporter: "prom/node-exporter:v1.10.2"
 
+  hasura:
+    subdomain: "hasura"
+    port: 8114
+    public: false
+    category: "dev-tools"
+    website: "https://hasura.io"
+    description: "Instant GraphQL and REST API over PostgreSQL, with subscriptions, permissions and a web console."
+    long_description: "Hasura generates a GraphQL API from a PostgreSQL schema: queries, mutations and realtime subscriptions for every table, with relationships, filtering and pagination, and REST endpoints for saved queries. Row- and column-level permissions are declared per role. Next to PostgREST, which maps tables to REST, it is the GraphQL option. This stack runs Hasura on its own PostgreSQL, which is also its metadata store; tables created in the console get an API at once. Every request needs the admin secret (Infisical → folder `hasura`), which the console asks for. Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "hasura/graphql-engine:v2.51.4"
+    support_images:
+      hasura-db: "postgres:17-alpine"
+
   hedgedoc:
     subdomain: "hedgedoc"
     port: 3110
@@ -571,6 +605,18 @@ services:
     long_description: "Jupyter Notebook provides an interactive computing environment for Python and PySpark. Write and execute code in cells, visualize data inline, and connect to your Spark cluster for distributed processing. Pre-configured with PySpark, pandas, and common data science libraries."
     image: "quay.io/jupyter/pyspark-notebook:python-3.13"
 
+  kafka:
+    # Internal-only: the Kafka protocol cannot cross the HTTPS tunnel, and
+    # there is no web UI. Clients connect to kafka:9092 on app-network.
+    port: 9092
+    public: false
+    internal_only: true
+    category: "messaging"
+    website: "https://kafka.apache.org"
+    description: "Apache Kafka in KRaft mode: the reference event-streaming broker, without ZooKeeper."
+    long_description: "Apache Kafka is the distributed log behind most event-streaming architectures: producers append to partitioned topics, consumer groups read them independently, and data stays for replay. This stack runs one node that is both broker and controller (KRaft mode, no ZooKeeper), sized for teaching with a 512 MB heap. Redpanda, already here, speaks the same protocol; this is the Apache implementation, for courses that want the original and its tooling (kafka-topics.sh, kafka-console-producer.sh in the container). Clients connect to kafka:9092 on app-network. The listener has no authentication, so the stack is internal only. Topic data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "apache/kafka:4.4.0"
+
   keycloak:
     subdomain: "keycloak"
     # Host 8106 (loopback only); the container keeps Keycloak's own 8080.
@@ -649,6 +695,16 @@ services:
       marquez-web: "marquezproject/marquez-web:0.51.1"
       marquez-db: "postgres:16-alpine"
       marquez-opensearch: "opensearchproject/opensearch:2.19.6"
+
+  nessie:
+    subdomain: "nessie"
+    port: 19120
+    public: false
+    category: "storage"
+    website: "https://projectnessie.org"
+    description: "Transactional catalog with Git semantics for Iceberg tables: branches, tags and commits across tables."
+    long_description: "Project Nessie is a catalog that versions a whole lakehouse the way Git versions code: create a branch, change several Iceberg tables on it, and merge them back atomically, or tag a state for reproducible reads. Spark, Flink, Trino and Dremio use it as their catalog at http://nessie:19120/api/v2, each with its own warehouse location; PyIceberg needs Nessie's Iceberg REST endpoint, which needs a warehouse configured first. Next to Lakekeeper and Unity Catalog, the REST catalogs already here, it is the one for branching and multi-table transactions. The web UI shows branches, commits and table contents. Nessie runs without authentication, so Cloudflare Access is the only gate. Its commit history lives in RocksDB in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "ghcr.io/projectnessie/nessie:0.110.0"
 
   opensearch:
     subdomain: "opensearch"
@@ -750,6 +806,26 @@ services:
     long_description: "Apache Hop builds data integration visually: pipelines transform data row by row — read, filter, join, aggregate, write — and workflows orchestrate jobs with conditions and error paths, all designed, run and debugged in the browser. It is the successor of Pentaho Data Integration (Kettle) and a gentle way into ETL before writing pipelines as code. The bundled JDBC drivers include PostgreSQL, so the databases on the internal network are one connection away. Hop Web has no login of its own; Cloudflare Access is the only gate. Pipelines and workflows live in the project folder under /mnt/nexus-data and survive a teardown."
     image: "apache/hop-web:2.19.0"
     landing_path: "/ui"
+
+  rill:
+    subdomain: "rill"
+    port: 9009
+    public: false
+    category: "analytics"
+    website: "https://www.rilldata.com"
+    description: "Fast BI dashboards on DuckDB: SQL models, metrics views and explorable dashboards in one project."
+    long_description: "Rill builds dashboards straight from data files: sources (Parquet, CSV, S3, PostgreSQL), SQL models on top, a metrics view that defines dimensions and measures, and an explorable dashboard generated from it, all computed by an embedded DuckDB and defined as files in one project. It suits the exploratory side of BI — slicing a dataset in seconds — where Metabase and Superset suit shared reporting. This stack runs Rill Developer, which has no accounts, so Cloudflare Access is the only gate. The project lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown; keep it in Git to outlive one. The image is amd64 only."
+    image: "rilldata/rill:v0.91.1"
+
+  sqlmesh:
+    subdomain: "sqlmesh"
+    port: 8116
+    public: false
+    category: "orchestration"
+    website: "https://sqlmesh.com"
+    description: "SQL transformations with plans, virtual environments and tests — the dbt alternative, with a browser IDE."
+    long_description: "SQLMesh transforms data with SQL or Python models like dbt, but understands the SQL: it computes a plan of what a change affects before applying it, keeps a cheap virtual environment per branch, backfills only what changed, and runs unit tests and audits on models. This stack runs SQLMesh's browser IDE on a project created on first start from the example on DuckDB; PostgreSQL works as a target too. Upstream has marked the browser UI as deprecated in favour of its VS Code extension; it still ships in the pinned version, and the same project works from code-server. The IDE has no accounts, so Cloudflare Access is the only gate. The image is built here from python:slim, for amd64 and arm64. The project volume survives the snapshot lifecycle, not a rebuild teardown."
+    image: "nexus-sqlmesh:0.236.4"
 
   starrocks:
     # Internal-only: no web UI worth a hostname, and its clients speak the
@@ -1419,6 +1495,18 @@ services:
     support_images:
       unity-catalog-ui: "unitycatalog/unitycatalog-ui@sha256:3a688197b218a4328a7fc0b8f1b65fcd2f9229b0e3999ae12e284304b85d84f1"
       unity-catalog-postgres: "postgres:16-alpine"
+
+  valkey:
+    # Internal-only: the Redis protocol cannot cross the HTTPS tunnel, and
+    # there is no web UI. Clients connect to valkey:6379 on app-network.
+    port: 6379
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://valkey.io"
+    description: "Redis-compatible in-memory data store: caching, queues, pub/sub and streams."
+    long_description: "Valkey is the open-source fork of Redis, maintained under the Linux Foundation and wire-compatible with it, so every Redis client and redis-cli command works. Keys, hashes, lists, sorted sets, pub/sub and streams make it the usual choice for caching, rate limits, job queues and lightweight event streams. Clients connect to valkey:6379 on app-network as nexus-valkey with the password from Infisical (folder `valkey`); the built-in default user is switched off, and the stack is internal only. Memory is capped at 384 MB with eviction off, so a full store answers with an error instead of dropping keys. Data is persisted with an append-only file in a Docker volume, which survives a restart and the snapshot lifecycle, not a rebuild teardown."
+    image: "valkey/valkey:9.1.3-alpine"
 
   vector:
     port: 8686

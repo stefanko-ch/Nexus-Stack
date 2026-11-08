@@ -78,15 +78,17 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (113)
+## Available Stacks (121)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
 [![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org)
+[![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org)
 [![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
+[![Bytebase](https://img.shields.io/badge/Bytebase-5B4FE9?logoColor=white)](https://www.bytebase.com)
 [![Cassandra](https://img.shields.io/badge/Apache_Cassandra-1287B1?logo=apachecassandra&logoColor=white)](https://cassandra.apache.org)
 [![Chroma](https://img.shields.io/badge/Chroma-F87171?logo=databricks&logoColor=white)](https://www.trychroma.com)
 [![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)](https://dbeaver.com/cloudbeaver/)
@@ -98,6 +100,7 @@ After deployment you'll have:
 [![Data Contract API](https://img.shields.io/badge/Data_Contract_API-0F766E?logoColor=white)](https://cli.datacontract.com)
 [![Data Contract Editor](https://img.shields.io/badge/Data_Contract_Editor-1E293B?logoColor=white)](https://github.com/datacontract/datacontract-editor)
 [![Dagster](https://img.shields.io/badge/Dagster-4F43DD?logo=dagster&logoColor=white)](https://dagster.io)
+[![Datasette](https://img.shields.io/badge/Datasette-0F3E66?logoColor=white)](https://datasette.io)
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
 [![Dinky](https://img.shields.io/badge/Dinky-1677FF?logo=apacheflink&logoColor=white)](https://www.dinky.org.cn/)
@@ -115,6 +118,7 @@ After deployment you'll have:
 [![Git Proxy](https://img.shields.io/badge/Git_Proxy-009639?logo=nginx&logoColor=white)](docs/stacks/git-proxy.md)
 [![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)](https://about.gitea.com)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)](https://grafana.com)
+[![Hasura](https://img.shields.io/badge/Hasura-1EB4D4?logo=hasura&logoColor=white)](https://hasura.io)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
 [![Apache Hop](https://img.shields.io/badge/Apache_Hop-3A6EA5?logo=apache&logoColor=white)](https://hop.apache.org)
@@ -162,6 +166,7 @@ After deployment you'll have:
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![PostgREST](https://img.shields.io/badge/PostgREST-2C3E50?logo=postgresql&logoColor=white)](https://postgrest.org)
 [![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)](https://www.prefect.io)
+[![Project Nessie](https://img.shields.io/badge/Project_Nessie-0B2A4A?logoColor=white)](https://projectnessie.org)
 [![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![QuestDB](https://img.shields.io/badge/QuestDB-D14671?logo=questdb&logoColor=white)](https://questdb.com)
@@ -169,6 +174,7 @@ After deployment you'll have:
 [![Redpanda Console](https://img.shields.io/badge/Redpanda%20Console-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
+[![Rill](https://img.shields.io/badge/Rill-1E40AF?logoColor=white)](https://www.rilldata.com)
 [![RisingWave](https://img.shields.io/badge/RisingWave-0065FF?logoColor=white)](https://risingwave.com)
 [![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)](https://rustfs.com)
 [![S3 Manager](https://img.shields.io/badge/S3_Manager-2E7D32?logo=amazons3&logoColor=white)](https://github.com/cloudlena/s3manager)
@@ -178,6 +184,7 @@ After deployment you'll have:
 [![Sling](https://img.shields.io/badge/Sling-FF6B35?logo=data&logoColor=white)](https://slingdata.io)
 [![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)](https://www.soda.io)
 [![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org)
+[![SQLMesh](https://img.shields.io/badge/SQLMesh-6C47FF?logoColor=white)](https://sqlmesh.com)
 [![StarRocks](https://img.shields.io/badge/StarRocks-1F4FFF?logo=apache&logoColor=white)](https://www.starrocks.io)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Superset](https://img.shields.io/badge/Apache_Superset-20A6A4?logo=apachesuperset&logoColor=white)](https://superset.apache.org)
@@ -187,6 +194,7 @@ After deployment you'll have:
 [![Trino](https://img.shields.io/badge/Trino-DD00A1?logo=trino&logoColor=white)](https://trino.io)
 [![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)](https://uptime.kuma.pet)
 [![Unity Catalog](https://img.shields.io/badge/Unity%20Catalog-FF3621?logo=databricks&logoColor=white)](https://www.unitycatalog.io)
+[![Valkey](https://img.shields.io/badge/Valkey-6983FF?logoColor=white)](https://valkey.io)
 [![Vector](https://img.shields.io/badge/Vector-3B2F63?logo=vector&logoColor=white)](https://vector.dev)
 [![Weaviate](https://img.shields.io/badge/Weaviate-00C9A7?logo=weaviate&logoColor=white)](https://weaviate.io)
 [![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)](https://github.com/butlerx/wetty)
@@ -199,10 +207,12 @@ After deployment you'll have:
 | **AKHQ** | Kafka/Redpanda management GUI for topics, consumer groups, schema registry, and Kafka Connect | [akhq.io](https://akhq.io) |
 | **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
 | **Airflow** | Apache Airflow — DAG-based workflow orchestration with the largest operator and provider ecosystem | [airflow.apache.org](https://airflow.apache.org) |
+| **Apache Kafka** | Event-streaming broker in KRaft mode (no ZooKeeper), internal at `kafka:9092` | [kafka.apache.org](https://kafka.apache.org) |
 | **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
+| **Bytebase** | Database schema changes with SQL review, change plans and approval flows | [bytebase.com](https://www.bytebase.com) |
 | **Cassandra** | Wide-column distributed database — the data model and CQL, on one node | [cassandra.apache.org](https://cassandra.apache.org) |
 | **Chroma** | Developer-friendly embedding (vector) database for LLM / RAG pipelines | [trychroma.com](https://www.trychroma.com) |
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
@@ -214,6 +224,7 @@ After deployment you'll have:
 | **Data Contract API** | Tests an ODCS data contract against the stack's own databases and object stores — Swagger UI, or the CLI over `docker exec` | [cli.datacontract.com](https://cli.datacontract.com) |
 | **Data Contract Editor** | Browser editor for Open Data Contract Standard (ODCS) contracts — form, visual model or raw YAML | [datacontract.com](https://github.com/datacontract/datacontract-editor) |
 | **Dagster** | Python-native data orchestration for data pipelines and Software-Defined Assets | [dagster.io](https://dagster.io) |
+| **Datasette** | Explore and publish SQLite databases: table browsing, facets, SQL and a JSON API | [datasette.io](https://datasette.io) |
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |
 | **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
@@ -231,6 +242,7 @@ After deployment you'll have:
 | **Git Proxy** | Public Git HTTPS proxy for external tools (Databricks, Git Desktop) | [Documentation](docs/stacks/git-proxy.md) |
 | **Gitea** | Self-hosted Git service with pull requests, code review, and CI/CD | [gitea.com](https://about.gitea.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
+| **Hasura** | Instant GraphQL and REST API over PostgreSQL, with subscriptions and a console | [hasura.io](https://hasura.io) |
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
 | **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
 | **Hop** | Visual ETL — build, run and debug data pipelines and workflows in the browser (Hop Web) | [hop.apache.org](https://hop.apache.org) |
@@ -278,6 +290,7 @@ After deployment you'll have:
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included | [postgrest.org](https://postgrest.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
+| **Project Nessie** | Iceberg catalog with Git semantics: branches, tags and commits across tables | [projectnessie.org](https://projectnessie.org) |
 | **Qdrant** | Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs | [qdrant.tech](https://qdrant.tech) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
 | **QuestDB** | Time-series database with web console — speaks PostgreSQL wire & InfluxDB line protocols | [questdb.com](https://questdb.com) |
@@ -285,6 +298,7 @@ After deployment you'll have:
 | **Redpanda Console** | Web UI for managing and debugging Redpanda/Kafka workloads | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
+| **Rill** | Fast BI dashboards on DuckDB: SQL models, metrics views and explorable dashboards | [rilldata.com](https://www.rilldata.com) |
 | **RisingWave** | PostgreSQL-compatible streaming database for real-time materialized views | [risingwave.com](https://risingwave.com) |
 | **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
 | **S3 Manager** | Web-based S3 bucket browser and manager for Hetzner Object Storage | [GitHub](https://github.com/cloudlena/s3manager) |
@@ -294,6 +308,7 @@ After deployment you'll have:
 | **Sling** | Lightweight CLI for database-to-database and file-to-database transfers | [slingdata.io](https://slingdata.io) |
 | **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
 | **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |
+| **SQLMesh** | SQL transformations with plans, virtual environments and tests, in a browser IDE | [sqlmesh.com](https://sqlmesh.com) |
 | **StarRocks** | Fast MPP analytics database (MySQL protocol) that queries Iceberg, Delta Lake and Parquet in place (internal-only) | [starrocks.io](https://www.starrocks.io) |
 | **Streamlit** | Python data apps — one server runs every app in the workspace repository | [streamlit.io](https://streamlit.io) |
 | **Superset** | Modern data exploration and visualization platform with SQL Lab | [superset.apache.org](https://superset.apache.org) |
@@ -303,6 +318,7 @@ After deployment you'll have:
 | **Trino** | Distributed SQL query engine for querying data across multiple sources | [trino.io](https://trino.io) |
 | **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
 | **Unity Catalog** | Open-source catalog for Delta & Iceberg tables, volumes and AI assets | [unitycatalog.io](https://www.unitycatalog.io) |
+| **Valkey** | Redis-compatible in-memory store for caching, queues and streams, internal at `valkey:6379` | [valkey.io](https://valkey.io) |
 | **Vector** | High-performance observability pipeline for logs, metrics, and traces | [vector.dev](https://vector.dev) |
 | **Weaviate** | Vector database with hybrid search — BM25 keyword scoring plus vector similarity | [weaviate.io](https://weaviate.io) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |

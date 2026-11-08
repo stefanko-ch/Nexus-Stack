@@ -273,6 +273,17 @@ output "secrets" {
     # StarRocks (OLAP database)
     starrocks_root_password = random_password.starrocks_root.result
 
+    # Bytebase (database schema changes)
+    bytebase_db_password    = random_password.bytebase_db.result
+    bytebase_admin_password = random_password.bytebase_admin.result
+
+    # Hasura (GraphQL over PostgreSQL)
+    hasura_db_password  = random_password.hasura_db.result
+    hasura_admin_secret = random_password.hasura_admin_secret.result
+
+    # Valkey (Redis-compatible in-memory store)
+    valkey_password = random_password.valkey.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result
