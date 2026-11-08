@@ -289,6 +289,7 @@ output "secrets" {
     docling_api_key          = random_password.docling_api_key.result
     lightdash_db_password    = random_password.lightdash_db.result
     lightdash_secret         = random_password.lightdash_secret.result
+    lightdash_s3_password    = random_password.lightdash_s3.result
     lightdash_admin_password = random_password.lightdash_admin.result
     ray_auth_token           = random_password.ray_auth_token.result
     mathesar_db_password     = random_password.mathesar_db.result

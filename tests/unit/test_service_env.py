@@ -4940,6 +4940,7 @@ _FIVE_SECRETS = {
     "docling_api_key": "dockey1",
     "lightdash_db_password": "lddb1",
     "lightdash_secret": "ldsecret1",
+    "lightdash_s3_password": "lds3pw1",
     "lightdash_admin_password": "LdPass1",
     "ray_auth_token": "raytoken1",
     "mathesar_db_password": "mtdb1",
@@ -4961,6 +4962,7 @@ def test_five_new_stacks_render_their_env(full_config: NexusConfig, full_env: Bo
         "_render_lightdash": {
             "LIGHTDASH_DB_PASSWORD": "lddb1",
             "LIGHTDASH_SECRET": "ldsecret1",
+            "LIGHTDASH_S3_PASSWORD": "lds3pw1",
             "LIGHTDASH_ADMIN_PASSWORD": "LdPass1",
             "LIGHTDASH_ADMIN_EMAIL": "user@example.com",
             "LIGHTDASH_URL": "https://lightdash-alice.example.com",
@@ -4987,6 +4989,7 @@ def test_five_new_stacks_render_their_env(full_config: NexusConfig, full_env: Bo
         ("_render_docling", "docling_api_key", "DOCLING_API_KEY"),
         ("_render_lightdash", "lightdash_db_password", "LIGHTDASH_DB_PASSWORD"),
         ("_render_lightdash", "lightdash_secret", "LIGHTDASH_SECRET"),
+        ("_render_lightdash", "lightdash_s3_password", "LIGHTDASH_S3_PASSWORD"),
         ("_render_lightdash", "lightdash_admin_password", "LIGHTDASH_ADMIN_PASSWORD"),
         ("_render_ray", "ray_auth_token", "RAY_AUTH_TOKEN"),
         ("_render_mathesar", "mathesar_db_password", "MATHESAR_DB_PASSWORD"),

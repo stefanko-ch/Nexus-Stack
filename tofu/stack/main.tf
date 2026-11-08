@@ -664,6 +664,11 @@ resource "random_password" "lightdash_secret" {
   special = false
 }
 
+resource "random_password" "lightdash_s3" {
+  length  = 24
+  special = false
+}
+
 resource "random_password" "lightdash_admin" {
   length  = 24
   special = false

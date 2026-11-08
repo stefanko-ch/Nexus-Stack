@@ -136,6 +136,7 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("DOCLING_API_KEY", "docling_api_key", ""),
     ("LIGHTDASH_DB_PASS", "lightdash_db_password", ""),
     ("LIGHTDASH_SECRET", "lightdash_secret", ""),
+    ("LIGHTDASH_S3_PASS", "lightdash_s3_password", ""),
     ("LIGHTDASH_ADMIN_PASS", "lightdash_admin_password", ""),
     ("RAY_AUTH_TOKEN", "ray_auth_token", ""),
     ("MATHESAR_DB_PASS", "mathesar_db_password", ""),
@@ -335,6 +336,7 @@ class NexusConfig(BaseModel):
     docling_api_key: str | None = None
     lightdash_db_password: str | None = None
     lightdash_secret: str | None = None
+    lightdash_s3_password: str | None = None
     lightdash_admin_password: str | None = None
     ray_auth_token: str | None = None
     mathesar_db_password: str | None = None

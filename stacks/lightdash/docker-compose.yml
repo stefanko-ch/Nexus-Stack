@@ -38,7 +38,7 @@ x-lightdash-env: &lightdash-env
   S3_BUCKET: lightdash
   S3_REGION: us-east-1
   S3_ACCESS_KEY: nexus-lightdash
-  S3_SECRET_KEY: ${LIGHTDASH_DB_PASSWORD}
+  S3_SECRET_KEY: ${LIGHTDASH_S3_PASSWORD:?must be set in .env (rendered by service_env._render_lightdash)}
   S3_FORCE_PATH_STYLE: "true"
   # Telemetry and the update check both call out by default.
   RUDDERSTACK_ANALYTICS_DISABLED: "true"
@@ -157,7 +157,7 @@ services:
     command: ["server", "/data"]
     environment:
       MINIO_ROOT_USER: nexus-lightdash
-      MINIO_ROOT_PASSWORD: ${LIGHTDASH_DB_PASSWORD}
+      MINIO_ROOT_PASSWORD: ${LIGHTDASH_S3_PASSWORD}
     volumes:
       - lightdash-s3-data:/data
     deploy:
@@ -183,7 +183,7 @@ services:
         mc alias set lightdash http://lightdash-s3:9000 nexus-lightdash "$$MINIO_ROOT_PASSWORD" >/dev/null
         mc mb --ignore-existing lightdash/lightdash
     environment:
-      MINIO_ROOT_PASSWORD: ${LIGHTDASH_DB_PASSWORD}
+      MINIO_ROOT_PASSWORD: ${LIGHTDASH_S3_PASSWORD}
     depends_on:
       lightdash-s3:
         condition: service_healthy
