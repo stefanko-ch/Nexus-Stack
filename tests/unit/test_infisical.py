@@ -174,6 +174,59 @@ def test_compute_folders_r2_gate() -> None:
     }
 
 
+_R2_ACCOUNT = "31f9911fab0a94c4a729807e257ad192"
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "host"),
+    [
+        (
+            f"https://{_R2_ACCOUNT}.r2.cloudflarestorage.com",
+            f"{_R2_ACCOUNT}.r2.cloudflarestorage.com",
+        ),
+        (
+            f"https://{_R2_ACCOUNT}.r2.cloudflarestorage.com/",
+            f"{_R2_ACCOUNT}.r2.cloudflarestorage.com",
+        ),
+        (
+            f"https://{_R2_ACCOUNT}.eu.r2.cloudflarestorage.com",
+            f"{_R2_ACCOUNT}.eu.r2.cloudflarestorage.com",
+        ),
+    ],
+)
+def test_compute_folders_r2_databricks_fields(endpoint: str, host: str) -> None:
+    """The account ID and the r2:// URL a Databricks external location asks for."""
+    config = _make_config(
+        r2_data_endpoint=endpoint,
+        r2_data_access_key="ak",
+        r2_data_secret_key="sk",
+        r2_data_bucket="nexus-example-data",
+    )
+    r2 = next(f for f in compute_folders(config, BootstrapEnv()) if f.name == "r2-datalake")
+    assert r2.secrets["R2_ACCOUNT_ID"] == _R2_ACCOUNT
+    assert r2.secrets["R2_DATABRICKS_URL"] == f"r2://nexus-example-data@{host}/"
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://s3.example.com",
+        "https://not-hex.r2.cloudflarestorage.com",
+        f"https://{_R2_ACCOUNT}.r2.cloudflarestorage.com.evil.example",
+    ],
+)
+def test_compute_folders_r2_databricks_fields_need_an_r2_host(endpoint: str) -> None:
+    """No half-right URL: a non-R2 endpoint leaves both keys out, the rest stays."""
+    config = _make_config(
+        r2_data_endpoint=endpoint,
+        r2_data_access_key="ak",
+        r2_data_secret_key="sk",
+        r2_data_bucket="bk",
+    )
+    r2 = next(f for f in compute_folders(config, BootstrapEnv()) if f.name == "r2-datalake")
+    assert set(r2.secrets) == {"R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"}
+
+
 def test_compute_folders_hetzner_default_bucket_chain() -> None:
     """HETZNER_S3_BUCKET prefers _general, falls back to _lakefs."""
     base = {

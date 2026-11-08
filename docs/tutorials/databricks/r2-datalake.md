@@ -28,18 +28,20 @@ The R2 bucket **persists across `destroy-all`** — Cloudflare side lives indepe
 
 - Nexus-Stack deployed (spin-up successful, Infisical running).
 - Databricks workspace connected on the Control Plane [Integrations page](/docs/guides/user-guides/integrations/) (host + personal access token saved).
-- **Sync Now** pressed on the [Secrets page](/docs/guides/user-guides/secrets/) at least once. After that, `dbutils.secrets.list("nexus")` from a Databricks notebook should include these four keys:
+- **Sync Now** pressed on the [Secrets page](/docs/guides/user-guides/secrets/) at least once. After that, `dbutils.secrets.list("nexus")` from a Databricks notebook should include these keys:
   - `r2-datalake/R2_ENDPOINT`
   - `r2-datalake/R2_ACCESS_KEY`
   - `r2-datalake/R2_SECRET_KEY`
   - `r2-datalake/R2_BUCKET`
+  - `r2-datalake/R2_ACCOUNT_ID`
+  - `r2-datalake/R2_DATABRICKS_URL`
 - A Databricks cluster (Free Edition works) attached to your notebook.
 
-If the four keys are missing, it's one of two things:
+If the keys are missing, it's one of two things:
 1. **Spin-up didn't see R2 creds.** Check that `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_DATA_BUCKET` exist in your GitHub repo's Actions Secrets. If not, re-run `gh workflow run setup-control-plane.yaml` with `GH_SECRETS_TOKEN` configured — it auto-populates them.
 2. **Sync Now wasn't pressed after the last spin-up.** Go to Secrets → Databricks panel → click the button.
 
-## What the four keys mean
+## What the keys mean
 
 | Key | Example value | Purpose |
 |---|---|---|
@@ -47,10 +49,46 @@ If the four keys are missing, it's one of two things:
 | `r2-datalake/R2_ACCESS_KEY` | Token ID (long hex string) | `AWS_ACCESS_KEY_ID` / `fs.s3a.access.key` |
 | `r2-datalake/R2_SECRET_KEY` | SHA-256 of the raw Cloudflare token | `AWS_SECRET_ACCESS_KEY` / `fs.s3a.secret.key` |
 | `r2-datalake/R2_BUCKET` | `nexus-<domain-slug>-data` | Bucket name (no `s3://` prefix) |
+| `r2-datalake/R2_ACCOUNT_ID` | 32-character hex string | Cloudflare account ID, the host part of `R2_ENDPOINT` |
+| `r2-datalake/R2_DATABRICKS_URL` | `r2://<bucket>@<account-id>.r2.cloudflarestorage.com/` | URL of a Unity Catalog external location |
+
+The last two hold nothing new. They are the endpoint and bucket in the shape the Databricks forms ask for, so they can be copied instead of assembled. They are only written when the endpoint is an R2 host.
 
 The `R2_SECRET_KEY` being a SHA-256 hash of the Cloudflare token (rather than the token itself) is [Cloudflare's documented convention](https://developers.cloudflare.com/r2/api/tokens/#get-s3-api-credentials-from-an-api-token) for S3-compatible auth. Any S3 client treats it as a normal secret access key; you never do the hashing yourself.
 
-## Path 1: PySpark via s3a:// (recommended)
+## Path 0: Unity Catalog external location
+
+Unity Catalog can govern the bucket itself: one storage credential and one external location, created once, and every notebook reads `r2://` paths without setting any keys. Databricks supports this for R2 natively. The two forms ask for these values, all in the Infisical folder `r2-datalake`:
+
+**Storage credential** (Catalog Explorer, under External data), type **Cloudflare API Token**:
+
+| Form field | Infisical key |
+|---|---|
+| Account ID | `R2_ACCOUNT_ID` |
+| Access key ID | `R2_ACCESS_KEY` |
+| Secret access key | `R2_SECRET_KEY` |
+
+**External location**, storage type **R2**:
+
+| Form field | Value |
+|---|---|
+| URL | `R2_DATABRICKS_URL` |
+| Storage credential | the credential from the step above |
+
+Then grant access and read the bucket. The examples call the location `r2`; use the name you gave it:
+
+```sql
+GRANT READ FILES, WRITE FILES ON EXTERNAL LOCATION r2 TO `account users`;
+```
+
+```python
+url = dbutils.secrets.get("nexus", "r2-datalake/R2_DATABRICKS_URL")
+display(dbutils.fs.ls(url))
+```
+
+The URL ends in `/`, so append a path without a leading slash: `f"{url}tutorial/sample.parquet"`. Creating credentials and external locations needs the `CREATE STORAGE CREDENTIAL` and `CREATE EXTERNAL LOCATION` privileges on the metastore. When you do not have them, use Path 1, which needs neither.
+
+## Path 1: PySpark via s3a:// (no Unity Catalog setup)
 
 This is the workflow you want for anything Delta-table-shaped — Spark reads and writes `s3a://bucket/path` URIs natively, checkpoints work, and you can use the full DataFrame API.
 

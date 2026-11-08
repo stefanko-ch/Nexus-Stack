@@ -32,6 +32,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from nexus_deploy import _remote
 from nexus_deploy.config import DEFAULT_ADMIN_USERNAME, NexusConfig, service_host
@@ -475,6 +476,33 @@ def _filter_empty(items: Mapping[str, str | None]) -> dict[str, str]:
     return {k: v for k, v in items.items() if v is not None and v != ""}
 
 
+_R2_HOST_SUFFIX = ".r2.cloudflarestorage.com"
+
+
+def _r2_databricks_fields(endpoint: str, bucket: str) -> dict[str, str]:
+    """The two values a Databricks R2 external location asks for that the
+    other R2 keys only contain implicitly.
+
+    Unity Catalog's "Cloudflare API Token" storage credential wants the
+    account ID on its own, and the external location wants the bucket as
+    ``r2://<bucket>@<account-id>.r2.cloudflarestorage.com/``. Both come
+    from the endpoint ``https://<account-id>.r2.cloudflarestorage.com``
+    (``tofu/stack/outputs.tf``). The host is reused as it is, so a
+    jurisdiction endpoint (``<id>.eu.r2...``) keeps its ``eu`` label.
+
+    Returns nothing when the endpoint is not an R2 host, rather than a
+    URL Databricks would reject.
+    """
+    host = (urlparse(endpoint).hostname or "").lower()
+    account_id = host.split(".", 1)[0]
+    if not host.endswith(_R2_HOST_SUFFIX) or not re.fullmatch(r"[0-9a-f]{32}", account_id):
+        return {}
+    return {
+        "R2_ACCOUNT_ID": account_id,
+        "R2_DATABRICKS_URL": f"r2://{bucket}@{host}/",
+    }
+
+
 def stack_user_email(env: BootstrapEnv) -> str:
     """The email a per-user app login is created for: the stack user's,
     else the admin's. On a class stack that is the student, not the
@@ -531,6 +559,7 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                         "R2_ACCESS_KEY": config.r2_data_access_key,
                         "R2_SECRET_KEY": config.r2_data_secret_key,
                         "R2_BUCKET": config.r2_data_bucket,
+                        **_r2_databricks_fields(config.r2_data_endpoint, config.r2_data_bucket),
                     }
                 ),
             )
