@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.90.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.89.0...v0.90.0) (2026-11-08)
+
+
+### 🚀 Features
+
+* **infisical:** Add the Databricks R2 external-location values ([#977](https://github.com/stefanko-ch/Nexus-Stack/issues/977)) ([462d49d](https://github.com/stefanko-ch/Nexus-Stack/commit/462d49d8589a06122e84c6db2aaf2afca3aea3fb))
+* **stacks:** Add Rill, SQLMesh, Bytebase, Kafka, Nessie, Hasura, Valkey and Datasette ([#975](https://github.com/stefanko-ch/Nexus-Stack/issues/975)) ([738d94f](https://github.com/stefanko-ch/Nexus-Stack/commit/738d94f9e6e581018b83d1884c61db668ec9633b))
+
 ## [0.89.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.88.1...v0.89.0) (2026-11-06)
 
 
