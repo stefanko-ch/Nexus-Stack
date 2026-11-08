@@ -24,14 +24,13 @@ SQL Server on Linux with the full feature set of the Developer edition: T-SQL, s
 
 Any T-SQL client on `app-network` connects to `mssql:1433` as `nexus-mssql`. [CloudBeaver](cloudbeaver.md) and [Adminer](adminer.md) both support SQL Server.
 
-From inside the container:
+From inside the container, on the server:
 
 ```bash
-docker exec -it -e SQLCMDPASSWORD='<MSSQL_PASSWORD>' mssql \
-  /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U nexus-mssql
+docker exec -it mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U nexus-mssql
 ```
 
-`-C` trusts the server's self-signed certificate. `SQLCMDPASSWORD` keeps the password off the command line.
+`sqlcmd` asks for the password (`MSSQL_PASSWORD` from Infisical), so it never appears on a command line. `-C` trusts the server's self-signed certificate.
 
 ### Accounts
 

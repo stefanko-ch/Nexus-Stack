@@ -62,8 +62,10 @@ services:
     command:
       - |
         set -eu
-        # SQLCMDPASSWORD rather than -P keeps the password out of the process list.
-        SQLCMDPASSWORD="$$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -b -Q "
+        # Neither password may reach an argument list: sa's goes in through
+        # SQLCMDPASSWORD, and the T-SQL carrying nexus-mssql's is fed on
+        # stdin by printf, a shell builtin, rather than passed with -Q.
+        printf '%s\nGO\n' "
           IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'nexus-mssql')
           BEGIN
             CREATE LOGIN [nexus-mssql] WITH PASSWORD = N'$$MSSQL_PASSWORD', CHECK_POLICY = ON;
@@ -74,7 +76,8 @@ services:
           BEGIN
             ALTER LOGIN [nexus-mssql] WITH PASSWORD = N'$$MSSQL_PASSWORD';
             PRINT 'mssql-init: login nexus-mssql already exists';
-          END"
+          END" \
+          | SQLCMDPASSWORD="$$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -b
     environment:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?must be set in .env (rendered by service_env._render_mssql)}
       MSSQL_PASSWORD: ${MSSQL_PASSWORD:?must be set in .env (rendered by service_env._render_mssql)}
