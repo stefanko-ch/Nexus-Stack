@@ -213,6 +213,7 @@ def test_compute_folders_r2_databricks_fields(endpoint: str, host: str) -> None:
         "https://s3.example.com",
         "https://not-hex.r2.cloudflarestorage.com",
         f"https://{_R2_ACCOUNT}.r2.cloudflarestorage.com.evil.example",
+        "https://[unclosed.r2.cloudflarestorage.com",
     ],
 )
 def test_compute_folders_r2_databricks_fields_need_an_r2_host(endpoint: str) -> None:

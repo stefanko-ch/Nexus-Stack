@@ -490,10 +490,14 @@ def _r2_databricks_fields(endpoint: str, bucket: str) -> dict[str, str]:
     (``tofu/stack/outputs.tf``). The host is reused as it is, so a
     jurisdiction endpoint (``<id>.eu.r2...``) keeps its ``eu`` label.
 
-    Returns nothing when the endpoint is not an R2 host, rather than a
-    URL Databricks would reject.
+    Returns nothing when the endpoint is not an R2 host, or not a URL at
+    all, rather than a URL Databricks would reject: the keys are optional,
+    so a bad endpoint must not stop the Infisical bootstrap.
     """
-    host = (urlparse(endpoint).hostname or "").lower()
+    try:
+        host = (urlparse(endpoint).hostname or "").lower()
+    except ValueError:  # e.g. an unclosed IPv6 bracket
+        return {}
     account_id = host.split(".", 1)[0]
     if not host.endswith(_R2_HOST_SUFFIX) or not re.fullmatch(r"[0-9a-f]{32}", account_id):
         return {}

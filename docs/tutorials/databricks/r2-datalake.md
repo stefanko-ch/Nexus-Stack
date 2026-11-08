@@ -37,9 +37,14 @@ The R2 bucket **persists across `destroy-all`** — Cloudflare side lives indepe
   - `r2-datalake/R2_DATABRICKS_URL`
 - A Databricks cluster (Free Edition works) attached to your notebook.
 
-If the keys are missing, it's one of two things:
+If all keys are missing, it's one of two things:
 1. **Spin-up didn't see R2 creds.** Check that `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and `R2_DATA_BUCKET` exist in your GitHub repo's Actions Secrets. If not, re-run `gh workflow run setup-control-plane.yaml` with `GH_SECRETS_TOKEN` configured — it auto-populates them.
 2. **Sync Now wasn't pressed after the last spin-up.** Go to Secrets → Databricks panel → click the button.
+
+If only `R2_ACCOUNT_ID` and `R2_DATABRICKS_URL` are missing:
+
+- **The stack has not been spun up since they were added.** Sync Now only copies what is already in Infisical, and the spin-up is what writes these two keys. Run a spin-up, then press Sync Now.
+- **`R2_ENDPOINT` is not of the form `https://<32-hex account ID>.r2.cloudflarestorage.com`.** The two keys are derived from it and left out otherwise. The endpoint is built from the `CLOUDFLARE_ACCOUNT_ID` secret, so check that one.
 
 ## What the keys mean
 
@@ -75,10 +80,11 @@ Unity Catalog can govern the bucket itself: one storage credential and one exter
 | URL | `R2_DATABRICKS_URL` |
 | Storage credential | the credential from the step above |
 
-Then grant access and read the bucket. The examples call the location `r2`; use the name you gave it:
+Then grant access to the group that should use the bucket, and read it. The examples call the location `r2` and the group `r2-users`; use your own names. Grant `WRITE FILES` only to those who write, since `account users` would give every user of the account the whole bucket:
 
 ```sql
-GRANT READ FILES, WRITE FILES ON EXTERNAL LOCATION r2 TO `account users`;
+GRANT READ FILES ON EXTERNAL LOCATION r2 TO `r2-users`;
+GRANT WRITE FILES ON EXTERNAL LOCATION r2 TO `r2-users`;  -- only if they write
 ```
 
 ```python
