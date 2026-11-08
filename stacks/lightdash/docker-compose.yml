@@ -114,7 +114,17 @@ services:
           // A fresh login: the registration session still carries the user
           // as it was before the organization existed, without its role.
           const login = await call('POST', '/login', { email, password });
-          if (login.status !== 200) fail('the admin login failed (HTTP ' + login.status + ') -- someone else registered first, or the password changed. Reset lightdash-db to reclaim it.');
+          if (login.status !== 200) {
+            if (created) fail('the admin login failed right after registering it (HTTP ' + login.status + ').');
+            // The organization existed before this run, so the claim was
+            // checked on an earlier one. A failing login now most likely
+            // means the admin changed the password in Lightdash, which is
+            // theirs to do. Only the stack user passes Cloudflare Access,
+            // so a stranger winning the first registration is not the
+            // likely cause. Warn instead of failing every later start.
+            console.warn('lightdash-init: the generated admin password no longer logs in (HTTP ' + login.status + ') -- expected if the admin changed it in Lightdash. Nothing changed.');
+            return;
+          }
           const me = await call('GET', '/user', undefined, login.cookie);
           if (me.json.results?.role !== 'admin') fail('the generated account is not the organization admin -- someone registered first. Reset lightdash-db to reclaim it.');
           console.log(created ? 'lightdash-init: admin and organization created' : 'lightdash-init: admin already exists');

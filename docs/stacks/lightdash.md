@@ -28,7 +28,7 @@ Lightdash reads a dbt project and turns its models into explores. Dimensions and
 
 The first account registered becomes the admin of the one organization. After that, Lightdash lets in only invited users; a self-registration is refused. So that the first account is never a stranger, `lightdash-init` registers it on the first start: the stack user's email (`LIGHTDASH_EMAIL`) and a generated password (`LIGHTDASH_PASSWORD`), both in the Infisical folder `lightdash`. Invite further users from the organization settings.
 
-`lightdash-init` checks every start that the generated account logs in as the admin. If someone registered in the seconds before it, it fails with a message saying so; reset `lightdash-db` to reclaim the admin.
+On the start that registers the admin, `lightdash-init` checks that the generated account logs in with the admin role, and fails if it does not; reset `lightdash-db` to reclaim the admin then. On later starts it only logs in to confirm. If that login fails because the admin changed the password in Lightdash, it logs a warning and changes nothing; `LIGHTDASH_PASSWORD` in Infisical is then no longer the current password.
 
 ### First steps
 
