@@ -17,6 +17,7 @@
     }),
     'bytebase': dict({
       'BYTEBASE_DB_PASSWORD': 'bytebase_db_password-VALUE',
+      'BYTEBASE_EMAIL': 'user@snapshot.test',
       'BYTEBASE_PASSWORD': 'bytebase_admin_password-VALUE',
     }),
     'cassandra': dict({

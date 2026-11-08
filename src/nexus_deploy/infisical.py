@@ -1172,8 +1172,9 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
             "bytebase",
             _filter_empty(
                 {
-                    # The login is the stack user's email; bytebase-init signs
-                    # it up as the workspace admin on first start.
+                    # The login: bytebase-init signs this email up as the
+                    # workspace admin on first start (service_env._render_bytebase).
+                    "BYTEBASE_EMAIL": stack_user_email(env),
                     "BYTEBASE_PASSWORD": config.bytebase_admin_password,
                     "BYTEBASE_DB_PASSWORD": config.bytebase_db_password,
                 }
