@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (121)
+## Available Stacks (126)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -104,6 +104,7 @@ After deployment you'll have:
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
 [![Dinky](https://img.shields.io/badge/Dinky-1677FF?logo=apacheflink&logoColor=white)](https://www.dinky.org.cn/)
+[![Docling](https://img.shields.io/badge/Docling-0F62FE?logoColor=white)](https://docling-project.github.io/docling/)
 [![Dozzle](https://img.shields.io/badge/Dozzle-7B16FF?logo=docker&logoColor=white)](https://dozzle.dev)
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
@@ -137,11 +138,13 @@ After deployment you'll have:
 [![Lakekeeper](https://img.shields.io/badge/Lakekeeper-B7410E?logo=rust&logoColor=white)](https://lakekeeper.io)
 [![Langflow](https://img.shields.io/badge/Langflow-7528FC?logo=langchain&logoColor=white)](https://www.langflow.org)
 [![Langfuse](https://img.shields.io/badge/Langfuse-0A0A0A?logo=opentelemetry&logoColor=white)](https://langfuse.com)
+[![Lightdash](https://img.shields.io/badge/Lightdash-7262FF?logoColor=white)](https://www.lightdash.com)
 [![LiteLLM](https://img.shields.io/badge/LiteLLM-00BFFF?logo=openai&logoColor=white)](https://www.litellm.ai)
 [![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)](https://mage.ai)
 [![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)](https://mailpit.axllent.org)
 [![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)](https://marimo.io)
 [![Marquez](https://img.shields.io/badge/Marquez-1F5C99?logo=apacheairflow&logoColor=white)](https://marquezproject.ai)
+[![Mathesar](https://img.shields.io/badge/Mathesar-5EBA7D?logoColor=white)](https://mathesar.org)
 [![Meilisearch](https://img.shields.io/badge/Meilisearch-FF5CAA?logo=meilisearch&logoColor=white)](https://www.meilisearch.com)
 [![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)](https://meltano.com)
 [![Memgraph](https://img.shields.io/badge/Memgraph-FB6E00?logo=memgraph&logoColor=white)](https://memgraph.com)
@@ -159,6 +162,7 @@ After deployment you'll have:
 [![Open Notebook](https://img.shields.io/badge/Open_Notebook-111827?logo=jupyter&logoColor=white)](https://github.com/lfnovo/open-notebook)
 [![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)](https://open-metadata.org)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org)
+[![ParadeDB](https://img.shields.io/badge/ParadeDB-1C1C1C?logo=postgresql&logoColor=white)](https://www.paradedb.com)
 [![pg_ducklake](https://img.shields.io/badge/pg__ducklake-336791?logo=postgresql&logoColor=white)](https://pgducklake.select)
 [![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)](https://www.pgadmin.org)
 [![Planka](https://img.shields.io/badge/Planka-4D4D4D?logo=planka&logoColor=white)](https://planka.app)
@@ -170,6 +174,7 @@ After deployment you'll have:
 [![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![QuestDB](https://img.shields.io/badge/QuestDB-D14671?logo=questdb&logoColor=white)](https://questdb.com)
+[![Ray](https://img.shields.io/badge/Ray-028CF0?logo=ray&logoColor=white)](https://www.ray.io)
 [![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Console](https://img.shields.io/badge/Redpanda%20Console-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
@@ -228,6 +233,7 @@ After deployment you'll have:
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |
 | **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
+| **Docling Serve** | Document conversion API: PDF, DOCX, PPTX and HTML to Markdown or JSON, with a web UI | [docling-project.github.io](https://docling-project.github.io/docling/) |
 | **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
 | **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
@@ -261,11 +267,13 @@ After deployment you'll have:
 | **Lakekeeper** | Modern Iceberg REST Catalog (Rust) — Spark / Trino / DuckDB / PyIceberg share Iceberg tables on the existing object storage | [lakekeeper.io](https://lakekeeper.io) |
 | **Langflow** | Visual builder for LLM flows, RAG pipelines and agents, wired to the models and vector stores in the stack | [langflow.org](https://www.langflow.org) |
 | **Langfuse** | LLM observability — traces, evaluations and prompt management for every model call | [langfuse.com](https://langfuse.com) |
+| **Lightdash** | BI on top of dbt: explores, charts and dashboards from the metrics in a dbt project | [lightdash.com](https://www.lightdash.com) |
 | **LiteLLM** | Unified OpenAI-compatible proxy for 100+ LLM providers (Ollama, OpenAI, Anthropic, Mistral, ...) — single SDK, per-key budgets, cost tracking | [litellm.ai](https://www.litellm.ai) |
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
 | **Marquez** | OpenLineage reference backend — which job produced which dataset, and what breaks when one changes | [marquezproject.ai](https://marquezproject.ai) |
+| **Mathesar** | Spreadsheet-like interface for PostgreSQL: tables, relationships and explorations without SQL | [mathesar.org](https://mathesar.org) |
 | **Meilisearch** | Lightning-fast Rust full-text search — sub-100ms typo-tolerant, schema-less | [meilisearch.com](https://www.meilisearch.com) |
 | **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
 | **Memgraph** | In-memory graph database with MAGE graph algorithms and Memgraph Lab | [memgraph.com](https://memgraph.com) |
@@ -283,6 +291,7 @@ After deployment you'll have:
 | **Open Notebook** | Self-hosted NotebookLM alternative — ask questions about your own sources with local models | [GitHub](https://github.com/lfnovo/open-notebook) |
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **OpenSearch** | Apache-2.0 search & analytics engine with Dashboards — speaks the Elasticsearch API | [opensearch.org](https://opensearch.org) |
+| **ParadeDB** | PostgreSQL with BM25 full-text search and pgvector, internal at `paradedb:5432` | [paradedb.com](https://www.paradedb.com) |
 | **pg_ducklake** | PostgreSQL with DuckLake extension - SQL-native lakehouse with S3 storage | [pgducklake.select](https://pgducklake.select) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
 | **Planka** | Open-source kanban board (Trello alternative) with real-time multi-user collaboration | [planka.app](https://planka.app) |
@@ -294,6 +303,7 @@ After deployment you'll have:
 | **Qdrant** | Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs | [qdrant.tech](https://qdrant.tech) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
 | **QuestDB** | Time-series database with web console — speaks PostgreSQL wire & InfluxDB line protocols | [questdb.com](https://questdb.com) |
+| **Ray** | Distributed Python for data processing and ML: tasks, actors, Ray Data, Tune and Serve | [ray.io](https://www.ray.io) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Redpanda Console** | Web UI for managing and debugging Redpanda/Kafka workloads | [redpanda.com](https://redpanda.com) |
 | **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |

@@ -1248,6 +1248,56 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "paradedb",
+            _filter_empty(
+                {
+                    # PostgreSQL protocol: paradedb:5432, database paradedb.
+                    "PARADEDB_USERNAME": "nexus-paradedb",
+                    "PARADEDB_PASSWORD": config.paradedb_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "docling",
+            # Sent as the X-Api-Key header; the web UI asks for it once.
+            _filter_empty({"DOCLING_API_KEY": config.docling_api_key}),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "lightdash",
+            _filter_empty(
+                {
+                    # The login lightdash-init registers as the admin.
+                    "LIGHTDASH_EMAIL": stack_user_email(env),
+                    "LIGHTDASH_PASSWORD": config.lightdash_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "ray",
+            # The dashboard asks for it; clients read it from RAY_AUTH_TOKEN.
+            _filter_empty({"RAY_AUTH_TOKEN": config.ray_auth_token}),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "mathesar",
+            _filter_empty(
+                {
+                    # Created by mathesar-init before the web server starts.
+                    "MATHESAR_USERNAME": "nexus-admin",
+                    "MATHESAR_PASSWORD": config.mathesar_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

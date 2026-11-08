@@ -284,6 +284,17 @@ output "secrets" {
     # Valkey (Redis-compatible in-memory store)
     valkey_password = random_password.valkey.result
 
+    # ParadeDB, Docling Serve, Lightdash, Ray, Mathesar
+    paradedb_password        = random_password.paradedb.result
+    docling_api_key          = random_password.docling_api_key.result
+    lightdash_db_password    = random_password.lightdash_db.result
+    lightdash_secret         = random_password.lightdash_secret.result
+    lightdash_admin_password = random_password.lightdash_admin.result
+    ray_auth_token           = random_password.ray_auth_token.result
+    mathesar_db_password     = random_password.mathesar_db.result
+    mathesar_secret_key      = random_password.mathesar_secret_key.result
+    mathesar_admin_password  = random_password.mathesar_admin.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

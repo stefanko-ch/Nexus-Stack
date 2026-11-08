@@ -301,6 +301,16 @@ services:
     long_description: "Dinky is a web-based IDE for Apache Flink SQL development. Write and execute Flink SQL with auto-completion, manage Flink jobs, debug SQL in real time, and monitor job execution. Supports both streaming and batch SQL with a visual data lineage graph."
     image: "nexus-dinky:1.2.5-flink1.20"
 
+  docling:
+    subdomain: "docling"
+    port: 8118
+    public: false
+    category: "ai-ml"
+    website: "https://docling-project.github.io/docling/"
+    description: "Document conversion API: PDF, DOCX, PPTX and HTML to Markdown or JSON, with layout, tables and OCR."
+    long_description: "Docling Serve converts documents into clean, structured text for LLMs and search: layout analysis recovers reading order, headings and lists, table structure recognition rebuilds tables, and OCR handles scanned pages. Output is Markdown, JSON, HTML or plain text. It is the ingestion step in front of the RAG stacks here (Flowise, Langflow, Dify, Open Notebook): call http://docling:5001/v1/convert/source from any container, or try it in the web UI at /ui. Every API call needs the key from Infisical (folder `docling`) in an X-Api-Key header; the UI asks for it once. CPU image with the models built in; nothing is stored."
+    image: "ghcr.io/docling-project/docling-serve-cpu:v1.38.2"
+
   dozzle:
     subdomain: "dozzle"
     port: 8480
@@ -850,6 +860,19 @@ services:
     long_description: "Label Studio is an open-source annotation tool. A project defines a labelling interface — classification, named entities, bounding boxes, segmentation, transcription, ranking — and tasks are imported, labelled in the browser and exported in the formats training code expects (JSON, CSV, COCO, YOLO, spaCy and more). It covers the step before model training that nothing else in the stack does. Notebooks reach it in-cluster at http://label-studio:8080 with the label-studio-sdk. The account is the stack user's email with a generated password, plus an API token for the SDK (Infisical → folder `label-studio`); sign-up is disabled. Projects, annotations and uploaded files live in SQLite under /mnt/nexus-data and survive a teardown."
     image: "heartexlabs/label-studio:1.23.2"
 
+  lightdash:
+    subdomain: "lightdash"
+    port: 8117
+    public: false
+    category: "analytics"
+    website: "https://www.lightdash.com"
+    description: "BI on top of dbt: explores, charts and dashboards from the metrics defined in a dbt project."
+    long_description: "Lightdash turns a dbt project into a BI tool: the dimensions and metrics are defined once in the dbt YAML, and explores, charts and dashboards are built on them, so the numbers in a dashboard are the ones the models define. A project connects a warehouse (Postgres, Trino, ClickHouse, Databricks and others) and a dbt project, deployed with the Lightdash CLI or pulled from a Git provider. Next to Metabase and Superset it is the option where the semantic layer lives in code. The admin is created on first start with the stack user's email (Infisical → folder `lightdash`); afterwards only invited users get in. Runs on its own PostgreSQL and its own MinIO for exports. Data lives in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
+    image: "lightdash/lightdash:3.179.0"
+    support_images:
+      lightdash-db: "postgres:17-alpine"
+      lightdash-s3: "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+
   litellm:
     subdomain: "litellm"
     port: 4000
@@ -924,6 +947,18 @@ services:
     long_description: "Marimo is a reactive Python notebook that automatically re-executes dependent cells when you modify code. Notebooks are stored as pure Python files (git-friendly), support SQL natively, and can be deployed as interactive web apps. Pre-wired to talk to the Spark cluster via Spark Connect (sc://spark-connect:15002) — pyspark[connect] + ibis-framework[pyspark] are pre-installed."
     image: "nexus-marimo:0.23.4-sql-spark"
     tier: proven
+
+  mathesar:
+    subdomain: "mathesar"
+    port: 8119
+    public: false
+    category: "db-management"
+    website: "https://mathesar.org"
+    description: "Spreadsheet-like interface for PostgreSQL: tables, relationships and explorations without SQL."
+    long_description: "Mathesar puts a spreadsheet view on real PostgreSQL schemas: create tables and columns, edit records, follow foreign keys, filter, group and save explorations, all without writing SQL, with PostgreSQL's own roles and permissions underneath. It is for people who should work with data in Postgres but not through a SQL client. It runs on its own PostgreSQL, which is also the first server to create databases on; the shared postgres, paradedb and timescaledb stacks can be connected too. The admin (nexus-admin) is created before the first start (Infisical → folder `mathesar`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "mathesar/mathesar:0.12.0"
+    support_images:
+      mathesar-db: "postgres:17-alpine"
 
   meilisearch:
     subdomain: "meilisearch"
@@ -1165,6 +1200,21 @@ services:
     long_description: "pgAdmin is the most popular administration and development platform for PostgreSQL. Features include a powerful SQL editor with auto-complete, visual query builder, server monitoring dashboards, backup/restore tools, and user management. Supports multiple PostgreSQL server connections."
     image: "dpage/pgadmin4:9"
 
+  paradedb:
+    # Internal-only: the PostgreSQL wire protocol cannot cross the HTTPS
+    # tunnel, and there is no web UI. Clients connect to paradedb:5432 on
+    # app-network. 5434 is not bound anywhere (no tcp_ports, no firewall
+    # rule); it only keeps this entry clear of postgres (5432) and
+    # timescaledb (5433) in the port-uniqueness check.
+    port: 5434
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.paradedb.com"
+    description: "PostgreSQL with full-text search (BM25) and fast analytics, plus pgvector for hybrid search."
+    long_description: "ParadeDB is PostgreSQL 18 with the pg_search extension: a bm25 index gives relevance-ranked full-text search, fuzzy and phrase matching, highlighting and faceted aggregates in plain SQL, and pgvector ships alongside, so keyword and vector search combine in one query. Next to OpenSearch and Meilisearch, which need data copied in and kept in sync, ParadeDB searches the tables where the data already lives, transactionally. Every Postgres client in the stack connects unchanged at paradedb:5432 as nexus-paradedb with the password from Infisical (folder `paradedb`). No web UI. Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "paradedb/paradedb:0.26.5-pg18"
+
   pg-ducklake:
     port: 5432
     public: false
@@ -1255,6 +1305,16 @@ services:
     description: "Time-series database with a built-in web console — speaks the PostgreSQL wire and InfluxDB line protocols."
     long_description: "QuestDB is a column-oriented time-series database with SQL on top and a web console built in. It fills the one gap the other databases leave: ClickHouse is OLAP, PostgreSQL and pg_ducklake are relational, RisingWave is streaming, and none of them is a time-series engine. It speaks the PostgreSQL wire protocol on 8812, so psycopg2 and JDBC clients reach it unchanged, and the InfluxDB line protocol on 9009, so Telegraf writes to it without a new plugin. One container, no companion database."
     image: "questdb/questdb:10.0.1"
+
+  ray:
+    subdomain: "ray"
+    port: 8265
+    public: false
+    category: "ai-ml"
+    website: "https://www.ray.io"
+    description: "Distributed Python for data processing and ML: tasks, actors, Ray Data, Tune and Serve, with a dashboard."
+    long_description: "Ray scales Python from one function to many cores: @ray.remote turns functions into parallel tasks and classes into actors, Ray Data processes datasets in parallel, Ray Tune runs hyperparameter searches and Ray Serve serves models. This stack is a single-node cluster with 4 CPUs; notebooks on app-network connect with ray.init(\"ray://ray:10001\") and need ray==2.60.0 on Python 3.12. Token authentication is on: the dashboard asks for the token once, and clients send it via RAY_AUTH_TOKEN (Infisical → folder `ray`). Next to Spark it is the Python-native option for ML workloads. Stateless; job history is gone after a restart."
+    image: "rayproject/ray:2.60.0-py312-cpu"
 
   redpanda:
     subdomain: "redpanda"

@@ -1,0 +1,201 @@
+# =============================================================================
+# Lightdash - BI on top of dbt models
+# =============================================================================
+# URL: https://lightdash.<domain>
+#
+# Lightdash reads a dbt project and turns its models into explores: the
+# dimensions and metrics are defined once in the dbt YAML, and charts and
+# dashboards are built on them. A project connects a warehouse (Postgres,
+# Trino, ClickHouse, Databricks ...) and a dbt project, pushed with the
+# Lightdash CLI (`lightdash deploy`) or pulled from a Git provider.
+#
+# The first user to register becomes the admin of the one organization, and
+# after that the instance only lets in invited users. lightdash-init claims
+# that admin on the first start with the stack user's email and a generated
+# password (Infisical folder `lightdash`).
+#
+# Lightdash requires S3-compatible storage for exports and query results;
+# lightdash-s3 is a MinIO of its own, on the internal network only.
+# No headless browser: scheduled deliveries and Slack unfurls that render
+# chart images are not available.
+#
+# Data in the lightdash-db-data and lightdash-s3-data volumes, which survive
+# a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+x-lightdash-env: &lightdash-env
+  PGHOST: lightdash-db
+  PGPORT: "5432"
+  PGUSER: nexus-lightdash
+  PGPASSWORD: ${LIGHTDASH_DB_PASSWORD:?must be set in .env (rendered by service_env._render_lightdash)}
+  PGDATABASE: lightdash
+  # Encrypts warehouse credentials at rest. Generated once per stack and
+  # preserved; a new one makes the stored credentials unreadable.
+  LIGHTDASH_SECRET: ${LIGHTDASH_SECRET:?must be set in .env (rendered by service_env._render_lightdash)}
+  SITE_URL: ${LIGHTDASH_URL:?must be set in .env (rendered by service_env._render_lightdash)}
+  PORT: "8080"
+  S3_ENDPOINT: http://lightdash-s3:9000
+  S3_BUCKET: lightdash
+  S3_REGION: us-east-1
+  S3_ACCESS_KEY: nexus-lightdash
+  S3_SECRET_KEY: ${LIGHTDASH_DB_PASSWORD}
+  S3_FORCE_PATH_STYLE: "true"
+  # Telemetry and the update check both call out by default.
+  RUDDERSTACK_ANALYTICS_DISABLED: "true"
+  LIGHTDASH_DISABLE_UPDATE_CHECK: "true"
+
+services:
+  lightdash:
+    image: ${IMAGE_LIGHTDASH:-lightdash/lightdash:3.179.0}
+    container_name: lightdash
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8117:8080"
+    environment:
+      <<: *lightdash-env
+    depends_on:
+      lightdash-db:
+        condition: service_healthy
+      lightdash-s3-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      # The image has neither curl nor wget; Node 24 has fetch.
+      test: ["CMD", "/usr/local/bin/node", "-e", "fetch('http://localhost:8080/api/v1/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+      - lightdash-internal
+
+  lightdash-init:
+    image: ${IMAGE_LIGHTDASH:-lightdash/lightdash:3.179.0}
+    container_name: lightdash-init
+    # Retries a transient failure a few times. Each run is idempotent: it
+    # logs in when the admin exists. A lost admin claim fails every retry.
+    restart: "on-failure:3"
+    entrypoint: ["/usr/local/bin/node", "-e"]
+    command:
+      - |
+        const api = 'http://lightdash:8080/api/v1';
+        const { LIGHTDASH_ADMIN_EMAIL: email, LIGHTDASH_ADMIN_PASSWORD: password } = process.env;
+        const fail = (msg) => { console.error('lightdash-init: ' + msg); process.exit(1); };
+        const call = async (method, path, body, cookie) => {
+          const r = await fetch(api + path, {
+            method,
+            headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          return { status: r.status, cookie: (r.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).join('; '), json: await r.json().catch(() => ({})) };
+        };
+        (async () => {
+          // The first registration becomes the admin, so the claim races
+          // anyone who opens the page first. Poll every second to keep the
+          // window short; depends_on already waits for the health check.
+          let health;
+          for (let i = 0; ; i++) {
+            try { health = await call('GET', '/health'); if (health.status === 200) break; } catch {}
+            if (i >= 300) fail('Lightdash not healthy after 300s');
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+          let created = false;
+          if (health.json.results.requiresOrgRegistration) {
+            const reg = await call('POST', '/user', { firstName: 'Nexus', lastName: 'Admin', email, password });
+            if (reg.status !== 200) fail('registration failed (HTTP ' + reg.status + '): ' + JSON.stringify(reg.json).slice(0, 300));
+            const org = await call('PUT', '/org', { name: 'Nexus' }, reg.cookie);
+            if (org.status !== 200) fail('organization setup failed (HTTP ' + org.status + '): ' + JSON.stringify(org.json).slice(0, 300));
+            created = true;
+          }
+          // A fresh login: the registration session still carries the user
+          // as it was before the organization existed, without its role.
+          const login = await call('POST', '/login', { email, password });
+          if (login.status !== 200) fail('the admin login failed (HTTP ' + login.status + ') -- someone else registered first, or the password changed. Reset lightdash-db to reclaim it.');
+          const me = await call('GET', '/user', undefined, login.cookie);
+          if (me.json.results?.role !== 'admin') fail('the generated account is not the organization admin -- someone registered first. Reset lightdash-db to reclaim it.');
+          console.log(created ? 'lightdash-init: admin and organization created' : 'lightdash-init: admin already exists');
+        })().catch((e) => fail(String(e)));
+    environment:
+      LIGHTDASH_ADMIN_EMAIL: ${LIGHTDASH_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_lightdash)}
+      LIGHTDASH_ADMIN_PASSWORD: ${LIGHTDASH_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_lightdash)}
+    depends_on:
+      lightdash:
+        condition: service_healthy
+    networks:
+      - lightdash-internal
+
+  lightdash-db:
+    image: ${IMAGE_LIGHTDASH_DB:-postgres:17-alpine}
+    container_name: lightdash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-lightdash
+      POSTGRES_PASSWORD: ${LIGHTDASH_DB_PASSWORD}
+      POSTGRES_DB: lightdash
+    volumes:
+      - lightdash-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-lightdash -d lightdash"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lightdash-internal
+
+  lightdash-s3:
+    image: ${IMAGE_LIGHTDASH_S3:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    container_name: lightdash-s3
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: nexus-lightdash
+      MINIO_ROOT_PASSWORD: ${LIGHTDASH_DB_PASSWORD}
+    volumes:
+      - lightdash-s3-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lightdash-internal
+
+  lightdash-s3-init:
+    image: ${IMAGE_LIGHTDASH_S3:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    container_name: lightdash-s3-init
+    restart: "on-failure:3"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mc alias set lightdash http://lightdash-s3:9000 nexus-lightdash "$$MINIO_ROOT_PASSWORD" >/dev/null
+        mc mb --ignore-existing lightdash/lightdash
+    environment:
+      MINIO_ROOT_PASSWORD: ${LIGHTDASH_DB_PASSWORD}
+    depends_on:
+      lightdash-s3:
+        condition: service_healthy
+    networks:
+      - lightdash-internal
+
+volumes:
+  lightdash-db-data:
+  lightdash-s3-data:
+
+networks:
+  app-network:
+    external: true
+  lightdash-internal:
+    driver: bridge
