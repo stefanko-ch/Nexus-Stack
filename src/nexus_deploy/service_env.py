@@ -2176,6 +2176,71 @@ def _render_mathesar(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _render_dremio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Dremio: the admin dremio-init claims as the first user. Empty values
+    would leave that claim to whoever opens the page first."""
+    _require(
+        "Dremio",
+        {"DREMIO_ADMIN_PASSWORD": c.dremio_admin_password},
+        "leaving the Dremio admin to whoever opens the page first",
+    )
+    return RenderedEnv(
+        env_vars={
+            "DREMIO_ADMIN_PASSWORD": c.dremio_admin_password or "",
+            "DREMIO_ADMIN_EMAIL": _admin_email("Dremio", e),
+        },
+        mode=0o600,
+    )
+
+
+def _render_anythingllm(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """AnythingLLM: the instance password and the JWT secret it signs
+    sessions with. Without the password the whole instance, settings and
+    provider keys included, is open to anyone past Cloudflare Access."""
+    secrets = {
+        "ANYTHINGLLM_PASSWORD": c.anythingllm_password,
+        "ANYTHINGLLM_JWT_SECRET": c.anythingllm_jwt_secret,
+    }
+    _require("AnythingLLM", secrets, "starting AnythingLLM without a password")
+    return RenderedEnv(env_vars={k: v or "" for k, v in secrets.items()}, mode=0o600)
+
+
+def _render_mssql(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """SQL Server: the `sa` password and the nexus-mssql login's.
+
+    SQL Server refuses a password without three of the four character
+    classes and does not start with one, so that is checked here too,
+    where the message can name the cause.
+    """
+    secrets = {"MSSQL_SA_PASSWORD": c.mssql_sa_password, "MSSQL_PASSWORD": c.mssql_password}
+    _require("SQL Server", secrets, "starting SQL Server without a password")
+    weak = sorted(
+        k
+        for k, v in secrets.items()
+        if not (
+            any(ch.isupper() for ch in v or "")
+            and any(ch.islower() for ch in v or "")
+            and any(ch.isdigit() for ch in v or "")
+        )
+    )
+    if weak:
+        raise ServiceEnvError(
+            f"SQL Server enabled but {', '.join(weak)} lacks an upper-case letter, a "
+            "lower-case letter or a digit, which SQL Server's password policy needs. "
+            "They come from random_password with min_upper, min_lower and min_numeric.",
+        )
+    return RenderedEnv(env_vars={k: v or "" for k, v in secrets.items()}, mode=0o600)
+
+
+def _render_conduit(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Conduit: the API token. Conduit refuses to bind beyond localhost
+    without one, so an empty token would stop the stack."""
+    _require(
+        "Conduit", {"CONDUIT_API_TOKEN": c.conduit_api_token}, "starting Conduit without a token"
+    )
+    return RenderedEnv(env_vars={"CONDUIT_API_TOKEN": c.conduit_api_token or ""}, mode=0o600)
+
+
 def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """StarRocks: the password start.sh gives root and nexus-starrocks.
 
@@ -3536,6 +3601,10 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("lightdash", _is_enabled("lightdash"), _render_lightdash),
     EnvSpec("ray", _is_enabled("ray"), _render_ray),
     EnvSpec("mathesar", _is_enabled("mathesar"), _render_mathesar),
+    EnvSpec("dremio", _is_enabled("dremio"), _render_dremio),
+    EnvSpec("anythingllm", _is_enabled("anythingllm"), _render_anythingllm),
+    EnvSpec("mssql", _is_enabled("mssql"), _render_mssql),
+    EnvSpec("conduit", _is_enabled("conduit"), _render_conduit),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

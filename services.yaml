@@ -95,6 +95,16 @@ services:
     support_images:
       airflow-db: "postgres:17-alpine"
 
+  anythingllm:
+    subdomain: "anythingllm"
+    port: 8121
+    public: false
+    category: "ai-ml"
+    website: "https://anythingllm.com"
+    description: "Chat with your documents: RAG workspaces, agents and an API, on local or hosted models."
+    long_description: "AnythingLLM turns uploaded documents into chat workspaces: files are split, embedded with its built-in model and stored in a built-in vector database, and answers cite their sources. Agents, web browsing and a developer API come with it. This stack is preset for the Ollama stack (ollama:11434, model llama3.2, which has to be pulled in Ollama first); any other provider can be chosen in the settings. Next to Open Notebook and Dify it is the quickest way from a folder of PDFs to a chat over them. The instance is password-protected (Infisical → folder `anythingllm`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "mintplexlabs/anythingllm:1.19.0"
+
   apicurio:
     subdomain: "apicurio"
     port: 8110
@@ -201,6 +211,16 @@ services:
     # spark, which all declare their `nexus-` build.
     image: "nexus-code-server:4.143.1"
     tier: proven
+
+  conduit:
+    subdomain: "conduit"
+    port: 8120
+    public: false
+    category: "streaming"
+    website: "https://conduit.io"
+    description: "Data streaming and CDC pipelines in a single Go binary, with a web UI and HTTP API."
+    long_description: "Conduit moves data between systems in real time: a pipeline reads from a source connector (PostgreSQL CDC, Kafka, S3, files or a generator), runs processors, and writes to a destination. It is one small Go binary, a light alternative to Kafka Connect, Debezium Server or NiFi for straightforward pipelines. Pipelines are YAML files in the stack directory, read at start; a demo pipeline (generator to log) runs without any other stack. Every API call and the web UI need the token from Infisical (folder `conduit`). Connector positions live in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "ghcr.io/conduitio/conduit:v0.21.2"
 
   crawl4ai:
     subdomain: "crawl4ai"
@@ -330,6 +350,16 @@ services:
     description: "Flowchart and diagramming tool for creating technical diagrams, flowcharts, and UML diagrams."
     long_description: "draw.io (diagrams.net) is a free diagramming application for creating flowcharts, UML diagrams, network diagrams, org charts, and more. Supports import/export in various formats, extensive shape libraries, and collaborative editing. Self-hosted for data privacy."
     image: "jgraph/drawio:latest"
+
+  dremio:
+    subdomain: "dremio"
+    port: 9047
+    public: false
+    category: "analytics"
+    website: "https://www.dremio.com"
+    description: "Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI."
+    long_description: "Dremio queries data where it lies, object storage such as MinIO, Iceberg catalogs such as Nessie, relational databases and files, through one SQL layer with a web editor, a semantic layer of virtual datasets, and reflections that accelerate repeated queries. Next to Trino it is the option with its own UI and semantic layer, and it pairs naturally with the Nessie stack. Single node, with JDBC/ODBC on 31010 and Arrow Flight on 32010 inside the stack. It needs at least 4 GB of memory, so the container gets 5 GB. The admin (nexus-admin) is created on first start (Infisical → folder `dremio`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "dremio/dremio-oss:26.0.5"
 
   duckdb:
     # Internal-only: Quack speaks HTTP, but its clients are DuckDB processes
@@ -850,6 +880,20 @@ services:
     long_description: "StarRocks is a columnar, massively parallel OLAP database built for sub-second aggregations over large tables. Beyond its own tables it queries the lakehouse in place: external catalogs read Iceberg, Delta Lake, Hive and Paimon tables, and FILES() reads Parquet straight from S3-compatible storage — the same data Spark, Trino and DuckDB see here. It speaks the MySQL protocol, so CloudBeaver, Adminer, `mysql` and SQLAlchemy work as clients at starrocks:9030. This stack runs the all-in-one image (one frontend, one backend), right-sized for teaching, with memory capped at 2 GB heap plus 3 GB for the backend. The account is nexus-starrocks with a password generated per deployment (Infisical → folder `starrocks`); data lives under /mnt/nexus-data and survives a teardown."
     image: "starrocks/allin1-ubuntu:4.1.7"
 
+  ksqldb:
+    # Internal-only: no web UI and no authentication on the REST API, like
+    # the Kafka broker it runs on. Clients reach ksqldb:8088 on app-network.
+    # 8122 is not bound anywhere; the container's own 8088 is taken in this
+    # catalogue, and the port-uniqueness check needs a free number.
+    port: 8122
+    public: false
+    internal_only: true
+    category: "streaming"
+    website: "https://ksqldb.io"
+    description: "Streaming SQL on Kafka: streams, tables, joins and continuously updated aggregations."
+    long_description: "ksqlDB runs SQL over Kafka topics: CREATE STREAM and CREATE TABLE describe topics, and persistent queries filter, join and aggregate them continuously, with materialized views that answer pull queries and push queries that stream changes. It runs against the kafka stack, which must be enabled too, and keeps its state in Kafka topics. There is no web UI and no authentication, so it is internal only at ksqldb:8088; use the ksql CLI inside the container or the REST API from a notebook. Licensed under the Confluent Community License."
+    image: "confluentinc/cp-ksqldb-server:8.4.0"
+
   label-studio:
     subdomain: "label-studio"
     port: 8280
@@ -1069,6 +1113,18 @@ services:
       mongodb-express: "mongo-express:1.0.2-20-alpine3.19"
     tcp_ports:
       wire: 27017
+
+  mssql:
+    # Internal-only: the TDS protocol cannot cross the HTTPS tunnel, and
+    # there is no web UI. Clients connect to mssql:1433 on app-network.
+    port: 1433
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.microsoft.com/sql-server"
+    description: "Microsoft SQL Server 2025, Developer edition: T-SQL, columnstore and CDC for development and learning."
+    long_description: "SQL Server on Linux with the full feature set of the Developer edition: T-SQL, stored procedures, columnstore indexes, temporal tables and change data capture, licensed for development and test, not production. It is the database many enterprise courses and applications expect. Clients connect to mssql:1433 as nexus-mssql, a sysadmin login created on first start, with the password from Infisical (folder `mssql`); CloudBeaver and Adminer speak T-SQL. Telemetry is switched off and memory is capped at 2 GB. No web UI. Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown. The image is published for amd64 only."
+    image: "mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04"
 
   n8n:
     subdomain: "n8n"

@@ -694,6 +694,45 @@ resource "random_password" "mathesar_admin" {
   special = false
 }
 
+# Dremio, AnythingLLM, SQL Server and Conduit. Alphanumeric, like the rest.
+# SQL Server refuses passwords without three of four character classes, so
+# its two also carry minimum counts of upper, lower and digits.
+resource "random_password" "dremio_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "anythingllm" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "anythingllm_jwt_secret" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "mssql_sa" {
+  length      = 24
+  special     = false
+  min_upper   = 2
+  min_lower   = 2
+  min_numeric = 2
+}
+
+resource "random_password" "mssql" {
+  length      = 24
+  special     = false
+  min_upper   = 2
+  min_lower   = 2
+  min_numeric = 2
+}
+
+resource "random_password" "conduit_api_token" {
+  length  = 32
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

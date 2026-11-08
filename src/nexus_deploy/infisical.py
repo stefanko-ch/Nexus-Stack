@@ -1298,6 +1298,45 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "dremio",
+            _filter_empty(
+                {
+                    # Claimed by dremio-init as the first user.
+                    "DREMIO_USERNAME": "nexus-admin",
+                    "DREMIO_PASSWORD": config.dremio_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "anythingllm",
+            # The instance password (AUTH_TOKEN, single-user mode).
+            _filter_empty({"ANYTHINGLLM_PASSWORD": config.anythingllm_password}),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "mssql",
+            _filter_empty(
+                {
+                    # T-SQL: mssql:1433, sysadmin login created by mssql-init.
+                    # The built-in `sa` password is not handed out.
+                    "MSSQL_USERNAME": "nexus-mssql",
+                    "MSSQL_PASSWORD": config.mssql_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "conduit",
+            # Bearer token for the API; the web UI asks for it once.
+            _filter_empty({"CONDUIT_API_TOKEN": config.conduit_api_token}),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

@@ -111,6 +111,7 @@ NO_OWN_AUTH = {
     "datasette",  # read-only browser and JSON API, no accounts
     "hop",  # Hop Web has no login; its /hop server API none either
     "kafka",  # PLAINTEXT listener; internal only
+    "ksqldb",  # REST API without auth; internal only
     "lakekeeper",
     "marquez",
     "nessie",  # runs with AuthN/AuthZ off

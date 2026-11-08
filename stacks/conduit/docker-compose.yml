@@ -1,0 +1,63 @@
+# =============================================================================
+# Conduit - data streaming and CDC pipelines
+# =============================================================================
+# URL: https://conduit.<domain>   (web UI: pipelines, status, start/stop)
+# In-cluster: http://conduit:8080 (HTTP API), conduit:8084 (gRPC)
+#
+# Conduit moves data between systems in real time: a pipeline reads from a
+# source connector (Postgres CDC, Kafka, S3, files, a generator) and writes
+# to a destination, with processors in between. A single Go binary, small
+# next to Kafka Connect or NiFi.
+#
+# Pipelines are YAML files in ./pipelines, read at start. The demo pipeline
+# (generator -> log) runs without any other stack; the docs show one that
+# writes to the `kafka` stack.
+#
+# Every API call needs the token from Infisical (folder `conduit`); the web UI
+# asks for it once. Conduit refuses to bind beyond localhost without one.
+#
+# Connector positions in the conduit-data volume (badger DB), which survives a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  conduit:
+    image: ${IMAGE_CONDUIT:-ghcr.io/conduitio/conduit:v0.21.2}
+    container_name: conduit
+    restart: unless-stopped
+    # The image sets no entrypoint, only this command, so it is spelled out.
+    command:
+      - /app/conduit
+      - run
+      - --api.http.address=0.0.0.0:8080
+      - --api.grpc.address=0.0.0.0:8084
+      - --pipelines.path=/etc/conduit/pipelines
+      - --db.badger.path=/data/conduit.db
+    environment:
+      CONDUIT_API_TOKEN: ${CONDUIT_API_TOKEN:?must be set in .env (rendered by service_env._render_conduit)}
+    ports:
+      - "127.0.0.1:8120:8080"
+    volumes:
+      - ./pipelines:/etc/conduit/pipelines:ro
+      # The image owns /data as its conduit user (10001); a fresh named
+      # volume takes over that owner.
+      - conduit-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+volumes:
+  conduit-data:
+
+networks:
+  app-network:
+    external: true

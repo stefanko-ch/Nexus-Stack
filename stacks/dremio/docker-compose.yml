@@ -1,0 +1,104 @@
+# =============================================================================
+# Dremio OSS - lakehouse query engine with a SQL UI
+# =============================================================================
+# URL: https://dremio.<domain>
+# In-cluster: dremio:31010 (JDBC/ODBC), dremio:32010 (Arrow Flight)
+#
+# Dremio queries data where it lies: object storage (MinIO, S3), Iceberg
+# catalogs such as Nessie, relational databases and files, through one SQL
+# layer with a web editor, a semantic layer of virtual datasets, and
+# reflections (materialized acceleration).
+#
+# The first user created becomes the admin, through the UI or the API, and
+# after that the bootstrap is closed. dremio-init claims that admin on the
+# first start (nexus-admin, Infisical folder `dremio`).
+#
+# Single node: coordinator, executor and embedded ZooKeeper in one process.
+# Metadata, reflections and uploads in the dremio-data volume, which survives
+# a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  dremio:
+    image: ${IMAGE_DREMIO:-dremio/dremio-oss:26.0.5}
+    container_name: dremio
+    restart: unless-stopped
+    environment:
+      # Read by conf/dremio-env. Without it Dremio sizes heap and direct
+      # memory from the host's RAM, not from this container's limit. 4096 is
+      # Dremio's minimum: below it the server exits with "Dremio requires at
+      # least 4 GB memory to run".
+      DREMIO_MAX_MEMORY_SIZE_MB: "4096"
+    ports:
+      - "127.0.0.1:9047:9047"
+    volumes:
+      # The image owns /opt/dremio/data as its dremio user; a fresh named
+      # volume takes over that owner.
+      - dremio-data:/opt/dremio/data
+    deploy:
+      resources:
+        limits:
+          # Dremio's 4 GB plus room for the JVM's own overhead.
+          memory: 5g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:9047/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+
+  dremio-init:
+    image: ${IMAGE_DREMIO:-dremio/dremio-oss:26.0.5}
+    container_name: dremio-init
+    # Retries a transient failure a few times. Each run is idempotent: it
+    # logs in when the admin exists. A lost admin claim fails every retry.
+    restart: "on-failure:3"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        api=http://dremio:9047/apiv2
+        # The first user becomes the admin, so the claim races anyone who
+        # opens the page first. Poll every second to keep the window short;
+        # depends_on already waits for the health check.
+        i=0
+        until curl -fsS -o /dev/null http://dremio:9047/; do
+          i=$$((i + 1))
+          if [ "$$i" -ge 300 ]; then echo "dremio-init: Dremio not up after 300s" >&2; exit 1; fi
+          sleep 1
+        done
+        body=$$(printf '{"userName":"nexus-admin","firstName":"Nexus","lastName":"Admin","email":"%s","createdAt":%s000,"password":"%s"}' \
+          "$$DREMIO_ADMIN_EMAIL" "$$(date +%s)" "$$DREMIO_ADMIN_PASSWORD")
+        code=$$(printf '%s' "$$body" | curl -s -o /tmp/first.out -w '%{http_code}' -X PUT \
+          -H 'Content-Type: application/json' "$$api/bootstrap/firstuser" --data-binary @-) || code=000
+        if [ "$$code" = 200 ]; then
+          echo "dremio-init: admin created"
+        elif ! grep -q "already registered" /tmp/first.out 2>/dev/null; then
+          echo "dremio-init: first-user setup failed (HTTP $$code): $$(head -c 300 /tmp/first.out 2>/dev/null)" >&2
+          exit 1
+        fi
+        login=$$(printf '{"userName":"nexus-admin","password":"%s"}' "$$DREMIO_ADMIN_PASSWORD")
+        lcode=$$(printf '%s' "$$login" | curl -s -o /tmp/login.out -w '%{http_code}' \
+          -H 'Content-Type: application/json' "$$api/login" --data-binary @-) || lcode=000
+        if [ "$$lcode" != 200 ] || ! grep -q '"admin":true' /tmp/login.out; then
+          echo "dremio-init: nexus-admin cannot log in as admin (HTTP $$lcode) -- someone else created the first user, or the password changed. Reset dremio-data to reclaim it." >&2
+          exit 1
+        fi
+        [ "$$code" = 200 ] || echo "dremio-init: admin already exists"
+    environment:
+      DREMIO_ADMIN_EMAIL: ${DREMIO_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_dremio)}
+      DREMIO_ADMIN_PASSWORD: ${DREMIO_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_dremio)}
+    depends_on:
+      dremio:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  dremio-data:
+
+networks:
+  app-network:
+    external: true

@@ -1,0 +1,92 @@
+# =============================================================================
+# Microsoft SQL Server 2025 - Developer edition
+# =============================================================================
+# SQL Server on Linux: T-SQL, stored procedures, columnstore indexes, CDC and
+# the rest of the engine, for development and learning. The Developer
+# edition has the full feature set and is licensed for non-production use.
+#
+# No web UI, so no subdomain and no tunnel ingress (`internal_only` in
+# services.yaml). Clients on app-network connect to mssql:1433 as
+# nexus-mssql (Infisical folder `mssql`); CloudBeaver and Adminer speak
+# T-SQL. The built-in `sa` gets its own generated password and is not
+# handed out.
+#
+# Telemetry (customer feedback) is switched off in mssql.conf before the
+# server starts. Databases in the mssql-data volume, which survives a restart
+# and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  mssql:
+    image: ${IMAGE_MSSQL:-mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04}
+    container_name: mssql
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        conf=/var/opt/mssql/mssql.conf
+        if ! grep -q '^customerfeedback' "$$conf" 2>/dev/null; then
+          printf '[telemetry]\ncustomerfeedback = false\n' >> "$$conf"
+        fi
+        exec /opt/mssql/bin/launch_sqlservr.sh /opt/mssql/bin/sqlservr
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?must be set in .env (rendered by service_env._render_mssql)}
+      # SQL Server takes memory up to this cap, below the container limit.
+      MSSQL_MEMORY_LIMIT_MB: "2048"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    healthcheck:
+      # SQLCMDPASSWORD rather than -P keeps the password out of the process list.
+      test: ["CMD-SHELL", "SQLCMDPASSWORD=\"$$MSSQL_SA_PASSWORD\" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - app-network
+
+  mssql-init:
+    image: ${IMAGE_MSSQL:-mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04}
+    container_name: mssql-init
+    restart: "on-failure:3"
+    # Creates the nexus-mssql login (sysadmin) once; on later starts it
+    # resets its password to the generated one, so Infisical stays right.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        # SQLCMDPASSWORD rather than -P keeps the password out of the process list.
+        SQLCMDPASSWORD="$$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -b -Q "
+          IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'nexus-mssql')
+          BEGIN
+            CREATE LOGIN [nexus-mssql] WITH PASSWORD = N'$$MSSQL_PASSWORD', CHECK_POLICY = ON;
+            ALTER SERVER ROLE sysadmin ADD MEMBER [nexus-mssql];
+            PRINT 'mssql-init: login nexus-mssql created';
+          END
+          ELSE
+          BEGIN
+            ALTER LOGIN [nexus-mssql] WITH PASSWORD = N'$$MSSQL_PASSWORD';
+            PRINT 'mssql-init: login nexus-mssql already exists';
+          END"
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?must be set in .env (rendered by service_env._render_mssql)}
+      MSSQL_PASSWORD: ${MSSQL_PASSWORD:?must be set in .env (rendered by service_env._render_mssql)}
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  mssql-data:
+
+networks:
+  app-network:
+    external: true

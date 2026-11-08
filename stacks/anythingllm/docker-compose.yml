@@ -1,0 +1,62 @@
+# =============================================================================
+# AnythingLLM - chat with your documents (RAG) on local or hosted models
+# =============================================================================
+# URL: https://anythingllm.<domain>
+#
+# Workspaces of uploaded documents, embedded and stored in a built-in vector
+# database (LanceDB), and chats that answer from them with citations.
+# Agents, web browsing and an API come with it.
+#
+# Preset for the Ollama stack: ollama:11434 with the llama3.2 model. Pull
+# the model in Ollama first, or pick another provider in the settings.
+# Embeddings run inside AnythingLLM (its built-in model).
+#
+# Password-protected single-user mode: the password is AUTH_TOKEN
+# (Infisical folder `anythingllm`). Without it the instance would be open to
+# anyone past Cloudflare Access, settings and API keys included.
+#
+# Documents, vectors and chats in the anythingllm-storage volume, which
+# survives a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  anythingllm:
+    image: ${IMAGE_ANYTHINGLLM:-mintplexlabs/anythingllm:1.19.0}
+    container_name: anythingllm
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8121:3001"
+    environment:
+      STORAGE_DIR: /app/server/storage
+      AUTH_TOKEN: ${ANYTHINGLLM_PASSWORD:?must be set in .env (rendered by service_env._render_anythingllm)}
+      JWT_SECRET: ${ANYTHINGLLM_JWT_SECRET:?must be set in .env (rendered by service_env._render_anythingllm)}
+      DISABLE_TELEMETRY: "true"
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_PATH: http://ollama:11434
+      OLLAMA_MODEL_PREF: llama3.2
+      OLLAMA_MODEL_TOKEN_LIMIT: "4096"
+      EMBEDDING_ENGINE: native
+      VECTOR_DB: lancedb
+    volumes:
+      # The image owns /app/server/storage as its anythingllm user (1000);
+      # a fresh named volume takes over that owner.
+      - anythingllm-storage:/app/server/storage
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:3001/api/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  anythingllm-storage:
+
+networks:
+  app-network:
+    external: true

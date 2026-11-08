@@ -7,6 +7,9 @@
       'AIRFLOW_PASSWORD': 'airflow_admin_password-VALUE',
       'AIRFLOW_USERNAME': 'nexus-test-user',
     }),
+    'anythingllm': dict({
+      'ANYTHINGLLM_PASSWORD': 'anythingllm_password-VALUE',
+    }),
     'apicurio': dict({
       'APICURIO_DB_PASSWORD': 'apicurio_db_password-VALUE',
       'APICURIO_DB_USERNAME': 'nexus-apicurio',
@@ -31,6 +34,9 @@
     'cloudbeaver': dict({
       'CLOUDBEAVER_PASSWORD': 'cloudbeaver_admin_password-VALUE',
       'CLOUDBEAVER_USERNAME': 'nexus-cloudbeaver',
+    }),
+    'conduit': dict({
+      'CONDUIT_API_TOKEN': 'conduit_api_token-VALUE',
     }),
     'config': dict({
       'ADMIN_EMAIL': 'admin@snapshot.test',
@@ -62,6 +68,10 @@
     }),
     'docling': dict({
       'DOCLING_API_KEY': 'docling_api_key-VALUE',
+    }),
+    'dremio': dict({
+      'DREMIO_PASSWORD': 'dremio_admin_password-VALUE',
+      'DREMIO_USERNAME': 'nexus-admin',
     }),
     'duckdb': dict({
     }),
@@ -236,6 +246,10 @@
       'MONGODB_EXPRESS_SESSION_SECRET': 'mongodb-express-session-secret',
       'MONGODB_ROOT_PASSWORD': 'mongodb-root-pw',
       'MONGODB_ROOT_USERNAME': 'nexus-mongodb',
+    }),
+    'mssql': dict({
+      'MSSQL_PASSWORD': 'mssql_password-VALUE',
+      'MSSQL_USERNAME': 'nexus-mssql',
     }),
     'n8n': dict({
       'N8N_PASSWORD': 'n8n_admin_password-VALUE',
