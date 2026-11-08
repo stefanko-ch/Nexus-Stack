@@ -57,7 +57,7 @@ If only `R2_ACCOUNT_ID` and `R2_DATABRICKS_URL` are missing:
 | `r2-datalake/R2_ACCOUNT_ID` | 32-character hex string | Cloudflare account ID, the host part of `R2_ENDPOINT` |
 | `r2-datalake/R2_DATABRICKS_URL` | `r2://<bucket>@<account-id>.r2.cloudflarestorage.com/` | URL of a Unity Catalog external location |
 
-The last two hold nothing new. They are the endpoint and bucket in the shape the Databricks forms ask for, so they can be copied instead of assembled. They are only written when the endpoint is an R2 host.
+The last two hold nothing new. They are the endpoint and bucket in the shape the Databricks forms ask for, so they can be copied instead of assembled. They are only written when the endpoint is an R2 host and the bucket a valid R2 bucket name.
 
 The `R2_SECRET_KEY` being a SHA-256 hash of the Cloudflare token (rather than the token itself) is [Cloudflare's documented convention](https://developers.cloudflare.com/r2/api/tokens/#get-s3-api-credentials-from-an-api-token) for S3-compatible auth. Any S3 client treats it as a normal secret access key; you never do the hashing yourself.
 

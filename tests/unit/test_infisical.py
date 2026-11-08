@@ -228,6 +228,19 @@ def test_compute_folders_r2_databricks_fields_need_an_r2_host(endpoint: str) -> 
     assert set(r2.secrets) == {"R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"}
 
 
+@pytest.mark.parametrize("bucket", ["data/sub", "user@data", "UPPER", "-data", "ab"])
+def test_compute_folders_r2_databricks_fields_need_an_r2_bucket_name(bucket: str) -> None:
+    """A bucket R2 would not accept never ends up inside the r2:// URL."""
+    config = _make_config(
+        r2_data_endpoint=f"https://{_R2_ACCOUNT}.r2.cloudflarestorage.com",
+        r2_data_access_key="ak",
+        r2_data_secret_key="sk",
+        r2_data_bucket=bucket,
+    )
+    r2 = next(f for f in compute_folders(config, BootstrapEnv()) if f.name == "r2-datalake")
+    assert "R2_DATABRICKS_URL" not in r2.secrets
+
+
 def test_compute_folders_hetzner_default_bucket_chain() -> None:
     """HETZNER_S3_BUCKET prefers _general, falls back to _lakefs."""
     base = {
