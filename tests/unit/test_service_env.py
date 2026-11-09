@@ -5127,3 +5127,70 @@ def test_dremio_refuses_an_unusable_admin_email(
     config = full_config.model_copy(update=_SIX_SECRETS)
     with pytest.raises(ServiceEnvError, match="admin email"):
         _render_dremio(config, replace(full_env, forgejo_user_email=email))
+
+
+# ---------------------------------------------------------------------------
+# RabbitMQ, Mosquitto, Node-RED, MySQL, RStudio
+# ---------------------------------------------------------------------------
+
+_SEVEN_SECRETS = {
+    "rabbitmq_password": "RbPass1",
+    "mosquitto_password": "MqPass1",
+    "node_red_admin_password": "NrPass1",
+    "node_red_credential_secret": "nrsecret1",
+    "mysql_root_password": "MyRoot1",
+    "mysql_password": "MyPass1",
+    "rstudio_password": "RsPass1",
+}
+
+
+def test_messaging_iot_stacks_render_their_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_SEVEN_SECRETS)
+    expected = {
+        "_render_rabbitmq": {"RABBITMQ_PASSWORD": "RbPass1"},
+        "_render_mosquitto": {"MOSQUITTO_PASSWORD": "MqPass1"},
+        "_render_node_red": {
+            "NODE_RED_ADMIN_PASSWORD": "NrPass1",
+            "NODE_RED_CREDENTIAL_SECRET": "nrsecret1",
+        },
+        "_render_mysql": {"MYSQL_ROOT_PASSWORD": "MyRoot1", "MYSQL_PASSWORD": "MyPass1"},
+        "_render_rstudio": {"RSTUDIO_PASSWORD": "RsPass1"},
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, full_env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_rabbitmq", "rabbitmq_password", "RABBITMQ_PASSWORD"),
+        ("_render_mosquitto", "mosquitto_password", "MOSQUITTO_PASSWORD"),
+        ("_render_node_red", "node_red_admin_password", "NODE_RED_ADMIN_PASSWORD"),
+        ("_render_node_red", "node_red_credential_secret", "NODE_RED_CREDENTIAL_SECRET"),
+        ("_render_mysql", "mysql_root_password", "MYSQL_ROOT_PASSWORD"),
+        ("_render_mysql", "mysql_password", "MYSQL_PASSWORD"),
+        ("_render_rstudio", "rstudio_password", "RSTUDIO_PASSWORD"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_messaging_iot_stacks_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SEVEN_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)

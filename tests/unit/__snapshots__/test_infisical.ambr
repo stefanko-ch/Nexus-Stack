@@ -243,9 +243,17 @@
       'MONGODB_ROOT_PASSWORD': 'mongodb-root-pw',
       'MONGODB_ROOT_USERNAME': 'nexus-mongodb',
     }),
+    'mosquitto': dict({
+      'MOSQUITTO_PASSWORD': 'mosquitto_password-VALUE',
+      'MOSQUITTO_USERNAME': 'nexus-mosquitto',
+    }),
     'mssql': dict({
       'MSSQL_PASSWORD': 'mssql_password-VALUE',
       'MSSQL_USERNAME': 'nexus-mssql',
+    }),
+    'mysql': dict({
+      'MYSQL_PASSWORD': 'mysql_password-VALUE',
+      'MYSQL_USERNAME': 'nexus-mysql',
     }),
     'n8n': dict({
       'N8N_PASSWORD': 'n8n_admin_password-VALUE',
@@ -265,6 +273,10 @@
       'NOCODB_JWT_SECRET': 'nocodb_jwt_secret-VALUE',
       'NOCODB_PASSWORD': 'nocodb_admin_password-VALUE',
       'NOCODB_USERNAME': 'admin@snapshot.test',
+    }),
+    'node-red': dict({
+      'NODE_RED_PASSWORD': 'node_red_admin_password-VALUE',
+      'NODE_RED_USERNAME': 'nexus-admin',
     }),
     'nussknacker': dict({
       'NUSSKNACKER_ADMIN_PASSWORD': 'nussknacker-admin-pw',
@@ -334,6 +346,10 @@
       'R2_ENDPOINT': 'r2_data_endpoint-VALUE',
       'R2_SECRET_KEY': 'r2_data_secret_key-VALUE',
     }),
+    'rabbitmq': dict({
+      'RABBITMQ_PASSWORD': 'rabbitmq_password-VALUE',
+      'RABBITMQ_USERNAME': 'nexus-rabbitmq',
+    }),
     'ray': dict({
       'RAY_AUTH_TOKEN': 'ray_auth_token-VALUE',
     }),
@@ -344,6 +360,10 @@
       'REDPANDA_SASL_PASSWORD': "single'apos",
       'REDPANDA_SASL_USERNAME': 'nexus-redpanda',
       'REDPANDA_SCHEMA_REGISTRY_PUBLIC_URL': 'redpanda-schema-registry.snapshot.test:18081',
+    }),
+    'rstudio': dict({
+      'RSTUDIO_PASSWORD': 'rstudio_password-VALUE',
+      'RSTUDIO_USERNAME': 'nexus-rstudio',
     }),
     'rustfs': dict({
       'RUSTFS_ACCESS_KEY': 'nexus-rustfs',

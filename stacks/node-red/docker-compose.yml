@@ -1,0 +1,52 @@
+# =============================================================================
+# Node-RED - flow-based low-code programming for IoT and integrations
+# =============================================================================
+# URL: https://node-red.<domain>
+#
+# Flows wire nodes together in the browser: MQTT in, a function, Kafka or
+# a database out. A common way to teach event-driven integration, and the
+# natural partner of the mosquitto stack for IoT pipelines.
+#
+# The editor runs arbitrary JavaScript, so it gets a login: nexus-admin with
+# a generated password (Infisical folder `node-red`), set in settings.js.
+#
+# Flows, credentials and installed nodes in the node-red-data volume, which
+# survives a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  node-red:
+    image: ${IMAGE_NODE_RED:-nodered/node-red:5.0.9}
+    container_name: node-red
+    restart: unless-stopped
+    # The image's entrypoint hands these arguments to Node-RED.
+    command: ["--settings", "/etc/node-red/settings.js"]
+    environment:
+      NODE_RED_ADMIN_PASSWORD: ${NODE_RED_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_node_red)}
+      NODE_RED_CREDENTIAL_SECRET: ${NODE_RED_CREDENTIAL_SECRET:?must be set in .env (rendered by service_env._render_node_red)}
+    ports:
+      - "127.0.0.1:1880:1880"
+    volumes:
+      - ./settings.js:/etc/node-red/settings.js:ro
+      - node-red-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      # The editor's root page loads without logging in; the login happens
+      # in the browser against /auth.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:1880/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  node-red-data:
+
+networks:
+  app-network:
+    external: true

@@ -1103,6 +1103,18 @@ services:
     tcp_ports:
       wire: 27017
 
+  mosquitto:
+    # Internal-only: MQTT is not HTTP and cannot cross the tunnel. Clients
+    # connect to mosquitto:1883 on app-network.
+    port: 1883
+    public: false
+    internal_only: true
+    category: "messaging"
+    website: "https://mosquitto.org"
+    description: "Eclipse Mosquitto MQTT broker for IoT telemetry, internal at mosquitto:1883."
+    long_description: "Mosquitto is the reference MQTT broker: devices publish small messages on hierarchical topics such as factory/line1/temperature, with QoS levels and retained messages, and subscribers receive them. In this stack it is the entry point for IoT pipelines: Node-RED, Redpanda Connect, Conduit or a Python client subscribe and forward the data into Kafka or a database. Anonymous access is off; clients log in as nexus-mosquitto with the password from Infisical (folder `mosquitto`). Internal only. Retained messages persist in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "eclipse-mosquitto:2.1.2-alpine"
+
   mssql:
     # Internal-only: the TDS protocol cannot cross the HTTPS tunnel, and
     # there is no web UI. Clients connect to mssql:1433 on app-network.
@@ -1114,6 +1126,18 @@ services:
     description: "Microsoft SQL Server 2025, Developer edition: T-SQL, columnstore and CDC for development and learning."
     long_description: "SQL Server on Linux with the full feature set of the Developer edition: T-SQL, stored procedures, columnstore indexes, temporal tables and change data capture, licensed for development and test, not production. It is the database many enterprise courses and applications expect. Clients connect to mssql:1433 as nexus-mssql, a sysadmin login created on first start, with the password from Infisical (folder `mssql`); CloudBeaver and Adminer speak T-SQL. Telemetry is switched off and memory is capped at 2 GB. No web UI. Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown. The image is published for amd64 only."
     image: "mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04"
+
+  mysql:
+    # Internal-only: the MySQL protocol cannot cross the HTTPS tunnel, and
+    # there is no web UI. Clients connect to mysql:3306 on app-network.
+    port: 3306
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.mysql.com"
+    description: "MySQL 8.4 LTS with binlog in ROW format, ready for Debezium CDC; internal at mysql:3306."
+    long_description: "MySQL is the most widely used open-source relational database and the usual source in change-data-capture exercises. This stack runs the 8.4 LTS line with binary logging on in ROW format, and grants the nexus-mysql user the replication privileges Debezium's MySQL connector needs. Clients connect to mysql:3306 as nexus-mysql, database nexus, with the password from Infisical (folder `mysql`); CloudBeaver and Adminer speak MySQL. The root password is generated as well and not handed out. No web UI. Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "mysql:8.4.13"
 
   n8n:
     subdomain: "n8n"
@@ -1166,6 +1190,16 @@ services:
     support_images:
       nocodb-postgres: "postgres:16-alpine"
 
+  node-red:
+    subdomain: "node-red"
+    port: 1880
+    public: false
+    category: "low-code"
+    website: "https://nodered.org"
+    description: "Flow-based low-code programming for IoT and integrations: MQTT, HTTP, Kafka and databases."
+    long_description: "Node-RED wires nodes together in the browser: an MQTT input, a function, a Kafka or database output. It is a common way to teach event-driven integration and pairs with the Mosquitto stack for IoT pipelines. The editor runs arbitrary JavaScript, so it has a login: nexus-admin with the password from Infisical (folder `node-red`). Usage diagnostics and the update check are off. Flows, credentials and installed nodes live in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "nodered/node-red:5.0.9"
+
   nussknacker:
     subdomain: "nussknacker"
     port: 8103
@@ -1201,6 +1235,16 @@ services:
       openmetadata-ingestion: "docker.getcollate.io/openmetadata/ingestion:1.6.6"
       openmetadata-elasticsearch: "docker.elastic.co/elasticsearch/elasticsearch:8.11.4"
       openmetadata-postgres: "postgres:16-alpine"
+
+  rstudio:
+    subdomain: "rstudio"
+    port: 8787
+    public: false
+    category: "dev-tools"
+    website: "https://posit.co/products/open-source/rstudio-server/"
+    description: "RStudio Server: the browser IDE for R, with console, editor, plots and package manager."
+    long_description: "RStudio Server brings the R IDE to the browser: console, editor, plots, environment and package manager, in the Rocker project's build. Statistics and data-science courses are often taught in R, and the stack had Python IDEs but none for R; Shiny apps written here can be deployed to the Shiny stack. The login is nexus-rstudio with the password from Infisical (folder `rstudio`). The home directory, with projects and the user's R packages, lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "rocker/rstudio:4.6.2"
 
   rustfs:
     subdomain: "rustfs"
@@ -1350,6 +1394,16 @@ services:
     description: "Time-series database with a built-in web console — speaks the PostgreSQL wire and InfluxDB line protocols."
     long_description: "QuestDB is a column-oriented time-series database with SQL on top and a web console built in. It fills the one gap the other databases leave: ClickHouse is OLAP, PostgreSQL and pg_ducklake are relational, RisingWave is streaming, and none of them is a time-series engine. It speaks the PostgreSQL wire protocol on 8812, so psycopg2 and JDBC clients reach it unchanged, and the InfluxDB line protocol on 9009, so Telegraf writes to it without a new plugin. One container, no companion database."
     image: "questdb/questdb:10.0.1"
+
+  rabbitmq:
+    subdomain: "rabbitmq"
+    port: 15672
+    public: false
+    category: "messaging"
+    website: "https://www.rabbitmq.com"
+    description: "Message broker with queues, exchanges and a management UI; AMQP internal at rabbitmq:5672."
+    long_description: "RabbitMQ is the queue-based broker next to the log-based Kafka and Redpanda: work queues, routing through direct, topic and fanout exchanges, acknowledgements and dead-letter queues. Teaching the difference between a queue and a log needs both. The management UI and its HTTP API are behind the tunnel; AMQP is on rabbitmq:5672 inside the stack. The guest user only works from localhost, so the stack creates nexus-rabbitmq with the password from Infisical (folder `rabbitmq`). Queues and users live in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "rabbitmq:4.4.0-management-alpine"
 
   ray:
     subdomain: "ray"
@@ -1523,6 +1577,22 @@ services:
     tier: proven
     support_images:
       spark-worker: "nexus-spark:4.2.0-python3.13"
+
+  tempo:
+    # Internal-only: neither OTLP nor Tempo's query API serves a browser,
+    # and neither authenticates. Grafana is the UI. 4318 is not bound
+    # anywhere (the collector listens on it only inside the stack); Tempo's
+    # own 3200 is taken in this catalogue.
+    port: 4318
+    public: false
+    internal_only: true
+    category: "observability"
+    website: "https://grafana.com/oss/tempo/"
+    description: "Distributed tracing: Grafana Tempo with an OpenTelemetry Collector, queried from Grafana."
+    long_description: "Grafana Tempo stores distributed traces, and the OpenTelemetry Collector in front of it is the one endpoint applications send OTLP to (tempo-otel-collector:4317 for gRPC, :4318 for HTTP). With Prometheus metrics and Loki logs from the Grafana stack, traces complete the three signals of observability. Grafana is the UI: add a Tempo datasource with the URL http://tempo:3200. Internal only, without authentication. Traces are kept for a week in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "grafana/tempo:2.10.10"
+    support_images:
+      tempo-otel-collector: "otel/opentelemetry-collector-contrib:0.165.0"
 
   temporal:
     subdomain: "temporal"

@@ -304,6 +304,15 @@ output "secrets" {
     mssql_password         = random_password.mssql.result
     conduit_api_token      = random_password.conduit_api_token.result
 
+    # RabbitMQ, Mosquitto, Node-RED, MySQL, RStudio
+    rabbitmq_password          = random_password.rabbitmq.result
+    mosquitto_password         = random_password.mosquitto.result
+    node_red_admin_password    = random_password.node_red_admin.result
+    node_red_credential_secret = random_password.node_red_credential_secret.result
+    mysql_root_password        = random_password.mysql_root.result
+    mysql_password             = random_password.mysql.result
+    rstudio_password           = random_password.rstudio.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

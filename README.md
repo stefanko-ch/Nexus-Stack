@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (130)
+## Available Stacks (136)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -111,6 +111,7 @@ After deployment you'll have:
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
 [![Dremio](https://img.shields.io/badge/Dremio-31B48D?logoColor=white)](https://www.dremio.com)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
+[![Mosquitto](https://img.shields.io/badge/Mosquitto-3C5280?logo=eclipsemosquitto&logoColor=white)](https://mosquitto.org)
 [![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
 [![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
 [![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)](https://www.filestash.app)
@@ -122,6 +123,7 @@ After deployment you'll have:
 [![Git Proxy](https://img.shields.io/badge/Git_Proxy-009639?logo=nginx&logoColor=white)](docs/stacks/git-proxy.md)
 [![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)](https://about.gitea.com)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)](https://grafana.com)
+[![Grafana Tempo](https://img.shields.io/badge/Grafana_Tempo-F46800?logo=grafana&logoColor=white)](https://grafana.com/oss/tempo/)
 [![Hasura](https://img.shields.io/badge/Hasura-1EB4D4?logo=hasura&logoColor=white)](https://hasura.io)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
@@ -157,10 +159,12 @@ After deployment you'll have:
 [![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
+[![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com)
 [![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io)
 [![Neo4j](https://img.shields.io/badge/Neo4j-4581C3?logo=neo4j&logoColor=white)](https://neo4j.com)
 [![Apache NiFi](https://img.shields.io/badge/Apache_NiFi-728E9B?logo=apachenifi&logoColor=white)](https://nifi.apache.org)
 [![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)](https://nocodb.com)
+[![Node-RED](https://img.shields.io/badge/Node--RED-8F0000?logo=nodered&logoColor=white)](https://nodered.org)
 [![Nussknacker](https://img.shields.io/badge/Nussknacker-1E88E5?logo=apacheflink&logoColor=white)](https://nussknacker.io)
 [![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)](https://ollama.com)
 [![Open Notebook](https://img.shields.io/badge/Open_Notebook-111827?logo=jupyter&logoColor=white)](https://github.com/lfnovo/open-notebook)
@@ -178,6 +182,7 @@ After deployment you'll have:
 [![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![QuestDB](https://img.shields.io/badge/QuestDB-D14671?logo=questdb&logoColor=white)](https://questdb.com)
+[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com)
 [![Ray](https://img.shields.io/badge/Ray-028CF0?logo=ray&logoColor=white)](https://www.ray.io)
 [![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Console](https://img.shields.io/badge/Redpanda%20Console-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
@@ -185,6 +190,7 @@ After deployment you'll have:
 [![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Rill](https://img.shields.io/badge/Rill-1E40AF?logoColor=white)](https://www.rilldata.com)
 [![RisingWave](https://img.shields.io/badge/RisingWave-0065FF?logoColor=white)](https://risingwave.com)
+[![RStudio](https://img.shields.io/badge/RStudio-75AADB?logo=rstudioide&logoColor=white)](https://posit.co/products/open-source/rstudio-server/)
 [![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)](https://rustfs.com)
 [![S3 Manager](https://img.shields.io/badge/S3_Manager-2E7D32?logo=amazons3&logoColor=white)](https://github.com/cloudlena/s3manager)
 [![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)](https://seaweedfs.com)
@@ -244,6 +250,7 @@ After deployment you'll have:
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
 | **Dremio** | Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI | [dremio.com](https://www.dremio.com) |
 | **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
+| **Eclipse Mosquitto** | MQTT broker for IoT telemetry, internal at `mosquitto:1883` | [mosquitto.org](https://mosquitto.org) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
@@ -255,6 +262,7 @@ After deployment you'll have:
 | **Git Proxy** | Public Git HTTPS proxy for external tools (Databricks, Git Desktop) | [Documentation](docs/stacks/git-proxy.md) |
 | **Gitea** | Self-hosted Git service with pull requests, code review, and CI/CD | [gitea.com](https://about.gitea.com) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
+| **Grafana Tempo** | Distributed tracing with an OpenTelemetry Collector, queried from Grafana | [grafana.com/oss/tempo](https://grafana.com/oss/tempo/) |
 | **Hasura** | Instant GraphQL and REST API over PostgreSQL, with subscriptions and a console | [hasura.io](https://hasura.io) |
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
 | **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
@@ -290,10 +298,12 @@ After deployment you'll have:
 | **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
 | **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
 | **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
+| **MySQL** | MySQL 8.4 LTS, binlog ready for Debezium CDC, internal at `mysql:3306` | [mysql.com](https://www.mysql.com) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **Neo4j** | Graph database with the Cypher query language and Neo4j Browser | [neo4j.com](https://neo4j.com) |
 | **NiFi** | Visual data-flow automation — ingest, route, transform and deliver data with full provenance | [nifi.apache.org](https://nifi.apache.org) |
 | **NocoDB** | Open-source Airtable alternative - turn any database into a spreadsheet | [nocodb.com](https://nocodb.com) |
+| **Node-RED** | Flow-based low-code programming for IoT and integrations | [nodered.org](https://nodered.org) |
 | **Nussknacker** | Visual low-code designer for stream processing — drag-and-drop scenarios that run on Flink | [nussknacker.io](https://nussknacker.io) |
 | **Ollama** | Local LLM inference with Open WebUI chat interface | [openwebui.com](https://openwebui.com) |
 | **Open Notebook** | Self-hosted NotebookLM alternative — ask questions about your own sources with local models | [GitHub](https://github.com/lfnovo/open-notebook) |
@@ -311,6 +321,7 @@ After deployment you'll have:
 | **Qdrant** | Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs | [qdrant.tech](https://qdrant.tech) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
 | **QuestDB** | Time-series database with web console — speaks PostgreSQL wire & InfluxDB line protocols | [questdb.com](https://questdb.com) |
+| **RabbitMQ** | Message broker with queues, exchanges and a management UI | [rabbitmq.com](https://www.rabbitmq.com) |
 | **Ray** | Distributed Python for data processing and ML: tasks, actors, Ray Data, Tune and Serve | [ray.io](https://www.ray.io) |
 | **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
 | **Redpanda Console** | Web UI for managing and debugging Redpanda/Kafka workloads | [redpanda.com](https://redpanda.com) |
@@ -318,6 +329,7 @@ After deployment you'll have:
 | **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
 | **Rill** | Fast BI dashboards on DuckDB: SQL models, metrics views and explorable dashboards | [rilldata.com](https://www.rilldata.com) |
 | **RisingWave** | PostgreSQL-compatible streaming database for real-time materialized views | [risingwave.com](https://risingwave.com) |
+| **RStudio Server** | Browser IDE for R | [posit.co](https://posit.co/products/open-source/rstudio-server/) |
 | **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
 | **S3 Manager** | Web-based S3 bucket browser and manager for Hetzner Object Storage | [GitHub](https://github.com/cloudlena/s3manager) |
 | **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |

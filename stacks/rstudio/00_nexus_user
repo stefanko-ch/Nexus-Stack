@@ -1,0 +1,24 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+# =============================================================================
+# Rename Rocker's default `rstudio` user to nexus-rstudio
+# =============================================================================
+# Runs before Rocker's own 02_userconf (cont-init.d scripts run in name
+# order). That script sets PASSWORD on the user named DEFAULT_USER but only
+# creates a new one when USERID differs from 1000, so the image's user is
+# renamed here instead, keeping UID 1000 and its groups. Idempotent: on a
+# container restart the user is already renamed.
+set -euo pipefail
+
+if id rstudio >/dev/null 2>&1 && ! id nexus-rstudio >/dev/null 2>&1; then
+    usermod -l nexus-rstudio -d /home/nexus-rstudio rstudio
+    groupmod -n nexus-rstudio rstudio
+    echo "00_nexus_user: renamed rstudio to nexus-rstudio"
+fi
+
+# The home is a named volume, which Docker creates root-owned on first use.
+mkdir -p /home/nexus-rstudio
+if [ "$(stat -c %U /home/nexus-rstudio)" != nexus-rstudio ]; then
+    cp -rn /home/rstudio/. /home/nexus-rstudio/ 2>/dev/null || true
+    chown -R nexus-rstudio:nexus-rstudio /home/nexus-rstudio
+fi

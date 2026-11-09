@@ -1,0 +1,55 @@
+# =============================================================================
+# RabbitMQ - message broker with a management UI
+# =============================================================================
+# URL: https://rabbitmq.<domain>   (management UI)
+# In-cluster: amqp://rabbitmq:5672
+#
+# The queue-based broker next to the log-based Kafka and Redpanda: work
+# queues, routing through exchanges, acknowledgements and dead-letter
+# queues. AMQP 0-9-1 on 5672 inside the stack, the management UI and its
+# HTTP API on 15672 behind the tunnel.
+#
+# The built-in `guest` user only works from localhost; this stack creates
+# nexus-rabbitmq with a generated password (Infisical folder `rabbitmq`)
+# instead, for the UI and for clients.
+#
+# Queues, exchanges and users in the rabbitmq-data volume, which survives a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  rabbitmq:
+    image: ${IMAGE_RABBITMQ:-rabbitmq:4.4.0-management-alpine}
+    container_name: rabbitmq
+    # The data directory is named after the node's hostname; a fixed one
+    # keeps it the same across container recreation.
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: nexus-rabbitmq
+      # Read only when the data volume is empty, like a database's initial
+      # password.
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?must be set in .env (rendered by service_env._render_rabbitmq)}
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  rabbitmq-data:
+
+networks:
+  app-network:
+    external: true

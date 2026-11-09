@@ -157,6 +157,13 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Microsoft SQL Server | `mcr.microsoft.com/mssql/server` | `2025-CU10-ubuntu-24.04` | Exact |
 | ksqlDB | `confluentinc/cp-ksqldb-server` | `8.4.0` | Exact |
 | Conduit | `ghcr.io/conduitio/conduit` | `v0.21.2` | Exact |
+| RabbitMQ | `rabbitmq` | `4.4.0-management-alpine` | Exact |
+| Eclipse Mosquitto | `eclipse-mosquitto` | `2.1.2-alpine` | Exact |
+| Node-RED | `nodered/node-red` | `5.0.9` | Exact |
+| MySQL | `mysql` | `8.4.13` | Exact |
+| RStudio Server | `rocker/rstudio` | `4.6.2` | Exact |
+| Grafana Tempo | `grafana/tempo` | `2.10.10` | Exact |
+| OpenTelemetry Collector (Tempo) | `otel/opentelemetry-collector-contrib` | `0.165.0` | Exact |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -288,6 +295,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
 | **Dremio** | Lakehouse query engine with a SQL UI | [dremio.md](dremio.md) |
 | **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
+| **Eclipse Mosquitto** | MQTT broker for IoT data, internal only | [mosquitto.md](mosquitto.md) |
 | **Evidence** | SQL + markdown BI for analytics engineers | [evidence.md](evidence.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
@@ -299,6 +307,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Git Proxy** | Public Git HTTPS proxy | [git-proxy.md](git-proxy.md) |
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
+| **Grafana Tempo** | Distributed tracing with an OTel Collector, internal only | [tempo.md](tempo.md) |
 | **Hasura** | Instant GraphQL API over PostgreSQL | [hasura.md](hasura.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
@@ -334,10 +343,12 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
+| **MySQL** | MySQL 8.4 LTS, internal only | [mysql.md](mysql.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
 | **Neo4j** | Graph database with Cypher and Neo4j Browser | [neo4j.md](neo4j.md) |
 | **NiFi** | Visual data-flow automation | [nifi.md](nifi.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
+| **Node-RED** | Flow-based low-code programming | [node-red.md](node-red.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
 | **Open Notebook** | Self-hosted NotebookLM alternative | [open-notebook.md](open-notebook.md) |
@@ -355,6 +366,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Qdrant** | Vector database with a built-in web dashboard | [qdrant.md](qdrant.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **QuestDB** | Time-series database with web console | [questdb.md](questdb.md) |
+| **RabbitMQ** | Message broker with a management UI | [rabbitmq.md](rabbitmq.md) |
 | **Ray** | Distributed Python for data and ML | [ray.md](ray.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |
 | **Redpanda Console** | Redpanda web UI | [redpanda-console.md](redpanda-console.md) |
@@ -362,6 +374,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Redpanda Datagen** | Test data generator | [redpanda-datagen.md](redpanda-datagen.md) |
 | **Rill** | BI dashboards on DuckDB | [rill.md](rill.md) |
 | **RisingWave** | Streaming SQL database | [risingwave.md](risingwave.md) |
+| **RStudio Server** | Browser IDE for R | [rstudio.md](rstudio.md) |
 | **RustFS** | Rust-based S3-compatible storage | [rustfs.md](rustfs.md) |
 | **S3 Manager** | S3 bucket browser | [s3manager.md](s3manager.md) |
 | **SeaweedFS** | Distributed object storage | [seaweedfs.md](seaweedfs.md) |

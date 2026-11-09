@@ -1,0 +1,59 @@
+# =============================================================================
+# Grafana Tempo + OpenTelemetry Collector - distributed tracing
+# =============================================================================
+# In-cluster: OTLP to tempo-otel-collector:4317 (gRPC) or :4318 (HTTP)
+#             Tempo query API at http://tempo:3200 (Grafana datasource)
+#
+# The grafana stack has metrics (Prometheus) and logs (Loki); this adds the
+# third signal. Applications send OpenTelemetry traces to the collector,
+# which forwards them to Tempo; Grafana queries Tempo and shows the spans.
+#
+# Internal only (`internal_only` in services.yaml): neither OTLP nor Tempo's
+# API is HTTP for a browser, and neither has authentication. The UI is
+# Grafana: add a Tempo datasource with the URL http://tempo:3200.
+#
+# Traces in the tempo-data volume for a week (tempo.yaml), which survives a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  tempo:
+    image: ${IMAGE_TEMPO:-grafana/tempo:2.10.10}
+    container_name: tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    # No healthcheck: the image is distroless, with no shell, curl or wget
+    # to run one. Tempo's readiness is at http://tempo:3200/ready.
+    networks:
+      - app-network
+
+  tempo-otel-collector:
+    image: ${IMAGE_TEMPO_OTEL_COLLECTOR:-otel/opentelemetry-collector-contrib:0.165.0}
+    container_name: tempo-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    # Also distroless, so no healthcheck either; its own is on :13133.
+    depends_on:
+      - tempo
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks:
+      - app-network
+
+volumes:
+  tempo-data:
+
+networks:
+  app-network:
+    external: true
