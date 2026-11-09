@@ -2285,6 +2285,56 @@ _render_zeppelin = _single_secret_renderer(
     "writing a shiro.ini without a password",
 )
 
+_render_surrealdb = _single_secret_renderer(
+    "SurrealDB",
+    "SURREALDB_PASSWORD",
+    "surrealdb_password",
+    "starting SurrealDB without a root user",
+)
+
+
+def _render_searxng(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """SearXNG: the key it signs cookies and image-proxy URLs with. The
+    image refuses to start with its placeholder key."""
+    _require(
+        "SearXNG",
+        {"SEARXNG_SECRET": c.searxng_secret},
+        "starting SearXNG without a secret key",
+    )
+    return RenderedEnv(env_vars={"SEARXNG_SECRET": c.searxng_secret or ""}, mode=0o600)
+
+
+def _render_bookstack(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """BookStack: app key, database passwords and the admin login.
+
+    nexus-admin.sh turns the image's default admin@admin.com / password
+    into the stack user's account; without these values it would halt the
+    container, so failing here names the cause first. APP_URL must be the
+    public URL, or every link and redirect points at localhost.
+    """
+    secrets = {
+        "BOOKSTACK_APP_KEY": c.bookstack_app_key,
+        "BOOKSTACK_DB_PASSWORD": c.bookstack_db_password,
+        "BOOKSTACK_DB_ROOT_PASSWORD": c.bookstack_db_root_password,
+        "BOOKSTACK_ADMIN_PASSWORD": c.bookstack_admin_password,
+    }
+    _require("BookStack", secrets, "replacing the default admin with an empty login")
+    if len(c.bookstack_app_key or "") != 32:
+        raise ServiceEnvError(
+            "BookStack: BOOKSTACK_APP_KEY is not 32 characters; Laravel's "
+            "AES-256-CBC cipher needs exactly 32 bytes."
+        )
+    host = service_host("bookstack", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in secrets.items()},
+            "BOOKSTACK_ADMIN_EMAIL": _admin_email("BookStack", e),
+            "BOOKSTACK_APP_URL": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
+
 _HEX_32_BYTES = re.compile(r"[0-9a-f]{64}")
 
 
@@ -3701,6 +3751,9 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("openbao", _is_enabled("openbao"), _render_openbao),
     EnvSpec("jena-fuseki", _is_enabled("jena-fuseki"), _render_jena_fuseki),
     EnvSpec("zeppelin", _is_enabled("zeppelin"), _render_zeppelin),
+    EnvSpec("searxng", _is_enabled("searxng"), _render_searxng),
+    EnvSpec("surrealdb", _is_enabled("surrealdb"), _render_surrealdb),
+    EnvSpec("bookstack", _is_enabled("bookstack"), _render_bookstack),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

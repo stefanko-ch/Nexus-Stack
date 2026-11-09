@@ -139,6 +139,18 @@ services:
     long_description: "Big-AGI is a stateless browser-based UI for interacting with multiple large language model providers. Connect to OpenAI, Anthropic, local Ollama, or custom OpenAI-compatible endpoints. Conversation history lives in the browser's LocalStorage — no server-side database. Features include conversation export/import, prompt templates, model switching, persona management, and markdown rendering."
     image: "ghcr.io/enricoros/big-agi:v2.0.4"
 
+  bookstack:
+    subdomain: "bookstack"
+    port: 8132
+    public: false
+    category: "knowledge"
+    website: "https://www.bookstackapp.com"
+    description: "Documentation wiki organised as shelves, books, chapters and pages."
+    long_description: "BookStack is a wiki with a fixed structure: shelves hold books, books hold chapters and pages. It has a WYSIWYG and a Markdown editor, page revisions, full-text search, templates, draw.io diagrams and role-based permissions down to single pages. For course handbooks and team documentation that should read like a book rather than a web of links. Log in with the stack user's email and the password from Infisical (folder `bookstack`); the image's default admin@admin.com account is replaced on the first start, and the container stops rather than come up with it. Content in MariaDB and uploads in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
+    image: "linuxserver/bookstack:26.09.2"
+    support_images:
+      bookstack-mariadb: "mariadb:11.8.9"
+
   bytebase:
     subdomain: "bytebase"
     port: 8113
@@ -523,6 +535,16 @@ services:
     support_images:
       gitea-postgres: "postgres:16-alpine"
 
+  gpt-researcher:
+    subdomain: "gpt-researcher"
+    port: 8131
+    public: false
+    category: "ai-ml"
+    website: "https://gptr.dev"
+    description: "Autonomous research agent: plans, searches the web and writes a cited report, on local models."
+    long_description: "GPT Researcher turns a question into a research report: it plans sub-questions, searches the web, reads and filters the pages and writes a report with citations, exportable as Markdown, PDF or DOCX. Here it is preset for private search and local models: the searxng stack as retriever and the ollama stack for the language model (llama3.2) and embeddings (nomic-embed-text), so pull both models in Ollama and enable both stacks first. It is tuned for large hosted models; a small local model writes shorter reports. The web UI has no login, so Cloudflare Access is the gate. Built here from the v3.7.0 release, for amd64 and arm64."
+    image: "nexus-gpt-researcher:3.7.0"
+
   grafana:
     subdomain: "grafana"
     port: 3100
@@ -539,6 +561,16 @@ services:
       promtail: "grafana/promtail:3.6.8"
       cadvisor: "ghcr.io/google/cadvisor:0.56.2"
       node-exporter: "prom/node-exporter:v1.10.2"
+
+  gravitino:
+    subdomain: "gravitino"
+    port: 8128
+    public: false
+    category: "storage"
+    website: "https://gravitino.apache.org"
+    description: "Apache Gravitino: one metadata catalog over databases, Iceberg, Hive, Kafka and file sets."
+    long_description: "Apache Gravitino federates metadata: a metalake holds catalogs for PostgreSQL and MySQL, Iceberg, Hudi and Paimon tables, Hive, Kafka topics and file sets, all browsed and managed through one web UI and REST API. Spark, Trino and Flink can query through its connectors. Where Lakekeeper, Nessie and Unity Catalog each serve one format, Gravitino sits above such systems. It runs in simple auth mode, without OAuth or Kerberos, so Cloudflare Access is the gate. Metadata is kept in an embedded H2 database in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "apache/gravitino:1.3.1"
 
   hasura:
     subdomain: "hasura"
@@ -1323,6 +1355,16 @@ services:
     long_description: "Portainer is a container management platform that simplifies Docker operations. View running containers, inspect logs, manage images, networks, and volumes through an intuitive web UI. Monitor resource usage, restart services, and deploy new containers without CLI access. Marked `core: true` because diagnosing a stuck container shouldn't require an opt-in step — Portainer ships always-on alongside Forgejo, Grafana, and Infisical."
     image: "portainer/portainer-ce:2.40.0"
 
+  perplexica:
+    subdomain: "perplexica"
+    port: 8129
+    public: false
+    category: "ai-ml"
+    website: "https://github.com/ItzCrazyKns/Perplexica"
+    description: "AI answer engine like Perplexity, on local models and private SearXNG search."
+    long_description: "Perplexica answers a question the way Perplexity does: it searches the web through SearXNG, reads the results and writes an answer with numbered sources, using a model in Ollama. Enable the searxng and ollama stacks first and pull a chat and an embedding model in Ollama; both URLs are preset, and the models are picked in Perplexica's setup screen. Hosted providers can be added there too. Perplexica has no accounts, so Cloudflare Access is the gate. Settings and chat history persist in a Docker volume."
+    image: "itzcrazykns1337/perplexica:slim-v1.12.0"
+
   pgadmin:
     subdomain: "pgadmin"
     port: 5050
@@ -1496,6 +1538,16 @@ services:
       kafka: 9092
       schema-registry: 18081
 
+  searxng:
+    subdomain: "searxng"
+    port: 8130
+    public: false
+    category: "dev-tools"
+    website: "https://docs.searxng.org"
+    description: "Private metasearch engine: queries many search engines at once, without tracking."
+    long_description: "SearXNG sends a query to dozens of search engines at once and merges the results, without ads, profiling or tracking cookies. In this stack it is also the web search behind Perplexica and GPT Researcher, which call its JSON API at http://searxng:8080. It has no accounts, so Cloudflare Access is the gate; the bot limiter is off. Stateless apart from a cache."
+    image: "searxng/searxng:2026.11.8-3a3dd15bf"
+
   seaweedfs:
     # Filer UI host port — moved 8888 → 8890 to resolve collision with
     # adminer (also on host 8888). Container-side port stays 8888 (see
@@ -1636,6 +1688,19 @@ services:
     tier: proven
     support_images:
       spark-worker: "nexus-spark:4.2.0-python3.13"
+
+  surrealdb:
+    # Internal-only: Surrealist, the web UI, runs in the browser and would
+    # have to reach the database across a second Access-protected origin.
+    # Clients use ws://surrealdb:8000/rpc on app-network. 8133 is not bound.
+    port: 8133
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://surrealdb.com"
+    description: "Multi-model database for documents, graphs and key-value data, queried with SurrealQL."
+    long_description: "SurrealDB keeps documents, graph relations, key-value and time-series data in one database and queries them with SurrealQL, an SQL dialect with record links and RELATE graph edges instead of join tables. That makes it a compact way to compare data models side by side. Log in as nexus-surrealdb, a root-level user, with the password from Infisical (folder `surrealdb`). Internal only, at ws://surrealdb:8000/rpc for the SDKs and http://surrealdb:8000/sql for plain HTTP. Data in RocksDB in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "surrealdb/surrealdb:v4.0.0"
 
   tempo:
     # Internal-only: neither OTLP nor Tempo's query API serves a browser,

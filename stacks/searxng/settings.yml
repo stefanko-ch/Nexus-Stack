@@ -1,0 +1,21 @@
+# SearXNG settings: the image's defaults, plus the few this stack changes.
+# The secret key comes from the SEARXNG_SECRET environment variable, which
+# overrides server.secret_key.
+use_default_settings: true
+
+general:
+  instance_name: "Nexus SearXNG"
+
+server:
+  # Behind Cloudflare Access and reached by other stacks on app-network;
+  # the bot limiter would need a Valkey instance and only gets in the way.
+  limiter: false
+  image_proxy: true
+  # Placeholder: replaced by SEARXNG_SECRET at start.
+  secret_key: "set-by-environment"
+
+search:
+  # json is what Perplexica and GPT Researcher call.
+  formats:
+    - html
+    - json

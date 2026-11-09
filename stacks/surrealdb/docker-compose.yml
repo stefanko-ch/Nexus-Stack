@@ -1,0 +1,54 @@
+# =============================================================================
+# SurrealDB - multi-model database
+# =============================================================================
+# In-cluster: ws://surrealdb:8000/rpc  (SDKs), http://surrealdb:8000 (HTTP)
+#
+# One database for documents, graph relations, key-value and time-series
+# data, queried with SurrealQL: SQL-like, with record links and
+# RELATE ... -> ... graph edges instead of join tables. A compact way to
+# compare data models side by side.
+#
+# Internal only (`internal_only` in services.yaml): Surrealist, the web UI,
+# runs in the browser and would need the database reachable from there.
+# Notebooks and services on app-network use the SDKs. Log in as
+# nexus-surrealdb (root level, Infisical folder `surrealdb`).
+#
+# Data in the surrealdb-data volume (RocksDB), which survives a restart and
+# the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  surrealdb:
+    image: ${IMAGE_SURREALDB:-surrealdb/surrealdb:v4.0.0}
+    container_name: surrealdb
+    restart: unless-stopped
+    # The credentials come from SURREAL_USER / SURREAL_PASS, not from the
+    # --user / --pass flags, so they reach no argument list.
+    command: ["start", "--log", "info", "rocksdb:/data/surreal.db"]
+    environment:
+      SURREAL_USER: nexus-surrealdb
+      SURREAL_PASS: ${SURREALDB_PASSWORD:?must be set in .env (rendered by service_env._render_surrealdb)}
+      SURREAL_BIND: 0.0.0.0:8000
+      SURREAL_TELEMETRY_DISABLE: "true"
+    volumes:
+      - surrealdb-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # Distroless image: no shell, but the binary checks itself.
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://127.0.0.1:8000"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - app-network
+
+volumes:
+  surrealdb-data:
+
+networks:
+  app-network:
+    external: true

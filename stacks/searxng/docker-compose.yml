@@ -1,0 +1,45 @@
+# =============================================================================
+# SearXNG - private metasearch engine
+# =============================================================================
+# URL: https://searxng.<domain>
+# In-cluster: http://searxng:8080   (JSON API: /search?q=...&format=json)
+#
+# Sends a query to many search engines at once and merges the results,
+# without tracking or ads. The web search behind the perplexica and
+# gpt-researcher stacks, and usable on its own.
+#
+# SearXNG has no accounts; the subdomain is behind Cloudflare Access.
+# Stateless apart from a cache.
+# =============================================================================
+
+services:
+  searxng:
+    image: ${IMAGE_SEARXNG:-searxng/searxng:2026.11.8-3a3dd15bf}
+    container_name: searxng
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?must be set in .env (rendered by service_env._render_searxng)}
+    ports:
+      - "127.0.0.1:8130:8080"
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - app-network
+
+volumes:
+  searxng-cache:
+
+networks:
+  app-network:
+    external: true

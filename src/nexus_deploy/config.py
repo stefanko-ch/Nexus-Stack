@@ -160,6 +160,12 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("OPENBAO_ADMIN_PASS", "openbao_admin_password", ""),
     ("JENA_FUSEKI_ADMIN_PASS", "jena_fuseki_admin_password", ""),
     ("ZEPPELIN_ADMIN_PASS", "zeppelin_admin_password", ""),
+    ("SEARXNG_SECRET", "searxng_secret", ""),
+    ("SURREALDB_PASS", "surrealdb_password", ""),
+    ("BOOKSTACK_APP_KEY", "bookstack_app_key", ""),
+    ("BOOKSTACK_DB_PASS", "bookstack_db_password", ""),
+    ("BOOKSTACK_DB_ROOT_PASS", "bookstack_db_root_password", ""),
+    ("BOOKSTACK_ADMIN_PASS", "bookstack_admin_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -378,6 +384,12 @@ class NexusConfig(BaseModel):
     openbao_admin_password: str | None = None
     jena_fuseki_admin_password: str | None = None
     zeppelin_admin_password: str | None = None
+    searxng_secret: str | None = None
+    surrealdb_password: str | None = None
+    bookstack_app_key: str | None = None
+    bookstack_db_password: str | None = None
+    bookstack_db_root_password: str | None = None
+    bookstack_admin_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

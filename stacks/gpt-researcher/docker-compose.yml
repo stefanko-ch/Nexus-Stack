@@ -1,0 +1,63 @@
+# =============================================================================
+# GPT Researcher - autonomous research agent
+# =============================================================================
+# URL: https://gpt-researcher.<domain>
+#
+# Give it a question; it plans sub-questions, searches the web, reads the
+# pages and writes a report with citations (Markdown, PDF or DOCX). A
+# research-report counterpart to Perplexica's quick answers.
+#
+# Preset for local models and private search: the searxng stack as the
+# retriever and the ollama stack for the language and embedding models.
+# Enable both, and pull the models named below in Ollama first. GPT
+# Researcher is tuned for large hosted models; a small local model writes
+# shorter, weaker reports and can fail on long outputs.
+#
+# The web UI and its API have no login; the subdomain is behind Cloudflare
+# Access. Reports are written to the gpt-researcher-outputs volume.
+#
+# Built here from the v3.7.0 release (see Dockerfile): the published images
+# are older and amd64 only.
+# =============================================================================
+
+services:
+  gpt-researcher:
+    build:
+      context: .
+    image: ${IMAGE_GPT_RESEARCHER:-nexus-gpt-researcher:3.7.0}
+    container_name: gpt-researcher
+    restart: unless-stopped
+    environment:
+      RETRIEVER: searx
+      SEARX_URL: http://searxng:8080
+      OLLAMA_BASE_URL: http://ollama:11434
+      FAST_LLM: ollama:llama3.2
+      SMART_LLM: ollama:llama3.2
+      STRATEGIC_LLM: ollama:llama3.2
+      EMBEDDING: ollama:nomic-embed-text
+      # LangSmith tracing off. No hosted provider key is set, so the
+      # models above are the only ones it can use.
+      LANGCHAIN_TRACING_V2: "false"
+    ports:
+      - "127.0.0.1:8131:8000"
+    volumes:
+      - gpt-researcher-outputs:/usr/src/app/outputs
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  gpt-researcher-outputs:
+
+networks:
+  app-network:
+    external: true

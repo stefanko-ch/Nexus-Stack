@@ -320,6 +320,14 @@ output "secrets" {
     jena_fuseki_admin_password = random_password.jena_fuseki_admin.result
     zeppelin_admin_password    = random_password.zeppelin_admin.result
 
+    # SearXNG, SurrealDB, BookStack
+    searxng_secret             = random_password.searxng_secret.result
+    surrealdb_password         = random_password.surrealdb.result
+    bookstack_app_key          = random_password.bookstack_app_key.result
+    bookstack_db_password      = random_password.bookstack_db.result
+    bookstack_db_root_password = random_password.bookstack_db_root.result
+    bookstack_admin_password   = random_password.bookstack_admin.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

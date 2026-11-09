@@ -18,6 +18,10 @@
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',
     }),
+    'bookstack': dict({
+      'BOOKSTACK_EMAIL': 'user@snapshot.test',
+      'BOOKSTACK_PASSWORD': 'bookstack_admin_password-VALUE',
+    }),
     'bytebase': dict({
       'BYTEBASE_DB_PASSWORD': 'bytebase_db_password-VALUE',
       'BYTEBASE_EMAIL': 'user@snapshot.test',
@@ -408,6 +412,10 @@
       'SUPERSET_PASSWORD': 'superset_admin_password-VALUE',
       'SUPERSET_SECRET_KEY': 'superset_secret_key-VALUE',
       'SUPERSET_USERNAME': 'admin',
+    }),
+    'surrealdb': dict({
+      'SURREALDB_PASSWORD': 'surrealdb_password-VALUE',
+      'SURREALDB_USERNAME': 'nexus-surrealdb',
     }),
     'temporal': dict({
       'TEMPORAL_DB_PASSWORD': 'temporal_db_password-VALUE',
