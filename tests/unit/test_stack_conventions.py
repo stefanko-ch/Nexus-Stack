@@ -111,6 +111,7 @@ NO_OWN_AUTH = {
     "datasette",  # read-only browser and JSON API, no accounts
     "gpt-researcher",  # the web UI and its API have no accounts
     "gravitino",  # simple auth mode; OAuth/Kerberos not set up
+    "grist",  # trusts the email header Cloudflare Access sets; no password
     "hop",  # Hop Web has no login; its /hop server API none either
     "kafka",  # PLAINTEXT listener; internal only
     "ksqldb",  # REST API without auth; internal only

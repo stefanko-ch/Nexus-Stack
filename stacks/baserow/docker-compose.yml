@@ -1,0 +1,136 @@
+# =============================================================================
+# Baserow - no-code database
+# =============================================================================
+# URL: https://baserow.<domain>
+#
+# Spreadsheet-like tables on a real PostgreSQL database: linked records,
+# lookups, formulas, forms, kanban and gallery views, and a REST API for
+# every table. An open-source alternative to Airtable, next to nocodb.
+#
+# Baserow makes whoever signs up first the instance's admin. baserow-init
+# claims that account on the first start, as the stack user's email with a
+# generated password (Infisical folder `baserow`), and then switches new
+# sign-ups off, so a visitor cannot create an account of their own. Further
+# users are invited from the admin panel.
+#
+# The all-in-one image runs its own PostgreSQL, Redis and Caddy in the one
+# container. Uploads stay on local disk, so no S3 storage is needed.
+#
+# Data in the baserow-data volume (database, uploads, generated secret
+# keys), which survives a restart and the snapshot lifecycle, not a rebuild
+# teardown.
+# =============================================================================
+
+x-baserow-image: &baserow-image ${IMAGE_BASEROW:-baserow/baserow:2.4.1}
+
+services:
+  baserow:
+    image: *baserow-image
+    container_name: baserow
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8139:80"
+    environment:
+      BASEROW_PUBLIC_URL: ${BASEROW_URL:?must be set in .env (rendered by service_env._render_baserow)}
+      # The tunnel terminates TLS; this makes the API's own links https.
+      BASEROW_ENABLE_SECURE_PROXY_SSL_HEADER: "yes"
+      # One Celery worker for both queues instead of one per CPU core, and
+      # one web worker instead of three: a teaching instance, not a team's.
+      BASEROW_RUN_MINIMAL: "yes"
+      BASEROW_AMOUNT_OF_WORKERS: "1"
+      BASEROW_AMOUNT_OF_GUNICORN_WORKERS: "1"
+    volumes:
+      - baserow-data:/baserow/data
+    deploy:
+      resources:
+        limits:
+          memory: 2560m
+    healthcheck:
+      test: ["CMD", "/bin/bash", "/baserow/backend/docker/docker-entrypoint.sh", "backend-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 3m
+    networks:
+      - app-network
+
+  # Claims the admin account and switches sign-ups off. A single Python
+  # program in the Baserow image, reading the email and password from the
+  # environment. On later starts it logs in and makes sure sign-ups are
+  # still off; if the stored password no longer matches Infisical, it fails
+  # with a message instead of leaving sign-ups in an unknown state.
+  baserow-init:
+    image: *baserow-image
+    container_name: baserow-init
+    restart: "on-failure:3"
+    # The image's own healthcheck probes the web server, which this
+    # container does not run.
+    healthcheck:
+      disable: true
+    entrypoint: ["/baserow/venv/bin/python3", "-c"]
+    command:
+      - |
+        import json, os, sys, urllib.error, urllib.request
+
+        API = "http://baserow/api"
+        EMAIL = os.environ["BASEROW_ADMIN_EMAIL"]
+        PASSWORD = os.environ["BASEROW_ADMIN_PASSWORD"]
+
+
+        def call(method, path, body=None, token=None):
+            request = urllib.request.Request(API + path, method=method,
+                                             data=None if body is None else json.dumps(body).encode())
+            request.add_header("Content-Type", "application/json")
+            # Baserow requires the external host name in the Host header.
+            request.add_header("Host", os.environ["BASEROW_HOST"])
+            if token:
+                request.add_header("Authorization", "JWT " + token)
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    return response.status, json.loads(response.read() or b"{}")
+            except urllib.error.HTTPError as error:
+                return error.code, json.loads(error.read() or b"{}")
+
+
+        def login():
+            status, body = call("POST", "/user/token-auth/", {"email": EMAIL, "password": PASSWORD})
+            return body.get("access_token") if status == 200 else None
+
+
+        token = login()
+        if token:
+            print("baserow-init: the admin account exists and logs in")
+        else:
+            status, body = call("POST", "/user/", {"name": "nexus-admin", "email": EMAIL, "password": PASSWORD})
+            if status != 200:
+                print(f"baserow-init: could not create the admin account (HTTP {status}, "
+                      f"{body.get('error', 'no error code')}). If it exists with another password, "
+                      "the password in Infisical no longer matches the one stored in baserow-data.")
+                sys.exit(1)
+            token = login()
+            print("baserow-init: admin account created")
+        if not token:
+            print("baserow-init: the admin account does not log in")
+            sys.exit(1)
+
+        status, body = call("PATCH", "/settings/update/", {"allow_new_signups": False}, token)
+        if status != 200 or body.get("allow_new_signups") is not False:
+            print(f"baserow-init: could not switch sign-ups off (HTTP {status})")
+            sys.exit(1)
+        print("baserow-init: new sign-ups are off")
+    environment:
+      BASEROW_ADMIN_EMAIL: ${BASEROW_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_baserow)}
+      BASEROW_ADMIN_PASSWORD: ${BASEROW_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_baserow)}
+      BASEROW_HOST: ${BASEROW_HOST:?must be set in .env (rendered by service_env._render_baserow)}
+    depends_on:
+      baserow:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  baserow-data:
+
+networks:
+  app-network:
+    external: true

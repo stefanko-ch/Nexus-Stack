@@ -174,6 +174,16 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("MILVUS_PASS", "milvus_password", ""),
     ("MILVUS_ROOT_PASS", "milvus_root_password", ""),
     ("FLUSS_PASS", "fluss_password", ""),
+    ("BASEROW_ADMIN_PASS", "baserow_admin_password", ""),
+    ("DIRECTUS_SECRET", "directus_secret", ""),
+    ("DIRECTUS_ADMIN_PASS", "directus_admin_password", ""),
+    ("DIRECTUS_DB_PASS", "directus_db_password", ""),
+    ("GRIST_SESSION_SECRET", "grist_session_secret", ""),
+    ("PHOENIX_SECRET", "phoenix_secret", ""),
+    ("PHOENIX_ADMIN_PASS", "phoenix_admin_password", ""),
+    ("ZENML_ADMIN_PASS", "zenml_admin_password", ""),
+    ("ZENML_JWT_SECRET", "zenml_jwt_secret", ""),
+    ("ZENML_ENCRYPTION_KEY", "zenml_encryption_key", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -406,6 +416,16 @@ class NexusConfig(BaseModel):
     milvus_password: str | None = None
     milvus_root_password: str | None = None
     fluss_password: str | None = None
+    baserow_admin_password: str | None = None
+    directus_secret: str | None = None
+    directus_admin_password: str | None = None
+    directus_db_password: str | None = None
+    grist_session_secret: str | None = None
+    phoenix_secret: str | None = None
+    phoenix_admin_password: str | None = None
+    zenml_admin_password: str | None = None
+    zenml_jwt_secret: str | None = None
+    zenml_encryption_key: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

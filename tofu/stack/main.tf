@@ -879,6 +879,66 @@ resource "random_password" "fluss" {
   special = false
 }
 
+# Baserow, Directus, Grist, Arize Phoenix, ZenML
+# Baserow: the admin account baserow-init claims as the stack user.
+resource "random_password" "baserow_admin" {
+  length  = 24
+  special = false
+}
+
+# Directus: token signing secret, the admin and its own PostgreSQL.
+resource "random_password" "directus_secret" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "directus_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "directus_db" {
+  length  = 24
+  special = false
+}
+
+# Grist: session secret. Logins come from Cloudflare Access, so no password.
+resource "random_password" "grist_session_secret" {
+  length  = 48
+  special = false
+}
+
+# Arize Phoenix: token signing secret (32+ characters with a digit and a
+# lowercase letter, enforced below and in the renderer) and the initial
+# password of admin@localhost.
+resource "random_password" "phoenix_secret" {
+  length      = 64
+  special     = false
+  min_numeric = 1
+  min_lower   = 1
+}
+
+resource "random_password" "phoenix_admin" {
+  length  = 24
+  special = false
+}
+
+# ZenML: nexus-admin, the JWT signing key and the secrets-store key.
+resource "random_password" "zenml_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "zenml_jwt_secret" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "zenml_encryption_key" {
+  length  = 48
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

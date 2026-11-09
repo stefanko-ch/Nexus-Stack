@@ -257,6 +257,12 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | DragonflyDB | `docker.dragonflydb.io/dragonflydb/dragonfly` | `v2.0.2` | Exact |
 | Milvus | `milvusdb/milvus` | `v2.6.26` | Exact |
 | Oracle Database Free | `gvenzl/oracle-free` | `23.26.3-slim` | Exact |
+| Arize Phoenix | `arizephoenix/phoenix` | `version-20.26.1` | Exact |
+| Baserow | `baserow/baserow` | `2.4.1` | Exact |
+| Directus | `directus/directus` | `12.5.1` | Exact |
+| PostgreSQL (Directus DB) | `postgres` | `17-alpine` | Major |
+| Grist | `gristlabs/grist-oss` | `1.7.21` | Exact |
+| ZenML | `nexus-zenml` (built from `zenml[server]==0.98.0`) | `0.98.0` | Exact |
 
 ¹ No major version tags available, requires manual updates.
 ² Allow-listed for `latest`: presentation-layer and dev tools that keep nothing beyond a cache, plus viewers over another system's state such as Kafka-UI and S3 Manager. The reason is what the image holds, not what upstream tags — several of these do publish versions, and pinning them would still buy nothing a re-pull cannot undo.
@@ -294,6 +300,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Apicurio Registry** | Schema and API-contract registry | [apicurio.md](apicurio.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **ArcadeDB** | Multi-model database with SQL, Cypher and Gremlin | [arcadedb.md](arcadedb.md) |
+| **Arize Phoenix** | LLM tracing and evaluation | [phoenix.md](phoenix.md) |
+| **Baserow** | No-code database | [baserow.md](baserow.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **BookStack** | Documentation wiki with shelves, books and pages | [bookstack.md](bookstack.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
@@ -314,6 +322,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
+| **Directus** | Data APIs and admin app on PostgreSQL | [directus.md](directus.md) |
 | **Docling Serve** | Document conversion API for RAG ingestion | [docling.md](docling.md) |
 | **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
 | **DragonflyDB** | Redis-compatible in-memory store, internal only | [dragonfly.md](dragonfly.md) |
@@ -335,6 +344,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
 | **Grafana Tempo** | Distributed tracing with an OTel Collector, internal only | [tempo.md](tempo.md) |
 | **Gravitino** | Federated metadata catalog | [gravitino.md](gravitino.md) |
+| **Grist** | Spreadsheet-database with Python formulas | [grist.md](grist.md) |
 | **Hasura** | Instant GraphQL API over PostgreSQL | [hasura.md](hasura.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
@@ -437,6 +447,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Wiki.js** | Wiki platform | [wikijs.md](wikijs.md) |
 | **Windmill** | Developer workflow engine | [windmill.md](windmill.md) |
 | **Woodpecker CI** | CI/CD pipeline | [woodpecker-ci.md](woodpecker-ci.md) |
+| **ZenML** | MLOps pipelines and model versions | [zenml.md](zenml.md) |
 | **Zeppelin** | Web notebooks with many interpreters | [zeppelin.md](zeppelin.md) |
 
 ---

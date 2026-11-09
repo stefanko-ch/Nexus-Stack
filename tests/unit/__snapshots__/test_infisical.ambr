@@ -23,6 +23,10 @@
       'ARCADEDB_ROOT_PASSWORD': 'arcadedb_root_password-VALUE',
       'ARCADEDB_USERNAME': 'nexus-arcadedb',
     }),
+    'baserow': dict({
+      'BASEROW_EMAIL': 'user@snapshot.test',
+      'BASEROW_PASSWORD': 'baserow_admin_password-VALUE',
+    }),
     'bookstack': dict({
       'BOOKSTACK_EMAIL': 'user@snapshot.test',
       'BOOKSTACK_PASSWORD': 'bookstack_admin_password-VALUE',
@@ -74,6 +78,10 @@
     'dinky': dict({
       'DINKY_PASSWORD': 'dinky_admin_password-VALUE',
       'DINKY_USERNAME': 'admin',
+    }),
+    'directus': dict({
+      'DIRECTUS_EMAIL': 'user@snapshot.test',
+      'DIRECTUS_PASSWORD': 'directus_admin_password-VALUE',
     }),
     'docling': dict({
       'DOCLING_API_KEY': 'docling_api_key-VALUE',
@@ -360,6 +368,10 @@
       'PGADMIN_PASSWORD': 'pgadmin_password-VALUE',
       'PGADMIN_USERNAME': 'admin@snapshot.test',
     }),
+    'phoenix': dict({
+      'PHOENIX_EMAIL': 'admin@localhost',
+      'PHOENIX_PASSWORD': 'phoenix_admin_password-VALUE',
+    }),
     'planka': dict({
       'PLANKA_USERNAME': 'admin@snapshot.test',
     }),
@@ -475,6 +487,10 @@
       'WOODPECKER_AGENT_SECRET': 'woodpecker_agent_secret-VALUE',
       'WOODPECKER_FORGEJO_CLIENT': 'cid',
       'WOODPECKER_FORGEJO_SECRET': 'csec',
+    }),
+    'zenml': dict({
+      'ZENML_PASSWORD': 'zenml_admin_password-VALUE',
+      'ZENML_USERNAME': 'nexus-admin',
     }),
     'zeppelin': dict({
       'ZEPPELIN_PASSWORD': 'zeppelin_admin_password-VALUE',

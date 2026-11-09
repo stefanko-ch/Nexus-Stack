@@ -1,0 +1,151 @@
+# =============================================================================
+# Directus - data platform: REST and GraphQL API plus admin app on PostgreSQL
+# =============================================================================
+# URL: https://directus.<domain>
+#
+# Point Directus at a SQL database and it serves every table as a REST and
+# GraphQL API, with an admin app for browsing and editing the data, roles
+# and permissions per collection and field, flows (automations) and
+# dashboards. Here it manages its own PostgreSQL (directus-db).
+#
+# The admin account is created on the first start from ADMIN_EMAIL and
+# ADMIN_PASSWORD: the stack user's email and a generated password (Infisical
+# folder `directus`). Both must be set, or Directus leaves the setup page
+# open for the first visitor to claim. Public registration is off by
+# default.
+#
+# Licence: Directus is under the Monospace Sustainable Core License (MSCL),
+# not an OSI licence; internal, educational and non-commercial use are
+# permitted. Its core tier sends anonymous telemetry, including the public
+# URL, and that cannot be switched off.
+#
+# Data in the directus-db-data and directus-uploads volumes, which survive a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  directus:
+    image: ${IMAGE_DIRECTUS:-directus/directus:12.5.1}
+    container_name: directus
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8140:8055"
+    environment:
+      PUBLIC_URL: ${DIRECTUS_URL:?must be set in .env (rendered by service_env._render_directus)}
+      # Signs access tokens. Without it Directus picks a random one on each
+      # start and every login session ends with a restart.
+      SECRET: ${DIRECTUS_SECRET:?must be set in .env (rendered by service_env._render_directus)}
+      # Read on the first start only, when the admin user is created.
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_directus)}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_directus)}
+      DB_CLIENT: pg
+      DB_HOST: directus-db
+      DB_PORT: "5432"
+      DB_DATABASE: directus
+      DB_USER: nexus-directus
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?must be set in .env (rendered by service_env._render_directus)}
+      # The tunnel serves https; the cookies must say so.
+      SESSION_COOKIE_SECURE: "true"
+      REFRESH_TOKEN_COOKIE_SECURE: "true"
+      # The one-time "register your project with Directus" step.
+      PROJECT_OWNER_ENABLED: "false"
+    volumes:
+      - directus-uploads:/directus/uploads
+      - directus-extensions:/directus/extensions
+    depends_on:
+      directus-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8055/server/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+      - directus-internal
+
+  # Checks that the admin from ADMIN_EMAIL / ADMIN_PASSWORD exists and logs
+  # in. Directus creates it at bootstrap, but when that fails (an address it
+  # rejects as invalid, for one) it starts anyway, healthy, with its setup
+  # page open: whoever opens it first becomes admin. In that case this
+  # container claims the setup with the same values itself, and if that is
+  # refused too it fails loudly. A Node program in the Directus image; the
+  # credentials come from the environment.
+  directus-init:
+    image: ${IMAGE_DIRECTUS:-directus/directus:12.5.1}
+    container_name: directus-init
+    restart: "on-failure:3"
+    entrypoint: ["node", "-e"]
+    command:
+      - |
+        const api = "http://directus:8055";
+        const admin = { email: process.env.DIRECTUS_ADMIN_EMAIL, password: process.env.DIRECTUS_ADMIN_PASSWORD };
+        const post = (path, body) => fetch(api + path, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+        (async () => {
+          if ((await post("/auth/login", admin)).ok) {
+            console.log("directus-init: the admin logs in");
+            return;
+          }
+          const setup = await post("/server/setup", { admin });
+          if (setup.status === 403) {
+            console.log("directus-init: an admin exists but does not log in with the password in Infisical;"
+              + " it no longer matches the one stored in directus-db.");
+            process.exit(1);
+          }
+          if (setup.ok && (await post("/auth/login", admin)).ok) {
+            console.log("directus-init: the bootstrap created no admin; claimed the setup with the configured one");
+            return;
+          }
+          const reason = await setup.text();
+          console.log("directus-init: NO ADMIN EXISTS and the setup was refused (HTTP " + setup.status + "): "
+            + reason.slice(0, 300) + " The setup page is open to the first visitor; fix the admin email and restart.");
+          process.exit(1);
+        })().catch((error) => { console.log("directus-init: " + error.message); process.exit(1); });
+    environment:
+      DIRECTUS_ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      DIRECTUS_ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+    depends_on:
+      directus:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  directus-db:
+    image: ${IMAGE_DIRECTUS_DB:-postgres:17-alpine}
+    container_name: directus-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: directus
+      POSTGRES_USER: nexus-directus
+      POSTGRES_PASSWORD: ${DIRECTUS_DB_PASSWORD:?must be set in .env (rendered by service_env._render_directus)}
+    volumes:
+      - directus-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-directus -d directus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - directus-internal
+
+volumes:
+  directus-uploads:
+  directus-extensions:
+  directus-db-data:
+
+networks:
+  app-network:
+    external: true
+  directus-internal:
+    driver: bridge

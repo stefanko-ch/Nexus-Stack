@@ -1,0 +1,66 @@
+# =============================================================================
+# ZenML - MLOps framework: pipelines, artifacts and model versions
+# =============================================================================
+# URL: https://zenml.<domain>  (dashboard)
+# In-cluster: http://zenml:8080 (for `zenml login http://zenml:8080`)
+#
+# Python pipelines whose steps, inputs and outputs ZenML records: every run,
+# every artifact and its lineage, and model versions with their metrics.
+# The server holds that record and shows it in the dashboard; pipelines run
+# wherever the ZenML client runs (a notebook, code-server) and connect to
+# it. Fits next to mlflow, which ZenML can use as its experiment tracker.
+#
+# The server would let its first visitor activate it by creating the admin.
+# Here it activates itself on the first start with nexus-admin and a
+# generated password (Infisical folder `zenml`).
+#
+# Built here from the PyPI release (see Dockerfile): the published server
+# images are amd64 only. Analytics are off.
+#
+# Data in the zenml-data volume (SQLite: runs, artifacts' metadata, users,
+# encrypted secrets), which survives a restart and the snapshot lifecycle,
+# not a rebuild teardown. Artifacts themselves go to the artifact store of
+# the client's ZenML stack.
+# =============================================================================
+
+services:
+  zenml:
+    build:
+      context: .
+    image: ${IMAGE_ZENML:-nexus-zenml:0.98.0}
+    container_name: zenml
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8143:8080"
+    environment:
+      ZENML_SERVER_AUTO_ACTIVATE: "1"
+      ZENML_DEFAULT_USER_NAME: nexus-admin
+      ZENML_DEFAULT_USER_PASSWORD: ${ZENML_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_zenml)}
+      # Signs login tokens; otherwise a new random key on each start logs
+      # everyone out.
+      ZENML_SERVER_JWT_SECRET_KEY: ${ZENML_JWT_SECRET:?must be set in .env (rendered by service_env._render_zenml)}
+      # Without it the SQL secrets store keeps secrets unencrypted.
+      ZENML_SECRETS_STORE_ENCRYPTION_KEY: ${ZENML_ENCRYPTION_KEY:?must be set in .env (rendered by service_env._render_zenml)}
+      ZENML_SERVER_SERVER_URL: ${ZENML_URL:?must be set in .env (rendered by service_env._render_zenml)}
+      ZENML_ANALYTICS_OPT_IN: "false"
+    volumes:
+      - zenml-data:/zenml/.zenconfig/local_stores
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  zenml-data:
+
+networks:
+  app-network:
+    external: true
