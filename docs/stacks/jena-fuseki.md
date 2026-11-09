@@ -22,7 +22,20 @@ Fuseki stores RDF triples and answers SPARQL 1.1 queries and updates, with named
 
 ### Where it fits
 
-[Neo4j](neo4j.md) and [Memgraph](memgraph.md) are property-graph databases with Cypher. Fuseki is the semantic-web side: RDF, SPARQL, ontologies and linked data. A [Zeppelin](zeppelin.md) notebook can query it with its `%sparql` interpreter.
+[Neo4j](neo4j.md) and [Memgraph](memgraph.md) are property-graph databases with Cypher. Fuseki is the semantic-web side: RDF, SPARQL, ontologies and linked data. A [Zeppelin](zeppelin.md) notebook can query it from a `%python` paragraph:
+
+```python
+%python
+import requests
+
+r = requests.post("http://jena-fuseki:3030/ds/sparql",
+                  auth=("nexus-admin", "<JENA_FUSEKI_PASSWORD>"),
+                  data={"query": "SELECT * WHERE { ?s ?p ?o } LIMIT 10"},
+                  headers={"Accept": "application/sparql-results+json"})
+r.json()["results"]["bindings"]
+```
+
+Zeppelin's own `%sparql` interpreter does not work here: it has no setting for credentials, and every Fuseki dataset requires a login. Do not put the password into its endpoint URL either, because the interpreter logs that URL. A paragraph is saved with its notebook, so remove the password from it before sharing the notebook.
 
 ### Image
 

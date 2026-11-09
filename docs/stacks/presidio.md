@@ -23,7 +23,7 @@ Presidio finds personal data in text and rewrites it. It detects names, email ad
 
 Use it for data-governance and GDPR lessons: what counts as personal data, and the difference between masking, pseudonymising and encrypting.
 
-It also belongs in front of LLM pipelines, such as [Ollama](ollama.md), [Dify](dify.md) and [LiteLLM](litellm.md), so that prompts and documents carry no personal data.
+It also fits in front of LLM pipelines, such as [Ollama](ollama.md), [Dify](dify.md) and [LiteLLM](litellm.md), to strip personal data from prompts and documents before they reach a model. **It reduces that risk; it does not remove it.** Detection is pattern- and model-based, and it misses entities: names in unusual forms, identifiers it has no recognizer for, personal data in other languages than the loaded models. Treat its output as masked, not as anonymous. Keep the other safeguards too: send only the data a task needs, prefer models that run on the server, and review what a pipeline sends.
 
 ### First steps
 

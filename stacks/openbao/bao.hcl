@@ -17,9 +17,10 @@ listener "tcp" {
   tls_disable = true
 }
 
-# Auto-unseal with a static AES-256 key generated per deployment (Infisical
-# folder `openbao`, OPENBAO_UNSEAL_KEY). Without it the server would come up
-# sealed after every restart and wait for someone to type unseal keys.
+# Auto-unseal with a static AES-256 key generated per deployment
+# (OPENBAO_UNSEAL_KEY, from the stack's .env; deliberately not in Infisical).
+# Without it the server would come up sealed after every restart and wait
+# for someone to type unseal keys.
 seal "static" {
   current_key_id = "nexus-1"
   current_key    = "env://OPENBAO_UNSEAL_KEY"

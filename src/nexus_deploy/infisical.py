@@ -1413,9 +1413,11 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
                     # userpass login; the root token is revoked at init.
                     "OPENBAO_USERNAME": "nexus-admin",
                     "OPENBAO_PASSWORD": config.openbao_admin_password,
-                    # The static seal key. Whoever holds it and the volume
-                    # can decrypt everything in OpenBao.
-                    "OPENBAO_UNSEAL_KEY": config.openbao_unseal_key,
+                    # OPENBAO_UNSEAL_KEY is deliberately not here. Whoever
+                    # holds it and the volume can decrypt everything in
+                    # OpenBao, and every Infisical folder is synced into
+                    # Kestra as SECRET_*. The stack reads it from its own
+                    # 0600 .env; the operator has `tofu output -json secrets`.
                 }
             ),
         )

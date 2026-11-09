@@ -21,7 +21,7 @@ In Zeppelin, every paragraph of a notebook names its interpreter: `%python`, `%j
 
 ### Zeppelin next to Jupyter and marimo
 
-[Jupyter](jupyter.md) and [marimo](marimo.md) are Python notebooks. Zeppelin mixes languages in one notebook. A `%jdbc` paragraph can query [Postgres](postgres.md) or [Trino](trino.md), a `%python` paragraph can process the result, and a `%sparql` paragraph can query [Jena Fuseki](jena-fuseki.md).
+[Jupyter](jupyter.md) and [marimo](marimo.md) are Python notebooks. Zeppelin mixes languages in one notebook. A `%jdbc` paragraph can query [Postgres](postgres.md) or [Trino](trino.md), and a `%python` paragraph can process the result or query [Jena Fuseki](jena-fuseki.md) with `requests`. The `%sparql` interpreter cannot reach Fuseki: it has no setting for credentials, and Fuseki requires a login. [jena-fuseki.md](jena-fuseki.md) has the `%python` example.
 
 ### Login
 
