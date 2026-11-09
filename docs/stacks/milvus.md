@@ -50,7 +50,7 @@ Tested through the REST API: a collection created, two vectors inserted and foun
 
 A Milvus cluster normally needs etcd for metadata and S3-compatible object storage, and many examples bundle MinIO. MinIO no longer publishes images, and the stack does not need it: it runs the setup of Milvus's own `standalone_embed.sh`.
 
-- **Embedded etcd**, configured by `embedEtcd.yaml` in the stack directory. It listens inside the container only.
+- **Embedded etcd**, configured by `embedEtcd.yaml` in the stack directory. Milvus's script has it listen on `0.0.0.0`; on `app-network` that lets any container read and write Milvus's metadata without credentials, around Milvus's own authentication (tested: it answered from another container). The stack binds it to `127.0.0.1`, since only the Milvus process in the same container uses it.
 - **Local storage** (`COMMON_STORAGETYPE=local`) for segments and indexes.
 - **RocksMQ** as the message log, also local. It is set explicitly, because the other standalone choice, Woodpecker, defaults to MinIO.
 

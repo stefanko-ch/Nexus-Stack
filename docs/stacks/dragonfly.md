@@ -31,10 +31,10 @@ r.set("greeting", "hello")
 r.get("greeting")  # b'hello'
 ```
 
-From the server, `redis-cli` reads the password from `REDISCLI_AUTH`, which keeps it off the command line:
+From the server, `redis-cli` reads the password from `REDISCLI_AUTH`. The container already has it as `DRAGONFLY_PASSWORD`, so it never has to be typed or passed on a command line:
 
 ```bash
-docker exec -it -e REDISCLI_AUTH=<DRAGONFLY_PASSWORD> dragonfly redis-cli --user nexus-dragonfly
+docker exec -it dragonfly sh -c 'REDISCLI_AUTH="$DRAGONFLY_PASSWORD" exec redis-cli --user nexus-dragonfly'
 ```
 
 ### Authentication
