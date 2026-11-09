@@ -2125,7 +2125,7 @@ def _render_docling(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
 
 
 def _render_lightdash(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    """Lightdash: database and MinIO passwords, the encryption secret, the
+    """Lightdash: database and S3 passwords, the encryption secret, the
     public URL and the admin lightdash-init claims.
 
     The first registration becomes the organization admin, so empty admin

@@ -99,7 +99,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: nexus-mathesar
-      POSTGRES_PASSWORD: ${MATHESAR_DB_PASSWORD}
+      POSTGRES_PASSWORD: ${MATHESAR_DB_PASSWORD:?must be set in .env (rendered by service_env._render_mathesar)}
       POSTGRES_DB: mathesar_django
     volumes:
       - mathesar-db-data:/var/lib/postgresql/data

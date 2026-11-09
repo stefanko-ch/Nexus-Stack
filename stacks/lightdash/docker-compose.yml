@@ -144,7 +144,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: nexus-lightdash
-      POSTGRES_PASSWORD: ${LIGHTDASH_DB_PASSWORD}
+      POSTGRES_PASSWORD: ${LIGHTDASH_DB_PASSWORD:?must be set in .env (rendered by service_env._render_lightdash)}
       POSTGRES_DB: lightdash
     volumes:
       - lightdash-db-data:/var/lib/postgresql/data
