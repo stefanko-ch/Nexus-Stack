@@ -358,7 +358,7 @@ services:
     category: "analytics"
     website: "https://www.dremio.com"
     description: "Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI."
-    long_description: "Dremio queries data where it lies, object storage such as MinIO, Iceberg catalogs such as Nessie, relational databases and files, through one SQL layer with a web editor, a semantic layer of virtual datasets, and reflections that accelerate repeated queries. Next to Trino it is the option with its own UI and semantic layer, and it pairs naturally with the Nessie stack. Single node, with JDBC/ODBC on 31010 and Arrow Flight on 32010 inside the stack. It needs at least 4 GB of memory, so the container gets 5 GB. The admin (nexus-admin) is created on first start (Infisical → folder `dremio`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    long_description: "Dremio queries data where it lies, object storage such as Garage or SeaweedFS, Iceberg catalogs such as Nessie, relational databases and files, through one SQL layer with a web editor, a semantic layer of virtual datasets, and reflections that accelerate repeated queries. Next to Trino it is the option with its own UI and semantic layer, and it pairs naturally with the Nessie stack. Single node, with JDBC/ODBC on 31010 and Arrow Flight on 32010 inside the stack. It needs at least 4 GB of memory, so the container gets 5 GB. The admin (nexus-admin) is created on first start (Infisical → folder `dremio`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "dremio/dremio-oss:26.0.5"
 
   duckdb:
