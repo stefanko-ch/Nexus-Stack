@@ -1,0 +1,65 @@
+# =============================================================================
+# Ray - distributed Python for data processing and machine learning
+# =============================================================================
+# URL: https://ray.<domain>   (Ray dashboard: jobs, actors, tasks, logs)
+# In-cluster: ray://ray:10001 (Ray Client)
+#
+# A single-node Ray cluster: the head node runs the scheduler and the
+# workers, so `@ray.remote` tasks and actors, Ray Data, Ray Tune and Ray
+# Serve all run here and spread over the CPUs it is given. Notebooks on
+# app-network connect with ray.init("ray://ray:10001").
+#
+# Token authentication is on: the dashboard asks for the token once and
+# keeps it in a cookie, and every client sends it via RAY_AUTH_TOKEN
+# (Infisical folder `ray`). Without it the dashboard API and the client port
+# would run arbitrary code for anyone on app-network.
+#
+# The Ray Client needs the same Ray version and the same Python minor
+# version on both sides: ray==2.60.0 on Python 3.12.
+#
+# No volume: Ray keeps no state worth keeping. Job history and logs are gone
+# after a restart.
+# =============================================================================
+
+services:
+  ray:
+    image: ${IMAGE_RAY:-rayproject/ray:2.60.0-py312-cpu}
+    container_name: ray
+    restart: unless-stopped
+    command:
+      - ray
+      - start
+      - --head
+      - --dashboard-host=0.0.0.0
+      # Without these Ray sizes itself to the whole host: all 8 vCPUs, and
+      # an object store of 30% of host memory, which this container's limit
+      # would not hold.
+      - --num-cpus=4
+      - --object-store-memory=1000000000
+      - --block
+    environment:
+      RAY_AUTH_MODE: token
+      RAY_AUTH_TOKEN: ${RAY_AUTH_TOKEN:?must be set in .env (rendered by service_env._render_ray)}
+      RAY_USAGE_STATS_ENABLED: "0"
+    ports:
+      - "127.0.0.1:8265:8265"
+    # The object store lives in /dev/shm; Docker's default of 64 MB would
+    # make Ray fall back to slow disk spilling.
+    shm_size: 2gb
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    healthcheck:
+      # No curl in the image. The dashboard's root page needs no token.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8265/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

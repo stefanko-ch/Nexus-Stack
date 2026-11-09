@@ -2065,6 +2065,117 @@ def _render_valkey(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={"VALKEY_PASSWORD": c.valkey_password or ""}, mode=0o600)
 
 
+def _require(stack: str, values: dict[str, str | None], why: str) -> None:
+    """Fail the deploy when a required value is empty or not alphanumeric.
+
+    Every value here comes from a ``random_password`` with
+    ``special = false`` (or is an email checked separately), so a
+    non-alphanumeric one means that coupling broke. The message names
+    the keys, never their values, because it lands in a public log.
+    """
+    if missing := sorted(k for k, v in values.items() if _empty(v)):
+        raise ServiceEnvError(
+            f"{stack} enabled but {', '.join(missing)} empty -- they come from the "
+            f"tofu outputs of the same name. Aborting rather than {why}.",
+        )
+    if bad := _non_alnum(values):
+        raise ServiceEnvError(
+            f"{stack} enabled but {', '.join(bad)} not alphanumeric -- they go into "
+            "connection settings, a JSON body or an HTTP header, and should come "
+            "from random_password with special = false.",
+        )
+
+
+def _admin_email(stack: str, e: BootstrapEnv) -> str:
+    """The stack user's email, checked for the shape an init container needs:
+    name@domain, and nothing that breaks a JSON string."""
+    email = stack_user_email(e) or ""
+    local, _, domain = email.partition("@")
+    if (
+        not local
+        or "." not in domain
+        or any(ch in email for ch in '"\\')
+        or any(ch.isspace() for ch in email)
+    ):
+        raise ServiceEnvError(
+            f"{stack} enabled but the admin email is empty or not a plain "
+            "name@domain address -- check admin_email and the stack user's "
+            "email in config.tfvars.",
+        )
+    return email
+
+
+def _render_paradedb(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """ParadeDB: the ``nexus-paradedb`` superuser password. An empty one
+    would let initdb create a superuser every container on app-network
+    could log in as. Takes effect on first init only, like ``postgres``."""
+    _require(
+        "ParadeDB",
+        {"PARADEDB_PASSWORD": c.paradedb_password},
+        "initialising a superuser without a password",
+    )
+    return RenderedEnv(env_vars={"PARADEDB_PASSWORD": c.paradedb_password or ""}, mode=0o600)
+
+
+def _render_docling(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Docling Serve: the API key. Without one the conversion API, which
+    fetches any URL it is given, is open to every container on app-network."""
+    _require("Docling", {"DOCLING_API_KEY": c.docling_api_key}, "serving the API without a key")
+    return RenderedEnv(env_vars={"DOCLING_API_KEY": c.docling_api_key or ""}, mode=0o600)
+
+
+def _render_lightdash(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Lightdash: database and S3 passwords, the encryption secret, the
+    public URL and the admin lightdash-init claims.
+
+    The first registration becomes the organization admin, so empty admin
+    values would leave it to whoever opens the page first.
+    """
+    secrets = {
+        "LIGHTDASH_DB_PASSWORD": c.lightdash_db_password,
+        "LIGHTDASH_SECRET": c.lightdash_secret,
+        "LIGHTDASH_S3_PASSWORD": c.lightdash_s3_password,
+        "LIGHTDASH_ADMIN_PASSWORD": c.lightdash_admin_password,
+    }
+    _require("Lightdash", secrets, "leaving the Lightdash admin to whoever registers first")
+    url = f"https://{service_host('lightdash', e.domain or '', e.subdomain_separator)}"
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in secrets.items()},
+            "LIGHTDASH_ADMIN_EMAIL": _admin_email("Lightdash", e),
+            "LIGHTDASH_URL": url,
+        },
+        mode=0o600,
+    )
+
+
+def _render_ray(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Ray: the auth token. Without one the dashboard API and the client
+    port run arbitrary Python for anyone on app-network."""
+    _require("Ray", {"RAY_AUTH_TOKEN": c.ray_auth_token}, "starting Ray without authentication")
+    return RenderedEnv(env_vars={"RAY_AUTH_TOKEN": c.ray_auth_token or ""}, mode=0o600)
+
+
+def _render_mathesar(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Mathesar: database password, Django secret key, the public host for
+    ALLOWED_HOSTS, and the admin mathesar-init creates before the web server
+    starts. Empty admin values would leave the first-run admin page open."""
+    secrets = {
+        "MATHESAR_DB_PASSWORD": c.mathesar_db_password,
+        "MATHESAR_SECRET_KEY": c.mathesar_secret_key,
+        "MATHESAR_ADMIN_PASSWORD": c.mathesar_admin_password,
+    }
+    _require("Mathesar", secrets, "leaving the Mathesar admin page open")
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in secrets.items()},
+            "MATHESAR_ADMIN_EMAIL": _admin_email("Mathesar", e),
+            "MATHESAR_HOST": service_host("mathesar", e.domain or "", e.subdomain_separator),
+        },
+        mode=0o600,
+    )
+
+
 def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """StarRocks: the password start.sh gives root and nexus-starrocks.
 
@@ -3411,6 +3522,11 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("bytebase", _is_enabled("bytebase"), _render_bytebase),
     EnvSpec("hasura", _is_enabled("hasura"), _render_hasura),
     EnvSpec("valkey", _is_enabled("valkey"), _render_valkey),
+    EnvSpec("paradedb", _is_enabled("paradedb"), _render_paradedb),
+    EnvSpec("docling", _is_enabled("docling"), _render_docling),
+    EnvSpec("lightdash", _is_enabled("lightdash"), _render_lightdash),
+    EnvSpec("ray", _is_enabled("ray"), _render_ray),
+    EnvSpec("mathesar", _is_enabled("mathesar"), _render_mathesar),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

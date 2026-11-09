@@ -132,6 +132,16 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("HASURA_DB_PASS", "hasura_db_password", ""),
     ("HASURA_ADMIN_SECRET", "hasura_admin_secret", ""),
     ("VALKEY_PASS", "valkey_password", ""),
+    ("PARADEDB_PASS", "paradedb_password", ""),
+    ("DOCLING_API_KEY", "docling_api_key", ""),
+    ("LIGHTDASH_DB_PASS", "lightdash_db_password", ""),
+    ("LIGHTDASH_SECRET", "lightdash_secret", ""),
+    ("LIGHTDASH_S3_PASS", "lightdash_s3_password", ""),
+    ("LIGHTDASH_ADMIN_PASS", "lightdash_admin_password", ""),
+    ("RAY_AUTH_TOKEN", "ray_auth_token", ""),
+    ("MATHESAR_DB_PASS", "mathesar_db_password", ""),
+    ("MATHESAR_SECRET_KEY", "mathesar_secret_key", ""),
+    ("MATHESAR_ADMIN_PASS", "mathesar_admin_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -321,6 +331,16 @@ class NexusConfig(BaseModel):
     hasura_db_password: str | None = None
     hasura_admin_secret: str | None = None
     valkey_password: str | None = None
+    paradedb_password: str | None = None
+    docling_api_key: str | None = None
+    lightdash_db_password: str | None = None
+    lightdash_secret: str | None = None
+    lightdash_s3_password: str | None = None
+    lightdash_admin_password: str | None = None
+    ray_auth_token: str | None = None
+    mathesar_db_password: str | None = None
+    mathesar_secret_key: str | None = None
+    mathesar_admin_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

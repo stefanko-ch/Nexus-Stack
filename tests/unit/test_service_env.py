@@ -4926,3 +4926,109 @@ def test_starrocks_refuses_a_passwordless_root(
             _render_starrocks(
                 full_config.model_copy(update={"starrocks_root_password": bad}), full_env
             )
+
+
+# ---------------------------------------------------------------------------
+# ParadeDB, Docling Serve, Lightdash, Ray, Mathesar
+# ---------------------------------------------------------------------------
+
+_FIVE_SECRETS = {
+    "paradedb_password": "pdpass1",
+    "docling_api_key": "dockey1",
+    "lightdash_db_password": "lddb1",
+    "lightdash_secret": "ldsecret1",
+    "lightdash_s3_password": "lds3pw1",
+    "lightdash_admin_password": "LdPass1",
+    "ray_auth_token": "raytoken1",
+    "mathesar_db_password": "mtdb1",
+    "mathesar_secret_key": "mtsecret1",
+    "mathesar_admin_password": "MtPass1",
+}
+
+
+def test_five_new_stacks_render_their_env(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_FIVE_SECRETS)
+    env = replace(full_env, domain="alice.example.com", subdomain_separator="-")
+    expected = {
+        "_render_paradedb": {"PARADEDB_PASSWORD": "pdpass1"},
+        "_render_docling": {"DOCLING_API_KEY": "dockey1"},
+        "_render_lightdash": {
+            "LIGHTDASH_DB_PASSWORD": "lddb1",
+            "LIGHTDASH_SECRET": "ldsecret1",
+            "LIGHTDASH_S3_PASSWORD": "lds3pw1",
+            "LIGHTDASH_ADMIN_PASSWORD": "LdPass1",
+            "LIGHTDASH_ADMIN_EMAIL": "user@example.com",
+            "LIGHTDASH_URL": "https://lightdash-alice.example.com",
+        },
+        "_render_ray": {"RAY_AUTH_TOKEN": "raytoken1"},
+        "_render_mathesar": {
+            "MATHESAR_DB_PASSWORD": "mtdb1",
+            "MATHESAR_SECRET_KEY": "mtsecret1",
+            "MATHESAR_ADMIN_PASSWORD": "MtPass1",
+            "MATHESAR_ADMIN_EMAIL": "user@example.com",
+            "MATHESAR_HOST": "mathesar-alice.example.com",
+        },
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_paradedb", "paradedb_password", "PARADEDB_PASSWORD"),
+        ("_render_docling", "docling_api_key", "DOCLING_API_KEY"),
+        ("_render_lightdash", "lightdash_db_password", "LIGHTDASH_DB_PASSWORD"),
+        ("_render_lightdash", "lightdash_secret", "LIGHTDASH_SECRET"),
+        ("_render_lightdash", "lightdash_s3_password", "LIGHTDASH_S3_PASSWORD"),
+        ("_render_lightdash", "lightdash_admin_password", "LIGHTDASH_ADMIN_PASSWORD"),
+        ("_render_ray", "ray_auth_token", "RAY_AUTH_TOKEN"),
+        ("_render_mathesar", "mathesar_db_password", "MATHESAR_DB_PASSWORD"),
+        ("_render_mathesar", "mathesar_secret_key", "MATHESAR_SECRET_KEY"),
+        ("_render_mathesar", "mathesar_admin_password", "MATHESAR_ADMIN_PASSWORD"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", 'a"b'])
+def test_five_new_stacks_refuse_empty_or_non_alphanumeric_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    """An empty value would start the stack without a password, token or
+    admin; a non-alphanumeric one would break the connection setting, JSON
+    body or header it lands in. The error names the key, never the value."""
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_FIVE_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("renderer", ["_render_lightdash", "_render_mathesar"])
+@pytest.mark.parametrize(
+    "email",
+    ['a"b@example.com', "a\\b@example.com", "a b@example.com", "not-an-email", "a@localhost"],
+)
+def test_admin_claiming_stacks_refuse_an_unusable_email(
+    full_config: NexusConfig, full_env: BootstrapEnv, renderer: str, email: str
+) -> None:
+    """The init containers send the email in JSON or to Django; a quote,
+    backslash or whitespace breaks that, and a bare word is refused there."""
+    from dataclasses import replace
+
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_FIVE_SECRETS)
+    with pytest.raises(ServiceEnvError, match="admin email"):
+        getattr(service_env, renderer)(config, replace(full_env, forgejo_user_email=email))

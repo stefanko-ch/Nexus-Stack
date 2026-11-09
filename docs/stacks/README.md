@@ -144,6 +144,14 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Rill | `rilldata/rill` | `v0.91.1` | Exact |
 | SQLMesh (custom build) | `nexus-sqlmesh` | `0.236.4` | Exact |
 | Valkey | `valkey/valkey` | `9.1.3-alpine` | Exact |
+| Docling Serve | `ghcr.io/docling-project/docling-serve-cpu` | `v1.38.2` | Exact |
+| Lightdash | `lightdash/lightdash` | `3.179.0` | Exact |
+| PostgreSQL (Lightdash DB) | `postgres` | `17-alpine` | Major |
+| SeaweedFS (Lightdash storage) | `chrislusf/seaweedfs` | `4.52` | Exact |
+| Mathesar | `mathesar/mathesar` | `0.12.0` | Exact |
+| PostgreSQL (Mathesar DB) | `postgres` | `17-alpine` | Major |
+| ParadeDB | `paradedb/paradedb` | `0.26.5-pg18` | Exact |
+| Ray | `rayproject/ray` | `2.60.0-py312-cpu` | Exact |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -268,6 +276,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
+| **Docling Serve** | Document conversion API for RAG ingestion | [docling.md](docling.md) |
 | **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
 | **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
@@ -301,11 +310,13 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Lakekeeper** | Iceberg REST Catalog (Rust) for multi-engine lakehouse | [lakekeeper.md](lakekeeper.md) |
 | **Langflow** | Visual builder for LLM flows, RAG pipelines and agents | [langflow.md](langflow.md) |
 | **Langfuse** | LLM observability: tracing, evaluations, prompt management | [langfuse.md](langfuse.md) |
+| **Lightdash** | BI on dbt models | [lightdash.md](lightdash.md) |
 | **LiteLLM Proxy** | Unified OpenAI-compatible proxy for 100+ LLM providers | [litellm.md](litellm.md) |
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |
 | **Marimo** | Reactive Python notebook | [marimo.md](marimo.md) |
 | **Marquez** | OpenLineage backend — data lineage across the orchestrators | [marquez.md](marquez.md) |
+| **Mathesar** | Spreadsheet interface for PostgreSQL | [mathesar.md](mathesar.md) |
 | **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Memgraph** | In-memory graph database with MAGE and Memgraph Lab | [memgraph.md](memgraph.md) |
@@ -322,6 +333,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Open Notebook** | Self-hosted NotebookLM alternative | [open-notebook.md](open-notebook.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
+| **ParadeDB** | PostgreSQL with full-text search, internal only | [paradedb.md](paradedb.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
 | **Planka** | Kanban board for project management | [planka.md](planka.md) |
@@ -333,6 +345,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Qdrant** | Vector database with a built-in web dashboard | [qdrant.md](qdrant.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
 | **QuestDB** | Time-series database with web console | [questdb.md](questdb.md) |
+| **Ray** | Distributed Python for data and ML | [ray.md](ray.md) |
 | **Redpanda** | Kafka-compatible streaming platform | [redpanda.md](redpanda.md) |
 | **Redpanda Console** | Redpanda web UI | [redpanda-console.md](redpanda-console.md) |
 | **Redpanda Connect** | Stream processing framework | [redpanda-connect.md](redpanda-connect.md) |

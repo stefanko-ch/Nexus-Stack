@@ -1,0 +1,125 @@
+# =============================================================================
+# Mathesar - spreadsheet-like interface for PostgreSQL
+# =============================================================================
+# URL: https://mathesar.<domain>
+#
+# Tables, records, relationships and saved explorations in a spreadsheet
+# view, on real PostgreSQL schemas, with PostgreSQL's own roles and
+# permissions underneath. For people who should work with data in Postgres
+# without writing SQL.
+#
+# mathesar-db is Mathesar's own PostgreSQL. It holds Mathesar's settings and
+# is also the first server to work in: in the UI, "Connect Database" ->
+# "Create a New Database" creates one on it, optionally with sample data. Other servers in the stack (the shared
+# `postgres`, `paradedb`, `timescaledb`) can be connected too.
+#
+# Mathesar asks for an admin account on its first page view, and whoever
+# answers first gets it. mathesar-init creates that admin before the web
+# server starts (Infisical folder `mathesar`), so the page never shows.
+#
+# Data in the mathesar-db-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+x-mathesar-env: &mathesar-env
+  POSTGRES_HOST: mathesar-db
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: nexus-mathesar
+  POSTGRES_PASSWORD: ${MATHESAR_DB_PASSWORD:?must be set in .env (rendered by service_env._render_mathesar)}
+  POSTGRES_DB: mathesar_django
+  SECRET_KEY: ${MATHESAR_SECRET_KEY:?must be set in .env (rendered by service_env._render_mathesar)}
+  # Django's host check. The tunnel sends the public host; the healthcheck
+  # comes from inside the container.
+  ALLOWED_HOSTS: ${MATHESAR_HOST:?must be set in .env (rendered by service_env._render_mathesar)},localhost
+
+services:
+  mathesar:
+    image: ${IMAGE_MATHESAR:-mathesar/mathesar:0.12.0}
+    container_name: mathesar
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8119:8000"
+    environment:
+      <<: *mathesar-env
+    depends_on:
+      mathesar-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8000/auth/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+      - mathesar-internal
+
+  mathesar-init:
+    image: ${IMAGE_MATHESAR:-mathesar/mathesar:0.12.0}
+    container_name: mathesar-init
+    restart: "no"
+    # Runs Django's setup (migrations), then creates the admin if there is
+    # none. The web server waits for this to succeed, so the first-run
+    # admin page is never reachable. Idempotent: a later start finds the
+    # admin and changes nothing.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        python -m mathesar.install
+        python manage.py shell -c "
+        import os
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        name = os.environ['MATHESAR_ADMIN_USERNAME']
+        if User.objects.filter(username=name).exists():
+            print('mathesar-init: admin already exists')
+        else:
+            User.objects.create_superuser(name, os.environ['MATHESAR_ADMIN_EMAIL'], os.environ['MATHESAR_ADMIN_PASSWORD'])
+            print('mathesar-init: admin created')
+        "
+    environment:
+      <<: *mathesar-env
+      MATHESAR_ADMIN_USERNAME: nexus-admin
+      MATHESAR_ADMIN_EMAIL: ${MATHESAR_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_mathesar)}
+      MATHESAR_ADMIN_PASSWORD: ${MATHESAR_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_mathesar)}
+    depends_on:
+      mathesar-db:
+        condition: service_healthy
+    networks:
+      - mathesar-internal
+
+  mathesar-db:
+    image: ${IMAGE_MATHESAR_DB:-postgres:17-alpine}
+    container_name: mathesar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-mathesar
+      POSTGRES_PASSWORD: ${MATHESAR_DB_PASSWORD:?must be set in .env (rendered by service_env._render_mathesar)}
+      POSTGRES_DB: mathesar_django
+    volumes:
+      - mathesar-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-mathesar -d mathesar_django"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mathesar-internal
+
+volumes:
+  mathesar-db-data:
+
+networks:
+  app-network:
+    external: true
+  mathesar-internal:
+    driver: bridge
