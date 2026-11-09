@@ -215,8 +215,8 @@ purpose is a service that is not running.
 ## External tables on object storage
 
 Table data lives in **Cloudflare R2**, wired up automatically when the
-deployment has a data bucket. R2 rather than one of this stack's four
-in-cluster object stores (MinIO, Garage, RustFS, SeaweedFS) for the reason
+deployment has a data bucket. R2 rather than one of this stack's three
+in-cluster object stores (Garage, RustFS, SeaweedFS) for the reason
 the catalog exists at all: a rebuild teardown destroys the server's disk,
 and a catalogue of vanished files is worse than no catalogue.
 

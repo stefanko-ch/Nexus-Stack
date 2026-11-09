@@ -76,7 +76,7 @@ You don't access them directly; you use them through their consumers.
 
 ## TCP services & firewall management
 
-Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP access from the outside (Kafka clients, PostgreSQL drivers, MinIO S3 SDK clients). For those, the Control Plane offers a **Firewall Management** page where you can selectively open TCP ports on the Hetzner firewall. DNS A records are created pointing directly to the server IP (`proxied = false`), since Cloudflare doesn't proxy raw TCP. All firewall rules are **automatically reset on every Teardown** — there is no way to leave a port accidentally open.
+Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP access from the outside (Kafka clients, PostgreSQL drivers, S3 SDK clients). For those, the Control Plane offers a **Firewall Management** page where you can selectively open TCP ports on the Hetzner firewall. DNS A records are created pointing directly to the server IP (`proxied = false`), since Cloudflare doesn't proxy raw TCP. All firewall rules are **automatically reset on every Teardown** — there is no way to leave a port accidentally open.
 
 ---
 
@@ -113,7 +113,6 @@ Cloudflare Tunnels handle HTTPS perfectly, but a few services need raw TCP acces
 | **[Filestash](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/filestash.md)** | `machines/filestash@sha256:68171bf3…` | Web file manager with pluggable backends: S3, SFTP, FTP, WebDAV, Dropbox, Google Drive. Think "Google Drive UI for whichever storage you already own". |
 | **[Garage](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/garage.md)** | `dxflrs/garage:v2.2.0` | Lightweight geo-distributed S3-compatible storage from the Deuxfleurs collective. Designed to run on heterogeneous nodes, e.g. a laptop + a VPS + a Raspberry Pi as one cluster. |
 | **[LakeFS](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/lakefs.md)** | `treeverse/lakefs:1.73.0` | Git-like branches, commits, and merges for an S3 bucket. Enables "reproduce Tuesday's report" workflows by snapshotting the data lake state at each dbt run. Configured to use Hetzner Object Storage as the backing bucket. |
-| **[MinIO](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/minio.md)** | `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` | The reference open-source S3-compatible object store. Battle-tested, widely supported by every SDK that speaks S3, picked by default when in doubt. |
 | **[RustFS](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/rustfs.md)** | `rustfs/rustfs:1.0.0-alpha.82` | Rust rewrite of MinIO's protocol surface. Lower RAM footprint and better tail latency; still pre-1.0 so treat it as experimental for production. |
 | **[S3 Manager](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/s3manager.md)** | `cloudlena/s3manager:latest` | Simple web bucket browser. Preconfigured against the Hetzner Object Storage credentials from `.env`, so it works out of the box. |
 | **[SeaweedFS](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/stacks/seaweedfs.md)** | `chrislusf/seaweedfs:3.82` | Distributed object store designed for billions of tiny files where MinIO struggles. Has its own Filer UI plus an S3 API compatibility layer. |

@@ -250,7 +250,7 @@ reclaims the space — but only once a spin-up has confirmed the catalogue came
 back.
 
 **Not covered:** object-storage durability itself. R2 gives you provider-level
-durability; a MinIO / Garage / SeaweedFS warehouse on the same Hetzner box is
+durability; a Garage / SeaweedFS / RustFS warehouse on the same Hetzner box is
 not redundant unless the operator wires their own replication.
 
 ### Warehouses + storage choices
@@ -264,7 +264,7 @@ Lakekeeper supports more than one warehouse per catalogue, each pointing at a
 different bucket or backend — see "Creating another warehouse by hand" above.
 Two patterns worth knowing:
 
-- **In-stack warehouse** on Garage / MinIO / SeaweedFS — fast and free, but on
+- **In-stack warehouse** on Garage / SeaweedFS / RustFS — fast and free, but on
   the same box, so a rebuild teardown takes it with the server unless the
   operator adds it to the backup allow-list.
 - **A second R2 warehouse** with its own `key-prefix` — for separating a

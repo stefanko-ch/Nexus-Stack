@@ -41,7 +41,7 @@ spark = (
 )
 ```
 
-The Iceberg and Nessie Spark extensions must be on the classpath, and the warehouse needs S3 credentials for one of the storage stacks (MinIO, Garage, SeaweedFS).
+The Iceberg and Nessie Spark extensions must be on the classpath, and the warehouse needs S3 credentials for one of the storage stacks (Garage, SeaweedFS, RustFS).
 
 **Nessie's own Iceberg REST endpoint** (`/iceberg`) is not set up. It needs a warehouse bucket and object-store credentials configured on the Nessie server, which this stack leaves to the course, and until then it answers 500. The Nessie API above works without it; PyIceberg and other REST-only clients need the endpoint.
 

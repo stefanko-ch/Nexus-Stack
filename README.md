@@ -50,7 +50,7 @@ back up in the morning, keep the data.
 
 ### Security
 - **Zero Entry** - Zero open ports = Zero attack surface
-- **Firewall Management** - Open specific TCP ports for external access (Kafka, PostgreSQL, MinIO) via Control Plane, auto-reset on teardown
+- **Firewall Management** - Open specific TCP ports for external access (Kafka, PostgreSQL, S3 APIs) via Control Plane, auto-reset on teardown
 - **Service Tokens** - Headless SSH access for CI/CD
 - **Secrets Management** - Centralized in Infisical with auto-provisioning
 
@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (121)
+## Available Stacks (120)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -148,7 +148,6 @@ After deployment you'll have:
 [![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)](https://www.metabase.com)
 [![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
-[![MinIO](https://img.shields.io/badge/MinIO-C72E49?logo=minio&logoColor=white)](https://min.io)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
 [![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io)
 [![Neo4j](https://img.shields.io/badge/Neo4j-4581C3?logo=neo4j&logoColor=white)](https://neo4j.com)
@@ -272,7 +271,6 @@ After deployment you'll have:
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
 | **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
-| **MinIO** | S3-compatible object storage for data lakes & backups | [min.io](https://min.io) |
 | **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
 | **Neo4j** | Graph database with the Cypher query language and Neo4j Browser | [neo4j.com](https://neo4j.com) |
@@ -371,7 +369,7 @@ This setup achieves **zero open ports** after deployment:
 
 **Result:** No attack surface. All traffic flows through Cloudflare.
 
-> **Firewall Management:** For TCP-based services (Kafka, PostgreSQL, MinIO S3 API), the Control Plane provides a Firewall Management page to selectively open ports. DNS A records are created pointing directly to the server IP (`proxied = false`). All firewall rules are automatically reset on every Teardown for security.
+> **Firewall Management:** For TCP-based services (Kafka, PostgreSQL, S3 APIs), the Control Plane provides a Firewall Management page to selectively open ports. DNS A records are created pointing directly to the server IP (`proxied = false`). All firewall rules are automatically reset on every Teardown for security.
 
 ![Security Flow](docs/assets/architecture-security.svg)
 

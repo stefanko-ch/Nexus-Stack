@@ -452,7 +452,7 @@ Or via GitHub UI:
 2. Click **Run workflow**
 3. *(Optional)* Enter comma-separated services in `enabled_services` field
 
-**Available services:** `grafana`, `n8n`, `portainer`, `uptime-kuma`, `minio`, `metabase`, `kestra`, `it-tools`, `wetty`, `cloudbeaver`, `excalidraw`, `drawio`, `mage`, `marimo`, `redpanda`, `redpanda-console`
+**Available services:** `grafana`, `n8n`, `portainer`, `uptime-kuma`, `metabase`, `kestra`, `it-tools`, `wetty`, `cloudbeaver`, `excalidraw`, `drawio`, `mage`, `marimo`, `redpanda`, `redpanda-console`
 
 > **Note:** Core services (infisical, mailpit, info) are always enabled automatically.
 

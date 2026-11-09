@@ -339,7 +339,6 @@ docker inspect servicename --format='{{.HostConfig.Memory}}'
 | Portainer | 9090 | 9000 | `/api/status` |
 | Uptime Kuma | 3005 | 3001 | `/` |
 | Infisical | 8070 | 8080 | `/api/status` |
-| MinIO | 9000/9001 | 9000/9001 | `/minio/health/live` |
 | Metabase | 3002 | 3000 | `/api/health` |
 | Kestra | 8080 | 8080 | `/api/v1/health` |
 | IT Tools | 8081 | 80 | `/` |

@@ -51,7 +51,7 @@ The api-server container is named `airflow` because the deploy verifies a stack 
 
 Every long-running component waits for `airflow-init` to exit successfully. If the migration or the user setup fails, nothing else starts — the image's built-in `_AIRFLOW_DB_MIGRATE` switch is deliberately not used, because its entrypoint runs `airflow db migrate || true` and would let the stack start on a broken schema.
 
-Tasks run inside `airflow-scheduler`, which is on `app-network`, so a task can reach other stacks by container name (for example `postgres:5432` or `minio:9000`). The scheduler's memory limit (3 GB) is what all concurrently running tasks share; `AIRFLOW__CORE__PARALLELISM` caps them at 8.
+Tasks run inside `airflow-scheduler`, which is on `app-network`, so a task can reach other stacks by container name (for example `postgres:5432` or `garage:3900`). The scheduler's memory limit (3 GB) is what all concurrently running tasks share; `AIRFLOW__CORE__PARALLELISM` caps them at 8.
 
 ### Credentials
 

@@ -209,7 +209,7 @@ variable "services" {
 # =============================================================================
 
 variable "firewall_rules" {
-  description = "Firewall rules for external TCP access (e.g., Kafka, PostgreSQL, MinIO S3)"
+  description = "Firewall rules for external TCP access (e.g., Kafka, PostgreSQL)"
   type = map(object({
     port       = number
     protocol   = string
@@ -330,7 +330,7 @@ variable "hetzner_s3_bucket_pgducklake" {
 # =============================================================================
 # External S3 Storage (optional - for Filestash multi-backend)
 # =============================================================================
-# Optional S3-compatible storage (e.g., Cloudflare R2, AWS S3, MinIO).
+# Optional S3-compatible storage (e.g., Cloudflare R2, AWS S3).
 # When configured, auto-mounted as an additional Filestash backend.
 
 variable "external_s3_endpoint" {
