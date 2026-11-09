@@ -29,13 +29,22 @@ Fuseki stores RDF triples and answers SPARQL 1.1 queries and updates, with named
 import requests
 
 r = requests.post("http://jena-fuseki:3030/ds/sparql",
-                  auth=("nexus-admin", "<JENA_FUSEKI_PASSWORD>"),
+                  auth=("{fuseki.user}", "{fuseki.password}"),
                   data={"query": "SELECT * WHERE { ?s ?p ?o } LIMIT 10"},
                   headers={"Accept": "application/sparql-results+json"})
 r.json()["results"]["bindings"]
 ```
 
-Zeppelin's own `%sparql` interpreter does not work here: it has no setting for credentials, and every Fuseki dataset requires a login. Do not put the password into its endpoint URL either, because the interpreter logs that URL. A paragraph is saved with its notebook, so remove the password from it before sharing the notebook.
+The `{fuseki.user}` and `{fuseki.password}` placeholders keep the password out of the notebook, which Zeppelin saves together with its revision history. They use Zeppelin's [credential injection](https://zeppelin.apache.org/docs/0.12.1/usage/interpreter/overview.html#credential-injection):
+
+1. Under **Credential** (user menu), add an entry with the entity `fuseki`, the username `nexus-admin` and `JENA_FUSEKI_PASSWORD` from Infisical.
+2. Under **Interpreter → python**, add the property `injectCredentials` with the value `true`, and restart the interpreter.
+
+Zeppelin then replaces the placeholders when the paragraph runs, and removes the injected password from the paragraph's output. This was not tried here.
+
+If a password has already been typed into a paragraph, deleting it does not remove it from older revisions. Rotate it instead.
+
+Zeppelin's own `%sparql` interpreter does not work here: it has no setting for credentials, and every Fuseki dataset requires a login. Do not put the password into its endpoint URL either, because the interpreter logs that URL.
 
 ### Image
 
