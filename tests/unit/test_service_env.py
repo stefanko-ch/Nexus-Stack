@@ -5032,3 +5032,98 @@ def test_admin_claiming_stacks_refuse_an_unusable_email(
     config = full_config.model_copy(update=_FIVE_SECRETS)
     with pytest.raises(ServiceEnvError, match="admin email"):
         getattr(service_env, renderer)(config, replace(full_env, forgejo_user_email=email))
+
+
+# ---------------------------------------------------------------------------
+# Dremio, AnythingLLM, SQL Server, Conduit
+# ---------------------------------------------------------------------------
+
+_SIX_SECRETS = {
+    "dremio_admin_password": "DrPass1",
+    "anythingllm_password": "AlPass1",
+    "anythingllm_jwt_secret": "aljwt1",
+    "mssql_sa_password": "SaPass12",
+    "mssql_password": "NxPass12",
+    "conduit_api_token": "cdtoken1",
+}
+
+
+def test_dremio_anythingllm_mssql_conduit_render_their_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_SIX_SECRETS)
+    expected = {
+        "_render_dremio": {
+            "DREMIO_ADMIN_PASSWORD": "DrPass1",
+            "DREMIO_ADMIN_EMAIL": "user@example.com",
+        },
+        "_render_anythingllm": {
+            "ANYTHINGLLM_PASSWORD": "AlPass1",
+            "ANYTHINGLLM_JWT_SECRET": "aljwt1",
+        },
+        "_render_mssql": {"MSSQL_SA_PASSWORD": "SaPass12", "MSSQL_PASSWORD": "NxPass12"},
+        "_render_conduit": {"CONDUIT_API_TOKEN": "cdtoken1"},
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, full_env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_dremio", "dremio_admin_password", "DREMIO_ADMIN_PASSWORD"),
+        ("_render_anythingllm", "anythingllm_password", "ANYTHINGLLM_PASSWORD"),
+        ("_render_anythingllm", "anythingllm_jwt_secret", "ANYTHINGLLM_JWT_SECRET"),
+        ("_render_mssql", "mssql_sa_password", "MSSQL_SA_PASSWORD"),
+        ("_render_mssql", "mssql_password", "MSSQL_PASSWORD"),
+        ("_render_conduit", "conduit_api_token", "CONDUIT_API_TOKEN"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_dremio_anythingllm_mssql_conduit_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    """Empty would start without a password or token; a quote or space
+    would break the JSON body or the T-SQL string it lands in."""
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SIX_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("weak", ["alllowercase1", "ALLUPPER1", "NoDigitsHere"])
+def test_mssql_refuses_a_password_its_policy_rejects(
+    full_config: NexusConfig, full_env: BootstrapEnv, weak: str
+) -> None:
+    """SQL Server would not start with it; the deploy names the cause."""
+    from nexus_deploy.service_env import _render_mssql
+
+    config = full_config.model_copy(update={**_SIX_SECRETS, "mssql_password": weak})
+    with pytest.raises(ServiceEnvError, match="MSSQL_PASSWORD") as excinfo:
+        _render_mssql(config, full_env)
+    assert weak not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("email", ['a"b@example.com', "not-an-email"])
+def test_dremio_refuses_an_unusable_admin_email(
+    full_config: NexusConfig, full_env: BootstrapEnv, email: str
+) -> None:
+    from dataclasses import replace
+
+    from nexus_deploy.service_env import _render_dremio
+
+    config = full_config.model_copy(update=_SIX_SECRETS)
+    with pytest.raises(ServiceEnvError, match="admin email"):
+        _render_dremio(config, replace(full_env, forgejo_user_email=email))

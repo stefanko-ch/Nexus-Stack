@@ -152,6 +152,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Mathesar DB) | `postgres` | `17-alpine` | Major |
 | ParadeDB | `paradedb/paradedb` | `0.26.5-pg18` | Exact |
 | Ray | `rayproject/ray` | `2.60.0-py312-cpu` | Exact |
+| Dremio OSS | `dremio/dremio-oss` | `26.0.5` | Exact |
+| AnythingLLM | `mintplexlabs/anythingllm` | `1.19.0` | Exact |
+| Microsoft SQL Server | `mcr.microsoft.com/mssql/server` | `2025-CU10-ubuntu-24.04` | Exact |
+| ksqlDB | `confluentinc/cp-ksqldb-server` | `8.4.0` | Exact |
+| Conduit | `ghcr.io/conduitio/conduit` | `v0.21.2` | Exact |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -253,6 +258,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 |-------|-------------|------|
 | **AKHQ** | Kafka/Redpanda management GUI | [akhq.md](akhq.md) |
 | **Adminer** | Lightweight database management tool | [adminer.md](adminer.md) |
+| **AnythingLLM** | Chat with your documents (RAG) | [anythingllm.md](anythingllm.md) |
 | **Apache Airflow** | DAG-based workflow orchestration | [airflow.md](airflow.md) |
 | **Apache Kafka** | Event-streaming broker in KRaft mode, internal only | [kafka.md](kafka.md) |
 | **Apache Spark** | Distributed data processing engine | [spark.md](spark.md) |
@@ -266,6 +272,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **CloudBeaver** | Web-based database management tool | [cloudbeaver.md](cloudbeaver.md) |
 | **ClickHouse** | Columnar database for real-time analytics | [clickhouse.md](clickhouse.md) |
 | **code-server** | VS Code in the browser | [code-server.md](code-server.md) |
+| **Conduit** | Streaming and CDC pipelines | [conduit.md](conduit.md) |
 | **Crawl4AI** | LLM-friendly web crawler for RAG | [crawl4ai.md](crawl4ai.md) |
 | **CyberChef** | GCHQ data manipulation tool — encode/decode/hash/regex/crypto | [cyberchef.md](cyberchef.md) |
 | **Cube** | Semantic layer — one metric definition, served to every BI tool | [cube.md](cube.md) |
@@ -279,6 +286,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Docling Serve** | Document conversion API for RAG ingestion | [docling.md](docling.md) |
 | **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
+| **Dremio** | Lakehouse query engine with a SQL UI | [dremio.md](dremio.md) |
 | **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
 | **Evidence** | SQL + markdown BI for analytics engineers | [evidence.md](evidence.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
@@ -305,6 +313,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI | [kafdrop.md](kafdrop.md) |
 | **Kafka-UI** | Kafka/Redpanda management UI | [kafka-ui.md](kafka-ui.md) |
 | **Kestra** | Workflow orchestration | [kestra.md](kestra.md) |
+| **ksqlDB** | Streaming SQL on Kafka, internal only | [ksqldb.md](ksqldb.md) |
 | **Label Studio** | Data labelling for machine-learning datasets | [label-studio.md](label-studio.md) |
 | **LakeFS** | Git-like version control for data lakes | [lakefs.md](lakefs.md) |
 | **Lakekeeper** | Iceberg REST Catalog (Rust) for multi-engine lakehouse | [lakekeeper.md](lakekeeper.md) |
@@ -321,6 +330,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Meltano** | Data integration platform | [meltano.md](meltano.md) |
 | **Memgraph** | In-memory graph database with MAGE and Memgraph Lab | [memgraph.md](memgraph.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
+| **Microsoft SQL Server** | SQL Server 2025 Developer edition, internal only | [mssql.md](mssql.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |

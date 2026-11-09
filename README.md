@@ -78,11 +78,12 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (125)
+## Available Stacks (130)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
 [![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org)
+[![AnythingLLM](https://img.shields.io/badge/AnythingLLM-0E0F0F?logoColor=white)](https://anythingllm.com)
 [![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org)
 [![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
@@ -94,6 +95,7 @@ After deployment you'll have:
 [![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)](https://dbeaver.com/cloudbeaver/)
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC00?logo=clickhouse&logoColor=black)](https://clickhouse.com)
 [![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)](https://coder.com)
+[![Conduit](https://img.shields.io/badge/Conduit-00A3E0?logoColor=white)](https://conduit.io)
 [![Crawl4AI](https://img.shields.io/badge/Crawl4AI-1B6CA8?logo=googlechrome&logoColor=white)](https://github.com/unclecode/crawl4ai)
 [![CyberChef](https://img.shields.io/badge/CyberChef-1B365D?logo=gchq&logoColor=white)](https://gchq.github.io/CyberChef/)
 [![Cube](https://img.shields.io/badge/Cube-FF6492?logoColor=white)](https://cube.dev)
@@ -107,6 +109,7 @@ After deployment you'll have:
 [![Docling](https://img.shields.io/badge/Docling-0F62FE?logoColor=white)](https://docling-project.github.io/docling/)
 [![Dozzle](https://img.shields.io/badge/Dozzle-7B16FF?logo=docker&logoColor=white)](https://dozzle.dev)
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
+[![Dremio](https://img.shields.io/badge/Dremio-31B48D?logoColor=white)](https://www.dremio.com)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
 [![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
 [![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
@@ -133,6 +136,7 @@ After deployment you'll have:
 [![Kafdrop](https://img.shields.io/badge/Kafdrop-000000?logo=apachekafka&logoColor=white)](https://github.com/obsidiandynamics/kafdrop)
 [![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)](https://docs.kafka-ui.provectus.io/)
 [![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)](https://kestra.io)
+[![ksqlDB](https://img.shields.io/badge/ksqlDB-231F20?logo=apachekafka&logoColor=white)](https://ksqldb.io)
 [![Label Studio](https://img.shields.io/badge/Label_Studio-FF7557?logo=labelstudio&logoColor=white)](https://labelstud.io)
 [![LakeFS](https://img.shields.io/badge/LakeFS-00B4D8?logo=git&logoColor=white)](https://lakefs.io)
 [![Lakekeeper](https://img.shields.io/badge/Lakekeeper-B7410E?logo=rust&logoColor=white)](https://lakekeeper.io)
@@ -149,6 +153,7 @@ After deployment you'll have:
 [![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)](https://meltano.com)
 [![Memgraph](https://img.shields.io/badge/Memgraph-FB6E00?logo=memgraph&logoColor=white)](https://memgraph.com)
 [![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)](https://www.metabase.com)
+[![SQL Server](https://img.shields.io/badge/SQL_Server-CC2927?logoColor=white)](https://www.microsoft.com/sql-server)
 [![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
@@ -211,6 +216,7 @@ After deployment you'll have:
 | **AKHQ** | Kafka/Redpanda management GUI for topics, consumer groups, schema registry, and Kafka Connect | [akhq.io](https://akhq.io) |
 | **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
 | **Airflow** | Apache Airflow — DAG-based workflow orchestration with the largest operator and provider ecosystem | [airflow.apache.org](https://airflow.apache.org) |
+| **AnythingLLM** | Chat with your documents: RAG workspaces, agents and an API, on local or hosted models | [anythingllm.com](https://anythingllm.com) |
 | **Apache Kafka** | Event-streaming broker in KRaft mode (no ZooKeeper), internal at `kafka:9092` | [kafka.apache.org](https://kafka.apache.org) |
 | **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
@@ -222,6 +228,7 @@ After deployment you'll have:
 | **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
 | **ClickHouse** | Fast columnar database for real-time analytics and OLAP queries | [clickhouse.com](https://clickhouse.com) |
 | **code-server** | VS Code in the browser for remote development | [coder.com](https://coder.com) |
+| **Conduit** | Data streaming and CDC pipelines in a single Go binary, with a web UI | [conduit.io](https://conduit.io) |
 | **Crawl4AI** | LLM-friendly web crawler that returns clean Markdown for RAG ingestion (REST API + Playground UI) | [github.com/unclecode/crawl4ai](https://github.com/unclecode/crawl4ai) |
 | **CyberChef** | GCHQ's "Cyber Swiss Army Knife" — drag-and-drop data manipulation (encode/decode/hash/regex/crypto, ~400 operations) | [gchq.github.io/CyberChef](https://gchq.github.io/CyberChef/) |
 | **Cube** | Semantic layer — define a metric once and query it from every BI tool, over SQL, REST and GraphQL | [cube.dev](https://cube.dev) |
@@ -235,6 +242,7 @@ After deployment you'll have:
 | **Docling Serve** | Document conversion API: PDF, DOCX, PPTX and HTML to Markdown or JSON, with a web UI | [docling-project.github.io](https://docling-project.github.io/docling/) |
 | **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
+| **Dremio** | Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI | [dremio.com](https://www.dremio.com) |
 | **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
@@ -261,6 +269,7 @@ After deployment you'll have:
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI for browsing topics and consumer groups | [GitHub](https://github.com/obsidiandynamics/kafdrop) |
 | **Kafka-UI** | Modern web UI for Apache Kafka / Redpanda management | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
 | **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
+| **ksqlDB** | Streaming SQL on Kafka: streams, tables and continuous aggregations, internal at `ksqldb:8088` | [ksqldb.io](https://ksqldb.io) |
 | **Label Studio** | Data labelling for text, images, audio and tables — build training datasets for machine learning | [labelstud.io](https://labelstud.io) |
 | **LakeFS** | Git-like version control for data lakes (Hetzner Object Storage backend) | [lakefs.io](https://lakefs.io) |
 | **Lakekeeper** | Modern Iceberg REST Catalog (Rust) — Spark / Trino / DuckDB / PyIceberg share Iceberg tables on the existing object storage | [lakekeeper.io](https://lakekeeper.io) |
@@ -277,6 +286,7 @@ After deployment you'll have:
 | **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
 | **Memgraph** | In-memory graph database with MAGE graph algorithms and Memgraph Lab | [memgraph.com](https://memgraph.com) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
+| **Microsoft SQL Server** | SQL Server 2025 Developer edition, internal at `mssql:1433` | [microsoft.com/sql-server](https://www.microsoft.com/sql-server) |
 | **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
 | **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
 | **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
