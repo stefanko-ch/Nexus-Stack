@@ -307,7 +307,6 @@
     }),
     'openbao': dict({
       'OPENBAO_PASSWORD': 'openbao_admin_password-VALUE',
-      'OPENBAO_UNSEAL_KEY': 'openbao_unseal_key-VALUE',
       'OPENBAO_USERNAME': 'nexus-admin',
     }),
     'openmetadata': dict({
