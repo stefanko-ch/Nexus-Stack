@@ -1,0 +1,58 @@
+# =============================================================================
+# ParadeDB - PostgreSQL with full-text search (BM25) and fast analytics
+# =============================================================================
+# PostgreSQL 18 with the pg_search extension preinstalled: BM25 relevance
+# ranking, fuzzy matching, phrase and boolean queries, highlighting and
+# faceted aggregates, all in SQL over a `bm25` index. pgvector ships too, so
+# keyword and vector search can be combined in one query (hybrid search).
+#
+# Why next to OpenSearch and Meilisearch: those are separate search engines
+# that need their data copied in and kept in sync. ParadeDB searches the
+# tables where the data already lives, transactionally, and every Postgres
+# client in the stack connects unchanged.
+#
+# No web UI, so no subdomain and no tunnel ingress (`internal_only` in
+# services.yaml), the same shape as `postgres` and `timescaledb`.
+#
+# Internal Access: paradedb:5432 (from other containers on app-network)
+# Default User:    nexus-paradedb
+# Default DB:      paradedb
+# Docs: https://docs.paradedb.com
+# =============================================================================
+
+services:
+  paradedb:
+    image: ${IMAGE_PARADEDB:-paradedb/paradedb:0.26.5-pg18}
+    container_name: paradedb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-paradedb
+      # `:?` so that a `docker compose up` by hand with no .env cannot
+      # initialise a superuser with an empty password.
+      POSTGRES_PASSWORD: ${PARADEDB_PASSWORD:?must be set in .env (rendered by service_env._render_paradedb)}
+      # The image's init script creates pg_search (and pgvector) in
+      # POSTGRES_DB, so the database is named explicitly.
+      POSTGRES_DB: paradedb
+    volumes:
+      # Mounted at /var/lib/postgresql, the PostgreSQL 18 image layout, so
+      # the cluster sits inside the volume.
+      - paradedb-data:/var/lib/postgresql
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-paradedb -d paradedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  paradedb-data:
+
+networks:
+  app-network:
+    external: true

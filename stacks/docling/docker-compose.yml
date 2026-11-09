@@ -1,0 +1,47 @@
+# =============================================================================
+# Docling Serve - document conversion API (PDF, DOCX, PPTX, HTML -> Markdown)
+# =============================================================================
+# URL: https://docling.<domain>   (web UI at /ui, API docs at /docs)
+# In-cluster: http://docling:5001/v1/convert/source
+#
+# Docling parses documents with layout analysis, reading order, table
+# structure and optional OCR, and returns Markdown, JSON, HTML or text. It
+# is the ingestion step in front of the RAG stacks here (Flowise, Langflow,
+# Dify, Open Notebook) and of anything that indexes documents.
+#
+# Every API call needs the key in an `X-Api-Key` header (Infisical folder
+# `docling`). The UI asks for it once ("Set API key") and keeps it for the
+# browser session. The API docs at /docs need no key.
+#
+# CPU image: the layout and table models are baked in, no GPU, nothing
+# downloaded at runtime. No volume: conversions are not stored.
+# =============================================================================
+
+services:
+  docling:
+    image: ${IMAGE_DOCLING:-ghcr.io/docling-project/docling-serve-cpu:v1.38.2}
+    container_name: docling
+    restart: unless-stopped
+    environment:
+      DOCLING_SERVE_API_KEY: ${DOCLING_API_KEY:?must be set in .env (rendered by service_env._render_docling)}
+      DOCLING_SERVE_ENABLE_UI: "1"
+    ports:
+      - "127.0.0.1:8118:5001"
+    deploy:
+      resources:
+        limits:
+          # 1.6 GB after converting a 9-page paper; larger documents and
+          # OCR need more.
+          memory: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

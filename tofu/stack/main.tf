@@ -641,6 +641,59 @@ resource "random_password" "valkey" {
   special = false
 }
 
+# ParadeDB, Docling Serve, Lightdash, Ray and Mathesar. All alphanumeric:
+# the database passwords go into connection settings, the admin passwords
+# into JSON or a Django command, the Ray token into an HTTP header.
+resource "random_password" "paradedb" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "docling_api_key" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "lightdash_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "lightdash_secret" {
+  length  = 48
+  special = false
+}
+
+resource "random_password" "lightdash_s3" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "lightdash_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "ray_auth_token" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "mathesar_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "mathesar_secret_key" {
+  length  = 50
+  special = false
+}
+
+resource "random_password" "mathesar_admin" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

@@ -60,6 +60,9 @@
       'DINKY_PASSWORD': 'dinky_admin_password-VALUE',
       'DINKY_USERNAME': 'admin',
     }),
+    'docling': dict({
+      'DOCLING_API_KEY': 'docling_api_key-VALUE',
+    }),
     'duckdb': dict({
     }),
     'evidence': dict({
@@ -181,6 +184,10 @@
       'LANGFUSE_SECRET_KEY': 'langfuse_secret_key-VALUE',
       'LANGFUSE_USERNAME': 'admin@snapshot.test',
     }),
+    'lightdash': dict({
+      'LIGHTDASH_EMAIL': 'user@snapshot.test',
+      'LIGHTDASH_PASSWORD': 'lightdash_admin_password-VALUE',
+    }),
     'litellm': dict({
     }),
     'mage': dict({
@@ -192,6 +199,10 @@
       'MARQUEZ_DB_USERNAME': 'nexus-marquez',
       'MARQUEZ_OPENSEARCH_PASSWORD': 'marquez_opensearch_password-VALUE',
       'MARQUEZ_OPENSEARCH_USERNAME': 'admin',
+    }),
+    'mathesar': dict({
+      'MATHESAR_PASSWORD': 'mathesar_admin_password-VALUE',
+      'MATHESAR_USERNAME': 'nexus-admin',
     }),
     'meilisearch': dict({
       'MEILISEARCH_MASTER_KEY': 'meilisearch_master_key-VALUE',
@@ -269,6 +280,10 @@
       'OPENSEARCH_ADMIN_PASSWORD': 'opensearch_admin_password-VALUE',
       'OPENSEARCH_USERNAME': 'admin',
     }),
+    'paradedb': dict({
+      'PARADEDB_PASSWORD': 'paradedb_password-VALUE',
+      'PARADEDB_USERNAME': 'nexus-paradedb',
+    }),
     'pg-ducklake': dict({
       'PG_DUCKLAKE_DATABASE': 'ducklake',
       'PG_DUCKLAKE_PASSWORD': 'pgducklake_password-VALUE',
@@ -308,6 +323,9 @@
       'R2_BUCKET': 'r2_data_bucket-VALUE',
       'R2_ENDPOINT': 'r2_data_endpoint-VALUE',
       'R2_SECRET_KEY': 'r2_data_secret_key-VALUE',
+    }),
+    'ray': dict({
+      'RAY_AUTH_TOKEN': 'ray_auth_token-VALUE',
     }),
     'redpanda': dict({
       'REDPANDA_ADMIN_PUBLIC_URL': 'redpanda-admin.snapshot.test:9644',
