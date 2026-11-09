@@ -63,9 +63,11 @@ pipelines:
 
 Save it next to `demo.yaml` and restart the container (`docker restart conduit`). The records arrive in `conduit-demo` as OpenCDC JSON.
 
+A pipeline file saved only on the server survives redeploys while the stack is enabled, but not more: disabling the stack removes `/opt/docker-server/stacks/conduit/`, and a rebuild teardown removes the whole server. Keep pipelines you want to keep in `stacks/conduit/pipelines/` of your deployment repository, from where every deploy copies them.
+
 ### Persistence
 
-Connector positions, the record of how far each source has read, are in `conduit-data`. The pipeline files live in the stack directory and come back with every deploy.
+Connector positions, the record of how far each source has read, are in `conduit-data`. The pipeline files that are in the repository come back with every deploy; see above for files added only on the server.
 
-- **`rebuild` (default): positions do not survive a teardown,** so sources start reading from the beginning again.
+- **`rebuild` (default): positions do not survive a teardown.** What a source does without one depends on its connector. The generator simply starts generating again. A Kafka source resumes from its consumer group's committed offset if the broker still has it, and otherwise starts where `readFromBeginning` points: the default `false` starts at the end of the topic and **skips the records written in the meantime**. Set `readFromBeginning: "true"` where skipping is not acceptable and the destination tolerates re-delivery.
 - **`snapshot`: they survive**, because the whole disk is imaged.
