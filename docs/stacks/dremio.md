@@ -33,7 +33,7 @@ The first user created becomes the admin, and after that Dremio refuses to creat
 ### First steps
 
 1. Log in as `nexus-admin` with `DREMIO_PASSWORD` from Infisical.
-2. Add a source under **Sources**, for example object storage such as [MinIO](minio.md) through the S3 source type, a PostgreSQL database, or a [Nessie](nessie.md) catalog. Connecting Nessie has not been tested here.
+2. Add a source under **Sources**, for example object storage such as [Garage](garage.md) or [SeaweedFS](seaweedfs.md) through the S3 source type, a PostgreSQL database, or a [Nessie](nessie.md) catalog. Connecting Nessie has not been tested here.
 3. Query in the SQL editor. A query that needs no source:
 
 ```sql
@@ -50,7 +50,12 @@ token = requests.post(f"{base}/apiv2/login",
     json={"userName": "nexus-admin", "password": "<DREMIO_PASSWORD>"}).json()["token"]
 h = {"Authorization": f"_dremio{token}"}
 job = requests.post(f"{base}/api/v3/sql", headers=h, json={"sql": "SELECT 1 + 1 AS two"}).json()["id"]
-while requests.get(f"{base}/api/v3/job/{job}", headers=h).json()["jobState"] != "COMPLETED":
+while True:
+    status = requests.get(f"{base}/api/v3/job/{job}", headers=h).json()
+    if status["jobState"] == "COMPLETED":
+        break
+    if status["jobState"] in ("FAILED", "CANCELED"):
+        raise RuntimeError(status.get("errorMessage") or status.get("cancellationReason") or status["jobState"])
     time.sleep(1)
 print(requests.get(f"{base}/api/v3/job/{job}/results", headers=h).json()["rows"])  # [{'two': 2}]
 ```
