@@ -1,0 +1,58 @@
+# =============================================================================
+# Whisper ASR Webservice - speech-to-text API
+# =============================================================================
+# URL: https://whisper.<domain>   (Swagger UI at /docs)
+# In-cluster: http://whisper:9000
+#
+# Transcribes and translates audio with OpenAI's Whisper models, locally:
+# voice notes and meeting recordings can reach the RAG and LLM stacks
+# without leaving the server. POST a file to /asr, get text, JSON, SRT or
+# VTT back.
+#
+# Runs faster-whisper with the `base` model on the CPU: a minute of audio
+# takes a few seconds. Larger models (small, medium) are more accurate and
+# slower, and need a higher memory limit than the one below.
+#
+# The API has no authentication. The subdomain is behind Cloudflare Access;
+# containers on app-network reach it directly.
+#
+# Downloaded models are cached in the whisper-models volume, so a restart
+# does not download them again.
+# =============================================================================
+
+services:
+  whisper:
+    image: ${IMAGE_WHISPER:-onerahmet/openai-whisper-asr-webservice:v1.10.0}
+    container_name: whisper
+    restart: unless-stopped
+    environment:
+      ASR_ENGINE: faster_whisper
+      ASR_MODEL: base
+      ASR_MODEL_PATH: /data/models
+      # Unload the model after ten idle minutes; it is reloaded on the next
+      # request.
+      MODEL_IDLE_TIMEOUT: "600"
+    ports:
+      - "127.0.0.1:8127:9000"
+    volumes:
+      - whisper-models:/data/models
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/docs', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - app-network
+
+volumes:
+  whisper-models:
+
+networks:
+  app-network:
+    external: true

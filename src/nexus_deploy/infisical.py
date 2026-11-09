@@ -1395,6 +1395,56 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "nats",
+            _filter_empty(
+                {
+                    # nats://nats:4222, JetStream on.
+                    "NATS_USERNAME": "nexus-nats",
+                    "NATS_PASSWORD": config.nats_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "openbao",
+            _filter_empty(
+                {
+                    # userpass login; the root token is revoked at init.
+                    "OPENBAO_USERNAME": "nexus-admin",
+                    "OPENBAO_PASSWORD": config.openbao_admin_password,
+                    # The static seal key. Whoever holds it and the volume
+                    # can decrypt everything in OpenBao.
+                    "OPENBAO_UNSEAL_KEY": config.openbao_unseal_key,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "jena-fuseki",
+            _filter_empty(
+                {
+                    # HTTP Basic auth for the UI and every SPARQL endpoint.
+                    "JENA_FUSEKI_USERNAME": "nexus-admin",
+                    "JENA_FUSEKI_PASSWORD": config.jena_fuseki_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "zeppelin",
+            _filter_empty(
+                {
+                    "ZEPPELIN_USERNAME": "nexus-admin",
+                    "ZEPPELIN_PASSWORD": config.zeppelin_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

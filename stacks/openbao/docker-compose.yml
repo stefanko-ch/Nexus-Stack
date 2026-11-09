@@ -1,0 +1,67 @@
+# =============================================================================
+# OpenBao - secrets management (open-source fork of HashiCorp Vault)
+# =============================================================================
+# URL: https://openbao.<domain>   (web UI and HTTP API)
+# In-cluster: http://openbao:8200
+#
+# For teaching secrets management the way production systems do it: KV
+# secrets with versions, dynamic database credentials, encryption as a
+# service (transit), policies and tokens. Infisical remains the stack's own
+# secret store; OpenBao is a workspace to learn and experiment in.
+#
+# Not dev mode: storage is persistent, and a static seal key generated per
+# deployment unseals the server on every start. openbao-init initialises it
+# once and creates nexus-admin (userpass, Infisical folder `openbao`), then
+# revokes the root token.
+#
+# Data in the openbao-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  openbao:
+    image: ${IMAGE_OPENBAO:-openbao/openbao:2.7.2}
+    container_name: openbao
+    restart: unless-stopped
+    command: ["bao", "server", "-config=/openbao/config/bao.hcl"]
+    environment:
+      OPENBAO_UNSEAL_KEY: ${OPENBAO_UNSEAL_KEY:?must be set in .env (rendered by service_env._render_openbao)}
+    ports:
+      - "127.0.0.1:8126:8200"
+    volumes:
+      - ./bao.hcl:/openbao/config/bao.hcl:ro
+      - openbao-data:/openbao/file
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    healthcheck:
+      # 200 once initialised and unsealed; 501/503 before that.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  openbao-init:
+    image: ${IMAGE_OPENBAO:-openbao/openbao:2.7.2}
+    container_name: openbao-init
+    restart: on-failure:3
+    entrypoint: ["/bin/sh", "/init.sh"]
+    environment:
+      OPENBAO_ADMIN_PASSWORD: ${OPENBAO_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_openbao)}
+    volumes:
+      - ./init.sh:/init.sh:ro
+    depends_on:
+      - openbao
+    networks:
+      - app-network
+
+volumes:
+  openbao-data:
+
+networks:
+  app-network:
+    external: true
