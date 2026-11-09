@@ -142,6 +142,12 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("MATHESAR_DB_PASS", "mathesar_db_password", ""),
     ("MATHESAR_SECRET_KEY", "mathesar_secret_key", ""),
     ("MATHESAR_ADMIN_PASS", "mathesar_admin_password", ""),
+    ("DREMIO_ADMIN_PASS", "dremio_admin_password", ""),
+    ("ANYTHINGLLM_PASS", "anythingllm_password", ""),
+    ("ANYTHINGLLM_JWT_SECRET", "anythingllm_jwt_secret", ""),
+    ("MSSQL_SA_PASS", "mssql_sa_password", ""),
+    ("MSSQL_PASS", "mssql_password", ""),
+    ("CONDUIT_API_TOKEN", "conduit_api_token", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -342,6 +348,12 @@ class NexusConfig(BaseModel):
     mathesar_db_password: str | None = None
     mathesar_secret_key: str | None = None
     mathesar_admin_password: str | None = None
+    dremio_admin_password: str | None = None
+    anythingllm_password: str | None = None
+    anythingllm_jwt_secret: str | None = None
+    mssql_sa_password: str | None = None
+    mssql_password: str | None = None
+    conduit_api_token: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

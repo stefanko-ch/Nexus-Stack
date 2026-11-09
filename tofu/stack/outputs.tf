@@ -296,6 +296,14 @@ output "secrets" {
     mathesar_secret_key      = random_password.mathesar_secret_key.result
     mathesar_admin_password  = random_password.mathesar_admin.result
 
+    # Dremio, AnythingLLM, SQL Server, Conduit
+    dremio_admin_password  = random_password.dremio_admin.result
+    anythingllm_password   = random_password.anythingllm.result
+    anythingllm_jwt_secret = random_password.anythingllm_jwt_secret.result
+    mssql_sa_password      = random_password.mssql_sa.result
+    mssql_password         = random_password.mssql.result
+    conduit_api_token      = random_password.conduit_api_token.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

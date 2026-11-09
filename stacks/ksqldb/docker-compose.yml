@@ -1,0 +1,55 @@
+# =============================================================================
+# ksqlDB - streaming SQL on Kafka
+# =============================================================================
+# In-cluster: http://ksqldb:8088 (REST API)
+#
+# Streams and tables over Kafka topics in SQL: filters, joins, windowed
+# aggregations and materialized views that update as events arrive, with
+# push and pull queries. Runs against the `kafka` stack (kafka:9092), which
+# must be enabled too.
+#
+# No web UI and no authentication: like Kafka itself, ksqlDB is internal
+# only (`internal_only` in services.yaml). Use the ksql CLI
+# (`docker exec -it ksqldb ksql http://localhost:8088`), the REST API from a
+# notebook, or the ksqlDB tab of a Kafka UI.
+#
+# Its state lives in Kafka topics (the command topic and changelogs), so it
+# survives as long as the Kafka data does.
+#
+# License: the Confluent Community License, not an OSI open-source licence;
+# read its terms before using ksqlDB beyond learning and internal use.
+# =============================================================================
+
+services:
+  ksqldb:
+    image: ${IMAGE_KSQLDB:-confluentinc/cp-ksqldb-server:8.4.0}
+    container_name: ksqldb
+    restart: unless-stopped
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: kafka:9092
+      KSQL_LISTENERS: http://0.0.0.0:8088
+      KSQL_KSQL_SERVICE_ID: nexus_
+      # One broker: every internal and output topic gets one replica.
+      KSQL_KSQL_INTERNAL_TOPIC_REPLICAS: "1"
+      KSQL_KSQL_STREAMS_REPLICATION_FACTOR: "1"
+      KSQL_KSQL_SINK_REPLICAS: "1"
+      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_REPLICATION_FACTOR: "1"
+      # The image defaults to -Xmx3g.
+      KSQL_HEAP_OPTS: "-Xms256m -Xmx640m"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # No curl or wget in the image; python3 is there.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8088/info', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true

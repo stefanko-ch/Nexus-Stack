@@ -1,0 +1,22 @@
+# Demo pipeline shipped with the stack: generates two records a second and
+# writes them to Conduit's log. Shows a running pipeline in the UI without
+# depending on any other stack. Delete or replace it with your own.
+version: "2.2"
+pipelines:
+  - id: demo
+    status: running
+    name: demo
+    description: Generator to log, two structured records per second.
+    connectors:
+      - id: generator
+        type: source
+        plugin: "builtin:generator"
+        settings:
+          format.type: structured
+          format.options.id: int
+          format.options.name: string
+          operations: create
+          rate: "2"
+      - id: log
+        type: destination
+        plugin: "builtin:log"
