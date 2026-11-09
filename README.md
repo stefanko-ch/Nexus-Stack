@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (159)
+## Available Stacks (164)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -107,6 +107,7 @@ After deployment you'll have:
 [![Data Contract API](https://img.shields.io/badge/Data_Contract_API-0F766E?logoColor=white)](https://cli.datacontract.com)
 [![Data Contract Editor](https://img.shields.io/badge/Data_Contract_Editor-1E293B?logoColor=white)](https://github.com/datacontract/datacontract-editor)
 [![Dagster](https://img.shields.io/badge/Dagster-4F43DD?logo=dagster&logoColor=white)](https://dagster.io)
+[![DataOps TestGen](https://img.shields.io/badge/DataOps_TestGen-06B6D4?logoColor=white)](https://datakitchen.io/dataops-testgen/)
 [![Datasette](https://img.shields.io/badge/Datasette-0F3E66?logoColor=white)](https://datasette.io)
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
@@ -119,6 +120,8 @@ After deployment you'll have:
 [![Dremio](https://img.shields.io/badge/Dremio-31B48D?logoColor=white)](https://www.dremio.com)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
 [![Mosquitto](https://img.shields.io/badge/Mosquitto-3C5280?logo=eclipsemosquitto&logoColor=white)](https://mosquitto.org)
+[![Entropy Data](https://img.shields.io/badge/Entropy_Data-111827?logoColor=white)](https://www.entropy-data.com)
+[![Evidently](https://img.shields.io/badge/Evidently-ED0400?logoColor=white)](https://www.evidentlyai.com)
 [![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
 [![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
 [![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)](https://www.filestash.app)
@@ -160,6 +163,7 @@ After deployment you'll have:
 [![Mage](https://img.shields.io/badge/Mage-6B4FBB?logo=mage&logoColor=white)](https://mage.ai)
 [![Mailpit](https://img.shields.io/badge/Mailpit-F36F21?logo=maildotru&logoColor=white)](https://mailpit.axllent.org)
 [![Marimo](https://img.shields.io/badge/Marimo-1C1C1C?logo=python&logoColor=white)](https://marimo.io)
+[![Marmot](https://img.shields.io/badge/Marmot-8B5CF6?logoColor=white)](https://marmotdata.io)
 [![Marquez](https://img.shields.io/badge/Marquez-1F5C99?logo=apacheairflow&logoColor=white)](https://marquezproject.ai)
 [![Mathesar](https://img.shields.io/badge/Mathesar-5EBA7D?logoColor=white)](https://mathesar.org)
 [![Meilisearch](https://img.shields.io/badge/Meilisearch-FF5CAA?logo=meilisearch&logoColor=white)](https://www.meilisearch.com)
@@ -180,6 +184,7 @@ After deployment you'll have:
 [![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)](https://nocodb.com)
 [![Node-RED](https://img.shields.io/badge/Node--RED-8F0000?logo=nodered&logoColor=white)](https://nodered.org)
 [![Nussknacker](https://img.shields.io/badge/Nussknacker-1E88E5?logo=apacheflink&logoColor=white)](https://nussknacker.io)
+[![ODD Platform](https://img.shields.io/badge/ODD_Platform-2563EB?logoColor=white)](https://opendatadiscovery.org)
 [![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)](https://ollama.com)
 [![Open Notebook](https://img.shields.io/badge/Open_Notebook-111827?logo=jupyter&logoColor=white)](https://github.com/lfnovo/open-notebook)
 [![OpenBao](https://img.shields.io/badge/OpenBao-1F2937?logo=vault&logoColor=white)](https://openbao.org)
@@ -269,6 +274,7 @@ After deployment you'll have:
 | **Data Contract API** | Tests an ODCS data contract against the stack's own databases and object stores — Swagger UI, or the CLI over `docker exec` | [cli.datacontract.com](https://cli.datacontract.com) |
 | **Data Contract Editor** | Browser editor for Open Data Contract Standard (ODCS) contracts — form, visual model or raw YAML | [datacontract.com](https://github.com/datacontract/datacontract-editor) |
 | **Dagster** | Python-native data orchestration for data pipelines and Software-Defined Assets | [dagster.io](https://dagster.io) |
+| **DataOps TestGen** | Data quality tests generated from data profiles, with scores per table | [datakitchen.io](https://datakitchen.io/dataops-testgen/) |
 | **Datasette** | Explore and publish SQLite databases: table browsing, facets, SQL and a JSON API | [datasette.io](https://datasette.io) |
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |
@@ -281,6 +287,8 @@ After deployment you'll have:
 | **Dremio** | Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI | [dremio.com](https://www.dremio.com) |
 | **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
 | **Eclipse Mosquitto** | MQTT broker for IoT telemetry, internal at `mosquitto:1883` | [mosquitto.org](https://mosquitto.org) |
+| **Entropy Data** | Registry for data products and data contracts (ODCS) | [entropy-data.com](https://www.entropy-data.com) |
+| **Evidently** | Data quality, drift and ML model monitoring over time | [evidentlyai.com](https://www.evidentlyai.com) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
 | **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
@@ -322,6 +330,7 @@ After deployment you'll have:
 | **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
 | **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
 | **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
+| **Marmot** | Lightweight data catalog with lineage, search and an MCP server | [marmotdata.io](https://marmotdata.io) |
 | **Marquez** | OpenLineage reference backend — which job produced which dataset, and what breaks when one changes | [marquezproject.ai](https://marquezproject.ai) |
 | **Mathesar** | Spreadsheet-like interface for PostgreSQL: tables, relationships and explorations without SQL | [mathesar.org](https://mathesar.org) |
 | **Meilisearch** | Lightning-fast Rust full-text search — sub-100ms typo-tolerant, schema-less | [meilisearch.com](https://www.meilisearch.com) |
@@ -342,6 +351,7 @@ After deployment you'll have:
 | **NocoDB** | Open-source Airtable alternative - turn any database into a spreadsheet | [nocodb.com](https://nocodb.com) |
 | **Node-RED** | Flow-based low-code programming for IoT and integrations | [nodered.org](https://nodered.org) |
 | **Nussknacker** | Visual low-code designer for stream processing — drag-and-drop scenarios that run on Flink | [nussknacker.io](https://nussknacker.io) |
+| **ODD Platform** | Open Data Discovery catalog with lineage and data-quality results | [opendatadiscovery.org](https://opendatadiscovery.org) |
 | **Ollama** | Local LLM inference with Open WebUI chat interface | [openwebui.com](https://openwebui.com) |
 | **Open Notebook** | Self-hosted NotebookLM alternative — ask questions about your own sources with local models | [GitHub](https://github.com/lfnovo/open-notebook) |
 | **OpenBao** | Secrets management (open-source Vault fork): KV secrets, dynamic credentials, transit encryption | [openbao.org](https://openbao.org) |

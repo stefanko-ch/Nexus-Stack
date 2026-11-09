@@ -1,0 +1,85 @@
+# =============================================================================
+# Open Data Discovery (ODD) Platform - data catalog with quality results
+# =============================================================================
+# URL: https://odd-platform.<domain>
+# In-cluster: http://odd-platform:8080 (ingestion API for ODD collectors)
+#
+# A catalog built on the Open Data Discovery specification: collectors
+# push metadata from databases, warehouses, BI tools and pipelines; the
+# platform shows datasets, their lineage, owners, terms and tags, and the
+# results of data-quality tests (Great Expectations, dbt tests, Soda) next to
+# the dataset they test. Next to marmot and openmetadata, its focus is
+# quality results inside the catalog.
+#
+# Login form with one account, nexus-admin, and the generated password from
+# Infisical (folder `odd-platform`). The image's demo accounts (admin:admin,
+# root:root) are replaced, not added to. Every login-form user is an
+# administrator in ODD.
+#
+# Data in the odd-platform-db-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  odd-platform:
+    image: ${IMAGE_ODD_PLATFORM:-ghcr.io/opendatadiscovery/odd-platform:0.29.0}
+    container_name: odd-platform
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8148:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://odd-platform-db:5432/odd-platform
+      SPRING_DATASOURCE_USERNAME: nexus-odd-platform
+      SPRING_DATASOURCE_PASSWORD: ${ODD_PLATFORM_DB_PASSWORD:?must be set in .env (rendered by service_env._render_odd_platform)}
+      # The image defaults to no authentication at all.
+      AUTH_TYPE: LOGIN_FORM
+      # Replaces the image's admin:admin,root:root. The value is read from
+      # the environment, not passed as an argument.
+      AUTH_LOGIN_FORM_CREDENTIALS: nexus-admin:${ODD_PLATFORM_PASSWORD:?must be set in .env (rendered by service_env._render_odd_platform)}
+    depends_on:
+      odd-platform-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - app-network
+      - odd-platform-internal
+
+  odd-platform-db:
+    image: ${IMAGE_ODD_PLATFORM_DB:-postgres:17-alpine}
+    container_name: odd-platform-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: odd-platform
+      POSTGRES_USER: nexus-odd-platform
+      POSTGRES_PASSWORD: ${ODD_PLATFORM_DB_PASSWORD:?must be set in .env (rendered by service_env._render_odd_platform)}
+    volumes:
+      - odd-platform-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-odd-platform -d odd-platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - odd-platform-internal
+
+volumes:
+  odd-platform-db-data:
+
+networks:
+  app-network:
+    external: true
+  odd-platform-internal:
+    driver: bridge

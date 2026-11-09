@@ -2480,6 +2480,100 @@ def _render_zenml(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _require_b64_32(stack: str, key: str, value: str | None) -> str:
+    """A key that the application base64-decodes and needs as exactly 32
+    bytes, from a tofu random_id's b64_std. The message names the key,
+    never its value."""
+    try:
+        decoded = base64.b64decode(value or "", validate=True)
+    except ValueError:
+        decoded = b""
+    if len(decoded) != 32:
+        raise ServiceEnvError(
+            f"{stack} enabled but {key} is not the base64 of 32 bytes -- it comes "
+            "from a random_id with byte_length = 32 (b64_std)."
+        )
+    return value or ""
+
+
+def _render_testgen(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """DataOps TestGen: nexus-admin's password, the keys that encrypt the
+    target-database credentials it stores, its JWT key and its database."""
+    secrets = {
+        "TESTGEN_PASSWORD": c.testgen_password,
+        "TESTGEN_DECRYPT_SALT": c.testgen_decrypt_salt,
+        "TESTGEN_DECRYPT_PASSWORD": c.testgen_decrypt_password,
+        "TESTGEN_DB_PASSWORD": c.testgen_db_password,
+    }
+    _require("DataOps TestGen", secrets, "creating nexus-admin with an empty password")
+    jwt_key = _require_b64_32("DataOps TestGen", "TESTGEN_JWT_KEY", c.testgen_jwt_key)
+    host = service_host("testgen", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in secrets.items()},
+            "TESTGEN_JWT_KEY": jwt_key,
+            "TESTGEN_URL": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
+
+def _render_entropy_data(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Entropy Data: its database, the public URL used in its links, and
+    the stack user's email as super-admin. Accounts are created by their
+    users, who accept Entropy Data's terms when they sign up."""
+    _require(
+        "Entropy Data",
+        {"ENTROPY_DATA_DB_PASSWORD": c.entropy_data_db_password},
+        "creating its database with an empty password",
+    )
+    host = service_host("entropy-data", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "ENTROPY_DATA_DB_PASSWORD": c.entropy_data_db_password or "",
+            "ENTROPY_DATA_ADMIN_EMAIL": _admin_email("Entropy Data", e),
+            "ENTROPY_DATA_URL": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
+
+def _render_marmot(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Marmot: the admin password marmot-init sets in place of `admin`, its
+    database, and the 32-byte key for stored source credentials."""
+    secrets = {
+        "MARMOT_ADMIN_PASSWORD": c.marmot_admin_password,
+        "MARMOT_DB_PASSWORD": c.marmot_db_password,
+    }
+    _require("Marmot", secrets, "leaving the default admin/admin login in place")
+    key = _require_b64_32("Marmot", "MARMOT_ENCRYPTION_KEY", c.marmot_encryption_key)
+    host = service_host("marmot", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in secrets.items()},
+            "MARMOT_ENCRYPTION_KEY": key,
+            "MARMOT_URL": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
+
+_render_evidently = _single_secret_renderer(
+    "Evidently",
+    "EVIDENTLY_SECRET",
+    "evidently_secret",
+    "letting any container on app-network write and delete projects",
+)
+_render_odd_platform = _multi_secret_renderer(
+    "ODD Platform",
+    {
+        "ODD_PLATFORM_PASSWORD": "odd_platform_password",
+        "ODD_PLATFORM_DB_PASSWORD": "odd_platform_db_password",
+    },
+    "logging in with an empty password",
+)
+
+
 _HEX_32_BYTES = re.compile(r"[0-9a-f]{64}")
 
 
@@ -3909,6 +4003,11 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("grist", _is_enabled("grist"), _render_grist),
     EnvSpec("phoenix", _is_enabled("phoenix"), _render_phoenix),
     EnvSpec("zenml", _is_enabled("zenml"), _render_zenml),
+    EnvSpec("testgen", _is_enabled("testgen"), _render_testgen),
+    EnvSpec("entropy-data", _is_enabled("entropy-data"), _render_entropy_data),
+    EnvSpec("marmot", _is_enabled("marmot"), _render_marmot),
+    EnvSpec("evidently", _is_enabled("evidently"), _render_evidently),
+    EnvSpec("odd-platform", _is_enabled("odd-platform"), _render_odd_platform),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

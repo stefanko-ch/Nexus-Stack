@@ -100,6 +100,9 @@
       'EVIDENCE_DB_PASSWORD': 'evidence_db_password-VALUE',
       'EVIDENCE_DB_USERNAME': 'nexus-evidence',
     }),
+    'evidently': dict({
+      'EVIDENTLY_SECRET': 'evidently_secret-VALUE',
+    }),
     'external-s3': dict({
       'EXTERNAL_S3_ACCESS_KEY': 'external_s3_access_key-VALUE',
       'EXTERNAL_S3_BUCKET': 'external_s3_bucket-VALUE',
@@ -233,6 +236,10 @@
       'MAGE_PASSWORD': 'mage_admin_password-VALUE',
       'MAGE_USERNAME': 'user@snapshot.test',
     }),
+    'marmot': dict({
+      'MARMOT_PASSWORD': 'marmot_admin_password-VALUE',
+      'MARMOT_USERNAME': 'admin',
+    }),
     'marquez': dict({
       'MARQUEZ_DB_PASSWORD': 'marquez_db_password-VALUE',
       'MARQUEZ_DB_USERNAME': 'nexus-marquez',
@@ -323,6 +330,10 @@
     'nussknacker': dict({
       'NUSSKNACKER_ADMIN_PASSWORD': 'nussknacker-admin-pw',
       'NUSSKNACKER_ADMIN_USERNAME': 'nexus-nussknacker',
+    }),
+    'odd-platform': dict({
+      'ODD_PLATFORM_PASSWORD': 'odd_platform_password-VALUE',
+      'ODD_PLATFORM_USERNAME': 'nexus-admin',
     }),
     'open-notebook': dict({
       'OPEN_NOTEBOOK_DB_PASSWORD': 'open_notebook_db_password-VALUE',
@@ -454,6 +465,10 @@
     'temporal': dict({
       'TEMPORAL_DB_PASSWORD': 'temporal_db_password-VALUE',
       'TEMPORAL_DB_USERNAME': 'nexus-temporal',
+    }),
+    'testgen': dict({
+      'TESTGEN_PASSWORD': 'testgen_password-VALUE',
+      'TESTGEN_USERNAME': 'nexus-admin',
     }),
     'timescaledb': dict({
       'TIMESCALEDB_DATABASE': 'timescaledb',

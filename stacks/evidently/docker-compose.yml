@@ -1,0 +1,59 @@
+# =============================================================================
+# Evidently - data quality, drift and ML model monitoring
+# =============================================================================
+# URL: https://evidently.<domain>
+# In-cluster: http://evidently:8000 (for RemoteWorkspace in notebooks)
+#
+# Evidently computes reports on datasets: data quality (missing values,
+# ranges, types), data and prediction drift between a reference and a
+# current batch, classification and regression metrics, and LLM evals. The
+# service stores those reports per project and plots them over time, so a
+# dashboard shows how a dataset or model changes from batch to batch. Next
+# to soda and testgen, which check data at one point in time, it is the
+# "over time" view.
+#
+# Reports are pushed from Python (notebooks, Kestra, Dagster) with
+# RemoteWorkspace("http://evidently:8000", secret=...). Writing needs the
+# secret from Infisical (folder `evidently`). The UI has no login: reading
+# relies on Cloudflare Access alone. Telemetry is off.
+#
+# Data in the evidently-workspace volume (projects and snapshots as files),
+# which survives a restart and the snapshot lifecycle, not a rebuild
+# teardown.
+# =============================================================================
+
+services:
+  evidently:
+    image: ${IMAGE_EVIDENTLY:-evidently/evidently-service:0.7.23}
+    container_name: evidently
+    restart: unless-stopped
+    command: ["--port", "8000", "--workspace", "/app/workspace"]
+    ports:
+      - "127.0.0.1:8147:8000"
+    environment:
+      # Required in the evidently-secret header of every write: without it
+      # any container on app-network could create or delete projects.
+      EVIDENTLY_SECRET: ${EVIDENTLY_SECRET:?must be set in .env (rendered by service_env._render_evidently)}
+      # Evidently reports usage events to its own server unless this is set.
+      DO_NOT_TRACK: "1"
+    volumes:
+      - evidently-workspace:/app/workspace
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/version', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  evidently-workspace:
+
+networks:
+  app-network:
+    external: true

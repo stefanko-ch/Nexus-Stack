@@ -5562,3 +5562,136 @@ def test_set_b_stacks_are_registered() -> None:
 
     names = {spec.service_name for spec in service_env._SPECS}
     assert {"baserow", "directus", "grist", "phoenix", "zenml"} <= names
+
+
+# ---------------------------------------------------------------------------
+# DataOps TestGen, Entropy Data, Marmot, Evidently, ODD Platform
+# ---------------------------------------------------------------------------
+
+_B64_32 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="  # base64 of 32 bytes
+
+_SET_C_SECRETS = {
+    "testgen_password": "TgAdmin1",
+    "testgen_decrypt_salt": "TgSalt1",
+    "testgen_decrypt_password": "TgDec1",
+    "testgen_jwt_key": _B64_32,
+    "testgen_db_password": "TgDb1",
+    "entropy_data_db_password": "EdDb1",
+    "marmot_admin_password": "MmAdmin1",
+    "marmot_db_password": "MmDb1",
+    "marmot_encryption_key": _B64_32,
+    "evidently_secret": "EvSecret1",
+    "odd_platform_password": "OddAdmin1",
+    "odd_platform_db_password": "OddDb1",
+}
+
+
+def test_set_c_stacks_render_their_env(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    from nexus_deploy import service_env
+    from nexus_deploy.config import service_host
+    from nexus_deploy.infisical import stack_user_email
+
+    config = full_config.model_copy(update=_SET_C_SECRETS)
+
+    def url(name: str) -> str:
+        return "https://" + service_host(name, full_env.domain or "", full_env.subdomain_separator)
+
+    expected = {
+        "_render_testgen": {
+            "TESTGEN_PASSWORD": "TgAdmin1",
+            "TESTGEN_DECRYPT_SALT": "TgSalt1",
+            "TESTGEN_DECRYPT_PASSWORD": "TgDec1",
+            "TESTGEN_DB_PASSWORD": "TgDb1",
+            "TESTGEN_JWT_KEY": _B64_32,
+            "TESTGEN_URL": url("testgen"),
+        },
+        "_render_entropy_data": {
+            "ENTROPY_DATA_DB_PASSWORD": "EdDb1",
+            "ENTROPY_DATA_ADMIN_EMAIL": stack_user_email(full_env),
+            "ENTROPY_DATA_URL": url("entropy-data"),
+        },
+        "_render_marmot": {
+            "MARMOT_ADMIN_PASSWORD": "MmAdmin1",
+            "MARMOT_DB_PASSWORD": "MmDb1",
+            "MARMOT_ENCRYPTION_KEY": _B64_32,
+            "MARMOT_URL": url("marmot"),
+        },
+        "_render_evidently": {"EVIDENTLY_SECRET": "EvSecret1"},
+        "_render_odd_platform": {
+            "ODD_PLATFORM_PASSWORD": "OddAdmin1",
+            "ODD_PLATFORM_DB_PASSWORD": "OddDb1",
+        },
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, full_env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_testgen", "testgen_password", "TESTGEN_PASSWORD"),
+        ("_render_testgen", "testgen_decrypt_salt", "TESTGEN_DECRYPT_SALT"),
+        ("_render_testgen", "testgen_decrypt_password", "TESTGEN_DECRYPT_PASSWORD"),
+        ("_render_testgen", "testgen_db_password", "TESTGEN_DB_PASSWORD"),
+        ("_render_entropy_data", "entropy_data_db_password", "ENTROPY_DATA_DB_PASSWORD"),
+        ("_render_marmot", "marmot_admin_password", "MARMOT_ADMIN_PASSWORD"),
+        ("_render_marmot", "marmot_db_password", "MARMOT_DB_PASSWORD"),
+        ("_render_evidently", "evidently_secret", "EVIDENTLY_SECRET"),
+        ("_render_odd_platform", "odd_platform_password", "ODD_PLATFORM_PASSWORD"),
+        ("_render_odd_platform", "odd_platform_db_password", "ODD_PLATFORM_DB_PASSWORD"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_set_c_stacks_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SET_C_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_testgen", "testgen_jwt_key", "TESTGEN_JWT_KEY"),
+        ("_render_marmot", "marmot_encryption_key", "MARMOT_ENCRYPTION_KEY"),
+    ],
+)
+@pytest.mark.parametrize(
+    "bad",
+    ["", "not base64!", "MDEyMzQ1Njc4OWFiY2RlZg==", "abcdefghijklmnopqrstuvwxyz012345"],
+)
+def test_set_c_keys_must_be_base64_of_32_bytes(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    """Empty, not base64, 16 bytes, and 32 characters that decode to 24."""
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SET_C_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+def test_set_c_stacks_are_registered() -> None:
+    from nexus_deploy import service_env
+
+    names = {spec.service_name for spec in service_env._SPECS}
+    assert {"testgen", "entropy-data", "marmot", "evidently", "odd-platform"} <= names

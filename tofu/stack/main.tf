@@ -939,6 +939,74 @@ resource "random_password" "zenml_encryption_key" {
   special = false
 }
 
+# DataOps TestGen, Entropy Data, Marmot, Evidently, ODD Platform
+# DataOps TestGen: nexus-admin, the keys that encrypt stored target-database
+# credentials, the JWT signing key (base64 of 32 bytes, as TestGen decodes
+# it) and its own PostgreSQL.
+resource "random_password" "testgen" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "testgen_decrypt_salt" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "testgen_decrypt" {
+  length  = 24
+  special = false
+}
+
+resource "random_id" "testgen_jwt_key" {
+  byte_length = 32
+}
+
+resource "random_password" "testgen_db" {
+  length  = 24
+  special = false
+}
+
+# Entropy Data: its PostgreSQL only. Accounts are created by their users.
+resource "random_password" "entropy_data_db" {
+  length  = 24
+  special = false
+}
+
+# Marmot: the admin password marmot-init sets, its PostgreSQL, and the key
+# for stored source credentials (base64 of exactly 32 bytes, or Marmot
+# refuses to start).
+resource "random_password" "marmot_admin" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "marmot_db" {
+  length  = 24
+  special = false
+}
+
+resource "random_id" "marmot_encryption_key" {
+  byte_length = 32
+}
+
+# Evidently: the secret every write must carry; reading has no login.
+resource "random_password" "evidently_secret" {
+  length  = 32
+  special = false
+}
+
+# ODD Platform: the login-form account nexus-admin and its PostgreSQL.
+resource "random_password" "odd_platform" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "odd_platform_db" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

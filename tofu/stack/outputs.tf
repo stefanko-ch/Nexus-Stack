@@ -350,6 +350,20 @@ output "secrets" {
     zenml_jwt_secret        = random_password.zenml_jwt_secret.result
     zenml_encryption_key    = random_password.zenml_encryption_key.result
 
+    # DataOps TestGen, Entropy Data, Marmot, Evidently, ODD Platform
+    testgen_password         = random_password.testgen.result
+    testgen_decrypt_salt     = random_password.testgen_decrypt_salt.result
+    testgen_decrypt_password = random_password.testgen_decrypt.result
+    testgen_jwt_key          = random_id.testgen_jwt_key.b64_std
+    testgen_db_password      = random_password.testgen_db.result
+    entropy_data_db_password = random_password.entropy_data_db.result
+    marmot_admin_password    = random_password.marmot_admin.result
+    marmot_db_password       = random_password.marmot_db.result
+    marmot_encryption_key    = random_id.marmot_encryption_key.b64_std
+    evidently_secret         = random_password.evidently_secret.result
+    odd_platform_password    = random_password.odd_platform.result
+    odd_platform_db_password = random_password.odd_platform_db.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

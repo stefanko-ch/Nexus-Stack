@@ -1,0 +1,140 @@
+# =============================================================================
+# Marmot - lightweight data catalog with lineage
+# =============================================================================
+# URL: https://marmot.<domain>
+# In-cluster: http://marmot:8080 (REST API, MCP server)
+#
+# A data catalog in one Go binary on PostgreSQL: assets from 70+ sources
+# (PostgreSQL, Kafka, dbt, Airflow, S3, ...), search, lineage, a glossary,
+# ownership and an MCP server for AI assistants. Next to openmetadata it
+# shows the catalog idea at a fraction of the footprint.
+#
+# Marmot starts with an `admin` account whose password is `admin`, and the
+# first visitor would get it. marmot-init logs in with it on the first start
+# and sets the generated password from Infisical (folder `marmot`) before
+# the site is used. Anonymous browsing is off. Telemetry is off.
+#
+# Data in the marmot-db-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  marmot:
+    image: ${IMAGE_MARMOT:-ghcr.io/marmotdata/marmot:0.11.1}
+    container_name: marmot
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8146:8080"
+    environment:
+      MARMOT_SERVER_ROOT_URL: ${MARMOT_URL:?must be set in .env (rendered by service_env._render_marmot)}
+      # Encrypts the source credentials Marmot stores for ingestion; without
+      # it Marmot refuses to start rather than store them in plain text.
+      MARMOT_SERVER_ENCRYPTION_KEY: ${MARMOT_ENCRYPTION_KEY:?must be set in .env (rendered by service_env._render_marmot)}
+      MARMOT_DATABASE_HOST: marmot-db
+      MARMOT_DATABASE_USER: nexus-marmot
+      MARMOT_DATABASE_PASSWORD: ${MARMOT_DB_PASSWORD:?must be set in .env (rendered by service_env._render_marmot)}
+      MARMOT_DATABASE_NAME: marmot
+      MARMOT_TELEMETRY_ENABLED: "false"
+      MARMOT_AUTH_ANONYMOUS_ENABLED: "false"
+    depends_on:
+      # Marmot exits instead of retrying when the database is not up yet.
+      marmot-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+      - marmot-internal
+
+  # Replaces the default admin/admin password with the generated one. On
+  # later starts it only checks that admin logs in with the generated one,
+  # and fails loudly if neither password works.
+  marmot-init:
+    image: ${IMAGE_MARMOT_INIT:-python:3.12.13-slim}
+    container_name: marmot-init
+    restart: "on-failure:3"
+    entrypoint: ["python", "-c"]
+    command:
+      - |
+        import json, os, sys, urllib.error, urllib.request
+
+        API = "http://marmot:8080/api/v1/users"
+        PASSWORD = os.environ["MARMOT_ADMIN_PASSWORD"]
+
+
+        def call(path, body, token=None):
+            request = urllib.request.Request(API + path, data=json.dumps(body).encode(), method="POST")
+            request.add_header("Content-Type", "application/json")
+            if token:
+                request.add_header("Authorization", "Bearer " + token)
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    return response.status, json.loads(response.read() or b"{}")
+            except urllib.error.HTTPError as error:
+                return error.code, {}
+
+
+        def login(password):
+            status, body = call("/login", {"username": "admin", "password": password})
+            return body.get("access_token") if status == 200 else None
+
+
+        if login(PASSWORD):
+            print("marmot-init: admin logs in with the generated password")
+            sys.exit(0)
+        token = login("admin")
+        if not token:
+            print("marmot-init: admin logs in with neither the generated password nor the default;"
+                  " the password in Infisical no longer matches the one stored in marmot-db.")
+            sys.exit(1)
+        status, _ = call("/update-password", {"new_password": PASSWORD}, token)
+        if status not in (200, 204) or not login(PASSWORD) or login("admin"):
+            print(f"marmot-init: setting the admin password failed (HTTP {status})")
+            sys.exit(1)
+        print("marmot-init: replaced the default admin password")
+    environment:
+      MARMOT_ADMIN_PASSWORD: ${MARMOT_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_marmot)}
+    depends_on:
+      marmot:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  marmot-db:
+    image: ${IMAGE_MARMOT_DB:-postgres:17-alpine}
+    container_name: marmot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: marmot
+      POSTGRES_USER: nexus-marmot
+      POSTGRES_PASSWORD: ${MARMOT_DB_PASSWORD:?must be set in .env (rendered by service_env._render_marmot)}
+    volumes:
+      - marmot-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-marmot -d marmot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - marmot-internal
+
+volumes:
+  marmot-db-data:
+
+networks:
+  app-network:
+    external: true
+  marmot-internal:
+    driver: bridge

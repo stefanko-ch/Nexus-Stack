@@ -1,0 +1,109 @@
+# =============================================================================
+# Entropy Data CE - data product and data contract registry
+# =============================================================================
+# URL: https://entropy-data.<domain>
+#
+# A marketplace for data products and the data contracts between them
+# (Open Data Contract Standard), from the makers of datacontract.com: teams
+# publish data products with their output ports, consumers request access,
+# and each agreement is a contract that can be tested with the Data Contract
+# CLI. The registry the datacontract-api and datacontract-editor stacks
+# work with locally, as a shared web app. Formerly Data Contract Manager.
+#
+# Login: create your account on the first visit (the sign-up page). Doing
+# so accepts Entropy Data's terms of use, which is why the stack does not
+# do it for you. The stack user's email is listed in
+# APPLICATION_SUPERADMINS, so that account gets the Admin Console. Anyone
+# who passes Cloudflare Access can sign up; in the Community Edition every
+# user can edit every data product and contract.
+#
+# Mail (email verification, invitations) goes to the stack's own Mailpit on
+# the internal network; nothing leaves the server. The account works
+# without verifying the address.
+#
+# Licence: Entropy Data's proprietary Community License, not an OSI
+# licence; royalty-free use, no reverse engineering.
+#
+# Data in the entropy-data-db-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  entropy-data:
+    image: ${IMAGE_ENTROPY_DATA:-entropydata/entropy-data-ce:2.1.5}
+    container_name: entropy-data
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8145:8080"
+    environment:
+      APPLICATION_HOST_WEB: ${ENTROPY_DATA_URL:?must be set in .env (rendered by service_env._render_entropy_data)}
+      APPLICATION_SUPERADMINS: ${ENTROPY_DATA_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_entropy_data)}
+      APPLICATION_MAIL_FROM: Entropy Data <entropy-data@nexus.invalid>
+      SPRING_DATASOURCE_URL: jdbc:postgresql://entropy-data-db:5432/entropy
+      SPRING_DATASOURCE_USERNAME: nexus-entropy-data
+      SPRING_DATASOURCE_PASSWORD: ${ENTROPY_DATA_DB_PASSWORD:?must be set in .env (rendered by service_env._render_entropy_data)}
+      SPRING_MAIL_HOST: entropy-data-mail
+      SPRING_MAIL_PORT: "1025"
+    depends_on:
+      entropy-data-db:
+        condition: service_healthy
+      entropy-data-mail:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - app-network
+      - entropy-data-internal
+
+  # PostgreSQL with the pgvector extension, which Entropy Data requires.
+  entropy-data-db:
+    image: ${IMAGE_ENTROPY_DATA_DB:-pgvector/pgvector:0.8.6-pg17}
+    container_name: entropy-data-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: entropy
+      POSTGRES_USER: nexus-entropy-data
+      POSTGRES_PASSWORD: ${ENTROPY_DATA_DB_PASSWORD:?must be set in .env (rendered by service_env._render_entropy_data)}
+    volumes:
+      - entropy-data-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-entropy-data -d entropy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - entropy-data-internal
+
+  # Catches the app's mail on the internal network, so sign-up does not fail
+  # on an unreachable SMTP server and no mail leaves the server.
+  entropy-data-mail:
+    image: ${IMAGE_ENTROPY_DATA_MAIL:-axllent/mailpit:v1.28}
+    container_name: entropy-data-mail
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    networks:
+      - entropy-data-internal
+
+volumes:
+  entropy-data-db-data:
+
+networks:
+  app-network:
+    external: true
+  entropy-data-internal:
+    driver: bridge
