@@ -118,6 +118,7 @@ NO_OWN_AUTH = {
     "questdb",  # the console has none; its Postgres wire protocol does
     "rill",  # Rill Developer has no accounts
     "sqlmesh",  # the browser IDE has no accounts
+    "tempo",  # OTLP and the query API have no auth; internal only
     "temporal",  # neither the Web UI nor the gRPC frontend authenticates
     "unity-catalog",
 }

@@ -1,0 +1,72 @@
+# =============================================================================
+# Eclipse Mosquitto - MQTT broker for IoT data
+# =============================================================================
+# In-cluster: mqtt://mosquitto:1883
+#
+# MQTT is how devices publish telemetry: small messages on hierarchical
+# topics (factory/line1/temperature), with QoS levels and retained
+# messages. Node-RED, Redpanda Connect, Conduit or a Python client can
+# subscribe and forward the data into Kafka or a database.
+#
+# MQTT is not HTTP, so it cannot cross the tunnel; the broker is internal
+# only (`internal_only` in services.yaml). Anonymous access is off:
+# clients log in as nexus-mosquitto (Infisical folder `mosquitto`).
+#
+# Retained messages and persistent sessions in the mosquitto-data volume,
+# which survives a restart and the snapshot lifecycle, not a rebuild
+# teardown.
+# =============================================================================
+
+services:
+  mosquitto:
+    image: ${IMAGE_MOSQUITTO:-eclipse-mosquitto:2.1.2-alpine}
+    container_name: mosquitto
+    restart: unless-stopped
+    # The config and password file are written on every start, so the
+    # password always matches the generated one. mosquitto_passwd reads the
+    # password from stdin (printf is a shell builtin), keeping it out of
+    # every argument list. The image's entrypoint then drops to the
+    # mosquitto user.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        cat > /mosquitto/config/mosquitto.conf <<'EOF'
+        listener 1883
+        allow_anonymous false
+        password_file /mosquitto/config/passwd
+        persistence true
+        persistence_location /mosquitto/data/
+        log_dest stdout
+        EOF
+        rm -f /mosquitto/config/passwd
+        printf '%s\n%s\n' "$$MOSQUITTO_PASSWORD" "$$MOSQUITTO_PASSWORD" \
+          | mosquitto_passwd -c /mosquitto/config/passwd nexus-mosquitto >/dev/null
+        chown mosquitto:mosquitto /mosquitto/config/mosquitto.conf /mosquitto/config/passwd
+        exec /docker-entrypoint.sh mosquitto -c /mosquitto/config/mosquitto.conf
+    environment:
+      MOSQUITTO_PASSWORD: ${MOSQUITTO_PASSWORD:?must be set in .env (rendered by service_env._render_mosquitto)}
+    volumes:
+      - mosquitto-data:/mosquitto/data
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    healthcheck:
+      # A port check: a subscribe test would need the password on the
+      # command line.
+      test: ["CMD", "nc", "-z", "127.0.0.1", "1883"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+volumes:
+  mosquitto-data:
+
+networks:
+  app-network:
+    external: true

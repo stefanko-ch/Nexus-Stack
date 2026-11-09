@@ -1,0 +1,29 @@
+# Grafana Tempo, monolithic mode: every component in one process, traces on
+# the local disk. Receives OTLP only from the collector next to it.
+server:
+  http_listen_port: 3200
+  log_level: info
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+compactor:
+  compaction:
+    # Keep traces for a week; this is a learning stack, not an archive.
+    block_retention: 168h
+
+usage_report:
+  # Tempo reports anonymous usage statistics to Grafana Labs by default.
+  reporting_enabled: false

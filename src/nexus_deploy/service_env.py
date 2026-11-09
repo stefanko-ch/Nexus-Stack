@@ -2241,6 +2241,54 @@ def _render_conduit(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={"CONDUIT_API_TOKEN": c.conduit_api_token or ""}, mode=0o600)
 
 
+def _single_secret_renderer(
+    stack: str, key: str, field: str, why: str
+) -> Callable[[NexusConfig, BootstrapEnv], RenderedEnv]:
+    """A renderer for a stack whose .env is exactly one generated secret."""
+
+    def render(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+        value = getattr(c, field)
+        _require(stack, {key: value}, why)
+        return RenderedEnv(env_vars={key: value or ""}, mode=0o600)
+
+    render.__name__ = f"_render_{field}"
+    return render
+
+
+_render_rabbitmq = _single_secret_renderer(
+    "RabbitMQ", "RABBITMQ_PASSWORD", "rabbitmq_password", "starting RabbitMQ without a password"
+)
+_render_mosquitto = _single_secret_renderer(
+    "Mosquitto", "MOSQUITTO_PASSWORD", "mosquitto_password", "starting Mosquitto without a password"
+)
+_render_rstudio = _single_secret_renderer(
+    "RStudio",
+    "RSTUDIO_PASSWORD",
+    "rstudio_password",
+    "letting Rocker print a generated password to the log",
+)
+
+
+def _render_node_red(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Node-RED: the editor login and the key that encrypts credentials in
+    flows. settings.js refuses to start without the login, because the
+    editor runs arbitrary code."""
+    secrets = {
+        "NODE_RED_ADMIN_PASSWORD": c.node_red_admin_password,
+        "NODE_RED_CREDENTIAL_SECRET": c.node_red_credential_secret,
+    }
+    _require("Node-RED", secrets, "starting the editor without a login")
+    return RenderedEnv(env_vars={k: v or "" for k, v in secrets.items()}, mode=0o600)
+
+
+def _render_mysql(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """MySQL: root and nexus-mysql passwords. The image refuses to
+    initialise without a root password; failing here names the cause."""
+    secrets = {"MYSQL_ROOT_PASSWORD": c.mysql_root_password, "MYSQL_PASSWORD": c.mysql_password}
+    _require("MySQL", secrets, "initialising MySQL without passwords")
+    return RenderedEnv(env_vars={k: v or "" for k, v in secrets.items()}, mode=0o600)
+
+
 def _render_starrocks(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """StarRocks: the password start.sh gives root and nexus-starrocks.
 
@@ -3605,6 +3653,11 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("anythingllm", _is_enabled("anythingllm"), _render_anythingllm),
     EnvSpec("mssql", _is_enabled("mssql"), _render_mssql),
     EnvSpec("conduit", _is_enabled("conduit"), _render_conduit),
+    EnvSpec("rabbitmq", _is_enabled("rabbitmq"), _render_rabbitmq),
+    EnvSpec("mosquitto", _is_enabled("mosquitto"), _render_mosquitto),
+    EnvSpec("node-red", _is_enabled("node-red"), _render_node_red),
+    EnvSpec("mysql", _is_enabled("mysql"), _render_mysql),
+    EnvSpec("rstudio", _is_enabled("rstudio"), _render_rstudio),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

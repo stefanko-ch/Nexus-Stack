@@ -1,0 +1,55 @@
+# =============================================================================
+# RStudio Server - browser IDE for R
+# =============================================================================
+# URL: https://rstudio.<domain>
+#
+# R in the browser: console, editor, plots, environment and package
+# manager, from the Rocker project's build of RStudio Server. For
+# statistics and data-science courses taught in R. Shiny apps written here
+# can be deployed to the shiny stack.
+#
+# Login: nexus-rstudio with a generated password (Infisical folder
+# `rstudio`). Rocker's default `rstudio` user is replaced by that name.
+#
+# The home directory, with projects and the user's R packages, in the
+# rstudio-home volume, which survives a restart and the snapshot lifecycle,
+# not a rebuild teardown.
+# =============================================================================
+
+services:
+  rstudio:
+    image: ${IMAGE_RSTUDIO:-rocker/rstudio:4.6.2}
+    container_name: rstudio
+    restart: unless-stopped
+    environment:
+      DEFAULT_USER: nexus-rstudio
+      # Read by Rocker's init scripts, which keep it out of
+      # /etc/environment. Without it they would generate one and print it
+      # to the container log.
+      PASSWORD: ${RSTUDIO_PASSWORD:?must be set in .env (rendered by service_env._render_rstudio)}
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      # Renames the image's `rstudio` user before Rocker sets the password.
+      - ./00_nexus_user:/etc/cont-init.d/00_nexus_user:ro
+      - rstudio-home:/home/nexus-rstudio
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # No curl or wget in the image; bash can open the port.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8787"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  rstudio-home:
+
+networks:
+  app-network:
+    external: true
