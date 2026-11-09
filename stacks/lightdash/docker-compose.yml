@@ -15,7 +15,7 @@
 # password (Infisical folder `lightdash`).
 #
 # Lightdash requires S3-compatible storage for exports and query results;
-# lightdash-s3 is a MinIO of its own, on the internal network only.
+# lightdash-s3 is a SeaweedFS of its own, on the internal network only.
 # No headless browser: scheduled deliveries and Slack unfurls that render
 # chart images are not available.
 #
@@ -160,40 +160,63 @@ services:
     networks:
       - lightdash-internal
 
+  # SeaweedFS in one process (master, volume, filer, S3 gateway). It was a
+  # MinIO until MinIO stopped publishing images: the pinned tag no longer
+  # resolves on quay.io, and Docker Hub's minio/minio is gone. Only the S3
+  # port is used; the others stay on the internal network.
   lightdash-s3:
-    image: ${IMAGE_LIGHTDASH_S3:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    image: ${IMAGE_LIGHTDASH_S3:-chrislusf/seaweedfs:4.52}
     container_name: lightdash-s3
     restart: unless-stopped
-    command: ["server", "/data"]
+    entrypoint: ["/bin/sh", "-c"]
+    # The one S3 identity is written to a file at start, so the secret
+    # comes from the environment rather than a flag in the process list.
+    command:
+      - |
+        set -eu
+        umask 077
+        printf '{"identities":[{"name":"nexus-lightdash","credentials":[{"accessKey":"nexus-lightdash","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' "$$S3_SECRET_KEY" > /tmp/s3.json
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=256 -s3 -s3.port=9000 -s3.config=/tmp/s3.json
     environment:
-      MINIO_ROOT_USER: nexus-lightdash
-      MINIO_ROOT_PASSWORD: ${LIGHTDASH_S3_PASSWORD}
+      S3_SECRET_KEY: ${LIGHTDASH_S3_PASSWORD:?must be set in .env (rendered by service_env._render_lightdash)}
     volumes:
       - lightdash-s3-data:/data
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 384m
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9000/healthz"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 6
+      start_period: 20s
     networks:
       - lightdash-internal
 
+  # Creates the bucket once. `weed shell` exits 0 even when a command fails,
+  # so the result is read back from the bucket list rather than trusted.
   lightdash-s3-init:
-    image: ${IMAGE_LIGHTDASH_S3:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    image: ${IMAGE_LIGHTDASH_S3:-chrislusf/seaweedfs:4.52}
     container_name: lightdash-s3-init
     restart: "on-failure:3"
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         set -eu
-        mc alias set lightdash http://lightdash-s3:9000 nexus-lightdash "$$MINIO_ROOT_PASSWORD" >/dev/null
-        mc mb --ignore-existing lightdash/lightdash
-    environment:
-      MINIO_ROOT_PASSWORD: ${LIGHTDASH_S3_PASSWORD}
+        has_bucket() {
+          echo "s3.bucket.list" | weed shell -master=lightdash-s3:9333 2>/dev/null | grep -qE '^[[:space:]]*lightdash[[:space:]]'
+        }
+        if has_bucket; then
+          echo "Bucket lightdash exists"
+          exit 0
+        fi
+        echo "s3.bucket.create -name lightdash" | weed shell -master=lightdash-s3:9333
+        if ! has_bucket; then
+          echo "Bucket lightdash was not created" >&2
+          exit 1
+        fi
+        echo "Bucket lightdash created"
     depends_on:
       lightdash-s3:
         condition: service_healthy

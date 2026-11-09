@@ -148,7 +148,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Docling Serve | `ghcr.io/docling-project/docling-serve-cpu` | `v1.38.2` | Exact |
 | Lightdash | `lightdash/lightdash` | `3.179.0` | Exact |
 | PostgreSQL (Lightdash DB) | `postgres` | `17-alpine` | Major |
-| MinIO (Lightdash storage) | `quay.io/minio/minio` | `RELEASE.2025-09-07T16-13-09Z` | Exact |
+| SeaweedFS (Lightdash storage) | `chrislusf/seaweedfs` | `4.52` | Exact |
 | Mathesar | `mathesar/mathesar` | `0.12.0` | Exact |
 | PostgreSQL (Mathesar DB) | `postgres` | `17-alpine` | Major |
 | ParadeDB | `paradedb/paradedb` | `0.26.5-pg18` | Exact |

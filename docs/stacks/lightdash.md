@@ -16,7 +16,7 @@ Lightdash reads a dbt project and turns its models into explores. Dimensions and
 | Suggested Subdomain | `lightdash` |
 | Public Access | No (protected by Cloudflare Access) |
 | Credentials | Admin with the stack user's email, password generated per deployment (Infisical folder `lightdash`) |
-| Persistence | Dedicated PostgreSQL (`lightdash-db`) and MinIO (`lightdash-s3`) in Docker volumes |
+| Persistence | Dedicated PostgreSQL (`lightdash-db`) and SeaweedFS as S3 (`lightdash-s3`) in Docker volumes |
 | Website | [lightdash.com](https://www.lightdash.com) |
 | Source | [GitHub](https://github.com/lightdash/lightdash) |
 

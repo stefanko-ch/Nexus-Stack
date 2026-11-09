@@ -871,7 +871,7 @@ services:
     image: "lightdash/lightdash:3.179.0"
     support_images:
       lightdash-db: "postgres:17-alpine"
-      lightdash-s3: "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+      lightdash-s3: "chrislusf/seaweedfs:4.52"
 
   litellm:
     subdomain: "litellm"
