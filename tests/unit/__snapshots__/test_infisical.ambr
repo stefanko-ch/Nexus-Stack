@@ -18,6 +18,11 @@
       'APPSMITH_ENCRYPTION_PASSWORD': 'appsmith_encryption_password-VALUE',
       'APPSMITH_ENCRYPTION_SALT': 'appsmith_encryption_salt-VALUE',
     }),
+    'arcadedb': dict({
+      'ARCADEDB_PASSWORD': 'arcadedb_password-VALUE',
+      'ARCADEDB_ROOT_PASSWORD': 'arcadedb_root_password-VALUE',
+      'ARCADEDB_USERNAME': 'nexus-arcadedb',
+    }),
     'bookstack': dict({
       'BOOKSTACK_EMAIL': 'user@snapshot.test',
       'BOOKSTACK_PASSWORD': 'bookstack_admin_password-VALUE',
@@ -73,6 +78,10 @@
     'docling': dict({
       'DOCLING_API_KEY': 'docling_api_key-VALUE',
     }),
+    'dragonfly': dict({
+      'DRAGONFLY_PASSWORD': 'dragonfly_password-VALUE',
+      'DRAGONFLY_USERNAME': 'nexus-dragonfly',
+    }),
     'dremio': dict({
       'DREMIO_PASSWORD': 'dremio_admin_password-VALUE',
       'DREMIO_USERNAME': 'nexus-admin',
@@ -100,6 +109,10 @@
       'FLOWISE_DB_USERNAME': 'nexus-flowise',
       'FLOWISE_PASSWORD': 'flowise_admin_password-VALUE',
       'FLOWISE_USERNAME': 'user@snapshot.test',
+    }),
+    'fluss': dict({
+      'FLUSS_PASSWORD': 'fluss_password-VALUE',
+      'FLUSS_USERNAME': 'nexus_fluss',
     }),
     'forgejo': dict({
       'FORGEJO_ADMIN_USERNAME': 'nexus-test-user',
@@ -236,6 +249,11 @@
       'METABASE_PASSWORD': 'metabase_admin_password-VALUE',
       'METABASE_USERNAME': 'admin@snapshot.test',
     }),
+    'milvus': dict({
+      'MILVUS_PASSWORD': 'milvus_password-VALUE',
+      'MILVUS_ROOT_PASSWORD': 'milvus_root_password-VALUE',
+      'MILVUS_USERNAME': 'nexus-milvus',
+    }),
     'mindsdb': dict({
       'MINDSDB_DB_PASSWORD': 'mindsdb_db_password-VALUE',
       'MINDSDB_DB_USERNAME': 'nexus-mindsdb',
@@ -322,6 +340,11 @@
     'opensearch': dict({
       'OPENSEARCH_ADMIN_PASSWORD': 'opensearch_admin_password-VALUE',
       'OPENSEARCH_USERNAME': 'admin',
+    }),
+    'oracle': dict({
+      'ORACLE_PASSWORD': 'oracle_password-VALUE',
+      'ORACLE_SYSTEM_PASSWORD': 'oracle_system_password-VALUE',
+      'ORACLE_USERNAME': 'nexus_oracle',
     }),
     'paradedb': dict({
       'PARADEDB_PASSWORD': 'paradedb_password-VALUE',

@@ -251,6 +251,12 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Windmill | `ghcr.io/windmill-labs/windmill` | `1.624.0` | Exact ¹ |
 | Windmill LSP | `ghcr.io/windmill-labs/windmill-lsp` | `latest` | Latest ² |
 | PostgreSQL (Windmill DB) | `postgres` | `18-alpine` | Major |
+| ArcadeDB | `arcadedata/arcadedb` | `26.10.2` | Exact |
+| Apache Fluss | `apache/fluss` | `1.0.0` | Exact |
+| ZooKeeper (Fluss) | `zookeeper` | `3.9.4` | Exact |
+| DragonflyDB | `docker.dragonflydb.io/dragonflydb/dragonfly` | `v2.0.2` | Exact |
+| Milvus | `milvusdb/milvus` | `v2.6.26` | Exact |
+| Oracle Database Free | `gvenzl/oracle-free` | `23.26.3-slim` | Exact |
 
 ¹ No major version tags available, requires manual updates.
 ² Allow-listed for `latest`: presentation-layer and dev tools that keep nothing beyond a cache, plus viewers over another system's state such as Kafka-UI and S3 Manager. The reason is what the image holds, not what upstream tags — several of these do publish versions, and pinning them would still buy nothing a re-pull cannot undo.
@@ -282,10 +288,12 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Adminer** | Lightweight database management tool | [adminer.md](adminer.md) |
 | **AnythingLLM** | Chat with your documents (RAG) | [anythingllm.md](anythingllm.md) |
 | **Apache Airflow** | DAG-based workflow orchestration | [airflow.md](airflow.md) |
+| **Apache Fluss** | Streaming storage for Flink, internal only | [fluss.md](fluss.md) |
 | **Apache Kafka** | Event-streaming broker in KRaft mode, internal only | [kafka.md](kafka.md) |
 | **Apache Spark** | Distributed data processing engine | [spark.md](spark.md) |
 | **Apicurio Registry** | Schema and API-contract registry | [apicurio.md](apicurio.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
+| **ArcadeDB** | Multi-model database with SQL, Cypher and Gremlin | [arcadedb.md](arcadedb.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
 | **BookStack** | Documentation wiki with shelves, books and pages | [bookstack.md](bookstack.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
@@ -308,6 +316,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Dinky** | Flink SQL IDE with web editor | [dinky.md](dinky.md) |
 | **Docling Serve** | Document conversion API for RAG ingestion | [docling.md](docling.md) |
 | **Dozzle** | Realtime Docker logs in the browser | [dozzle.md](dozzle.md) |
+| **DragonflyDB** | Redis-compatible in-memory store, internal only | [dragonfly.md](dragonfly.md) |
 | **Draw.io** | Flowchart and diagramming tool | [drawio.md](drawio.md) |
 | **Dremio** | Lakehouse query engine with a SQL UI | [dremio.md](dremio.md) |
 | **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
@@ -359,6 +368,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Memgraph** | In-memory graph database with MAGE and Memgraph Lab | [memgraph.md](memgraph.md) |
 | **Metabase** | Business intelligence tool | [metabase.md](metabase.md) |
 | **Microsoft SQL Server** | SQL Server 2025 Developer edition, internal only | [mssql.md](mssql.md) |
+| **Milvus** | Vector database, internal only | [milvus.md](milvus.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |
 | **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
@@ -376,6 +386,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **OpenBao** | Secrets management, open-source Vault fork | [openbao.md](openbao.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
+| **Oracle Database Free** | Oracle SQL and PL/SQL, internal only | [oracle.md](oracle.md) |
 | **ParadeDB** | PostgreSQL with full-text search, internal only | [paradedb.md](paradedb.md) |
 | **Perplexica** | AI answer engine on local models | [perplexica.md](perplexica.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |

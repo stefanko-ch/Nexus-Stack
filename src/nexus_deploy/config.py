@@ -166,6 +166,14 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("BOOKSTACK_DB_PASS", "bookstack_db_password", ""),
     ("BOOKSTACK_DB_ROOT_PASS", "bookstack_db_root_password", ""),
     ("BOOKSTACK_ADMIN_PASS", "bookstack_admin_password", ""),
+    ("DRAGONFLY_PASS", "dragonfly_password", ""),
+    ("ORACLE_PASS", "oracle_password", ""),
+    ("ORACLE_SYSTEM_PASS", "oracle_system_password", ""),
+    ("ARCADEDB_PASS", "arcadedb_password", ""),
+    ("ARCADEDB_ROOT_PASS", "arcadedb_root_password", ""),
+    ("MILVUS_PASS", "milvus_password", ""),
+    ("MILVUS_ROOT_PASS", "milvus_root_password", ""),
+    ("FLUSS_PASS", "fluss_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -390,6 +398,14 @@ class NexusConfig(BaseModel):
     bookstack_db_password: str | None = None
     bookstack_db_root_password: str | None = None
     bookstack_admin_password: str | None = None
+    dragonfly_password: str | None = None
+    oracle_password: str | None = None
+    oracle_system_password: str | None = None
+    arcadedb_password: str | None = None
+    arcadedb_root_password: str | None = None
+    milvus_password: str | None = None
+    milvus_root_password: str | None = None
+    fluss_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

@@ -1,0 +1,123 @@
+# =============================================================================
+# Milvus - vector database
+# =============================================================================
+# In-cluster: milvus:19530 (gRPC for pymilvus, and the REST API /v2/...)
+#
+# A database for embeddings: collections of vectors with scalar fields,
+# approximate nearest-neighbour indexes (HNSW, IVF, DiskANN) and hybrid
+# search that combines dense, sparse and full-text matching. Next to qdrant,
+# weaviate and chroma it is the one built for scale-out clusters; here it
+# runs as a single standalone node.
+#
+# Standalone with embedded etcd and local storage, the setup Milvus's own
+# standalone_embed.sh uses: one container, no separate etcd and no MinIO
+# (MinIO no longer publishes images). The message log is RocksMQ, also
+# local.
+#
+# Internal only (`internal_only` in services.yaml): the gRPC API cannot
+# cross the HTTPS tunnel, and Milvus's WebUI is read-only and has no login.
+# Authentication is on. Log in as nexus-milvus, which milvus-init creates
+# with the admin role (Infisical folder `milvus`). The built-in root user
+# gets a separate generated password.
+#
+# Data in the milvus-data volume (vectors, indexes, etcd metadata), which
+# survives a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+x-milvus-image: &milvus-image ${IMAGE_MILVUS:-milvusdb/milvus:v2.6.26}
+
+services:
+  milvus:
+    image: *milvus-image
+    container_name: milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    # As in standalone_embed.sh: the embedded etcd and the storage layer use
+    # syscalls Docker's default seccomp profile blocks.
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
+      COMMON_STORAGETYPE: local
+      DEPLOY_MODE: STANDALONE
+      # The local message log. Set explicitly: the other standalone choice,
+      # Woodpecker, defaults to MinIO storage.
+      MQ_TYPE: rocksmq
+      COMMON_SECURITY_AUTHORIZATIONENABLED: "true"
+      # Seeds root's password when the metadata is created on the first
+      # start; later changes go through the API, not this variable.
+      COMMON_SECURITY_DEFAULTROOTPASSWORD: ${MILVUS_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_milvus)}
+    volumes:
+      - milvus-data:/var/lib/milvus
+      - ./embedEtcd.yaml:/milvus/configs/embedEtcd.yaml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    healthcheck:
+      # The metrics port answers /healthz without credentials.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 90s
+    networks:
+      - app-network
+
+  # Creates nexus-milvus with the admin role on the first start, through
+  # the REST API. curl reads the Authorization header and the request
+  # bodies from files written with umask 077, so no password reaches an
+  # argument list. On later starts the user exists and the script only
+  # checks that it logs in.
+  milvus-init:
+    image: *milvus-image
+    container_name: milvus-init
+    restart: "on-failure:3"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        umask 077
+        API=http://milvus:19530/v2/vectordb
+        tmp=$$(mktemp -d)
+        printf 'Authorization: Bearer root:%s\n' "$$MILVUS_ROOT_PASSWORD" > "$$tmp/root"
+        printf 'Authorization: Bearer nexus-milvus:%s\n' "$$MILVUS_PASSWORD" > "$$tmp/user"
+        call() {  # header-file path body-file -> JSON response on stdout
+          curl -sS -X POST "$$API/$$2" -H @"$$tmp/$$1" -H 'Content-Type: application/json' -d @"$$3"
+        }
+        printf '{}' > "$$tmp/empty"
+        ok() { grep -q '"code":0' <<< "$$1"; }
+        if ok "$$(call user collections/list "$$tmp/empty")"; then
+          echo "milvus-init: nexus-milvus already exists and logs in"
+          exit 0
+        fi
+        printf '{"userName":"nexus-milvus","password":"%s"}' "$$MILVUS_PASSWORD" > "$$tmp/create"
+        printf '{"userName":"nexus-milvus","roleName":"admin"}' > "$$tmp/grant"
+        created=$$(call root users/create "$$tmp/create")
+        granted=$$(call root users/grant_role "$$tmp/grant")
+        if ok "$$(call user collections/list "$$tmp/empty")"; then
+          echo "milvus-init: nexus-milvus created with the admin role"
+          exit 0
+        fi
+        echo "milvus-init: nexus-milvus does not log in after setup." >&2
+        echo "  create: $$(sed 's/"password":"[^"]*"/"password":"***"/' <<< "$$created")" >&2
+        echo "  grant:  $$granted" >&2
+        echo "  If the user exists with another password, the one in Infisical no longer matches Milvus's metadata." >&2
+        exit 1
+    environment:
+      MILVUS_ROOT_PASSWORD: ${MILVUS_ROOT_PASSWORD}
+      MILVUS_PASSWORD: ${MILVUS_PASSWORD:?must be set in .env (rendered by service_env._render_milvus)}
+    depends_on:
+      milvus:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  milvus-data:
+
+networks:
+  app-network:
+    external: true

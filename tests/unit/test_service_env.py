@@ -5360,3 +5360,74 @@ def test_bookstack_refuses_an_app_key_that_is_not_32_characters(
     with pytest.raises(ServiceEnvError, match="32 characters") as excinfo:
         service_env._render_bookstack(config, full_env)
     assert key not in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# DragonflyDB, Oracle Database Free, ArcadeDB, Milvus, Apache Fluss
+# ---------------------------------------------------------------------------
+
+_SET_A_SECRETS = {
+    "dragonfly_password": "DfPass1",
+    "oracle_password": "OraApp1",
+    "oracle_system_password": "OraSys1",
+    "arcadedb_password": "ArcUser1",
+    "arcadedb_root_password": "ArcRoot1",
+    "milvus_password": "MilUser1",
+    "milvus_root_password": "MilRoot1",
+    "fluss_password": "Fluss1",
+}
+
+
+def test_set_a_stacks_render_their_env(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_SET_A_SECRETS)
+    expected = {
+        "_render_dragonfly": {"DRAGONFLY_PASSWORD": "DfPass1"},
+        "_render_oracle": {"ORACLE_PASSWORD": "OraApp1", "ORACLE_SYSTEM_PASSWORD": "OraSys1"},
+        "_render_arcadedb": {"ARCADEDB_PASSWORD": "ArcUser1", "ARCADEDB_ROOT_PASSWORD": "ArcRoot1"},
+        "_render_milvus": {"MILVUS_PASSWORD": "MilUser1", "MILVUS_ROOT_PASSWORD": "MilRoot1"},
+        "_render_fluss": {"FLUSS_PASSWORD": "Fluss1"},
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, full_env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_dragonfly", "dragonfly_password", "DRAGONFLY_PASSWORD"),
+        ("_render_oracle", "oracle_password", "ORACLE_PASSWORD"),
+        ("_render_oracle", "oracle_system_password", "ORACLE_SYSTEM_PASSWORD"),
+        ("_render_arcadedb", "arcadedb_password", "ARCADEDB_PASSWORD"),
+        ("_render_arcadedb", "arcadedb_root_password", "ARCADEDB_ROOT_PASSWORD"),
+        ("_render_milvus", "milvus_password", "MILVUS_PASSWORD"),
+        ("_render_milvus", "milvus_root_password", "MILVUS_ROOT_PASSWORD"),
+        ("_render_fluss", "fluss_password", "FLUSS_PASSWORD"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_set_a_stacks_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SET_A_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+def test_set_a_stacks_are_registered() -> None:
+    from nexus_deploy import service_env
+
+    names = {spec.service_name for spec in service_env._SPECS}
+    assert {"dragonfly", "oracle", "arcadedb", "milvus", "fluss"} <= names

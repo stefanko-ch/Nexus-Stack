@@ -1469,6 +1469,68 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "dragonfly",
+            _filter_empty(
+                {
+                    # redis://dragonfly:6379; the default user is off.
+                    "DRAGONFLY_USERNAME": "nexus-dragonfly",
+                    "DRAGONFLY_PASSWORD": config.dragonfly_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "oracle",
+            _filter_empty(
+                {
+                    # oracle:1521/FREEPDB1; Oracle names cannot contain a hyphen.
+                    "ORACLE_USERNAME": "nexus_oracle",
+                    "ORACLE_PASSWORD": config.oracle_password,
+                    "ORACLE_SYSTEM_PASSWORD": config.oracle_system_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "arcadedb",
+            _filter_empty(
+                {
+                    "ARCADEDB_USERNAME": "nexus-arcadedb",
+                    "ARCADEDB_PASSWORD": config.arcadedb_password,
+                    # root alone may create databases.
+                    "ARCADEDB_ROOT_PASSWORD": config.arcadedb_root_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "milvus",
+            _filter_empty(
+                {
+                    "MILVUS_USERNAME": "nexus-milvus",
+                    "MILVUS_PASSWORD": config.milvus_password,
+                    "MILVUS_ROOT_PASSWORD": config.milvus_root_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "fluss",
+            _filter_empty(
+                {
+                    # SASL/PLAIN on fluss:9123; Fluss names allow no hyphen.
+                    "FLUSS_USERNAME": "nexus_fluss",
+                    "FLUSS_PASSWORD": config.fluss_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {
