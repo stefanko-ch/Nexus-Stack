@@ -43,8 +43,10 @@ if bao status -format=json 2>/dev/null | grep -q '"initialized": true'; then
   if admin_login_works; then
     echo "openbao-init: already initialised; nexus-admin logs in."
   else
-    # Expected if the admin changed the password in OpenBao.
-    echo "openbao-init: WARNING: already initialised, but the generated nexus-admin password does not log in. Nothing changed." >&2
+    # This step cannot tell which: the admin changed the password in
+    # OpenBao, or an earlier run stopped between init and creating the
+    # user, which only a fresh openbao-data volume repairs.
+    echo "openbao-init: WARNING: already initialised, but the generated nexus-admin password does not log in. Either the password was changed in OpenBao, or an earlier initialisation stopped before creating nexus-admin (then only an empty openbao-data volume recovers it). Nothing changed." >&2
   fi
   exit 0
 fi
@@ -57,10 +59,14 @@ unset init_json
 [ -n "$BAO_TOKEN" ] || fail "no root token in the init response."
 export BAO_TOKEN
 
-# The static seal unseals right after init; wait until it reports so.
+# The static seal unseals right after init, but a Raft node can be unsealed
+# and still standby for a moment, and writes fail until it is active. The
+# root token exists only in this process, so a failed write here would leave
+# OpenBao initialised with no way in. /v1/sys/health answers 200 only when
+# the node is initialised, unsealed and active.
 i=0
-until bao status >/dev/null 2>&1; do
-  i=$((i + 1)); [ "$i" -ge 30 ] && fail "OpenBao stayed sealed after init."
+until wget -q -O /dev/null "$BAO_ADDR/v1/sys/health" 2>/dev/null; do
+  i=$((i + 1)); [ "$i" -ge 60 ] && fail "OpenBao did not become active within 120 s after init."
   sleep 2
 done
 
