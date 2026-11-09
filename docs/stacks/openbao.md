@@ -28,7 +28,7 @@ OpenBao stores secrets with versions, issues short-lived credentials, encrypts d
 
 OpenBao does not run in dev mode here. Storage is persistent (Raft, one node), so secrets survive a restart.
 
-A vault normally starts *sealed* and waits for unseal keys. This stack uses a **static seal**: a 32-byte key generated per deployment (`OPENBAO_UNSEAL_KEY` in Infisical) unseals it on every start.
+A vault normally starts *sealed* and waits for unseal keys. This stack uses a **static seal**: a 32-byte key generated per deployment (`OPENBAO_UNSEAL_KEY`) unseals it on every start. The key is in the stack's `.env` on the server (mode 0600) and in the OpenTofu state (`tofu output -json secrets`). It is deliberately **not** in Infisical: every Infisical folder is synced into Kestra, and the key together with the volume decrypts all of OpenBao.
 
 On the first start, `openbao-init`:
 
