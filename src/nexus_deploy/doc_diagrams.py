@@ -38,6 +38,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from xml.sax.saxutils import escape, quoteattr
 
 BG = "#0e1318"
 CARD = "#161d24"
@@ -105,7 +106,7 @@ def _text(
 ) -> str:
     rows = [lines] if isinstance(lines, str) else lines
     spans = "".join(
-        f'<tspan x="{x}" dy="{0 if i == 0 else size * leading}">{row}</tspan>'
+        f'<tspan x="{x}" dy="{0 if i == 0 else size * leading}">{escape(row)}</tspan>'
         for i, row in enumerate(rows)
     )
     return (
@@ -134,8 +135,8 @@ def _svg(width: int, height: int, title: str, subtitle: str, label: str, body: s
     )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="{label}" font-family="{FONT}">'
-        f"<title>{label}</title><defs>{markers}</defs>"
+        f'aria-label={quoteattr(label)} font-family="{FONT}">'
+        f"<title>{escape(label)}</title><defs>{markers}</defs>"
         f'<rect width="{width}" height="{height}" rx="18" fill="{BG}"/>'
         + _text(36, 50, title, 26, TEXT, 700, "start")
         + _text(36, 78, subtitle, 16, SUB, 400, "start")

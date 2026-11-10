@@ -110,6 +110,16 @@ def test_every_arrow_marker_that_is_used_is_defined() -> None:
         assert used <= defined, f"{name} uses undefined markers {sorted(used - defined)}"
 
 
+def test_text_and_labels_are_escaped() -> None:
+    # A label with an ampersand or a quote must not produce invalid SVG.
+    svg = doc_diagrams._svg(
+        100, 50, "A & B", "x < y", 'say "hi" & go', doc_diagrams._text(1, 2, "R&D <3")
+    )
+    root = ET.fromstring(svg)  # noqa: S314 — our own generated SVG
+    assert root.get("aria-label") == 'say "hi" & go'
+    assert [span.text for span in root.iter(f"{SVG}tspan")] == ["A & B", "x < y", "R&D <3"]
+
+
 def test_write_creates_every_diagram(tmp_path: Path) -> None:
     written = doc_diagrams.write(tmp_path)
     assert [p.name for p in written] == list(doc_diagrams.DIAGRAMS)
