@@ -28,15 +28,29 @@ SKIPPED = {"CHANGELOG.md"}
 _COMMAND = re.compile(r"gh workflow run\s+(?P<file>[\w.-]+\.ya?ml)(?P<rest>[^\n`|]*)")
 
 
-def required_inputs(workflow: Path) -> list[str]:
-    """Names of the `workflow_dispatch` inputs a dispatch cannot omit."""
-    data = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+def required_inputs(workflow: Path) -> dict[str, str | None]:
+    """The `workflow_dispatch` inputs a dispatch cannot omit, by name.
+
+    The value is what the workflow compares the input with, where it does:
+    `teardown.yml` only runs `if: github.event.inputs.confirm == 'TEARDOWN'`,
+    so a guide that passes any other value documents a run that is skipped.
+    None when the workflow compares it with nothing, or with more than one
+    value.
+    """
+    text = workflow.read_text(encoding="utf-8")
+    data = yaml.safe_load(text)
     # PyYAML reads the bare key `on` as the boolean True.
     triggers = data.get("on", data.get(True)) or {}
     if not isinstance(triggers, dict):
-        return []
+        return {}
     inputs = (triggers.get("workflow_dispatch") or {}).get("inputs") or {}
-    return [name for name, spec in inputs.items() if spec.get("required") and "default" not in spec]
+    required: dict[str, str | None] = {}
+    for name, spec in inputs.items():
+        if not spec.get("required") or "default" in spec:
+            continue
+        compared = set(re.findall(rf"inputs\.{re.escape(name)}\s*==\s*'([^']+)'", text))
+        required[name] = compared.pop() if len(compared) == 1 else None
+    return required
 
 
 def documented_commands(text: str) -> list[tuple[str, str]]:
@@ -49,12 +63,16 @@ def documented_commands(text: str) -> list[tuple[str, str]]:
     return [(match["file"], match["rest"].split("&&")[0]) for match in _COMMAND.finditer(joined)]
 
 
-def missing_inputs(text: str, required: dict[str, list[str]]) -> list[str]:
+def missing_inputs(text: str, required: dict[str, dict[str, str | None]]) -> list[str]:
     problems = []
     for workflow, rest in documented_commands(text):
-        for name in required.get(workflow, []):
-            if not re.search(rf"-f\s+{re.escape(name)}=", rest):
-                problems.append(f"gh workflow run {workflow}{rest.rstrip()}  -> missing -f {name}=")
+        for name, value in required.get(workflow, {}).items():
+            command = f"gh workflow run {workflow}{rest.rstrip()}"
+            passed = re.search(rf"-f\s+{re.escape(name)}=(\S*)", rest)
+            if not passed:
+                problems.append(f"{command}  -> missing -f {name}=")
+            elif value is not None and passed[1].strip("\"'") != value:
+                problems.append(f"{command}  -> {name} must be {value}")
     return problems
 
 
@@ -65,17 +83,17 @@ def _markdown_files() -> list[Path]:
     return [REPO_ROOT / name for name in listed if name and name not in SKIPPED]
 
 
-def _required_by_workflow() -> dict[str, list[str]]:
+def _required_by_workflow() -> dict[str, dict[str, str | None]]:
     return {path.name: required_inputs(path) for path in sorted(WORKFLOWS.glob("*.y*ml"))}
 
 
 def test_the_teardown_workflows_require_a_confirmation() -> None:
     """The premise: without it the test below would pass on anything."""
     required = _required_by_workflow()
-    assert required["teardown.yml"] == ["confirm"]
-    assert required["teardown-snapshot.yml"] == ["confirm"]
-    assert required["destroy-all.yml"] == ["confirm"]
-    assert required["spin-up.yml"] == []
+    assert required["teardown.yml"] == {"confirm": "TEARDOWN"}
+    assert required["teardown-snapshot.yml"] == {"confirm": "TEARDOWN"}
+    assert required["destroy-all.yml"] == {"confirm": "DESTROY"}
+    assert required["spin-up.yml"] == {}
 
 
 def test_documented_commands_pass_every_required_input() -> None:
@@ -97,7 +115,18 @@ def test_documented_commands_pass_every_required_input() -> None:
         ("gh workflow run teardown.yml \\\n  -f confirm=TEARDOWN", 0),
         ("gh workflow run spin-up.yml --ref feat/x", 0),
         ("gh workflow run teardown.yml --repo o/r -f confirm=TEARDOWN && sleep 3", 0),
+        ("gh workflow run teardown.yml -f confirm=DESTROY", 1),
+        ("gh workflow run teardown.yml -f confirm=teardown", 1),
+        ('gh workflow run teardown.yml -f confirm="TEARDOWN"', 0),
+        ("gh workflow run other.yml -f anything=goes", 0),
+        ("gh workflow run free.yml -f note=whatever", 0),
+        ("gh workflow run free.yml", 1),
     ],
 )
 def test_missing_inputs_reads_one_command_at_a_time(text: str, expected: int) -> None:
-    assert len(missing_inputs(text, {"teardown.yml": ["confirm"], "spin-up.yml": []})) == expected
+    required: dict[str, dict[str, str | None]] = {
+        "teardown.yml": {"confirm": "TEARDOWN"},
+        "spin-up.yml": {},
+        "free.yml": {"note": None},
+    }
+    assert len(missing_inputs(text, required)) == expected
