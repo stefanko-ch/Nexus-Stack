@@ -2278,12 +2278,33 @@ _render_jena_fuseki = _single_secret_renderer(
     "jena_fuseki_admin_password",
     "writing a shiro.ini without a password",
 )
-_render_zeppelin = _single_secret_renderer(
-    "Zeppelin",
-    "ZEPPELIN_ADMIN_PASSWORD",
-    "zeppelin_admin_password",
-    "writing a shiro.ini without a password",
-)
+
+
+def _render_zeppelin(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Zeppelin: the admin password and the one browser origin it accepts.
+
+    Zeppelin 0.12 allows no cross-origin REST or WebSocket request by
+    default (``zeppelin.server.allowed.origins`` is empty in the compiled
+    defaults; the ``*`` in the shipped template is only a template).
+    Behind the tunnel the browser sends ``Origin: https://zeppelin.<domain>``,
+    which is neither the container's hostname nor ``localhost``, so the
+    login POST was refused by its CorsFilter. ZEPPELIN_ALLOWED_ORIGINS
+    names exactly that origin rather than ``*``.
+    """
+    _require(
+        "Zeppelin",
+        {"ZEPPELIN_ADMIN_PASSWORD": c.zeppelin_admin_password},
+        "writing a shiro.ini without a password",
+    )
+    host = service_host("zeppelin", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "ZEPPELIN_ADMIN_PASSWORD": c.zeppelin_admin_password or "",
+            "ZEPPELIN_ALLOWED_ORIGINS": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
 
 _render_surrealdb = _single_secret_renderer(
     "SurrealDB",
