@@ -216,8 +216,8 @@ the details.
 
 Entropy Data is the one stack under a proprietary licence; it is not open source.
 
-[Browse the stack list](docs/stacks/README.md) for a description, the pinned
-image version and a documentation page for every stack.
+[Browse the stack catalogue](docs/stacks/overview.md) for a description, the
+pinned image version and a documentation page for every stack.
 
 ## Get started
 
@@ -240,7 +240,7 @@ Deployment runs in GitHub Actions only; there is no local deploy.
 | [Concepts](docs/concepts/index.md) | understand what it is and how it is built |
 | [Setup Guide](docs/admin-guides/setup-guide.md) | deploy your own |
 | [Control Plane guide](docs/user-guides/control-plane.md) | use a deployment someone set up for you |
-| [Stack list](docs/stacks/README.md) | find a tool |
+| [Stack catalogue](docs/stacks/overview.md) | find a tool |
 | [Tutorials](docs/tutorials/index.md) | learn by doing |
 | [Troubleshooting](docs/admin-guides/troubleshooting.md) | fix something |
 
