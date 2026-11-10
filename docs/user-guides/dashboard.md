@@ -13,9 +13,9 @@ The Dashboard is the landing page of the Control Plane. It answers two questions
 
 ## Version tag
 
-The header shows the currently-deployed Nexus-Stack template version (e.g. `v0.51.1`). If a newer release exists upstream you can upgrade from the admin panel (not from the Control Plane itself).
+The header shows the currently-deployed Nexus-Stack template version (e.g. `v0.91.2`). Moving to a newer release is a task for the stack's operator, not something the Control Plane does: see [Updating to a new release](../admin-guides/setup-guide.md#updating-to-a-new-release).
 
-![Control Plane header showing the deployed Nexus-Stack template version tag (e.g. v0.51.1)](./assets/dashboard-version-tag.png)
+![Control Plane header showing the deployed Nexus-Stack template version tag next to the words Control Plane](./assets/dashboard-version-tag.png)
 
 ## Status panel
 
@@ -29,6 +29,8 @@ The coloured indicator at the top reflects the current state of your Hetzner inf
 | Grey — **Unknown** | Status check failed; see [Monitoring](./monitoring.md) for details |
 
 The panel re-polls automatically every few seconds, so you can keep it open while a workflow runs.
+
+![Status panel in the green "Deployed" state: infrastructure is running and all services are accessible](./assets/dashboard-status-deployed.png)
 
 ![Status panel in the orange "Torn down" state, indicating no server is running](./assets/dashboard-status-torn-down.png)
 
@@ -85,22 +87,22 @@ Two buttons, each tied to a GitHub Actions workflow:
 
 ### ⚡ Spin Up
 
-Starts `spin-up.yml` on your repo, which:
-- Boots a Hetzner server
-- Mounts the persistent volume
-- Installs Docker + cloudflared
-- Restarts all enabled services
+Starts the spin-up workflow of your stack's lifecycle (`spin-up.yml`, or `spin-up-snapshot.yml` on the snapshot lifecycle) on your repo, which:
+- Creates a Hetzner server
+- Installs Docker and connects the Cloudflare Tunnel
+- Restores your data — from the backup the last teardown wrote, or from the disk snapshot on the snapshot lifecycle
+- Starts all enabled services
 
-Typical runtime: 3–5 minutes. Button stays disabled until the stack is fully torn down (can't spin up on top of a running server).
+Typical runtime: 4–10 minutes, depending on how many stacks are enabled. Button stays disabled until the stack is fully torn down (can't spin up on top of a running server).
 
 ### 💤 Teardown
 
-Starts `teardown.yml`, which:
-- Stops and deletes the Hetzner server
-- Detaches the volume (data preserved)
-- Leaves DNS, tunnels, and Infisical in place so the next spin-up is fast
+Starts the teardown workflow of your stack's lifecycle (`teardown.yml`, or `teardown-snapshot.yml` on the snapshot lifecycle), which:
+- Saves your data first — a backup to object storage, and on the snapshot lifecycle a disk snapshot as well
+- Deletes the Hetzner server
+- Leaves DNS, the tunnel and this Control Plane in place, so the next spin-up needs no new setup
 
-Cheap state: you pay only for the persistent volume (~€1/month).
+While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. What survives a teardown depends on the lifecycle — see [Settings](./settings.md#lifecycle).
 
 ## When buttons are disabled
 
@@ -112,4 +114,4 @@ Below the action buttons the Dashboard lists which services are currently active
 
 ![Active Stacks list below the action buttons, showing the currently enabled and running services with a total count](./assets/dashboard-active-stacks.png)
 
-The count ("3 stacks active") reflects services enabled in [Stacks](./stacks.md). Click a service row to open the service directly in a new tab.
+The count ("13 stacks active" in the screenshot) reflects services enabled in [Stacks](./stacks.md). Click a service row to open the service directly in a new tab.

@@ -8,15 +8,13 @@ order: 7
 
 ![Top of the Settings page, showing the start of the Infrastructure Information block](./assets/settings-header.png)
 
-The Settings page is split into four blocks: **Infrastructure Information** (read-only), **Scheduled Teardown**, **Lifecycle**, and **Email Notifications**.
+The Settings page is split into five blocks: **Infrastructure Information** (read-only), **Scheduled Teardown**, **Lifecycle**, **Email Notifications**, and a list of **Recent Workflows**.
 
 ## Infrastructure Information
 
 Read-only facts about the current deployment.
 
-![Infrastructure Information block listing read-only deployment facts: server type, location, domain, last spin-up and teardown timestamps, and uptime](./assets/settings-infrastructure-info.png)
-
-> The screenshot predates the **OS**, **Disk** and **Docker** rows and will be refreshed on the next capture pass. The alt text describes what the image shows rather than what the table below lists, so it is left as-is.
+![Infrastructure Information block listing read-only deployment facts: server type, location, OS, disk, Docker version, domain, last spin-up and teardown timestamps, and uptime](./assets/settings-infrastructure-info.png)
 
 | Field | Description |
 |-------|-------------|
@@ -46,6 +44,14 @@ The cron worker can auto-teardown your stack on a daily schedule so you don't pa
 - **Delay Teardown by 4 Hours** — Pushes the next teardown back by 4 hours. Useful when you're mid-session. Limited to 3 extensions per UTC day by default.
 
 > If your admin has set `allow_disable_auto_shutdown = false`, the toggle is visible but locked — you can still use the delay button.
+
+### Delaying tonight's teardown
+
+If the **Shutdown Warning Email** arrives while you are still working — by default it is sent about 15 minutes before the teardown — open Settings and click **Delay Teardown by 4 Hours**. The block then shows the new time and one extension fewer:
+
+![Scheduled Teardown block after a delay: it reads "Teardown delayed until" with the new time, and 2 of 3 daily extensions remain](./assets/settings-teardown-delayed.png)
+
+The delay applies to tonight only. Tomorrow the teardown is back at its scheduled time.
 
 ## Lifecycle
 

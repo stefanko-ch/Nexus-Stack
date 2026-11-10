@@ -22,15 +22,15 @@ Each enabled stack that exposes TCP ports appears as a card. Each port entry has
 
 ![Firewall card for a single-port service, with controls for enabling the port, entering a Source IPs CIDR range, and staging the change via Save](./assets/firewall-rule-single.png)
 
-Services with multiple TCP ports (e.g. Redpanda with `kafka`, `admin`, and `schema-registry`) show each port as a separate entry in the same card. Enabled ports are marked **STAGED** until applied. The card header shows a **PENDING** badge with a count of how many ports are open (e.g. `2/3 OPEN`).
+Services with multiple TCP ports (e.g. Redpanda with `kafka` and `schema-registry`) show each port as a separate entry in the same card, with the hostname the port is reached at. Enabled ports are marked **STAGED** until applied. The card header shows a **PENDING** badge with a count of how many ports are open (e.g. `1/2 OPEN`).
 
-![Redpanda firewall card with three TCP ports (kafka, admin, schema-registry), two marked STAGED, and a PENDING badge reading "2/3 OPEN" in the header](./assets/firewall-rule-multiple.png)
+![Redpanda firewall card with two TCP ports (kafka, schema-registry), the kafka port marked STAGED, and a PENDING badge reading "1/2 OPEN" in the header](./assets/firewall-rule-multiple.png)
 
 ## Applying rules
 
 Staged changes are not live until you click **Apply & Spin Up**. This triggers a GitHub Actions workflow that updates the Hetzner firewall and restarts the stack with the new rules.
 
-![Apply & Spin Up button that commits staged firewall rules and restarts the stack](./assets/firewall-apply.png)
+![The Refresh and Apply & Spin Up buttons above the firewall cards; Apply & Spin Up commits staged rules and restarts the stack](./assets/firewall-apply.png)
 
 Use **Refresh** to reload the current firewall state from the server.
 

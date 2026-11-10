@@ -8,7 +8,7 @@ order: 8
 
 Integrations let your Nexus-Stack talk to platforms outside Hetzner. Today there's one first-class integration — **Databricks** — with more on the roadmap.
 
-![Integrations page header with tiles for connecting the stack to third-party platforms such as Databricks](./assets/integrations-header.png)
+![Top of the Integrations page: the navigation with Integrations selected, above the Databricks Integration form](./assets/integrations-header.png)
 
 
 ## Databricks
@@ -21,7 +21,7 @@ Don't have a Databricks account yet? [Register for free](https://login.databrick
 
 Currently only secrets are synced:
 
-- **Secrets → Databricks secret scope.** Every Infisical secret is mirrored into a scope named `nexus`. The sync is triggered manually from the [Secrets page](./secrets.md) — click **Sync Now** whenever you want the scope to reflect the latest Infisical state.
+- **Secrets → Databricks secret scope.** Every Infisical secret is mirrored into a scope named `nexus`. The sync is triggered manually — click **Sync Now** in the **Sync to Databricks** panel on the Integrations page whenever you want the scope to reflect the latest Infisical state.
 
 ### Key naming
 
@@ -101,7 +101,7 @@ Go to **Integrations** in the Control Plane and fill in the two fields:
 
 Click **Save Configuration**. The host and token are stored in Cloudflare KV; the token is never visible after saving.
 
-To trigger the first sync, open the [Secrets page](./secrets.md) and click **Sync Now** in the Databricks panel. A toast reports how many secrets were upserted, how many stale keys were removed, and whether anything failed.
+To trigger the first sync, click **Sync Now** in the **Sync to Databricks** panel, directly below the form. A toast reports how many secrets were upserted, how many stale keys were removed, and whether anything failed.
 
 ### Accessing Secrets in Databricks
 
