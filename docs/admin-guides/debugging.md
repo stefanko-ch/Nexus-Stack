@@ -368,6 +368,13 @@ docker compose down
 docker compose up -d
 ```
 
+Stacks that call Ollama (`ollama`, `litellm`, `langflow`, `flowise`, `open-notebook`, `anythingllm`, `perplexica`, `gpt-researcher`; the list is `_OLLAMA_CLIENTS` in `src/nexus_deploy/compose_runner.py`) join the external `ollama-internal` network. The spin-up creates it. If Compose reports that the network was declared as external but could not be found, create it first:
+
+```bash
+docker network inspect ollama-internal >/dev/null 2>&1 || \
+  docker network create --label managed-by=nexus-stack ollama-internal
+```
+
 ---
 
 ## Useful One-Liners
