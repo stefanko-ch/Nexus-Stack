@@ -26,8 +26,9 @@ services:
     restart: unless-stopped
     # The snapshot is written on shutdown, and a SIGKILL before it finishes
     # loses everything since the last start. Measured on the cx43 server:
-    # 700 MB took 35 s to save, so a full 1 GB needs about 50 s. Docker's
-    # default of 10 s lost the data; 120 s leaves headroom.
+    # 700 MB took 35 s to save, so a full 1 GB needs about 50 s. In a
+    # slower local test even 60 s ran out and the data was lost; 120 s
+    # leaves headroom over the server measurement.
     stop_grace_period: 120s
     # The ACL file is written from the environment on every start, so the
     # password reaches no argument list and always matches the generated
