@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (136)
+## Available Stacks (142)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -133,6 +133,7 @@ After deployment you'll have:
 [![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)](https://infisical.com)
 [![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/products/influxdb/)
 [![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)](https://it-tools.tech)
+[![Jena Fuseki](https://img.shields.io/badge/Apache_Jena_Fuseki-D22128?logo=apache&logoColor=white)](https://jena.apache.org/documentation/fuseki2/)
 [![Jupyter](https://img.shields.io/badge/Jupyter-F37726?logo=jupyter&logoColor=white)](https://jupyter.org)
 [![Keycloak](https://img.shields.io/badge/Keycloak-4D4D4D?logo=keycloak&logoColor=white)](https://www.keycloak.org)
 [![Kafdrop](https://img.shields.io/badge/Kafdrop-000000?logo=apachekafka&logoColor=white)](https://github.com/obsidiandynamics/kafdrop)
@@ -161,6 +162,7 @@ After deployment you'll have:
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
 [![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com)
 [![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io)
+[![NATS](https://img.shields.io/badge/NATS-27AAE1?logo=natsdotio&logoColor=white)](https://nats.io)
 [![Neo4j](https://img.shields.io/badge/Neo4j-4581C3?logo=neo4j&logoColor=white)](https://neo4j.com)
 [![Apache NiFi](https://img.shields.io/badge/Apache_NiFi-728E9B?logo=apachenifi&logoColor=white)](https://nifi.apache.org)
 [![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)](https://nocodb.com)
@@ -168,6 +170,7 @@ After deployment you'll have:
 [![Nussknacker](https://img.shields.io/badge/Nussknacker-1E88E5?logo=apacheflink&logoColor=white)](https://nussknacker.io)
 [![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)](https://ollama.com)
 [![Open Notebook](https://img.shields.io/badge/Open_Notebook-111827?logo=jupyter&logoColor=white)](https://github.com/lfnovo/open-notebook)
+[![OpenBao](https://img.shields.io/badge/OpenBao-1F2937?logo=vault&logoColor=white)](https://openbao.org)
 [![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)](https://open-metadata.org)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org)
 [![ParadeDB](https://img.shields.io/badge/ParadeDB-1C1C1C?logo=postgresql&logoColor=white)](https://www.paradedb.com)
@@ -178,6 +181,7 @@ After deployment you'll have:
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![PostgREST](https://img.shields.io/badge/PostgREST-2C3E50?logo=postgresql&logoColor=white)](https://postgrest.org)
 [![Prefect](https://img.shields.io/badge/Prefect-024DFD?logo=prefect&logoColor=white)](https://www.prefect.io)
+[![Presidio](https://img.shields.io/badge/Presidio-0078D4?logoColor=white)](https://microsoft.github.io/presidio/)
 [![Project Nessie](https://img.shields.io/badge/Project_Nessie-0B2A4A?logoColor=white)](https://projectnessie.org)
 [![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
 [![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
@@ -213,9 +217,11 @@ After deployment you'll have:
 [![Vector](https://img.shields.io/badge/Vector-3B2F63?logo=vector&logoColor=white)](https://vector.dev)
 [![Weaviate](https://img.shields.io/badge/Weaviate-00C9A7?logo=weaviate&logoColor=white)](https://weaviate.io)
 [![Wetty](https://img.shields.io/badge/Wetty-000000?logo=gnubash&logoColor=white)](https://github.com/butlerx/wetty)
+[![Whisper ASR](https://img.shields.io/badge/Whisper_ASR-412991?logo=openai&logoColor=white)](https://ahmetoner.com/whisper-asr-webservice/)
 [![Wiki.js](https://img.shields.io/badge/Wiki.js-1976D2?logo=wikidotjs&logoColor=white)](https://js.wiki)
 [![Windmill](https://img.shields.io/badge/Windmill-3B82F6?logo=windowsterminal&logoColor=white)](https://www.windmill.dev)
 [![Woodpecker CI](https://img.shields.io/badge/Woodpecker_CI-4CAF50?logo=woodpeckerci&logoColor=white)](https://woodpecker-ci.org)
+[![Zeppelin](https://img.shields.io/badge/Apache_Zeppelin-1D4E89?logo=apache&logoColor=white)](https://zeppelin.apache.org)
 
 | Stack | Description | Website |
 |-------|-------------|--------|
@@ -272,6 +278,7 @@ After deployment you'll have:
 | **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
 | **InfluxDB** | Time-series database with retention policies, downsampling tasks and a built-in UI | [influxdata.com](https://www.influxdata.com/products/influxdb/) |
 | **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
+| **Jena Fuseki** | RDF triple store with SPARQL 1.1 query, update and a web UI | [jena.apache.org](https://jena.apache.org/documentation/fuseki2/) |
 | **Jupyter** | Interactive PySpark notebook platform with Spark SQL support and cluster connectivity | [jupyter.org](https://jupyter.org) |
 | **Keycloak** | Identity and access management — OpenID Connect, OAuth 2.0 and SAML single sign-on | [keycloak.org](https://www.keycloak.org) |
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI for browsing topics and consumer groups | [GitHub](https://github.com/obsidiandynamics/kafdrop) |
@@ -300,6 +307,7 @@ After deployment you'll have:
 | **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
 | **MySQL** | MySQL 8.4 LTS, binlog ready for Debezium CDC, internal at `mysql:3306` | [mysql.com](https://www.mysql.com) |
 | **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
+| **NATS** | Lightweight messaging with JetStream streams and a key-value store, internal at `nats:4222` | [nats.io](https://nats.io) |
 | **Neo4j** | Graph database with the Cypher query language and Neo4j Browser | [neo4j.com](https://neo4j.com) |
 | **NiFi** | Visual data-flow automation — ingest, route, transform and deliver data with full provenance | [nifi.apache.org](https://nifi.apache.org) |
 | **NocoDB** | Open-source Airtable alternative - turn any database into a spreadsheet | [nocodb.com](https://nocodb.com) |
@@ -307,6 +315,7 @@ After deployment you'll have:
 | **Nussknacker** | Visual low-code designer for stream processing — drag-and-drop scenarios that run on Flink | [nussknacker.io](https://nussknacker.io) |
 | **Ollama** | Local LLM inference with Open WebUI chat interface | [openwebui.com](https://openwebui.com) |
 | **Open Notebook** | Self-hosted NotebookLM alternative — ask questions about your own sources with local models | [GitHub](https://github.com/lfnovo/open-notebook) |
+| **OpenBao** | Secrets management (open-source Vault fork): KV secrets, dynamic credentials, transit encryption | [openbao.org](https://openbao.org) |
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **OpenSearch** | Apache-2.0 search & analytics engine with Dashboards — speaks the Elasticsearch API | [opensearch.org](https://opensearch.org) |
 | **ParadeDB** | PostgreSQL with BM25 full-text search and pgvector, internal at `paradedb:5432` | [paradedb.com](https://www.paradedb.com) |
@@ -317,6 +326,7 @@ After deployment you'll have:
 | **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included | [postgrest.org](https://postgrest.org) |
 | **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
+| **Presidio** | Find personal data in text and anonymize it, as internal REST APIs | [microsoft.github.io/presidio](https://microsoft.github.io/presidio/) |
 | **Project Nessie** | Iceberg catalog with Git semantics: branches, tags and commits across tables | [projectnessie.org](https://projectnessie.org) |
 | **Qdrant** | Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs | [qdrant.tech](https://qdrant.tech) |
 | **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
@@ -352,9 +362,11 @@ After deployment you'll have:
 | **Vector** | High-performance observability pipeline for logs, metrics, and traces | [vector.dev](https://vector.dev) |
 | **Weaviate** | Vector database with hybrid search — BM25 keyword scoring plus vector similarity | [weaviate.io](https://weaviate.io) |
 | **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |
+| **Whisper ASR** | Speech-to-text API with Whisper models on the CPU | [ahmetoner.com](https://ahmetoner.com/whisper-asr-webservice/) |
 | **Wiki.js** | Open-source wiki and knowledge base with Markdown and visual editor | [js.wiki](https://js.wiki) |
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
 | **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
+| **Zeppelin** | Web notebooks with Python, JDBC, shell, Markdown and SPARQL interpreters | [zeppelin.apache.org](https://zeppelin.apache.org) |
 
 → See [docs/stacks/README.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.
 

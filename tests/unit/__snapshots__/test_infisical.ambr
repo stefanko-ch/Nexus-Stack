@@ -153,6 +153,10 @@
       'INFLUXDB_ADMIN_TOKEN': 'influxdb-admin-token',
       'INFLUXDB_ADMIN_USERNAME': 'nexus-influxdb',
     }),
+    'jena-fuseki': dict({
+      'JENA_FUSEKI_PASSWORD': 'jena_fuseki_admin_password-VALUE',
+      'JENA_FUSEKI_USERNAME': 'nexus-admin',
+    }),
     'kestra': dict({
       'KESTRA_PASSWORD': 'has spaces and\trabs',
       'KESTRA_USERNAME': 'user@snapshot.test',
@@ -259,6 +263,10 @@
       'N8N_PASSWORD': 'n8n_admin_password-VALUE',
       'N8N_USERNAME': 'admin@snapshot.test',
     }),
+    'nats': dict({
+      'NATS_PASSWORD': 'nats_password-VALUE',
+      'NATS_USERNAME': 'nexus-nats',
+    }),
     'neo4j': dict({
       'NEO4J_PASSWORD': 'neo4jAdminPw0123456789',
       'NEO4J_USERNAME': 'nexus-neo4j',
@@ -292,6 +300,10 @@
       'OPEN_WEBUI_PASSWORD': 'open_webui_admin_password-VALUE',
       'OPEN_WEBUI_SECRET_KEY': 'open_webui_secret_key-VALUE',
       'OPEN_WEBUI_USERNAME': 'user@snapshot.test',
+    }),
+    'openbao': dict({
+      'OPENBAO_PASSWORD': 'openbao_admin_password-VALUE',
+      'OPENBAO_USERNAME': 'nexus-admin',
     }),
     'openmetadata': dict({
       'OPENMETADATA_DB_PASSWORD': 'openmetadata_db_password-VALUE',
@@ -427,6 +439,10 @@
       'WOODPECKER_AGENT_SECRET': 'woodpecker_agent_secret-VALUE',
       'WOODPECKER_FORGEJO_CLIENT': 'cid',
       'WOODPECKER_FORGEJO_SECRET': 'csec',
+    }),
+    'zeppelin': dict({
+      'ZEPPELIN_PASSWORD': 'zeppelin_admin_password-VALUE',
+      'ZEPPELIN_USERNAME': 'nexus-admin',
     }),
   })
 # ---

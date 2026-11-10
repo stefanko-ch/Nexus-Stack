@@ -1,0 +1,78 @@
+# =============================================================================
+# Apache Jena Fuseki - RDF triple store with a SPARQL endpoint
+# =============================================================================
+# URL: https://jena-fuseki.<domain>   (UI, SPARQL endpoints, admin API)
+# In-cluster: http://jena-fuseki:3030
+#
+# Knowledge graphs the semantic-web way: RDF triples, SPARQL 1.1 queries and
+# updates, named graphs, SHACL validation. Neo4j and Memgraph cover property
+# graphs; this is the RDF/SPARQL side.
+#
+# Image: secoresearch/fuseki, a maintained build of Apache Jena Fuseki (the
+# Apache project publishes no image of its own). It ships a dataset `ds`
+# (TDB with a Lucene text index); this stack opens its update and
+# read-write graph store endpoints. More datasets are created in the UI.
+#
+# Everything except /$/ping and /$/status needs a login: nexus-admin with a
+# generated password (Infisical folder `jena-fuseki`), HTTP Basic auth. The
+# image's own shiro.ini protects only the admin API and leaves every
+# dataset readable and, with updates on, writable by anyone on app-network.
+#
+# Datasets and their configuration in two volumes, which survive a restart
+# and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  jena-fuseki:
+    image: ${IMAGE_JENA_FUSEKI:-secoresearch/fuseki:6.2.0}
+    container_name: jena-fuseki
+    restart: unless-stopped
+    # shiro.ini is written before the image's entrypoint runs, which then
+    # leaves it alone (it only creates one when none exists). printf is a
+    # shell builtin, so the password reaches no argument list.
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        {
+          printf '%s\n' '[main]' 'ssl.enabled = false' \
+            'plainMatcher=org.apache.shiro.authc.credential.SimpleCredentialsMatcher' \
+            'iniRealm.credentialsMatcher = $$plainMatcher' '[users]'
+          printf 'nexus-admin=%s\n' "$$FUSEKI_ADMIN_PASSWORD"
+          printf '%s\n' '[roles]' '[urls]' '/$$/status = anon' '/$$/ping = anon' \
+            '/** = authcBasic,user[nexus-admin]'
+        } > "$$FUSEKI_BASE/shiro.ini"
+        exec /docker-entrypoint.sh java -cp '*:/javalibs/*' org.apache.jena.fuseki.main.cmds.FusekiServerCmd
+    environment:
+      FUSEKI_ADMIN_PASSWORD: ${FUSEKI_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_jena_fuseki)}
+      # Turn on SPARQL Update and the read-write graph store for `ds`.
+      ENABLE_UPDATE: "true"
+      ENABLE_DATA_WRITE: "true"
+      ENABLE_SHACL: "true"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=60"
+    ports:
+      - "127.0.0.1:3030:3030"
+    volumes:
+      - jena-fuseki-databases:/fuseki-base/databases
+      - jena-fuseki-configuration:/fuseki-base/configuration
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/3030 && printf 'GET /$$/ping HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200' <&3"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - app-network
+
+volumes:
+  jena-fuseki-databases:
+  jena-fuseki-configuration:
+
+networks:
+  app-network:
+    external: true

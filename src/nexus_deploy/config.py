@@ -155,6 +155,11 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("MYSQL_ROOT_PASS", "mysql_root_password", ""),
     ("MYSQL_PASS", "mysql_password", ""),
     ("RSTUDIO_PASS", "rstudio_password", ""),
+    ("NATS_PASS", "nats_password", ""),
+    ("OPENBAO_UNSEAL_KEY", "openbao_unseal_key", ""),
+    ("OPENBAO_ADMIN_PASS", "openbao_admin_password", ""),
+    ("JENA_FUSEKI_ADMIN_PASS", "jena_fuseki_admin_password", ""),
+    ("ZEPPELIN_ADMIN_PASS", "zeppelin_admin_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -367,6 +372,11 @@ class NexusConfig(BaseModel):
     mysql_root_password: str | None = None
     mysql_password: str | None = None
     rstudio_password: str | None = None
+    nats_password: str | None = None
+    openbao_unseal_key: str | None = None
+    openbao_admin_password: str | None = None
+    jena_fuseki_admin_password: str | None = None
+    zeppelin_admin_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None

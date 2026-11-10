@@ -114,12 +114,14 @@ NO_OWN_AUTH = {
     "lakekeeper",
     "marquez",
     "nessie",  # runs with AuthN/AuthZ off
+    "presidio",  # REST APIs without auth; internal only
     "questdb",  # the console has none; its Postgres wire protocol does
     "rill",  # Rill Developer has no accounts
     "sqlmesh",  # the browser IDE has no accounts
     "tempo",  # OTLP and the query API have no auth; internal only
     "temporal",  # neither the Web UI nor the gRPC frontend authenticates
     "unity-catalog",
+    "whisper",  # the ASR API has no auth
 }
 
 # services.yaml entries that share another stack's directory rather than

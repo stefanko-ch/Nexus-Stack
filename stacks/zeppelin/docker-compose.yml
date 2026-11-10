@@ -1,0 +1,80 @@
+# =============================================================================
+# Apache Zeppelin - web notebooks for SQL, Python, Spark and shell
+# =============================================================================
+# URL: https://zeppelin.<domain>
+#
+# Notebooks with paragraphs in several languages, each run by an
+# interpreter: %python, %sh, %jdbc (any database on app-network), %md,
+# %sparql and more, with built-in tables and charts. The image ships the
+# interpreters; Spark needs a SPARK_HOME it does not contain.
+#
+# Login: nexus-admin with a generated password (Infisical folder
+# `zeppelin`). shiro.ini is written on every start; without one, Zeppelin
+# lets anyone in as `anonymous`, and the %sh interpreter runs any command.
+#
+# Notebooks in the zeppelin-notebooks volume, which survives a restart and
+# the snapshot lifecycle, not a rebuild teardown. Interpreter settings
+# changed in the UI live in conf/ inside the container and are lost when it
+# is recreated.
+# =============================================================================
+
+services:
+  zeppelin:
+    image: ${IMAGE_ZEPPELIN:-apache/zeppelin:0.12.1}
+    container_name: zeppelin
+    restart: unless-stopped
+    # printf is a shell builtin, so the password reaches no argument list.
+    command:
+      - bash
+      - -c
+      - |
+        set -eu
+        umask 077
+        {
+          printf '%s\n' '[users]'
+          printf 'nexus-admin = %s, admin\n' "$$ZEPPELIN_ADMIN_PASSWORD"
+          printf '%s\n' \
+            '[main]' \
+            'sessionManager = org.apache.shiro.web.session.mgt.DefaultWebSessionManager' \
+            'cookie = org.apache.shiro.web.servlet.SimpleCookie' \
+            'cookie.name = JSESSIONID' \
+            'cookie.httpOnly = true' \
+            'cookie.sameSite = LAX' \
+            'sessionManager.sessionIdCookie = $$cookie' \
+            'securityManager.sessionManager = $$sessionManager' \
+            'securityManager.sessionManager.globalSessionTimeout = 86400000' \
+            'shiro.loginUrl = /api/login' \
+            '[roles]' \
+            'admin = *' \
+            '[urls]' \
+            '/api/version = anon' \
+            '/api/cluster/address = anon' \
+            '/** = authc'
+        } > /opt/zeppelin/conf/shiro.ini
+        exec bin/zeppelin.sh
+    environment:
+      ZEPPELIN_ADMIN_PASSWORD: ${ZEPPELIN_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_zeppelin)}
+      ZEPPELIN_MEM: "-Xms512m -Xmx1024m"
+    ports:
+      - "127.0.0.1:8125:8080"
+    volumes:
+      - zeppelin-notebooks:/opt/zeppelin/notebook
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8080/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - app-network
+
+volumes:
+  zeppelin-notebooks:
+
+networks:
+  app-network:
+    external: true

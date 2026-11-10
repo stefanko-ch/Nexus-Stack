@@ -635,6 +635,16 @@ services:
     long_description: "IT Tools is a collection of useful developer utilities in a single web interface. Includes Base64 encoder/decoder, hash generators, UUID generator, JWT decoder, cron expression parser, color converter, regex tester, and many more. All tools run locally in your browser."
     image: "corentinth/it-tools:latest"
 
+  jena-fuseki:
+    subdomain: "jena-fuseki"
+    port: 3030
+    public: false
+    category: "databases"
+    website: "https://jena.apache.org/documentation/fuseki2/"
+    description: "RDF triple store with a SPARQL 1.1 endpoint, for knowledge graphs the semantic-web way."
+    long_description: "Apache Jena Fuseki stores RDF triples and answers SPARQL 1.1 queries and updates, with named graphs, a graph store protocol and SHACL validation. Where Neo4j and Memgraph cover property graphs, Fuseki is the RDF/SPARQL side: ontologies, linked data, Wikidata-style queries. A dataset `ds` with a Lucene text index is ready and writable; more are created in the UI, in TDB2. Every endpoint, the UI included, needs a login: nexus-admin with the password from Infisical (folder `jena-fuseki`), as HTTP Basic auth. Datasets persist in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
+    image: "secoresearch/fuseki:6.2.0"
+
   jupyter:
     subdomain: "jupyter"
     port: 8087
@@ -1149,6 +1159,19 @@ services:
     long_description: "n8n is a workflow automation platform with 400+ integrations. Connect apps, automate tasks, and build complex workflows with a visual editor. Supports webhooks, scheduled triggers, conditional logic, and custom JavaScript/Python code nodes. Self-hosted for full data control."
     image: "n8nio/n8n:1.123.75"
 
+  nats:
+    # Internal-only: the NATS protocol is not HTTP and cannot cross the
+    # tunnel. Clients connect to nats:4222 on app-network. 8222 is the
+    # monitoring port inside the container, not bound on the host.
+    port: 8222
+    public: false
+    internal_only: true
+    category: "messaging"
+    website: "https://nats.io"
+    description: "Lightweight messaging with JetStream persistence, internal at nats:4222."
+    long_description: "NATS is one small server for publish/subscribe, request/reply and, with JetStream, persistent streams, a key-value store and an object store. It is the light counterpart to Kafka for messaging between services, and quick to teach: subjects instead of topics, no partitions to plan. Clients log in as nexus-nats with the password from Infisical (folder `nats`). Internal only. JetStream data persists in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "nats:2.15.2-alpine"
+
   neo4j:
     subdomain: "neo4j"
     # The tunnel's origin is neo4j-proxy, not Neo4j itself: the proxy sends
@@ -1221,6 +1244,16 @@ services:
     image: "ollama/ollama:0.15.1"
     support_images:
       ollama-open-webui: "ghcr.io/open-webui/open-webui:v0.12.5"
+
+  openbao:
+    subdomain: "openbao"
+    port: 8126
+    public: false
+    category: "dev-tools"
+    website: "https://openbao.org"
+    description: "Secrets management, the open-source fork of HashiCorp Vault: KV secrets, dynamic credentials, encryption as a service."
+    long_description: "OpenBao is the Linux Foundation fork of HashiCorp Vault. It stores secrets with versions, issues short-lived database credentials, encrypts data as a service (transit) and controls all of it with policies and tokens, through a web UI, a CLI and an HTTP API. Infisical remains the stack's own secret store; OpenBao is the place to learn how production systems handle secrets. Not dev mode: storage is persistent and a static seal key generated per deployment unseals it on every start. Log in with the userpass method as nexus-admin, password from Infisical (folder `openbao`); a KV v2 engine is mounted at secret/. Data persists in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "openbao/openbao:2.7.2"
 
   openmetadata:
     subdomain: "openmetadata"
@@ -1361,6 +1394,21 @@ services:
     image: "prefecthq/prefect:3-latest"
     support_images:
       prefect-postgres: "postgres:16-alpine"
+
+  presidio:
+    # Internal-only: two REST APIs without a UI and without auth. Clients
+    # call presidio-analyzer:3000 and presidio-anonymizer:3000 on
+    # app-network. 8124 is not bound anywhere.
+    port: 8124
+    public: false
+    internal_only: true
+    category: "data-quality"
+    website: "https://microsoft.github.io/presidio/"
+    description: "Microsoft Presidio: find personal data in text and mask it, as two internal REST APIs."
+    long_description: "Presidio detects personal data (names, email addresses, phone numbers, IBANs, credit card numbers and more) with a spaCy NER model and pattern recognizers, then replaces, masks, hashes or encrypts it. For data-governance and GDPR lessons, and in front of LLM pipelines so prompts carry no personal data. The analyzer (presidio-analyzer:3000) finds the entities and the anonymizer (presidio-anonymizer:3000) rewrites the text; both are called from notebooks or flows. The default model is English. Internal only and stateless."
+    image: "mcr.microsoft.com/presidio-analyzer:2.2.362"
+    support_images:
+      presidio-anonymizer: "mcr.microsoft.com/presidio-anonymizer:2.2.362"
 
   qdrant:
     subdomain: "qdrant"
@@ -1715,6 +1763,16 @@ services:
     long_description: "WeTTY (Web + TTY) is a terminal emulator that runs in your browser over HTTP/HTTPS. Access your server's shell directly from the browser without installing an SSH client. Supports full terminal emulation, copy/paste, and custom themes."
     image: "wettyoss/wetty:latest"
 
+  whisper:
+    subdomain: "whisper"
+    port: 8127
+    public: false
+    category: "ai-ml"
+    website: "https://ahmetoner.com/whisper-asr-webservice/"
+    description: "Speech-to-text API with OpenAI Whisper models, running locally on the CPU."
+    long_description: "Whisper ASR Webservice transcribes and translates audio with OpenAI's Whisper models, here through faster-whisper with the base model on the CPU, so voice notes and recordings can feed the RAG and LLM stacks without an external API. POST an audio file to /asr and get text, JSON, SRT or VTT back; the Swagger UI at /docs tries it in the browser. The API has no login of its own, so Cloudflare Access is the gate; containers on app-network call whisper:9000 directly. Downloaded models are cached in a Docker volume."
+    image: "onerahmet/openai-whisper-asr-webservice:v1.10.0"
+
   wikijs:
     subdomain: "wiki"
     port: 3005
@@ -1751,3 +1809,13 @@ services:
     support_images:
       windmill-lsp: "ghcr.io/windmill-labs/windmill-lsp:latest"
       windmill-postgres: "postgres:18-alpine"
+
+  zeppelin:
+    subdomain: "zeppelin"
+    port: 8125
+    public: false
+    category: "analytics"
+    website: "https://zeppelin.apache.org"
+    description: "Web notebooks with interpreters for Python, SQL over JDBC, shell, Markdown and SPARQL."
+    long_description: "Apache Zeppelin is a notebook in which every paragraph names its interpreter: %python, %jdbc against any database on app-network, %sh, %md, %sparql and more, with tables and charts built in. It ships tutorial notebooks for Python, Spark, Flink and R; the Spark and Flink ones need an installation the image does not contain. Log in as nexus-admin with the password from Infisical (folder `zeppelin`); without a login the shell interpreter would be open to anyone. Notebooks persist in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "apache/zeppelin:0.12.1"

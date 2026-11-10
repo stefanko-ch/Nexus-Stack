@@ -164,6 +164,13 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | RStudio Server | `rocker/rstudio` | `4.6.2` | Exact |
 | Grafana Tempo | `grafana/tempo` | `2.10.10` | Exact |
 | OpenTelemetry Collector (Tempo) | `otel/opentelemetry-collector-contrib` | `0.165.0` | Exact |
+| Jena Fuseki | `secoresearch/fuseki` | `6.2.0` | Exact |
+| NATS | `nats` | `2.15.2-alpine` | Exact |
+| OpenBao | `openbao/openbao` | `2.7.2` | Exact |
+| Presidio Analyzer | `mcr.microsoft.com/presidio-analyzer` | `2.2.362` | Exact |
+| Presidio Anonymizer | `mcr.microsoft.com/presidio-anonymizer` | `2.2.362` | Exact |
+| Whisper ASR Webservice | `onerahmet/openai-whisper-asr-webservice` | `v1.10.0` | Exact |
+| Apache Zeppelin | `apache/zeppelin` | `0.12.1` | Exact |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -317,6 +324,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Infisical** | Secret management platform | [infisical.md](infisical.md) |
 | **InfluxDB** | Time-series database with retention and downsampling tasks | [influxdb.md](influxdb.md) |
 | **IT-Tools** | Developer tools collection | [it-tools.md](it-tools.md) |
+| **Jena Fuseki** | RDF triple store with a SPARQL endpoint | [jena-fuseki.md](jena-fuseki.md) |
 | **Jupyter PySpark** | Interactive PySpark notebook | [jupyter.md](jupyter.md) |
 | **Keycloak** | Identity provider (OIDC, OAuth 2.0, SAML) | [keycloak.md](keycloak.md) |
 | **Kafdrop** | Lightweight Kafka/Redpanda web UI | [kafdrop.md](kafdrop.md) |
@@ -345,6 +353,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **MySQL** | MySQL 8.4 LTS, internal only | [mysql.md](mysql.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
+| **NATS** | Messaging with JetStream, internal only | [nats.md](nats.md) |
 | **Neo4j** | Graph database with Cypher and Neo4j Browser | [neo4j.md](neo4j.md) |
 | **NiFi** | Visual data-flow automation | [nifi.md](nifi.md) |
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
@@ -352,6 +361,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
 | **Open Notebook** | Self-hosted NotebookLM alternative | [open-notebook.md](open-notebook.md) |
+| **OpenBao** | Secrets management, open-source Vault fork | [openbao.md](openbao.md) |
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **ParadeDB** | PostgreSQL with full-text search, internal only | [paradedb.md](paradedb.md) |
@@ -362,6 +372,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **PostgreSQL** | Relational database | [postgres.md](postgres.md) |
 | **PostgREST** | Auto-generated REST API for any Postgres schema | [postgrest.md](postgrest.md) |
 | **Prefect** | Python workflow orchestration | [prefect.md](prefect.md) |
+| **Presidio** | PII detection and anonymization, internal only | [presidio.md](presidio.md) |
 | **Project Nessie** | Iceberg catalog with branches and commits | [nessie.md](nessie.md) |
 | **Qdrant** | Vector database with a built-in web dashboard | [qdrant.md](qdrant.md) |
 | **Quickwit** | Cloud-native log search engine | [quickwit.md](quickwit.md) |
@@ -396,9 +407,11 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Vector** | Observability data pipeline | [vector.md](vector.md) |
 | **Weaviate** | Vector database with hybrid BM25 + vector search | [weaviate.md](weaviate.md) |
 | **Wetty** | Web-based SSH terminal | [wetty.md](wetty.md) |
+| **Whisper ASR** | Speech-to-text API | [whisper.md](whisper.md) |
 | **Wiki.js** | Wiki platform | [wikijs.md](wikijs.md) |
 | **Windmill** | Developer workflow engine | [windmill.md](windmill.md) |
 | **Woodpecker CI** | CI/CD pipeline | [woodpecker-ci.md](woodpecker-ci.md) |
+| **Zeppelin** | Web notebooks with many interpreters | [zeppelin.md](zeppelin.md) |
 
 ---
 

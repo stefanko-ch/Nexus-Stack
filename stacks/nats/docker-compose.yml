@@ -1,0 +1,47 @@
+# =============================================================================
+# NATS - lightweight messaging with JetStream persistence
+# =============================================================================
+# In-cluster: nats://nats:4222
+#
+# One small binary for publish/subscribe, request/reply and, with JetStream,
+# persistent streams, a key-value store and an object store. The light
+# counterpart to Kafka for messaging between services.
+#
+# The NATS protocol is not HTTP, so it cannot cross the tunnel; the server
+# is internal only (`internal_only` in services.yaml). Clients log in as
+# nexus-nats (Infisical folder `nats`). The monitoring endpoints on 8222
+# have no auth and stay inside app-network.
+#
+# JetStream data in the nats-data volume, which survives a restart and the
+# snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  nats:
+    image: ${IMAGE_NATS:-nats:2.15.2-alpine}
+    container_name: nats
+    restart: unless-stopped
+    environment:
+      NATS_PASSWORD: ${NATS_PASSWORD:?must be set in .env (rendered by service_env._render_nats)}
+    volumes:
+      - ./nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+volumes:
+  nats-data:
+
+networks:
+  app-network:
+    external: true

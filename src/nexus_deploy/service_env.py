@@ -2269,6 +2269,45 @@ _render_rstudio = _single_secret_renderer(
 )
 
 
+_render_nats = _single_secret_renderer(
+    "NATS", "NATS_PASSWORD", "nats_password", "starting NATS without a password"
+)
+_render_jena_fuseki = _single_secret_renderer(
+    "Jena Fuseki",
+    "FUSEKI_ADMIN_PASSWORD",
+    "jena_fuseki_admin_password",
+    "writing a shiro.ini without a password",
+)
+_render_zeppelin = _single_secret_renderer(
+    "Zeppelin",
+    "ZEPPELIN_ADMIN_PASSWORD",
+    "zeppelin_admin_password",
+    "writing a shiro.ini without a password",
+)
+
+_HEX_32_BYTES = re.compile(r"[0-9a-f]{64}")
+
+
+def _render_openbao(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """OpenBao: the static seal key and nexus-admin's password.
+
+    The seal key must be 32 bytes, as 64 hex characters (tofu's
+    random_id.hex). Anything else and the server cannot unseal, which shows
+    only as a container stuck at 503; checking here names the cause.
+    """
+    secrets = {
+        "OPENBAO_UNSEAL_KEY": c.openbao_unseal_key,
+        "OPENBAO_ADMIN_PASSWORD": c.openbao_admin_password,
+    }
+    _require("OpenBao", secrets, "starting OpenBao without a seal key or an admin login")
+    if not _HEX_32_BYTES.fullmatch(c.openbao_unseal_key or ""):
+        raise ServiceEnvError(
+            "OpenBao: OPENBAO_UNSEAL_KEY is not 64 hex characters (32 bytes); "
+            "the static seal could not use it."
+        )
+    return RenderedEnv(env_vars={k: v or "" for k, v in secrets.items()}, mode=0o600)
+
+
 def _render_node_red(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Node-RED: the editor login and the key that encrypts credentials in
     flows. settings.js refuses to start without the login, because the
@@ -3649,6 +3688,10 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("node-red", _is_enabled("node-red"), _render_node_red),
     EnvSpec("mysql", _is_enabled("mysql"), _render_mysql),
     EnvSpec("rstudio", _is_enabled("rstudio"), _render_rstudio),
+    EnvSpec("nats", _is_enabled("nats"), _render_nats),
+    EnvSpec("openbao", _is_enabled("openbao"), _render_openbao),
+    EnvSpec("jena-fuseki", _is_enabled("jena-fuseki"), _render_jena_fuseki),
+    EnvSpec("zeppelin", _is_enabled("zeppelin"), _render_zeppelin),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

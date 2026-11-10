@@ -5194,3 +5194,85 @@ def test_messaging_iot_stacks_refuse_bad_secrets(
         getattr(service_env, renderer)(config, full_env)
     if bad:
         assert bad not in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# NATS, OpenBao, Jena Fuseki, Zeppelin
+# ---------------------------------------------------------------------------
+
+_FOUR_STACK_SECRETS = {
+    "nats_password": "NaPass1",
+    "openbao_unseal_key": "0123456789abcdef" * 4,
+    "openbao_admin_password": "BaoPass1",
+    "jena_fuseki_admin_password": "FuPass1",
+    "zeppelin_admin_password": "ZePass1",
+}
+
+
+def test_nats_openbao_fuseki_zeppelin_render_their_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_FOUR_STACK_SECRETS)
+    expected = {
+        "_render_nats": {"NATS_PASSWORD": "NaPass1"},
+        "_render_openbao": {
+            "OPENBAO_UNSEAL_KEY": "0123456789abcdef" * 4,
+            "OPENBAO_ADMIN_PASSWORD": "BaoPass1",
+        },
+        "_render_jena_fuseki": {"FUSEKI_ADMIN_PASSWORD": "FuPass1"},
+        "_render_zeppelin": {"ZEPPELIN_ADMIN_PASSWORD": "ZePass1"},
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, full_env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_nats", "nats_password", "NATS_PASSWORD"),
+        ("_render_openbao", "openbao_unseal_key", "OPENBAO_UNSEAL_KEY"),
+        ("_render_openbao", "openbao_admin_password", "OPENBAO_ADMIN_PASSWORD"),
+        ("_render_jena_fuseki", "jena_fuseki_admin_password", "FUSEKI_ADMIN_PASSWORD"),
+        ("_render_zeppelin", "zeppelin_admin_password", "ZEPPELIN_ADMIN_PASSWORD"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_nats_openbao_fuseki_zeppelin_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_FOUR_STACK_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "0123456789abcdef" * 2,  # 16 bytes: too short for AES-256
+        "0123456789abcdef" * 5,  # 40 bytes
+        "0123456789ABCDEF" * 4,  # random_id.hex is lower case
+        "g123456789abcdef" * 4,  # not hex
+    ],
+)
+def test_openbao_refuses_a_seal_key_that_is_not_32_hex_bytes(
+    full_config: NexusConfig, full_env: BootstrapEnv, key: str
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_FOUR_STACK_SECRETS, "openbao_unseal_key": key})
+    with pytest.raises(ServiceEnvError, match="64 hex characters") as excinfo:
+        service_env._render_openbao(config, full_env)
+    assert key not in str(excinfo.value)
