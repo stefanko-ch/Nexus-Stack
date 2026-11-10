@@ -40,8 +40,12 @@ services:
       PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD: ${PHOENIX_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_phoenix)}
       PHOENIX_ROOT_URL: ${PHOENIX_URL:?must be set in .env (rendered by service_env._render_phoenix)}
       PHOENIX_USE_SECURE_COOKIES: "true"
-      # Without it Phoenix does not check the Origin header at all.
-      PHOENIX_CSRF_TRUSTED_ORIGINS: ${PHOENIX_URL}
+      # PHOENIX_CSRF_TRUSTED_ORIGINS is deliberately not set. Phoenix
+      # applies it to every request, page loads included, and answers
+      # "untrusted referer" to any browser that arrives from another host:
+      # the Control Plane's link, the Cloudflare Access login redirect.
+      # Its session cookies are SameSite=Strict, so a cross-site request
+      # carries no session to forge with in the first place.
       # FullStory and Scarf analytics in the web UI.
       PHOENIX_TELEMETRY_ENABLED: "false"
     volumes:
