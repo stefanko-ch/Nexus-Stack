@@ -387,7 +387,7 @@ def snapshot_teardown_order() -> str:
         (
             AMBER,
             "Destroy only the server",
-            "Only now. Passwords, tunnel, DNS and login rules stay.",
+            "Only now. Passwords, tunnel and login rules stay.",
             "That is what keeps the snapshot restorable.",
         ),
         (
