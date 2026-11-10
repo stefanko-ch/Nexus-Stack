@@ -90,7 +90,6 @@ TCP_PORTS_ALLOWED = {
     "clickhouse",
     "garage",
     "lakefs",
-    "minio",
     "mongodb",  # wire protocol; authenticates as nexus-mongodb
     "pg-ducklake",
     "postgres",

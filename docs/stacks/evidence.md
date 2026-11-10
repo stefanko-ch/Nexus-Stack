@@ -204,7 +204,7 @@ For a production hand-off, the devenv runtime can build a static HTML export:
 ssh nexus 'docker exec evidence npm run sources && docker exec evidence npm run build'
 ```
 
-Output lands in `/opt/docker-server/stacks/evidence/project/build/` on the server. Copy it into any of the file-store stacks (MinIO, Garage, SeaweedFS, RustFS) and serve as static HTML — or commit it to a GitHub Pages / Cloudflare Pages repo for a fully decoupled deploy.
+Output lands in `/opt/docker-server/stacks/evidence/project/build/` on the server. Copy it into any of the file-store stacks (Garage, SeaweedFS, RustFS) and serve as static HTML — or commit it to a GitHub Pages / Cloudflare Pages repo for a fully decoupled deploy.
 
 ### Secrets
 

@@ -115,4 +115,4 @@ docker exec evidence npm run build
 ```
 
 The output lands in `project/build/`; copy it into any of the file-store
-stacks (MinIO/Garage/SeaweedFS/RustFS) and serve it as static HTML.
+stacks (Garage/SeaweedFS/RustFS) and serve it as static HTML.

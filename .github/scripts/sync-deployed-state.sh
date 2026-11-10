@@ -372,7 +372,6 @@ dns_records = {
     'redpanda': {'kafka': 'redpanda-kafka', 'schema-registry': 'redpanda-schema-registry', 'admin': 'redpanda-admin'},
     'redpanda-connect': {'api': 'redpanda-connect-api'},
     'postgres': {'postgres': 'postgres'},
-    'minio': {'s3-api': 's3'},
 }
 
 for name, config in services.items():

@@ -79,7 +79,7 @@ Then in `stacks/telegraf/telegraf.conf`:
   bucket = "default"
 ```
 
-Note `influxdb:8086` — the container port, not the published `8102`. Other stacks on `app-network` reach it the same way, over plain HTTP: inside the Docker network there is no TLS, the same as for PostgreSQL, MinIO and everything else here. The encryption boundary is the Cloudflare Tunnel, not the container network.
+Note `influxdb:8086` — the container port, not the published `8102`. Other stacks on `app-network` reach it the same way, over plain HTTP: inside the Docker network there is no TLS, the same as for PostgreSQL, Garage and everything else here. The encryption boundary is the Cloudflare Tunnel, not the container network.
 
 ### Quick check
 

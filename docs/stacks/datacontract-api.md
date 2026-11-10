@@ -52,7 +52,7 @@ That volume is deliberately **not** in `s3_restore.standard_targets()`: it does 
 
 ### The API key is not optional, and here is why
 
-The stack sets `DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true`. That is the whole point of running the tool next to the data — a contract has to be testable against `postgres`, `trino`, `lakekeeper` and `minio`, all of which are private addresses on `app-network`.
+The stack sets `DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true`. That is the whole point of running the tool next to the data — a contract has to be testable against `postgres`, `trino`, `lakekeeper` and `garage`, all of which are private addresses on `app-network`.
 
 It also means the service is, by design, something that will make requests to internal addresses on a caller's behalf. Cloudflare Access covers the public hostname; it does not cover the Docker network, where every other stack can reach port 4242 directly. So the key is what stands between the endpoints and any container on that network: a missing `x-api-key` is `401`, a wrong one `403`.
 

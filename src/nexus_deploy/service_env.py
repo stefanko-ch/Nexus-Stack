@@ -922,7 +922,7 @@ def _render_datacontract_api(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     the endpoints and every other container on ``app-network``.
 
     The stack sets ``DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true`` so a
-    contract can be tested against postgres, trino, lakekeeper and minio —
+    contract can be tested against postgres, trino, lakekeeper and garage —
     the whole reason to run the tool next to the data. That makes the
     service an SSRF-shaped capability by design, and the API key is what
     keeps it from being an open one: with it, every API operation needs an
@@ -2801,15 +2801,6 @@ def _render_mage(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     return RenderedEnv(env_vars={"MAGE_ADMIN_PASSWORD": c.mage_admin_password or ""})
 
 
-def _render_minio(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
-    return RenderedEnv(
-        env_vars={
-            "MINIO_ROOT_USER": "nexus-minio",
-            "MINIO_ROOT_PASSWORD": c.minio_root_password or "",
-        },
-    )
-
-
 def _render_sftpgo(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     """Fail-fast: empty admin OR user password aborts the deploy.
 
@@ -3938,7 +3929,6 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("marquez", _is_enabled("marquez"), _render_marquez),
     EnvSpec("evidence", _is_enabled("evidence"), _render_evidence),
     EnvSpec("mage", _is_enabled("mage"), _render_mage),
-    EnvSpec("minio", _is_enabled("minio"), _render_minio),
     EnvSpec("sftpgo", _is_enabled("sftpgo"), _render_sftpgo),
     EnvSpec("redpanda-console", _is_enabled("redpanda-console"), _render_redpanda_console),
     EnvSpec("hoppscotch", _is_enabled("hoppscotch"), _render_hoppscotch),
