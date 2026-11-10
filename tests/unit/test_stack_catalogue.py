@@ -86,6 +86,11 @@ def test_unreadable_categories_file_is_rejected() -> None:
         ("---\ndescription: only\n---\n", None),
         ('---\ntitle: ""\n---\n', None),
         ("---\ntitle: never closed\n", None),
+        ('---\ntitle: "A \\"quoted\\" name"\n---\n', 'A "quoted" name'),
+        ('---\ntitle: Ends with a quote"\n---\n', 'Ends with a quote"'),
+        ("---\ntitle: [not, a, string]\n---\n", None),
+        ("---\n- a list\n---\n", None),
+        ("---\ntitle: 'unbalanced\n---\n", None),
     ],
 )
 def test_read_title(page: str, expected: str | None) -> None:
@@ -125,6 +130,21 @@ def test_a_second_service_inside_a_stack_gets_no_row() -> None:
 def test_a_stack_without_a_page_title_is_an_error_not_a_blank_name() -> None:
     with pytest.raises(sc.CatalogueError, match="no frontmatter title for: \\['zeta'\\]"):
         sc.collect_stacks(SERVICES, {**TITLES, "zeta": None})
+
+
+def test_an_entry_missing_a_field_is_named_in_the_error() -> None:
+    services = {**SERVICES, "bare": {"category": "core", "image": ""}}
+    with pytest.raises(sc.CatalogueError, match="bare \\(no description, image\\)"):
+        sc.collect_stacks(services, {**TITLES, "bare": "Bare"})
+
+
+@pytest.mark.parametrize("content", ["", "- a\n- list\n", "other: {}\n", "services: []\n"])
+def test_build_rejects_a_services_file_without_a_services_mapping(
+    tmp_path: Path, content: str
+) -> None:
+    (tmp_path / "services.yaml").write_text(content)
+    with pytest.raises(sc.CatalogueError, match="no top-level 'services' mapping"):
+        sc.build(tmp_path)
 
 
 def test_a_category_the_control_plane_does_not_define_is_an_error() -> None:

@@ -357,4 +357,4 @@ Memory-hungry stacks to watch out for:
 
 ## Adding a new stack
 
-A new stack needs an entry in `services.yaml`, a Compose file under `stacks/<name>/` and a page in `docs/stacks/`. [Stacks and services](../concepts/stacks.md#adding-a-stack) names the rules that are easy to get wrong, and the [contribution guide](../CONTRIBUTING.md) covers the pull request.
+A new stack needs an entry in `services.yaml`, a Compose file under `stacks/<name>/` and a page in `docs/stacks/`. [Stacks and services](../concepts/stacks.md#adding-a-stack) names the rules that are easy to get wrong, and the [contribution guide](https://github.com/stefanko-ch/Nexus-Stack/blob/main/docs/CONTRIBUTING.md) covers the pull request.

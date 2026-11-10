@@ -44,7 +44,6 @@ END_MARKER = "<!-- END stack-catalogue -->"
 # would change its URL on nexus-stack.ch, so the exception is recorded instead.
 PAGE_SLUGS = {"woodpecker": "woodpecker-ci"}
 
-_TITLE = re.compile(r'^title:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _CATEGORY = re.compile(r"^\s*'([a-z0-9-]+)':\s*\{\s*name:\s*'([^']+)'", re.MULTILINE)
 _ORDER_BLOCK = re.compile(r"CATEGORY_ORDER\s*=\s*\[(.*?)\]", re.DOTALL)
 
@@ -92,9 +91,14 @@ def read_title(page: str) -> str | None:
     end = page.find("\n---", 4)
     if end == -1:
         return None
-    match = _TITLE.search(page[4:end])
-    title = match.group(1).strip() if match else ""
-    return title or None
+    try:
+        frontmatter = yaml.safe_load(page[4:end])
+    except yaml.YAMLError:
+        return None
+    if not isinstance(frontmatter, dict):
+        return None
+    title = frontmatter.get("title")
+    return title.strip() or None if isinstance(title, str) else None
 
 
 def _tier(entry: dict[str, Any]) -> str:
@@ -114,8 +118,13 @@ def collect_stacks(
     """
     stacks: list[Stack] = []
     missing_title: list[str] = []
+    incomplete: list[str] = []
     for slug, entry in services.items():
         if "stack" in entry:
+            continue
+        absent = [key for key in ("category", "description", "image") if not entry.get(key)]
+        if absent:
+            incomplete.append(f"{slug} (no {', '.join(absent)})")
             continue
         title = titles.get(slug)
         if not title:
@@ -131,6 +140,8 @@ def collect_stacks(
                 tier=_tier(entry),
             )
         )
+    if incomplete:
+        raise CatalogueError(f"services.yaml entries the catalogue cannot render: {incomplete}")
     if missing_title:
         raise CatalogueError(
             f"docs/stacks/<slug>.md has no frontmatter title for: {sorted(missing_title)}. "
@@ -187,7 +198,10 @@ def replace_block(page: str, block: str) -> str:
 
 def build(repo: Path) -> str:
     """Render the catalogue block from the files in ``repo``."""
-    services = yaml.safe_load((repo / "services.yaml").read_text(encoding="utf-8"))["services"]
+    data = yaml.safe_load((repo / "services.yaml").read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or not isinstance(data.get("services"), dict):
+        raise CatalogueError("services.yaml: no top-level 'services' mapping")
+    services = data["services"]
     pages = repo / "docs" / "stacks"
     titles = {
         slug: read_title(page.read_text(encoding="utf-8"))
