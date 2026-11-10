@@ -331,7 +331,7 @@ docker inspect servicename --format='{{.HostConfig.Memory}}'
 
 ## Service Ports Reference
 
-The host port of every service is the `port` field of its entry in `services.yaml`. This page used to carry a copy of those numbers, and the copy went stale. Read them from the source instead:
+For a service with a web interface, the `port` field of its entry in `services.yaml` is the port the tunnel routes to. It is not always a port published on the host: NATS, for one, declares a port that only exists inside the container. This page used to carry a copy of those numbers, and the copy went stale. Read them from the source, and trust `docker ps` for what is actually published:
 
 ```bash
 # Host port of one service, as the repository defines it

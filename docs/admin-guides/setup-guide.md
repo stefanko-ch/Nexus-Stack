@@ -509,7 +509,7 @@ After deployment, your services are available at:
 | **Infisical** | `https://infisical.yourdomain.com` |
 | **Forgejo** | `https://forgejo.yourdomain.com` |
 
-Every other stack you enable is reachable at `https://<subdomain>.yourdomain.com`; the Control Plane's Stacks page links to each one.
+Every other stack with a web interface is reachable at `https://<subdomain>.yourdomain.com` once you enable it; the Control Plane's Stacks page links to each one. Internal-only stacks such as Postgres, Meltano or Soda have no URL; their pages under `docs/stacks/` say how to reach them.
 
 ### First Login
 
