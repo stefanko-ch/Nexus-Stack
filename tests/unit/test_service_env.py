@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from nexus_deploy.config import NexusConfig
+from nexus_deploy.config import NexusConfig, service_host
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.service_env import (
     _SPECS,
@@ -5222,7 +5222,11 @@ def test_nats_openbao_fuseki_zeppelin_render_their_env(
             "OPENBAO_ADMIN_PASSWORD": "BaoPass1",
         },
         "_render_jena_fuseki": {"FUSEKI_ADMIN_PASSWORD": "FuPass1"},
-        "_render_zeppelin": {"ZEPPELIN_ADMIN_PASSWORD": "ZePass1"},
+        "_render_zeppelin": {
+            "ZEPPELIN_ADMIN_PASSWORD": "ZePass1",
+            "ZEPPELIN_ALLOWED_ORIGINS": "https://"
+            + service_host("zeppelin", full_env.domain or "", full_env.subdomain_separator),
+        },
     }
     for renderer, env_vars in expected.items():
         rendered = getattr(service_env, renderer)(config, full_env)
@@ -5275,4 +5279,85 @@ def test_openbao_refuses_a_seal_key_that_is_not_32_hex_bytes(
     config = full_config.model_copy(update={**_FOUR_STACK_SECRETS, "openbao_unseal_key": key})
     with pytest.raises(ServiceEnvError, match="64 hex characters") as excinfo:
         service_env._render_openbao(config, full_env)
+    assert key not in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# SearXNG, SurrealDB, BookStack
+# ---------------------------------------------------------------------------
+
+_SEARCH_WIKI_SECRETS = {
+    "searxng_secret": "SxSecret1",
+    "surrealdb_password": "SrPass1",
+    "bookstack_app_key": "a" * 32,
+    "bookstack_db_password": "BsDb1",
+    "bookstack_db_root_password": "BsRoot1",
+    "bookstack_admin_password": "BsAdmin1",
+}
+
+
+def test_searxng_surrealdb_bookstack_render_their_env(
+    full_config: NexusConfig, full_env: BootstrapEnv
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_SEARCH_WIKI_SECRETS)
+    assert service_env._render_searxng(config, full_env).env_vars == {"SEARXNG_SECRET": "SxSecret1"}
+    assert service_env._render_surrealdb(config, full_env).env_vars == {
+        "SURREALDB_PASSWORD": "SrPass1"
+    }
+    rendered = service_env._render_bookstack(config, full_env)
+    assert rendered.mode == 0o600
+    from nexus_deploy.config import service_host
+    from nexus_deploy.infisical import stack_user_email
+
+    host = service_host("bookstack", full_env.domain or "", full_env.subdomain_separator)
+    assert rendered.env_vars == {
+        "BOOKSTACK_APP_KEY": "a" * 32,
+        "BOOKSTACK_DB_PASSWORD": "BsDb1",
+        "BOOKSTACK_DB_ROOT_PASSWORD": "BsRoot1",
+        "BOOKSTACK_ADMIN_PASSWORD": "BsAdmin1",
+        "BOOKSTACK_ADMIN_EMAIL": stack_user_email(full_env),
+        "BOOKSTACK_APP_URL": f"https://{host}",
+    }
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_searxng", "searxng_secret", "SEARXNG_SECRET"),
+        ("_render_surrealdb", "surrealdb_password", "SURREALDB_PASSWORD"),
+        ("_render_bookstack", "bookstack_app_key", "BOOKSTACK_APP_KEY"),
+        ("_render_bookstack", "bookstack_db_password", "BOOKSTACK_DB_PASSWORD"),
+        ("_render_bookstack", "bookstack_db_root_password", "BOOKSTACK_DB_ROOT_PASSWORD"),
+        ("_render_bookstack", "bookstack_admin_password", "BOOKSTACK_ADMIN_PASSWORD"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_searxng_surrealdb_bookstack_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SEARCH_WIKI_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("key", ["a" * 31, "a" * 33, "a" * 64])
+def test_bookstack_refuses_an_app_key_that_is_not_32_characters(
+    full_config: NexusConfig, full_env: BootstrapEnv, key: str
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SEARCH_WIKI_SECRETS, "bookstack_app_key": key})
+    with pytest.raises(ServiceEnvError, match="32 characters") as excinfo:
+        service_env._render_bookstack(config, full_env)
     assert key not in str(excinfo.value)

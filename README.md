@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (142)
+## Available Stacks (148)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -88,6 +88,7 @@ After deployment you'll have:
 [![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
+[![BookStack](https://img.shields.io/badge/BookStack-0288D1?logo=bookstack&logoColor=white)](https://www.bookstackapp.com)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
 [![Bytebase](https://img.shields.io/badge/Bytebase-5B4FE9?logoColor=white)](https://www.bytebase.com)
 [![Cassandra](https://img.shields.io/badge/Apache_Cassandra-1287B1?logo=apachecassandra&logoColor=white)](https://cassandra.apache.org)
@@ -122,8 +123,10 @@ After deployment you'll have:
 [![Garage](https://img.shields.io/badge/Garage-59C6A6?logo=amazons3&logoColor=white)](https://garagehq.deuxfleurs.fr)
 [![Git Proxy](https://img.shields.io/badge/Git_Proxy-009639?logo=nginx&logoColor=white)](docs/stacks/git-proxy.md)
 [![Gitea](https://img.shields.io/badge/Gitea-609926?logo=gitea&logoColor=white)](https://about.gitea.com)
+[![GPT Researcher](https://img.shields.io/badge/GPT_Researcher-111827?logoColor=white)](https://gptr.dev)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)](https://grafana.com)
 [![Grafana Tempo](https://img.shields.io/badge/Grafana_Tempo-F46800?logo=grafana&logoColor=white)](https://grafana.com/oss/tempo/)
+[![Gravitino](https://img.shields.io/badge/Apache_Gravitino-2B6CB0?logo=apache&logoColor=white)](https://gravitino.apache.org)
 [![Hasura](https://img.shields.io/badge/Hasura-1EB4D4?logo=hasura&logoColor=white)](https://hasura.io)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
@@ -174,6 +177,7 @@ After deployment you'll have:
 [![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)](https://open-metadata.org)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org)
 [![ParadeDB](https://img.shields.io/badge/ParadeDB-1C1C1C?logo=postgresql&logoColor=white)](https://www.paradedb.com)
+[![Perplexica](https://img.shields.io/badge/Perplexica-1F2937?logoColor=white)](https://github.com/ItzCrazyKns/Perplexica)
 [![pg_ducklake](https://img.shields.io/badge/pg__ducklake-336791?logo=postgresql&logoColor=white)](https://pgducklake.select)
 [![pgAdmin](https://img.shields.io/badge/pgAdmin-336791?logo=postgresql&logoColor=white)](https://www.pgadmin.org)
 [![Planka](https://img.shields.io/badge/Planka-4D4D4D?logo=planka&logoColor=white)](https://planka.app)
@@ -197,6 +201,7 @@ After deployment you'll have:
 [![RStudio](https://img.shields.io/badge/RStudio-75AADB?logo=rstudioide&logoColor=white)](https://posit.co/products/open-source/rstudio-server/)
 [![RustFS](https://img.shields.io/badge/RustFS-B7410E?logo=rust&logoColor=white)](https://rustfs.com)
 [![S3 Manager](https://img.shields.io/badge/S3_Manager-2E7D32?logo=amazons3&logoColor=white)](https://github.com/cloudlena/s3manager)
+[![SearXNG](https://img.shields.io/badge/SearXNG-3050FF?logo=searxng&logoColor=white)](https://docs.searxng.org)
 [![SeaweedFS](https://img.shields.io/badge/SeaweedFS-4CAF50?logo=amazons3&logoColor=white)](https://seaweedfs.com)
 [![SFTPGo](https://img.shields.io/badge/SFTPGo-2D3748?logo=files&logoColor=white)](https://sftpgo.com)
 [![Shiny](https://img.shields.io/badge/Shiny-447099?logo=r&logoColor=white)](https://posit.co/products/open-source/shinyserver/)
@@ -207,6 +212,7 @@ After deployment you'll have:
 [![StarRocks](https://img.shields.io/badge/StarRocks-1F4FFF?logo=apache&logoColor=white)](https://www.starrocks.io)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Superset](https://img.shields.io/badge/Apache_Superset-20A6A4?logo=apachesuperset&logoColor=white)](https://superset.apache.org)
+[![SurrealDB](https://img.shields.io/badge/SurrealDB-FF00A0?logo=surrealdb&logoColor=white)](https://surrealdb.com)
 [![Telegraf](https://img.shields.io/badge/Telegraf-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/time-series-platform/telegraf/)
 [![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)](https://www.tigerdata.com/timescaledb)
 [![Temporal](https://img.shields.io/badge/Temporal-000000?logo=temporal&logoColor=white)](https://temporal.io)
@@ -233,6 +239,7 @@ After deployment you'll have:
 | **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
+| **BookStack** | Documentation wiki organised as shelves, books, chapters and pages | [bookstackapp.com](https://www.bookstackapp.com) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
 | **Bytebase** | Database schema changes with SQL review, change plans and approval flows | [bytebase.com](https://www.bytebase.com) |
 | **Cassandra** | Wide-column distributed database — the data model and CQL, on one node | [cassandra.apache.org](https://cassandra.apache.org) |
@@ -267,8 +274,10 @@ After deployment you'll have:
 | **Garage** | Lightweight S3-compatible object storage for self-hosting | [garagehq.deuxfleurs.fr](https://garagehq.deuxfleurs.fr) |
 | **Git Proxy** | Public Git HTTPS proxy for external tools (Databricks, Git Desktop) | [Documentation](docs/stacks/git-proxy.md) |
 | **Gitea** | Self-hosted Git service with pull requests, code review, and CI/CD | [gitea.com](https://about.gitea.com) |
+| **GPT Researcher** | Research agent that searches the web and writes a cited report, on local models | [gptr.dev](https://gptr.dev) |
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Grafana Tempo** | Distributed tracing with an OpenTelemetry Collector, queried from Grafana | [grafana.com/oss/tempo](https://grafana.com/oss/tempo/) |
+| **Gravitino** | One metadata catalog over databases, Iceberg, Hive, Kafka and file sets | [gravitino.apache.org](https://gravitino.apache.org) |
 | **Hasura** | Instant GraphQL and REST API over PostgreSQL, with subscriptions and a console | [hasura.io](https://hasura.io) |
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
 | **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
@@ -319,6 +328,7 @@ After deployment you'll have:
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **OpenSearch** | Apache-2.0 search & analytics engine with Dashboards — speaks the Elasticsearch API | [opensearch.org](https://opensearch.org) |
 | **ParadeDB** | PostgreSQL with BM25 full-text search and pgvector, internal at `paradedb:5432` | [paradedb.com](https://www.paradedb.com) |
+| **Perplexica** | AI answer engine with sources, on local models and SearXNG | [GitHub](https://github.com/ItzCrazyKns/Perplexica) |
 | **pg_ducklake** | PostgreSQL with DuckLake extension - SQL-native lakehouse with S3 storage | [pgducklake.select](https://pgducklake.select) |
 | **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
 | **Planka** | Open-source kanban board (Trello alternative) with real-time multi-user collaboration | [planka.app](https://planka.app) |
@@ -342,6 +352,7 @@ After deployment you'll have:
 | **RStudio Server** | Browser IDE for R | [posit.co](https://posit.co/products/open-source/rstudio-server/) |
 | **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
 | **S3 Manager** | Web-based S3 bucket browser and manager for Hetzner Object Storage | [GitHub](https://github.com/cloudlena/s3manager) |
+| **SearXNG** | Private metasearch engine, also the web search behind Perplexica and GPT Researcher | [docs.searxng.org](https://docs.searxng.org) |
 | **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
 | **SFTPGo** | SFTP/SCP server with R2 backend (file-protocol front door onto the datalake; WebDAV/FTPS supported upstream, disabled by default) | [sftpgo.com](https://sftpgo.com) |
 | **Shiny Server** | R web applications — hosts every app in the workspace repository, with an index | [posit.co](https://posit.co/products/open-source/shinyserver/) |
@@ -352,6 +363,7 @@ After deployment you'll have:
 | **StarRocks** | Fast MPP analytics database (MySQL protocol) that queries Iceberg, Delta Lake and Parquet in place (internal-only) | [starrocks.io](https://www.starrocks.io) |
 | **Streamlit** | Python data apps — one server runs every app in the workspace repository | [streamlit.io](https://streamlit.io) |
 | **Superset** | Modern data exploration and visualization platform with SQL Lab | [superset.apache.org](https://superset.apache.org) |
+| **SurrealDB** | Multi-model database for documents, graphs and key-value data, internal at `surrealdb:8000` | [surrealdb.com](https://surrealdb.com) |
 | **Telegraf** | Metrics collection agent with 300+ plugins (CLI-only, no web UI) | [influxdata.com](https://www.influxdata.com/time-series-platform/telegraf/) |
 | **TimescaleDB** | PostgreSQL with the TimescaleDB extension — hypertables, continuous aggregates and compression for time-series (no web UI) | [tigerdata.com](https://www.tigerdata.com/timescaledb) |
 | **Temporal** | Durable workflow execution engine — workflows as code that survive crashes and restarts, with a Web UI for every execution's history | [temporal.io](https://temporal.io) |

@@ -108,15 +108,19 @@ TCP_PORTS_ALLOWED = {
 # appear in TCP_PORTS_ALLOWED. The check below enforces exactly that overlap.
 NO_OWN_AUTH = {
     "datasette",  # read-only browser and JSON API, no accounts
+    "gpt-researcher",  # the web UI and its API have no accounts
+    "gravitino",  # simple auth mode; OAuth/Kerberos not set up
     "hop",  # Hop Web has no login; its /hop server API none either
     "kafka",  # PLAINTEXT listener; internal only
     "ksqldb",  # REST API without auth; internal only
     "lakekeeper",
     "marquez",
     "nessie",  # runs with AuthN/AuthZ off
+    "perplexica",  # no accounts
     "presidio",  # REST APIs without auth; internal only
     "questdb",  # the console has none; its Postgres wire protocol does
     "rill",  # Rill Developer has no accounts
+    "searxng",  # no accounts
     "sqlmesh",  # the browser IDE has no accounts
     "tempo",  # OTLP and the query API have no auth; internal only
     "temporal",  # neither the Web UI nor the gRPC frontend authenticates

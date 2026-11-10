@@ -1447,6 +1447,30 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "surrealdb",
+            _filter_empty(
+                {
+                    # Root-level user; ws://surrealdb:8000/rpc.
+                    "SURREALDB_USERNAME": "nexus-surrealdb",
+                    "SURREALDB_PASSWORD": config.surrealdb_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "bookstack",
+            _filter_empty(
+                {
+                    # BookStack logs in by email: the stack user's.
+                    "BOOKSTACK_EMAIL": stack_user_email(env) or None,
+                    "BOOKSTACK_PASSWORD": config.bookstack_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

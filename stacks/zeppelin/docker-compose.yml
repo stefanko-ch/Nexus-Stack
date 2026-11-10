@@ -54,6 +54,10 @@ services:
         exec bin/zeppelin.sh
     environment:
       ZEPPELIN_ADMIN_PASSWORD: ${ZEPPELIN_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_zeppelin)}
+      # Without it Zeppelin refuses the browser's login POST: it allows no
+      # cross-origin request by default, and through the tunnel the Origin
+      # is https://zeppelin.<domain>.
+      ZEPPELIN_ALLOWED_ORIGINS: ${ZEPPELIN_ALLOWED_ORIGINS:?must be set in .env (rendered by service_env._render_zeppelin)}
       ZEPPELIN_MEM: "-Xms512m -Xmx1024m"
     ports:
       - "127.0.0.1:8125:8080"

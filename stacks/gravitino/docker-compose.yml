@@ -1,0 +1,57 @@
+# =============================================================================
+# Apache Gravitino - unified metadata catalog
+# =============================================================================
+# URL: https://gravitino.<domain>   (web UI and REST API)
+# In-cluster: http://gravitino:8090
+#
+# One catalog over many sources: a metalake holds catalogs for relational
+# databases (PostgreSQL, MySQL), lakehouse formats (Iceberg, Hudi, Paimon),
+# Hive, Kafka and file sets, each browsed and governed the same way. Spark,
+# Trino and Flink read through it with Gravitino's connectors. Lakekeeper,
+# Nessie and Unity Catalog are single-format catalogs; Gravitino is the
+# federation layer above such systems.
+#
+# Gravitino's own auth is OAuth or Kerberos, neither of which this stack
+# sets up; it runs in simple mode and the subdomain is behind Cloudflare
+# Access. Its built-in Iceberg REST and Lance REST side services are off.
+#
+# Metadata in an embedded H2 database in the gravitino-data volume, which
+# survives a restart and the snapshot lifecycle, not a rebuild teardown.
+# H2 is Gravitino's default store and meant for trying it out: Gravitino
+# makes no durability promise for it (see docs/stacks/gravitino.md).
+# =============================================================================
+
+services:
+  gravitino:
+    image: ${IMAGE_GRAVITINO:-apache/gravitino:1.3.1}
+    container_name: gravitino
+    restart: unless-stopped
+    environment:
+      GRAVITINO_AUX_SERVICE_NAMES: ""
+      # The start script appends GRAVITINO_MEM to JAVA_OPTS, with explicit
+      # -Xmx and metaspace flags that override any percentage. Its default
+      # (1 GB heap + 512 MB metaspace) alone fills the 1536m limit.
+      GRAVITINO_MEM: "-Xms256m -Xmx768m -XX:MaxMetaspaceSize=256m"
+    ports:
+      - "127.0.0.1:8128:8090"
+    volumes:
+      - gravitino-data:/opt/gravitino/data
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8090/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+
+volumes:
+  gravitino-data:
+
+networks:
+  app-network:
+    external: true

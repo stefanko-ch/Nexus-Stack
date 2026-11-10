@@ -171,6 +171,13 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | Presidio Anonymizer | `mcr.microsoft.com/presidio-anonymizer` | `2.2.362` | Exact |
 | Whisper ASR Webservice | `onerahmet/openai-whisper-asr-webservice` | `v1.10.0` | Exact |
 | Apache Zeppelin | `apache/zeppelin` | `0.12.1` | Exact |
+| BookStack | `linuxserver/bookstack` | `26.09.2` | Exact |
+| MariaDB (BookStack) | `mariadb` | `11.8.9` | Exact |
+| GPT Researcher | `nexus-gpt-researcher` (built from v3.7.0) | `3.7.0` | Exact |
+| Apache Gravitino | `apache/gravitino` | `1.3.1` | Exact |
+| Perplexica | `itzcrazykns1337/perplexica` | `slim-v1.12.0` | Exact |
+| SearXNG | `searxng/searxng` | `2026.11.8-3a3dd15bf` | Exact |
+| SurrealDB | `surrealdb/surrealdb` | `v4.0.0` | Exact |
 | Label Studio | `heartexlabs/label-studio` | `1.23.2` | Exact |
 | Langfuse | `langfuse/langfuse` | `4.36.0` | Exact |
 | Langfuse Worker | `langfuse/langfuse-worker` | `4.36.0` | Exact |
@@ -279,6 +286,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Apicurio Registry** | Schema and API-contract registry | [apicurio.md](apicurio.md) |
 | **Appsmith** | Low-code platform for admin panels and internal tools | [appsmith.md](appsmith.md) |
 | **Big-AGI** | Stateless multi-LLM web UI (OpenAI, Anthropic, local) | [big-agi.md](big-agi.md) |
+| **BookStack** | Documentation wiki with shelves, books and pages | [bookstack.md](bookstack.md) |
 | **Budibase** | Low-code platform for internal tools | [budibase.md](budibase.md) |
 | **Bytebase** | Reviewed, versioned database schema changes | [bytebase.md](bytebase.md) |
 | **Cassandra** | Wide-column distributed database | [cassandra.md](cassandra.md) |
@@ -313,8 +321,10 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Garage** | S3-compatible object storage | [garage.md](garage.md) |
 | **Git Proxy** | Public Git HTTPS proxy | [git-proxy.md](git-proxy.md) |
 | **Gitea** | Self-hosted Git service | [gitea.md](gitea.md) |
+| **GPT Researcher** | Autonomous research agent | [gpt-researcher.md](gpt-researcher.md) |
 | **Grafana** | Observability stack with dashboards | [grafana.md](grafana.md) |
 | **Grafana Tempo** | Distributed tracing with an OTel Collector, internal only | [tempo.md](tempo.md) |
+| **Gravitino** | Federated metadata catalog | [gravitino.md](gravitino.md) |
 | **Hasura** | Instant GraphQL API over PostgreSQL | [hasura.md](hasura.md) |
 | **HedgeDoc** | Collaborative real-time Markdown editor | [hedgedoc.md](hedgedoc.md) |
 | **Hive Metastore** | The Hive catalog for Spark, Trino and Flink | [hive-metastore.md](hive-metastore.md) |
@@ -365,6 +375,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **OpenMetadata** | Metadata management platform | [openmetadata.md](openmetadata.md) |
 | **OpenSearch** | Search & analytics engine with Dashboards | [opensearch.md](opensearch.md) |
 | **ParadeDB** | PostgreSQL with full-text search, internal only | [paradedb.md](paradedb.md) |
+| **Perplexica** | AI answer engine on local models | [perplexica.md](perplexica.md) |
 | **pg_ducklake** | PostgreSQL with DuckLake SQL-native lakehouse extension | [pg-ducklake.md](pg-ducklake.md) |
 | **pgAdmin** | PostgreSQL administration tool | [pgadmin.md](pgadmin.md) |
 | **Planka** | Kanban board for project management | [planka.md](planka.md) |
@@ -388,6 +399,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **RStudio Server** | Browser IDE for R | [rstudio.md](rstudio.md) |
 | **RustFS** | Rust-based S3-compatible storage | [rustfs.md](rustfs.md) |
 | **S3 Manager** | S3 bucket browser | [s3manager.md](s3manager.md) |
+| **SearXNG** | Private metasearch engine | [searxng.md](searxng.md) |
 | **SeaweedFS** | Distributed object storage | [seaweedfs.md](seaweedfs.md) |
 | **SFTPGo** | SFTP server with R2 backend (WebDAV/FTPS supported upstream, disabled by default) | [sftpgo.md](sftpgo.md) |
 | **Shiny Server** | R web applications | [shiny.md](shiny.md) |
@@ -397,6 +409,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **StarRocks** | MPP analytics database with lakehouse catalogs | [starrocks.md](starrocks.md) |
 | **Streamlit** | Python data apps, one server for all of them | [streamlit.md](streamlit.md) |
 | **Superset** | Data exploration & visualization | [superset.md](superset.md) |
+| **SurrealDB** | Multi-model database, internal only | [surrealdb.md](surrealdb.md) |
 | **Telegraf** | Metrics collection agent | [telegraf.md](telegraf.md) |
 | **TimescaleDB** | PostgreSQL with time-series hypertables, continuous aggregates and compression | [timescaledb.md](timescaledb.md) |
 | **Temporal** | Durable workflow execution engine | [temporal.md](temporal.md) |

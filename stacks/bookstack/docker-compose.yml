@@ -1,0 +1,91 @@
+# =============================================================================
+# BookStack - documentation wiki organised as shelves, books and pages
+# =============================================================================
+# URL: https://bookstack.<domain>
+#
+# A wiki with a fixed structure: shelves hold books, books hold chapters
+# and pages. WYSIWYG or Markdown editing, revisions, search, page
+# templates, diagrams (draw.io) and fine-grained permissions. For course
+# handbooks and team documentation.
+#
+# Login: the stack user's email with a generated password (Infisical
+# folder `bookstack`). nexus-admin.sh replaces the image's default
+# admin@admin.com / password on the first start.
+#
+# Content in bookstack-db (MariaDB) and uploads in bookstack-config, both
+# surviving a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  bookstack:
+    image: ${IMAGE_BOOKSTACK:-linuxserver/bookstack:26.09.2}
+    container_name: bookstack
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Etc/UTC
+      APP_URL: ${BOOKSTACK_APP_URL:?must be set in .env (rendered by service_env._render_bookstack)}
+      # 32 alphanumeric characters: a raw AES-256 key for Laravel.
+      APP_KEY: ${BOOKSTACK_APP_KEY:?must be set in .env (rendered by service_env._render_bookstack)}
+      DB_HOST: bookstack-db
+      DB_PORT: "3306"
+      DB_DATABASE: bookstack
+      DB_USERNAME: nexus-bookstack
+      DB_PASSWORD: ${BOOKSTACK_DB_PASSWORD:?must be set in .env (rendered by service_env._render_bookstack)}
+      BOOKSTACK_ADMIN_EMAIL: ${BOOKSTACK_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_bookstack)}
+      BOOKSTACK_ADMIN_PASSWORD: ${BOOKSTACK_ADMIN_PASSWORD:?must be set in .env (rendered by service_env._render_bookstack)}
+    ports:
+      - "127.0.0.1:8132:80"
+    volumes:
+      - bookstack-config:/config
+      - ./nexus-admin.sh:/custom-cont-init.d/50-nexus-admin.sh:ro
+    depends_on:
+      bookstack-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+      - bookstack-internal
+
+  bookstack-db:
+    image: ${IMAGE_BOOKSTACK_MARIADB:-mariadb:11.8.9}
+    container_name: bookstack-db
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: bookstack
+      MARIADB_USER: nexus-bookstack
+      MARIADB_PASSWORD: ${BOOKSTACK_DB_PASSWORD:?must be set in .env (rendered by service_env._render_bookstack)}
+      MARIADB_ROOT_PASSWORD: ${BOOKSTACK_DB_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_bookstack)}
+    volumes:
+      - bookstack-db:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - bookstack-internal
+
+volumes:
+  bookstack-config:
+  bookstack-db:
+
+networks:
+  app-network:
+    external: true
+  bookstack-internal:
