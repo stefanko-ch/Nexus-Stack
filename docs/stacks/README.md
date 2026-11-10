@@ -294,6 +294,8 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 
 **To upgrade**: Edit the version in `services.yaml` and run Spin-Up.
 
+For a stack built from its own `Dockerfile` (`stacks/<stack>/Dockerfile`, image named `nexus-<stack>:…`), `services.yaml` only sets the tag the build is given. What gets installed is pinned in the `Dockerfile`, for example `ARG ZENML_VERSION` in `stacks/zenml/Dockerfile`. Change it there too, and the image fallback in the stack's `docker-compose.yml`, or Spin-Up rebuilds the old version under the new tag.
+
 ---
 
 ## Stack Documentation
