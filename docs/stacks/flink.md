@@ -26,7 +26,7 @@ Apache Flink provides a framework for stateful computations over data streams an
 | `flink-jobmanager` | `nexus-flink:1.20.1` | Cluster manager + Web UI (port 8081) |
 | `flink-taskmanager` | `nexus-flink:1.20.1` | Task executor (connects to JobManager on 6123) |
 
-> **Custom image:** Based on the Docker Library `flink` image (multi-arch: amd64 + arm64) with the Kafka SQL connector baked in. Note: `apache/flink` is amd64-only and does not work on ARM servers.
+> **Custom image:** Based on the Docker Library `flink` image (multi-arch: amd64 + arm64) with the Kafka SQL and Apache Fluss connectors baked in. Note: `apache/flink` is amd64-only and does not work on ARM servers.
 
 ```
                     ┌─────────────────────┐
@@ -115,6 +115,23 @@ SELECT * FROM test_events LIMIT 10;
 ```
 
 > The `test-events` topic is automatically created by the Redpanda Datagen service with sample e-commerce events.
+
+### Fluss Connector
+
+The image also includes the Apache Fluss connector (`fluss-flink-1.20`, `1.0.0`), so Flink SQL can use the [Fluss](fluss.md) stack as a catalog of log and primary-key tables:
+
+```sql
+CREATE CATALOG fluss WITH (
+  'type' = 'fluss',
+  'bootstrap.servers' = 'fluss:9123',
+  'client.security.protocol' = 'SASL',
+  'client.security.sasl.mechanism' = 'PLAIN',
+  'client.security.sasl.username' = 'nexus_fluss',
+  'client.security.sasl.password' = '<FLUSS_PASSWORD>'
+);
+```
+
+The password is in Infisical (folder `fluss`). The connector version matches the Fluss server version; change both together.
 
 ### Connecting from Other Services
 

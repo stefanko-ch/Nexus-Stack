@@ -328,6 +328,16 @@ output "secrets" {
     bookstack_db_root_password = random_password.bookstack_db_root.result
     bookstack_admin_password   = random_password.bookstack_admin.result
 
+    # DragonflyDB, Oracle Database Free, ArcadeDB, Milvus, Apache Fluss
+    dragonfly_password     = random_password.dragonfly.result
+    oracle_password        = random_password.oracle.result
+    oracle_system_password = random_password.oracle_system.result
+    arcadedb_password      = random_password.arcadedb.result
+    arcadedb_root_password = random_password.arcadedb_root.result
+    milvus_password        = random_password.milvus.result
+    milvus_root_password   = random_password.milvus_root.result
+    fluss_password         = random_password.fluss.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

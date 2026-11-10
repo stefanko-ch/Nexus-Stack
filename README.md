@@ -78,15 +78,17 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (148)
+## Available Stacks (153)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
 [![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org)
 [![AnythingLLM](https://img.shields.io/badge/AnythingLLM-0E0F0F?logoColor=white)](https://anythingllm.com)
+[![Apache Fluss](https://img.shields.io/badge/Apache_Fluss-1E40AF?logo=apache&logoColor=white)](https://fluss.apache.org)
 [![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org)
 [![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
+[![ArcadeDB](https://img.shields.io/badge/ArcadeDB-2E7D32?logoColor=white)](https://arcadedb.com)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
 [![BookStack](https://img.shields.io/badge/BookStack-0288D1?logo=bookstack&logoColor=white)](https://www.bookstackapp.com)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
@@ -109,6 +111,7 @@ After deployment you'll have:
 [![Dinky](https://img.shields.io/badge/Dinky-1677FF?logo=apacheflink&logoColor=white)](https://www.dinky.org.cn/)
 [![Docling](https://img.shields.io/badge/Docling-0F62FE?logoColor=white)](https://docling-project.github.io/docling/)
 [![Dozzle](https://img.shields.io/badge/Dozzle-7B16FF?logo=docker&logoColor=white)](https://dozzle.dev)
+[![DragonflyDB](https://img.shields.io/badge/DragonflyDB-0D1117?logo=redis&logoColor=white)](https://www.dragonflydb.io)
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
 [![Dremio](https://img.shields.io/badge/Dremio-31B48D?logoColor=white)](https://www.dremio.com)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
@@ -160,6 +163,7 @@ After deployment you'll have:
 [![Memgraph](https://img.shields.io/badge/Memgraph-FB6E00?logo=memgraph&logoColor=white)](https://memgraph.com)
 [![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)](https://www.metabase.com)
 [![SQL Server](https://img.shields.io/badge/SQL_Server-CC2927?logoColor=white)](https://www.microsoft.com/sql-server)
+[![Milvus](https://img.shields.io/badge/Milvus-00A1EA?logo=milvus&logoColor=white)](https://milvus.io)
 [![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
@@ -176,6 +180,7 @@ After deployment you'll have:
 [![OpenBao](https://img.shields.io/badge/OpenBao-1F2937?logo=vault&logoColor=white)](https://openbao.org)
 [![OpenMetadata](https://img.shields.io/badge/OpenMetadata-7147E8?logoColor=white)](https://open-metadata.org)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org)
+[![Oracle Database Free](https://img.shields.io/badge/Oracle_Database_Free-F80000?logo=oracle&logoColor=white)](https://www.oracle.com/database/free/)
 [![ParadeDB](https://img.shields.io/badge/ParadeDB-1C1C1C?logo=postgresql&logoColor=white)](https://www.paradedb.com)
 [![Perplexica](https://img.shields.io/badge/Perplexica-1F2937?logoColor=white)](https://github.com/ItzCrazyKns/Perplexica)
 [![pg_ducklake](https://img.shields.io/badge/pg__ducklake-336791?logo=postgresql&logoColor=white)](https://pgducklake.select)
@@ -235,9 +240,11 @@ After deployment you'll have:
 | **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
 | **Airflow** | Apache Airflow — DAG-based workflow orchestration with the largest operator and provider ecosystem | [airflow.apache.org](https://airflow.apache.org) |
 | **AnythingLLM** | Chat with your documents: RAG workspaces, agents and an API, on local or hosted models | [anythingllm.com](https://anythingllm.com) |
+| **Apache Fluss** | Streaming storage for Flink with columnar log tables and primary-key tables, internal at `fluss:9123` | [fluss.apache.org](https://fluss.apache.org) |
 | **Apache Kafka** | Event-streaming broker in KRaft mode (no ZooKeeper), internal at `kafka:9092` | [kafka.apache.org](https://kafka.apache.org) |
 | **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
+| **ArcadeDB** | Multi-model database for graphs, documents, key-value and time series, queried with SQL, Cypher or Gremlin | [arcadedb.com](https://arcadedb.com) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
 | **BookStack** | Documentation wiki organised as shelves, books, chapters and pages | [bookstackapp.com](https://www.bookstackapp.com) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
@@ -260,6 +267,7 @@ After deployment you'll have:
 | **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
 | **Docling Serve** | Document conversion API: PDF, DOCX, PPTX and HTML to Markdown or JSON, with a web UI | [docling-project.github.io](https://docling-project.github.io/docling/) |
 | **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
+| **DragonflyDB** | Redis-compatible in-memory data store with a multi-threaded engine, internal at `dragonfly:6379` | [dragonflydb.io](https://www.dragonflydb.io) |
 | **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
 | **Dremio** | Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI | [dremio.com](https://www.dremio.com) |
 | **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
@@ -311,6 +319,7 @@ After deployment you'll have:
 | **Memgraph** | In-memory graph database with MAGE graph algorithms and Memgraph Lab | [memgraph.com](https://memgraph.com) |
 | **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
 | **Microsoft SQL Server** | SQL Server 2025 Developer edition, internal at `mssql:1433` | [microsoft.com/sql-server](https://www.microsoft.com/sql-server) |
+| **Milvus** | Vector database with ANN indexes and hybrid search, internal at `milvus:19530` | [milvus.io](https://milvus.io) |
 | **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
 | **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
 | **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
@@ -327,6 +336,7 @@ After deployment you'll have:
 | **OpenBao** | Secrets management (open-source Vault fork): KV secrets, dynamic credentials, transit encryption | [openbao.org](https://openbao.org) |
 | **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
 | **OpenSearch** | Apache-2.0 search & analytics engine with Dashboards — speaks the Elasticsearch API | [opensearch.org](https://opensearch.org) |
+| **Oracle Database Free** | Oracle Database 23ai free edition: Oracle SQL and PL/SQL, internal at `oracle:1521/FREEPDB1` | [oracle.com](https://www.oracle.com/database/free/) |
 | **ParadeDB** | PostgreSQL with BM25 full-text search and pgvector, internal at `paradedb:5432` | [paradedb.com](https://www.paradedb.com) |
 | **Perplexica** | AI answer engine with sources, on local models and SearXNG | [GitHub](https://github.com/ItzCrazyKns/Perplexica) |
 | **pg_ducklake** | PostgreSQL with DuckLake extension - SQL-native lakehouse with S3 storage | [pgducklake.select](https://pgducklake.select) |

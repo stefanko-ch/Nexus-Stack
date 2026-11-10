@@ -1,0 +1,85 @@
+# =============================================================================
+# DragonflyDB - Redis-compatible in-memory data store
+# =============================================================================
+# In-cluster: redis://dragonfly:6379 (Redis and Memcached-compatible API)
+#
+# A drop-in replacement for Redis with a multi-threaded engine: the same
+# commands, clients and data types, so it sits next to the valkey stack for
+# comparing engines rather than APIs.
+#
+# Internal only (`internal_only` in services.yaml): it speaks the Redis
+# protocol, which cannot cross the HTTPS tunnel, and has no web UI. Log in
+# as nexus-dragonfly (Infisical folder `dragonfly`). The built-in `default`
+# user is switched off, so a client without credentials is refused.
+#
+# Licence: Business Source License 1.1, not an OSI licence. It allows this
+# kind of use; it forbids offering Dragonfly as a competing hosted service.
+#
+# Data in the dragonfly-data volume (snapshots written on shutdown), which
+# survives a restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  dragonfly:
+    image: ${IMAGE_DRAGONFLY:-docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.2}
+    container_name: dragonfly
+    restart: unless-stopped
+    # The snapshot is written on shutdown, and a SIGKILL before it finishes
+    # loses everything since the last start. Measured on the cx43 server:
+    # 700 MB took 35 s to save, so a full 1 GB needs about 50 s. In a
+    # slower local test even 60 s ran out and the data was lost; 120 s
+    # leaves headroom over the server measurement.
+    stop_grace_period: 120s
+    # The ACL file is written from the environment on every start, so the
+    # password reaches no argument list and always matches the generated
+    # one. `default` is off: without that, Dragonfly accepts any client that
+    # sends no password. Dragonfly 2.0.2 rejects the whole file ("Error
+    # materializing acl file") for a `default OFF` line without a password,
+    # and then runs with an open `default` user, so `default` gets a random
+    # throwaway password that is never stored anywhere else. The image's
+    # entrypoint.sh then hands /data to the dfly user and drops root.
+    entrypoint: ["/usr/bin/tini", "--", "/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        THROWAWAY=$$(od -An -tx1 -N 24 /dev/urandom | tr -dc '0-9a-f')
+        printf 'USER default OFF >%s ~* +@ALL\nUSER nexus-dragonfly ON >%s ~* +@ALL\n' "$$THROWAWAY" "$$DRAGONFLY_PASSWORD" > /data/users.acl
+        unset THROWAWAY DRAGONFLY_PASSWORD
+        exec /usr/local/bin/entrypoint.sh dragonfly --logtostderr --aclfile=/data/users.acl --dir=/data --dbfilename=dump
+    environment:
+      DRAGONFLY_PASSWORD: ${DRAGONFLY_PASSWORD:?must be set in .env (rendered by service_env._render_dragonfly)}
+      # Every flag can be set as DFLY_<flag>. Dragonfly refuses to start
+      # unless maxmemory >= threads x 256 MB, and threads default to the CPU
+      # count (8 on the server), so both are set explicitly.
+      DFLY_proactor_threads: "2"
+      DFLY_maxmemory: 1gb
+      # The daily version check also reports uptime and hardware details.
+      DFLY_version_check: "false"
+    volumes:
+      - dragonfly-data:/data
+    ulimits:
+      memlock: -1
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      # The image's own healthcheck only checks that the port answers, and
+      # PING answers even after a failed AUTH. ACL WHOAMI names the user the
+      # connection really runs as, so a broken ACL file fails this check.
+      # REDISCLI_AUTH keeps the password out of the argument list.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$DRAGONFLY_PASSWORD\" redis-cli --user nexus-dragonfly --no-auth-warning acl whoami | grep -q 'is nexus-dragonfly$$'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+volumes:
+  dragonfly-data:
+
+networks:
+  app-network:
+    external: true

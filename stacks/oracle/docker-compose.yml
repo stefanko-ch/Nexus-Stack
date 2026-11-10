@@ -1,0 +1,62 @@
+# =============================================================================
+# Oracle Database Free - Oracle Database 23ai, free edition
+# =============================================================================
+# In-cluster: oracle:1521, service FREEPDB1
+#   (e.g. oracle+oracledb://nexus_oracle:<pw>@oracle:1521/?service_name=FREEPDB1)
+#
+# The free edition of Oracle Database: the full SQL dialect, PL/SQL, JSON
+# relational duality views and vector search, capped by Oracle at 2 CPUs,
+# 2 GB of memory and 12 GB of user data. Next to the postgres, mysql and
+# mssql stacks, it covers the fourth common relational dialect.
+#
+# Internal only (`internal_only` in services.yaml): SQL*Net cannot cross the
+# HTTPS tunnel, and the image has no web UI. Log in as nexus_oracle, a
+# schema user in the FREEPDB1 pluggable database (Infisical folder
+# `oracle`). Oracle identifiers cannot contain a hyphen, so it is
+# nexus_oracle rather than nexus-oracle. SYS and SYSTEM get a separate
+# generated password.
+#
+# Image: gvenzl/oracle-free, the community image Oracle's own docs point to
+# for containers. Licence: the image scripts are Apache-2.0; the database is
+# under the Oracle Free Use Terms, which are not an OSI licence.
+#
+# The first start creates the database and takes a few minutes. Data in the
+# oracle-data volume, which survives a restart and the snapshot lifecycle,
+# not a rebuild teardown.
+# =============================================================================
+
+services:
+  oracle:
+    image: ${IMAGE_ORACLE:-gvenzl/oracle-free:23.26.3-slim}
+    container_name: oracle
+    restart: unless-stopped
+    environment:
+      # Read on the first start only, when the database is created. The
+      # image's entrypoint passes them to its own setup functions inside the
+      # container during that first start; they never appear in a docker
+      # command line.
+      ORACLE_PASSWORD: ${ORACLE_SYSTEM_PASSWORD:?must be set in .env (rendered by service_env._render_oracle)}
+      APP_USER: nexus_oracle
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:?must be set in .env (rendered by service_env._render_oracle)}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+    healthcheck:
+      # The image's own script: connects and checks the PDB is open.
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 10m
+    networks:
+      - app-network
+
+volumes:
+  oracle-data:
+
+networks:
+  app-network:
+    external: true

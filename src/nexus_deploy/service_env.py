@@ -2356,6 +2356,50 @@ def _render_bookstack(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
     )
 
 
+def _multi_secret_renderer(
+    stack: str, keys: dict[str, str], why: str
+) -> Callable[[NexusConfig, BootstrapEnv], RenderedEnv]:
+    """A renderer for a stack whose .env is a fixed set of generated
+    secrets, mapping each env name to its NexusConfig field."""
+
+    def render(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+        values = {key: getattr(c, field) for key, field in keys.items()}
+        _require(stack, values, why)
+        return RenderedEnv(env_vars={k: v or "" for k, v in values.items()}, mode=0o600)
+
+    render.__name__ = f"_render_{next(iter(keys.values()))}"
+    return render
+
+
+_render_dragonfly = _single_secret_renderer(
+    "DragonflyDB",
+    "DRAGONFLY_PASSWORD",
+    "dragonfly_password",
+    "writing an ACL file with an empty password",
+)
+_render_oracle = _multi_secret_renderer(
+    "Oracle Database Free",
+    {"ORACLE_PASSWORD": "oracle_password", "ORACLE_SYSTEM_PASSWORD": "oracle_system_password"},
+    "creating the database with an empty password",
+)
+_render_arcadedb = _multi_secret_renderer(
+    "ArcadeDB",
+    {"ARCADEDB_PASSWORD": "arcadedb_password", "ARCADEDB_ROOT_PASSWORD": "arcadedb_root_password"},
+    "leaving the server waiting for a root password on its console",
+)
+_render_milvus = _multi_secret_renderer(
+    "Milvus",
+    {"MILVUS_PASSWORD": "milvus_password", "MILVUS_ROOT_PASSWORD": "milvus_root_password"},
+    "seeding root with an empty password",
+)
+_render_fluss = _single_secret_renderer(
+    "Apache Fluss",
+    "FLUSS_PASSWORD",
+    "fluss_password",
+    "declaring a SASL user with an empty password",
+)
+
+
 _HEX_32_BYTES = re.compile(r"[0-9a-f]{64}")
 
 
@@ -3766,6 +3810,11 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("searxng", _is_enabled("searxng"), _render_searxng),
     EnvSpec("surrealdb", _is_enabled("surrealdb"), _render_surrealdb),
     EnvSpec("bookstack", _is_enabled("bookstack"), _render_bookstack),
+    EnvSpec("dragonfly", _is_enabled("dragonfly"), _render_dragonfly),
+    EnvSpec("oracle", _is_enabled("oracle"), _render_oracle),
+    EnvSpec("arcadedb", _is_enabled("arcadedb"), _render_arcadedb),
+    EnvSpec("milvus", _is_enabled("milvus"), _render_milvus),
+    EnvSpec("fluss", _is_enabled("fluss"), _render_fluss),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),

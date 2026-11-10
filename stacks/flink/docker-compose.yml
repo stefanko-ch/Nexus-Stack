@@ -8,7 +8,8 @@
 #
 # IMAGE: Custom image based on the official Docker Library flink image
 # (multi-arch: amd64 + arm64). Includes the Kafka SQL connector JAR so Flink
-# SQL can read from / write to Redpanda (Kafka) out of the box.
+# SQL can read from / write to Redpanda (Kafka) out of the box, and the
+# Apache Fluss connector for the fluss stack.
 # The FLINK_PROPERTIES env var configures the cluster.
 #
 # SECURITY:

@@ -1,0 +1,175 @@
+# =============================================================================
+# Apache Fluss - streaming storage for real-time analytics
+# =============================================================================
+# In-cluster: fluss:9123 (bootstrap servers; SASL/PLAIN)
+#
+# Columnar streaming storage built for Flink: log tables (append-only, like
+# a Kafka topic but read column by column) and primary-key tables that a
+# Flink job can look up and update in place. It sits between Kafka and the
+# lakehouse. Use it from the flink stack, which ships the Fluss connector:
+#
+#   CREATE CATALOG fluss WITH ('type' = 'fluss', 'bootstrap.servers' = 'fluss:9123',
+#     'client.security.protocol' = 'SASL', 'client.security.sasl.mechanism' = 'PLAIN',
+#     'client.security.sasl.username' = 'nexus_fluss', 'client.security.sasl.password' = '<pw>');
+#
+# Three containers: ZooKeeper for cluster metadata, the coordinator server
+# (`fluss`) and one tablet server (`fluss-tablet`) that stores the data.
+#
+# Internal only (`internal_only` in services.yaml): Fluss speaks its own RPC
+# protocol and has no web UI. Clients authenticate with SASL/PLAIN as
+# nexus_fluss (Infisical folder `fluss`); Fluss usernames allow letters,
+# digits and underscores only, so it is not nexus-fluss. The servers talk to
+# each other on a separate plaintext listener that is never advertised and
+# binds to a fluss-internal alias only, so app-network cannot reach it.
+#
+# The image's entrypoint appends FLUSS_PROPERTIES to conf/server.yaml on
+# every start and fills ${...} references from the environment, so the
+# password reaches no argument list. It ends up in that file inside the
+# container. Because a restart would append the block a second time, each
+# start first restores the file the image shipped.
+#
+# The user is declared through security.sasl.plain.jaas.config rather than
+# the shorter security.sasl.plain.credentials: Fluss logs every setting at
+# startup and masks keys containing "jaas.config", but not "credentials",
+# which would print the password into the container log.
+#
+# Data in the fluss-data volume (log and KV segments, shared by both servers
+# as Fluss's examples do) and fluss-zookeeper-data, which survive a restart
+# and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+x-fluss-image: &fluss-image ${IMAGE_FLUSS:-apache/fluss:1.0.0}
+
+x-fluss-start: &fluss-start
+  - /bin/bash
+  - -c
+  - |
+    set -euo pipefail
+    conf="$${FLUSS_HOME}/conf/server.yaml"
+    [ -f "$$conf.orig" ] || cp "$$conf" "$$conf.orig"
+    cp "$$conf.orig" "$$conf"
+    exec /docker-entrypoint.sh "$$FLUSS_ROLE"
+
+services:
+  fluss-zookeeper:
+    image: ${IMAGE_FLUSS_ZOOKEEPER:-zookeeper:3.9.4}
+    container_name: fluss-zookeeper
+    restart: unless-stopped
+    environment:
+      # Only the client port; the admin server on 8080 is not needed.
+      ZOO_ADMINSERVER_ENABLED: "false"
+      JVMFLAGS: -Xmx256m
+    volumes:
+      - fluss-zookeeper-data:/data
+      - fluss-zookeeper-datalog:/datalog
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    healthcheck:
+      test: ["CMD", "zkServer.sh", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - fluss-internal
+
+  fluss:
+    image: *fluss-image
+    container_name: fluss
+    restart: unless-stopped
+    entrypoint: *fluss-start
+    environment:
+      FLUSS_ROLE: coordinatorServer
+      FLUSS_ENV_JAVA_OPTS: -Xmx512m
+      FLUSS_PASSWORD: ${FLUSS_PASSWORD:?must be set in .env (rendered by service_env._render_fluss)}
+      FLUSS_PROPERTIES: |
+        zookeeper.address: fluss-zookeeper:2181
+        bind.listeners: INTERNAL://fluss-coordinator-internal:9124, CLIENT://0.0.0.0:9123
+        advertised.listeners: CLIENT://fluss:9123
+        internal.listener.name: INTERNAL
+        security.protocol.map: CLIENT:SASL, INTERNAL:PLAINTEXT
+        security.sasl.enabled.mechanisms: PLAIN
+        security.sasl.plain.jaas.config: org.apache.fluss.security.auth.sasl.plain.PlainLoginModule required user_nexus_fluss="$${FLUSS_PASSWORD}";
+        data.dir: /fluss/data
+        remote.data.dir: /fluss/remote-data
+    volumes:
+      - fluss-data:/fluss
+    depends_on:
+      fluss-zookeeper:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      # No HTTP endpoint; the client listener accepting connections is the
+      # readiness signal. It binds to the container's own address (the
+      # listener names the host), not to 127.0.0.1.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/fluss/9123"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # INTERNAL (plaintext, server to server) binds to the alias, which
+    # resolves to this container's fluss-internal address only, so it is
+    # not reachable from app-network. CLIENT (SASL) binds to all
+    # addresses and is advertised as the container name.
+    networks:
+      app-network:
+      fluss-internal:
+        aliases:
+          - fluss-coordinator-internal
+
+  fluss-tablet:
+    image: *fluss-image
+    container_name: fluss-tablet
+    restart: unless-stopped
+    entrypoint: *fluss-start
+    environment:
+      FLUSS_ROLE: tabletServer
+      FLUSS_ENV_JAVA_OPTS: -Xmx768m
+      FLUSS_PASSWORD: ${FLUSS_PASSWORD:?must be set in .env (rendered by service_env._render_fluss)}
+      FLUSS_PROPERTIES: |
+        zookeeper.address: fluss-zookeeper:2181
+        bind.listeners: INTERNAL://fluss-tablet-internal:9124, CLIENT://0.0.0.0:9123
+        advertised.listeners: CLIENT://fluss-tablet:9123
+        internal.listener.name: INTERNAL
+        security.protocol.map: CLIENT:SASL, INTERNAL:PLAINTEXT
+        security.sasl.enabled.mechanisms: PLAIN
+        security.sasl.plain.jaas.config: org.apache.fluss.security.auth.sasl.plain.PlainLoginModule required user_nexus_fluss="$${FLUSS_PASSWORD}";
+        tablet-server.id: 0
+        data.dir: /fluss/data
+        remote.data.dir: /fluss/remote-data
+    volumes:
+      - fluss-data:/fluss
+    depends_on:
+      fluss:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/fluss-tablet/9123"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      app-network:
+      fluss-internal:
+        aliases:
+          - fluss-tablet-internal
+
+volumes:
+  fluss-data:
+  fluss-zookeeper-data:
+  fluss-zookeeper-datalog:
+
+networks:
+  app-network:
+    external: true
+  fluss-internal:
+    driver: bridge

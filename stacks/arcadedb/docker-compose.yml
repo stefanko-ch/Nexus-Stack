@@ -1,0 +1,155 @@
+# =============================================================================
+# ArcadeDB - multi-model database (graph, document, key-value, time series)
+# =============================================================================
+# URL: https://arcadedb.<domain>  (ArcadeDB Studio)
+# In-cluster: http://arcadedb:2480 (HTTP/JSON API)
+#
+# One engine for graphs, documents, key-value and time series, queried with
+# SQL, Cypher, Gremlin or GraphQL. Studio, the web UI, has a query editor
+# and a graph view. Next to neo4j (Cypher only) and memgraph it shows one
+# graph in several query languages.
+#
+# Log in to Studio as nexus-arcadedb (Infisical folder `arcadedb`), which
+# arcadedb-init creates with admin rights on every database. The built-in
+# root user gets a separate generated password. Databases are created in
+# Studio or with `create database <name>` through the API.
+#
+# The Postgres-, Redis- and Mongo-protocol plugins are not enabled, so only
+# the HTTP API on 2480 listens. The image's default JMX settings open an
+# unauthenticated remote JMX port; they are replaced here.
+#
+# Data in the arcadedb-databases and arcadedb-config volumes (the second
+# holds the users), which survive a restart and the snapshot lifecycle,
+# not a rebuild teardown.
+# =============================================================================
+
+x-arcadedb-image: &arcadedb-image ${IMAGE_ARCADEDB:-arcadedata/arcadedb:26.10.2}
+
+services:
+  arcadedb:
+    image: *arcadedb-image
+    container_name: arcadedb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8134:2480"
+    environment:
+      # ArcadeDB reads any setting from an environment variable named like
+      # its dotted key, so the root password is set without a -D flag on the
+      # java command line. It is read on the first start only, when the
+      # users file in the config volume is created.
+      arcadedb.server.rootPassword: ${ARCADEDB_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_arcadedb)}
+      # The image defaults to development mode, meant for a developer's
+      # machine. Production mode flushes the WAL on commit and disables
+      # LOAD CSV from file URLs; it also stops serving Studio, which the
+      # second setting turns back on.
+      arcadedb.server.mode: production
+      arcadedb.studio.enabled: "true"
+      # A non-empty value replaces the image's default, which enables remote
+      # JMX on 9999 without authentication.
+      ARCADEDB_JMX: -Dcom.sun.management.jmxremote=false
+      ARCADEDB_OPTS_MEMORY: -XX:MaxRAMPercentage=70
+    volumes:
+      - arcadedb-databases:/home/arcadedb/databases
+      - arcadedb-config:/home/arcadedb/config
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2480/api/v1/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - app-network
+
+  # Creates nexus-arcadedb on the first start. On later starts the user
+  # exists and the script checks that it still logs in, so a password that
+  # no longer matches Infisical fails the deploy rather than surprising the
+  # user at the login page.
+  arcadedb-init:
+    image: *arcadedb-image
+    container_name: arcadedb-init
+    restart: "on-failure:3"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        # busybox wget can only send credentials as an argument, so the
+        # requests go through the JDK's HTTP client: a single-file Java
+        # program that reads both passwords from the environment.
+        cat > /tmp/Init.java <<'JAVA'
+        import java.net.URI;
+        import java.net.http.HttpClient;
+        import java.net.http.HttpRequest;
+        import java.net.http.HttpResponse;
+        import java.util.Base64;
+
+        public class Init {
+          static final HttpClient HTTP = HttpClient.newHttpClient();
+          static final String API = "http://arcadedb:2480/api/v1/";
+
+          static String basic(String user, String password) {
+            return "Basic " + Base64.getEncoder().encodeToString((user + ":" + password).getBytes());
+          }
+
+          static int send(String auth, String path, String body) throws Exception {
+            var request = HttpRequest.newBuilder(URI.create(API + path)).header("Authorization", auth);
+            request = body == null ? request.GET()
+                : request.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body));
+            return HTTP.send(request.build(), HttpResponse.BodyHandlers.discarding()).statusCode();
+          }
+
+          public static void main(String[] args) throws Exception {
+            String rootPassword = System.getenv("ARCADEDB_ROOT_PASSWORD");
+            String password = System.getenv("ARCADEDB_PASSWORD");
+            String root = basic("root", rootPassword);
+            String user = basic("nexus-arcadedb", password);
+            // Only root may run server commands such as creating a database,
+            // so the nexus database to work in is created here. On a later
+            // start it exists and the command fails, which is expected; the
+            // query below is what decides.
+            if (send(root, "databases", null) != 200) {
+              System.out.println("arcadedb-init: root does not log in; the root password in"
+                  + " Infisical no longer matches the one stored in arcadedb-config.");
+              System.exit(1);
+            }
+            int db = send(root, "server", "{\"command\":\"create database nexus\"}");
+            System.out.println("arcadedb-init: create database nexus returned HTTP " + db
+                + " (an error is expected when it already exists)");
+            if (send(user, "databases", null) != 200) {
+              // The generated password is alphanumeric, so it needs no JSON escaping.
+              String command = "create user {\\\"name\\\":\\\"nexus-arcadedb\\\",\\\"password\\\":\\\""
+                  + password + "\\\",\\\"databases\\\":{\\\"*\\\":[\\\"admin\\\"]}}";
+              int created = send(root, "server", "{\"command\":\"" + command + "\"}");
+              System.out.println("arcadedb-init: create user nexus-arcadedb returned HTTP " + created);
+            }
+            if (send(user, "query/nexus/sql/select%201", null) == 200) {
+              System.out.println("arcadedb-init: nexus-arcadedb logs in and can query the nexus database");
+              return;
+            }
+            System.out.println("arcadedb-init: nexus-arcadedb cannot query the nexus database. If the"
+                + " user exists with another password, the one in Infisical no longer matches"
+                + " the one stored in arcadedb-config.");
+            System.exit(1);
+          }
+        }
+        JAVA
+        exec java /tmp/Init.java
+    environment:
+      ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_arcadedb)}
+      ARCADEDB_PASSWORD: ${ARCADEDB_PASSWORD:?must be set in .env (rendered by service_env._render_arcadedb)}
+    depends_on:
+      arcadedb:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  arcadedb-databases:
+  arcadedb-config:
+
+networks:
+  app-network:
+    external: true

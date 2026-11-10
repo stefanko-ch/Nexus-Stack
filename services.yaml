@@ -129,6 +129,16 @@ services:
     long_description: "Appsmith is an open-source framework for building internal tools and custom UIs. Connect to 18+ data sources including PostgreSQL, MySQL, MongoDB, REST APIs, and GraphQL. Features drag-and-drop widgets, JavaScript business logic, Git-based version control, and granular access controls. All-in-one container with bundled MongoDB, PostgreSQL, and Redis."
     image: "appsmith/appsmith-ce:v1.98"
 
+  arcadedb:
+    subdomain: "arcadedb"
+    port: 8134
+    public: false
+    category: "databases"
+    website: "https://arcadedb.com"
+    description: "Multi-model database for graphs, documents, key-value and time series, queried with SQL, Cypher or Gremlin."
+    long_description: "ArcadeDB keeps graphs, documents, key-value pairs and time series in one engine and answers SQL, Cypher, Gremlin and GraphQL against the same data, so one graph can be queried in several languages side by side. Studio, the web UI, has a query editor and a graph view. Log in as nexus-arcadedb with the password from Infisical (folder `arcadedb`); it has admin rights on every database and starts with an empty `nexus` database. Creating further databases is a server command only root may run; root's password is in the same folder. In-cluster at http://arcadedb:2480. Data in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
+    image: "arcadedata/arcadedb:26.10.2"
+
   big-agi:
     subdomain: "big-agi"
     port: 3006
@@ -353,6 +363,19 @@ services:
     long_description: "Dozzle is a lightweight web UI that streams `docker logs` for every running container live. Search, filter, follow, jump between containers in tabs. No persistent state, no database, just a read-only bind on /var/run/docker.sock. Operator's go-to tool when something restart-loops and you'd otherwise reach for `ssh nexus && docker logs <name>`."
     image: "amir20/dozzle:v10.5.3"
 
+  dragonfly:
+    # Internal-only: the Redis protocol cannot cross the HTTPS tunnel, and
+    # there is no web UI. Clients use redis://dragonfly:6379 on app-network.
+    # 8135 is not bound.
+    port: 8135
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.dragonflydb.io"
+    description: "Redis-compatible in-memory data store with a multi-threaded engine."
+    long_description: "DragonflyDB answers the Redis and Memcached APIs with a multi-threaded engine, so existing Redis clients, commands and data types work unchanged; next to the valkey stack it compares engines rather than APIs. Log in as nexus-dragonfly with the password from Infisical (folder `dragonfly`); the built-in default user is switched off, so a client without credentials is refused. Internal only, at redis://dragonfly:6379. Licensed under the Business Source License 1.1, which is not an OSI licence. Snapshots in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.2"
+
   drawio:
     subdomain: "drawio"
     port: 8083
@@ -452,6 +475,20 @@ services:
     image: "nexus-flink:1.20.1"
     support_images:
       flink-taskmanager: "nexus-flink:1.20.1"
+
+  fluss:
+    # Internal-only: Fluss speaks its own RPC protocol and has no web UI.
+    # Flink jobs use fluss:9123 on app-network. 8138 is not bound.
+    port: 8138
+    public: false
+    internal_only: true
+    category: "streaming"
+    website: "https://fluss.apache.org"
+    description: "Streaming storage for Flink: columnar log tables and primary-key tables for real-time analytics."
+    long_description: "Apache Fluss stores streams for Flink as columnar log tables, read column by column rather than message by message, and as primary-key tables that a Flink job can look up and update in place. It sits between Kafka and the lakehouse. The flink stack ships the Fluss connector, so a Flink SQL session reaches it with CREATE CATALOG ... WITH ('type' = 'fluss', 'bootstrap.servers' = 'fluss:9123', ...). Clients authenticate with SASL/PLAIN as nexus_fluss (Infisical folder `fluss`). Runs a coordinator server, one tablet server and ZooKeeper. Internal only. Data in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
+    image: "apache/fluss:1.0.0"
+    support_images:
+      fluss-zookeeper: "zookeeper:3.9.4"
 
   forgejo:
     subdomain: "forgejo"
@@ -778,6 +815,19 @@ services:
       marquez-db: "postgres:16-alpine"
       marquez-opensearch: "opensearchproject/opensearch:2.19.6"
 
+  milvus:
+    # Internal-only: the gRPC API cannot cross the HTTPS tunnel, and the
+    # built-in WebUI is read-only and has no login. Clients use milvus:19530
+    # on app-network. 8137 is not bound.
+    port: 8137
+    public: false
+    internal_only: true
+    category: "ai-ml"
+    website: "https://milvus.io"
+    description: "Vector database for embeddings, with ANN indexes and hybrid dense, sparse and full-text search."
+    long_description: "Milvus stores embeddings in collections with scalar fields and searches them with approximate nearest-neighbour indexes such as HNSW, IVF and DiskANN, including hybrid search over dense, sparse and full-text matches. Next to qdrant, weaviate and chroma it is the one built for scale-out clusters; here it runs as a single standalone node with embedded etcd and local storage, so no MinIO. Log in as nexus-milvus, which has the admin role, with the password from Infisical (folder `milvus`), for example MilvusClient(uri='http://milvus:19530', token='nexus-milvus:<pw>'). Internal only. Data in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "milvusdb/milvus:v2.6.26"
+
   nessie:
     subdomain: "nessie"
     port: 19120
@@ -888,6 +938,19 @@ services:
     long_description: "Apache Hop builds data integration visually: pipelines transform data row by row — read, filter, join, aggregate, write — and workflows orchestrate jobs with conditions and error paths, all designed, run and debugged in the browser. It is the successor of Pentaho Data Integration (Kettle) and a gentle way into ETL before writing pipelines as code. The bundled JDBC drivers include PostgreSQL, so the databases on the internal network are one connection away. Hop Web has no login of its own; Cloudflare Access is the only gate. Pipelines and workflows live in the project folder under /mnt/nexus-data and survive a teardown."
     image: "apache/hop-web:2.19.0"
     landing_path: "/ui"
+
+  oracle:
+    # Internal-only: SQL*Net cannot cross the HTTPS tunnel, and the image
+    # has no web UI. Clients use oracle:1521/FREEPDB1 on app-network. 8136
+    # is not bound.
+    port: 8136
+    public: false
+    internal_only: true
+    category: "databases"
+    website: "https://www.oracle.com/database/free/"
+    description: "Oracle Database 23ai Free: the full Oracle SQL and PL/SQL dialect, capped at 2 CPUs, 2 GB RAM and 12 GB of data."
+    long_description: "Oracle Database Free is the free edition of Oracle Database 23ai, with the full SQL dialect, PL/SQL, JSON relational duality views and vector search, capped by Oracle at 2 CPUs, 2 GB of memory and 12 GB of user data. Next to the postgres, mysql and mssql stacks it covers the fourth common relational dialect. Log in as nexus_oracle, a schema user in the FREEPDB1 pluggable database, with the password from Infisical (folder `oracle`); SYS and SYSTEM have a separate generated password. Internal only, at oracle:1521/FREEPDB1. The first start creates the database and takes a few minutes. Uses the community image gvenzl/oracle-free; the database is under the Oracle Free Use Terms, not an OSI licence. Data in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "gvenzl/oracle-free:23.26.3-slim"
 
   rill:
     subdomain: "rill"

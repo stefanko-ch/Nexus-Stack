@@ -832,6 +832,53 @@ resource "random_password" "bookstack_admin" {
   special = false
 }
 
+# DragonflyDB, Oracle Database Free, ArcadeDB, Milvus, Apache Fluss
+resource "random_password" "dragonfly" {
+  length  = 24
+  special = false
+}
+
+# Oracle Free: nexus_oracle (the schema user in FREEPDB1) and SYS/SYSTEM.
+# Oracle allows at most 30 bytes.
+resource "random_password" "oracle" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "oracle_system" {
+  length  = 24
+  special = false
+}
+
+# ArcadeDB: nexus-arcadedb (created by arcadedb-init) and the built-in root.
+resource "random_password" "arcadedb" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "arcadedb_root" {
+  length  = 24
+  special = false
+}
+
+# Milvus: nexus-milvus (created by milvus-init) and the built-in root.
+# Milvus allows at most 72 characters.
+resource "random_password" "milvus" {
+  length  = 24
+  special = false
+}
+
+resource "random_password" "milvus_root" {
+  length  = 24
+  special = false
+}
+
+# Fluss SASL/PLAIN: must not contain , : " ; or \ (alphanumeric here).
+resource "random_password" "fluss" {
+  length  = 24
+  special = false
+}
+
 # QuestDB PostgreSQL-wire password
 # QuestDB ships `pg.user=admin` / `pg.password=quest` as documented defaults.
 # The port is not published, but it is on app-network where every other

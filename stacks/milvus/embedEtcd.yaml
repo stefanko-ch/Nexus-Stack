@@ -1,0 +1,10 @@
+# Embedded etcd for Milvus standalone, based on Milvus's
+# standalone_embed.sh. That script listens on 0.0.0.0, which on app-network
+# lets any container read and write Milvus's metadata without credentials,
+# around Milvus's own authentication. Only the Milvus process in this
+# container uses this etcd, so it listens on the loopback interface.
+listen-client-urls: http://127.0.0.1:2379
+advertise-client-urls: http://127.0.0.1:2379
+quota-backend-bytes: 4294967296
+auto-compaction-mode: revision
+auto-compaction-retention: '1000'
