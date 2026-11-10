@@ -1699,7 +1699,7 @@ services:
     category: "databases"
     website: "https://surrealdb.com"
     description: "Multi-model database for documents, graphs and key-value data, queried with SurrealQL."
-    long_description: "SurrealDB keeps documents, graph relations, key-value and time-series data in one database and queries them with SurrealQL, an SQL dialect with record links and RELATE graph edges instead of join tables. That makes it a compact way to compare data models side by side. Log in as nexus-surrealdb, a root-level user, with the password from Infisical (folder `surrealdb`). Internal only, at ws://surrealdb:8000/rpc for the SDKs and http://surrealdb:8000/sql for plain HTTP. Data in RocksDB in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    long_description: "SurrealDB keeps documents, graph relations, key-value and time-series data in one database and queries them with SurrealQL, an SQL dialect with record links and RELATE graph edges instead of join tables. That makes it a compact way to compare data models side by side. Log in as nexus-surrealdb, a root-level user, with the password from Infisical (folder `surrealdb`). Internal only, at ws://surrealdb:8000/rpc for the SDKs and http://surrealdb:8000/sql for plain HTTP. Data in SurrealKV in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "surrealdb/surrealdb:v4.0.0"
 
   tempo:

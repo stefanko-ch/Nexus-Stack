@@ -13,7 +13,7 @@
 # Notebooks and services on app-network use the SDKs. Log in as
 # nexus-surrealdb (root level, Infisical folder `surrealdb`).
 #
-# Data in the surrealdb-data volume (RocksDB), which survives a restart and
+# Data in the surrealdb-data volume (SurrealKV), which survives a restart and
 # the snapshot lifecycle, not a rebuild teardown.
 # =============================================================================
 
@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     # The credentials come from SURREAL_USER / SURREAL_PASS, not from the
     # --user / --pass flags, so they reach no argument list.
-    command: ["start", "--log", "info", "rocksdb:/data/surreal.db"]
+    command: ["start", "--log", "info", "surrealkv:///data/surreal.db"]
     environment:
       SURREAL_USER: nexus-surrealdb
       SURREAL_PASS: ${SURREALDB_PASSWORD:?must be set in .env (rendered by service_env._render_surrealdb)}

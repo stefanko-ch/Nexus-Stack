@@ -61,13 +61,15 @@ The image's own configuration protects only the admin API. It leaves every datas
 ### First steps
 
 ```bash
-curl -u nexus-admin:<JENA_FUSEKI_PASSWORD> http://jena-fuseki:3030/ds/update \
+curl -u nexus-admin http://jena-fuseki:3030/ds/update \
   --data-urlencode 'update=INSERT DATA { GRAPH <urn:demo> {
     <urn:alice> <http://xmlns.com/foaf/0.1/knows> <urn:bob> } }'
 
-curl -u nexus-admin:<JENA_FUSEKI_PASSWORD> http://jena-fuseki:3030/ds/sparql \
+curl -u nexus-admin http://jena-fuseki:3030/ds/sparql \
   --data-urlencode 'query=SELECT ?s ?o WHERE { ?s <http://xmlns.com/foaf/0.1/knows> ?o }'
 ```
+
+`curl` asks for the password (`JENA_FUSEKI_PASSWORD` from Infisical), so it stays out of the shell history and the process list.
 
 Data in the default graph of `ds` is not part of that union. Address it as `GRAPH <urn:x-arq:DefaultGraph>`.
 
