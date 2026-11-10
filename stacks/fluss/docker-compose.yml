@@ -19,7 +19,8 @@
 # protocol and has no web UI. Clients authenticate with SASL/PLAIN as
 # nexus_fluss (Infisical folder `fluss`); Fluss usernames allow letters,
 # digits and underscores only, so it is not nexus-fluss. The servers talk to
-# each other on a separate plaintext listener that is never advertised.
+# each other on a separate plaintext listener that is never advertised and
+# binds to a fluss-internal alias only, so app-network cannot reach it.
 #
 # The image's entrypoint appends FLUSS_PROPERTIES to conf/server.yaml on
 # every start and fills ${...} references from the environment, so the
@@ -85,7 +86,7 @@ services:
       FLUSS_PASSWORD: ${FLUSS_PASSWORD:?must be set in .env (rendered by service_env._render_fluss)}
       FLUSS_PROPERTIES: |
         zookeeper.address: fluss-zookeeper:2181
-        bind.listeners: INTERNAL://fluss:9124, CLIENT://fluss:9123
+        bind.listeners: INTERNAL://fluss-coordinator-internal:9124, CLIENT://0.0.0.0:9123
         advertised.listeners: CLIENT://fluss:9123
         internal.listener.name: INTERNAL
         security.protocol.map: CLIENT:SASL, INTERNAL:PLAINTEXT
@@ -111,9 +112,15 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    # INTERNAL (plaintext, server to server) binds to the alias, which
+    # resolves to this container's fluss-internal address only, so it is
+    # not reachable from app-network. CLIENT (SASL) binds to all
+    # addresses and is advertised as the container name.
     networks:
-      - app-network
-      - fluss-internal
+      app-network:
+      fluss-internal:
+        aliases:
+          - fluss-coordinator-internal
 
   fluss-tablet:
     image: *fluss-image
@@ -126,7 +133,7 @@ services:
       FLUSS_PASSWORD: ${FLUSS_PASSWORD:?must be set in .env (rendered by service_env._render_fluss)}
       FLUSS_PROPERTIES: |
         zookeeper.address: fluss-zookeeper:2181
-        bind.listeners: INTERNAL://fluss-tablet:9124, CLIENT://fluss-tablet:9123
+        bind.listeners: INTERNAL://fluss-tablet-internal:9124, CLIENT://0.0.0.0:9123
         advertised.listeners: CLIENT://fluss-tablet:9123
         internal.listener.name: INTERNAL
         security.protocol.map: CLIENT:SASL, INTERNAL:PLAINTEXT
@@ -151,8 +158,10 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - app-network
-      - fluss-internal
+      app-network:
+      fluss-internal:
+        aliases:
+          - fluss-tablet-internal
 
 volumes:
   fluss-data:

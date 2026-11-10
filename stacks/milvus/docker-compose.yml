@@ -93,6 +93,8 @@ services:
           echo "milvus-init: nexus-milvus already exists and logs in"
           exit 0
         fi
+        # The generated password is alphanumeric (service_env._require
+        # rejects anything else), so it needs no JSON escaping.
         printf '{"userName":"nexus-milvus","password":"%s"}' "$$MILVUS_PASSWORD" > "$$tmp/create"
         printf '{"userName":"nexus-milvus","roleName":"admin"}' > "$$tmp/grant"
         created=$$(call root users/create "$$tmp/create")
@@ -107,7 +109,7 @@ services:
         echo "  If the user exists with another password, the one in Infisical no longer matches Milvus's metadata." >&2
         exit 1
     environment:
-      MILVUS_ROOT_PASSWORD: ${MILVUS_ROOT_PASSWORD}
+      MILVUS_ROOT_PASSWORD: ${MILVUS_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_milvus)}
       MILVUS_PASSWORD: ${MILVUS_PASSWORD:?must be set in .env (rendered by service_env._render_milvus)}
     depends_on:
       milvus:
