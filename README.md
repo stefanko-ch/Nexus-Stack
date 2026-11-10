@@ -4,9 +4,21 @@
 ![Nexus-Stack](docs/assets/nexus-logo-white.png#gh-dark-mode-only)
 
 [![GitHub License](https://img.shields.io/github/license/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/blob/main/LICENSE)
+[![GitHub Issues](https://img.shields.io/github/issues/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/pulls)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/commits/main)
 [![Tests](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml/badge.svg)](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml)
+[![codecov](https://codecov.io/gh/stefanko-ch/Nexus-Stack/branch/main/graph/badge.svg)](https://codecov.io/gh/stefanko-ch/Nexus-Stack)
 [![GitHub Release](https://img.shields.io/github/v/release/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/releases)
 [![Docs](https://img.shields.io/badge/docs-nexus--stack.ch-0b6e5f)](https://nexus-stack.ch/docs/)
+
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?logo=opentofu&logoColor=black)](https://opentofu.org/)
+[![Hetzner](https://img.shields.io/badge/Hetzner-D50C2D?logo=hetzner&logoColor=white)](https://www.hetzner.com/)
+[![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white)](https://www.cloudflare.com/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](https://docs.github.com/actions)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/)
+[![Resend](https://img.shields.io/badge/Resend-000000?logo=resend&logoColor=white)](https://resend.com/)
 
 **A self-hosted data platform on one server that you can switch off at night.**
 
@@ -258,3 +270,17 @@ code and understanding what it does before you run it.
 
 Released under the [MIT licence](LICENSE). Contributions are welcome, see
 [CONTRIBUTING](docs/CONTRIBUTING.md).
+
+## Activity
+
+![Repobeats analytics image](https://repobeats.axiom.co/api/embed/f8f883f70e3a96a899518a605d21827739dba963.svg "Repobeats analytics image")
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=stefanko-ch%2Fnexus-stack&type=date&legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&theme=dark&legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&legend=top-left" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&legend=top-left" />
+  </picture>
+</a>
