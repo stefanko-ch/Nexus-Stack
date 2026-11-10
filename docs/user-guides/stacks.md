@@ -6,7 +6,7 @@ order: 3
 
 # Stacks
 
-Your Nexus-Stack ships with 60+ Docker services grouped into categories (Data Engineering, ML/AI, Dev Tools, …). The **Stacks** page is where you turn them on, turn them off, and click through to their web UIs.
+Your Nexus-Stack ships with a large catalogue of Docker services, grouped into categories (Data Engineering, ML/AI, Dev Tools, …). The **Stacks** page is where you turn them on, turn them off, and click through to their web UIs.
 
 ![Stacks page header showing Docker services grouped into categories with controls to manage and open them](./assets/stacks-header.png)
 

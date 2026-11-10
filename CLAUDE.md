@@ -361,7 +361,7 @@ When adding a new Docker stack, **all locations must be updated**:
    - Nexus-Stack defaults to **x86 servers (`cx43`, Intel-shared, 8 vCPU / 16 GB RAM / 160 GB) in `hel1`** since 2026-05. Switched permanently from ARM (`cax31`) for two reasons:
      (a) Hetzner ARM EU capacity has been unavailable for an extended period, and
      (b) Hetzner's pricing flipped — ARM is now ~40% more expensive than equivalent x86 (was ~50% cheaper at project start).
-     Bumped from `cpx32` (AMD, 4 vCPU / 8 GB) to `cx43` later in 2026-05 because the 40+ Docker stacks workload (JVM-heavy services + Postgres + DuckDB) sustains better with the larger Intel box, and the price delta is small enough to be cost-optimized for the use case.
+     Bumped from `cpx32` (AMD, 4 vCPU / 8 GB) to `cx43` later in 2026-05 because the workload of dozens of Docker stacks (JVM-heavy services + Postgres + DuckDB) sustains better with the larger Intel box, and the price delta is small enough to be cost-optimized for the use case.
    - **Required:** the image must support `linux/amd64`. Check via:
      ```bash
      docker manifest inspect <image>:<tag> | grep -A5 architecture

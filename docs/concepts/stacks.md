@@ -31,7 +31,7 @@ a stack is files in this repository, and adding one is adding files.
 
 ## What each tier promises
 
-A project with 100+ stacks cannot test all of them before every release, so it
+A project with this many stacks cannot test all of them before every release, so it
 does not pretend to. Every stack is in one of three tiers, and the tier says
 exactly what you can rely on:
 
