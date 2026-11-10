@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.0...v0.91.1) (2026-11-10)
+
+
+### 📚 Documentation
+
+* Correct stale facts in the admin guides and stack pages ([#1008](https://github.com/stefanko-ch/Nexus-Stack/issues/1008)) ([bd4e5a9](https://github.com/stefanko-ch/Nexus-Stack/commit/bd4e5a9f0b9dae143a1954535cef3e3c1f3b15ab))
+* Shorten the README and list stacks as badges only ([#1005](https://github.com/stefanko-ch/Nexus-Stack/issues/1005)) ([04d5dda](https://github.com/stefanko-ch/Nexus-Stack/commit/04d5dda9275594583aabe8cb3356cf96c43a7938))
+* **stacks:** Generate the stack catalogue from services.yaml ([#1007](https://github.com/stefanko-ch/Nexus-Stack/issues/1007)) ([8e30280](https://github.com/stefanko-ch/Nexus-Stack/commit/8e302807ceece38ddc8b7eea2373e94283a1694e))
+
 ## [0.91.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.90.0...v0.91.0) (2026-11-10)
 
 
