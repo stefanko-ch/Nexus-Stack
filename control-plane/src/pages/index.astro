@@ -380,7 +380,7 @@ import RunProgress from '../components/RunProgress.astro';
 
   const statusDescriptions = {
     'deployed': 'Infrastructure is running. All services are accessible.',
-    'torn-down': 'Infrastructure is stopped. Control panel remains active. Click Spin Up to restart.',
+    'torn-down': 'Infrastructure is stopped. The Control Plane remains active. Click Spin Up to restart.',
     'destroyed': 'Everything is destroyed. Run Spin Up to start fresh.',
     'running': 'A workflow is currently running. Please wait...',
     'unknown': 'Unable to determine infrastructure state.'
@@ -615,7 +615,7 @@ import RunProgress from '../components/RunProgress.astro';
     currentAction = action;
     const modal = document.getElementById('modal-overlay');
     document.getElementById('modal-title').textContent = 'Confirm Teardown';
-    document.getElementById('modal-message').textContent = 'This will stop all services and destroy the Hetzner infrastructure. The control panel will remain active, allowing you to spin up later.';
+    document.getElementById('modal-message').textContent = 'This will stop all services and destroy the Hetzner infrastructure. The Control Plane will remain active, allowing you to spin up later.';
     modal.classList.add('active');
   }
 
@@ -636,7 +636,7 @@ import RunProgress from '../components/RunProgress.astro';
   async function checkHealth() {
     try {
       const r = await fetch(API_URL + '/api/health', { credentials: 'same-origin' });
-      if (r.ok) { const d = await r.json(); console.log('Control Panel API:', d.status); }
+      if (r.ok) { const d = await r.json(); console.log('Control Plane API:', d.status); }
     } catch {}
   }
 

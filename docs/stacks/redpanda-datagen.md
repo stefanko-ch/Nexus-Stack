@@ -8,7 +8,7 @@ title: "Redpanda Datagen"
 
 **Test data generator for Redpanda topics**
 
-A separate stack for generating realistic test data into Redpanda topics. Uses Redpanda Connect with a pre-configured data generation pipeline. Enable this service via the Control Panel when you need test data - disable it when not needed to avoid overhead.
+A separate stack for generating realistic test data into Redpanda topics. Uses Redpanda Connect with a pre-configured data generation pipeline. Enable this service via the Control Plane when you need test data - disable it when not needed to avoid overhead.
 
 | Setting | Value |
 |---------|-------|
@@ -47,8 +47,8 @@ The datagen produces realistic e-commerce event data:
 
 ### Usage
 
-1. **Enable** the `redpanda-datagen` service in the Control Panel
+1. **Enable** the `redpanda-datagen` service in the Control Plane
 2. **View data** in Redpanda Console at the `test-events` topic
 3. **Disable** when done testing to stop data generation
 
-> ℹ️ **Note:** Data generation runs continuously while the service is enabled (1 msg/sec). Disable via Control Panel when not needed.
+> ℹ️ **Note:** Data generation runs continuously while the service is enabled (1 msg/sec). Disable via Control Plane when not needed.

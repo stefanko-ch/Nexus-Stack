@@ -10,7 +10,7 @@ This tutorial walks through streaming live Bluesky posts into Redpanda and query
 
 ## Prerequisites
 
-Enable the following services in the Control Panel:
+Enable the following services in the Control Plane:
 - **Redpanda** (Kafka-compatible broker)
 - **Redpanda Connect** (data streaming framework)
 - **Redpanda Console** (web UI for viewing topics)

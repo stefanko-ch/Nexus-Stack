@@ -1395,7 +1395,7 @@ jobs:
           echo ""
           echo "✅ Spin-up complete!"
           echo ""
-          echo "📋 Control Panel: https://control.${{ secrets.DOMAIN }}"
+          echo "📋 Control Plane: https://control.${{ secrets.DOMAIN }}"
           echo "   (Manage services, view URLs, and access settings)"
           echo ""
 
@@ -1459,7 +1459,7 @@ jobs:
 
             echo "📧 Sending stack online email..."
 
-            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">✅ Nexus-Stack is Online</h1><p>Your stack is back online at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔗 Quick Links</h2><ul><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Panel</a> - Manage services &amp; view URLs</li></ul><p style="color:#999;font-size:12px;margin-top:1rem">Need credentials? Click "Send Credentials" in the Control Panel.</p></div>'
+            EMAIL_HTML='<div style="font-family:monospace;background:#0a0a0f;color:#00ff88;padding:20px"><h1 style="color:#00ff88">✅ Nexus-Stack is Online</h1><p>Your stack is back online at <strong>DOMAIN_PLACEHOLDER</strong></p><h2>🔗 Quick Links</h2><ul><li><a href="https://control.DOMAIN_PLACEHOLDER" style="color:#00ff88">Control Plane</a> - Manage services &amp; view URLs</li></ul><p style="color:#999;font-size:12px;margin-top:1rem">Need credentials? Click "Send Credentials" in the Control Plane.</p></div>'
 
             EMAIL_HTML="${EMAIL_HTML//DOMAIN_PLACEHOLDER/$DOMAIN}"
 

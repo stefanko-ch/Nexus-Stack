@@ -98,7 +98,7 @@ Nexus-Stack/
 │   └── schema.sql              # D1 database schema
 ├── scripts/
 │   ├── init-r2-state.sh        # R2 bucket + credentials setup
-│   ├── setup-control-panel-secrets.sh  # Control Panel secrets setup
+│   ├── setup-control-panel-secrets.sh  # Control Plane secrets setup
 │   └── check-control-panel-env.sh
 │   # Note: deploy.sh removed in Phase 4c (#505) — replaced by
 │   # `python -m nexus_deploy run-pipeline`. spin-up.yml calls the
