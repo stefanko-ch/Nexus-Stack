@@ -17,6 +17,8 @@
 #
 # Metadata in an embedded H2 database in the gravitino-data volume, which
 # survives a restart and the snapshot lifecycle, not a rebuild teardown.
+# H2 is Gravitino's default store and meant for trying it out: Gravitino
+# makes no durability promise for it (see docs/stacks/gravitino.md).
 # =============================================================================
 
 services:
@@ -26,7 +28,10 @@ services:
     restart: unless-stopped
     environment:
       GRAVITINO_AUX_SERVICE_NAMES: ""
-      JAVA_OPTS: "-XX:MaxRAMPercentage=60"
+      # The start script appends GRAVITINO_MEM to JAVA_OPTS, with explicit
+      # -Xmx and metaspace flags that override any percentage. Its default
+      # (1 GB heap + 512 MB metaspace) alone fills the 1536m limit.
+      GRAVITINO_MEM: "-Xms256m -Xmx768m -XX:MaxMetaspaceSize=256m"
     ports:
       - "127.0.0.1:8128:8090"
     volumes:
@@ -36,7 +41,7 @@ services:
         limits:
           memory: 1536m
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8090/api/version"]
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8090/health/ready"]
       interval: 30s
       timeout: 10s
       retries: 5

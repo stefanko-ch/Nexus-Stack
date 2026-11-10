@@ -46,7 +46,7 @@ result=$(artisan tinker --execute='
   $n = \BookStack\Users\Models\User::where("email", getenv("BOOKSTACK_ADMIN_EMAIL"))->first();
   if (!$n) { echo "MISSING"; return; }
   echo \Illuminate\Support\Facades\Hash::check(getenv("BOOKSTACK_ADMIN_PASSWORD"), $n->password) ? "OK" : "CHANGED";
-' 2>/dev/null | tail -n 1)
+' 2>/dev/null | tail -n 1) || result=""  # a failed tinker falls to fail() below, not past it
 
 case "$result" in
   OK) echo "nexus-admin: nexus-admin logs in with the generated password." ;;

@@ -21,6 +21,9 @@ RUN apt-get update \
 
 WORKDIR /usr/src/app
 
+# pipefail: a failed download must fail the build, not hand tar a
+# truncated stream.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL "https://github.com/assafelovic/gpt-researcher/archive/refs/tags/${GPTR_VERSION}.tar.gz" \
       | tar -xz --strip-components=1 \
     && pip install --no-cache-dir -r requirements.txt \

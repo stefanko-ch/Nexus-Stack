@@ -62,7 +62,7 @@ The image's built-in Iceberg REST and Lance REST side services are switched off 
 
 ### Persistence
 
-The metadata is in an embedded H2 database in `gravitino-data`.
+The metadata is in an embedded H2 database in `gravitino-data`. H2 is Gravitino's default store, meant for trying Gravitino out: Gravitino makes no durability promise for it, and a crash at the wrong moment can lose recent catalog changes. That fits a learning stack, where the catalog describes data that lives elsewhere and can be registered again. For metadata you cannot recreate, Gravitino supports PostgreSQL or MySQL as its store, which this stack does not set up.
 
 - **`rebuild` (default): it does not survive a teardown.**
 - **`snapshot`: it survives**, because the whole disk is imaged.
