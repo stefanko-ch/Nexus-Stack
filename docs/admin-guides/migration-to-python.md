@@ -2,6 +2,8 @@
 title: "Migration: deploy.sh → Python (`nexus_deploy`)"
 ---
 
+> **This page is history.** The migration it describes is finished, and nothing here is needed to set up or operate a stack. It is kept as the record of why the deploy code is a Python package and how it got there. For how a deploy works today, see [Architecture](../concepts/architecture.md).
+
 ## Overview
 
 `scripts/deploy.sh` (~5.5k lines of bash) **has been fully replaced** by a proper Python package, **`nexus_deploy`**, under `src/nexus_deploy/`. See [GitHub issue #505](https://github.com/stefanko-ch/Nexus-Stack/issues/505) for the full migration history.
