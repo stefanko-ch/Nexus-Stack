@@ -193,3 +193,81 @@ export async function listWorkflowRuns(env, limit) {
   const runs = kind === 'github' ? data.workflow_runs : data.workflow_runs.map(normalizeForgejoRun);
   return { ok: true, runs, response };
 }
+
+/** How many runs one page holds. Forgejo caps a page at its MAX_RESPONSE_ITEMS, 50 by default. */
+export function runsPageSize(env) {
+  return forgeConfig(env).kind === 'github' ? 100 : 50;
+}
+
+/**
+ * Workflow runs, newest first, read page by page until `enough(runs)` says the
+ * caller has what it needs.
+ *
+ * One page is not a safe window. The list holds every workflow's runs, and CI
+ * outnumbers lifecycle runs by far: a dozen merged pull requests in a day
+ * produced more than a hundred CI runs, the morning's spin-up fell off the
+ * first page, and the dashboard reported "unknown" for a server that was
+ * running. Worse, the scheduled-teardown Worker fails closed on "unknown" and
+ * skipped the teardown.
+ *
+ * So the caller says when it has seen enough, and this reads on until then.
+ * It stops early in the common case — a lifecycle run on page one costs one
+ * request, as before — and gives up after `maxPages`, or at the first empty
+ * page, which is the end of the history.
+ *
+ * A failure on the first page is reported like listWorkflowRuns reports it,
+ * and a thrown error there is thrown on. A failure on a later page is not a
+ * failure of the call, whether it is an HTTP error, a timeout or an unreadable
+ * body: the runs read so far are returned with `incomplete: true`, because a
+ * partial list is still more than nothing and the caller already has to cope
+ * with not finding what it looked for.
+ *
+ * `response` is the newest page that was read, so its rate-limit headers
+ * reflect every request this call made.
+ *
+ * @param {object} env
+ * @param {{ maxPages: number, enough: (runs: object[]) => boolean }} options
+ * @returns {Promise<{ ok: true, runs: object[], response: Response, pages: number, incomplete?: true }
+ *                  | { ok: false, response: Response }
+ *                  | { ok: false, invalid: true, response: Response }>}
+ */
+export async function listWorkflowRunsUntil(env, { maxPages, enough }) {
+  const { kind } = forgeConfig(env);
+  const perPage = runsPageSize(env);
+  const runs = [];
+  // The newest page that was read. Its headers carry the rate-limit budget as
+  // it stands after every request made here, which is what a caller that
+  // paces itself by that budget needs to see.
+  let latest = null;
+  for (let page = 1; page <= maxPages; page += 1) {
+    const query = kind === 'github' ? `?per_page=${perPage}&page=${page}` : `?page=${page}&limit=${perPage}`;
+    const url = repoApiUrl(env, `/actions/runs${query}`);
+    let response;
+    let data;
+    if (page === 1) {
+      // The first page behaves exactly like listWorkflowRuns, thrown errors
+      // included: with nothing read yet there is nothing to fall back on.
+      response = await forgeFetch(env, url, { headers: forgeHeaders(env) });
+      if (!response.ok) return { ok: false, response };
+      data = await response.json();
+      if (!data || !Array.isArray(data.workflow_runs)) return { ok: false, invalid: true, response };
+    } else {
+      // A later page that cannot be read — an HTTP error, a timeout, a body
+      // that is not the expected JSON — ends the search with what there is.
+      try {
+        response = await forgeFetch(env, url, { headers: forgeHeaders(env) });
+        data = response.ok ? await response.json() : null;
+      } catch {
+        data = null;
+      }
+      if (!data || !Array.isArray(data.workflow_runs)) {
+        return { ok: true, runs, response: latest, pages: page - 1, incomplete: true };
+      }
+    }
+    latest = response;
+    const pageRuns = kind === 'github' ? data.workflow_runs : data.workflow_runs.map(normalizeForgejoRun);
+    runs.push(...pageRuns);
+    if (pageRuns.length === 0 || enough(runs)) return { ok: true, runs, response: latest, pages: page };
+  }
+  return { ok: true, runs, response: latest, pages: maxPages };
+}

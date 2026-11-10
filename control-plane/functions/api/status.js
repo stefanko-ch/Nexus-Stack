@@ -31,9 +31,17 @@
  */
 import {
   forgeConfig, forgeErrorMessage, forgeErrorStatus, forgeFetch, forgeHeaders,
-  listWorkflowRuns, repoApiUrl,
+  listWorkflowRunsUntil, repoApiUrl,
 } from './_utils/forge.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
+
+// How far back to look for a lifecycle run: ten pages are a thousand runs on
+// GitHub and five hundred on Forgejo. Reached only when no lifecycle run is
+// nearer; normally the first page answers. See listWorkflowRunsUntil.
+const MAX_RUN_PAGES = 10;
+
+// The families whose newest successful run decides the infrastructure state.
+const STATE_FAMILIES = new Set(['initialSetup', 'spinUp', 'teardown', 'destroy']);
 import { deriveProgress } from './_utils/run-progress.js';
 import { readDispatchMarkers, DISPATCH_GRACE_MS, DISPATCH_SKEW_MS } from './_utils/dispatch-marker.js';
 import { requireViewer } from './_utils/require-viewer.js';
@@ -139,7 +147,14 @@ export async function onRequestGet(context) {
   };
 
   try {
-    const listed = await listWorkflowRuns(env, 100);
+    // Read on until the state can be decided: a lifecycle run that is still
+    // active, or the newest successful one. The list is newest-first, so the
+    // first such run found is the one that counts.
+    const listed = await listWorkflowRunsUntil(env, {
+      maxPages: MAX_RUN_PAGES,
+      enough: (runs) => runs.some((run) => STATE_FAMILIES.has(classify(run))
+        && (run.status !== 'completed' || run.conclusion === 'success')),
+    });
     const { response } = listed;
 
     if (!listed.ok && !listed.invalid) {

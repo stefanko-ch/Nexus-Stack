@@ -5,7 +5,7 @@
  * Returns server info, time information, scheduled teardown details, and workflow details
  * Configuration stored in Cloudflare D1 database
  */
-import { listWorkflowRuns } from './_utils/forge.js';
+import { listWorkflowRunsUntil } from './_utils/forge.js';
 import { ALL_SPINUP_WORKFLOWS, ALL_TEARDOWN_WORKFLOWS } from './_utils/workflow-selection.js';
 import { timeInTimezoneToUTC } from './_utils/timezone.js';
 import { requireViewer } from './_utils/require-viewer.js';
@@ -176,17 +176,21 @@ export async function onRequestGet(context) {
     }
 
     // Get workflow details from the forge's Actions API
-    const listed = await listWorkflowRuns(env, 20);
+    // Read on until a successful spin-up turns up. Twenty runs, the old
+    // window, are used up by the CI of two or three pull requests.
+    const isSpinUp = (r) =>
+      (r.path && ALL_SPINUP_WORKFLOWS.some((w) => r.path.includes(w))) ||
+      (r.name && (r.name.includes('Spin Up') || r.name.includes('Spin-Up')));
+    const listed = await listWorkflowRunsUntil(env, {
+      maxPages: 5,
+      enough: (runs) => runs.some((r) => isSpinUp(r) && r.conclusion === 'success'),
+    });
 
     if (listed.ok) {
       const runs = listed.runs;
 
       // Find last successful spin-up (preferred) or setup
-      const lastSpinUp = runs.find(r =>
-        ((r.path && ALL_SPINUP_WORKFLOWS.some((w) => r.path.includes(w))) ||
-         (r.name && (r.name.includes('Spin Up') || r.name.includes('Spin-Up')))) &&
-        r.conclusion === 'success'
-      );
+      const lastSpinUp = runs.find((r) => isSpinUp(r) && r.conclusion === 'success');
 
       const lastSetup = runs.find(r =>
         ((r.path && r.path.includes('setup-control-plane.yaml')) ||
