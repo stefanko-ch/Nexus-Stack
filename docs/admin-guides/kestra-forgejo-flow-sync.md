@@ -69,7 +69,7 @@ The `nexus_seeds/` prefix is reserved for Nexus-Stack-shipped content; user-auth
 
 ## `flow-export` specifics
 
-- **Cadence:** `cron: "*/10 * * * *"` (every 10 minutes). A stack crash loses at most ~10 minutes of student work in `my-flows.*`. Faster (every 5 min) would multiply commits + R2 egress for marginal recovery; slower (hourly) would lose unacceptable amounts.
+- **Cadence:** `cron: "*/10 * * * *"` (every 10 minutes). A stack crash loses at most ~10 minutes of student work in `my-flows.*`, as long as the exports succeed; a failing export (see *Conflict behaviour* below) leaves everything since the last successful one outside Git. Faster (every 5 min) would multiply commits + R2 egress for marginal recovery; slower (hourly) would lose unacceptable amounts.
 - **Source namespace:** `my-flows` only. The PushFlows plugin has no exclude-list, so positive-only namespace scoping is the only way to (a) prevent the exporter from pushing itself (`system.*` echo-loop) AND (b) protect `nexus-tutorials.*` seeds from getting overwritten with student edits.
 - **`delete: false`:** a UI-side delete does *not* propagate to Git. To permanently delete a `my-flows.*` flow, the operator commits the removal directly in the Forgejo workspace; the next `flow-sync` (at next spin-up) drops it from Kestra.
 - **Commit identity:** `Kestra Auto-Export <kestra@nexus-stack.local>` (synthetic, never a real user). The Forgejo push log still attributes the push to whoever owns the admin token, but Git blame stays clean.

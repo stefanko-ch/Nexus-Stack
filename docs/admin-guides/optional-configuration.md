@@ -13,12 +13,13 @@ Nothing on this page is needed for a working stack. Each section is independent;
 
 By default, users cannot disable the automatic daily teardown feature via the Control Plane. This ensures cost control for shared environments (e.g., student labs).
 
-**To change this behavior**, edit `tofu/control-plane/variables.tf` or set the GitHub Actions repository variable `ALLOW_DISABLE_AUTO_SHUTDOWN=true`:
+**To change this behavior**, set the GitHub Actions repository variable `ALLOW_DISABLE_AUTO_SHUTDOWN` to `true`:
 
-```hcl
-# Allow users to disable auto-shutdown
-allow_disable_auto_shutdown = true
+```bash
+gh variable set ALLOW_DISABLE_AUTO_SHUTDOWN --body "true"
 ```
+
+The repository variable is the only switch. `setup-control-plane.yaml` writes the setting into the Control Plane's configuration from it on every run, so a changed default in `tofu/control-plane/variables.tf` would be overridden.
 
 **Default behavior** (`false`):
 - Toggle switch is visible but grayed out
@@ -39,18 +40,23 @@ gh workflow run setup-control-plane.yaml
 
 By default, users can delay each scheduled teardown by **4 hours** at a time, with a maximum of **3 extensions per UTC day**. Each extension is recorded in the Control Plane's audit log with the requesting user's email.
 
-To customize, edit `tofu/control-plane/variables.tf`:
+To customize, change the defaults of the two variables in `tofu/control-plane/variables.tf` in your repository, commit, and re-deploy the Control Plane:
 
 ```hcl
-max_delay_hours        = 4   # Maximum hours per single delay request
-max_extensions_per_day = 3   # Maximum delay requests per UTC day per user
+variable "max_extensions_per_day" {
+  description = "Maximum number of teardown delay extensions a user can request per UTC day"
+  type        = number
+  default     = 3
+}
+
+variable "max_delay_hours" {
+  description = "Maximum hours per teardown delay extension request"
+  type        = number
+  default     = 4
+}
 ```
 
-Or set via environment variable:
-
-```bash
-TF_VAR_max_delay_hours=2 TF_VAR_max_extensions_per_day=5 gh workflow run setup-control-plane.yaml
-```
+There is no repository variable for these two. Setting `TF_VAR_…` in front of `gh workflow run` has no effect: that sets the variable for the local `gh` process, not for the workflow run.
 
 What a user sees with the policy in place is described under [Scheduled Teardown](../user-guides/settings.md#scheduled-teardown) in the Settings guide.
 
