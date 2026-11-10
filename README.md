@@ -1,6 +1,7 @@
 # Nexus-Stack
 
-![Nexus-Stack](docs/assets/Nexus-Logo-BlackWhite.png)
+![Nexus-Stack](docs/assets/nexus-logo-black.png#gh-light-mode-only)
+![Nexus-Stack](docs/assets/nexus-logo-white.png#gh-dark-mode-only)
 
 [![GitHub License](https://img.shields.io/github/license/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/blob/main/LICENSE)
 [![Tests](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml/badge.svg)](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml)
@@ -16,9 +17,11 @@ no open ports, and there is nothing to install on your own machine.
 
 - **A catalogue of data tools.** Databases, streaming, orchestration, notebooks,
   BI and AI tooling, each one a switch in a web page.
-- **A server that only exists while you use it.** Teardown destroys the machine
-  and keeps your data. Spin Up builds a new one and puts the data back. An
-  optional daily schedule runs the teardown for you.
+- **A server that only exists while you use it.** Teardown destroys the machine;
+  Spin Up builds a new one and puts your data back. How much comes back depends
+  on the lifecycle mode: a disk snapshot restores everything, the rebuild mode
+  restores the stacks its backup covers. An optional daily schedule runs the
+  teardown for you.
 - **No open ports.** Web interfaces are reached through Cloudflare Tunnel, and
   Cloudflare Access asks for an email login first. The one exception is Git
   Proxy, which is public by design. Internal-only stacks such as Postgres have
@@ -31,6 +34,8 @@ New here? [What is Nexus Stack?](docs/concepts/index.md) explains the problem it
 solves and what it deliberately is not.
 
 ## How it works
+
+![Nexus Stack in one picture: you click in the Control Plane, GitHub Actions builds the server, the server runs your stacks](docs/concepts/assets/nexus-stack-in-one-picture.svg)
 
 The Control Plane is a web page that stores what you want: which stacks are on,
 your settings, your firewall rules. GitHub Actions turns that into a Hetzner

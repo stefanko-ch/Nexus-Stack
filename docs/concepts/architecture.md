@@ -11,44 +11,7 @@ click, an **execution plane** that runs every change, and a **data plane** — t
 server your services actually run on. Nothing you do in the first plane touches the
 third directly.
 
-```mermaid
-flowchart TB
-    subgraph control["Control plane (Cloudflare)"]
-        CP["Control Plane UI<br/>Cloudflare Pages"]
-        D1["D1 database<br/>enabled services, config,<br/>firewall rules"]
-        W["Scheduled-teardown Worker<br/>daily cron"]
-    end
-
-    subgraph exec["Execution plane (GitHub Actions)"]
-        WF["spin-up / teardown /<br/>destroy-all workflows"]
-        TOFU["OpenTofu"]
-        PY["nexus_deploy<br/>Python pipeline"]
-    end
-
-    subgraph data["Data plane (Hetzner Cloud)"]
-        SRV["One server, Docker"]
-        ST["Service stacks<br/>docker compose"]
-        CFD["cloudflared connector"]
-    end
-
-    R2["Cloudflare R2<br/>OpenTofu state + data snapshots"]
-    CF["Cloudflare edge<br/>Tunnel, DNS, Access"]
-
-    CP --> D1
-    CP -- "workflow dispatch (GitHub API)" --> WF
-    W -- "workflow dispatch" --> WF
-    WF --> TOFU
-    WF --> PY
-    TOFU <--> R2
-    TOFU -- "provisions" --> SRV
-    TOFU -- "DNS, Tunnel routes,<br/>Access apps" --> CF
-    PY -- "SSH through the tunnel" --> SRV
-    PY <--> R2
-    SRV --> ST
-    SRV --> CFD
-    CFD -- "outbound only" --> CF
-    CF -- "user traffic" --> ST
-```
+![Three planes: the control plane at Cloudflare, the execution plane in GitHub Actions and the data plane at Hetzner, with the state that outlives the server below them](./assets/three-planes.svg)
 
 ## GitHub Actions is the only execution path
 
