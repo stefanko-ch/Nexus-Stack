@@ -90,7 +90,7 @@ Two buttons, each tied to a GitHub Actions workflow:
 Starts the spin-up workflow of your stack's lifecycle (`spin-up.yml`, or `spin-up-snapshot.yml` on the snapshot lifecycle) on your repo, which:
 - Creates a Hetzner server
 - Installs Docker and connects the Cloudflare Tunnel
-- Restores your data — from the backup the last teardown wrote, or from the disk snapshot on the snapshot lifecycle
+- Restores what the last teardown saved — the whole disk on the snapshot lifecycle, only the stacks its backup covers on the rebuild lifecycle
 - Starts all enabled services
 
 Typical runtime: 4–10 minutes, depending on how many stacks are enabled. Button stays disabled until the stack is fully torn down (can't spin up on top of a running server).
@@ -98,11 +98,11 @@ Typical runtime: 4–10 minutes, depending on how many stacks are enabled. Butto
 ### 💤 Teardown
 
 Starts the teardown workflow of your stack's lifecycle (`teardown.yml`, or `teardown-snapshot.yml` on the snapshot lifecycle), which:
-- Saves your data first — a backup to object storage, and on the snapshot lifecycle a disk snapshot as well
+- Saves data first — on the snapshot lifecycle a snapshot of the whole disk, on the rebuild lifecycle a backup of a few stacks only
 - Deletes the Hetzner server
 - Leaves DNS, the tunnel and this Control Plane in place, so the next spin-up needs no new setup
 
-While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. What survives a teardown depends on the lifecycle — see [Settings](./settings.md#lifecycle).
+While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. **On the rebuild lifecycle most data does not survive a teardown.** Its backup covers Forgejo, Dify, HedgeDoc, Planka and Metabase; tables you created in Postgres, Grafana dashboards and everything else are gone at the next spin-up. [Settings](./settings.md#lifecycle) shows which lifecycle your stack is on and what each one keeps.
 
 ## When buttons are disabled
 
