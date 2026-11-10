@@ -12,6 +12,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { onRequestGet as getStatus } from '../functions/api/status.js';
+import { onRequestGet as getInfo } from '../functions/api/info.js';
 import { _resetJwksCache } from '../functions/api/_utils/access-jwt.js';
 import { listWorkflowRunsUntil, runsPageSize } from '../functions/api/_utils/forge.js';
 import worker from '../worker/src/index.js';
@@ -254,8 +255,8 @@ function fakeD1(config = {}) {
   };
 }
 
-async function runWorker(pages, env = {}) {
-  const asked = forgeFetch(pages);
+async function runWorker(pages, env = {}, options = {}) {
+  const asked = forgeFetch(pages, options);
   const db = fakeD1();
   const pending = [];
   await worker.scheduled(
@@ -297,5 +298,49 @@ test('worker: on Forgejo it pages fifty at a time', async () => {
   );
   assert.ok(!messages.some((m) => UNDETERMINED.test(m)), messages.join(' | '));
   assert.equal(asked[0], 'https://forgejo.example.com/api/v1/repos/alice/stack/actions/runs?page=1&limit=50');
+  assert.equal(asked.length, 2);
+});
+
+// The safety property: the Worker never decides on a list it could not read to
+// the end. A later page that fails must not be read as "no lifecycle run", and
+// certainly not as a state.
+test('worker: a later page that answers with an error fails closed', async () => {
+  const { messages, asked } = await runWorker([pageOfCi(100)], {}, { failFrom: 2 });
+  assert.ok(messages.some((m) => UNDETERMINED.test(m)), messages.join(' | '));
+  assert.equal(asked.length, 2, 'it stops at the page that failed');
+});
+
+test('worker: a later page that cannot be reached fails closed', async () => {
+  const { messages } = await runWorker([pageOfCi(100)], {}, { throwFrom: 2 });
+  assert.ok(messages.some((m) => UNDETERMINED.test(m)), messages.join(' | '));
+});
+
+// ---- GET /api/info ----------------------------------------------------------
+
+async function info(pages) {
+  const { privateKey, jwk, kid } = await makeKeypair();
+  const asked = forgeFetch(pages, { jwks: [jwk] });
+  _resetJwksCache();
+  const token = await signToken({ privateKey, kid, payload: { email: 'someone@example.com' } });
+  const response = await getInfo({
+    env: STATUS_ENV,
+    request: requestWithToken(token, 'https://control.example.com/api/info'),
+  });
+  return { response, body: JSON.parse(await response.text()), asked };
+}
+
+test('info: the last deploy is found behind a full page of CI runs', async () => {
+  const { response, body, asked } = await info([pageOfCi(100), [lifecycleRun('spin-up.yml', 'Spin Up')]]);
+  assert.equal(response.status, 200);
+  assert.equal(body.info.time.lastDeploy, '2026-11-10T10:40:00Z');
+  assert.equal(asked.length, 2);
+});
+
+test('info: a failed spin-up is not the last deploy; the search reads on to the successful one', async () => {
+  const { body, asked } = await info([
+    [...pageOfCi(99), lifecycleRun('spin-up.yml', 'Spin Up', { conclusion: 'failure', updated_at: '2026-11-10T11:00:00Z' })],
+    [lifecycleRun('spin-up-snapshot.yml', 'Lifecycle: Spin Up (Snapshot)')],
+  ]);
+  assert.equal(body.info.time.lastDeploy, '2026-11-10T10:40:00Z');
   assert.equal(asked.length, 2);
 });
