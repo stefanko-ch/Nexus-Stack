@@ -94,4 +94,4 @@ If you don't see a recent UI edit in the workspace:
 
 ## See also
 
-- [admin-guides/setup-guide.md](../admin-guides/setup-guide.md#kestra--forgejo-bi-directional-flow-sync) — the bi-directional sync design + cadence rationale + loop diagram
+- [admin-guides/kestra-forgejo-flow-sync.md](../admin-guides/kestra-forgejo-flow-sync.md) — the bi-directional sync design + cadence rationale + loop diagram

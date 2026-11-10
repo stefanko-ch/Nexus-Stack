@@ -115,6 +115,9 @@ Nexus-Stack/
     │   └── control-plane.md    # Control Plane web UI walkthrough
     ├── admin-guides/           # Operator/self-hoster guides
     │   ├── setup-guide.md      # Initial infrastructure setup
+    │   ├── updating.md         # Moving a stack to a newer release
+    │   ├── optional-configuration.md # Auto-shutdown policy, LakeFS storage, Resend, Docker Hub
+    │   ├── kestra-forgejo-flow-sync.md # How flows sync between Kestra and Forgejo
     │   ├── debugging.md        # Log inspection, systemd, Docker
     │   ├── ssh-access.md       # SSH via Cloudflare Tunnel
     │   ├── snapshot-lifecycle.md # Disk-snapshot teardown/spin-up: switching + rollback
@@ -1282,6 +1285,8 @@ Use prefixes that match commit types:
 1. **Does this change affect any documentation?** Check:
    - `docs/stacks/*.md` - if a service was added, changed, or removed
    - `docs/admin-guides/setup-guide.md` - if setup steps, secrets, or workflows changed
+   - `docs/admin-guides/updating.md` - if the update procedure or `update-from-upstream.yml` changed
+   - `docs/admin-guides/optional-configuration.md` - if an optional setting (auto-shutdown policy, Resend, Docker Hub) changed
    - `docs/user-guides/control-plane.md` - if the Control Plane UI or API changed
    - `docs/admin-guides/debugging.md` / `docs/admin-guides/troubleshooting.md` - if debugging steps changed
    - `docs/admin-guides/docs-website-sync.md` - if the sync mechanism changed
