@@ -34,7 +34,7 @@ services:
       # one is 401, a wrong one 403.
       - DATACONTRACT_CLI_API_KEY=${DATACONTRACT_API_KEY}
       # The whole point of running this next to the data: a contract has to
-      # be testable against postgres, trino, lakekeeper and minio, which are
+      # be testable against postgres, trino, lakekeeper and garage, which are
       # all private addresses on app-network. This is deliberately an
       # SSRF-shaped capability, and it is why the API key above is required
       # rather than recommended.

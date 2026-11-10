@@ -60,4 +60,4 @@ Ray would otherwise size itself to the whole server, so the head node is started
 
 ### Persistence
 
-None. Ray keeps no state worth keeping: job history and logs are gone after a restart, and results belong in storage such as MinIO or a database.
+None. Ray keeps no state worth keeping: job history and logs are gone after a restart, and results belong in storage such as Garage, SeaweedFS or a database.

@@ -354,9 +354,6 @@ output "secrets" {
     # Mage AI
     mage_admin_password = random_password.mage_admin.result
 
-    # MinIO
-    minio_root_password = random_password.minio_root.result
-
     # SFTPGo
     sftpgo_admin_password = random_password.sftpgo_admin.result
     sftpgo_user_password  = random_password.sftpgo_user.result

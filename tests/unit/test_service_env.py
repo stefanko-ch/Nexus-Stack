@@ -121,7 +121,6 @@ def full_config() -> NexusConfig:
         marquez_db_password="marquez-db-pw",
         marquez_opensearch_password="marquez-os-pw",
         mage_admin_password="mage-pw",
-        minio_root_password="minio-pw",
         sftpgo_admin_password="sftpgo-admin",
         sftpgo_user_password="sftpgo-user",
         hoppscotch_db_password="hoppscotch-db",
@@ -2792,7 +2791,6 @@ def test_simple_render_functions_smoke(full_config: NexusConfig, full_env: Boots
         _render_mage,
         _render_meilisearch,
         _render_meltano,
-        _render_minio,
         _render_nocodb,
         _render_openmetadata,
         _render_pgadmin,
@@ -2818,7 +2816,6 @@ def test_simple_render_functions_smoke(full_config: NexusConfig, full_env: Boots
         _render_cloudbeaver,
         _render_mage,
         _render_meilisearch,
-        _render_minio,
         _render_redpanda_console,
         _render_hoppscotch,
         _render_meltano,
@@ -4065,7 +4062,7 @@ def test_datacontract_api_refuses_to_render_without_the_key(
 
     The compose file sets ``DATACONTRACT_CLI_API_ALLOW_PRIVATE_NETWORK=true``
     so a contract can be tested against postgres, trino, lakekeeper and
-    minio. That makes the service an SSRF-shaped capability by design, and
+    garage. That makes the service an SSRF-shaped capability by design, and
     Cloudflare Access covers its public hostname but not ``app-network``,
     where every other container can reach port 4242 directly.
 
