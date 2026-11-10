@@ -74,7 +74,7 @@ Use when the stack is currently running and you want to change type without losi
 #    runs automatically. Only worry if you've EXPLICITLY set the secret
 #    to "false" — in that case the teardown skips the snapshot and
 #    data does not survive.
-gh workflow run teardown.yml && sleep 3 && gh run watch
+gh workflow run teardown.yml -f confirm=TEARDOWN && sleep 3 && gh run watch
 
 # 2. Update the server type repo variable
 gh variable set SERVER_TYPE --body "cpx42"

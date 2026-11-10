@@ -535,9 +535,9 @@ Use the Control Plane to view or email credentials:
 | Initial Setup | `gh workflow run initial-setup.yaml [-f enabled_services="..."]` | None | One-time setup (Control Plane + Spin Up) |
 | Setup Control Plane | `gh workflow run setup-control-plane.yaml` | None | Setup Control Plane only |
 | Spin Up (Rebuild) | `gh workflow run spin-up.yml` | None | Re-create infrastructure after a rebuild teardown |
-| Teardown (Rebuild) | `gh workflow run teardown.yml` | None | Tear down the infrastructure; a spin-up rebuilds it from a fresh image |
+| Teardown (Rebuild) | `gh workflow run teardown.yml -f confirm=TEARDOWN` | Required | Tear down the infrastructure; a spin-up rebuilds it from a fresh image |
 | Spin Up (Snapshot) | `gh workflow run spin-up-snapshot.yml` | None | Re-create the server from its disk snapshot |
-| Teardown (Snapshot) | `gh workflow run teardown-snapshot.yml` | None | Snapshot the disk, then tear down the server |
+| Teardown (Snapshot) | `gh workflow run teardown-snapshot.yml -f confirm=TEARDOWN` | Required | Snapshot the disk, then tear down the server |
 | Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
 | Update from Upstream | `gh workflow run update-from-upstream.yml [-f ref=vX.Y.Z]` | None | Move a torn-down stack's code to a release; see [Updating to a new release](#updating-to-a-new-release) |
 

@@ -130,7 +130,7 @@ Nexus-Stack/
 ```bash
 gh workflow run initial-setup.yaml  # First-time setup
 gh workflow run spin-up.yml         # Re-deploy after teardown
-gh workflow run teardown.yml        # Stop infrastructure
+gh workflow run teardown.yml -f confirm=TEARDOWN    # Stop infrastructure
 gh workflow run destroy-all.yml -f confirm=DESTROY  # Full cleanup
 ```
 
@@ -629,7 +629,7 @@ cd tofu && tofu validate
       - Test the main functionality
    5. Run teardown when done:
       ```bash
-      gh workflow run teardown.yml
+      gh workflow run teardown.yml -f confirm=TEARDOWN
       ```
    ```
 
