@@ -43,7 +43,7 @@ The goal: give you one focused skill per page, so you can stitch the ones you ne
 ## What's not here
 
 - **Full end-to-end projects** — tutorials are skill-level, not project-level. The closest thing to an end-to-end walkthrough is the [Bluesky → Flink](./flink/bluesky-end-to-end) guide, which chains two separate tutorials into one run.
-- **Setup and provisioning** — see the [Admin Guides](/docs/guides/admin-guides/) for getting Nexus-Stack up in the first place.
+- **Setup and provisioning** — see the [Setup Guide](../admin-guides/setup-guide.md) for getting Nexus-Stack up in the first place.
 - **Per-service reference docs** — see [Stacks](/docs/stacks/) for the catalog of every service, its port, and its quirks.
 
 Screenshots will be added to the tutorials over time; the prose descriptions are written to be followable without them.
