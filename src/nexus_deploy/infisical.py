@@ -1395,6 +1395,58 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "nats",
+            _filter_empty(
+                {
+                    # nats://nats:4222, JetStream on.
+                    "NATS_USERNAME": "nexus-nats",
+                    "NATS_PASSWORD": config.nats_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "openbao",
+            _filter_empty(
+                {
+                    # userpass login; the root token is revoked at init.
+                    "OPENBAO_USERNAME": "nexus-admin",
+                    "OPENBAO_PASSWORD": config.openbao_admin_password,
+                    # OPENBAO_UNSEAL_KEY is deliberately not here. Whoever
+                    # holds it and the volume can decrypt everything in
+                    # OpenBao, and every Infisical folder is synced into
+                    # Kestra as SECRET_*. The stack reads it from its own
+                    # 0600 .env; the operator has `tofu output -json secrets`.
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "jena-fuseki",
+            _filter_empty(
+                {
+                    # HTTP Basic auth for the UI and every SPARQL endpoint.
+                    "JENA_FUSEKI_USERNAME": "nexus-admin",
+                    "JENA_FUSEKI_PASSWORD": config.jena_fuseki_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "zeppelin",
+            _filter_empty(
+                {
+                    "ZEPPELIN_USERNAME": "nexus-admin",
+                    "ZEPPELIN_PASSWORD": config.zeppelin_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

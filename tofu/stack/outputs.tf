@@ -313,6 +313,13 @@ output "secrets" {
     mysql_password             = random_password.mysql.result
     rstudio_password           = random_password.rstudio.result
 
+    # NATS, OpenBao, Jena Fuseki, Zeppelin
+    nats_password              = random_password.nats.result
+    openbao_unseal_key         = random_id.openbao_unseal_key.hex
+    openbao_admin_password     = random_password.openbao_admin.result
+    jena_fuseki_admin_password = random_password.jena_fuseki_admin.result
+    zeppelin_admin_password    = random_password.zeppelin_admin.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result
