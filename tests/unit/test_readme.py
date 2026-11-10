@@ -19,9 +19,11 @@ STACKS_DIR = REPO_ROOT / "stacks"
 HEADING = re.compile(r"^## Stacks \((\d+)\)$", re.MULTILINE)
 # One stack badge: a shields.io static badge, linked to the stack's website.
 BADGE = re.compile(r"^\[!\[([^\]]+)\]\(https://img\.shields\.io/badge/[^)]+\)\]\([^)]+\)$")
-# "163 stacks", "80+ Docker services", "60 services" — a catalogue size written
-# as a number in running text.
-HARD_CODED_COUNT = re.compile(r"\b\d+\+?\s+(?:Docker\s+)?(?:stacks|services)\b", re.IGNORECASE)
+# "163 stacks", "80+ Docker services", "60 data tools" — a catalogue size
+# written as a number in running text.
+HARD_CODED_COUNT = re.compile(
+    r"\b\d+\+?\s+(?:Docker\s+|data\s+)?(?:stacks|services|tools)\b", re.IGNORECASE
+)
 
 
 def _stack_section() -> tuple[int, list[str], str]:
@@ -71,6 +73,20 @@ def test_every_shields_line_in_the_section_is_a_well_formed_badge() -> None:
     assert not malformed, (
         "These lines under '## Stacks (N)' mention img.shields.io but are not a "
         f"'[![Name](badge-url)](website)' badge on a line of its own: {malformed}"
+    )
+
+
+def test_badge_block_holds_nothing_but_badges() -> None:
+    # Prose after the last badge (tiers, the licence note) is fine. A line
+    # between two badges is a description creeping back into the list.
+    _, lines, _ = _stack_section()
+    positions = [i for i, line in enumerate(lines) if BADGE.match(line)]
+    assert positions, "README.md has no stack badges under '## Stacks (N)'"
+    block = lines[positions[0] : positions[-1] + 1]
+    strays = [line for line in block if not BADGE.match(line)]
+    assert not strays, (
+        "The badge list under '## Stacks (N)' is badges only, one per line with no "
+        f"blank lines or text between them. Found: {strays}"
     )
 
 

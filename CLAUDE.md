@@ -453,11 +453,11 @@ When adding a new Docker stack, **all locations must be updated**:
      flagging the unprefixed-but-unique keys that already exist.
 
 6. **Update README.md:**
-   - Add one stack badge under `## Stacks (N)`, linked to the stack's website, on a line of its own
+   - Add one stack badge under `## Stacks (N)` on a line of its own, linked to the stack's website — or to its page in `docs/stacks/` when it has no website of its own (Forgejo Runner, Git Proxy)
    - Keep the badges sorted by name, ignoring case
    - Update the number in the heading `## Stacks (N)`; it is the number of directories in `stacks/`
-   - Do not write the stack count anywhere else in the README, and do not add a description there: the README lists stacks as badges only, and descriptions live in `docs/stacks/README.md` (step 7)
-   - `tests/unit/test_readme.py` enforces all four
+   - Do not write the stack count anywhere else in the README, and put nothing between the badges: the README lists stacks as badges only, and descriptions live in `docs/stacks/README.md` (step 7)
+   - `tests/unit/test_readme.py` enforces the order, the count, the heading and the badges-only block. It does not check where a badge links to.
 
 7. **Update docs/stacks/:**
    - Create `docs/stacks/<stack-name>.md` with badge, description, and configuration details
