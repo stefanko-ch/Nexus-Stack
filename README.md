@@ -3,89 +3,55 @@
 ![Nexus-Stack](docs/assets/Nexus-Logo-BlackWhite.png)
 
 [![GitHub License](https://img.shields.io/github/license/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/blob/main/LICENSE)
-[![GitHub Issues](https://img.shields.io/github/issues/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/pulls)
-[![GitHub Last Commit](https://img.shields.io/github/last-commit/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/commits/main)
 [![Tests](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml/badge.svg)](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml)
-[![codecov](https://codecov.io/gh/stefanko-ch/Nexus-Stack/branch/main/graph/badge.svg)](https://codecov.io/gh/stefanko-ch/Nexus-Stack)
+[![GitHub Release](https://img.shields.io/github/v/release/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/releases)
+[![Docs](https://img.shields.io/badge/docs-nexus--stack.ch-0b6e5f)](https://nexus-stack.ch/docs/)
 
-[![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?logo=opentofu&logoColor=black)](https://opentofu.org/)
-[![Hetzner](https://img.shields.io/badge/Hetzner-D50C2D?logo=hetzner&logoColor=white)](https://www.hetzner.com/)
-[![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white)](https://www.cloudflare.com/)
-[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](https://docs.github.com/actions)
-[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/)
-[![Resend](https://img.shields.io/badge/Resend-000000?logo=resend&logoColor=white)](https://resend.com/)
+**A self-hosted data platform on one server that you can switch off at night.**
 
-🚀 **One-command deployment: Hetzner server + Cloudflare Tunnel + Docker - fully automated via GitHub Actions.**
+Pick the tools you need, click Spin Up, and work in the browser. The server has
+no open ports, and there is nothing to install on your own machine.
 
-> ⚠️ **Disclaimer:** This project is currently under active development. Use at your own risk. While care has been taken to ensure security, you are responsible for reviewing the code and understanding what it does before running it.
+## What you get
 
-> 📋 **Deployment Method:** This project uses **GitHub Actions exclusively**. Local deployment is not supported as it bypasses the Control Plane architecture.
+- **A catalogue of data tools.** Databases, streaming, orchestration, notebooks,
+  BI and AI tooling, each one a switch in a web page.
+- **A server that only exists while you use it.** Teardown destroys the machine
+  and keeps your data. Spin Up builds a new one and puts the data back. An
+  optional daily schedule runs the teardown for you.
+- **No open ports.** Web interfaces are reached through Cloudflare Tunnel, and
+  Cloudflare Access asks for an email login first. The one exception is Git
+  Proxy, which is public by design. Internal-only stacks such as Postgres have
+  no route from outside at all. The server accepts no inbound connections
+  unless you open a port yourself on the Firewall page.
+- **Nothing to run locally.** Every change is a GitHub Actions workflow.
+  Passwords are generated for you and stored in Infisical.
 
-## What This Does
+New here? [What is Nexus Stack?](docs/concepts/index.md) explains the problem it
+solves and what it deliberately is not.
 
-Nexus-Stack deploys a full self-hosted data and developer stack — 80+ Docker
-services on a single Hetzner server — behind Cloudflare Zero Trust, with no
-inbound ports open and no local tooling required. Tear it down at night, spin it
-back up in the morning, keep the data.
+## How it works
 
-> **New here?** [**What is Nexus Stack?**](docs/concepts/index.md) is the
-> explanation: the problem it solves, [how the pieces fit](docs/concepts/architecture.md),
-> [what survives a teardown](docs/concepts/lifecycle.md), and
-> [why "zero open ports" is a property rather than a slogan](docs/concepts/security-model.md).
-> The list below is the feature summary, not the explanation.
+The Control Plane is a web page that stores what you want: which stacks are on,
+your settings, your firewall rules. GitHub Actions turns that into a Hetzner
+Cloud server with OpenTofu and starts your stacks on it with Docker. You reach
+their web interfaces through Cloudflare, which asks for an email login unless
+a stack is marked public.
 
-### Infrastructure
-- **Hetzner Cloud Server** - x86 by default (`cx43` in `hel1`) running Ubuntu 26.04 LTS. Type and region are set with the `SERVER_TYPE` / `SERVER_LOCATION` repo variables — [Setup Guide](docs/admin-guides/setup-guide.md#optional-repository-variables) for the canonical list, [Architecture](docs/concepts/architecture.md) for why the default is x86 rather than ARM
-- **Cloudflare Tunnel** - All traffic routed through Cloudflare, zero open ports
-- **Cloudflare Access** - Email OTP authentication for all services
-- **Remote State** - OpenTofu state stored in Cloudflare R2
+- [Architecture](docs/concepts/architecture.md): the three planes and where state lives
+- [Lifecycle](docs/concepts/lifecycle.md): what survives a teardown, and the two lifecycle modes
+- [Security model](docs/concepts/security-model.md): why no port is open, and what the Firewall page changes
 
-### Automation
-- **Control Plane** - Web UI to manage infrastructure (spin up, teardown, services)
-- **GitHub Actions** - Full CI/CD deployment without local tools
-- **Scheduled Teardown** - Optional daily auto-shutdown to save costs (with configurable policy to prevent users from disabling it)
-- **Email Notifications** - Credentials and status emails via Resend
+## Stacks (163)
 
-### Security
-- **Zero Entry** - Zero open ports = Zero attack surface
-- **Firewall Management** - Open specific TCP ports for external access (Kafka, PostgreSQL, S3 APIs) via Control Plane, auto-reset on teardown
-- **Service Tokens** - Headless SSH access for CI/CD
-- **Secrets Management** - Centralized in Infisical with auto-provisioning
-
-### Developer Experience
-- **GitHub Actions Only** - No local tools required, fully automated deployment
-- **Modular Stacks** - Enable/disable services via Control Plane
-- **Auto-Setup** - Admin users created automatically with generated passwords
-- **Info Page** - Dashboard with all service URLs and credentials
-
-## Prerequisites
-
-- **[Hetzner Cloud](https://console.hetzner.cloud/) account** - For the server
-- **[Cloudflare](https://cloudflare.com) account** - Free tier is sufficient
-- **[Resend](https://resend.com) account** - For email notifications (credentials, status updates)
-- **A domain** - Must be [added to Cloudflare](https://developers.cloudflare.com/fundamentals/setup/manage-domains/add-site/) (Cloudflare manages DNS)
-- **[Docker Hub](https://hub.docker.com) account** *(optional)* - Increases pull rate limits for Docker images
-
-## Getting Started
-
-→ See the **[Setup Guide](docs/admin-guides/setup-guide.md)** for complete installation instructions.
-
-After deployment you'll have:
-- `https://control.yourdomain.com` - Control Panel to manage services and view URLs
-
-### Quick Start Flow
-
-![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (163)
-
-[![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
 [![Airflow](https://img.shields.io/badge/Apache_Airflow-017CEE?logo=apacheairflow&logoColor=white)](https://airflow.apache.org)
+[![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![AnythingLLM](https://img.shields.io/badge/AnythingLLM-0E0F0F?logoColor=white)](https://anythingllm.com)
 [![Apache Fluss](https://img.shields.io/badge/Apache_Fluss-1E40AF?logo=apache&logoColor=white)](https://fluss.apache.org)
+[![Apache Hop](https://img.shields.io/badge/Apache_Hop-3A6EA5?logo=apache&logoColor=white)](https://hop.apache.org)
 [![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka&logoColor=white)](https://kafka.apache.org)
+[![Apache NiFi](https://img.shields.io/badge/Apache_NiFi-728E9B?logo=apachenifi&logoColor=white)](https://nifi.apache.org)
 [![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![ArcadeDB](https://img.shields.io/badge/ArcadeDB-2E7D32?logoColor=white)](https://arcadedb.com)
@@ -97,16 +63,16 @@ After deployment you'll have:
 [![Bytebase](https://img.shields.io/badge/Bytebase-5B4FE9?logoColor=white)](https://www.bytebase.com)
 [![Cassandra](https://img.shields.io/badge/Apache_Cassandra-1287B1?logo=apachecassandra&logoColor=white)](https://cassandra.apache.org)
 [![Chroma](https://img.shields.io/badge/Chroma-F87171?logo=databricks&logoColor=white)](https://www.trychroma.com)
-[![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)](https://dbeaver.com/cloudbeaver/)
 [![ClickHouse](https://img.shields.io/badge/ClickHouse-FFCC00?logo=clickhouse&logoColor=black)](https://clickhouse.com)
+[![CloudBeaver](https://img.shields.io/badge/CloudBeaver-3776AB?logo=dbeaver&logoColor=white)](https://dbeaver.com/cloudbeaver/)
 [![code-server](https://img.shields.io/badge/code--server-007ACC?logo=visualstudiocode&logoColor=white)](https://coder.com)
 [![Conduit](https://img.shields.io/badge/Conduit-00A3E0?logoColor=white)](https://conduit.io)
 [![Crawl4AI](https://img.shields.io/badge/Crawl4AI-1B6CA8?logo=googlechrome&logoColor=white)](https://github.com/unclecode/crawl4ai)
-[![CyberChef](https://img.shields.io/badge/CyberChef-1B365D?logo=gchq&logoColor=white)](https://gchq.github.io/CyberChef/)
 [![Cube](https://img.shields.io/badge/Cube-FF6492?logoColor=white)](https://cube.dev)
+[![CyberChef](https://img.shields.io/badge/CyberChef-1B365D?logo=gchq&logoColor=white)](https://gchq.github.io/CyberChef/)
+[![Dagster](https://img.shields.io/badge/Dagster-4F43DD?logo=dagster&logoColor=white)](https://dagster.io)
 [![Data Contract API](https://img.shields.io/badge/Data_Contract_API-0F766E?logoColor=white)](https://cli.datacontract.com)
 [![Data Contract Editor](https://img.shields.io/badge/Data_Contract_Editor-1E293B?logoColor=white)](https://github.com/datacontract/datacontract-editor)
-[![Dagster](https://img.shields.io/badge/Dagster-4F43DD?logo=dagster&logoColor=white)](https://dagster.io)
 [![DataOps TestGen](https://img.shields.io/badge/DataOps_TestGen-06B6D4?logoColor=white)](https://datakitchen.io/dataops-testgen/)
 [![Datasette](https://img.shields.io/badge/Datasette-0F3E66?logoColor=white)](https://datasette.io)
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
@@ -119,11 +85,10 @@ After deployment you'll have:
 [![Draw.io](https://img.shields.io/badge/Draw.io-F08705?logo=diagramsdotnet&logoColor=white)](https://www.diagrams.net)
 [![Dremio](https://img.shields.io/badge/Dremio-31B48D?logoColor=white)](https://www.dremio.com)
 [![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)](https://duckdb.org)
-[![Mosquitto](https://img.shields.io/badge/Mosquitto-3C5280?logo=eclipsemosquitto&logoColor=white)](https://mosquitto.org)
 [![Entropy Data](https://img.shields.io/badge/Entropy_Data-111827?logoColor=white)](https://www.entropy-data.com)
+[![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
 [![Evidently](https://img.shields.io/badge/Evidently-ED0400?logoColor=white)](https://www.evidentlyai.com)
 [![Excalidraw](https://img.shields.io/badge/Excalidraw-6965DB?logo=excalidraw&logoColor=white)](https://excalidraw.com)
-[![Evidence](https://img.shields.io/badge/Evidence-7B61FF?logo=markdown&logoColor=white)](https://evidence.dev)
 [![Filestash](https://img.shields.io/badge/Filestash-2B3A67?logo=files&logoColor=white)](https://www.filestash.app)
 [![Flink](https://img.shields.io/badge/Apache_Flink-E6526F?logo=apacheflink&logoColor=white)](https://flink.apache.org)
 [![Flowise](https://img.shields.io/badge/Flowise-4F46E5?logo=langchain&logoColor=white)](https://flowiseai.com)
@@ -140,7 +105,6 @@ After deployment you'll have:
 [![Hasura](https://img.shields.io/badge/Hasura-1EB4D4?logo=hasura&logoColor=white)](https://hasura.io)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
-[![Apache Hop](https://img.shields.io/badge/Apache_Hop-3A6EA5?logo=apache&logoColor=white)](https://hop.apache.org)
 [![Hoppscotch](https://img.shields.io/badge/Hoppscotch-201718?logo=hoppscotch&logoColor=white)](https://hoppscotch.io)
 [![Hue](https://img.shields.io/badge/Hue-4A90E2?logo=apachehadoop&logoColor=white)](https://gethue.com)
 [![Infisical](https://img.shields.io/badge/Infisical-000000?logo=infisical&logoColor=white)](https://infisical.com)
@@ -148,10 +112,10 @@ After deployment you'll have:
 [![IT-Tools](https://img.shields.io/badge/IT--Tools-5D5D5D?logo=homeassistant&logoColor=white)](https://it-tools.tech)
 [![Jena Fuseki](https://img.shields.io/badge/Apache_Jena_Fuseki-D22128?logo=apache&logoColor=white)](https://jena.apache.org/documentation/fuseki2/)
 [![Jupyter](https://img.shields.io/badge/Jupyter-F37726?logo=jupyter&logoColor=white)](https://jupyter.org)
-[![Keycloak](https://img.shields.io/badge/Keycloak-4D4D4D?logo=keycloak&logoColor=white)](https://www.keycloak.org)
 [![Kafdrop](https://img.shields.io/badge/Kafdrop-000000?logo=apachekafka&logoColor=white)](https://github.com/obsidiandynamics/kafdrop)
 [![Kafka-UI](https://img.shields.io/badge/Kafka--UI-000000?logo=apachekafka&logoColor=white)](https://docs.kafka-ui.provectus.io/)
 [![Kestra](https://img.shields.io/badge/Kestra-6047EC?logo=kestra&logoColor=white)](https://kestra.io)
+[![Keycloak](https://img.shields.io/badge/Keycloak-4D4D4D?logo=keycloak&logoColor=white)](https://www.keycloak.org)
 [![ksqlDB](https://img.shields.io/badge/ksqlDB-231F20?logo=apachekafka&logoColor=white)](https://ksqldb.io)
 [![Label Studio](https://img.shields.io/badge/Label_Studio-FF7557?logo=labelstudio&logoColor=white)](https://labelstud.io)
 [![LakeFS](https://img.shields.io/badge/LakeFS-00B4D8?logo=git&logoColor=white)](https://lakefs.io)
@@ -170,16 +134,15 @@ After deployment you'll have:
 [![Meltano](https://img.shields.io/badge/Meltano-512EFF?logo=meltano&logoColor=white)](https://meltano.com)
 [![Memgraph](https://img.shields.io/badge/Memgraph-FB6E00?logo=memgraph&logoColor=white)](https://memgraph.com)
 [![Metabase](https://img.shields.io/badge/Metabase-509EE3?logo=metabase&logoColor=white)](https://www.metabase.com)
-[![SQL Server](https://img.shields.io/badge/SQL_Server-CC2927?logoColor=white)](https://www.microsoft.com/sql-server)
 [![Milvus](https://img.shields.io/badge/Milvus-00A1EA?logo=milvus&logoColor=white)](https://milvus.io)
-[![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MindsDB](https://img.shields.io/badge/MindsDB-00A3E0?logo=databricks&logoColor=white)](https://mindsdb.com)
+[![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)](https://mlflow.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
+[![Mosquitto](https://img.shields.io/badge/Mosquitto-3C5280?logo=eclipsemosquitto&logoColor=white)](https://mosquitto.org)
 [![MySQL](https://img.shields.io/badge/MySQL-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com)
 [![n8n](https://img.shields.io/badge/n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io)
 [![NATS](https://img.shields.io/badge/NATS-27AAE1?logo=natsdotio&logoColor=white)](https://nats.io)
 [![Neo4j](https://img.shields.io/badge/Neo4j-4581C3?logo=neo4j&logoColor=white)](https://neo4j.com)
-[![Apache NiFi](https://img.shields.io/badge/Apache_NiFi-728E9B?logo=apachenifi&logoColor=white)](https://nifi.apache.org)
 [![NocoDB](https://img.shields.io/badge/NocoDB-1F2937?logo=nocodb&logoColor=white)](https://nocodb.com)
 [![Node-RED](https://img.shields.io/badge/Node--RED-8F0000?logo=nodered&logoColor=white)](https://nodered.org)
 [![Nussknacker](https://img.shields.io/badge/Nussknacker-1E88E5?logo=apacheflink&logoColor=white)](https://nussknacker.io)
@@ -202,13 +165,13 @@ After deployment you'll have:
 [![Presidio](https://img.shields.io/badge/Presidio-0078D4?logoColor=white)](https://microsoft.github.io/presidio/)
 [![Project Nessie](https://img.shields.io/badge/Project_Nessie-0B2A4A?logoColor=white)](https://projectnessie.org)
 [![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech)
-[![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![QuestDB](https://img.shields.io/badge/QuestDB-D14671?logo=questdb&logoColor=white)](https://questdb.com)
+[![Quickwit](https://img.shields.io/badge/Quickwit-FF6B6B?logo=quickwit&logoColor=white)](https://quickwit.io)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com)
 [![Ray](https://img.shields.io/badge/Ray-028CF0?logo=ray&logoColor=white)](https://www.ray.io)
 [![Redpanda](https://img.shields.io/badge/Redpanda-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
-[![Redpanda Console](https://img.shields.io/badge/Redpanda%20Console-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Connect](https://img.shields.io/badge/Redpanda%20Connect-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
+[![Redpanda Console](https://img.shields.io/badge/Redpanda%20Console-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Redpanda Datagen](https://img.shields.io/badge/Redpanda%20Datagen-E4405F?logo=redpanda&logoColor=white)](https://redpanda.com)
 [![Rill](https://img.shields.io/badge/Rill-1E40AF?logoColor=white)](https://www.rilldata.com)
 [![RisingWave](https://img.shields.io/badge/RisingWave-0065FF?logoColor=white)](https://risingwave.com)
@@ -222,17 +185,18 @@ After deployment you'll have:
 [![Sling](https://img.shields.io/badge/Sling-FF6B35?logo=data&logoColor=white)](https://slingdata.io)
 [![Soda](https://img.shields.io/badge/Soda-6C47FF?logo=database&logoColor=white)](https://www.soda.io)
 [![Spark](https://img.shields.io/badge/Apache_Spark-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org)
+[![SQL Server](https://img.shields.io/badge/SQL_Server-CC2927?logoColor=white)](https://www.microsoft.com/sql-server)
 [![SQLMesh](https://img.shields.io/badge/SQLMesh-6C47FF?logoColor=white)](https://sqlmesh.com)
 [![StarRocks](https://img.shields.io/badge/StarRocks-1F4FFF?logo=apache&logoColor=white)](https://www.starrocks.io)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Superset](https://img.shields.io/badge/Apache_Superset-20A6A4?logo=apachesuperset&logoColor=white)](https://superset.apache.org)
 [![SurrealDB](https://img.shields.io/badge/SurrealDB-FF00A0?logo=surrealdb&logoColor=white)](https://surrealdb.com)
 [![Telegraf](https://img.shields.io/badge/Telegraf-22ADF6?logo=influxdb&logoColor=white)](https://www.influxdata.com/time-series-platform/telegraf/)
-[![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)](https://www.tigerdata.com/timescaledb)
 [![Temporal](https://img.shields.io/badge/Temporal-000000?logo=temporal&logoColor=white)](https://temporal.io)
+[![TimescaleDB](https://img.shields.io/badge/TimescaleDB-FDB515?logo=timescale&logoColor=white)](https://www.tigerdata.com/timescaledb)
 [![Trino](https://img.shields.io/badge/Trino-DD00A1?logo=trino&logoColor=white)](https://trino.io)
-[![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)](https://uptime.kuma.pet)
 [![Unity Catalog](https://img.shields.io/badge/Unity%20Catalog-FF3621?logo=databricks&logoColor=white)](https://www.unitycatalog.io)
+[![Uptime Kuma](https://img.shields.io/badge/Uptime%20Kuma-5CDD8B?logo=uptimekuma&logoColor=white)](https://uptime.kuma.pet)
 [![Valkey](https://img.shields.io/badge/Valkey-6983FF?logoColor=white)](https://valkey.io)
 [![Vector](https://img.shields.io/badge/Vector-3B2F63?logo=vector&logoColor=white)](https://vector.dev)
 [![Weaviate](https://img.shields.io/badge/Weaviate-00C9A7?logo=weaviate&logoColor=white)](https://weaviate.io)
@@ -244,265 +208,53 @@ After deployment you'll have:
 [![ZenML](https://img.shields.io/badge/ZenML-431D93?logoColor=white)](https://www.zenml.io)
 [![Zeppelin](https://img.shields.io/badge/Apache_Zeppelin-1D4E89?logo=apache&logoColor=white)](https://zeppelin.apache.org)
 
-| Stack | Description | Website |
-|-------|-------------|--------|
-| **AKHQ** | Kafka/Redpanda management GUI for topics, consumer groups, schema registry, and Kafka Connect | [akhq.io](https://akhq.io) |
-| **Adminer** | Lightweight database management tool (supports PostgreSQL, MySQL, SQLite, etc.) | [adminer.org](https://www.adminer.org) |
-| **Airflow** | Apache Airflow — DAG-based workflow orchestration with the largest operator and provider ecosystem | [airflow.apache.org](https://airflow.apache.org) |
-| **AnythingLLM** | Chat with your documents: RAG workspaces, agents and an API, on local or hosted models | [anythingllm.com](https://anythingllm.com) |
-| **Apache Fluss** | Streaming storage for Flink with columnar log tables and primary-key tables, internal at `fluss:9123` | [fluss.apache.org](https://fluss.apache.org) |
-| **Apache Kafka** | Event-streaming broker in KRaft mode (no ZooKeeper), internal at `kafka:9092` | [kafka.apache.org](https://kafka.apache.org) |
-| **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
-| **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
-| **ArcadeDB** | Multi-model database for graphs, documents, key-value and time series, queried with SQL, Cypher or Gremlin | [arcadedb.com](https://arcadedb.com) |
-| **Arize Phoenix** | Tracing and evaluation for LLM applications on OpenTelemetry | [phoenix.arize.com](https://phoenix.arize.com) |
-| **Baserow** | No-code database with linked records, forms, views and a REST API | [baserow.io](https://baserow.io) |
-| **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
-| **BookStack** | Documentation wiki organised as shelves, books, chapters and pages | [bookstackapp.com](https://www.bookstackapp.com) |
-| **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
-| **Bytebase** | Database schema changes with SQL review, change plans and approval flows | [bytebase.com](https://www.bytebase.com) |
-| **Cassandra** | Wide-column distributed database — the data model and CQL, on one node | [cassandra.apache.org](https://cassandra.apache.org) |
-| **Chroma** | Developer-friendly embedding (vector) database for LLM / RAG pipelines | [trychroma.com](https://www.trychroma.com) |
-| **CloudBeaver** | Web-based database management tool | [dbeaver.com/cloudbeaver](https://dbeaver.com/cloudbeaver/) |
-| **ClickHouse** | Fast columnar database for real-time analytics and OLAP queries | [clickhouse.com](https://clickhouse.com) |
-| **code-server** | VS Code in the browser for remote development | [coder.com](https://coder.com) |
-| **Conduit** | Data streaming and CDC pipelines in a single Go binary, with a web UI | [conduit.io](https://conduit.io) |
-| **Crawl4AI** | LLM-friendly web crawler that returns clean Markdown for RAG ingestion (REST API + Playground UI) | [github.com/unclecode/crawl4ai](https://github.com/unclecode/crawl4ai) |
-| **CyberChef** | GCHQ's "Cyber Swiss Army Knife" — drag-and-drop data manipulation (encode/decode/hash/regex/crypto, ~400 operations) | [gchq.github.io/CyberChef](https://gchq.github.io/CyberChef/) |
-| **Cube** | Semantic layer — define a metric once and query it from every BI tool, over SQL, REST and GraphQL | [cube.dev](https://cube.dev) |
-| **Data Contract API** | Tests an ODCS data contract against the stack's own databases and object stores — Swagger UI, or the CLI over `docker exec` | [cli.datacontract.com](https://cli.datacontract.com) |
-| **Data Contract Editor** | Browser editor for Open Data Contract Standard (ODCS) contracts — form, visual model or raw YAML | [datacontract.com](https://github.com/datacontract/datacontract-editor) |
-| **Dagster** | Python-native data orchestration for data pipelines and Software-Defined Assets | [dagster.io](https://dagster.io) |
-| **DataOps TestGen** | Data quality tests generated from data profiles, with scores per table | [datakitchen.io](https://datakitchen.io/dataops-testgen/) |
-| **Datasette** | Explore and publish SQLite databases: table browsing, facets, SQL and a JSON API | [datasette.io](https://datasette.io) |
-| **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
-| **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |
-| **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
-| **Directus** | REST and GraphQL APIs plus an admin app on a PostgreSQL database | [directus.io](https://directus.io) |
-| **Docling Serve** | Document conversion API: PDF, DOCX, PPTX and HTML to Markdown or JSON, with a web UI | [docling-project.github.io](https://docling-project.github.io/docling/) |
-| **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
-| **DragonflyDB** | Redis-compatible in-memory data store with a multi-threaded engine, internal at `dragonfly:6379` | [dragonflydb.io](https://www.dragonflydb.io) |
-| **Draw.io** | Flowchart and diagramming tool for technical diagrams | [diagrams.net](https://www.diagrams.net) |
-| **Dremio** | Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI | [dremio.com](https://www.dremio.com) |
-| **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
-| **Eclipse Mosquitto** | MQTT broker for IoT telemetry, internal at `mosquitto:1883` | [mosquitto.org](https://mosquitto.org) |
-| **Entropy Data** | Registry for data products and data contracts (ODCS). **Proprietary licence, not open source** | [entropy-data.com](https://www.entropy-data.com) |
-| **Evidently** | Data quality, drift and ML model monitoring over time | [evidentlyai.com](https://www.evidentlyai.com) |
-| **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
-| **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |
-| **Filestash** | Web-based file manager with S3/FTP/SFTP/WebDAV backend support | [filestash.app](https://www.filestash.app) |
-| **Flink** | Distributed stream and batch processing engine (JobManager + TaskManager cluster) | [flink.apache.org](https://flink.apache.org) |
-| **Flowise** | Visual builder for LLM chatflows and agents, with a large catalogue of ready-made LangChain nodes | [flowiseai.com](https://flowiseai.com) |
-| **Forgejo** | Community-governed Git forge with built-in Actions CI | [forgejo.org](https://forgejo.org) |
-| **Forgejo Runner** | Actions CI runner for Forgejo — optional, carries a privileged container | [Documentation](docs/stacks/forgejo-runner.md) |
-| **Garage** | Lightweight S3-compatible object storage for self-hosting | [garagehq.deuxfleurs.fr](https://garagehq.deuxfleurs.fr) |
-| **Git Proxy** | Public Git HTTPS proxy for external tools (Databricks, Git Desktop) | [Documentation](docs/stacks/git-proxy.md) |
-| **Gitea** | Self-hosted Git service with pull requests, code review, and CI/CD | [gitea.com](https://about.gitea.com) |
-| **GPT Researcher** | Research agent that searches the web and writes a cited report, on local models | [gptr.dev](https://gptr.dev) |
-| **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
-| **Grafana Tempo** | Distributed tracing with an OpenTelemetry Collector, queried from Grafana | [grafana.com/oss/tempo](https://grafana.com/oss/tempo/) |
-| **Gravitino** | One metadata catalog over databases, Iceberg, Hive, Kafka and file sets | [gravitino.apache.org](https://gravitino.apache.org) |
-| **Grist** | Spreadsheet with typed tables, references and Python formulas | [getgrist.com](https://www.getgrist.com) |
-| **Hasura** | Instant GraphQL and REST API over PostgreSQL, with subscriptions and a console | [hasura.io](https://hasura.io) |
-| **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
-| **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
-| **Hop** | Visual ETL — build, run and debug data pipelines and workflows in the browser (Hop Web) | [hop.apache.org](https://hop.apache.org) |
-| **Hoppscotch** | Open-source API testing platform (Postman alternative) | [hoppscotch.io](https://hoppscotch.io) |
-| **Hue** | SQL editor and data browser for PostgreSQL, Trino and ClickHouse | [gethue.com](https://gethue.com) |
-| **Infisical** | Open-source secret management platform | [infisical.com](https://infisical.com) |
-| **InfluxDB** | Time-series database with retention policies, downsampling tasks and a built-in UI | [influxdata.com](https://www.influxdata.com/products/influxdb/) |
-| **IT-Tools** | Collection of handy online tools for developers | [it-tools.tech](https://it-tools.tech) |
-| **Jena Fuseki** | RDF triple store with SPARQL 1.1 query, update and a web UI | [jena.apache.org](https://jena.apache.org/documentation/fuseki2/) |
-| **Jupyter** | Interactive PySpark notebook platform with Spark SQL support and cluster connectivity | [jupyter.org](https://jupyter.org) |
-| **Keycloak** | Identity and access management — OpenID Connect, OAuth 2.0 and SAML single sign-on | [keycloak.org](https://www.keycloak.org) |
-| **Kafdrop** | Lightweight Kafka/Redpanda web UI for browsing topics and consumer groups | [GitHub](https://github.com/obsidiandynamics/kafdrop) |
-| **Kafka-UI** | Modern web UI for Apache Kafka / Redpanda management | [kafka-ui.provectus.io](https://docs.kafka-ui.provectus.io/) |
-| **Kestra** | Modern workflow orchestration for data pipelines & automation | [kestra.io](https://kestra.io) |
-| **ksqlDB** | Streaming SQL on Kafka: streams, tables and continuous aggregations, internal at `ksqldb:8088` | [ksqldb.io](https://ksqldb.io) |
-| **Label Studio** | Data labelling for text, images, audio and tables — build training datasets for machine learning | [labelstud.io](https://labelstud.io) |
-| **LakeFS** | Git-like version control for data lakes (Hetzner Object Storage backend) | [lakefs.io](https://lakefs.io) |
-| **Lakekeeper** | Modern Iceberg REST Catalog (Rust) — Spark / Trino / DuckDB / PyIceberg share Iceberg tables on the existing object storage | [lakekeeper.io](https://lakekeeper.io) |
-| **Langflow** | Visual builder for LLM flows, RAG pipelines and agents, wired to the models and vector stores in the stack | [langflow.org](https://www.langflow.org) |
-| **Langfuse** | LLM observability — traces, evaluations and prompt management for every model call | [langfuse.com](https://langfuse.com) |
-| **Lightdash** | BI on top of dbt: explores, charts and dashboards from the metrics in a dbt project | [lightdash.com](https://www.lightdash.com) |
-| **LiteLLM** | Unified OpenAI-compatible proxy for 100+ LLM providers (Ollama, OpenAI, Anthropic, Mistral, ...) — single SDK, per-key budgets, cost tracking | [litellm.ai](https://www.litellm.ai) |
-| **Mage** | Modern data pipeline tool for ETL/ELT workflows | [mage.ai](https://mage.ai) |
-| **Mailpit** | Email & SMTP testing tool - catch and inspect emails | [mailpit.axllent.org](https://mailpit.axllent.org) |
-| **Marimo** | Reactive Python notebook with SQL support | [marimo.io](https://marimo.io) |
-| **Marmot** | Lightweight data catalog with lineage, search and an MCP server | [marmotdata.io](https://marmotdata.io) |
-| **Marquez** | OpenLineage reference backend — which job produced which dataset, and what breaks when one changes | [marquezproject.ai](https://marquezproject.ai) |
-| **Mathesar** | Spreadsheet-like interface for PostgreSQL: tables, relationships and explorations without SQL | [mathesar.org](https://mathesar.org) |
-| **Meilisearch** | Lightning-fast Rust full-text search — sub-100ms typo-tolerant, schema-less | [meilisearch.com](https://www.meilisearch.com) |
-| **Meltano** | Open-source data integration platform (CLI-only, no web UI) | [meltano.com](https://meltano.com) |
-| **Memgraph** | In-memory graph database with MAGE graph algorithms and Memgraph Lab | [memgraph.com](https://memgraph.com) |
-| **Metabase** | Open-source business intelligence and analytics tool | [metabase.com](https://www.metabase.com) |
-| **Microsoft SQL Server** | SQL Server 2025 Developer edition, internal at `mssql:1433` | [microsoft.com/sql-server](https://www.microsoft.com/sql-server) |
-| **Milvus** | Vector database with ANN indexes and hybrid search, internal at `milvus:19530` | [milvus.io](https://milvus.io) |
-| **MLflow** | Experiment tracking and model registry — params, metrics and artifacts from every notebook in one place | [mlflow.org](https://mlflow.org) |
-| **MindsDB** | SQL over other databases, files and models — federated queries and AI tables | [mindsdb.com](https://mindsdb.com) |
-| **MongoDB** | Document database (NoSQL) with the mongo-express web UI | [mongodb.com](https://www.mongodb.com) |
-| **MySQL** | MySQL 8.4 LTS, binlog ready for Debezium CDC, internal at `mysql:3306` | [mysql.com](https://www.mysql.com) |
-| **n8n** | Workflow automation tool - automate anything | [n8n.io](https://n8n.io) |
-| **NATS** | Lightweight messaging with JetStream streams and a key-value store, internal at `nats:4222` | [nats.io](https://nats.io) |
-| **Neo4j** | Graph database with the Cypher query language and Neo4j Browser | [neo4j.com](https://neo4j.com) |
-| **NiFi** | Visual data-flow automation — ingest, route, transform and deliver data with full provenance | [nifi.apache.org](https://nifi.apache.org) |
-| **NocoDB** | Open-source Airtable alternative - turn any database into a spreadsheet | [nocodb.com](https://nocodb.com) |
-| **Node-RED** | Flow-based low-code programming for IoT and integrations | [nodered.org](https://nodered.org) |
-| **Nussknacker** | Visual low-code designer for stream processing — drag-and-drop scenarios that run on Flink | [nussknacker.io](https://nussknacker.io) |
-| **ODD Platform** | Open Data Discovery catalog with lineage and data-quality results | [opendatadiscovery.org](https://opendatadiscovery.org) |
-| **Ollama** | Local LLM inference with Open WebUI chat interface | [openwebui.com](https://openwebui.com) |
-| **Open Notebook** | Self-hosted NotebookLM alternative — ask questions about your own sources with local models | [GitHub](https://github.com/lfnovo/open-notebook) |
-| **OpenBao** | Secrets management (open-source Vault fork): KV secrets, dynamic credentials, transit encryption | [openbao.org](https://openbao.org) |
-| **OpenMetadata** | Open-source metadata management for data discovery and governance | [open-metadata.org](https://open-metadata.org) |
-| **OpenSearch** | Apache-2.0 search & analytics engine with Dashboards — speaks the Elasticsearch API | [opensearch.org](https://opensearch.org) |
-| **Oracle Database Free** | Oracle Database 23ai free edition: Oracle SQL and PL/SQL, internal at `oracle:1521/FREEPDB1` | [oracle.com](https://www.oracle.com/database/free/) |
-| **ParadeDB** | PostgreSQL with BM25 full-text search and pgvector, internal at `paradedb:5432` | [paradedb.com](https://www.paradedb.com) |
-| **Perplexica** | AI answer engine with sources, on local models and SearXNG | [GitHub](https://github.com/ItzCrazyKns/Perplexica) |
-| **pg_ducklake** | PostgreSQL with DuckLake extension - SQL-native lakehouse with S3 storage | [pgducklake.select](https://pgducklake.select) |
-| **pgAdmin** | PostgreSQL administration and development platform | [pgadmin.org](https://www.pgadmin.org) |
-| **Planka** | Open-source kanban board (Trello alternative) with real-time multi-user collaboration | [planka.app](https://planka.app) |
-| **Portainer** | Always-on Docker dashboard — first stop for inspecting a misbehaving container (logs, state, restart). Auto-deployed alongside Forgejo/Grafana/Infisical/SFTPGo | [portainer.io](https://www.portainer.io) |
-| **PostgreSQL** | Powerful open-source relational database (internal-only, no web UI) | [postgresql.org](https://www.postgresql.org) |
-| **PostgREST** | Auto-generated REST API for any Postgres schema — zero boilerplate, OpenAPI included | [postgrest.org](https://postgrest.org) |
-| **Prefect** | Modern Python-native workflow orchestration for data pipelines | [prefect.io](https://www.prefect.io) |
-| **Presidio** | Find personal data in text and anonymize it, as internal REST APIs | [microsoft.github.io/presidio](https://microsoft.github.io/presidio/) |
-| **Project Nessie** | Iceberg catalog with Git semantics: branches, tags and commits across tables | [projectnessie.org](https://projectnessie.org) |
-| **Qdrant** | Vector database with a built-in web dashboard, payload filtering and REST + gRPC APIs | [qdrant.tech](https://qdrant.tech) |
-| **Quickwit** | Cloud-native search engine for log management and analytics | [quickwit.io](https://quickwit.io) |
-| **QuestDB** | Time-series database with web console — speaks PostgreSQL wire & InfluxDB line protocols | [questdb.com](https://questdb.com) |
-| **RabbitMQ** | Message broker with queues, exchanges and a management UI | [rabbitmq.com](https://www.rabbitmq.com) |
-| **Ray** | Distributed Python for data processing and ML: tasks, actors, Ray Data, Tune and Serve | [ray.io](https://www.ray.io) |
-| **Redpanda** | Kafka-compatible streaming platform with Console UI | [redpanda.com](https://redpanda.com) |
-| **Redpanda Console** | Web UI for managing and debugging Redpanda/Kafka workloads | [redpanda.com](https://redpanda.com) |
-| **Redpanda Connect** | Declarative data streaming framework for real-time pipelines | [redpanda.com](https://redpanda.com) |
-| **Redpanda Datagen** | Test data generator for Redpanda topics | [redpanda.com](https://redpanda.com) |
-| **Rill** | Fast BI dashboards on DuckDB: SQL models, metrics views and explorable dashboards | [rilldata.com](https://www.rilldata.com) |
-| **RisingWave** | PostgreSQL-compatible streaming database for real-time materialized views | [risingwave.com](https://risingwave.com) |
-| **RStudio Server** | Browser IDE for R | [posit.co](https://posit.co/products/open-source/rstudio-server/) |
-| **RustFS** | Rust-based S3-compatible object storage (MinIO alternative) | [rustfs.com](https://rustfs.com) |
-| **S3 Manager** | Web-based S3 bucket browser and manager for Hetzner Object Storage | [GitHub](https://github.com/cloudlena/s3manager) |
-| **SearXNG** | Private metasearch engine, also the web search behind Perplexica and GPT Researcher | [docs.searxng.org](https://docs.searxng.org) |
-| **SeaweedFS** | Distributed object storage with Filer UI and S3 API | [seaweedfs.com](https://seaweedfs.com) |
-| **SFTPGo** | SFTP/SCP server with R2 backend (file-protocol front door onto the datalake; WebDAV/FTPS supported upstream, disabled by default) | [sftpgo.com](https://sftpgo.com) |
-| **Shiny Server** | R web applications — hosts every app in the workspace repository, with an index | [posit.co](https://posit.co/products/open-source/shinyserver/) |
-| **Sling** | Lightweight CLI for database-to-database and file-to-database transfers | [slingdata.io](https://slingdata.io) |
-| **Soda** | Data quality testing with SodaCL checks (CLI-only, no web UI) | [soda.io](https://www.soda.io) |
-| **Spark** | Distributed data processing engine (Master + Worker cluster) | [spark.apache.org](https://spark.apache.org) |
-| **SQLMesh** | SQL transformations with plans, virtual environments and tests, in a browser IDE | [sqlmesh.com](https://sqlmesh.com) |
-| **StarRocks** | Fast MPP analytics database (MySQL protocol) that queries Iceberg, Delta Lake and Parquet in place (internal-only) | [starrocks.io](https://www.starrocks.io) |
-| **Streamlit** | Python data apps — one server runs every app in the workspace repository | [streamlit.io](https://streamlit.io) |
-| **Superset** | Modern data exploration and visualization platform with SQL Lab | [superset.apache.org](https://superset.apache.org) |
-| **SurrealDB** | Multi-model database for documents, graphs and key-value data, internal at `surrealdb:8000` | [surrealdb.com](https://surrealdb.com) |
-| **Telegraf** | Metrics collection agent with 300+ plugins (CLI-only, no web UI) | [influxdata.com](https://www.influxdata.com/time-series-platform/telegraf/) |
-| **TimescaleDB** | PostgreSQL with the TimescaleDB extension — hypertables, continuous aggregates and compression for time-series (no web UI) | [tigerdata.com](https://www.tigerdata.com/timescaledb) |
-| **Temporal** | Durable workflow execution engine — workflows as code that survive crashes and restarts, with a Web UI for every execution's history | [temporal.io](https://temporal.io) |
-| **Trino** | Distributed SQL query engine for querying data across multiple sources | [trino.io](https://trino.io) |
-| **Uptime Kuma** | A fancy self-hosted monitoring tool | [uptime.kuma.pet](https://uptime.kuma.pet) |
-| **Unity Catalog** | Open-source catalog for Delta & Iceberg tables, volumes and AI assets | [unitycatalog.io](https://www.unitycatalog.io) |
-| **Valkey** | Redis-compatible in-memory store for caching, queues and streams, internal at `valkey:6379` | [valkey.io](https://valkey.io) |
-| **Vector** | High-performance observability pipeline for logs, metrics, and traces | [vector.dev](https://vector.dev) |
-| **Weaviate** | Vector database with hybrid search — BM25 keyword scoring plus vector similarity | [weaviate.io](https://weaviate.io) |
-| **Wetty** | Web-based SSH terminal - access server terminal from any browser | [GitHub](https://github.com/butlerx/wetty) |
-| **Whisper ASR** | Speech-to-text API with Whisper models on the CPU | [ahmetoner.com](https://ahmetoner.com/whisper-asr-webservice/) |
-| **Wiki.js** | Open-source wiki and knowledge base with Markdown and visual editor | [js.wiki](https://js.wiki) |
-| **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
-| **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
-| **ZenML** | MLOps pipelines with tracked runs, artifacts and model versions | [zenml.io](https://www.zenml.io) |
-| **Zeppelin** | Web notebooks with Python, JDBC, shell, Markdown and SPARQL interpreters | [zeppelin.apache.org](https://zeppelin.apache.org) |
+Forgejo, Grafana, Infisical, Portainer and SFTPGo are **core** and always on.
+code-server, Kestra, Marimo and Spark are **proven**: promised to work on every
+release, across a teardown and restore. Everything else is best-effort.
+[What each tier promises](docs/concepts/stacks.md#what-each-tier-promises) has
+the details.
 
-→ See [docs/stacks/README.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.
+Entropy Data is the one stack under a proprietary licence; it is not open source.
 
-## Control Plane
+[Browse the stack list](docs/stacks/README.md) for a description, the pinned
+image version and a documentation page for every stack.
 
-Manage your Nexus-Stack infrastructure via web interface at `https://control.YOUR_DOMAIN`.
+## Get started
 
-**Features:**
-- ⚡ **Spin Up / Teardown** - Start and stop infrastructure with one click
-- 🧩 **Services** - Enable/disable services dynamically
-- ⏰ **Scheduled Teardown** - Auto-shutdown to save costs
-- 📧 **Email Credentials** - Send login credentials to your inbox
+You need a Hetzner Cloud account, a Cloudflare account with your domain on it,
+and your own copy of this repository. Resend (email notifications) and Docker
+Hub (higher pull limits) are optional.
 
-## GitHub Actions Workflows
+1. Fork or import the repository.
+2. Create the API tokens and add them as GitHub secrets.
+3. Run the **Initial Setup** workflow.
+4. Open `https://control.yourdomain.com` and sign in with the code sent to your email.
 
-| Workflow | Description |
-|----------|-------------|
-| **Initial Setup** | One-time setup (Control Plane + Spin Up). Supports `enabled_services` parameter to pre-select services. |
-| **Spin Up** | Re-create infrastructure after teardown |
-| **Teardown** | Teardown infrastructure (keeps state) |
-| **Destroy All** | Delete everything |
-
-**Pre-select services during Initial Setup:**
-```bash
-# Core services (Forgejo, Grafana, Infisical, Portainer, SFTPGo) are always enabled —
-# pass any additional services you want active on the first spin-up.
-gh workflow run initial-setup.yaml -f enabled_services="n8n,kestra"
-```
-
-→ See [docs/admin-guides/setup-guide.md](docs/admin-guides/setup-guide.md) for configuration details.
-
-## Architecture
-
-![Architecture Overview](docs/assets/architecture-overview.svg)
-
-## Security
-
-This setup achieves **zero open ports** after deployment:
-
-1. During initial setup, SSH (port 22) is temporarily open
-2. OpenTofu installs the Cloudflare Tunnel via SSH
-3. After tunnel is running, SSH port is **automatically closed** via Hetzner API
-4. All future SSH access goes through Cloudflare Tunnel
-
-**Result:** No attack surface. All traffic flows through Cloudflare.
-
-> **Firewall Management:** For TCP-based services (Kafka, PostgreSQL, S3 APIs), the Control Plane provides a Firewall Management page to selectively open ports. DNS A records are created pointing directly to the server IP (`proxied = false`). All firewall rules are automatically reset on every Teardown for security.
-
-![Security Flow](docs/assets/architecture-security.svg)
-
-- Services are protected by Cloudflare Access (email OTP)
-- Set `public = true` in config if you want a service publicly accessible (bypasses Zero Trust)
+The [Setup Guide](docs/admin-guides/setup-guide.md) walks through every step.
+Deployment runs in GitHub Actions only; there is no local deploy.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [What is Nexus Stack?](docs/concepts/index.md) | Concepts: what it is, architecture, lifecycle, security model |
-| [Setup Guide](docs/admin-guides/setup-guide.md) | Complete installation and configuration |
-| [Control Plane Guide](docs/user-guides/control-plane.md) | How to use the Control Plane web interface |
-| [Stacks](docs/stacks/README.md) | Available services and how to add new ones |
-| [Contributing](docs/CONTRIBUTING.md) | How to contribute to the project |
-| [Migration to Python](docs/admin-guides/migration-to-python.md) | `scripts/deploy.sh` → `nexus_deploy` package (completed Phase 4c via [issue #505](https://github.com/stefanko-ch/Nexus-Stack/issues/505) / [PR #535](https://github.com/stefanko-ch/Nexus-Stack/pull/535)) |
+| Read this | When you want to |
+|-----------|------------------|
+| [Concepts](docs/concepts/index.md) | understand what it is and how it is built |
+| [Setup Guide](docs/admin-guides/setup-guide.md) | deploy your own |
+| [Control Plane guide](docs/user-guides/control-plane.md) | use a deployment someone set up for you |
+| [Stack list](docs/stacks/README.md) | find a tool |
+| [Tutorials](docs/tutorials/index.md) | learn by doing |
+| [Troubleshooting](docs/admin-guides/troubleshooting.md) | fix something |
 
-## How It Works
+The same documentation is published at [nexus-stack.ch](https://nexus-stack.ch/docs/).
 
-**Read the full story behind Nexus-Stack:**
+## Status and licence
 
-**[Nexus-Stack: Your Data, Your Rules, Your Flow](https://stefanko-ch.medium.com/nexus-stack-your-data-your-rules-your-flow-46b29abc062d)**
+Nexus-Stack is under active development. You are responsible for reviewing the
+code and understanding what it does before you run it.
 
-For a detailed technical explanation of how this infrastructure works under the hood - including the Docker deployment on Hetzner and the Cloudflare Zero Trust Tunnel security setup - check out this article:
+Released under the [MIT licence](LICENSE). Contributions are welcome, see
+[CONTRIBUTING](docs/CONTRIBUTING.md).
 
-**[Secure Hetzner Docker Deployment via Cloudflare Zero Trust Tunnel](https://medium.com/@stefanko-ch/secure-hetzner-docker-deployment-via-cloudflare-zero-trust-tunnel-8f716c4631ce)**
+Background reading:
 
-## Project Website
-
-Learn more about Nexus-Stack and explore the full documentation:
-
-**[https://nexus-stack.ch/](https://nexus-stack.ch/)**
-
-## License
-
-[MIT](LICENSE)
-
-## Activity
-
-![Repobeats analytics image](https://repobeats.axiom.co/api/embed/f8f883f70e3a96a899518a605d21827739dba963.svg "Repobeats analytics image")
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=stefanko-ch%2Fnexus-stack&type=date&legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&theme=dark&legend=top-left" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&legend=top-left" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=stefanko-ch/nexus-stack&type=date&legend=top-left" />
-  </picture>
-</a>
+- [Nexus-Stack: Your Data, Your Rules, Your Flow](https://stefanko-ch.medium.com/nexus-stack-your-data-your-rules-your-flow-46b29abc062d)
+- [Secure Hetzner Docker Deployment via Cloudflare Zero Trust Tunnel](https://medium.com/@stefanko-ch/secure-hetzner-docker-deployment-via-cloudflare-zero-trust-tunnel-8f716c4631ce)

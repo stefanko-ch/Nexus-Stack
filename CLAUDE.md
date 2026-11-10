@@ -453,10 +453,11 @@ When adding a new Docker stack, **all locations must be updated**:
      flagging the unprefixed-but-unique keys that already exist.
 
 6. **Update README.md:**
-   - Add stack badge in the "Available Stacks" badges section
-   - Add row to the "Available Stacks" table with description and website link
-   - **IMPORTANT:** Badge order MUST match table order - badges should appear in the same sequence as rows in the table
-   - **IMPORTANT:** Update the stack count in the heading `## Available Stacks (N)` to reflect the new total
+   - Add one stack badge under `## Stacks (N)` on a line of its own, linked to the stack's website — or to its page in `docs/stacks/` when it has no website of its own (Forgejo Runner, Git Proxy)
+   - Keep the badges sorted by name, ignoring case
+   - Update the number in the heading `## Stacks (N)`; it is the number of directories in `stacks/`
+   - Do not write the stack count anywhere else in the README, and put nothing between the badges: the README lists stacks as badges only, and descriptions live in `docs/stacks/README.md` (step 7)
+   - `tests/unit/test_readme.py` enforces the order, the count, the heading and the badges-only block. It does not check where a badge links to.
 
 7. **Update docs/stacks/:**
    - Create `docs/stacks/<stack-name>.md` with badge, description, and configuration details
@@ -474,8 +475,9 @@ When adding a new Docker stack, **all locations must be updated**:
 
 **Badge format:**
 ```markdown
-![StackName](https://img.shields.io/badge/StackName-COLOR?logo=LOGO&logoColor=white)
+[![StackName](https://img.shields.io/badge/StackName-COLOR?logo=LOGO&logoColor=white)](https://stack-website.example)
 ```
+That linked form is what the README takes. A stack's own page in `docs/stacks/` shows the badge without the outer link.
 Find logos at [simpleicons.org](https://simpleicons.org/)
 
 **Dev servers that check the `Host` header.** A stack served by vite (or
@@ -1308,7 +1310,7 @@ Use prefixes that match commit types:
    possibly dead weight rather than as a second source of truth: when the two
    disagree, `.coderabbit.yaml` is the one with observable effect.
 
-4. **Stack count:** If stacks were added or removed, update the count in `README.md` heading `## Available Stacks (N)` and verify badges match the table.
+4. **Stack count:** If stacks were added or removed, update the count in the `README.md` heading `## Stacks (N)` and add or remove the badge. `tests/unit/test_readme.py` fails when the heading, the badges and `stacks/` disagree.
 
 ## Documentation Image Syntax
 
