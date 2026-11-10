@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.2](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.1...v0.91.2) (2026-11-10)
+
+
+### 📚 Documentation
+
+* Correct the link rule in CLAUDE.md and three leftover facts ([#1010](https://github.com/stefanko-ch/Nexus-Stack/issues/1010)) ([a61b12e](https://github.com/stefanko-ch/Nexus-Stack/commit/a61b12e96df9059db03f8881ead820eda26a9d7b))
+* Replace the architecture diagrams with four generated ones ([#1009](https://github.com/stefanko-ch/Nexus-Stack/issues/1009)) ([4c422a8](https://github.com/stefanko-ch/Nexus-Stack/commit/4c422a8158a129efb26de61c0081f385399fb4c1))
+
 ## [0.91.1](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.0...v0.91.1) (2026-11-10)
 
 
