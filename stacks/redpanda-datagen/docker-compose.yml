@@ -2,7 +2,7 @@
 # Redpanda Datagen - Test Data Generator
 # =============================================================================
 # Generates realistic test data for Redpanda topics. Enable this stack via the
-# Control Panel when you need test data, disable it when not needed.
+# Control Plane when you need test data, disable it when not needed.
 #
 # Access: https://datagen.<domain>
 # Target topic: test-events

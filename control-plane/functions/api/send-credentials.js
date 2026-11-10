@@ -145,7 +145,7 @@ export async function onRequestPost(context) {
 
   <h2 style="color:#00ff88;font-size:16px;margin-top:24px">🔗 Quick Links</h2>
   <ul style="color:#ccc;padding-left:20px">
-    <li><a href="${controlPlaneUrl}" style="color:#00ff88">Control Panel</a> - Manage services &amp; view URLs</li>
+    <li><a href="${controlPlaneUrl}" style="color:#00ff88">Control Plane</a> - Manage services &amp; view URLs</li>
   </ul>
 
   <p style="color:#666;font-size:12px;margin-top:24px;border-top:1px solid #333;padding-top:16px">
