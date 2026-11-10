@@ -56,7 +56,7 @@ The daily version check, which also reports uptime and hardware details, is off.
 
 ### Persistence
 
-Dragonfly writes a snapshot of the dataset to `dragonfly-data` when it shuts down, and loads it on start.
+Dragonfly writes a snapshot of the dataset to `dragonfly-data` when it shuts down, and loads it on start. Nothing is saved in between, so a crash or a killed container loses what was written since the last start. Saving is not instant: 700 MB took 35 seconds on the server, so the container gets 120 seconds to stop instead of Docker's default 10.
 
 - **`rebuild` (default): it does not survive a teardown.** Dragonfly is not in the R2 backup list.
 - **`snapshot`: it survives**, because the whole disk is imaged.

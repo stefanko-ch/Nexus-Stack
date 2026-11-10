@@ -24,9 +24,11 @@ services:
     image: ${IMAGE_DRAGONFLY:-docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.2}
     container_name: dragonfly
     restart: unless-stopped
-    # The snapshot is written on shutdown. Docker's default 10 s before
-    # SIGKILL can cut that short once the dataset grows toward maxmemory.
-    stop_grace_period: 60s
+    # The snapshot is written on shutdown, and a SIGKILL before it finishes
+    # loses everything since the last start. Measured on the cx43 server:
+    # 700 MB took 35 s to save, so a full 1 GB needs about 50 s. Docker's
+    # default of 10 s lost the data; 120 s leaves headroom.
+    stop_grace_period: 120s
     # The ACL file is written from the environment on every start, so the
     # password reaches no argument list and always matches the generated
     # one. `default` is off: without that, Dragonfly accepts any client that
