@@ -8,7 +8,7 @@ title: "DragonflyDB"
 
 **Redis-compatible in-memory data store**
 
-DragonflyDB answers the Redis and Memcached APIs with a multi-threaded engine. Redis clients, commands and data types work unchanged, so next to [Valkey](valkey.md) it compares engines rather than APIs.
+DragonflyDB answers the Redis API with a multi-threaded engine. It can also speak Memcached, but this stack leaves that API off: Memcached's protocol has no password. Redis clients, commands and data types work unchanged, so next to [Valkey](valkey.md) it compares engines rather than APIs.
 
 | Setting | Value |
 |---------|-------|
