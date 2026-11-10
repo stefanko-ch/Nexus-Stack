@@ -54,6 +54,10 @@ services:
       start_period: 60s
     networks:
       - app-network
+      # Ollama is on this network only; joining it is what makes
+      # http://ollama:11434 resolve. compose_runner creates it whenever
+      # gpt-researcher is enabled.
+      - ollama-internal
 
 volumes:
   gpt-researcher-outputs:
@@ -61,3 +65,6 @@ volumes:
 networks:
   app-network:
     external: true
+  ollama-internal:
+    external: true
+    name: ollama-internal
