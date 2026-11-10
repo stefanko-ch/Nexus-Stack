@@ -331,24 +331,17 @@ docker inspect servicename --format='{{.HostConfig.Memory}}'
 
 ## Service Ports Reference
 
-| Service | Host Port | Container Port | Health Endpoint |
-|---------|-----------|----------------|-----------------|
-| Hoppscotch | 3003 | 3000 | `/` |
-| Grafana | 3001 | 3000 | `/api/health` |
-| n8n | 5678 | 5678 | `/healthz` |
-| Portainer | 9090 | 9000 | `/api/status` |
-| Uptime Kuma | 3005 | 3001 | `/` |
-| Infisical | 8070 | 8080 | `/api/status` |
-| Metabase | 3002 | 3000 | `/api/health` |
-| Kestra | 8080 | 8080 | `/api/v1/health` |
-| IT Tools | 8081 | 80 | `/` |
-| Wetty | 3006 | 3000 | `/` |
-| CloudBeaver | 8978 | 8978 | `/` |
-| Excalidraw | 3004 | 80 | `/` |
-| Draw.io | 3007 | 8080 | `/` |
-| Mage | 6789 | 6789 | `/api/status` |
-| Marimo | 2718 | 2718 | `/` |
-| Redpanda Console | 8082 | 8080 | `/admin/health` |
+For a service with a web interface, the `port` field of its entry in `services.yaml` is the port the tunnel routes to. It is not always a port published on the host: NATS, for one, declares a port that only exists inside the container. This page used to carry a copy of those numbers, and the copy went stale. Read them from the source, and trust `docker ps` for what is actually published:
+
+```bash
+# Host port of one service, as the repository defines it
+grep -A3 '^  grafana:' services.yaml
+
+# What is actually published on the server right now
+ssh nexus "docker ps --format 'table {{.Names}}\t{{.Ports}}'"
+```
+
+The second column of `docker ps` shows `host port -> container port` for each container, which is what the tunnel routes to.
 
 ---
 

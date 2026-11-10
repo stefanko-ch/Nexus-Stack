@@ -73,7 +73,7 @@ docker exec -it soda soda --help
 
 **Option 2: SSH Access**
 
-1. Connect via SSH (see [SSH Access Guide](../ssh-access.md))
+1. Connect via SSH (see [SSH Access Guide](../admin-guides/ssh-access.md))
 2. Run Soda commands:
 
 ```bash

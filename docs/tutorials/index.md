@@ -28,6 +28,7 @@ The goal: give you one focused skill per page, so you can stitch the ones you ne
 | **[Code-Server](./code-server/)** | Terminal, internal service hostnames, Python venv setup with uv | 2 |
 | **[Redpanda](./redpanda/)** | Topics, Python producer/consumer, partitions, consumer groups, in-Python aggregation | 8 |
 | **[Redpanda Connect](./redpanda-connect/)** | YAML-driven pipelines — deploy, manage, real-world Bluesky example | 2 |
+| **[dlt](./dlt/)** | Ingest public APIs into Postgres — first pipeline, incremental loading, two resources, your own source | 5 |
 | **[Flink](./flink/)** | Dinky setup, Flink SQL against Redpanda, end-to-end Bluesky walkthrough | 3 |
 | **[Spark Structured Streaming](./spark/)** | Databricks streaming from rate source → Redpanda read → JSON parsing → Bronze Delta | 4 |
 | **[Databricks](./databricks/)** | External Databricks ↔ Nexus workflows — R2 data lake from notebooks | 1 |

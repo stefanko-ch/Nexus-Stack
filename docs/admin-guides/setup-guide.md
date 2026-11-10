@@ -440,11 +440,11 @@ Optional secrets (only set if you want to override defaults):
 Run the initial setup workflow:
 
 ```bash
-# Core services only (infisical, mailpit, info)
+# Core services only (Forgejo, Grafana, Infisical, Portainer, SFTPGo)
 gh workflow run initial-setup.yaml
 
 # With additional services pre-selected
-gh workflow run initial-setup.yaml -f enabled_services="grafana,n8n,portainer"
+gh workflow run initial-setup.yaml -f enabled_services="n8n,kestra"
 ```
 
 Or via GitHub UI:
@@ -452,9 +452,9 @@ Or via GitHub UI:
 2. Click **Run workflow**
 3. *(Optional)* Enter comma-separated services in `enabled_services` field
 
-**Available services:** `grafana`, `n8n`, `portainer`, `uptime-kuma`, `metabase`, `kestra`, `it-tools`, `wetty`, `cloudbeaver`, `excalidraw`, `drawio`, `mage`, `marimo`, `redpanda`, `redpanda-console`
+**Available services:** any key from `services.yaml`. The [stack catalogue](../stacks/overview.md) lists the stacks by category.
 
-> **Note:** Core services (infisical, mailpit, info) are always enabled automatically.
+> **Note:** The core services (Forgejo, Grafana, Infisical, Portainer, SFTPGo) are always enabled automatically.
 
 On **first run**, the pipeline will:
 1. Create the R2 bucket automatically
@@ -504,10 +504,12 @@ After deployment, your services are available at:
 | Service | URL |
 |---------|-----|
 | **Control Plane** | `https://control.yourdomain.com` |
-| **Dashboard** | `https://info.yourdomain.com` |
 | **Grafana** | `https://grafana.yourdomain.com` |
 | **Portainer** | `https://portainer.yourdomain.com` |
-| **IT-Tools** | `https://it-tools.yourdomain.com` |
+| **Infisical** | `https://infisical.yourdomain.com` |
+| **Forgejo** | `https://forgejo.yourdomain.com` |
+
+Every other stack with a web interface is reachable at `https://<subdomain>.yourdomain.com` once you enable it; the Control Plane's Stacks page links to each one. Internal-only stacks such as Postgres, Meltano or Soda have no URL; their pages under `docs/stacks/` say how to reach them.
 
 ### First Login
 
@@ -532,10 +534,14 @@ Use the Control Plane to view or email credentials:
 |----------|---------|--------------|-------------|
 | Initial Setup | `gh workflow run initial-setup.yaml [-f enabled_services="..."]` | None | One-time setup (Control Plane + Spin Up) |
 | Setup Control Plane | `gh workflow run setup-control-plane.yaml` | None | Setup Control Plane only |
-| Spin Up | `gh workflow run spin-up.yml` | None | Re-create infrastructure after teardown |
-| Teardown | `gh workflow run teardown.yml` | None | Teardown infra (reversible) |
+| Spin Up (Rebuild) | `gh workflow run spin-up.yml` | None | Re-create infrastructure after a rebuild teardown |
+| Teardown (Rebuild) | `gh workflow run teardown.yml` | None | Tear down the infrastructure; a spin-up rebuilds it from a fresh image |
+| Spin Up (Snapshot) | `gh workflow run spin-up-snapshot.yml` | None | Re-create the server from its disk snapshot |
+| Teardown (Snapshot) | `gh workflow run teardown-snapshot.yml` | None | Snapshot the disk, then tear down the server |
 | Destroy All | `gh workflow run destroy-all.yml -f confirm=DESTROY` | Required | Delete everything |
 | Update from Upstream | `gh workflow run update-from-upstream.yml [-f ref=vX.Y.Z]` | None | Move a torn-down stack's code to a release; see [Updating to a new release](#updating-to-a-new-release) |
+
+The rebuild pair and the snapshot pair are two lifecycles, and a stack uses one of them: the `lifecycle_mode` setting on the Control Plane's Settings page decides which. Do not dispatch one pair against a stack that runs on the other. [Snapshot lifecycle](./snapshot-lifecycle.md) explains the difference and how to switch.
 
 ### Control Plane
 
