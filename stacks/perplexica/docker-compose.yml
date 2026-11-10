@@ -1,0 +1,55 @@
+# =============================================================================
+# Perplexica - AI answer engine on local models and private search
+# =============================================================================
+# URL: https://perplexica.<domain>
+#
+# Asks the web a question the way Perplexity does: searches with SearXNG,
+# reads the results, and writes an answer with sources, using a model in
+# Ollama. Nothing leaves the server except the search queries SearXNG sends
+# to the search engines.
+#
+# Needs two other stacks enabled: searxng (search) and ollama (models).
+# Both are preset below; pull a chat model and an embedding model in
+# Ollama, then pick them in Perplexica's setup screen. Hosted providers
+# (OpenAI, Anthropic, ...) can be added there too.
+#
+# Perplexica has no accounts; the subdomain is behind Cloudflare Access.
+# Settings and chat history in the perplexica-data volume, which survives a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+services:
+  perplexica:
+    image: ${IMAGE_PERPLEXICA:-itzcrazykns1337/perplexica:slim-v1.12.0}
+    container_name: perplexica
+    restart: unless-stopped
+    environment:
+      # Next.js binds to $HOSTNAME, which Docker sets to the container id;
+      # 0.0.0.0 makes it answer on localhost too, for the healthcheck.
+      HOSTNAME: 0.0.0.0
+      # Read once, when the config file in the volume is first written.
+      SEARXNG_API_URL: http://searxng:8080
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "127.0.0.1:8129:3000"
+    volumes:
+      - perplexica-data:/home/perplexica/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  perplexica-data:
+
+networks:
+  app-network:
+    external: true
