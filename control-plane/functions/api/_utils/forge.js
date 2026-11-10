@@ -215,10 +215,15 @@ export function runsPageSize(env) {
  * request, as before — and gives up after `maxPages`, or at the first empty
  * page, which is the end of the history.
  *
- * A failure on the first page is reported like listWorkflowRuns reports it.
- * A failure on a later page is not: the runs read so far are returned with
- * `incomplete: true`, because a partial list is still more than nothing and
- * the caller already has to cope with not finding what it looked for.
+ * A failure on the first page is reported like listWorkflowRuns reports it,
+ * and a thrown error there is thrown on. A failure on a later page is not a
+ * failure of the call, whether it is an HTTP error, a timeout or an unreadable
+ * body: the runs read so far are returned with `incomplete: true`, because a
+ * partial list is still more than nothing and the caller already has to cope
+ * with not finding what it looked for.
+ *
+ * `response` is the newest page that was read, so its rate-limit headers
+ * reflect every request this call made.
  *
  * @param {object} env
  * @param {{ maxPages: number, enough: (runs: object[]) => boolean }} options
@@ -230,25 +235,39 @@ export async function listWorkflowRunsUntil(env, { maxPages, enough }) {
   const { kind } = forgeConfig(env);
   const perPage = runsPageSize(env);
   const runs = [];
-  let first = null;
+  // The newest page that was read. Its headers carry the rate-limit budget as
+  // it stands after every request made here, which is what a caller that
+  // paces itself by that budget needs to see.
+  let latest = null;
   for (let page = 1; page <= maxPages; page += 1) {
     const query = kind === 'github' ? `?per_page=${perPage}&page=${page}` : `?page=${page}&limit=${perPage}`;
-    const response = await forgeFetch(env, repoApiUrl(env, `/actions/runs${query}`), {
-      headers: forgeHeaders(env),
-    });
-    if (!response.ok) {
-      if (page === 1) return { ok: false, response };
-      return { ok: true, runs, response: first, pages: page - 1, incomplete: true };
+    const url = repoApiUrl(env, `/actions/runs${query}`);
+    let response;
+    let data;
+    if (page === 1) {
+      // The first page behaves exactly like listWorkflowRuns, thrown errors
+      // included: with nothing read yet there is nothing to fall back on.
+      response = await forgeFetch(env, url, { headers: forgeHeaders(env) });
+      if (!response.ok) return { ok: false, response };
+      data = await response.json();
+      if (!data || !Array.isArray(data.workflow_runs)) return { ok: false, invalid: true, response };
+    } else {
+      // A later page that cannot be read — an HTTP error, a timeout, a body
+      // that is not the expected JSON — ends the search with what there is.
+      try {
+        response = await forgeFetch(env, url, { headers: forgeHeaders(env) });
+        data = response.ok ? await response.json() : null;
+      } catch {
+        data = null;
+      }
+      if (!data || !Array.isArray(data.workflow_runs)) {
+        return { ok: true, runs, response: latest, pages: page - 1, incomplete: true };
+      }
     }
-    const data = await response.json();
-    if (!data || !Array.isArray(data.workflow_runs)) {
-      if (page === 1) return { ok: false, invalid: true, response };
-      return { ok: true, runs, response: first, pages: page - 1, incomplete: true };
-    }
-    if (page === 1) first = response;
+    latest = response;
     const pageRuns = kind === 'github' ? data.workflow_runs : data.workflow_runs.map(normalizeForgejoRun);
     runs.push(...pageRuns);
-    if (pageRuns.length === 0 || enough(runs)) return { ok: true, runs, response: first, pages: page };
+    if (pageRuns.length === 0 || enough(runs)) return { ok: true, runs, response: latest, pages: page };
   }
-  return { ok: true, runs, response: first, pages: maxPages };
+  return { ok: true, runs, response: latest, pages: maxPages };
 }

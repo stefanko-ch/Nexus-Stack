@@ -190,11 +190,7 @@ export async function onRequestGet(context) {
       const runs = listed.runs;
 
       // Find last successful spin-up (preferred) or setup
-      const lastSpinUp = runs.find(r =>
-        ((r.path && ALL_SPINUP_WORKFLOWS.some((w) => r.path.includes(w))) ||
-         (r.name && (r.name.includes('Spin Up') || r.name.includes('Spin-Up')))) &&
-        r.conclusion === 'success'
-      );
+      const lastSpinUp = runs.find((r) => isSpinUp(r) && r.conclusion === 'success');
 
       const lastSetup = runs.find(r =>
         ((r.path && r.path.includes('setup-control-plane.yaml')) ||

@@ -45,7 +45,7 @@ const pageOfCi = (n) => Array.from({ length: n }, ciRun);
  * anything past the end is empty. Also serves the Access JWKS when given one.
  * Records the run-list URLs it was asked for.
  */
-function forgeFetch(pages, { jwks = null, failFrom = null } = {}) {
+function forgeFetch(pages, { jwks = null, failFrom = null, throwFrom = null, remaining = null } = {}) {
   const asked = [];
   globalThis.fetch = async (input) => {
     const url = String(input instanceof Request ? input.url : input);
@@ -55,8 +55,10 @@ function forgeFetch(pages, { jwks = null, failFrom = null } = {}) {
     if (url.includes('/actions/runs?')) {
       asked.push(url);
       const page = Number(new URL(url).searchParams.get('page') ?? '1');
+      if (throwFrom !== null && page >= throwFrom) throw new Error('network down');
       if (failFrom !== null && page >= failFrom) return new Response('boom', { status: 502 });
-      return new Response(JSON.stringify({ workflow_runs: pages[page - 1] ?? [] }), { status: 200 });
+      const headers = remaining ? { 'x-ratelimit-remaining': String(remaining - page) } : {};
+      return new Response(JSON.stringify({ workflow_runs: pages[page - 1] ?? [] }), { status: 200, headers });
     }
     throw new Error(`unexpected request in test: ${url}`);
   };
@@ -121,6 +123,31 @@ test('a failure on a later page keeps what was read and says it is incomplete', 
   assert.equal(listed.pages, 1);
 });
 
+test('a thrown error on a later page also keeps what was read', async () => {
+  forgeFetch([pageOfCi(100)], { throwFrom: 2 });
+  const listed = await listWorkflowRunsUntil(GITHUB_ENV, { maxPages: 10, enough: () => false });
+  assert.equal(listed.ok, true);
+  assert.equal(listed.incomplete, true);
+  assert.equal(listed.runs.length, 100);
+});
+
+test('a thrown error on the first page is thrown on, as listWorkflowRuns does', async () => {
+  forgeFetch([], { throwFrom: 1 });
+  await assert.rejects(
+    listWorkflowRunsUntil(GITHUB_ENV, { maxPages: 10, enough: () => false }),
+    /network down/,
+  );
+});
+
+test('the response returned is the newest page read, so its rate-limit header is current', async () => {
+  forgeFetch([pageOfCi(100), pageOfCi(100), [lifecycleRun('spin-up.yml', 'Spin Up')]], { remaining: 5000 });
+  const listed = await listWorkflowRunsUntil(GITHUB_ENV, {
+    maxPages: 10,
+    enough: (runs) => runs.some((r) => r.path.includes('spin-up.yml')),
+  });
+  assert.equal(listed.response.headers.get('x-ratelimit-remaining'), '4997');
+});
+
 test('Forgejo pages are fifty runs, asked for with page and limit', async () => {
   const asked = forgeFetch([[], []]);
   await listWorkflowRunsUntil(FORGEJO_ENV, { maxPages: 2, enough: () => false });
@@ -144,6 +171,17 @@ async function status(pages, options = {}) {
   });
   return { response, body: JSON.parse(await response.text()), asked };
 }
+
+test('status: the rate-limit budget reported is the one left after the last page', async () => {
+  const { body } = await status([pageOfCi(100), [lifecycleRun('spin-up.yml', 'Spin Up')]], { remaining: 5000 });
+  assert.equal(body.rateLimitRemaining, 4998);
+});
+
+test('status: a later page that cannot be read leaves the state unknown, not the endpoint broken', async () => {
+  const { response, body } = await status([pageOfCi(100)], { throwFrom: 2 });
+  assert.equal(response.status, 200);
+  assert.equal(body.infraState, 'unknown');
+});
 
 test('status: a spin-up behind a full page of CI runs still reads as deployed', async () => {
   const { response, body, asked } = await status([pageOfCi(100), [lifecycleRun('spin-up.yml', 'Spin Up')]]);
