@@ -91,8 +91,9 @@ and creates real resources from them.
   Debezium and friends are reachable from other containers on `app-network` and
   nowhere else.
 - **`core`** — always enabled, never opt-in: `forgejo`, `grafana`, `infisical`,
-  `portainer`. These are the stacks the platform itself depends on, which is also
-  why Portainer is reachable when something else is broken.
+  `portainer`, `sftpgo`. The platform itself depends on the first four, which is
+  also why Portainer is reachable when something else is broken. SFTPGo is core so
+  that every deployment has a way to look into its object storage.
 - **`tcp_ports`** — declares that this service is meant to be reachable by a
   non-HTTP client (a Kafka consumer, `psql`, an S3 SDK). It does not open anything
   by itself; see below.

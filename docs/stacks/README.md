@@ -397,7 +397,7 @@ The `services.yaml` file defines service metadata (subdomain, port, description,
 
 ## Adding New Services
 
-Adding a new service requires **2 steps**:
+A service becomes deployable in the three steps below. A stack that ships with the project needs more than that — a pinned image, a documentation page, a README badge, the regenerated catalogue — and `CLAUDE.md` ("Adding New Stacks") lists every step.
 
 ### 1. Create the Docker Compose stack
 
@@ -409,7 +409,7 @@ Create `stacks/my-app/docker-compose.yml`:
 ```yaml
 services:
   my-app:
-    image: my-app-image:latest
+    image: myorg/my-app:1.4.2
     container_name: my-app
     restart: unless-stopped
     ports:
@@ -435,7 +435,7 @@ services:
     port: 8090                  # Must match docker-compose port
     public: false               # false = requires login, true = public
     description: "My awesome application"
-    image: "myorg/my-app:latest"
+    image: "myorg/my-app:1.4.2"
 ```
 
 > **Note:** No `enabled` field needed - runtime state is managed by D1 (Control Plane).

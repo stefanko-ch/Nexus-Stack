@@ -1341,7 +1341,12 @@ Why this matters — same editor-vs-site mismatch as the image-syntax rule, diff
 - A browser-side relative link `./monitoring` from that URL resolves to `/docs/guides/user-guides/control-plane/monitoring` — a child path that **does not exist**. The actual sibling page is at `/docs/guides/user-guides/monitoring/`.
 - Result: every extension-less `./foo` link between guides returns 404 on the website, while looking fine in the GitHub viewer (which resolves file-relative, not URL-relative). This is a silent drift — the broken links only show up when a user actually clicks through on the live site. Happened in [PR #454](https://github.com/stefanko-ch/Nexus-Stack/pull/454).
 
-**Rule:** Write `[text](./sibling.md)`. Astro/Starlight strips the `.md` at build time and resolves against the source location, producing the correct URL. GitHub's markdown viewer also follows `.md` links correctly. Both renderers happy, one source of truth.
+**Rule:** Write `[text](./sibling.md)`. GitHub's markdown viewer follows that link as written. The website does not: Starlight leaves a relative `.md` link untouched, and it took a plugin in the website repository to make these links work there — `src/remark-doc-links.mjs` in `stefanko-ch/nexus-stack.ch`, which resolves each link in this repository's layout and rewrites it to the page's route.
+
+This section used to say that Starlight strips the `.md` by itself. It never did. Every relative `.md` link in `docs/` was a 404 on the website, unnoticed until the stack catalogue started using them for all 163 stack names. Two consequences for writing docs:
+
+- A link to a file the website does not sync — `docs/stacks/README.md`, `docs/CONTRIBUTING.md`, anything under `docs/proposals/`, source code — is rewritten to the file on GitHub. It works, but it takes the reader off the site, so prefer a synced page when one says the same thing.
+- A site-absolute link such as `/docs/guides/admin-guides/` is passed through as written and is not checked by anything. Use a relative `.md` link instead.
 
 This applies to **every** relative markdown-to-markdown link in `docs/`, not just user-guides.
 
