@@ -29,7 +29,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
+          # llama3.2 (3B), the model the client stacks default to, needs
+          # 2.3 GiB; Ollama refuses to load it under a 2g limit. Measured
+          # at 2.5 GiB in use with it loaded.
+          memory: 4g
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
