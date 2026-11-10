@@ -115,7 +115,9 @@ services:
                   + " Infisical no longer matches the one stored in arcadedb-config.");
               System.exit(1);
             }
-            send(root, "server", "{\"command\":\"create database nexus\"}");
+            int db = send(root, "server", "{\"command\":\"create database nexus\"}");
+            System.out.println("arcadedb-init: create database nexus returned HTTP " + db
+                + " (an error is expected when it already exists)");
             if (send(user, "databases", null) != 200) {
               // The generated password is alphanumeric, so it needs no JSON escaping.
               String command = "create user {\\\"name\\\":\\\"nexus-arcadedb\\\",\\\"password\\\":\\\""
@@ -136,7 +138,7 @@ services:
         JAVA
         exec java /tmp/Init.java
     environment:
-      ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD}
+      ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:?must be set in .env (rendered by service_env._render_arcadedb)}
       ARCADEDB_PASSWORD: ${ARCADEDB_PASSWORD:?must be set in .env (rendered by service_env._render_arcadedb)}
     depends_on:
       arcadedb:
