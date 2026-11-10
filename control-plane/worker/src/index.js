@@ -483,8 +483,11 @@ async function handleScheduledTeardown(event, env) {
   }
 }
 
+// How many pages of workflow runs checkInfraStatus reads before it gives up.
+const MAX_RUN_PAGES = 10;
+
 /**
- * Check infrastructure status via GitHub Actions API.
+ * Check infrastructure status via the forge's Actions API.
  * Returns the infra state: 'deployed', 'torn-down', 'offline', 'running', or 'unknown'.
  */
 async function checkInfraStatus(env) {
@@ -494,24 +497,6 @@ async function checkInfraStatus(env) {
   }
 
   try {
-    // Forgejo applies `limit` only together with `page`; see forge.js.
-    const query = isForgejo(env) ? '?page=1&limit=100' : '?per_page=100';
-    const response = await fetchWithTimeout(
-      forgeRepoUrl(env, `/actions/runs${query}`),
-      forgeRequestOptions(env),
-    );
-
-    if (!response.ok) {
-      console.warn(`Workflow runs API returned ${response.status}, cannot determine infra state`);
-      return 'unknown';
-    }
-
-    const data = await response.json();
-    if (!data.workflow_runs || !Array.isArray(data.workflow_runs)) {
-      return 'unknown';
-    }
-    const runs = isForgejo(env) ? data.workflow_runs.map(normalizeForgejoRun) : data.workflow_runs;
-
     // Detection lists, not dispatch targets. Both pairs must be
     // recognised regardless of which one is configured, otherwise the
     // Control Plane reports 'unknown' infra state the moment a stack
@@ -528,19 +513,56 @@ async function checkInfraStatus(env) {
     // Find the most recent run for each relevant workflow
     const workflows = { initialSetup: null, spinUp: null, teardown: null, destroy: null };
 
-    for (const run of runs) {
-      const path = run.path || '';
-      const name = run.name || '';
+    // Read the run list page by page until a lifecycle run turns up.
+    //
+    // One page is not a safe window: the list holds every workflow's runs,
+    // and CI outnumbers lifecycle runs by far. After a day with a dozen
+    // merged pull requests the morning's spin-up was more than a hundred
+    // runs back, this function returned 'unknown', and the scheduled
+    // teardown was skipped for a server that was running.
+    //
+    // The list is newest-first, so the first lifecycle run found is the
+    // newest one, and it decides the state. A Forgejo page holds 50 runs
+    // (its MAX_RESPONSE_ITEMS), a GitHub page 100; ten pages are the limit.
+    // Mirrors listWorkflowRunsUntil in functions/api/_utils/forge.js.
+    const perPage = isForgejo(env) ? 50 : 100;
+    for (let page = 1; page <= MAX_RUN_PAGES; page += 1) {
+      // Forgejo applies `limit` only together with `page`; see forge.js.
+      const query = isForgejo(env) ? `?page=${page}&limit=${perPage}` : `?per_page=${perPage}&page=${page}`;
+      const response = await fetchWithTimeout(
+        forgeRepoUrl(env, `/actions/runs${query}`),
+        forgeRequestOptions(env),
+      );
 
-      if (!workflows.initialSetup && (matchesPath(path, WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup'))) {
-        workflows.initialSetup = run;
-      } else if (!workflows.spinUp && (matchesPath(path, WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up'))) {
-        workflows.spinUp = run;
-      } else if (!workflows.teardown && (matchesPath(path, WORKFLOW_PATHS.teardown) || name.includes('Teardown'))) {
-        workflows.teardown = run;
-      } else if (!workflows.destroy && (matchesPath(path, WORKFLOW_PATHS.destroy) || name.includes('Destroy'))) {
-        workflows.destroy = run;
+      if (!response.ok) {
+        console.warn(`Workflow runs API returned ${response.status} on page ${page}, cannot determine infra state`);
+        return 'unknown';
       }
+
+      const data = await response.json();
+      if (!data.workflow_runs || !Array.isArray(data.workflow_runs)) {
+        return 'unknown';
+      }
+      const runs = isForgejo(env) ? data.workflow_runs.map(normalizeForgejoRun) : data.workflow_runs;
+
+      for (const run of runs) {
+        const path = run.path || '';
+        const name = run.name || '';
+
+        if (!workflows.initialSetup && (matchesPath(path, WORKFLOW_PATHS.initialSetup) || name.includes('Initial Setup'))) {
+          workflows.initialSetup = run;
+        } else if (!workflows.spinUp && (matchesPath(path, WORKFLOW_PATHS.spinUp) || name.includes('Spin Up') || name.includes('Spin-Up'))) {
+          workflows.spinUp = run;
+        } else if (!workflows.teardown && (matchesPath(path, WORKFLOW_PATHS.teardown) || name.includes('Teardown'))) {
+          workflows.teardown = run;
+        } else if (!workflows.destroy && (matchesPath(path, WORKFLOW_PATHS.destroy) || name.includes('Destroy'))) {
+          workflows.destroy = run;
+        }
+      }
+
+      // An empty page is the end of the history.
+      if (runs.length === 0) break;
+      if (workflows.initialSetup || workflows.spinUp || workflows.teardown || workflows.destroy) break;
     }
 
     // Check if any workflow is currently running
