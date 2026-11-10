@@ -5,7 +5,7 @@
 # Single Rust binary + dedicated PostgreSQL for metadata storage.
 # Lets Spark, Trino, DuckDB, PyIceberg, and the Iceberg Java/Python
 # SDK all read + write the SAME Iceberg tables on the existing
-# object storage (Garage / MinIO / SeaweedFS / RustFS / external R2).
+# object storage (Garage / SeaweedFS / RustFS / external R2).
 #
 # Architecture:
 #   - lakekeeper-bootstrap: one-shot `migrate` job that initialises

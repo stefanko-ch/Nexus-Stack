@@ -28,7 +28,7 @@ Rill builds dashboards straight from data files. A project holds sources (Parque
 
 The stack starts Rill Developer on an empty project. In the UI, add a source:
 
-- **A file in S3-compatible storage** — MinIO, Garage or SeaweedFS from this stack. Give Rill the bucket URL and credentials in the source dialog.
+- **A file in S3-compatible storage** — Garage, SeaweedFS or RustFS from this stack. Give Rill the bucket URL and credentials in the source dialog.
 - **A public URL** — any HTTPS link to a CSV or Parquet file.
 - **PostgreSQL** — for example the shared `postgres` stack at `postgres:5432`.
 

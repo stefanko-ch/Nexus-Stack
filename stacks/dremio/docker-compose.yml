@@ -4,7 +4,7 @@
 # URL: https://dremio.<domain>
 # In-cluster: dremio:31010 (JDBC/ODBC), dremio:32010 (Arrow Flight)
 #
-# Dremio queries data where it lies: object storage (MinIO, S3), Iceberg
+# Dremio queries data where it lies: object storage (Garage, SeaweedFS, S3), Iceberg
 # catalogs such as Nessie, relational databases and files, through one SQL
 # layer with a web editor, a semantic layer of virtual datasets, and
 # reflections (materialized acceleration).

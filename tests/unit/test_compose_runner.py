@@ -111,7 +111,7 @@ def test_round_1_set_euo_pipefail_first_executable_line() -> None:
 
 def test_round_2_firewall_override_check_present() -> None:
     """R2 — per-stack firewall override applied when present on disk."""
-    script = _render_default(leaves=["minio"])
+    script = _render_default(leaves=["postgres"])
     # The conditional check must appear
     assert "docker-compose.firewall.yml" in script
     # And the compose invocation form must use both files when present

@@ -1687,17 +1687,6 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
-            "minio",
-            _filter_empty(
-                {
-                    "MINIO_ROOT_USER": "nexus-minio",
-                    "MINIO_ROOT_PASSWORD": config.minio_root_password,
-                }
-            ),
-        )
-    )
-    folders.append(
-        FolderSpec(
             "sftpgo",
             _filter_empty(
                 {

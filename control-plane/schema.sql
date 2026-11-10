@@ -136,3 +136,18 @@ INSERT OR IGNORE INTO config (key, value) VALUES
 UPDATE config
    SET value = 'rebuild', updated_at = datetime('now')
  WHERE key = 'lifecycle_mode' AND value = 'legacy';
+
+-- ============================================================================
+-- Migration: remove the minio stack
+-- ============================================================================
+-- The minio stack was removed from services.yaml because MinIO stopped
+-- publishing images: its repository is archived and no tag can be pulled.
+-- sync-deployed-state.sh inserts and updates service rows but never deletes
+-- them, so the row would otherwise stay in the Control Plane as a card that
+-- fails the next spin-up when enabled (generate-services-tfvars.py rejects
+-- an enabled name the deployed ref does not have).
+--
+-- Idempotent: after the first run no row matches. A spin-up from a ref that
+-- still has the minio stack inserts the row again, disabled.
+DELETE FROM firewall_rules WHERE service_name = 'minio';
+DELETE FROM services WHERE name = 'minio';

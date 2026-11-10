@@ -15,7 +15,7 @@ R2 is Nexus's **external-facing** S3 bridge. It's the one S3-compatible endpoint
 Internal Nexus services do **not** use R2 by default. The shipped config splits internal storage in two directions:
 
 - **Spark, Jupyter, LakeFS, Filestash** — S3-compatible writes go to **Hetzner Object Storage** via its public S3 endpoint. The server lives in a Hetzner datacenter, so this traffic stays inside Hetzner's network — low latency, no Cloudflare egress, no tunnel hop.
-- **MinIO, Garage, SeaweedFS** — self-contained object stores that keep their data on local Docker volumes inside the Nexus server. Same `app-network`, no external dependency.
+- **Garage, SeaweedFS, RustFS** — self-contained object stores that keep their data on local Docker volumes inside the Nexus server. Same `app-network`, no external dependency.
 
 R2 is layered on top of this for the **external** use case only (Databricks, other SaaS tools that need to reach the data lake from the public internet). So:
 

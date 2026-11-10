@@ -415,7 +415,7 @@ services:
     category: "analytics"
     website: "https://www.dremio.com"
     description: "Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI."
-    long_description: "Dremio queries data where it lies, object storage such as MinIO, Iceberg catalogs such as Nessie, relational databases and files, through one SQL layer with a web editor, a semantic layer of virtual datasets, and reflections that accelerate repeated queries. Next to Trino it is the option with its own UI and semantic layer, and it pairs naturally with the Nessie stack. Single node, with JDBC/ODBC on 31010 and Arrow Flight on 32010 inside the stack. It needs at least 4 GB of memory, so the container gets 5 GB. The admin (nexus-admin) is created on first start (Infisical → folder `dremio`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    long_description: "Dremio queries data where it lies, object storage such as Garage or SeaweedFS, Iceberg catalogs such as Nessie, relational databases and files, through one SQL layer with a web editor, a semantic layer of virtual datasets, and reflections that accelerate repeated queries. Next to Trino it is the option with its own UI and semantic layer, and it pairs naturally with the Nessie stack. Single node, with JDBC/ODBC on 31010 and Arrow Flight on 32010 inside the stack. It needs at least 4 GB of memory, so the container gets 5 GB. The admin (nexus-admin) is created on first start (Infisical → folder `dremio`). Data lives in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "dremio/dremio-oss:26.0.5"
 
   duckdb:
@@ -845,7 +845,7 @@ services:
     category: "storage"
     website: "https://lakekeeper.io"
     description: "Modern Iceberg REST Catalog (Rust) — lets Spark / Trino / DuckDB / PyIceberg share the same Iceberg tables on the existing object storage."
-    long_description: "Lakekeeper is an open-source implementation of the Apache Iceberg REST Catalog specification, written in Rust. It provides the catalog layer that turns the existing object storage (Garage / MinIO / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from Spark, Trino, DuckDB, PyIceberg, or any other Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication. Dedicated PostgreSQL stores the catalog metadata; the actual Parquet data goes to whichever S3-compatible bucket the operator configures per warehouse."
+    long_description: "Lakekeeper is an open-source implementation of the Apache Iceberg REST Catalog specification, written in Rust. It provides the catalog layer that turns the existing object storage (Garage / SeaweedFS / RustFS / external R2) into a full lakehouse: register a table once via the REST API, query it from Spark, Trino, DuckDB, PyIceberg, or any other Iceberg-aware engine — no Hive Metastore, no per-engine catalog duplication. Dedicated PostgreSQL stores the catalog metadata; the actual Parquet data goes to whichever S3-compatible bucket the operator configures per warehouse."
     image: "quay.io/lakekeeper/catalog:v0.13.3"
     support_images:
       lakekeeper-db: "postgres:17-alpine"
@@ -1273,17 +1273,6 @@ services:
     support_images:
       mindsdb-postgres: "postgres:17-alpine"
 
-  minio:
-    subdomain: "minio"
-    port: 9001
-    public: false
-    category: "storage"
-    website: "https://min.io"
-    description: "High-performance S3-compatible object storage for data lakes, backups, and ML models."
-    long_description: "MinIO is a high-performance, S3-compatible object storage system. Store and retrieve any amount of data with industry-standard S3 API compatibility. Features include bucket versioning, lifecycle policies, server-side encryption, and a built-in web console for management."
-    image: "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
-    tcp_ports:
-      s3-api: 9000
 
   mongodb:
     subdomain: "mongodb"
