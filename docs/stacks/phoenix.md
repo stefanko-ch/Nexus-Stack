@@ -47,7 +47,8 @@ Tested:
 ### Settings
 
 - **Authentication** is on (`PHOENIX_ENABLE_AUTH`), with a generated signing secret. By default Phoenix runs with no login at all.
-- **Secure cookies** and **the CSRF origin check** are set for the public URL. Without `PHOENIX_CSRF_TRUSTED_ORIGINS`, Phoenix does not check the origin at all.
+- **Secure cookies** are on. Phoenix's session cookies are `SameSite=Strict`, so the browser sends them on no request that starts on another site.
+- **The origin check (`PHOENIX_CSRF_TRUSTED_ORIGINS`) is off.** Phoenix applies it to every request, page loads included, and answered `untrusted referer` when Phoenix was opened from a link on another host, such as the Control Plane or the Cloudflare Access login. The `SameSite=Strict` cookies already keep cross-site requests from carrying a session.
 - **The web analytics** (FullStory, Scarf) are off.
 
 ### Licence
