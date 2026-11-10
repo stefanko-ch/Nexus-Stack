@@ -40,7 +40,9 @@ The `{fuseki.user}` and `{fuseki.password}` placeholders keep the password out o
 1. Under **Credential** (user menu), add an entry with the entity `fuseki`, the username `nexus-admin` and `JENA_FUSEKI_PASSWORD` from Infisical.
 2. Under **Interpreter → python**, add the property `injectCredentials` with the value `true`, and restart the interpreter.
 
-Zeppelin then replaces the placeholders when the paragraph runs, and removes the injected password from the paragraph's output. This was not tried here.
+Zeppelin then replaces the placeholders when the paragraph runs, and removes the injected password from the paragraph's output. On a server, the query above returned `200` this way. Without the injection Fuseki answers `401`. The removal from the output was not checked.
+
+The interpreter property is stored in Zeppelin's `conf/`, which is not on a volume: after the container is recreated, add `injectCredentials` again. The credential entry has the same limit.
 
 If a password has already been typed into a paragraph, deleting it does not remove it from older revisions. Rotate it instead.
 
