@@ -256,7 +256,7 @@ resource "random_password" "cube_api_secret" {
 # The Data Contract CLI API's `x-api-key`. Required rather than optional:
 # the service is deliberately allowed to reach private addresses on
 # app-network so it can test contracts against postgres, trino, lakekeeper
-# and minio, and without a key every endpoint answers to any container
+# and garage, and without a key every endpoint answers to any container
 # that can reach it.
 resource "random_password" "datacontract_api_key" {
   length  = 48
@@ -1002,12 +1002,6 @@ resource "random_password" "mage_admin" {
   special = false
 }
 
-# MinIO root password
-resource "random_password" "minio_root" {
-  length  = 24
-  special = false
-}
-
 # SFTPGo admin (web UI / REST API) and default user (SFTP login)
 resource "random_password" "sftpgo_admin" {
   length  = 24
@@ -1733,7 +1727,7 @@ resource "cloudflare_record" "services" {
 # DNS A Records for External TCP Access
 # =============================================================================
 # These records point directly to the server IP (proxied = false)
-# so external clients can connect via TCP (Kafka, PostgreSQL, MinIO S3 API)
+# so external clients can connect via TCP (Kafka, PostgreSQL)
 
 locals {
   firewall_dns_records = {

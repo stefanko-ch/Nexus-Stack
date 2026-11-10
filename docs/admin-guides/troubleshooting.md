@@ -29,7 +29,7 @@ If Portainer itself is the broken thing (rare — it's a single Go binary, no DB
 ### External TCP Access Not Working
 
 **Symptoms:**
-- Connection timeout when accessing services via external TCP ports (e.g., RedPanda 9092, PostgreSQL 5432, MinIO 9000)
+- Connection timeout when accessing services via external TCP ports (e.g., RedPanda 9092, PostgreSQL 5432, Garage 3900)
 - Databricks notebooks fail with connection errors
 - `docker ps` shows ports are not mapped to host (e.g., `5432/tcp` instead of `0.0.0.0:5432->5432/tcp`)
 
@@ -53,14 +53,14 @@ This triggers `python -m nexus_deploy run-pipeline` which:
 After re-deployment, verify ports are mapped:
 
 ```bash
-ssh nexus "docker ps --format 'table {{.Names}}\t{{.Ports}}' | grep -E '(redpanda|postgres|minio)'"
+ssh nexus "docker ps --format 'table {{.Names}}\t{{.Ports}}' | grep -E '(redpanda|postgres|garage)'"
 ```
 
 Expected output:
 ```
 postgres           0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
 redpanda           0.0.0.0:9092->19092/tcp, [::]:9092->19092/tcp, ...
-minio              0.0.0.0:9000->9000/tcp, [::]:9000->9000/tcp, ...
+garage             0.0.0.0:3900->3900/tcp, [::]:3900->3900/tcp, ...
 ```
 
 ### PostgreSQL Healthcheck Failing

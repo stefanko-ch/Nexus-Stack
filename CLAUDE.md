@@ -349,7 +349,7 @@ What that means for work in this repo:
 
 All service accounts MUST use the `nexus-` prefix to prevent default username guessing:
 - Database users: `nexus-postgres`, `nexus-kestra`, `nexus-infisical`, `nexus-hoppscotch`, `nexus-soda`, `nexus-meltano`
-- Service admin accounts: `nexus-minio`, `nexus-redpanda`
+- Service admin accounts: `nexus-redpanda`, `nexus-rustfs`
 - NEVER use default names like `admin`, `postgres`, `root`, or the service name alone
 - Application admin usernames use the configurable `$ADMIN_USERNAME` variable (from `variables.tf`)
 
@@ -381,7 +381,7 @@ When adding a new Docker stack, **all locations must be updated**:
      ```
    - If a port conflict exists, choose different ports (both for web UI and tcp_ports)
    - **Common conflicts:**
-     - MinIO uses 9000 (S3) and 9001 (Console)
+     - Garage uses 3900 (S3) and 3909 (Web UI)
      - PostgreSQL uses 5432
      - Redis uses 6379
    - Use Docker port mapping if the service requires specific internal ports:

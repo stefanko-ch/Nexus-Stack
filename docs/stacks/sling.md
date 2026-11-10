@@ -63,10 +63,10 @@ connections:
   CLICKHOUSE:
     type: clickhouse
     url: clickhouse://nexus-clickhouse:password@clickhouse:9000/default
-  MINIO:
+  GARAGE:
     type: s3
     url: s3://bucket-name
-    access_key_id: minioadmin
-    secret_access_key: minioadmin
-    endpoint: http://minio:9000
+    access_key_id: <garage-access-key>
+    secret_access_key: <garage-secret-key>
+    endpoint: http://garage:3900
 ```

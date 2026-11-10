@@ -4,7 +4,7 @@
  * POST /api/firewall - Toggle a firewall rule or update source IPs
  *
  * Firewall rules control which TCP ports are opened on the Hetzner firewall
- * for direct external access (e.g., Kafka, PostgreSQL, MinIO S3 API).
+ * for direct external access (e.g., Kafka, PostgreSQL).
  * Rules are staged in D1 and applied on the next Spin Up.
  * All rules are reset on Teardown for security.
  */

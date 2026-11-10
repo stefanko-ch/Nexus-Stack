@@ -110,7 +110,6 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | OpenSearch (Marquez) | `opensearchproject/opensearch` | `2.19.6` | Exact ¹ |
 | MindsDB | `mindsdb/mindsdb` | `v26.1.0` | Exact ¹ |
 | PostgreSQL (MindsDB DB) | `postgres` | `17-alpine` | Major |
-| MinIO | `quay.io/minio/minio` | `RELEASE.2025-09-07T16-13-09Z` | Exact ¹ |
 | NocoDB | `nocodb/nocodb` | `0.301.2` | Exact ¹ |
 | PostgreSQL (NocoDB DB) | `postgres` | `16-alpine` | Major |
 | Ollama | `ollama/ollama` | `0.15.1` | Exact ¹ |
@@ -371,7 +370,6 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Milvus** | Vector database, internal only | [milvus.md](milvus.md) |
 | **MLflow** | Experiment tracking and model registry | [mlflow.md](mlflow.md) |
 | **MindsDB** | SQL over other databases and models | [mindsdb.md](mindsdb.md) |
-| **MinIO** | S3-compatible object storage | [minio.md](minio.md) |
 | **MongoDB** | Document database with the mongo-express web UI | [mongodb.md](mongodb.md) |
 | **MySQL** | MySQL 8.4 LTS, internal only | [mysql.md](mysql.md) |
 | **n8n** | Workflow automation tool | [n8n.md](n8n.md) |
@@ -447,12 +445,12 @@ The Control Plane includes a **Firewall Management** page that allows opening sp
 
 ### Why?
 
-By default, Nexus-Stack uses a "Zero Entry" security model where all ports are closed and all traffic flows through the Cloudflare Tunnel. However, the tunnel only supports HTTP/SSH protocols. Services like Kafka, PostgreSQL, and MinIO S3 API use TCP protocols that cannot be routed through the tunnel.
+By default, Nexus-Stack uses a "Zero Entry" security model where all ports are closed and all traffic flows through the Cloudflare Tunnel. However, the tunnel only supports HTTP/SSH protocols. Services like Kafka, PostgreSQL, and the S3 APIs use TCP protocols that cannot be routed through the tunnel.
 
 ### How It Works
 
 1. Open the **Firewall** page in the Control Plane
-2. Toggle the ports you need (e.g., Kafka 9092, PostgreSQL 5432, MinIO S3 9000)
+2. Toggle the ports you need (e.g., Kafka 9092, PostgreSQL 5432, Garage S3 3900)
 3. Optionally restrict source IPs (e.g., Databricks IP ranges)
 4. Click **Spin Up** to apply changes
 
@@ -465,7 +463,6 @@ OpenTofu creates inbound Hetzner firewall rules for every enabled toggle. **DNS 
 | **ClickHouse** (native TCP) | 9004 | — ¹ | ClickHouse-native |
 | **Garage** (S3 API) | 3900 | — ¹ | S3/HTTP |
 | **LakeFS** (S3 Gateway) | 8000 | — ¹ | S3/HTTP |
-| **MinIO** (S3 API) | 9000 | `s3.<domain>` | S3/HTTP |
 | **MongoDB** (wire protocol) | 27017 | — ¹ | MongoDB |
 | **PostgreSQL** | 5432 | `postgres.<domain>` | PostgreSQL |
 | **RedPanda** (Kafka) | 9092 | `redpanda-kafka.<domain>` | Kafka |
@@ -477,7 +474,7 @@ OpenTofu creates inbound Hetzner firewall rules for every enabled toggle. **DNS 
 | **SeaweedFS** (S3 API) | 8333 | — ¹ | S3/HTTP |
 | **TimescaleDB** | 5433 | — ¹ | PostgreSQL |
 
-¹ No auto-provisioned DNS record. Auto-DNS is currently only wired for **MinIO**, **PostgreSQL**, **RedPanda** (all listeners), and **Redpanda Connect** in `.github/scripts/sync-firewall-rules.sh`. For the other rows, enable the Firewall rule + Spin Up, then connect to the server IP directly (`<server-ip>:<port>`). Adding a stack to the auto-DNS map is a separate change.
+¹ No auto-provisioned DNS record. Auto-DNS is currently only wired for **PostgreSQL**, **RedPanda** (all listeners), and **Redpanda Connect** in `.github/scripts/sync-firewall-rules.sh`. For the other rows, enable the Firewall rule + Spin Up, then connect to the server IP directly (`<server-ip>:<port>`). Adding a stack to the auto-DNS map is a separate change.
 
 ### Connection Examples
 
@@ -491,15 +488,15 @@ curl http://redpanda-schema-registry.yourdomain.com:18081/subjects
 # PostgreSQL
 psql -h postgres.yourdomain.com -p 5432 -U postgres
 
-# MinIO S3 API
-aws s3 ls --endpoint-url http://s3.yourdomain.com:9000
+# Garage S3 API (no auto-DNS record: use the server IP)
+aws s3 ls --endpoint-url http://<server-ip>:3900
 ```
 
 ### Security
 
 - **Auto-Reset on Teardown:** All firewall rules are automatically reset (`enabled = 0`) when the infrastructure is torn down. Ports must be explicitly re-opened after each Spin Up.
 - **Source IP Restriction:** Each rule supports optional source IP/CIDR restriction. Open to all (`0.0.0.0/0`) if not specified.
-- **Service Authentication:** Most exposed services have their own auth (PostgreSQL passwords, Kafka SASL, MinIO access keys). Exceptions:
+- **Service Authentication:** Most exposed services have their own auth (PostgreSQL passwords, Kafka SASL, S3 access keys). Exceptions:
   - **RisingWave** (4566): No built-in authentication in single-node mode — always restrict source IPs.
   - **RedPanda Admin API** (9644): No authentication — grants full cluster control (user management, config changes, topic deletion). Only open temporarily for debugging and always restrict to your IP. Close immediately after use.
   - **Redpanda Connect** (4195): No authentication on the HTTP API — allows pipeline management and data access. Restrict source IPs when opening.

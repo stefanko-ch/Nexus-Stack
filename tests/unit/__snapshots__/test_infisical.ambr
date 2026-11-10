@@ -260,10 +260,6 @@
       'MINDSDB_PASSWORD': 'mindsdb_password-VALUE',
       'MINDSDB_USERNAME': 'nexus-mindsdb',
     }),
-    'minio': dict({
-      'MINIO_ROOT_PASSWORD': 'minio_root_password-VALUE',
-      'MINIO_ROOT_USER': 'nexus-minio',
-    }),
     'mlflow': dict({
       'MLFLOW_DB_PASSWORD': 'mlflow_db_password-VALUE',
       'MLFLOW_DB_USERNAME': 'nexus-mlflow',

@@ -23,9 +23,11 @@ none of them is a time-series engine.
 | Public | No — Cloudflare Access (email OTP) |
 | Data | Named volume `questdb-data` at `/var/lib/questdb` |
 
-The console publishes on **9013** rather than 9000 because MinIO already
-binds host 9000 for its S3 API. The container port stays at upstream's
-default, so QuestDB's own documentation applies unchanged.
+The console publishes on **9013** rather than 9000: host 9000 belonged to
+MinIO's S3 API when this stack was added. MinIO has since been removed, and
+the port stays at 9013 so existing bookmarks and connection strings keep
+working. The container port stays at upstream's default, so QuestDB's own
+documentation applies unchanged.
 
 ## Three protocols, which is most of the point
 
