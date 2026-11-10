@@ -1,6 +1,7 @@
 # Nexus-Stack
 
-![Nexus-Stack](docs/assets/Nexus-Logo-BlackWhite.png)
+![Nexus-Stack](docs/assets/nexus-logo-black.png#gh-light-mode-only)
+![Nexus-Stack](docs/assets/nexus-logo-white.png#gh-dark-mode-only)
 
 [![GitHub License](https://img.shields.io/github/license/stefanko-ch/Nexus-Stack)](https://github.com/stefanko-ch/Nexus-Stack/blob/main/LICENSE)
 [![Tests](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml/badge.svg)](https://github.com/stefanko-ch/Nexus-Stack/actions/workflows/python-tests.yml)
@@ -31,6 +32,8 @@ New here? [What is Nexus Stack?](docs/concepts/index.md) explains the problem it
 solves and what it deliberately is not.
 
 ## How it works
+
+![Nexus Stack in one picture: you click in the Control Plane, GitHub Actions builds the server, the server runs your stacks](docs/concepts/assets/nexus-stack-in-one-picture.svg)
 
 The Control Plane is a web page that stores what you want: which stacks are on,
 your settings, your firewall rules. GitHub Actions turns that into a Hetzner

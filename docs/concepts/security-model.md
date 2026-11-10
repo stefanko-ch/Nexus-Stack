@@ -22,6 +22,8 @@ Traffic still reaches your services because `cloudflared` on the server opens an
 the server established itself needs no inbound rule, which is what makes an empty
 firewall compatible with a working website.
 
+![How a request reaches a stack: your browser talks to Cloudflare, which asks for an email code; the server opened the tunnel from the inside; a port is open only if you opened it](./assets/request-path.svg)
+
 So the security property is not "we closed the ports". It is that there was never a
 path in from the outside to close.
 

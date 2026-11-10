@@ -12,6 +12,8 @@ every one of them behind Cloudflare Zero Trust, and gives you a web UI to switch
 them on and off. The whole thing is driven from GitHub Actions: you never run a
 deploy command on your own machine.
 
+![Nexus Stack in one picture: you click in the Control Plane, GitHub Actions builds the server, the server runs your stacks](./assets/nexus-stack-in-one-picture.svg)
+
 Two properties are worth stating up front, because most of the design follows from
 them:
 

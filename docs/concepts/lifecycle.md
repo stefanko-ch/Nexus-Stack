@@ -43,6 +43,8 @@ deployment is the deployment the code describes.
 
 ## The two lifecycle modes
 
+![Lifecycle: a running server is torn down and spun up again; rebuild mode restores data from backup, snapshot mode restores the whole disk](./assets/lifecycle.svg)
+
 Which pair of workflows a deployment uses is one setting — `lifecycle_mode` in the
 Control Plane's D1 database, changed from the Settings page.
 
