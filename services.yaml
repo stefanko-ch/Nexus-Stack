@@ -439,7 +439,7 @@ services:
     public: false
     category: "data-quality"
     website: "https://www.entropy-data.com"
-    description: "Registry and marketplace for data products and data contracts (ODCS), formerly Data Contract Manager."
+    description: "Registry and marketplace for data products and data contracts (ODCS), formerly Data Contract Manager. Proprietary licence, not open source."
     long_description: "Entropy Data, formerly Data Contract Manager, is the web registry for data products and the data contracts between them in the Open Data Contract Standard, from the makers of datacontract.com: teams publish data products with their output ports, consumers request access, and each agreement is a contract the Data Contract CLI can test. Create your account on the first visit; signing up accepts Entropy Data's terms of use, so the stack does not do it for you, and the stack user's email gets the Admin Console. In the Community Edition every user can edit every data product and contract. Mail goes to a Mailpit inside the stack. Proprietary Community License, not an OSI licence. Data in PostgreSQL with pgvector in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "entropydata/entropy-data-ce:2.1.5"
     support_images:

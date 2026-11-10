@@ -341,7 +341,7 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | **Dremio** | Lakehouse query engine with a SQL UI | [dremio.md](dremio.md) |
 | **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
 | **Eclipse Mosquitto** | MQTT broker for IoT data, internal only | [mosquitto.md](mosquitto.md) |
-| **Entropy Data** | Data product and data contract registry | [entropy-data.md](entropy-data.md) |
+| **Entropy Data** | Data product and data contract registry (proprietary licence) | [entropy-data.md](entropy-data.md) |
 | **Evidence** | SQL + markdown BI for analytics engineers | [evidence.md](evidence.md) |
 | **Evidently** | Data and model monitoring | [evidently.md](evidently.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |

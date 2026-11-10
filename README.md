@@ -286,7 +286,7 @@ After deployment you'll have:
 | **Dremio** | Lakehouse query engine: SQL over object storage, Iceberg catalogs and databases, with a web UI | [dremio.com](https://www.dremio.com) |
 | **DuckDB** | DuckDB 2.0 as a server — one shared analytical database that DuckDB 2.0 clients attach over the Quack protocol | [duckdb.org](https://duckdb.org) |
 | **Eclipse Mosquitto** | MQTT broker for IoT telemetry, internal at `mosquitto:1883` | [mosquitto.org](https://mosquitto.org) |
-| **Entropy Data** | Registry for data products and data contracts (ODCS) | [entropy-data.com](https://www.entropy-data.com) |
+| **Entropy Data** | Registry for data products and data contracts (ODCS). **Proprietary licence, not open source** | [entropy-data.com](https://www.entropy-data.com) |
 | **Evidently** | Data quality, drift and ML model monitoring over time | [evidentlyai.com](https://www.evidentlyai.com) |
 | **Excalidraw** | Virtual whiteboard for sketching hand-drawn diagrams | [excalidraw.com](https://excalidraw.com) |
 | **Evidence** | SQL + markdown BI for analytics engineers — pages diff as plain text, charts render inline, ships with a sample project | [evidence.dev](https://evidence.dev) |

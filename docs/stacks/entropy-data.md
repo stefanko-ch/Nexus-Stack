@@ -25,7 +25,7 @@ It is the shared place for what the [Data Contract Editor](datacontract-editor.m
 
 1. Open `https://entropy-data.<domain>`. It shows the sign-up page.
 2. Create your account with **the same email as the stack user**. That email is in `APPLICATION_SUPERADMINS`, so the account gets the **Admin Console**.
-3. Create your organization, then a team, a data product and a data contract. The contract editor accepts ODCS YAML. The [Data Contract CLI](datacontract-api.md) can test a contract against the data, for example in the [Postgres](postgres.md) stack.
+3. Create your organization. Some vanity URLs are reserved: `test` was refused with "This vanity URL is not available" although no organization existed yet, so pick another name. Then create a team, a data product and a data contract. The contract editor accepts ODCS YAML. The [Data Contract CLI](datacontract-api.md) can test a contract against the data, for example in the [Postgres](postgres.md) stack.
 
 **Signing up accepts Entropy Data's terms of use.** That is why the stack does not create the account for you.
 
