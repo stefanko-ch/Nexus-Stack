@@ -206,7 +206,7 @@ def lifecycle() -> str:
         + f'<rect x="510" y="130" width="250" height="120" rx="14" fill="{CARD}" stroke="{GREY}" '
         f'stroke-width="3" stroke-dasharray="8 6"/>'
         + _text(635, 178, "Torn down", 22, TEXT, 700)
-        + _text(635, 206, ["no server, no cost,", "your data is kept"], 15, SUB)
+        + _text(635, 206, ["no server, no cost;", "what is kept: see below"], 15, SUB)
         + f'<path d="M318 165H502" stroke="{GREY}" stroke-width="3" marker-end="url(#arrow-x)"/>'
         + _text(410, 152, "Teardown", 16, TEXT, 600)
         + _text(410, 186, "by hand or on a schedule", 13.5, SUB)

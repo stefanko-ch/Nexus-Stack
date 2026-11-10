@@ -17,9 +17,11 @@ no open ports, and there is nothing to install on your own machine.
 
 - **A catalogue of data tools.** Databases, streaming, orchestration, notebooks,
   BI and AI tooling, each one a switch in a web page.
-- **A server that only exists while you use it.** Teardown destroys the machine
-  and keeps your data. Spin Up builds a new one and puts the data back. An
-  optional daily schedule runs the teardown for you.
+- **A server that only exists while you use it.** Teardown destroys the machine;
+  Spin Up builds a new one and puts your data back. How much comes back depends
+  on the lifecycle mode: a disk snapshot restores everything, the rebuild mode
+  restores the stacks its backup covers. An optional daily schedule runs the
+  teardown for you.
 - **No open ports.** Web interfaces are reached through Cloudflare Tunnel, and
   Cloudflare Access asks for an email login first. The one exception is Git
   Proxy, which is public by design. Internal-only stacks such as Postgres have
