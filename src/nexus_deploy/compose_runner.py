@@ -194,7 +194,16 @@ def _render_notebook_prep(path: str, owner: str, old_volume: str) -> str:
 # Stacks whose compose file joins the external `ollama-internal` network,
 # Ollama's only network. Any of them enabled means the network must exist
 # before compose up, whether or not Ollama itself is enabled.
-_OLLAMA_CLIENTS = ("ollama", "litellm", "langflow", "flowise", "open-notebook")
+_OLLAMA_CLIENTS = (
+    "ollama",
+    "litellm",
+    "langflow",
+    "flowise",
+    "open-notebook",
+    "anythingllm",
+    "perplexica",
+    "gpt-researcher",
+)
 
 
 # Backed-up bind mounts of stacks whose container runs as a non-root user,
