@@ -45,7 +45,9 @@ run = Report([DataDriftPreset()]).run(current_data=current, reference_data=refer
 ws.add_run(project.id, run)
 ```
 
-Open `https://evidently.<domain>`, pick the project, and add panels to its dashboard. Each later run adds a point to the plots.
+Open `https://evidently.<domain>` and pick the project. Each later run adds a point to the plots.
+
+**The web UI cannot write.** It sends no secret, so writing from the browser fails with `Status: 403, Not enough permissions`. This was observed for creating a project. Create projects and push runs from Python as above.
 
 Tested:
 - the snippet above pushed a report;

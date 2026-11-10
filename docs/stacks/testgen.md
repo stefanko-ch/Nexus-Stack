@@ -32,6 +32,12 @@ To try it without your own data, TestGen can build a demo database and run the w
 docker exec testgen testgen quick-start
 ```
 
+`quick-start` recreates the demo database and, while doing so, closes every open connection to TestGen's own database, the web UI's included. The UI does not reconnect: on the server it showed only its title until the container was restarted. Restart it after a quick-start:
+
+```bash
+docker restart testgen
+```
+
 Tested:
 - the system database was set up on the first start and upgraded on the second;
 - `nexus-admin` was stored with the generated password, checked against its bcrypt hash; a wrong password did not match;
