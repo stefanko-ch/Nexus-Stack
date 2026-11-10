@@ -108,6 +108,7 @@ TCP_PORTS_ALLOWED = {
 # appear in TCP_PORTS_ALLOWED. The check below enforces exactly that overlap.
 NO_OWN_AUTH = {
     "datasette",  # read-only browser and JSON API, no accounts
+    "evidently",  # no accounts; writes need EVIDENTLY_SECRET, reads only Access
     "gpt-researcher",  # the web UI and its API have no accounts
     "gravitino",  # simple auth mode; OAuth/Kerberos not set up
     "grist",  # trusts the email header Cloudflare Access sets; no password

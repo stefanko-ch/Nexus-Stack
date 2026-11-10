@@ -1,0 +1,136 @@
+# =============================================================================
+# DataOps TestGen - data quality tests generated from data profiles
+# =============================================================================
+# URL: https://testgen.<domain>
+# In-cluster: http://testgen:8530 (REST API and MCP server)
+#
+# Connect TestGen to a database (PostgreSQL, Snowflake, Databricks, SQL
+# Server, Redshift, BigQuery, ...), and it profiles every column, generates
+# validation tests from the profile (ranges, patterns, freshness, row
+# counts, referential checks), runs them on a schedule and scores each table.
+# Next to soda, whose checks are written by hand, TestGen writes them for
+# you and shows the results in a UI.
+#
+# Log in as nexus-admin (Infisical folder `testgen`), created from
+# TESTGEN_USERNAME / TESTGEN_PASSWORD when testgen-init sets up the system
+# database. Analytics are off.
+#
+# Data in the testgen-db-data and testgen-data volumes (the metadata
+# database: connections, profiles, tests and results), which survive a
+# restart and the snapshot lifecycle, not a rebuild teardown.
+# =============================================================================
+
+x-testgen-image: &testgen-image ${IMAGE_TESTGEN:-datakitchen/dataops-testgen:v5.134.0}
+
+x-testgen-env: &testgen-env
+  TESTGEN_USERNAME: nexus-admin
+  TESTGEN_PASSWORD: ${TESTGEN_PASSWORD:?must be set in .env (rendered by service_env._render_testgen)}
+  # Encrypt the target-database credentials TestGen stores, and sign its
+  # session tokens. Generated once per stack; new values make the stored
+  # credentials unreadable.
+  TG_DECRYPT_SALT: ${TESTGEN_DECRYPT_SALT:?must be set in .env (rendered by service_env._render_testgen)}
+  TG_DECRYPT_PASSWORD: ${TESTGEN_DECRYPT_PASSWORD:?must be set in .env (rendered by service_env._render_testgen)}
+  TG_JWT_HASHING_KEY: ${TESTGEN_JWT_KEY:?must be set in .env (rendered by service_env._render_testgen)}
+  TG_METADATA_DB_HOST: testgen-db
+  TG_METADATA_DB_USER: nexus-testgen
+  TG_METADATA_DB_PASSWORD: ${TESTGEN_DB_PASSWORD:?must be set in .env (rendered by service_env._render_testgen)}
+  TG_ANALYTICS: "no"
+  TG_UI_BASE_URL: ${TESTGEN_URL:?must be set in .env (rendered by service_env._render_testgen)}
+  TG_BASE_URL: http://testgen:8530
+
+services:
+  testgen:
+    image: *testgen-image
+    container_name: testgen
+    restart: unless-stopped
+    # TestGen waits for running jobs to reach a checkpoint before it stops;
+    # this must exceed its 60 s job shutdown timeout.
+    stop_grace_period: 90s
+    ports:
+      - "127.0.0.1:8144:8501"
+    environment:
+      <<: *testgen-env
+    volumes:
+      - testgen-data:/var/lib/testgen
+    depends_on:
+      testgen-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+      - testgen-internal
+
+  # Sets up the system database on the first start and creates nexus-admin;
+  # on later starts upgrades it to the image's version, as upstream's
+  # installer does.
+  testgen-init:
+    image: *testgen-image
+    container_name: testgen-init
+    restart: "on-failure:3"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        # Decide on the database's existence, not on the upgrade's exit
+        # status: an upgrade that fails for another reason must fail the
+        # init, not fall through to a fresh setup.
+        exists=$$(python -c '
+        import os, psycopg2
+        c = psycopg2.connect(host="testgen-db", dbname="postgres", user=os.environ["TG_METADATA_DB_USER"],
+                             password=os.environ["TG_METADATA_DB_PASSWORD"])
+        cur = c.cursor(); cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", ("datakitchen",))
+        print("yes" if cur.fetchone() else "no")')
+        if [ "$$exists" = yes ]; then
+          testgen upgrade-system-version
+          echo "testgen-init: system database upgraded"
+        else
+          testgen setup-system-db --yes
+          echo "testgen-init: system database created with nexus-admin"
+        fi
+    environment:
+      <<: *testgen-env
+    depends_on:
+      testgen-db:
+        condition: service_healthy
+    networks:
+      - testgen-internal
+
+  testgen-db:
+    image: ${IMAGE_TESTGEN_DB:-postgres:17-alpine}
+    container_name: testgen-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus-testgen
+      POSTGRES_PASSWORD: ${TESTGEN_DB_PASSWORD:?must be set in .env (rendered by service_env._render_testgen)}
+    volumes:
+      - testgen-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus-testgen"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - testgen-internal
+
+volumes:
+  testgen-data:
+  testgen-db-data:
+
+networks:
+  app-network:
+    external: true
+  testgen-internal:
+    driver: bridge

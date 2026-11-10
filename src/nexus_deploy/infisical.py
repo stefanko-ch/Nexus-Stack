@@ -1580,6 +1580,51 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "testgen",
+            _filter_empty(
+                {
+                    "TESTGEN_USERNAME": "nexus-admin",
+                    "TESTGEN_PASSWORD": config.testgen_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "marmot",
+            _filter_empty(
+                {
+                    # Marmot's built-in admin; marmot-init replaces its default password.
+                    "MARMOT_USERNAME": "admin",
+                    "MARMOT_PASSWORD": config.marmot_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "evidently",
+            _filter_empty(
+                {
+                    # For RemoteWorkspace("http://evidently:8000", secret=...).
+                    "EVIDENTLY_SECRET": config.evidently_secret,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "odd-platform",
+            _filter_empty(
+                {
+                    "ODD_PLATFORM_USERNAME": "nexus-admin",
+                    "ODD_PLATFORM_PASSWORD": config.odd_platform_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

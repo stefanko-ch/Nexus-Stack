@@ -262,6 +262,17 @@ Two stateful stacks do still follow a rolling tag — `pg_ducklake` (`18-main`) 
 | PostgreSQL (Directus DB) | `postgres` | `17-alpine` | Major |
 | Grist | `gristlabs/grist-oss` | `1.7.21` | Exact |
 | ZenML | `nexus-zenml` (built from `zenml[server]==0.98.0`) | `0.98.0` | Exact |
+| DataOps TestGen | `datakitchen/dataops-testgen` | `v5.134.0` | Exact |
+| PostgreSQL (TestGen DB) | `postgres` | `17-alpine` | Major |
+| Entropy Data CE | `entropydata/entropy-data-ce` | `2.1.5` | Exact |
+| PostgreSQL + pgvector (Entropy Data DB) | `pgvector/pgvector` | `0.8.6-pg17` | Exact |
+| Mailpit (Entropy Data mail) | `axllent/mailpit` | `v1.28` | Minor |
+| Evidently | `evidently/evidently-service` | `0.7.23` | Exact |
+| Marmot | `ghcr.io/marmotdata/marmot` | `0.11.1` | Exact |
+| PostgreSQL (Marmot DB) | `postgres` | `17-alpine` | Major |
+| Python (Marmot init) | `python` | `3.12.13-slim` | Exact |
+| ODD Platform | `ghcr.io/opendatadiscovery/odd-platform` | `0.29.0` | Exact |
+| PostgreSQL (ODD DB) | `postgres` | `17-alpine` | Major |
 
 ¹ No major version tags available, requires manual updates.
 ² Allow-listed for `latest`: presentation-layer and dev tools that keep nothing beyond a cache, plus viewers over another system's state such as Kafka-UI and S3 Manager. The reason is what the image holds, not what upstream tags — several of these do publish versions, and pinning them would still buy nothing a re-pull cannot undo.
@@ -319,6 +330,7 @@ For a stack built from its own `Dockerfile` (`stacks/<stack>/Dockerfile`, image 
 | **Data Contract API** | Tests ODCS contracts against the stack's own data | [datacontract-api.md](datacontract-api.md) |
 | **Data Contract Editor** | Browser editor for ODCS data contracts | [datacontract-editor.md](datacontract-editor.md) |
 | **Dagster** | Python data orchestration | [dagster.md](dagster.md) |
+| **DataOps TestGen** | Generated data quality tests | [testgen.md](testgen.md) |
 | **Datasette** | Explore and publish SQLite databases in the browser | [datasette.md](datasette.md) |
 | **Debezium** | Change data capture platform | [debezium.md](debezium.md) |
 | **Dify** | AI workflow builder for LLM applications | [dify.md](dify.md) |
@@ -331,7 +343,9 @@ For a stack built from its own `Dockerfile` (`stacks/<stack>/Dockerfile`, image 
 | **Dremio** | Lakehouse query engine with a SQL UI | [dremio.md](dremio.md) |
 | **DuckDB** | DuckDB as a shared server (Quack protocol) | [duckdb.md](duckdb.md) |
 | **Eclipse Mosquitto** | MQTT broker for IoT data, internal only | [mosquitto.md](mosquitto.md) |
+| **Entropy Data** | Data product and data contract registry (proprietary licence) | [entropy-data.md](entropy-data.md) |
 | **Evidence** | SQL + markdown BI for analytics engineers | [evidence.md](evidence.md) |
+| **Evidently** | Data and model monitoring | [evidently.md](evidently.md) |
 | **Excalidraw** | Virtual whiteboard for diagrams | [excalidraw.md](excalidraw.md) |
 | **Filestash** | Web-based file manager | [filestash.md](filestash.md) |
 | **Apache Flink** | Distributed stream and batch processing | [flink.md](flink.md) |
@@ -372,6 +386,7 @@ For a stack built from its own `Dockerfile` (`stacks/<stack>/Dockerfile`, image 
 | **Mage** | Data pipeline tool | [mage.md](mage.md) |
 | **Mailpit** | Email and SMTP testing | [mailpit.md](mailpit.md) |
 | **Marimo** | Reactive Python notebook | [marimo.md](marimo.md) |
+| **Marmot** | Lightweight data catalog | [marmot.md](marmot.md) |
 | **Marquez** | OpenLineage backend — data lineage across the orchestrators | [marquez.md](marquez.md) |
 | **Mathesar** | Spreadsheet interface for PostgreSQL | [mathesar.md](mathesar.md) |
 | **Meilisearch** | Lightning-fast Rust full-text search engine | [meilisearch.md](meilisearch.md) |
@@ -391,6 +406,7 @@ For a stack built from its own `Dockerfile` (`stacks/<stack>/Dockerfile`, image 
 | **NocoDB** | Airtable alternative (smart spreadsheet) | [nocodb.md](nocodb.md) |
 | **Node-RED** | Flow-based low-code programming | [node-red.md](node-red.md) |
 | **Nussknacker** | Visual low-code stream-processing designer on Flink | [nussknacker.md](nussknacker.md) |
+| **ODD Platform** | Data catalog with quality results | [odd-platform.md](odd-platform.md) |
 | **Ollama + Open WebUI** | Local LLM inference with chat interface | [ollama.md](ollama.md) |
 | **Open Notebook** | Self-hosted NotebookLM alternative | [open-notebook.md](open-notebook.md) |
 | **OpenBao** | Secrets management, open-source Vault fork | [openbao.md](openbao.md) |

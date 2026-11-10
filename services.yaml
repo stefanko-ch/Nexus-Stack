@@ -433,6 +433,29 @@ services:
     long_description: "DuckDB 2.0 added a server mode: the Quack protocol lets one DuckDB process serve its database to others over HTTP. This stack runs it with a single persistent database file, so several clients can read and write the same tables concurrently instead of each holding a private .duckdb file that only one process may open for writing. Clients ATTACH 'quack:duckdb:9494' and query it like a local catalog; filters and aggregates run on the server and only results travel. A token generated per deployment and stored in Infisical guards it, and is the whole of its access control — anyone holding it can run any SQL, including reading and writing files inside the container. Clients must be DuckDB 2.0; 1.x cannot attach, which today rules out Marimo's bundled DuckDB 1.5 — see the stack documentation for the clients that work."
     image: "duckdb/duckdb:2.0.0"
 
+  entropy-data:
+    subdomain: "entropy-data"
+    port: 8145
+    public: false
+    category: "data-quality"
+    website: "https://www.entropy-data.com"
+    description: "Registry and marketplace for data products and data contracts (ODCS), formerly Data Contract Manager. Proprietary licence, not open source."
+    long_description: "Entropy Data, formerly Data Contract Manager, is the web registry for data products and the data contracts between them in the Open Data Contract Standard, from the makers of datacontract.com: teams publish data products with their output ports, consumers request access, and each agreement is a contract the Data Contract CLI can test. Create your account on the first visit; signing up accepts Entropy Data's terms of use, so the stack does not do it for you, and the stack user's email gets the Admin Console. In the Community Edition every user can edit every data product and contract. Mail goes to a Mailpit inside the stack. Proprietary Community License, not an OSI licence. Data in PostgreSQL with pgvector in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "entropydata/entropy-data-ce:2.1.5"
+    support_images:
+      entropy-data-db: "pgvector/pgvector:0.8.6-pg17"
+      entropy-data-mail: "axllent/mailpit:v1.28"
+
+  evidently:
+    subdomain: "evidently"
+    port: 8147
+    public: false
+    category: "data-quality"
+    website: "https://www.evidentlyai.com"
+    description: "Data quality, drift and ML model monitoring: reports pushed from Python and plotted over time."
+    long_description: "Evidently computes reports on datasets, such as data quality, data and prediction drift between a reference and a current batch, model metrics and LLM evals, and the service stores them per project and plots them over time. Next to Soda and TestGen, which check data at one point in time, it is the view of how data and models change from batch to batch. Push reports from notebooks or pipelines with RemoteWorkspace('http://evidently:8000', secret=...); writing needs the secret from Infisical (folder `evidently`). The UI has no login, so Cloudflare Access is the gate for reading. Telemetry is off. Data in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "evidently/evidently-service:0.7.23"
+
   excalidraw:
     subdomain: "excalidraw"
     port: 8082
@@ -827,6 +850,19 @@ services:
     support_images:
       lakekeeper-db: "postgres:17-alpine"
 
+  marmot:
+    subdomain: "marmot"
+    port: 8146
+    public: false
+    category: "data-quality"
+    website: "https://marmotdata.io"
+    description: "Lightweight data catalog with lineage, search, a glossary and an MCP server."
+    long_description: "Marmot is a data catalog in one Go binary on PostgreSQL: it ingests assets from 70+ sources such as PostgreSQL, Kafka, dbt, Airflow and S3, and adds search, lineage, a glossary, ownership and an MCP server for AI assistants. Next to OpenMetadata it shows the catalog idea at a fraction of the footprint. Marmot starts with admin/admin; on the first start the stack replaces that password with the generated one from Infisical (folder `marmot`), so log in as admin with it. Anonymous browsing and telemetry are off. Data in its own PostgreSQL in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "ghcr.io/marmotdata/marmot:0.11.1"
+    support_images:
+      marmot-db: "postgres:17-alpine"
+      marmot-init: "python:3.12.13-slim"
+
   marquez:
     subdomain: "marquez"
     port: 3210
@@ -869,6 +905,18 @@ services:
     description: "Transactional catalog with Git semantics for Iceberg tables: branches, tags and commits across tables."
     long_description: "Project Nessie is a catalog that versions a whole lakehouse the way Git versions code: create a branch, change several Iceberg tables on it, and merge them back atomically, or tag a state for reproducible reads. Spark, Flink, Trino and Dremio use it as their catalog at http://nessie:19120/api/v2, each with its own warehouse location; PyIceberg needs Nessie's Iceberg REST endpoint, which needs a warehouse configured first. Next to Lakekeeper and Unity Catalog, the REST catalogs already here, it is the one for branching and multi-table transactions. The web UI shows branches, commits and table contents. Nessie runs without authentication, so Cloudflare Access is the only gate. Its commit history lives in RocksDB in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "ghcr.io/projectnessie/nessie:0.110.0"
+
+  odd-platform:
+    subdomain: "odd-platform"
+    port: 8148
+    public: false
+    category: "data-quality"
+    website: "https://opendatadiscovery.org"
+    description: "Open Data Discovery catalog: datasets, lineage, owners and data-quality test results in one place."
+    long_description: "The Open Data Discovery Platform is a catalog built on the ODD specification: collectors push metadata from databases, warehouses, BI tools and pipelines, and the platform shows datasets with their lineage, owners, terms and tags, and the results of data-quality tests from Great Expectations, dbt or Soda next to the dataset they test. Log in as nexus-admin with the password from Infisical (folder `odd-platform`); the image's demo accounts are replaced. Collectors reach the ingestion API at http://odd-platform:8080. Data in its own PostgreSQL in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "ghcr.io/opendatadiscovery/odd-platform:0.29.0"
+    support_images:
+      odd-platform-db: "postgres:17-alpine"
 
   opensearch:
     subdomain: "opensearch"
@@ -1839,6 +1887,18 @@ services:
     description: "Metrics collection agent with 300+ plugins for system, database, and application monitoring."
     long_description: "Telegraf is a plugin-driven metrics collection agent. Collect system metrics (CPU, memory, disk), database statistics (PostgreSQL, ClickHouse), and application metrics from 300+ input plugins. Output to Prometheus, Grafana, InfluxDB, and other monitoring systems."
     image: "telegraf:1.38.2"
+
+  testgen:
+    subdomain: "testgen"
+    port: 8144
+    public: false
+    category: "data-quality"
+    website: "https://datakitchen.io/dataops-testgen/"
+    description: "Data quality tests generated from data profiles, run on a schedule, with scores per table."
+    long_description: "DataOps TestGen connects to a database (PostgreSQL, Snowflake, Databricks, SQL Server, Redshift, BigQuery and others), profiles every column, generates validation tests from the profile (ranges, patterns, freshness, volume, referential checks), runs them on a schedule and scores each table, with a web UI, a REST API and an MCP server at http://testgen:8530. Next to Soda, whose checks are written by hand, TestGen writes them for you. Log in as nexus-admin with the password from Infisical (folder `testgen`). Its own PostgreSQL holds connections, profiles, tests and results in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown. Analytics are off."
+    image: "datakitchen/dataops-testgen:v5.134.0"
+    support_images:
+      testgen-db: "postgres:17-alpine"
 
   timescaledb:
     # Host port 5433, not 5432: the shared `postgres` stack's firewall rule

@@ -184,6 +184,18 @@ _FIELDS: tuple[tuple[str, str, str], ...] = (
     ("ZENML_ADMIN_PASS", "zenml_admin_password", ""),
     ("ZENML_JWT_SECRET", "zenml_jwt_secret", ""),
     ("ZENML_ENCRYPTION_KEY", "zenml_encryption_key", ""),
+    ("TESTGEN_PASS", "testgen_password", ""),
+    ("TESTGEN_DECRYPT_SALT", "testgen_decrypt_salt", ""),
+    ("TESTGEN_DECRYPT_PASS", "testgen_decrypt_password", ""),
+    ("TESTGEN_JWT_KEY", "testgen_jwt_key", ""),
+    ("TESTGEN_DB_PASS", "testgen_db_password", ""),
+    ("ENTROPY_DATA_DB_PASS", "entropy_data_db_password", ""),
+    ("MARMOT_ADMIN_PASS", "marmot_admin_password", ""),
+    ("MARMOT_DB_PASS", "marmot_db_password", ""),
+    ("MARMOT_ENCRYPTION_KEY", "marmot_encryption_key", ""),
+    ("EVIDENTLY_SECRET", "evidently_secret", ""),
+    ("ODD_PLATFORM_PASS", "odd_platform_password", ""),
+    ("ODD_PLATFORM_DB_PASS", "odd_platform_db_password", ""),
     ("QUESTDB_PG_PASS", "questdb_pg_password", ""),
     ("INFLUXDB_ADMIN_PASSWORD", "influxdb_admin_password", ""),
     ("INFLUXDB_ADMIN_TOKEN", "influxdb_admin_token", ""),
@@ -425,6 +437,18 @@ class NexusConfig(BaseModel):
     zenml_admin_password: str | None = None
     zenml_jwt_secret: str | None = None
     zenml_encryption_key: str | None = None
+    testgen_password: str | None = None
+    testgen_decrypt_salt: str | None = None
+    testgen_decrypt_password: str | None = None
+    testgen_jwt_key: str | None = None
+    testgen_db_password: str | None = None
+    entropy_data_db_password: str | None = None
+    marmot_admin_password: str | None = None
+    marmot_db_password: str | None = None
+    marmot_encryption_key: str | None = None
+    evidently_secret: str | None = None
+    odd_platform_password: str | None = None
+    odd_platform_db_password: str | None = None
     questdb_pg_password: str | None = None
     influxdb_admin_password: str | None = None
     influxdb_admin_token: str | None = None
