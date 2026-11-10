@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.90.0...v0.91.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **stacks:** Remove the MinIO stack ([#998](https://github.com/stefanko-ch/Nexus-Stack/issues/998))
+
+### 🚀 Features
+
+* **stacks:** Add Baserow, Directus, Grist, Arize Phoenix and ZenML ([#1001](https://github.com/stefanko-ch/Nexus-Stack/issues/1001)) ([6c240ec](https://github.com/stefanko-ch/Nexus-Stack/commit/6c240ecec6bed13e9e44ee148968e79dec2ae156))
+* **stacks:** Add DataOps TestGen, Entropy Data, Marmot, Evidently and ODD Platform ([#1002](https://github.com/stefanko-ch/Nexus-Stack/issues/1002)) ([7b70a14](https://github.com/stefanko-ch/Nexus-Stack/commit/7b70a146a81627cee227286eb7ac3a00f1d6e4dd))
+* **stacks:** Add DragonflyDB, Oracle Database Free, ArcadeDB, Milvus and Apache Fluss ([#1000](https://github.com/stefanko-ch/Nexus-Stack/issues/1000)) ([0b84cf0](https://github.com/stefanko-ch/Nexus-Stack/commit/0b84cf0915f07f0cd305194a849b5aff42d50893))
+* **stacks:** Add Dremio, AnythingLLM, SQL Server, ksqlDB and Conduit ([#994](https://github.com/stefanko-ch/Nexus-Stack/issues/994)) ([616c2b8](https://github.com/stefanko-ch/Nexus-Stack/commit/616c2b885e4cd217ff1d7ea7d68d0a17c1b9f7dc))
+* **stacks:** Add Gravitino, SearXNG, Perplexica, GPT Researcher, SurrealDB and BookStack ([#997](https://github.com/stefanko-ch/Nexus-Stack/issues/997)) ([12363f3](https://github.com/stefanko-ch/Nexus-Stack/commit/12363f39f6671adfa7882234eebe981f1e53603f))
+* **stacks:** Add NATS, OpenBao, Jena Fuseki, Presidio, Whisper and Zeppelin ([#996](https://github.com/stefanko-ch/Nexus-Stack/issues/996)) ([b3eec19](https://github.com/stefanko-ch/Nexus-Stack/commit/b3eec19b7244cc36a06f0e4d5968011b8add06c6))
+* **stacks:** Add ParadeDB, Docling Serve, Lightdash, Ray and Mathesar ([#979](https://github.com/stefanko-ch/Nexus-Stack/issues/979)) ([500d6d4](https://github.com/stefanko-ch/Nexus-Stack/commit/500d6d465aa61085f29255e0fe1aef6934f3a65c))
+* **stacks:** Add RabbitMQ, Mosquitto, Node-RED, MySQL, RStudio and Tempo ([#995](https://github.com/stefanko-ch/Nexus-Stack/issues/995)) ([837ef54](https://github.com/stefanko-ch/Nexus-Stack/commit/837ef546a94ac077c1d8c27275a11809b67e1312))
+
+
+### 🐛 Bug Fixes
+
+* **stacks:** Allow Zeppelin's own origin so the browser login works ([#1003](https://github.com/stefanko-ch/Nexus-Stack/issues/1003)) ([70ed633](https://github.com/stefanko-ch/Nexus-Stack/commit/70ed633e0288734b0148bbb40928f0cd942798f1))
+* **stacks:** Let AnythingLLM, Perplexica and GPT Researcher reach Ollama ([#1004](https://github.com/stefanko-ch/Nexus-Stack/issues/1004)) ([a0f5557](https://github.com/stefanko-ch/Nexus-Stack/commit/a0f5557bc034ff1bf92630c4b3b9527bc5c05a10))
+
+
+### 🔧 Maintenance
+
+* **stacks:** Remove the MinIO stack ([#998](https://github.com/stefanko-ch/Nexus-Stack/issues/998)) ([e5abbb1](https://github.com/stefanko-ch/Nexus-Stack/commit/e5abbb1dfd3100da2ade9fd6a1bd2e2922ad63ff))
+
 ## [0.90.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.89.0...v0.90.0) (2026-11-08)
 
 
