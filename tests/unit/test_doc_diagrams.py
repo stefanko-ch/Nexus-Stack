@@ -1,4 +1,4 @@
-"""The generated diagrams in ``docs/concepts/assets/``.
+"""The generated diagrams in ``docs/concepts/assets/`` and ``docs/admin-guides/assets/``.
 
 The diagrams these replaced went stale because nothing compared them with
 anything: two said "61 stacks" for months. So the checks here are about the
@@ -16,10 +16,15 @@ import pytest
 from nexus_deploy import doc_diagrams
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ASSETS = REPO_ROOT / "docs" / "concepts" / "assets"
 SVG = "{http://www.w3.org/2000/svg}"
 
-RENDERED = {name: render() for name, render in doc_diagrams.DIAGRAMS.items()}
+# Every diagram, keyed by file name; the names are unique across folders.
+FOLDER_OF = {name: folder for folder, diagrams in doc_diagrams.FOLDERS.items() for name in diagrams}
+RENDERED = {
+    name: render()
+    for diagrams in doc_diagrams.FOLDERS.values()
+    for name, render in diagrams.items()
+}
 
 
 def _texts(svg: str) -> list[str]:
@@ -30,18 +35,25 @@ def _texts(svg: str) -> list[str]:
 
 @pytest.mark.parametrize("name", sorted(RENDERED))
 def test_committed_diagram_matches_the_generator(name: str) -> None:
-    path = ASSETS / name
+    path = REPO_ROOT / FOLDER_OF[name] / name
     assert path.exists(), f"{path} is missing. Run `uv run python -m nexus_deploy.doc_diagrams`."
     assert path.read_text(encoding="utf-8") == RENDERED[name], (
-        f"docs/concepts/assets/{name} is stale. Regenerate it with "
+        f"{FOLDER_OF[name]}/{name} is stale. Regenerate it with "
         f"`uv run python -m nexus_deploy.doc_diagrams` and commit the result."
     )
 
 
-def test_no_svg_in_the_folder_is_left_over_from_an_earlier_generator() -> None:
-    on_disk = {p.name for p in ASSETS.glob("*.svg")}
-    assert on_disk == set(RENDERED), (
-        f"docs/concepts/assets/ holds SVGs the generator does not produce: {sorted(on_disk - set(RENDERED))}"
+def test_file_names_are_unique_across_folders() -> None:
+    names = [name for diagrams in doc_diagrams.FOLDERS.values() for name in diagrams]
+    assert len(names) == len(set(names))
+
+
+@pytest.mark.parametrize("folder", sorted(doc_diagrams.FOLDERS))
+def test_no_svg_in_the_folder_is_left_over_from_an_earlier_generator(folder: str) -> None:
+    expected = set(doc_diagrams.FOLDERS[folder])
+    on_disk = {p.name for p in (REPO_ROOT / folder).glob("*.svg")}
+    assert on_disk == expected, (
+        f"{folder}/ holds SVGs the generator does not produce: {sorted(on_disk - expected)}"
     )
 
 
@@ -122,9 +134,9 @@ def test_text_and_labels_are_escaped() -> None:
 
 def test_write_creates_every_diagram(tmp_path: Path) -> None:
     written = doc_diagrams.write(tmp_path)
-    assert [p.name for p in written] == list(doc_diagrams.DIAGRAMS)
+    assert [p.name for p in written] == list(RENDERED)
     for path in written:
-        assert path.parent == tmp_path / "docs" / "concepts" / "assets"
+        assert path.parent == tmp_path / FOLDER_OF[path.name]
         assert path.read_text(encoding="utf-8") == RENDERED[path.name]
 
 
@@ -136,6 +148,9 @@ def test_write_creates_every_diagram(tmp_path: Path) -> None:
         ("docs/concepts/architecture.md", "./assets/three-planes.svg"),
         ("docs/concepts/lifecycle.md", "./assets/lifecycle.svg"),
         ("docs/concepts/security-model.md", "./assets/request-path.svg"),
+        ("docs/admin-guides/snapshot-lifecycle.md", "./assets/snapshot-teardown-order.svg"),
+        ("docs/admin-guides/snapshot-lifecycle.md", "./assets/snapshot-credential-epoch.svg"),
+        ("docs/admin-guides/snapshot-lifecycle.md", "./assets/snapshot-spin-up-decision.svg"),
     ],
 )
 def test_each_diagram_is_embedded_where_it_belongs(page: str, diagram: str) -> None:

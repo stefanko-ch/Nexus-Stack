@@ -1,11 +1,18 @@
-"""Generate the diagrams in ``docs/concepts/assets/``.
+"""Generate the diagrams in ``docs/concepts/assets/`` and ``docs/admin-guides/assets/``.
 
-Four pictures, each answering one question a newcomer has:
+Four pictures for the concept pages, each answering one question a newcomer has:
 
 * ``nexus-stack-in-one-picture.svg`` — who does what when I click?
 * ``lifecycle.svg`` — what survives a teardown?
 * ``request-path.svg`` — why is no port open?
 * ``three-planes.svg`` — which parts are there, and where does state live?
+
+Three for the snapshot-lifecycle guide, each for a mechanism that is hard to
+hold in your head from prose (#657):
+
+* ``snapshot-teardown-order.svg`` — why the teardown does things in this order
+* ``snapshot-credential-epoch.svg`` — why an old snapshot can be refused
+* ``snapshot-spin-up-decision.svg`` — "cannot tell" is not "there is none"
 
 They replace three hand-drawn SVGs that had gone stale without anyone
 noticing: two still said "61 stacks" and one showed a persistent volume that
@@ -14,7 +21,7 @@ text in these lives in this module, where it can.
 
 Rules the drawings follow:
 
-* one question per picture and at most seven elements;
+* one question per picture and as few elements as it takes;
 * plain language, product names only where a reader will recognise them;
 * no number that can go stale — no stack count, no server price;
 * colour means the plane: blue is the control plane and Cloudflare, amber is
@@ -350,6 +357,260 @@ def three_planes() -> str:
     )
 
 
+def snapshot_teardown_order() -> str:
+    """Why does the snapshot teardown do things in this order?"""
+    steps = (
+        (
+            BLUE,
+            "Back up data to R2",
+            "First, because it needs the containers still running.",
+            "If it fails, the run stops and nothing is destroyed.",
+        ),
+        (
+            GREEN,
+            "Power off the server",
+            "A disk is only consistent when nothing writes to it.",
+            "The run waits until the server reports off.",
+        ),
+        (
+            GREEN,
+            "Take the disk snapshot",
+            "Waits until the image is available, not just started.",
+            "It is labelled with the credential epoch.",
+        ),
+        (
+            BLUE,
+            "Record it in the Control Plane",
+            "A copy for the Control Plane to show.",
+            "The labels at Hetzner stay the source of truth.",
+        ),
+        (
+            AMBER,
+            "Destroy only the server",
+            "Only now. Passwords, tunnel and login rules stay.",
+            "That is what keeps the snapshot restorable.",
+        ),
+        (
+            GREEN,
+            "Delete older snapshots",
+            "Last, and only after a new snapshot exists.",
+            "Pruning first could leave nothing to restore from.",
+        ),
+    )
+    top, pitch, height = 112, 78, 58
+    body = ""
+    for i, (colour, name, why, detail) in enumerate(steps):
+        y = top + i * pitch
+        body += (
+            f'<rect x="36" y="{y}" width="300" height="{height}" rx="12" fill="{CARD}" '
+            f'stroke="{colour}" stroke-width="2.5"/>'
+            + _text(186, y + 35, name, 16, TEXT, 700)
+            + _text(366, y + 25, why, 14.5, TEXT, 500, "start")
+            + _text(366, y + 46, detail, 13.5, SUB, 400, "start")
+        )
+        if i:
+            body += (
+                f'<path d="M186 {y - pitch + height + 2}V{y - 3}" stroke="{GREY}" stroke-width="2.5" '
+                f'marker-end="url(#arrow-x)"/>'
+            )
+    yb = top + len(steps) * pitch + 4
+    body += (
+        f'<rect x="36" y="{yb}" width="748" height="92" rx="14" fill="none" stroke="{GREY}" '
+        f'stroke-width="2" stroke-dasharray="8 6"/>'
+        + _text(56, yb + 28, "If the disk snapshot fails", 16, TEXT, 700, "start")
+        + _text(
+            56,
+            yb + 50,
+            [
+                "The server is still destroyed: the R2 backup already ran, and the next spin-up builds fresh.",
+                "With strict_snapshot the run stops before the destroy and the server is kept.",
+            ],
+            13.5,
+            SUB,
+            400,
+            "start",
+            1.45,
+        )
+    )
+    return _svg(
+        820,
+        yb + 122,
+        "Snapshot teardown: the order is the safety",
+        "Each step sits where it does because of what the next one would destroy.",
+        "Snapshot teardown order: back up data to R2, power off, take the disk snapshot, record "
+        "it in the Control Plane, destroy only the server, delete older snapshots",
+        body,
+    )
+
+
+def credential_epoch() -> str:
+    """Why is an old snapshot refused after a rebuild teardown?"""
+    body = (
+        f'<rect x="36" y="106" width="748" height="74" rx="14" fill="{CARD}"/>'
+        f'<rect x="36" y="106" width="6" height="74" rx="3" fill="{BLUE}"/>'
+        + _text(60, 136, "The credential epoch", 18, BLUE, 700, "start")
+        + _text(
+            60,
+            160,
+            "A fingerprint of generated passwords. Each snapshot is labelled with the one it was taken under.",
+            14,
+            SUB,
+            400,
+            "start",
+        )
+    )
+    lanes = (
+        (
+            36,
+            GREEN,
+            "g",
+            "Snapshot teardown",
+            (
+                "destroys only the server",
+                "passwords stay, so the fingerprint stays",
+                "the snapshot matches and is restored",
+            ),
+        ),
+        (
+            420,
+            AMBER,
+            "o",
+            "Rebuild teardown",
+            (
+                "destroys most passwords too",
+                "the next spin-up makes new ones",
+                "older snapshots no longer match: refused",
+            ),
+        ),
+    )
+    for x, colour, key, name, rows in lanes:
+        body += (
+            f'<rect x="{x}" y="204" width="364" height="246" rx="14" fill="none" stroke="{colour}" '
+            f'stroke-width="2.5"/>' + _text(x + 182, 236, name, 18, colour, 700)
+        )
+        for i, row in enumerate(rows):
+            y = 256 + i * 64
+            body += (
+                f'<rect x="{x + 20}" y="{y}" width="324" height="44" rx="10" fill="{CARD}"/>'
+                + _text(x + 182, y + 28, row, 14.5, TEXT, 500)
+            )
+            if i:
+                body += (
+                    f'<path d="M{x + 182} {y - 18}V{y - 3}" stroke="{colour}" stroke-width="2.5" '
+                    f'marker-end="url(#arrow-{key})"/>'
+                )
+    body += (
+        f'<rect x="36" y="474" width="748" height="98" rx="14" fill="none" stroke="{GREY}" '
+        f'stroke-width="2" stroke-dasharray="8 6"/>'
+        + _text(56, 504, "The refusal is the guard working", 16, TEXT, 700, "start")
+        + _text(
+            56,
+            527,
+            [
+                "The old disk holds databases and accounts made with the old passwords. Restored, the stack",
+                "would boot and log in nowhere. The spin-up builds a fresh server and restores from R2 instead.",
+            ],
+            13.5,
+            SUB,
+            400,
+            "start",
+            1.45,
+        )
+    )
+    return _svg(
+        820,
+        600,
+        "Why an old snapshot can be refused",
+        "Never run the Rebuild teardown at a stack that lives on snapshots.",
+        "Credential epoch: a snapshot teardown keeps the passwords and the snapshot stays "
+        "restorable; a rebuild teardown regenerates them and older snapshots are refused",
+        body,
+    )
+
+
+def snapshot_spin_up_decision() -> str:
+    """What does the spin-up do when it cannot find out whether there is a snapshot?"""
+    cards = (
+        (
+            36,
+            GREEN,
+            "g",
+            "Yes",
+            ["Restore the disk from", "the snapshot."],
+            ["The R2 restore is off:", "the snapshot is newer."],
+        ),
+        (
+            292,
+            BLUE,
+            "b",
+            "Definitely not",
+            ["No snapshot exists, or its", "credential epoch differs."],
+            ["Build a fresh server and", "restore from the R2 backup."],
+        ),
+        (
+            548,
+            AMBER,
+            "o",
+            "Cannot tell",
+            ["The snapshot lookup failed,", "or the state is unreachable."],
+            ["Stop. Nothing is built", "until someone looks."],
+        ),
+    )
+    body = (
+        f'<rect x="100" y="104" width="620" height="46" rx="23" fill="{CARD}" stroke="{GREY}" '
+        f'stroke-width="2"/>'
+        + _text(410, 133, "Spin-up: is there a snapshot to restore?", 15.5, TEXT, 600)
+    )
+    for x, colour, key, name, found, action in cards:
+        cx = x + 118
+        body += (
+            f'<path d="M{cx} 152V184" stroke="{colour}" stroke-width="2.5" marker-end="url(#arrow-{key})"/>'
+            f'<rect x="{x}" y="188" width="236" height="190" rx="14" fill="{CARD}"/>'
+            f'<rect x="{x}" y="188" width="236" height="8" rx="4" fill="{colour}"/>'
+            + _text(x + 20, 230, name, 20, colour, 700, "start")
+            + _text(x + 20, 262, found, 14, SUB, 400, "start", 1.45)
+            + _text(x + 20, 320, action, 14.5, TEXT, 600, "start", 1.45)
+        )
+    body += _text(36, 422, "The same rule picks the workflow pair", 17, TEXT, 700, "start")
+    pairs = (
+        (
+            36,
+            BLUE,
+            "No lifecycle_mode stored",
+            ["A definite answer: the stack was never", "switched. The rebuild pair is used."],
+        ),
+        (
+            420,
+            AMBER,
+            "Database unreadable, or the value unknown",
+            ["Cannot tell which pair is right.", "Nothing is dispatched."],
+        ),
+    )
+    for x, colour, name, lines in pairs:
+        body += (
+            f'<rect x="{x}" y="440" width="364" height="100" rx="12" fill="{CARD}"/>'
+            f'<rect x="{x}" y="440" width="6" height="100" rx="3" fill="{colour}"/>'
+            + _text(x + 24, 470, name, 15.5, colour, 700, "start")
+            + _text(x + 24, 496, lines, 14, SUB, 400, "start", 1.45)
+        )
+    body += _text(
+        410,
+        574,
+        "A guess after a failed lookup could put an older backup on top of a newer snapshot.",
+        14,
+        SUB,
+    )
+    return _svg(
+        820,
+        600,
+        "Cannot tell is not the same as there is none",
+        "A definite no falls back. An unknown stops.",
+        "Snapshot spin-up decision: a usable snapshot is restored, a definite absence builds "
+        "fresh from the R2 backup, and a failed lookup stops the run",
+        body,
+    )
+
+
 DIAGRAMS: dict[str, Callable[[], str]] = {
     "nexus-stack-in-one-picture.svg": one_picture,
     "lifecycle.svg": lifecycle,
@@ -358,15 +619,32 @@ DIAGRAMS: dict[str, Callable[[], str]] = {
 }
 
 
+# The pictures for the snapshot-lifecycle guide. They live next to the guide,
+# in docs/admin-guides/assets/, because a guide embeds `./assets/<name>` and
+# the website sync copies each guide folder's own assets.
+ADMIN_GUIDE_DIAGRAMS: dict[str, Callable[[], str]] = {
+    "snapshot-teardown-order.svg": snapshot_teardown_order,
+    "snapshot-credential-epoch.svg": credential_epoch,
+    "snapshot-spin-up-decision.svg": snapshot_spin_up_decision,
+}
+
+# Folder, relative to the repository root, and the diagrams rendered into it.
+FOLDERS: dict[str, dict[str, Callable[[], str]]] = {
+    "docs/concepts/assets": DIAGRAMS,
+    "docs/admin-guides/assets": ADMIN_GUIDE_DIAGRAMS,
+}
+
+
 def write(repo: Path) -> list[Path]:
-    """Render every diagram into ``docs/concepts/assets/`` and return the paths."""
-    target = repo / "docs" / "concepts" / "assets"
-    target.mkdir(parents=True, exist_ok=True)
+    """Render every diagram into its folder and return the paths."""
     written = []
-    for name, render in DIAGRAMS.items():
-        path = target / name
-        path.write_text(render(), encoding="utf-8")
-        written.append(path)
+    for folder, diagrams in FOLDERS.items():
+        target = repo / folder
+        target.mkdir(parents=True, exist_ok=True)
+        for name, render in diagrams.items():
+            path = target / name
+            path.write_text(render(), encoding="utf-8")
+            written.append(path)
     return written
 
 

@@ -28,6 +28,10 @@ name so this is visible at the moment you click. Running the Rebuild
 teardown against a stack on snapshots rotates all 81 credentials, after
 which the epoch guard correctly refuses the snapshot it just made.
 
+The snapshot teardown runs its steps in a fixed order, and each position is a safety property:
+
+![Snapshot teardown order: back up data to R2 while the containers run, power off, take the disk snapshot, record it in the Control Plane, destroy only the server, then delete older snapshots](./assets/snapshot-teardown-order.svg)
+
 ---
 
 ## Why you might want it
@@ -194,6 +198,8 @@ The workflow log names the reason.
 
 Symptom: every spin-up rebuilds fresh, and the log says the snapshot was rejected on epoch.
 
+![Credential epoch: a snapshot teardown keeps the passwords, so the snapshot stays restorable; a rebuild teardown regenerates them, and older snapshots are refused](./assets/snapshot-credential-epoch.svg)
+
 Cause: the Rebuild teardown (`teardown.yml`) ran at some point. Its `tofu destroy` destroys every `random_password` / `random_id` / `random_string` resource except Kestra's login password, which it excludes (#942), so the service credentials are regenerated on the next spin-up. A snapshot taken before that holds Postgres roles and admin accounts with the old passwords; restoring it would produce a stack that boots and then authenticates nowhere.
 
 The guard exists precisely to prevent that, so this is the mechanism working. The snapshot is dead, though — take a fresh one on the next teardown.
@@ -263,6 +269,10 @@ If D1 is unreachable, the binding is missing, or `lifecycle_mode` holds an unrec
 This is deliberate. "Cannot tell" is not "not configured": guessing would fall back to the rebuild pair, which is the *destructive* one, and running it at a stack that is on snapshots would rotate every credential and orphan the snapshot. Skipping costs one more day of server time; guessing wrong costs the snapshot.
 
 An **unconfigured** stack — no row at all — is a different case and resolves to `rebuild` without complaint.
+
+The spin-up applies the same rule to the snapshot itself:
+
+![Spin-up decision: a usable snapshot is restored, a definite absence builds fresh from the R2 backup, and a failed lookup stops the run instead of guessing](./assets/snapshot-spin-up-decision.svg)
 
 ---
 
