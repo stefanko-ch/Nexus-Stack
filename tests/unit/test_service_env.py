@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from nexus_deploy.config import NexusConfig
+from nexus_deploy.config import NexusConfig, service_host
 from nexus_deploy.infisical import BootstrapEnv
 from nexus_deploy.service_env import (
     _SPECS,
@@ -5225,7 +5225,11 @@ def test_nats_openbao_fuseki_zeppelin_render_their_env(
             "OPENBAO_ADMIN_PASSWORD": "BaoPass1",
         },
         "_render_jena_fuseki": {"FUSEKI_ADMIN_PASSWORD": "FuPass1"},
-        "_render_zeppelin": {"ZEPPELIN_ADMIN_PASSWORD": "ZePass1"},
+        "_render_zeppelin": {
+            "ZEPPELIN_ADMIN_PASSWORD": "ZePass1",
+            "ZEPPELIN_ALLOWED_ORIGINS": "https://"
+            + service_host("zeppelin", full_env.domain or "", full_env.subdomain_separator),
+        },
     }
     for renderer, env_vars in expected.items():
         rendered = getattr(service_env, renderer)(config, full_env)
