@@ -29,6 +29,8 @@ Sign in as `nexus-admin` with `ZEPPELIN_PASSWORD` from Infisical.
 
 The stack writes `shiro.ini` on every start. Without it, Zeppelin lets anyone in as `anonymous`, and the `%sh` interpreter runs any command in the container.
 
+Zeppelin also accepts REST and WebSocket requests only from origins it allows, and by default it allows none but its own hostname and `localhost`. The stack sets `ZEPPELIN_ALLOWED_ORIGINS` to `https://zeppelin.<domain>`. Without it the login form reports a wrong password even when the password is right, and the container log shows `Blocking cross-origin POST request from disallowed Origin`.
+
 ### First steps
 
 Create a note and run:
