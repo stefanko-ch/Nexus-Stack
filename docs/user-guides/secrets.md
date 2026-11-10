@@ -84,7 +84,7 @@ You can't edit from the Control Plane. Two options:
 
 ## Email Credentials
 
-Click **Send Email** in the **Email Credentials** panel to receive a one-shot email with the Infisical admin URL, email and password. The admin is CC'd unless you are the admin. All other service credentials live inside Infisical — log in there to see them. Useful after a fresh deploy if you didn't get the initial credentials email or lost it.
+Click **Send Email** in the **Email Credentials** panel to receive a one-shot email with the Infisical admin URL, email and password. Only the stack's administrator can send it; for anyone else the request is refused. All other service credentials live inside Infisical — log in there to see them. Useful after a fresh deploy if you didn't get the initial credentials email or lost it.
 
 Available only when the stack is deployed and Resend is configured.
 

@@ -54,6 +54,8 @@ A read-only view of the current deployment configuration stored in D1. The table
 | `diskGb` | Root filesystem size in GB |
 | `docker` | Docker Engine version on the server |
 
+`os`, `diskGb` and `docker` are read from the server at the end of a spin-up. If that reading fails, the previous value stays, so these three can be older than the last spin-up.
+
 ## Services
 
 A full table of every service registered in the stack, including its subdomain, port, enabled/deployed state, and category.

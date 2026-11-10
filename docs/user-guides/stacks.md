@@ -26,11 +26,13 @@ Toggle between the two with the **Grid / List** buttons in the top right.
 
 Each tile on a category page has three controls (the List view has the same toggle in each row):
 
-- **Toggle** — On/Off. Enabling triggers a GitHub Actions workflow that runs `docker compose up -d` for that stack. Disabling runs `docker compose down` and removes the container (volumes stay).
+- **Toggle** — On/Off. The toggle records what you want; it does not start or stop anything yet. See [Applying your changes](#applying-your-changes).
 - **Open** — Opens the service's web UI in a new tab. Links to the stack's subdomain (e.g. `https://grafana.<your-domain>`).
 - **Website link** — bottom left, the project's own website (e.g. `grafana.com`).
 
-Toggling a stack takes 10–60 seconds depending on image size. The tile spins during the operation.
+### Applying your changes
+
+A toggled stack is *staged*. The Dashboard shows a banner with the number of staged changes, and its **Spin Up** button reads **Deploy Changes (n)**. Click it to apply them: that starts the spin-up workflow, which starts the stacks you switched on and stops the ones you switched off. Until then a stack you switched off keeps running, and one you switched on does not exist yet.
 
 ## Search
 
@@ -60,9 +62,11 @@ Click **Proven only** at the top of the Stacks page to list just these; it switc
 
 ## What happens when you disable a stack
 
+Once the change has been deployed:
+
 - The Docker container is stopped and removed
 - Docker volumes with data (databases, object storage) are preserved
 - DNS and Cloudflare Tunnel routes stay in place (so re-enabling is instant)
 - The stack's Cloudflare Access application stays (authentication rules persist)
 
-Re-enabling triggers a GitHub Actions workflow in the background that runs `docker compose up -d` against the same volume — you get your data back.
+Re-enabling is staged like any other change and applied by the next **Deploy Changes**, against the same volume — you get your data back.

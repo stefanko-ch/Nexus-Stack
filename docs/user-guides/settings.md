@@ -47,7 +47,7 @@ The cron worker can auto-teardown your stack on a daily schedule so you don't pa
 
 ### Delaying tonight's teardown
 
-If the **Shutdown Warning Email** arrives while you are still working — by default it is sent about 15 minutes before the teardown — open Settings and click **Delay Teardown by 4 Hours**. The block then shows the new time and one extension fewer:
+If the **Shutdown Warning Email** arrives while you are still working — by default it is sent about 15 minutes before the teardown — the stack's administrator can open Settings and click **Delay Teardown by 4 Hours**; from anyone else the request is refused, so ask the administrator. The block then shows the new time and one extension fewer:
 
 ![Scheduled Teardown block after a delay: it reads "Teardown delayed until" with the new time, and 2 of 3 daily extensions remain](./assets/settings-teardown-delayed.png)
 
@@ -64,10 +64,10 @@ little under 30 cents a month. Small against a server, but not zero.
 
 - **Rebuild** — Destroy everything and rebuild from a clean Ubuntu image each
   time. Container images are pulled fresh, so stacks tracking `:latest` stay
-  current. What survives is only what the R2 backup covers: Forgejo, Dify,
-  HedgeDoc, Planka and Metabase. Anything else — tables you created in
-  Postgres, dashboards you built in Grafana, Kestra run history, notebooks you
-  have not committed — is gone the next morning.
+  current. What survives is only what the R2 backup covers, a fixed list of
+  stacks: see [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown).
+  Data in a stack that is not on that list — dashboards you built in Grafana,
+  for example — is gone the next morning.
 - **Snapshot** — Take a disk snapshot before destroying the server and restore
   from it. Everything on the server survives, across all stacks, and the boot
   is faster because the system does not reinstall itself. In exchange the

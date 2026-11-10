@@ -90,7 +90,7 @@ Two buttons, each tied to a GitHub Actions workflow:
 Starts the spin-up workflow of your stack's lifecycle (`spin-up.yml`, or `spin-up-snapshot.yml` on the snapshot lifecycle) on your repo, which:
 - Creates a Hetzner server
 - Installs Docker and connects the Cloudflare Tunnel
-- Restores what the last teardown saved — the whole disk on the snapshot lifecycle, only the stacks its backup covers on the rebuild lifecycle
+- Restores what the last teardown saved — the whole disk on the snapshot lifecycle, the stacks its backup covers on the rebuild lifecycle
 - Starts all enabled services
 
 Typical runtime: 4–10 minutes, depending on how many stacks are enabled. Button stays disabled until the stack is fully torn down (can't spin up on top of a running server).
@@ -98,11 +98,11 @@ Typical runtime: 4–10 minutes, depending on how many stacks are enabled. Butto
 ### 💤 Teardown
 
 Starts the teardown workflow of your stack's lifecycle (`teardown.yml`, or `teardown-snapshot.yml` on the snapshot lifecycle), which:
-- Saves data first — on the snapshot lifecycle a snapshot of the whole disk, on the rebuild lifecycle a backup of a few stacks only
+- Saves data first — a backup of the stacks the backup layer covers, and on the snapshot lifecycle a snapshot of the whole disk as well
 - Deletes the Hetzner server
-- Leaves DNS, the tunnel and this Control Plane in place, so the next spin-up needs no new setup
+- Leaves this Control Plane in place, so you can spin up again from here
 
-While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. **On the rebuild lifecycle most data does not survive a teardown.** Its backup covers Forgejo, Dify, HedgeDoc, Planka and Metabase; tables you created in Postgres, Grafana dashboards and everything else are gone at the next spin-up. [Settings](./settings.md#lifecycle) shows which lifecycle your stack is on and what each one keeps.
+While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. **Not everything survives a teardown.** On the rebuild lifecycle only the stacks the backup covers come back; data in any other stack is gone at the next spin-up. The list of covered stacks is in [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). On the snapshot lifecycle the whole disk comes back — unless the disk snapshot fails: a teardown started from this button destroys the server anyway, and the next spin-up then has only the backup, as on the rebuild lifecycle. [Settings](./settings.md#lifecycle) shows which lifecycle your stack is on.
 
 ## When buttons are disabled
 

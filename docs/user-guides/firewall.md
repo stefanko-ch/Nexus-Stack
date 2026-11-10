@@ -22,7 +22,7 @@ Each enabled stack that exposes TCP ports appears as a card. Each port entry has
 
 ![Firewall card for a single-port service, with controls for enabling the port, entering a Source IPs CIDR range, and staging the change via Save](./assets/firewall-rule-single.png)
 
-Services with multiple TCP ports (e.g. Redpanda with `kafka` and `schema-registry`) show each port as a separate entry in the same card, with the hostname the port is reached at. Enabled ports are marked **STAGED** until applied. The card header shows a **PENDING** badge with a count of how many ports are open (e.g. `1/2 OPEN`).
+Services with multiple TCP ports (e.g. Redpanda with `kafka` and `schema-registry`) show each port as a separate entry in the same card, with the hostname the port is reached at. Enabled ports are marked **STAGED** until applied. The card header shows a **PENDING** badge with a count of how many ports are switched on (e.g. `1/2 OPEN`). The count is of the configuration you have staged, not of what is reachable right now: until **Apply & Spin Up** has run, the server still has the rules from before.
 
 ![Redpanda firewall card with two TCP ports (kafka, schema-registry), the kafka port marked STAGED, and a PENDING badge reading "1/2 OPEN" in the header](./assets/firewall-rule-multiple.png)
 
