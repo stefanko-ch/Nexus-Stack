@@ -27,15 +27,17 @@ HARD_CODED_COUNT = re.compile(
 
 
 def _stack_section() -> tuple[int, list[str], str]:
-    """Return the heading's count, the section's lines, and the README without that section."""
+    """Return the heading's count, the section's lines, and the README without the heading line."""
     text = README.read_text(encoding="utf-8")
     match = HEADING.search(text)
     assert match, "README.md has no '## Stacks (N)' heading"
     rest = text[match.end() :]
     next_heading = re.search(r"^## ", rest, re.MULTILINE)
     section = rest[: next_heading.start()] if next_heading else rest
-    outside = text[: match.start()] + (rest[next_heading.start() :] if next_heading else "")
-    return int(match.group(1)), section.splitlines(), outside
+    # Everything except the heading line itself: prose after the badges is
+    # still part of the README and must not restate the count either.
+    without_heading = text[: match.start()] + rest
+    return int(match.group(1)), section.splitlines(), without_heading
 
 
 def _badge_names() -> list[str]:
@@ -65,13 +67,13 @@ def test_one_badge_per_stack_directory() -> None:
     )
 
 
-def test_every_shields_line_in_the_section_is_a_well_formed_badge() -> None:
+def test_every_badge_like_line_in_the_section_is_a_well_formed_badge() -> None:
     # A badge the pattern does not recognise would be left out of the count
     # above without failing it, so a malformed line has to fail on its own.
     _, lines, _ = _stack_section()
-    malformed = [line for line in lines if "img.shields.io" in line and not BADGE.match(line)]
+    malformed = [line for line in lines if line.startswith(("[![", "![")) and not BADGE.match(line)]
     assert not malformed, (
-        "These lines under '## Stacks (N)' mention img.shields.io but are not a "
+        "These lines under '## Stacks (N)' start like a badge or an image but are not a "
         f"'[![Name](badge-url)](website)' badge on a line of its own: {malformed}"
     )
 

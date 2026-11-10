@@ -475,8 +475,9 @@ When adding a new Docker stack, **all locations must be updated**:
 
 **Badge format:**
 ```markdown
-![StackName](https://img.shields.io/badge/StackName-COLOR?logo=LOGO&logoColor=white)
+[![StackName](https://img.shields.io/badge/StackName-COLOR?logo=LOGO&logoColor=white)](https://stack-website.example)
 ```
+That linked form is what the README takes. A stack's own page in `docs/stacks/` shows the badge without the outer link.
 Find logos at [simpleicons.org](https://simpleicons.org/)
 
 **Dev servers that check the `Host` header.** A stack served by vite (or

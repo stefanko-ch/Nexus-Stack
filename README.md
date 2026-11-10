@@ -19,9 +19,11 @@ no open ports, and there is nothing to install on your own machine.
 - **A server that only exists while you use it.** Teardown destroys the machine
   and keeps your data. Spin Up builds a new one and puts the data back. An
   optional daily schedule runs the teardown for you.
-- **No open ports.** Every stack sits behind Cloudflare Tunnel and an email
-  login. The server accepts no inbound connections unless you open a port
-  yourself on the Firewall page.
+- **No open ports.** Web interfaces are reached through Cloudflare Tunnel, and
+  Cloudflare Access asks for an email login first. The one exception is Git
+  Proxy, which is public by design. Internal-only stacks such as Postgres have
+  no route from outside at all. The server accepts no inbound connections
+  unless you open a port yourself on the Firewall page.
 - **Nothing to run locally.** Every change is a GitHub Actions workflow.
   Passwords are generated for you and stored in Infisical.
 
@@ -33,7 +35,8 @@ solves and what it deliberately is not.
 The Control Plane is a web page that stores what you want: which stacks are on,
 your settings, your firewall rules. GitHub Actions turns that into a Hetzner
 Cloud server with OpenTofu and starts your stacks on it with Docker. You reach
-them through Cloudflare, after an email login.
+their web interfaces through Cloudflare, which asks for an email login unless
+a stack is marked public.
 
 - [Architecture](docs/concepts/architecture.md): the three planes and where state lives
 - [Lifecycle](docs/concepts/lifecycle.md): what survives a teardown, and the two lifecycle modes
