@@ -46,8 +46,8 @@ without ceremony.
   login, no per-service user administration.
 - A **Control Plane** web UI to enable and disable services, spin up and tear down
   the infrastructure, open TCP ports deliberately, and read generated credentials.
-- 80+ optional service stacks to choose from — see the
-  [stack catalogue](../stacks/README.md).
+- Optional service stacks to choose from — see the
+  [stack catalogue](../stacks/overview.md).
 - Generated service passwords stored centrally in Infisical, never in the
   repository.
 - No open ports, no public IP to defend, no manual TLS.

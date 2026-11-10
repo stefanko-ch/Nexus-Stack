@@ -1,3 +1,7 @@
+---
+title: "PostgREST"
+---
+
 ![PostgREST](https://img.shields.io/badge/PostgREST-2C3E50?logo=postgresql&logoColor=white)
 
 # PostgREST — Auto-generated REST API for any Postgres schema

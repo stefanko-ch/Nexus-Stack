@@ -463,7 +463,8 @@ When adding a new Docker stack, **all locations must be updated**:
    - Create `docs/stacks/<stack-name>.md` with badge, description, and configuration details
    - Include port, subdomain, default credentials (if any), and special setup instructions
    - Add entry to the Docker Image Versions table in `docs/stacks/README.md`
-   - Add link to the Stack Documentation table in `docs/stacks/README.md`
+   - Give the page a `title` in its frontmatter: it is the stack's display name in the catalogue and in the website's sidebar
+   - Regenerate the stack catalogue in `docs/stacks/overview.md` with `uv run python -m nexus_deploy.stack_catalogue`. The table there is generated from `services.yaml` and is what nexus-stack.ch shows as "Stacks Overview"; never edit it by hand. `tests/unit/test_stack_catalogue.py` fails when it is stale
 
 8. **Add admin credentials (if service has admin UI):**
    - Add `random_password.<service>_admin` resource in `tofu/stack/main.tf`

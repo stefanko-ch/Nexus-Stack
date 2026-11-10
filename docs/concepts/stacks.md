@@ -151,7 +151,7 @@ including the cases where a secret is deliberately skipped, are in the
 ## Adding a stack
 
 Adding a service to the catalogue means: a `services.yaml` entry, a Compose file, a
-documentation page in `docs/stacks/`, and the README table. The exact steps, in
+documentation page in `docs/stacks/`, and a badge in the README. The exact steps, in
 order, are in the [stacks README](../stacks/README.md)
 and in `CLAUDE.md`. Two rules are worth stating here because they are easy to get
 wrong: pin the image version rather than tracking `latest`, and if the stack holds
@@ -160,7 +160,7 @@ and nothing will tell you so.
 
 ## Related reading
 
-- [Stack catalogue](../stacks/README.md) — every available service
+- [Stack catalogue](../stacks/overview.md) — every available service
 - [Lifecycle](./lifecycle.md) — what happens to a stack's data on teardown
 - [Security model](./security-model.md) — what sits in front of a stack
 - [Control Plane](../user-guides/control-plane.md) — switching stacks on and off
