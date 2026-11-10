@@ -24,7 +24,7 @@ RustFS is a high-performance object storage system written in Rust, designed as 
 
 > ✅ **Auto-configured:** Root credentials are automatically created during deployment. Credentials are available in Infisical.
 
-> **Note:** RustFS is in active/alpha development. For production workloads, consider MinIO or SeaweedFS.
+> **Note:** RustFS is in active/alpha development. For production workloads, consider another object store from the catalogue, such as SeaweedFS or Garage.
 
 ### Usage
 

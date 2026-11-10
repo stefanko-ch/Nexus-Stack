@@ -35,10 +35,11 @@ Nexus-Stack repo                          Cloudflare Workers Builds
 
 | Content | Source | Website renders as |
 |---------|--------|-------------------|
-| `docs/stacks/*.md` | Stack documentation | `/docs/stacks/[slug]` pages |
+| `docs/concepts/*.md` | What the project is and how it is built | `/docs/concepts/[slug]` pages |
+| `docs/stacks/*.md` | Stack documentation | `/docs/stacks/[slug]` pages. `overview.md` becomes the section's index page; `README.md` is not synced |
 | `docs/user-guides/*.md` | End-user Control Plane guides | `/docs/guides/user-guides/[slug]` pages |
 | `docs/admin-guides/*.md` | Operator / self-hoster guides | `/docs/guides/admin-guides/[slug]` pages |
-| `docs/tutorials/*.md` | Tutorials and walkthroughs | `/tutorials/[slug]` pages |
+| `docs/tutorials/**/*.md` | Tutorials and walkthroughs, one folder per topic | `/docs/tutorials/[topic]/[slug]` pages |
 | `services.yaml` | Service metadata (ports, categories, descriptions) | Stack list, navigation, metadata |
 
 ### Images
@@ -93,8 +94,8 @@ Same format as general docs:
 
 ```markdown
 ---
-title: "Stream Processing with RisingWave"
-description: "End-to-end tutorial for real-time streaming"
+title: "dlt"
+description: "Ingest data from public APIs into Postgres using dlt"
 order: 1
 ---
 

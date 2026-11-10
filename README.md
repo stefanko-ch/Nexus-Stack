@@ -253,8 +253,3 @@ code and understanding what it does before you run it.
 
 Released under the [MIT licence](LICENSE). Contributions are welcome, see
 [CONTRIBUTING](docs/CONTRIBUTING.md).
-
-Background reading:
-
-- [Nexus-Stack: Your Data, Your Rules, Your Flow](https://stefanko-ch.medium.com/nexus-stack-your-data-your-rules-your-flow-46b29abc062d)
-- [Secure Hetzner Docker Deployment via Cloudflare Zero Trust Tunnel](https://medium.com/@stefanko-ch/secure-hetzner-docker-deployment-via-cloudflare-zero-trust-tunnel-8f716c4631ce)
