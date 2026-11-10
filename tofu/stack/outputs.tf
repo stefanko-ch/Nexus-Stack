@@ -338,6 +338,18 @@ output "secrets" {
     milvus_root_password   = random_password.milvus_root.result
     fluss_password         = random_password.fluss.result
 
+    # Baserow, Directus, Grist, Arize Phoenix, ZenML
+    baserow_admin_password  = random_password.baserow_admin.result
+    directus_secret         = random_password.directus_secret.result
+    directus_admin_password = random_password.directus_admin.result
+    directus_db_password    = random_password.directus_db.result
+    grist_session_secret    = random_password.grist_session_secret.result
+    phoenix_secret          = random_password.phoenix_secret.result
+    phoenix_admin_password  = random_password.phoenix_admin.result
+    zenml_admin_password    = random_password.zenml_admin.result
+    zenml_jwt_secret        = random_password.zenml_jwt_secret.result
+    zenml_encryption_key    = random_password.zenml_encryption_key.result
+
     # QuestDB (time-series)
     questdb_pg_password        = random_password.questdb_pg.result
     influxdb_admin_password    = random_password.influxdb_admin.result

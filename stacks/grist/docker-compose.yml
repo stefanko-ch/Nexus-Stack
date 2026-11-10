@@ -1,0 +1,71 @@
+# =============================================================================
+# Grist - spreadsheet with a real database underneath
+# =============================================================================
+# URL: https://grist.<domain>
+#
+# A spreadsheet whose tables have typed columns, references between tables
+# and formulas written in Python, with each document stored as a SQLite
+# file. Views (cards, charts, forms) are built from the same tables, and
+# every document has a REST API. Sits between a spreadsheet and a database.
+#
+# Login: Grist has no password login of its own. It trusts the email that
+# Cloudflare Access puts in the Cf-Access-Authenticated-User-Email header,
+# so the Access login is the Grist login and the stack user is Grist's
+# admin. Every request must carry the header (GRIST_IGNORE_SESSION), so
+# nothing reaches a document without it.
+#
+# Image: gristlabs/grist-oss, the build with only the open-source code
+# (Apache-2.0). Telemetry and the version check are off.
+#
+# Data in the grist-data volume (the home database and one SQLite file per
+# document), which survives a restart and the snapshot lifecycle, not a
+# rebuild teardown.
+# =============================================================================
+
+services:
+  grist:
+    image: ${IMAGE_GRIST:-gristlabs/grist-oss:1.7.21}
+    container_name: grist
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8141:8484"
+    environment:
+      APP_HOME_URL: ${GRIST_URL:?must be set in .env (rendered by service_env._render_grist)}
+      GRIST_SESSION_SECRET: ${GRIST_SESSION_SECRET:?must be set in .env (rendered by service_env._render_grist)}
+      GRIST_ADMIN_EMAIL: ${GRIST_ADMIN_EMAIL:?must be set in .env (rendered by service_env._render_grist)}
+      # Identity from Cloudflare Access, on every request.
+      GRIST_FORWARD_AUTH_HEADER: Cf-Access-Authenticated-User-Email
+      GRIST_IGNORE_SESSION: "true"
+      GRIST_FORCE_LOGIN: "true"
+      GRIST_FORWARD_AUTH_LOGOUT_PATH: /cdn-cgi/access/logout
+      # Authentication is configured here, so skip the first-run boot page
+      # and setup wizard, which exist to choose one.
+      GRIST_IN_SERVICE: "true"
+      GRIST_ANON_PLAYGROUND: "false"
+      # Formulas are Python. Without this the image runs them unsandboxed,
+      # with the server process's rights; gVisor isolates them, and Grist
+      # documents it as working in an unprivileged container.
+      GRIST_SANDBOX_FLAVOR: gvisor
+      GRIST_TELEMETRY_LEVEL: "off"
+      GRIST_ALLOW_AUTOMATIC_VERSION_CHECKING: "false"
+    volumes:
+      - grist-data:/persist
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8484/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+volumes:
+  grist-data:
+
+networks:
+  app-network:
+    external: true

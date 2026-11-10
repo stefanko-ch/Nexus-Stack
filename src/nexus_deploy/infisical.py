@@ -1533,6 +1533,53 @@ def compute_folders(config: NexusConfig, env: BootstrapEnv) -> list[FolderSpec]:
     )
     folders.append(
         FolderSpec(
+            "baserow",
+            _filter_empty(
+                {
+                    # Baserow logs in by email: the stack user's.
+                    "BASEROW_EMAIL": stack_user_email(env) or None,
+                    "BASEROW_PASSWORD": config.baserow_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "directus",
+            _filter_empty(
+                {
+                    "DIRECTUS_EMAIL": stack_user_email(env) or None,
+                    "DIRECTUS_PASSWORD": config.directus_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "phoenix",
+            _filter_empty(
+                {
+                    # Phoenix asks for a new password at the first login; this
+                    # stays the initial one.
+                    "PHOENIX_EMAIL": "admin@localhost",
+                    "PHOENIX_PASSWORD": config.phoenix_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
+            "zenml",
+            _filter_empty(
+                {
+                    "ZENML_USERNAME": "nexus-admin",
+                    "ZENML_PASSWORD": config.zenml_admin_password,
+                }
+            ),
+        )
+    )
+    folders.append(
+        FolderSpec(
             "questdb",
             _filter_empty(
                 {

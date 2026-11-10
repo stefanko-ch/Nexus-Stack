@@ -78,7 +78,7 @@ After deployment you'll have:
 ### Quick Start Flow
 
 ![Quick Start Flow](docs/assets/architecture-quickstart.svg)
-## Available Stacks (153)
+## Available Stacks (158)
 
 [![AKHQ](https://img.shields.io/badge/AKHQ-000000?logo=apachekafka&logoColor=white)](https://akhq.io)
 [![Adminer](https://img.shields.io/badge/Adminer-34567C?logo=adminer&logoColor=white)](https://www.adminer.org)
@@ -89,6 +89,8 @@ After deployment you'll have:
 [![Apicurio](https://img.shields.io/badge/Apicurio-CE1126?logoColor=white)](https://www.apicur.io/registry/)
 [![Appsmith](https://img.shields.io/badge/Appsmith-F86A2E?logo=appsmith&logoColor=white)](https://appsmith.com)
 [![ArcadeDB](https://img.shields.io/badge/ArcadeDB-2E7D32?logoColor=white)](https://arcadedb.com)
+[![Arize Phoenix](https://img.shields.io/badge/Arize_Phoenix-F56565?logoColor=white)](https://phoenix.arize.com)
+[![Baserow](https://img.shields.io/badge/Baserow-5190EF?logo=baserow&logoColor=white)](https://baserow.io)
 [![Big-AGI](https://img.shields.io/badge/Big--AGI-FF6B35?logo=openai&logoColor=white)](https://github.com/enricoros/big-agi)
 [![BookStack](https://img.shields.io/badge/BookStack-0288D1?logo=bookstack&logoColor=white)](https://www.bookstackapp.com)
 [![Budibase](https://img.shields.io/badge/Budibase-9981F5?logo=budibase&logoColor=white)](https://budibase.com)
@@ -109,6 +111,7 @@ After deployment you'll have:
 [![Debezium](https://img.shields.io/badge/Debezium-4E8CBF?logo=debezium&logoColor=white)](https://debezium.io)
 [![Dify](https://img.shields.io/badge/Dify-1677FF?logoColor=white)](https://dify.ai)
 [![Dinky](https://img.shields.io/badge/Dinky-1677FF?logo=apacheflink&logoColor=white)](https://www.dinky.org.cn/)
+[![Directus](https://img.shields.io/badge/Directus-6644FF?logo=directus&logoColor=white)](https://directus.io)
 [![Docling](https://img.shields.io/badge/Docling-0F62FE?logoColor=white)](https://docling-project.github.io/docling/)
 [![Dozzle](https://img.shields.io/badge/Dozzle-7B16FF?logo=docker&logoColor=white)](https://dozzle.dev)
 [![DragonflyDB](https://img.shields.io/badge/DragonflyDB-0D1117?logo=redis&logoColor=white)](https://www.dragonflydb.io)
@@ -130,6 +133,7 @@ After deployment you'll have:
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white)](https://grafana.com)
 [![Grafana Tempo](https://img.shields.io/badge/Grafana_Tempo-F46800?logo=grafana&logoColor=white)](https://grafana.com/oss/tempo/)
 [![Gravitino](https://img.shields.io/badge/Apache_Gravitino-2B6CB0?logo=apache&logoColor=white)](https://gravitino.apache.org)
+[![Grist](https://img.shields.io/badge/Grist-16B378?logoColor=white)](https://www.getgrist.com)
 [![Hasura](https://img.shields.io/badge/Hasura-1EB4D4?logo=hasura&logoColor=white)](https://hasura.io)
 [![HedgeDoc](https://img.shields.io/badge/HedgeDoc-3499D9?logo=hedgedoc&logoColor=white)](https://hedgedoc.org)
 [![Hive Metastore](https://img.shields.io/badge/Apache_Hive-FDEE21?logo=apachehive&logoColor=black)](https://hive.apache.org)
@@ -232,6 +236,7 @@ After deployment you'll have:
 [![Wiki.js](https://img.shields.io/badge/Wiki.js-1976D2?logo=wikidotjs&logoColor=white)](https://js.wiki)
 [![Windmill](https://img.shields.io/badge/Windmill-3B82F6?logo=windowsterminal&logoColor=white)](https://www.windmill.dev)
 [![Woodpecker CI](https://img.shields.io/badge/Woodpecker_CI-4CAF50?logo=woodpeckerci&logoColor=white)](https://woodpecker-ci.org)
+[![ZenML](https://img.shields.io/badge/ZenML-431D93?logoColor=white)](https://www.zenml.io)
 [![Zeppelin](https://img.shields.io/badge/Apache_Zeppelin-1D4E89?logo=apache&logoColor=white)](https://zeppelin.apache.org)
 
 | Stack | Description | Website |
@@ -245,6 +250,8 @@ After deployment you'll have:
 | **Apicurio Registry** | Schema and API-contract registry — versions, groups and compatibility rules | [apicur.io/registry](https://www.apicur.io/registry/) |
 | **Appsmith** | Open-source low-code platform for building admin panels, dashboards, and internal tools | [appsmith.com](https://appsmith.com) |
 | **ArcadeDB** | Multi-model database for graphs, documents, key-value and time series, queried with SQL, Cypher or Gremlin | [arcadedb.com](https://arcadedb.com) |
+| **Arize Phoenix** | Tracing and evaluation for LLM applications on OpenTelemetry | [phoenix.arize.com](https://phoenix.arize.com) |
+| **Baserow** | No-code database with linked records, forms, views and a REST API | [baserow.io](https://baserow.io) |
 | **Big-AGI** | Stateless multi-LLM web UI for OpenAI, Anthropic, and local LLM endpoints (browser-side state, no server DB) | [github.com/enricoros/big-agi](https://github.com/enricoros/big-agi) |
 | **BookStack** | Documentation wiki organised as shelves, books, chapters and pages | [bookstackapp.com](https://www.bookstackapp.com) |
 | **Budibase** | Open-source low-code platform for building internal tools and dashboards | [budibase.com](https://budibase.com) |
@@ -265,6 +272,7 @@ After deployment you'll have:
 | **Debezium** | Change data capture - streams database changes to Redpanda/Kafka in real time | [debezium.io](https://debezium.io) |
 | **Dify** | AI workflow builder for LLM applications, RAG pipelines, and agents | [dify.ai](https://dify.ai) |
 | **Dinky** | Web-based Flink SQL IDE with auto-completion and job management | [dinky.org.cn](https://www.dinky.org.cn/) |
+| **Directus** | REST and GraphQL APIs plus an admin app on a PostgreSQL database | [directus.io](https://directus.io) |
 | **Docling Serve** | Document conversion API: PDF, DOCX, PPTX and HTML to Markdown or JSON, with a web UI | [docling-project.github.io](https://docling-project.github.io/docling/) |
 | **Dozzle** | Realtime Docker logs in the browser — tail every container without SSH | [dozzle.dev](https://dozzle.dev) |
 | **DragonflyDB** | Redis-compatible in-memory data store with a multi-threaded engine, internal at `dragonfly:6379` | [dragonflydb.io](https://www.dragonflydb.io) |
@@ -286,6 +294,7 @@ After deployment you'll have:
 | **Grafana** | Full observability stack with Prometheus, Loki & dashboards | [grafana.com](https://grafana.com) |
 | **Grafana Tempo** | Distributed tracing with an OpenTelemetry Collector, queried from Grafana | [grafana.com/oss/tempo](https://grafana.com/oss/tempo/) |
 | **Gravitino** | One metadata catalog over databases, Iceberg, Hive, Kafka and file sets | [gravitino.apache.org](https://gravitino.apache.org) |
+| **Grist** | Spreadsheet with typed tables, references and Python formulas | [getgrist.com](https://www.getgrist.com) |
 | **Hasura** | Instant GraphQL and REST API over PostgreSQL, with subscriptions and a console | [hasura.io](https://hasura.io) |
 | **HedgeDoc** | Collaborative real-time Markdown editor (HackMD alternative) — joint workshop notes, slide-mode, MathJax/Mermaid rendering | [hedgedoc.org](https://hedgedoc.org) |
 | **Hive Metastore** | The Hive catalog — what tables exist and where their files live (Thrift, no UI) | [hive.apache.org](https://hive.apache.org) |
@@ -388,6 +397,7 @@ After deployment you'll have:
 | **Wiki.js** | Open-source wiki and knowledge base with Markdown and visual editor | [js.wiki](https://js.wiki) |
 | **Windmill** | Open-source workflow engine for scripts, workflows, and UIs | [windmill.dev](https://www.windmill.dev) |
 | **Woodpecker CI** | Lightweight Docker-native CI/CD engine with pipeline-as-code | [woodpecker-ci.org](https://woodpecker-ci.org) |
+| **ZenML** | MLOps pipelines with tracked runs, artifacts and model versions | [zenml.io](https://www.zenml.io) |
 | **Zeppelin** | Web notebooks with Python, JDBC, shell, Markdown and SPARQL interpreters | [zeppelin.apache.org](https://zeppelin.apache.org) |
 
 → See [docs/stacks/README.md](docs/stacks/README.md) for detailed stack documentation and how to add new services.

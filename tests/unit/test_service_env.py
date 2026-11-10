@@ -5432,3 +5432,134 @@ def test_set_a_stacks_are_registered() -> None:
 
     names = {spec.service_name for spec in service_env._SPECS}
     assert {"dragonfly", "oracle", "arcadedb", "milvus", "fluss"} <= names
+
+
+# ---------------------------------------------------------------------------
+# Baserow, Directus, Grist, Arize Phoenix, ZenML
+# ---------------------------------------------------------------------------
+
+_SET_B_SECRETS = {
+    "baserow_admin_password": "BrAdmin1",
+    "directus_secret": "DxSecret1",
+    "directus_admin_password": "DxAdmin1",
+    "directus_db_password": "DxDb1",
+    "grist_session_secret": "GrSecret1",
+    "phoenix_secret": "p1" + "x" * 40,
+    "phoenix_admin_password": "PxAdmin1",
+    "zenml_admin_password": "ZnAdmin1",
+    "zenml_jwt_secret": "ZnJwt1",
+    "zenml_encryption_key": "ZnEnc1",
+}
+
+
+def test_set_b_stacks_render_their_env(full_config: NexusConfig, full_env: BootstrapEnv) -> None:
+    from nexus_deploy import service_env
+    from nexus_deploy.config import service_host
+    from nexus_deploy.infisical import stack_user_email
+
+    config = full_config.model_copy(update=_SET_B_SECRETS)
+    email = stack_user_email(full_env)
+
+    def url(name: str) -> str:
+        return "https://" + service_host(name, full_env.domain or "", full_env.subdomain_separator)
+
+    expected = {
+        "_render_baserow": {
+            "BASEROW_ADMIN_PASSWORD": "BrAdmin1",
+            "BASEROW_ADMIN_EMAIL": email,
+            "BASEROW_URL": url("baserow"),
+            "BASEROW_HOST": url("baserow").removeprefix("https://"),
+        },
+        "_render_directus": {
+            "DIRECTUS_SECRET": "DxSecret1",
+            "DIRECTUS_ADMIN_PASSWORD": "DxAdmin1",
+            "DIRECTUS_DB_PASSWORD": "DxDb1",
+            "DIRECTUS_ADMIN_EMAIL": email,
+            "DIRECTUS_URL": url("directus"),
+        },
+        "_render_grist": {
+            "GRIST_SESSION_SECRET": "GrSecret1",
+            "GRIST_ADMIN_EMAIL": email,
+            "GRIST_URL": url("grist"),
+        },
+        "_render_phoenix": {
+            "PHOENIX_SECRET": "p1" + "x" * 40,
+            "PHOENIX_ADMIN_PASSWORD": "PxAdmin1",
+            "PHOENIX_URL": url("phoenix"),
+        },
+        "_render_zenml": {
+            "ZENML_ADMIN_PASSWORD": "ZnAdmin1",
+            "ZENML_JWT_SECRET": "ZnJwt1",
+            "ZENML_ENCRYPTION_KEY": "ZnEnc1",
+            "ZENML_URL": url("zenml"),
+        },
+    }
+    for renderer, env_vars in expected.items():
+        rendered = getattr(service_env, renderer)(config, full_env)
+        assert rendered.env_vars == env_vars, renderer
+        assert rendered.mode == 0o600, renderer
+
+
+@pytest.mark.parametrize(
+    ("renderer", "field", "name"),
+    [
+        ("_render_baserow", "baserow_admin_password", "BASEROW_ADMIN_PASSWORD"),
+        ("_render_directus", "directus_secret", "DIRECTUS_SECRET"),
+        ("_render_directus", "directus_admin_password", "DIRECTUS_ADMIN_PASSWORD"),
+        ("_render_directus", "directus_db_password", "DIRECTUS_DB_PASSWORD"),
+        ("_render_grist", "grist_session_secret", "GRIST_SESSION_SECRET"),
+        ("_render_phoenix", "phoenix_secret", "PHOENIX_SECRET"),
+        ("_render_phoenix", "phoenix_admin_password", "PHOENIX_ADMIN_PASSWORD"),
+        ("_render_zenml", "zenml_admin_password", "ZENML_ADMIN_PASSWORD"),
+        ("_render_zenml", "zenml_jwt_secret", "ZENML_JWT_SECRET"),
+        ("_render_zenml", "zenml_encryption_key", "ZENML_ENCRYPTION_KEY"),
+    ],
+)
+@pytest.mark.parametrize("bad", ["", "a b", "a'b"])
+def test_set_b_stacks_refuse_bad_secrets(
+    full_config: NexusConfig,
+    full_env: BootstrapEnv,
+    renderer: str,
+    field: str,
+    name: str,
+    bad: str,
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SET_B_SECRETS, field: bad})
+    with pytest.raises(ServiceEnvError, match=name) as excinfo:
+        getattr(service_env, renderer)(config, full_env)
+    if bad:
+        assert bad not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("secret", ["p1" + "x" * 29, "P1" + "X" * 40, "px" + "x" * 40])
+def test_phoenix_refuses_a_secret_it_would_reject(
+    full_config: NexusConfig, full_env: BootstrapEnv, secret: str
+) -> None:
+    """Too short, no lowercase letter, no digit: Phoenix would not start."""
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update={**_SET_B_SECRETS, "phoenix_secret": secret})
+    with pytest.raises(ServiceEnvError, match="PHOENIX_SECRET") as excinfo:
+        service_env._render_phoenix(config, full_env)
+    assert secret not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("renderer", ["_render_baserow", "_render_directus", "_render_grist"])
+def test_set_b_admin_logins_need_a_usable_email(
+    full_config: NexusConfig, full_env: BootstrapEnv, renderer: str
+) -> None:
+    from nexus_deploy import service_env
+
+    config = full_config.model_copy(update=_SET_B_SECRETS)
+    env = dataclasses.replace(full_env, forgejo_user_email="", admin_email="not-an-email")
+    with pytest.raises(ServiceEnvError, match="admin email"):
+        getattr(service_env, renderer)(config, env)
+
+
+def test_set_b_stacks_are_registered() -> None:
+    from nexus_deploy import service_env
+
+    names = {spec.service_name for spec in service_env._SPECS}
+    assert {"baserow", "directus", "grist", "phoenix", "zenml"} <= names

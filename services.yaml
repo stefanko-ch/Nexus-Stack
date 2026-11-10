@@ -139,6 +139,16 @@ services:
     long_description: "ArcadeDB keeps graphs, documents, key-value pairs and time series in one engine and answers SQL, Cypher, Gremlin and GraphQL against the same data, so one graph can be queried in several languages side by side. Studio, the web UI, has a query editor and a graph view. Log in as nexus-arcadedb with the password from Infisical (folder `arcadedb`); it has admin rights on every database and starts with an empty `nexus` database. Creating further databases is a server command only root may run; root's password is in the same folder. In-cluster at http://arcadedb:2480. Data in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
     image: "arcadedata/arcadedb:26.10.2"
 
+  baserow:
+    subdomain: "baserow"
+    port: 8139
+    public: false
+    category: "low-code"
+    website: "https://baserow.io"
+    description: "No-code database: spreadsheet-like tables with linked records, forms and views, plus a REST API."
+    long_description: "Baserow gives a PostgreSQL database a spreadsheet interface: linked records, lookups, formulas, forms, kanban, calendar and gallery views, and a REST API for every table, as an open-source alternative to Airtable next to NocoDB. Baserow makes the first account to sign up its admin, so on the first start the stack claims that account with the stack user's email and a generated password from Infisical (folder `baserow`) and switches new sign-ups off; further users are invited from the admin panel. The all-in-one image runs its own PostgreSQL and Redis; uploads stay on disk, no S3. Data in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "baserow/baserow:2.4.1"
+
   big-agi:
     subdomain: "big-agi"
     port: 3006
@@ -342,6 +352,18 @@ services:
     description: "Web-based Flink SQL IDE with auto-completion, job management, and real-time debugging."
     long_description: "Dinky is a web-based IDE for Apache Flink SQL development. Write and execute Flink SQL with auto-completion, manage Flink jobs, debug SQL in real time, and monitor job execution. Supports both streaming and batch SQL with a visual data lineage graph."
     image: "nexus-dinky:1.2.5-flink1.20"
+
+  directus:
+    subdomain: "directus"
+    port: 8140
+    public: false
+    category: "low-code"
+    website: "https://directus.io"
+    description: "Turns a SQL database into REST and GraphQL APIs with an admin app, roles and automations."
+    long_description: "Directus serves every table of a SQL database as a REST and GraphQL API and adds an admin app for browsing and editing the data, roles and permissions down to single fields, flows for automations and dashboards. Here it manages its own PostgreSQL. Log in with the stack user's email and the password from Infisical (folder `directus`); public registration is off. Directus is under the Monospace Sustainable Core License, not an OSI licence, which permits internal and educational use; its core tier sends anonymous telemetry, including the public URL, which cannot be switched off. Data in Docker volumes, which survive the snapshot lifecycle, not a rebuild teardown."
+    image: "directus/directus:12.5.1"
+    support_images:
+      directus-db: "postgres:17-alpine"
 
   docling:
     subdomain: "docling"
@@ -608,6 +630,16 @@ services:
     description: "Apache Gravitino: one metadata catalog over databases, Iceberg, Hive, Kafka and file sets."
     long_description: "Apache Gravitino federates metadata: a metalake holds catalogs for PostgreSQL and MySQL, Iceberg, Hudi and Paimon tables, Hive, Kafka topics and file sets, all browsed and managed through one web UI and REST API. Spark, Trino and Flink can query through its connectors. Where Lakekeeper, Nessie and Unity Catalog each serve one format, Gravitino sits above such systems. It runs in simple auth mode, without OAuth or Kerberos, so Cloudflare Access is the gate. Metadata is kept in an embedded H2 database in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "apache/gravitino:1.3.1"
+
+  grist:
+    subdomain: "grist"
+    port: 8141
+    public: false
+    category: "low-code"
+    website: "https://www.getgrist.com"
+    description: "Spreadsheet with a database underneath: typed columns, references and Python formulas."
+    long_description: "Grist is a spreadsheet whose tables have typed columns, references between tables and formulas written in Python, run in a gVisor sandbox; each document is a SQLite file with its own REST API, and cards, charts and forms are built on the same tables. There is no separate Grist password: Grist trusts the email Cloudflare Access passes in, so the Access login is the Grist login and the stack user is Grist's admin. Uses the open-source gristlabs/grist-oss image; telemetry and the version check are off. Data in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "gristlabs/grist-oss:1.7.21"
 
   hasura:
     subdomain: "hasura"
@@ -951,6 +983,16 @@ services:
     description: "Oracle Database 23ai Free: the full Oracle SQL and PL/SQL dialect, capped at 2 CPUs, 2 GB RAM and 12 GB of data."
     long_description: "Oracle Database Free is the free edition of Oracle Database 23ai, with the full SQL dialect, PL/SQL, JSON relational duality views and vector search, capped by Oracle at 2 CPUs, 2 GB of memory and 12 GB of user data. Next to the postgres, mysql and mssql stacks it covers the fourth common relational dialect. Log in as nexus_oracle, a schema user in the FREEPDB1 pluggable database, with the password from Infisical (folder `oracle`); SYS and SYSTEM have a separate generated password. Internal only, at oracle:1521/FREEPDB1. The first start creates the database and takes a few minutes. Uses the community image gvenzl/oracle-free; the database is under the Oracle Free Use Terms, not an OSI licence. Data in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
     image: "gvenzl/oracle-free:23.26.3-slim"
+
+  phoenix:
+    subdomain: "phoenix"
+    port: 8142
+    public: false
+    category: "ai-ml"
+    website: "https://phoenix.arize.com"
+    description: "Tracing and evaluation for LLM applications, on OpenTelemetry."
+    long_description: "Arize Phoenix collects OpenTelemetry traces from LLM applications through the OpenInference instrumentations for LangChain, LlamaIndex, the OpenAI SDK and others, shows each call with its prompt, response, tokens and latency, and runs evaluations and experiments over datasets; next to Langfuse it leans towards evaluation. Authentication is on: log in as admin@localhost with the initial password from Infisical (folder `phoenix`), which Phoenix asks to change at the first login. Applications send traces to http://phoenix:6006/v1/traces with an API key created under Settings. Elastic License 2.0, not an OSI licence; its web analytics are off. Data in SQLite in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "arizephoenix/phoenix:version-20.26.1"
 
   rill:
     subdomain: "rill"
@@ -1937,6 +1979,16 @@ services:
     support_images:
       windmill-lsp: "ghcr.io/windmill-labs/windmill-lsp:latest"
       windmill-postgres: "postgres:18-alpine"
+
+  zenml:
+    subdomain: "zenml"
+    port: 8143
+    public: false
+    category: "ai-ml"
+    website: "https://www.zenml.io"
+    description: "MLOps framework: Python pipelines with tracked runs, artifacts, lineage and model versions."
+    long_description: "ZenML records Python pipelines: every run, each step's inputs and outputs with their lineage, and model versions with their metrics, shown in the dashboard. Pipelines run wherever the ZenML client runs, a notebook or code-server, and connect to the server at http://zenml:8080; it can use the mlflow stack as its experiment tracker. The server activates itself on the first start with nexus-admin and the password from Infisical (folder `zenml`), so no visitor can claim it. Built here from the PyPI release because the published server images are amd64 only; analytics are off. Data in SQLite in a Docker volume, which survives the snapshot lifecycle, not a rebuild teardown."
+    image: "nexus-zenml:0.98.0"
 
   zeppelin:
     subdomain: "zeppelin"

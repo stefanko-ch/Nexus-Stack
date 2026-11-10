@@ -2400,6 +2400,107 @@ _render_fluss = _single_secret_renderer(
 )
 
 
+def _render_baserow(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Baserow: the admin baserow-init claims, and the public URL Baserow
+    builds links from and checks the Host header against."""
+    _require(
+        "Baserow",
+        {"BASEROW_ADMIN_PASSWORD": c.baserow_admin_password},
+        "leaving the first sign-up open to claim the admin account",
+    )
+    host = service_host("baserow", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "BASEROW_ADMIN_PASSWORD": c.baserow_admin_password or "",
+            "BASEROW_ADMIN_EMAIL": _admin_email("Baserow", e),
+            "BASEROW_URL": f"https://{host}",
+            "BASEROW_HOST": host,
+        },
+        mode=0o600,
+    )
+
+
+def _render_directus(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Directus: the token secret, the admin it creates at bootstrap and its
+    database. Without both admin values Directus leaves its setup page open
+    to the first visitor."""
+    secrets = {
+        "DIRECTUS_SECRET": c.directus_secret,
+        "DIRECTUS_ADMIN_PASSWORD": c.directus_admin_password,
+        "DIRECTUS_DB_PASSWORD": c.directus_db_password,
+    }
+    _require("Directus", secrets, "leaving the setup page open to claim the admin account")
+    host = service_host("directus", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            **{k: v or "" for k, v in secrets.items()},
+            "DIRECTUS_ADMIN_EMAIL": _admin_email("Directus", e),
+            "DIRECTUS_URL": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
+
+def _render_grist(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Grist: the session secret, its public URL, and the admin, which must
+    be the email Cloudflare Access passes in for the stack user."""
+    _require(
+        "Grist",
+        {"GRIST_SESSION_SECRET": c.grist_session_secret},
+        "signing sessions with an empty secret",
+    )
+    host = service_host("grist", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={
+            "GRIST_SESSION_SECRET": c.grist_session_secret or "",
+            "GRIST_ADMIN_EMAIL": _admin_email("Grist", e),
+            "GRIST_URL": f"https://{host}",
+        },
+        mode=0o600,
+    )
+
+
+def _render_phoenix(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """Arize Phoenix: the token secret, the initial admin password and the
+    public URL used for links, secure cookies and the CSRF origin check."""
+    secrets = {
+        "PHOENIX_SECRET": c.phoenix_secret,
+        "PHOENIX_ADMIN_PASSWORD": c.phoenix_admin_password,
+    }
+    _require("Arize Phoenix", secrets, "starting with authentication on and no secret")
+    secret = c.phoenix_secret or ""
+    if (
+        len(secret) < 32
+        or not any(ch.isdigit() for ch in secret)
+        or not any(ch.islower() for ch in secret)
+    ):
+        raise ServiceEnvError(
+            "Arize Phoenix: PHOENIX_SECRET must be at least 32 characters with a "
+            "digit and a lowercase letter, or Phoenix refuses to start."
+        )
+    host = service_host("phoenix", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in secrets.items()}, "PHOENIX_URL": f"https://{host}"},
+        mode=0o600,
+    )
+
+
+def _render_zenml(c: NexusConfig, e: BootstrapEnv) -> RenderedEnv:
+    """ZenML: the admin it activates itself with, its JWT signing key, the
+    key for its secrets store, and the public URL."""
+    secrets = {
+        "ZENML_ADMIN_PASSWORD": c.zenml_admin_password,
+        "ZENML_JWT_SECRET": c.zenml_jwt_secret,
+        "ZENML_ENCRYPTION_KEY": c.zenml_encryption_key,
+    }
+    _require("ZenML", secrets, "activating the server with an empty admin password")
+    host = service_host("zenml", e.domain or "", e.subdomain_separator)
+    return RenderedEnv(
+        env_vars={**{k: v or "" for k, v in secrets.items()}, "ZENML_URL": f"https://{host}"},
+        mode=0o600,
+    )
+
+
 _HEX_32_BYTES = re.compile(r"[0-9a-f]{64}")
 
 
@@ -3815,6 +3916,11 @@ _SPECS: tuple[EnvSpec, ...] = (
     EnvSpec("arcadedb", _is_enabled("arcadedb"), _render_arcadedb),
     EnvSpec("milvus", _is_enabled("milvus"), _render_milvus),
     EnvSpec("fluss", _is_enabled("fluss"), _render_fluss),
+    EnvSpec("baserow", _is_enabled("baserow"), _render_baserow),
+    EnvSpec("directus", _is_enabled("directus"), _render_directus),
+    EnvSpec("grist", _is_enabled("grist"), _render_grist),
+    EnvSpec("phoenix", _is_enabled("phoenix"), _render_phoenix),
+    EnvSpec("zenml", _is_enabled("zenml"), _render_zenml),
     EnvSpec("neo4j", _is_enabled("neo4j"), _render_neo4j),
     EnvSpec("mongodb", _is_enabled("mongodb"), _render_mongodb),
     EnvSpec("temporal", _is_enabled("temporal"), _render_temporal),
