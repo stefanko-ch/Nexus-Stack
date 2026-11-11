@@ -380,10 +380,17 @@ jobs:
           echo "   A server that exists is still billed, and it may be powered off:"
           echo "   the snapshot is taken with the server off, and this step cannot"
           echo "   tell whether the power-off had already happened. See the"
-          echo "   'Create Hetzner disk snapshot' step above, and the Hetzner console;"
-          echo "   power the server on there if you need the stack back."
-          echo "   Then re-run. Without strict_snapshot the run tears down even if"
-          echo "   the snapshot fails, with only the R2 backup to restore from."
+          echo "   'Create Hetzner disk snapshot' step above, and the Hetzner console."
+          echo ""
+          echo "   Before a re-run, power the server on and wait for the stack to come"
+          echo "   up: the run starts with the R2 backup, which needs SSH and running"
+          echo "   containers, and fails against a server that is off."
+          echo ""
+          echo "   A re-run without strict_snapshot tears down even if the snapshot"
+          echo "   fails again. The next spin-up then restores the newest usable older"
+          echo "   snapshot, losing what changed since it was taken, or the R2 backup"
+          echo "   if no snapshot is usable. spin-up-snapshot.yml with force_fresh=true"
+          echo "   chooses the R2 backup. With NEXUS_S3_PERSISTENCE off there is none."
           exit 1
 
       - name: Mirror snapshot metadata to D1
