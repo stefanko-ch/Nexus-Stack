@@ -69,7 +69,7 @@ This stack runs Langfuse **v4** in its default ingestion write mode, `events_onl
 
 In that mode the legacy `/api/public/ingestion` event types are refused. Measured on `4.36.0` with a `trace-create` event:
 
-```
+```text
 Event type "trace-create" is not accepted by /api/public/ingestion when
 LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only.
 ```

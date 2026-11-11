@@ -36,7 +36,7 @@ All credentials are available in Infisical under the `pg-ducklake` folder:
 
 From any container on the `app-network`:
 
-```
+```text
 postgresql://nexus-pgducklake:<password>@pg-ducklake:5432/ducklake
 ```
 

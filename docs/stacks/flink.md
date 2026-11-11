@@ -28,7 +28,7 @@ Apache Flink provides a framework for stateful computations over data streams an
 
 > **Custom image:** Based on the Docker Library `flink` image (multi-arch: amd64 + arm64) with the Kafka SQL and Apache Fluss connectors baked in. Note: `apache/flink` is amd64-only and does not work on ARM servers.
 
-```
+```text
                     ┌─────────────────────┐
                     │   Flink REST API     │
                     │   / Web UI :8081     │
@@ -137,6 +137,6 @@ The password is in Infisical (folder `fluss`). The connector version matches the
 
 Other services on `app-network` can submit jobs to the JobManager REST API:
 
-```
+```text
 http://flink:8081
 ```
