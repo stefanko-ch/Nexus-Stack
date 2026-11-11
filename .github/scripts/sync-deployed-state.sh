@@ -18,7 +18,8 @@
 
 set -euo pipefail
 
-# Cleanup trap for temporary files
+# Cleanup trap for temporary files.
+# shellcheck disable=SC2329  # invoked by the `trap` on the next line, which shellcheck does not follow
 cleanup_temp_files() {
   rm -f /tmp/init_services.sql /tmp/update_services.sql /tmp/d1_verify.json /tmp/d1_verify.err
 }
@@ -55,10 +56,6 @@ echo "  services.yaml exists: $([ -f services.yaml ] && echo 'yes' || echo 'no')
 
 # Step 0: Migrate D1 schema - add new columns if they don't exist
 echo "🔄 Running D1 schema migrations..."
-MIGRATION_SQL="ALTER TABLE services ADD COLUMN category TEXT DEFAULT '';
-ALTER TABLE services ADD COLUMN website TEXT DEFAULT '';
-ALTER TABLE services ADD COLUMN long_description TEXT DEFAULT '';"
-
 # Execute each ALTER TABLE separately (SQLite doesn't support IF NOT EXISTS for columns)
 for COL_SQL in \
   "ALTER TABLE services ADD COLUMN category TEXT DEFAULT ''" \
