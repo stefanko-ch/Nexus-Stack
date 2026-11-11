@@ -25,6 +25,8 @@
 Pick the tools you need, click Spin Up, and work in the browser. The server has
 no open ports, and there is nothing to install on your own machine.
 
+![The Control Plane's Stacks page: the catalogue as one card per category, each with the number of stacks and how many are running](docs/assets/control-plane-stacks.png)
+
 ## What you get
 
 - **A catalogue of data tools.** Databases, streaming, orchestration, notebooks,
