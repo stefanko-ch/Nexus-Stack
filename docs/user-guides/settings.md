@@ -81,7 +81,7 @@ read the setting even when you cannot change it.
 
 > **Only the stack administrator can change this.** For everyone else the
 > toggle is greyed out. Switching to Rebuild also asks for confirmation,
-> because it cannot be undone: the next teardown regenerates every service
+> because it cannot be undone: the next teardown regenerates almost every service
 > password, and existing snapshots can no longer be restored after that.
 
 Committing your work to the workspace repository is worth doing either way. The

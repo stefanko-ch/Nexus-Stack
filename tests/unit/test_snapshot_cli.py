@@ -631,8 +631,8 @@ def test_flag_errors_keep_their_message(capsys: pytest.CaptureFixture[str]) -> N
 #
 # A Hetzner snapshot survives `tofu destroy` by design, so destroy-all
 # leaves one behind unless something deletes it explicitly. What makes
-# that worse than a stray euro: the destroy takes all 81 random_*
-# resources with it, the next initial-setup mints a new credential
+# that worse than a stray euro: the destroy takes every random_*
+# resource with it, the next initial-setup mints a new credential
 # epoch, and the epoch guard then refuses the old image forever. It is
 # unusable AND it occupies one of the 30 per-account snapshot slots.
 # ---------------------------------------------------------------------------

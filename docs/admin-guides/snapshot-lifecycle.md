@@ -25,7 +25,7 @@ Nexus-Stack has two teardown/spin-up pairs. This guide covers the second one, wh
 
 **Never mix the pairs at one stack.** Both halves carry their lifecycle's
 name so this is visible at the moment you click. Running the Rebuild
-teardown against a stack on snapshots rotates all 81 credentials, after
+teardown against a stack on snapshots rotates nearly every credential, after
 which the epoch guard correctly refuses the snapshot it just made.
 
 The snapshot teardown runs its steps in a fixed order, and each position is a safety property:
@@ -115,7 +115,7 @@ npx wrangler@4.129.0 d1 execute nexus-<domain-slug>-db --remote \
 ```
 
 That is the whole rollback — with one caveat the UI warns about: the next
-Rebuild teardown rotates every generated credential, so **every existing
+Rebuild teardown rotates nearly every generated credential, so **every existing
 snapshot becomes unrestorable from that moment on**. Going back is cheap;
 going back and then forward again means starting the snapshot line over. The rebuild workflows were never modified and do not depend on anything the snapshot path added.
 
@@ -129,7 +129,7 @@ For a single run rather than a permanent switch, `spin-up-snapshot.yml` takes `f
 
 A snapshot lives outside OpenTofu state on purpose — a Tofu-managed one would be destroyed by the very `tofu destroy` it exists to survive. So `destroy-all` cannot reach it as a side effect, and a leftover image keeps billing and keeps holding one of the 30 per-account slots.
 
-It is also **unrestorable** at that point. The destroy takes all 81 `random_*` resources with it, so the next initial-setup mints a fresh credential epoch and the [epoch guard](#the-credential-epoch-stopped-matching) rejects the old image permanently.
+It is also **unrestorable** at that point. The destroy takes every `random_*` resource with it, so the next initial-setup mints a fresh credential epoch and the [epoch guard](#the-credential-epoch-stopped-matching) rejects the old image permanently.
 
 Unrestorable is not the same as worthless, which is why the default keeps it: you can still attach the image to a scratch server and copy files off it by hand. That is the last recovery path after an accidental `destroy-all`, so removing it automatically would be the wrong default for the most destructive workflow in the repo.
 
@@ -190,7 +190,7 @@ This is the **designed** behaviour, not a fault. A snapshot is only used when it
 - its credential epoch no longer matches
 - its architecture or disk size cannot be satisfied by any available server type
 
-In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the R2-covered stacks keep their data. The other stacks come back empty — the same as the rebuild path has always behaved.
+In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the R2-covered stacks keep their data — provided the R2 backup was on at the last teardown. With `NEXUS_S3_PERSISTENCE` set to `false` no backup is written, and this fallback restores nothing recent; see [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). The other stacks come back empty — the same as the rebuild path has always behaved.
 
 The workflow log names the reason.
 
@@ -200,7 +200,7 @@ Symptom: every spin-up rebuilds fresh, and the log says the snapshot was rejecte
 
 ![Credential epoch: a snapshot teardown keeps the passwords, so the snapshot stays restorable; a rebuild teardown regenerates them, and older snapshots are refused](./assets/snapshot-credential-epoch.svg)
 
-Cause: the Rebuild teardown (`teardown.yml`) ran at some point. Its `tofu destroy` destroys every `random_password` / `random_id` / `random_string` resource except Kestra's login password, which it excludes (#942), so the service credentials are regenerated on the next spin-up. A snapshot taken before that holds Postgres roles and admin accounts with the old passwords; restoring it would produce a stack that boots and then authenticates nowhere.
+Cause: the Rebuild teardown (`teardown.yml`) ran at some point. Its `tofu destroy` destroys the `random_password` / `random_id` / `random_string` resources, all but a short list it excludes by name: Kestra's login password (#942) and the keys and passwords that data restored from R2 depends on, such as Langflow's secret key. Everything else, the credentials the epoch is computed from among them, is regenerated on the next spin-up. A snapshot taken before that holds Postgres roles and admin accounts with the old passwords; restoring it would produce a stack that boots and then authenticates nowhere.
 
 The guard exists precisely to prevent that, so this is the mechanism working. The snapshot is dead, though — take a fresh one on the next teardown.
 

@@ -3297,8 +3297,8 @@ def _snapshot_purge(args: list[str]) -> int:
 
     Written for ``destroy-all.yml``. A Hetzner snapshot survives ``tofu
     destroy`` by design, which is precisely what makes it dead weight
-    after a full teardown: the destroy takes all 81 ``random_*``
-    resources with it, so the next initial-setup mints a new credential
+    after a full teardown: the destroy takes every ``random_*``
+    resource with it, so the next initial-setup mints a new credential
     epoch and the epoch guard will refuse the old image forever. It
     keeps costing money and keeps occupying one of the 30 per-account
     snapshot slots.

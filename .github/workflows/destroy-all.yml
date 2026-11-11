@@ -547,7 +547,7 @@ jobs:
         # nothing above this step removes them.
         #
         # Leaving one behind is worse than untidy. The stack destroy
-        # above took all 81 random_* resources with it, so the next
+        # above took every random_* resource with it, so the next
         # initial-setup mints a fresh credential epoch and the epoch
         # guard in spin-up-snapshot.yml will refuse the old image for
         # good. It is unrestorable, it keeps billing, and it occupies

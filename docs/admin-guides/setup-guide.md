@@ -411,7 +411,7 @@ Optional secrets (only set if you want to override defaults):
 
 | Secret Name | Default | Why you'd override |
 |-------------|---------|---------------------|
-| `NEXUS_S3_PERSISTENCE` | `"true"` (workflow fallback) | Set explicitly to `"false"` to bypass persistence for an experiment. |
+| `NEXUS_S3_PERSISTENCE` | `"true"` (workflow fallback) | Set explicitly to `"false"` to bypass persistence for an experiment. With it off no teardown writes a backup: on the rebuild lifecycle nothing survives, and on the snapshot lifecycle the disk snapshot is the only copy. See [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). |
 | `PERSISTENCE_STACK_SLUG` | `github.event.repository.name` | Set if you want the manifest written under a different slug (e.g. for Education-mode forks that share a persistence bucket layout). |
 
 ### Optional Repository Variables

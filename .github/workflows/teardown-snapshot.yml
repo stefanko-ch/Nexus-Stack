@@ -10,7 +10,7 @@ name: "Lifecycle: Teardown (Snapshot)"
 #
 # Why targeted destroy rather than the untargeted one:
 #
-#   * All 81 random_password/random_id/random_string resources survive,
+#   * Every random_password/random_id/random_string resource survives,
 #     so service credentials stay stable. A disk snapshot captures
 #     Postgres roles and app admin accounts as they were; restoring it
 #     against regenerated credentials produces a stack that boots and
@@ -28,7 +28,7 @@ name: "Lifecycle: Teardown (Snapshot)"
 # Hetzner customer.
 #
 # ⚠️ Do NOT mix this with the classic teardown.yml on the same stack.
-# That one runs an untargeted destroy, rotating all 81 credentials and
+# That one runs an untargeted destroy, rotating nearly every credential and
 # invalidating every existing snapshot. spin-up-snapshot.yml detects
 # this via the credential epoch and falls back to a fresh build, so it
 # is safe rather than silent — but it throws away the snapshot.
@@ -370,9 +370,20 @@ jobs:
       - name: Abort — snapshot failed and strict_snapshot is set
         if: steps.snapshot.outputs.ok != 'true' && github.event.inputs.strict_snapshot == 'true'
         run: |
-          echo "❌ Snapshot failed and strict_snapshot=true — nothing was destroyed."
-          echo "   The server is still running (and still billing). Investigate,"
-          echo "   then re-run, or use teardown.yml to tear down without a snapshot."
+          # What this step knows: the snapshot step reported failure. It does
+          # not know how far that step got, so it must not claim a server
+          # state. The power-off comes before the snapshot; a failure after it
+          # leaves the server off, and only skip_destroy powers it back on.
+          # And it must not send anyone to teardown.yml: that is the rebuild
+          # teardown, which rotates the credentials and orphans every snapshot.
+          echo "❌ Snapshot failed and strict_snapshot=true — this run destroyed nothing."
+          echo "   A server that exists is still billed, and it may be powered off:"
+          echo "   the snapshot is taken with the server off, and this step cannot"
+          echo "   tell whether the power-off had already happened. See the"
+          echo "   'Create Hetzner disk snapshot' step above, and the Hetzner console;"
+          echo "   power the server on there if you need the stack back."
+          echo "   Then re-run. Without strict_snapshot the run tears down even if"
+          echo "   the snapshot fails, with only the R2 backup to restore from."
           exit 1
 
       - name: Mirror snapshot metadata to D1
@@ -432,7 +443,7 @@ jobs:
         if: github.event.inputs.skip_destroy != 'true'
         # -target=hcloud_server.main destroys the server and its
         # dependents — which is only cloudflare_record.firewall_tcp.
-        # Everything else in the state, above all the 81 generated
+        # Everything else in the state, above all the generated
         # secrets, survives untouched. That is what keeps the snapshot
         # restorable.
         run: |

@@ -583,7 +583,7 @@ def resolve_latest(
 
     When ``expect_epoch`` is given, a snapshot whose epoch differs is
     rejected. That is the guard against the legacy untargeted ``tofu
-    destroy``: it regenerates all 81 credentials, so the Postgres roles
+    destroy``: it regenerates nearly every credential, so the Postgres roles
     and admin accounts inside an older snapshot no longer match the
     state the pipeline will use.
 
