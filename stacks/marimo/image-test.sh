@@ -18,10 +18,20 @@ echo "== every package the Dockerfile pins is installed at that version"
 python - /stack/Dockerfile <<'PYEOF'
 import importlib.metadata as md
 import re
+import shlex
 import sys
 
-text = open(sys.argv[1]).read()
-pins = re.findall(r'"([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?==([^"]+)"', text)
+# Every `name==version` argument of a pip install, however it is quoted:
+# join continuation lines, split each RUN the way the shell would.
+text = open(sys.argv[1]).read().replace("\\\n", " ")
+pins = []
+for line in text.splitlines():
+    if not line.startswith("RUN ") or "pip install" not in line:
+        continue
+    for token in shlex.split(line[4:], comments=True):
+        match = re.fullmatch(r"([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?==(\S+)", token)
+        if match:
+            pins.append(match.groups())
 if not pins:
     sys.exit("found no pinned packages in the Dockerfile; this test reads nothing")
 wrong = []
@@ -40,6 +50,9 @@ PYEOF
 
 echo "== libraries the seeded notebooks use import"
 python -c "import marimo, pyspark, ibis, pyarrow, grpc, pyiceberg, s3fs, mlflow"
+# The Spark Connect client the notebooks use (_nexus_spark.py), which pulls
+# in its own dependencies (grpc, pandas, pyarrow) on import.
+python -c "from pyspark.sql.connect.session import SparkSession"
 
 echo "== command-line tools"
 marimo --version

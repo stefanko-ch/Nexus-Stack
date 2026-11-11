@@ -53,6 +53,10 @@ jobs:
         with:
           # The diff against the base needs both ends of the range.
           fetch-depth: 0
+          # The next step runs a script from the pull request. Nothing after
+          # checkout needs an authenticated git, so the token is not left in
+          # .git/config for that script to read.
+          persist-credentials: false
 
       - name: List stacks to build
         id: list
@@ -93,6 +97,9 @@ jobs:
         stack: ${{ fromJSON(needs.detect.outputs.stacks) }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # The build runs a Dockerfile and a script from the pull request.
+          persist-credentials: false
 
       - name: Build the image
         env:
