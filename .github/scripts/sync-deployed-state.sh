@@ -20,7 +20,7 @@ set -euo pipefail
 
 # Cleanup trap for temporary files
 cleanup_temp_files() {
-  rm -f /tmp/init_services.sql /tmp/update_services.sql
+  rm -f /tmp/init_services.sql /tmp/update_services.sql /tmp/d1_verify.json /tmp/d1_verify.err
 }
 trap cleanup_temp_files EXIT INT TERM
 
@@ -512,26 +512,48 @@ else
   echo "  ⚠️ Core-services invariant UPDATE had issues: $SANITIZED_ERROR" >&2
 fi
 
-# Step 5: Final verification - list all services in D1
+# Step 5: Final verification — every service in services.yaml is in D1.
+#
+# Status, output and diagnostics are kept apart on purpose. This step used to
+# fold stderr into the JSON, read a path the document does not have, and turn
+# the resulting jq failure into "✅ Found 0 services" (#943).
 echo "  Verifying services in D1..."
-VERIFY_OUTPUT=$(npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
-  --command "SELECT name FROM services ORDER BY name" 2>&1)
+set +e
+npx wrangler@4.129.0 d1 execute "$D1_DATABASE_NAME" --remote --json \
+  --command "SELECT name FROM services ORDER BY name" \
+  > /tmp/d1_verify.json 2> /tmp/d1_verify.err
 VERIFY_EXIT=$?
+set -e
 
-if [ $VERIFY_EXIT -eq 0 ]; then
-  SERVICE_COUNT=$(echo "$VERIFY_OUTPUT" | jq -r '.result | length' 2>/dev/null || echo "0")
-  echo "  ✅ Found $SERVICE_COUNT services in D1"
-  if [ "$SERVICE_COUNT" -gt 0 ]; then
-    echo "  Services in D1:"
-    echo "$VERIFY_OUTPUT" | jq -r '.result[].name' 2>/dev/null | while read -r svc; do
-      echo "    - $svc"
-    done
-  fi
-else
-  SANITIZED_ERROR=$(sanitize_error "$VERIFY_OUTPUT")
-  echo "  ⚠️ Failed to verify services in D1" >&2
-  echo "  Error: $SANITIZED_ERROR" >&2
+if [ $VERIFY_EXIT -ne 0 ]; then
+  SANITIZED_ERROR=$(sanitize_error "$(cat /tmp/d1_verify.err 2>/dev/null)")
+  echo "  ❌ Could not query D1, so the sync is NOT verified (wrangler exit $VERIFY_EXIT)" >&2
+  echo "  Error: ${SANITIZED_ERROR:-(no output)}" >&2
+  echo "❌ D1 sync could not be verified — the table may be incomplete" >&2
+  exit 1
 fi
 
-echo "✅ D1 sync complete"
+set +e
+python3 "$(dirname "$0")/verify-d1-services.py" /tmp/d1_verify.json services.yaml
+VERIFY_STATUS=$?
+set -e
+
+case "$VERIFY_STATUS" in
+  0)
+    echo "✅ D1 sync complete"
+    ;;
+  1)
+    # Confirmed: rows are missing. The Control Plane would show fewer stacks
+    # than the release ships.
+    echo "❌ D1 sync left services out — see the list above" >&2
+    exit 1
+    ;;
+  *)
+    # The answer could not be read. The inserts and updates above report a
+    # failure as a warning and carry on, so this check is the only gate:
+    # unreadable means the state is unknown, not that it is fine.
+    echo "❌ D1 sync could not be verified — the table may be incomplete" >&2
+    exit 1
+    ;;
+esac
 exit 0
