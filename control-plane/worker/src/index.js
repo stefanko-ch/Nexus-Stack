@@ -207,6 +207,21 @@ async function deleteConfigValue(db, key) {
   await db.prepare('DELETE FROM config WHERE key = ?').bind(key).run();
 }
 
+async function setConfigValue(db, key, value) {
+  await db.prepare(
+    "INSERT INTO config (key, value, updated_at) VALUES (?, ?, datetime('now')) " +
+    "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+  ).bind(key, value).run();
+}
+
+// Set when the nightly teardown found a delay in force and stood down. It is
+// what tells the delay check that a teardown is still owed once the delay ends.
+const TEARDOWN_OWED_KEY = 'teardown_owed_after_delay';
+
+// How often the Worker looks for a delay that has run out. Every 15 minutes:
+// a teardown that was delayed until 01:47 then runs at 02:00.
+const DEFAULT_DELAY_CHECK_CRON = '*/15 * * * *';
+
 async function logToD1(db, level, message, metadata = null) {
   if (!db) return;
   try {
@@ -222,8 +237,11 @@ async function logToD1(db, level, message, metadata = null) {
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(handleScheduledTeardown(event, env));
-    // Run log cleanup weekly (on the first cron trigger)
-    ctx.waitUntil(cleanupOldLogs(env));
+    // Log cleanup rides on the two daily triggers. The delay check fires every
+    // few minutes and has nothing to clean up that often.
+    if (!isDelayCheckOnly(event, env)) {
+      ctx.waitUntil(cleanupOldLogs(env));
+    }
   },
 
   async fetch(request, env) {
@@ -357,6 +375,75 @@ async function cleanupOldLogs(env) {
   }
 }
 
+/**
+ * True when this event is the delay check and nothing else. If the delay-check
+ * schedule is ever configured to equal the notification or the teardown
+ * schedule, those win: their work must not be skipped.
+ */
+function isDelayCheckOnly(event, env) {
+  const delayCheckCron = env.DELAY_CHECK_CRON || DEFAULT_DELAY_CHECK_CRON;
+  const notificationCron = env.NOTIFICATION_CRON || '45 20 * * *';
+  const teardownCron = env.TEARDOWN_CRON || '0 21 * * *';
+  return event.cron === delayCheckCron && event.cron !== notificationCron && event.cron !== teardownCron;
+}
+
+/**
+ * Run the teardown that a delay postponed, once the delay has ended.
+ *
+ * "Delay Teardown by 4 Hours" used to skip the night's teardown outright: the
+ * teardown trigger fires once a day, found the delay in force and returned,
+ * and nothing fired again when the delay ran out. The Settings page said
+ * "Teardown delayed until 01:47" and the server ran until the next evening.
+ *
+ * The teardown trigger now records that a teardown is owed, and this check
+ * pays it once the delay is over. A delay that ends before the nightly
+ * teardown owes nothing — the nightly run does its job as usual.
+ */
+async function handleDelayCheck(env) {
+  const owedSince = await getConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY, null);
+  if (!owedSince) return;
+
+  const config = await getConfig(env.NEXUS_DB);
+  if (config.enabled !== 'true') {
+    await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
+    return;
+  }
+  if (config.delayUntil && new Date() < new Date(config.delayUntil)) return;
+
+  // Fail closed, as the nightly run does. On "unknown" the marker stays, so the
+  // next check tries again instead of dropping the teardown.
+  const infraState = await checkInfraStatus(env);
+  if (infraState === 'running') {
+    // A lifecycle run is in flight. Dispatching a teardown into it could race
+    // a spin-up; wait for it to finish and look again.
+    return;
+  }
+  if (infraState === 'unknown') {
+    const message = 'Delayed teardown is due, but the infrastructure state could not be determined; retrying at the next check';
+    console.warn(message);
+    await logToD1(env.NEXUS_DB, 'warn', message, { owedSince });
+    return;
+  }
+
+  if (infraState === 'torn-down' || infraState === 'offline') {
+    await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
+    await deleteConfigValue(env.NEXUS_DB, 'delay_until');
+    const message = `Delayed teardown is due, but the infrastructure is not deployed (state: ${infraState}); nothing to do`;
+    console.log(message);
+    await logToD1(env.NEXUS_DB, 'info', message, { infraState, owedSince });
+    return;
+  }
+
+  await logToD1(env.NEXUS_DB, 'warn', 'Delay ended, triggering the postponed teardown', { owedSince });
+  // The debt is paid only when the forge accepted the dispatch. A rate limit,
+  // a 5xx or a timeout leaves it standing, and the next check tries again.
+  const dispatched = await triggerTeardown(env, config);
+  if (dispatched) {
+    await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
+    await deleteConfigValue(env.NEXUS_DB, 'delay_until');
+  }
+}
+
 async function handleScheduledTeardown(event, env) {
   try {
     // Fail fast if critical bindings are missing
@@ -373,6 +460,13 @@ async function handleScheduledTeardown(event, env) {
       return;
     }
 
+    // The delay check fires every few minutes. It is silent unless a teardown
+    // is owed, so that it does not fill the log with "triggered" rows.
+    if (isDelayCheckOnly(event, env)) {
+      await handleDelayCheck(env);
+      return;
+    }
+
     // Log worker execution
     await logToD1(env.NEXUS_DB, 'info', 'Scheduled worker triggered', {
       cron: event.cron,
@@ -385,6 +479,7 @@ async function handleScheduledTeardown(event, env) {
     if (config.enabled !== 'true') {
       await logToD1(env.NEXUS_DB, 'debug', 'Scheduled teardown is disabled');
       console.log('Scheduled teardown is disabled');
+      await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
       return;
     }
 
@@ -399,6 +494,11 @@ async function handleScheduledTeardown(event, env) {
           hoursRemaining,
         });
         console.log(`Scheduled teardown is delayed until ${delayUntil.toISOString()} (${hoursRemaining} hours remaining)`);
+        // Only the teardown trigger owes a teardown. The notification trigger
+        // standing down means no mail, nothing more.
+        if (event.cron === (env.TEARDOWN_CRON || '0 21 * * *')) {
+          await setConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY, now.toISOString());
+        }
         return;
       } else {
         // Delay has expired, clear it
@@ -469,6 +569,7 @@ async function handleScheduledTeardown(event, env) {
     } else if (cronSchedule === teardownCron) {
       // Teardown cron triggered
       await logToD1(env.NEXUS_DB, 'warn', 'Triggering scheduled teardown');
+      await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
       await triggerTeardown(env, config);
     } else {
       console.log(`Unknown cron schedule: ${cronSchedule} - no action taken`);
@@ -738,6 +839,10 @@ async function sendNotification(env, config) {
   }
 }
 
+/**
+ * Dispatch the teardown workflow of the stack's lifecycle.
+ * @returns {Promise<boolean>} true only when the forge accepted the dispatch.
+ */
 async function triggerTeardown(env, config) {
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
     const missingVars = [];
@@ -748,7 +853,7 @@ async function triggerTeardown(env, config) {
     const message = `Missing required environment variables for teardown: ${missingVars.join(', ')}`;
     console.log(message);
     await logToD1(env.NEXUS_DB, 'error', message);
-    return;
+    return false;
   }
 
   try {
@@ -762,7 +867,7 @@ async function triggerTeardown(env, config) {
       const message = `Skipping scheduled teardown: cannot determine the lifecycle mode (${lifecycle.reason})`;
       console.error(message);
       await logToD1(env.NEXUS_DB, 'error', message);
-      return;
+      return false;
     }
     const url = forgeRepoUrl(env, `/actions/workflows/${lifecycle.teardown}/dispatches`);
 
@@ -784,6 +889,7 @@ async function triggerTeardown(env, config) {
         owner: env.GITHUB_OWNER,
         repo: env.GITHUB_REPO,
       });
+      return true;
     } else {
       const errorText = await response.text();
       const message = `Failed to trigger teardown workflow: HTTP ${response.status}`;
@@ -803,6 +909,7 @@ async function triggerTeardown(env, config) {
       stack: error.stack?.substring(0, 500),
     });
   }
+  return false;
 }
 
 function getTimezoneAbbr(timezone) {

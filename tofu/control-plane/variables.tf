@@ -160,6 +160,19 @@ variable "teardown_cron" {
   default     = "0 21 * * *"
 }
 
+variable "delay_check_cron" {
+  description = "Cron schedule on which the Worker checks for a teardown delay that has ended and runs the postponed teardown. Default: every 15 minutes."
+  type        = string
+  default     = "*/15 * * * *"
+
+  # Feeds a Worker binding and a cron trigger. An empty or malformed value
+  # would otherwise fail at apply time with an opaque Cloudflare API error.
+  validation {
+    condition     = can(regex("^\\S+(\\s+\\S+){4}$", trimspace(var.delay_check_cron)))
+    error_message = "delay_check_cron must be a five-field cron expression, e.g. \"*/15 * * * *\"."
+  }
+}
+
 # =============================================================================
 # Hetzner Cloud (for persistent volumes)
 # =============================================================================
