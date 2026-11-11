@@ -46,6 +46,7 @@ def stacks_to_build(changed: list[str], stacks_dir: Path) -> list[str]:
 
 
 def main() -> int:
+    """Print the build matrix for the changed paths on standard input."""
     stacks_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("stacks")
     if not stacks_dir.is_dir():
         print(f"changed-image-stacks: no such directory: {stacks_dir}", file=sys.stderr)

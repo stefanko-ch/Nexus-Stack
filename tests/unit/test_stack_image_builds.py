@@ -132,6 +132,28 @@ def test_the_workflow_runs_when_a_stack_or_the_check_changes() -> None:
         assert check_file in paths, f"a change to {check_file} would not run the check"
 
 
+def test_the_diff_reports_paths_the_selection_can_match() -> None:
+    """Two git defaults would each hide a stack from the selection.
+
+    Rename detection reports a file moved out of a stack folder under its new
+    path only. `core.quotePath` prints a non-ASCII path quoted and escaped,
+    so its first component is `"stacks` and matches nothing.
+    """
+    run = next(
+        str(step["run"])
+        for step in _workflow()["jobs"]["detect"]["steps"]
+        if step.get("id") == "list"
+    )
+    diff = next(line for line in run.splitlines() if "git " in line and " diff " in line)
+    assert "--no-renames" in diff, diff
+    assert "-c core.quotePath=false" in diff, diff
+    assert "--name-only" in diff, diff
+
+
+def test_a_path_with_non_ascii_characters_selects_its_stack(stacks: Path) -> None:
+    assert SELECT.stacks_to_build(["stacks/tested/dätä/übersicht.sql"], stacks) == ["tested"]
+
+
 def test_no_expression_inside_a_run_block() -> None:
     offending = [
         f"{job}/{step.get('name', '?')}: {line.strip()}"
