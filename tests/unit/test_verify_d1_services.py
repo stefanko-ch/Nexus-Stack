@@ -81,6 +81,9 @@ def test_an_empty_table_is_a_shortfall_not_zero_found() -> None:
         "[]",
         '[{"success": true}]',
         '[{"results": [{"id": 1}]}]',
+        # A failed statement that still carries rows: they say nothing.
+        '[{"results": [{"name": "forgejo"}, {"name": "grafana"}, {"name": "kestra"}], "success": false}]',
+        '[{"results": [{"name": "forgejo"}, {"name": "grafana"}, {"name": "kestra"}]}]',
     ],
 )
 def test_an_answer_that_cannot_be_read_is_unknown_never_a_count(answer: str) -> None:
@@ -113,6 +116,19 @@ def test_the_script_exits_with_the_status_and_says_why(tmp_path: Path) -> None:
     unknown = run("not json")
     assert unknown.returncode == 2
     assert "NOT verified" in unknown.stderr
+
+
+def test_a_missing_input_file_is_unknown_not_missing_services(tmp_path: Path) -> None:
+    services = tmp_path / "services.yaml"
+    services.write_text(SERVICES_YAML)
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(tmp_path / "no-such-answer.json"), str(services)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == verify_d1.UNREADABLE
+    assert "NOT verified" in result.stderr
 
 
 def test_the_sync_script_no_longer_turns_a_failed_read_into_a_count() -> None:

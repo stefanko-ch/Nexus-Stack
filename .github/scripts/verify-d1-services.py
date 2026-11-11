@@ -43,6 +43,10 @@ def names_in_d1(document: object) -> list[str]:
     for statement in statements:
         if not isinstance(statement, dict) or not isinstance(statement.get("results"), list):
             raise ValueError("no `results` list in the answer")
+        # A statement that reports failure can still carry a `results` list.
+        # Its rows say nothing about the table.
+        if statement.get("success") is not True:
+            raise ValueError("a statement in the answer does not report success")
         for row in statement["results"]:
             if not isinstance(row, dict) or not isinstance(row.get("name"), str):
                 raise ValueError("a row without a `name`")
@@ -78,7 +82,16 @@ def main(argv: list[str]) -> int:
     if len(argv) != 3:
         print(__doc__, file=sys.stderr)
         return UNREADABLE
-    status, message = verify(Path(argv[1]).read_text(), Path(argv[2]).read_text())
+    try:
+        answer, services = Path(argv[1]).read_text(), Path(argv[2]).read_text()
+    except (OSError, UnicodeDecodeError) as error:
+        # No answer to read is "cannot tell", not "services are missing".
+        print(
+            f"  ⚠️ Could not read the check's input, so the sync is NOT verified: {error}",
+            file=sys.stderr,
+        )
+        return UNREADABLE
+    status, message = verify(answer, services)
     print(f"  {message}", file=sys.stdout if status == OK else sys.stderr)
     return status
 
