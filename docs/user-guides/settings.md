@@ -41,7 +41,7 @@ The cron worker can auto-teardown your stack on a daily schedule so you don't pa
 - **Toggle** — Enable or disable the automatic daily teardown.
 - **Next teardown** — Shows the scheduled time and how much time is remaining.
 - **Extensions remaining** — How many times you can still delay teardown today (resets at UTC midnight).
-- **Delay Teardown by 4 Hours** — Pushes the next teardown back by 4 hours. Useful when you're mid-session. Limited to 3 extensions per UTC day by default.
+- **Delay Teardown by 4 Hours** — Holds the teardown off until four hours from the moment you click, not four hours past the scheduled time. Useful when you're mid-session. Limited to 3 extensions per UTC day by default.
 
 > If your admin has set `allow_disable_auto_shutdown = false`, the toggle is visible but locked — you can still use the delay button.
 
