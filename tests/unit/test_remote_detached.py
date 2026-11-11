@@ -45,6 +45,10 @@ class FakeServer:
         drop_on_calls: tuple[int, ...] = (),
         vanish_after_start: bool = False,
         truncate_upload: bool = False,
+        lose_answer_on_calls: tuple[int, ...] = (),
+        poll_says: str | None = None,
+        fetch_status: int = 0,
+        call_cost_s: float = 0.0,
     ) -> None:
         self.polls_until_done = polls_until_done
         self.exit_status = exit_status
@@ -52,6 +56,13 @@ class FakeServer:
         self.drop_on_calls = set(drop_on_calls)
         self.vanish_after_start = vanish_after_start
         self.truncate_upload = truncate_upload
+        # Calls the server handles in full, but whose answer never arrives.
+        self.lose_answer_on_calls = set(lose_answer_on_calls)
+        self.poll_says = poll_says
+        self.fetch_status = fetch_status
+        # What each call costs on the clock, to model calls that hang.
+        self.call_cost_s = call_cost_s
+        self.now = 0.0
         self.calls: list[list[str]] = []
         self.received_script: str | None = None
         self.starts = 0
@@ -64,8 +75,17 @@ class FakeServer:
         assert argv[0] == "ssh", argv
         command = argv[2]
         call_number = len(self.calls)
+        self.now += self.call_cost_s
         if call_number in self.drop_on_calls:
             return self._result(argv, kwargs, TRANSPORT_DROP, "client_loop: send disconnect\n")
+        if call_number in self.lose_answer_on_calls:
+            self._handle(argv, command, kwargs)
+            return self._result(argv, kwargs, TRANSPORT_DROP, "client_loop: send disconnect\n")
+        return self._handle(argv, command, kwargs)
+
+    def _handle(
+        self, argv: list[str], command: str, kwargs: dict[str, Any]
+    ) -> subprocess.CompletedProcess[str]:
 
         if "nexus-detached launch" in command:
             return self._launch(argv, command, kwargs)
@@ -74,6 +94,8 @@ class FakeServer:
         if "nexus-detached fetch" in command:
             stream = "err" if command.rstrip().endswith("/err") else "out"
             text = self.output if stream == "out" else ""
+            if self.fetch_status != 0:
+                return self._result(argv, kwargs, self.fetch_status, "cat: No such file\n")
             return self._result(argv, kwargs, 0, text)
         if "nexus-detached cleanup" in command:
             self.cleaned = True
@@ -101,6 +123,8 @@ class FakeServer:
 
     def _poll(self, argv: list[str], kwargs: dict[str, Any]) -> subprocess.CompletedProcess[str]:
         self.polls += 1
+        if self.poll_says is not None:
+            return self._result(argv, kwargs, 0, self.poll_says)
         if self.vanish_after_start:
             return self._result(argv, kwargs, 0, "GONE\n")
         if self.polls >= self.polls_until_done:
@@ -120,7 +144,13 @@ def run_detached(
     monkeypatch: pytest.MonkeyPatch, server: FakeServer, script: str = "echo hi\n", **kwargs: Any
 ) -> subprocess.CompletedProcess[str]:
     monkeypatch.setattr("nexus_deploy._remote.subprocess.run", server)
-    return _remote.ssh_run_script(script, detached=True, _sleep=lambda _s: None, **kwargs)
+
+    def sleep(seconds: float) -> None:
+        server.now += seconds
+
+    return _remote.ssh_run_script(
+        script, detached=True, _sleep=sleep, _clock=lambda: server.now, **kwargs
+    )
 
 
 # ---- the ordinary case --------------------------------------------------------
@@ -202,6 +232,45 @@ def test_a_server_that_stays_unreachable_ends_in_a_transport_error(
     assert len(server.calls) < 40, "it gives up after the unreachable budget, not never"
 
 
+def test_a_launch_whose_answer_is_lost_does_not_start_the_script_twice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The server took the script and started it; the client saw 255 and asks again.
+    server = FakeServer(lose_answer_on_calls=(1,))
+    result = run_detached(monkeypatch, server, "the-one-script\n")
+    assert result.returncode == 0
+    assert server.starts == 1
+    assert server.received_script == "the-one-script\n"
+
+
+def test_calls_that_hang_count_against_the_unreachable_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Every call costs two minutes and fails. Ten minutes of that is the limit,
+    # not ten minutes of sleeping between calls.
+    server = FakeServer(drop_on_calls=tuple(range(1, 400)), call_cost_s=120.0)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        run_detached(monkeypatch, server, max_unreachable_s=600.0, poll_interval_s=5.0)
+    assert caught.value.returncode == TRANSPORT_DROP
+    assert len(server.calls) <= 7
+
+
+def test_the_timeout_bounds_a_script_that_never_finishes(monkeypatch: pytest.MonkeyPatch) -> None:
+    server = FakeServer(polls_until_done=10_000)
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_detached(monkeypatch, server, timeout=60.0, poll_interval_s=5.0)
+    assert len(server.calls) < 20
+
+
+def test_the_timeout_bounds_launch_retries_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    server = FakeServer(drop_on_calls=tuple(range(1, 400)))
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_detached(
+            monkeypatch, server, timeout=30.0, poll_interval_s=5.0, max_unreachable_s=10_000.0
+        )
+    assert server.starts == 0
+
+
 # ---- states that must not be read as success -----------------------------------
 
 
@@ -221,6 +290,28 @@ def test_a_truncated_upload_is_refused_and_nothing_runs(monkeypatch: pytest.Monk
         run_detached(monkeypatch, server)
     assert server.starts == 0
     assert server.received_script is None
+
+
+def test_a_poll_the_server_answers_with_nonsense_is_an_error_not_a_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Reached, but not DONE, RUNNING or GONE. Polling on would never end.
+    server = FakeServer(poll_says="sh: 1: stat: not found\n")
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        run_detached(monkeypatch, server)
+    assert "could not read the state" in (caught.value.output or "")
+    assert len(server.calls) < 5
+
+
+def test_output_that_cannot_be_read_is_an_error_and_the_job_directory_stays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The script finished with 0, but callers parse its output for their result.
+    server = FakeServer(fetch_status=1)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        run_detached(monkeypatch, server)
+    assert "could not be read" in (caught.value.output or "")
+    assert not server.cleaned, "left on the server for inspection"
 
 
 def test_without_detached_nothing_changes(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -34,6 +34,56 @@ shift
 exec sh -c "$1"
 """
 
+# The same stand-in, except that a launch is delivered twice at the same
+# moment: what a retry racing a launch whose answer was lost looks like.
+FAKE_SSH_RACING_LAUNCH = """#!/bin/sh
+shift
+case "$1" in
+  *"nexus-detached launch"*)
+    upload=$(mktemp)
+    cat > "$upload"
+    sh -c "$1" < "$upload" &
+    first=$!
+    sh -c "$1" < "$upload"
+    second_status=$?
+    wait "$first"
+    first_status=$?
+    rm -f "$upload"
+    [ "$first_status" -eq 0 ] && [ "$second_status" -eq 0 ]
+    ;;
+  *) exec sh -c "$1" ;;
+esac
+"""
+
+# A launch delivered a second time after the first one has returned.
+FAKE_SSH_REPEATED_LAUNCH = """#!/bin/sh
+shift
+case "$1" in
+  *"nexus-detached launch"*)
+    upload=$(mktemp)
+    cat > "$upload"
+    sh -c "$1" < "$upload" || exit $?
+    sh -c "$1" < "$upload"
+    status=$?
+    rm -f "$upload"
+    exit "$status"
+    ;;
+  *) exec sh -c "$1" ;;
+esac
+"""
+
+
+def _install_ssh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Path:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    ssh = bin_dir / "ssh"
+    ssh.write_text(body)
+    ssh.chmod(ssh.stat().st_mode | stat.S_IXUSR)
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+    root = tmp_path / "jobs"
+    monkeypatch.setattr(_remote, "_DETACHED_ROOT", str(root))
+    return root
+
 
 @pytest.fixture
 def local_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -107,3 +157,40 @@ def test_a_script_outlives_the_command_that_started_it(local_server: Path) -> No
     # The launcher returns at once; the work happens after it has exited.
     result = run("sleep 1\necho late\n")
     assert result.stdout == "late\n"
+
+
+def test_two_launches_at_once_run_the_script_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _install_ssh(tmp_path, monkeypatch, FAKE_SSH_RACING_LAUNCH)
+    counter = tmp_path / "ran"
+    result = run(f'echo x >> {counter}\necho "ran"\n')
+    assert result.stdout == "ran\n"
+    assert counter.read_text() == "x\n", "the script ran exactly once"
+    assert list(root.glob("*")) == [], "and neither attempt left a script file behind"
+
+
+def test_a_second_launch_after_the_script_started_starts_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A launch whose answer was lost is sent again once the job is running.
+    root = _install_ssh(tmp_path, monkeypatch, FAKE_SSH_REPEATED_LAUNCH)
+    counter = tmp_path / "ran"
+    result = run(f'echo x >> {counter}\nsleep 1\necho "first"\n')
+    assert result.stdout == "first\n"
+    assert counter.read_text() == "x\n", "the script ran exactly once"
+    assert list(root.glob("*")) == []
+
+
+def test_a_lock_without_a_pid_stops_reading_as_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A job that died between taking the lock and writing its pid leaves
+    # neither a process nor a status. It must not be polled forever.
+    root = _install_ssh(tmp_path, monkeypatch, FAKE_SSH)
+    monkeypatch.setattr("nexus_deploy._remote.secrets.token_hex", lambda _n: "deadbeefdeadbeef")
+    monkeypatch.setattr(_remote, "_DETACHED_STARTUP_GRACE_S", 1)
+    (root / "deadbeefdeadbeef" / "lock").mkdir(parents=True)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        run("echo never\n")
+    assert "without leaving an exit status" in (caught.value.output or "")

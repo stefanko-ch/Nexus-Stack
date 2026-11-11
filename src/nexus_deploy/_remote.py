@@ -96,6 +96,7 @@ def ssh_run_script(
     poll_interval_s: float = 5.0,
     max_unreachable_s: float = 600.0,
     _sleep: Callable[[float], None] = time.sleep,
+    _clock: Callable[[], float] = time.monotonic,
 ) -> subprocess.CompletedProcess[str]:
     """Run a bash script on the nexus server via stdin, NOT argv.
 
@@ -125,6 +126,7 @@ def ssh_run_script(
             poll_interval_s=poll_interval_s,
             max_unreachable_s=max_unreachable_s,
             sleep=_sleep,
+            clock=_clock,
         )
     return subprocess.run(
         ["ssh", host, "bash", "-s"],
@@ -154,6 +156,10 @@ _DETACHED_ROOT = "/run/nexus-deploy"
 # hanging the pipeline; hitting it counts as "unreachable", like a 255.
 _DETACHED_CALL_TIMEOUT_S = 120.0
 
+# How long a job may hold the lock without having written its pid before the
+# poll stops calling that "starting". The gap is two shell commands.
+_DETACHED_STARTUP_GRACE_S = 60
+
 # What a job that vanished is reported with. Not 255: the transport worked,
 # it is the job that is missing.
 _DETACHED_VANISHED_STATUS = 1
@@ -169,6 +175,7 @@ def _run_script_detached(
     poll_interval_s: float,
     max_unreachable_s: float,
     sleep: Callable[[float], None],
+    clock: Callable[[], float],
 ) -> subprocess.CompletedProcess[str]:
     """Run ``script`` on the server so that it survives a dropped SSH session.
 
@@ -187,8 +194,13 @@ def _run_script_detached(
     The script still travels on stdin, never in argv. It is checked against
     a SHA-256 before anything starts, because a session that drops during
     the upload ends the remote ``cat`` with a short file and status 0, and a
-    truncated script must not run. The job unlinks the script as soon as
-    bash has it open.
+    truncated script must not run. Every launch attempt uploads to a file of
+    its own, so a retry cannot rewrite the file an earlier attempt is about
+    to run; a lock directory lets exactly one of them start. The job unlinks
+    its script as soon as bash has it open.
+
+    Times are wall-clock, so a call that hangs until its own cap counts in
+    full against ``max_unreachable_s`` and ``timeout``.
 
     ``argv`` in the returned ``CompletedProcess`` and in a raised
     ``CalledProcessError`` is the same ``["ssh", host, "bash", "-s"]`` the
@@ -198,12 +210,20 @@ def _run_script_detached(
     quoted_dir = shlex.quote(job_dir)
     digest = hashlib.sha256(script.encode()).hexdigest()
     reported_argv = ["ssh", host, "bash", "-s"]
-    unreachable_s = 0.0
-    elapsed_s = 0.0
+    started_at = clock()
+    unreachable_since: float | None = None
+
+    def remaining() -> float | None:
+        """Seconds left of ``timeout``, or None when there is no cap."""
+        return None if timeout is None else timeout - (clock() - started_at)
 
     def call(command: str, *, stdin: str | None = None) -> subprocess.CompletedProcess[str] | None:
         """One short SSH call. ``None`` means the server could not be reached."""
-        nonlocal unreachable_s, elapsed_s
+        nonlocal unreachable_since
+        left = remaining()
+        if left is not None and left <= 0:
+            raise subprocess.TimeoutExpired(reported_argv, timeout or 0.0)
+        cap = _DETACHED_CALL_TIMEOUT_S if left is None else min(_DETACHED_CALL_TIMEOUT_S, left)
         try:
             result = subprocess.run(
                 ["ssh", host, command],
@@ -212,26 +232,28 @@ def _run_script_detached(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                timeout=_DETACHED_CALL_TIMEOUT_S,
+                timeout=cap,
             )
         except subprocess.TimeoutExpired:
             result = None
         if result is not None and result.returncode != _SSH_TRANSPORT_FAILURE:
-            unreachable_s = 0.0
+            unreachable_since = None
             return result
-        last_output = result.stdout if result is not None else "ssh call timed out"
-        if unreachable_s >= max_unreachable_s:
+        now = clock()
+        if unreachable_since is None:
+            unreachable_since = now
+        if now - unreachable_since >= max_unreachable_s:
+            last_output = result.stdout if result is not None else "ssh call timed out"
             raise subprocess.CalledProcessError(
                 _SSH_TRANSPORT_FAILURE,
                 reported_argv,
                 output=(
-                    f"the server was unreachable for {int(unreachable_s)}s while a detached "
-                    f"script ran in {job_dir}; it may still be running there.\n{last_output}"
+                    f"the server was unreachable for {int(now - unreachable_since)}s while a "
+                    f"detached script ran in {job_dir}; it may still be running there.\n"
+                    f"{last_output}"
                 ),
             )
         sleep(poll_interval_s)
-        unreachable_s += poll_interval_s
-        elapsed_s += poll_interval_s
         return None
 
     def call_until_reached(
@@ -244,40 +266,48 @@ def _run_script_detached(
 
     # POSIX sh on purpose: `ssh host "<cmd>"` runs in the account's login
     # shell, which need not be bash (#886). The script itself runs in bash.
-    stderr_target = "2>&1" if merge_stderr else f'2> "{job_dir}/err"'
+    stderr_target = "2>&1" if merge_stderr else '2> "$d/err"'
+    # $1 the job directory, $2 this attempt's own copy of the script. The
+    # lock is what makes "started twice" impossible: mkdir is atomic, and an
+    # attempt that loses removes only its own copy.
     job = (
-        f'd="$1"; mkdir "$d/lock" 2>/dev/null || {{ rm -f "$d/script"; exit 0; }}; '
-        f'echo $$ > "$d/pid"; '
-        f'( rm -f "$d/script"; exec bash -s ) < "$d/script" > "$d/out" {stderr_target}; '
-        f'echo $? > "$d/rc.tmp"; mv "$d/rc.tmp" "$d/rc"'
+        'd="$1"; f="$2"; '
+        'mkdir "$d/lock" 2>/dev/null || { rm -f "$f"; exit 0; }; '
+        'echo $$ > "$d/pid"; '
+        f'( rm -f "$f"; exec bash -s ) < "$f" > "$d/out" {stderr_target}; '
+        'echo $? > "$d/rc.tmp"; mv "$d/rc.tmp" "$d/rc"'
     )
     launch = (
         ": nexus-detached launch; set -eu; umask 077; "
         f"d={quoted_dir}; "
-        f'mkdir -p "$d"; '
-        # Already started by an earlier attempt whose session dropped: take
+        'mkdir -p "$d"; '
+        # Already started by an earlier attempt whose answer was lost: take
         # the upload off stdin and start nothing a second time.
-        f'if [ -e "$d/lock" ]; then cat > /dev/null; exit 0; fi; '
-        f'cat > "$d/script"; '
-        f'if ! echo "{digest}  $d/script" | sha256sum -c - > /dev/null 2>&1; then '
-        f'rm -f "$d/script"; echo "script: upload incomplete, nothing started" >&2; exit 1; fi; '
-        f'setsid nohup sh -c {shlex.quote(job)} nexus-detached "$d" '
-        f"< /dev/null > /dev/null 2>&1 & "
-        # Return only once the job has recorded its pid. Without this the
+        'if [ -e "$d/lock" ]; then cat > /dev/null; exit 0; fi; '
+        'f="$d/script.$$"; cat > "$f"; '
+        f'if ! echo "{digest}  $f" | sha256sum -c - > /dev/null 2>&1; then '
+        'rm -f "$f"; echo "script: upload incomplete, nothing started" >&2; exit 1; fi; '
+        f'setsid nohup sh -c {shlex.quote(job)} nexus-detached "$d" "$f" '
+        "< /dev/null > /dev/null 2>&1 & "
+        # Return only once the job has taken the lock. Without this the
         # first poll can arrive before the job has written anything, and a
         # job that is merely starting would be reported as gone.
-        f'i=0; while [ ! -e "$d/pid" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done'
+        'i=0; while [ ! -e "$d/lock" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done'
     )
     poll = (
         ": nexus-detached poll; "
         f"d={quoted_dir}; "
-        f'if [ -e "$d/rc" ]; then echo "DONE $(cat "$d/rc")"; '
-        f'elif [ -e "$d/pid" ] && kill -0 "$(cat "$d/pid")" 2>/dev/null; then echo RUNNING; '
-        # Lock taken, pid not written yet: the job is between its first two commands.
-        f'elif [ -e "$d/lock" ] && [ ! -e "$d/pid" ]; then echo RUNNING; '
-        # The job can finish between the two checks above.
-        f'elif [ -e "$d/rc" ]; then echo "DONE $(cat "$d/rc")"; '
-        f"else echo GONE; fi"
+        'if [ -e "$d/rc" ]; then echo "DONE $(cat "$d/rc")"; '
+        'elif [ -e "$d/pid" ] && kill -0 "$(cat "$d/pid")" 2>/dev/null; then echo RUNNING; '
+        # Lock taken, pid not written yet: the job is between its first two
+        # commands. That lasts milliseconds; a lock that old without a pid
+        # belongs to a job that died there, and must not read as running.
+        'elif [ -e "$d/lock" ] && [ ! -e "$d/pid" ] && '
+        f'[ $(( $(date +%s) - $(stat -c %Y "$d/lock") )) -lt {_DETACHED_STARTUP_GRACE_S} ]; '
+        "then echo RUNNING; "
+        # The job can finish between the checks above.
+        'elif [ -e "$d/rc" ]; then echo "DONE $(cat "$d/rc")"; '
+        "else echo GONE; fi"
     )
 
     launched = call_until_reached(launch, stdin=script)
@@ -288,7 +318,19 @@ def _run_script_detached(
 
     def fetch(stream: str) -> str:
         fetched = call_until_reached(f": nexus-detached fetch; cat {quoted_dir}/{stream}")
-        return fetched.stdout if fetched.returncode == 0 else ""
+        if fetched.returncode != 0:
+            # The status is known but the output is not. Callers parse the
+            # output for their result, so an empty string here would read as
+            # "ran, reported nothing". The directory is left for inspection.
+            raise subprocess.CalledProcessError(
+                fetched.returncode,
+                reported_argv,
+                output=(
+                    f"the detached script in {job_dir} finished, but its {stream!r} "
+                    f"could not be read:\n{fetched.stdout}"
+                ),
+            )
+        return fetched.stdout
 
     def cleanup() -> None:
         # Best effort and one attempt: the directory holds output only by now,
@@ -298,34 +340,52 @@ def _run_script_detached(
     status: int | None = None
     vanished = False
     while status is None and not vanished:
-        if timeout is not None and elapsed_s >= timeout:
-            raise subprocess.TimeoutExpired(reported_argv, timeout)
         polled = call(poll)
         if polled is None:
             continue
         answer = polled.stdout.strip().splitlines()[-1] if polled.stdout.strip() else ""
-        if answer.startswith("DONE "):
-            status = int(answer.removeprefix("DONE ").strip() or _DETACHED_VANISHED_STATUS)
+        if (
+            answer.startswith("DONE ")
+            and answer.removeprefix("DONE ").strip().lstrip("-").isdigit()
+        ):
+            status = int(answer.removeprefix("DONE ").strip())
         elif answer == "GONE":
             vanished = True
-        else:
+        elif answer == "RUNNING" and polled.returncode == 0:
             sleep(poll_interval_s)
-            elapsed_s += poll_interval_s
+        else:
+            # The server answered, and not with one of the three things the
+            # poll can say. Polling on would loop on the same answer forever.
+            raise subprocess.CalledProcessError(
+                polled.returncode or _DETACHED_VANISHED_STATUS,
+                reported_argv,
+                output=(
+                    f"could not read the state of the detached script in {job_dir}; "
+                    f"it may still be running there. The poll answered:\n{polled.stdout}"
+                ),
+            )
+
+    if vanished:
+        # Whatever output exists is worth showing, but its absence must not
+        # hide the real finding.
+        try:
+            partial = fetch("out")
+        except subprocess.CalledProcessError:
+            partial = ""
+        cleanup()
+        raise subprocess.CalledProcessError(
+            _DETACHED_VANISHED_STATUS,
+            reported_argv,
+            output=(
+                f"{partial}the detached script in {job_dir} ended without leaving an exit "
+                "status: the server rebooted, or the job was killed. Its work may be incomplete.\n"
+            ),
+        )
 
     stdout = fetch("out")
     stderr = None if merge_stderr else fetch("err")
     cleanup()
 
-    if vanished:
-        raise subprocess.CalledProcessError(
-            _DETACHED_VANISHED_STATUS,
-            reported_argv,
-            output=(
-                f"{stdout}the detached script in {job_dir} ended without leaving an exit "
-                "status: the server rebooted, or the job was killed. Its work may be incomplete.\n"
-            ),
-            stderr=stderr,
-        )
     if status is None:  # unreachable: the loop ends on a status or on `vanished`
         raise RuntimeError("detached script ended without a status and without being reported gone")
     if check and status != 0:
