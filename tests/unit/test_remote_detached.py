@@ -18,7 +18,6 @@ calls on which the transport drops.
 
 from __future__ import annotations
 
-import hashlib
 import re
 import subprocess
 from typing import Any
@@ -106,16 +105,16 @@ class FakeServer:
         self, argv: list[str], command: str, kwargs: dict[str, Any]
     ) -> subprocess.CompletedProcess[str]:
         script = kwargs.get("input") or ""
-        declared = re.search(r"\b([0-9a-f]{64})\b", command)
-        assert declared, "the launcher must carry the script's sha256"
+        declared = re.search(r"-ne (\d+) \]", command)
+        assert declared, "the launcher must check the size of the upload"
         directory = re.search(r"(/run/nexus-deploy/[0-9a-f]+)", command)
         assert directory, "the launcher must name a job directory under /run/nexus-deploy"
         self.job_dir = directory.group(1)
         if self.truncate_upload:
             script = script[: len(script) // 2]
-        if hashlib.sha256(script.encode()).hexdigest() != declared.group(1):
-            # What `sha256sum -c` does on the server: refuse, start nothing.
-            return self._result(argv, kwargs, 1, "script: FAILED\n")
+        if len(script.encode()) != int(declared.group(1)):
+            # What the size check does on the server: refuse, start nothing.
+            return self._result(argv, kwargs, 1, "script: upload incomplete, nothing started\n")
         if self.starts == 0:
             self.received_script = script
         self.starts = 1  # the marker makes a second launch a no-op

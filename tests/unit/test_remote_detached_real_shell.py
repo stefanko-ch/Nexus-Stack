@@ -6,8 +6,8 @@ the poll are correct shell. These tests run them: a stand-in `ssh` on PATH
 ignores the host and hands the command to `sh -c`, so everything the runner
 sends is executed on this machine, with the job directory under a temp dir.
 
-They need `setsid` and `sha256sum`, which the server and the CI runners have
-and macOS does not; there they are skipped.
+They need `setsid`, which the server and the CI runners have and macOS does
+not; there they are skipped.
 """
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ import pytest
 from nexus_deploy import _remote
 
 pytestmark = pytest.mark.skipif(
-    sys.platform != "linux" or not shutil.which("setsid") or not shutil.which("sha256sum"),
-    reason="needs Linux with setsid and sha256sum, as the server has",
+    sys.platform != "linux" or not shutil.which("setsid"),
+    reason="needs Linux with setsid, as the server has",
 )
 
 FAKE_SSH = """#!/bin/sh
@@ -68,6 +68,16 @@ case "$1" in
     rm -f "$upload"
     exit "$status"
     ;;
+  *) exec sh -c "$1" ;;
+esac
+"""
+
+# The upload is cut short, and the command still sees a clean end of input:
+# what a session that drops during the upload leaves on the server.
+FAKE_SSH_TRUNCATED_UPLOAD = """#!/bin/sh
+shift
+case "$1" in
+  *"nexus-detached launch"*) head -c 12 | sh -c "$1" ;;
   *) exec sh -c "$1" ;;
 esac
 """
@@ -194,3 +204,15 @@ def test_a_lock_without_a_pid_stops_reading_as_running(
     with pytest.raises(subprocess.CalledProcessError) as caught:
         run("echo never\n")
     assert "without leaving an exit status" in (caught.value.output or "")
+
+
+def test_a_truncated_upload_starts_nothing_and_leaves_no_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _install_ssh(tmp_path, monkeypatch, FAKE_SSH_TRUNCATED_UPLOAD)
+    counter = tmp_path / "ran"
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        run(f'echo x >> {counter}\necho "this line is past the cut"\n')
+    assert "upload incomplete" in (caught.value.output or "")
+    assert not counter.exists(), "no part of a truncated script ran"
+    assert [p.name for p in root.rglob("script.*")] == [], "and the partial upload is removed"

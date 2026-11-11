@@ -22,7 +22,6 @@ Tests mock ``subprocess.run`` directly — see ``tests/unit/test_remote.py``.
 
 from __future__ import annotations
 
-import hashlib
 import os
 import secrets
 import shlex
@@ -191,10 +190,13 @@ def _run_script_detached(
     lost poll, not a failed script. Only a server that stays unreachable for
     ``max_unreachable_s`` in a row ends in a transport error.
 
-    The script still travels on stdin, never in argv. It is checked against
-    a SHA-256 before anything starts, because a session that drops during
-    the upload ends the remote ``cat`` with a short file and status 0, and a
-    truncated script must not run. Every launch attempt uploads to a file of
+    The script still travels on stdin, never in argv. Its size is checked
+    before anything starts, because a session that drops during the upload
+    ends the remote ``cat`` with a short file and status 0, and a truncated
+    script must not run. A byte count is enough: SSH protects the bytes it
+    delivers, so the only way an upload goes wrong is by ending early. It is
+    also deliberately not a digest of the script, which can carry secret
+    values and would put a hash of them on a command line. Every launch attempt uploads to a file of
     its own, so a retry cannot rewrite the file an earlier attempt is about
     to run; a lock directory lets exactly one of them start. The job unlinks
     its script as soon as bash has it open.
@@ -208,7 +210,7 @@ def _run_script_detached(
     """
     job_dir = f"{_DETACHED_ROOT}/{secrets.token_hex(8)}"
     quoted_dir = shlex.quote(job_dir)
-    digest = hashlib.sha256(script.encode()).hexdigest()
+    expected_bytes = len(script.encode())
     reported_argv = ["ssh", host, "bash", "-s"]
     started_at = clock()
     unreachable_since: float | None = None
@@ -285,7 +287,7 @@ def _run_script_detached(
         # the upload off stdin and start nothing a second time.
         'if [ -e "$d/lock" ]; then cat > /dev/null; exit 0; fi; '
         'f="$d/script.$$"; cat > "$f"; '
-        f'if ! echo "{digest}  $f" | sha256sum -c - > /dev/null 2>&1; then '
+        f'if [ "$(wc -c < "$f")" -ne {expected_bytes} ]; then '
         'rm -f "$f"; echo "script: upload incomplete, nothing started" >&2; exit 1; fi; '
         f'setsid nohup sh -c {shlex.quote(job)} nexus-detached "$d" "$f" '
         "< /dev/null > /dev/null 2>&1 & "
