@@ -18,26 +18,37 @@ set -euo pipefail
 VENV=/opt/nexus-venv
 PY="$VENV/bin/python"
 
-echo "== every installed package is the version requirements.txt pins"
+echo "== the venv holds exactly the packages requirements.txt pins"
 "$PY" - /stack/requirements.txt <<'PYEOF'
 import importlib.metadata as md
 import re
 import sys
 
+from packaging.markers import Marker
+
+
 def norm(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
+
 pins = {}
 for line in open(sys.argv[1]):
-    line = line.split(";")[0].strip()
-    if line and not line.startswith("#") and "==" in line:
-        name, version = line.split("==")
-        pins[norm(name)] = version
+    line = line.strip()
+    if not line or line.startswith("#") or "==" not in line:
+        continue
+    requirement, _, marker = line.partition(";")
+    # The lock file is universal: a line for another platform or Python
+    # version is rightly absent from this image.
+    if marker.strip() and not Marker(marker.strip()).evaluate():
+        continue
+    name, version = requirement.strip().split("==")
+    pins[norm(name)] = version
 
 installed = {norm(d.metadata["Name"]): d.version for d in md.distributions()}
-wrong = {n: (v, pins.get(n)) for n, v in installed.items() if pins.get(n) != v}
+wrong = {n: (installed.get(n, "missing"), pins.get(n, "not pinned")) for n in pins | installed}
+wrong = {n: pair for n, pair in wrong.items() if pair[0] != pair[1]}
 if wrong:
-    print("installed but not what the lock file pins (installed, pinned):")
+    print("the venv and the lock file disagree (installed, pinned):")
     for name, pair in sorted(wrong.items()):
         print(f"  {name}: {pair}")
     sys.exit(1)
