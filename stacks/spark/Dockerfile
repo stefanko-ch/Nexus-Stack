@@ -60,6 +60,21 @@ RUN set -eux; \
     ln -sf /opt/python/bin/python3.13 /usr/bin/python3.13; \
     /usr/bin/python3.13 --version
 
+# pandas and pyarrow for the Python workers. Spark runs a Python UDF on
+# the worker and, over Spark Connect, hands it the data through Arrow, so
+# without pyarrow every `@udf` from a notebook failed with
+# "No module named 'pyarrow'" and a `pandas_udf` could not run at all.
+# The image never had either; no seeded notebook uses a UDF, which is why
+# it went unnoticed until a test on 2026-11-11.
+#
+# Every package pinned in requirements.txt, compiled from requirements.in
+# (the command is in its header), at the versions the marimo image ships,
+# so client and worker run the same pandas and pyarrow.
+COPY requirements.txt /tmp/spark-python-requirements.txt
+RUN /opt/python/bin/python3.13 -m pip install --no-cache-dir \
+        -r /tmp/spark-python-requirements.txt && \
+    rm /tmp/spark-python-requirements.txt
+
 # Repoint /usr/bin/python3 -> python3.13, so that a process which ends up
 # resolving the bare name still gets the version the driver runs.
 #

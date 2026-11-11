@@ -1,0 +1,14 @@
+# Python packages for the Spark workers and the Spark Connect driver.
+# requirements.txt is the full pinned set compiled from this file; the
+# Dockerfile installs that one.
+#
+# Versions match the clients (the marimo image), so a pandas_udf runs the
+# same pandas and pyarrow on both ends.
+pyarrow==19.0.1
+pandas==2.3.3
+numpy==2.4.4
+# pandas 2.3.3 declares python-dateutil>=2.8.2 but breaks on 4.0, which
+# removed something pandas uses to recognise dateutil time zones:
+# tz_localize("dateutil/America/New_York") raises AttributeError. Pinned to
+# what the marimo image ships.
+python-dateutil==2.9.0.post0
