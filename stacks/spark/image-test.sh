@@ -80,6 +80,11 @@ if wrong:
 print(f"{len(pins)} pinned packages, all installed as pinned")
 PYEOF
 
+echo "== pandas handles a dateutil time zone"
+# python-dateutil 4.0 broke this in pandas 2.3.3 while satisfying its
+# declared bound; the pin in requirements.in is what keeps it working.
+python3 -c 'import pandas as pd; pd.date_range("2026-01-01", periods=2).tz_localize("dateutil/America/New_York")'
+
 echo "== the interpreter has what a PySpark worker needs"
 python3 -c "import ssl, zlib, bz2, lzma, sqlite3, ctypes, socket, select, struct"
 

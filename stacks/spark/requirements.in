@@ -7,3 +7,8 @@
 pyarrow==19.0.1
 pandas==2.3.3
 numpy==2.4.4
+# pandas 2.3.3 declares python-dateutil>=2.8.2 but breaks on 4.0, which
+# removed something pandas uses to recognise dateutil time zones:
+# tz_localize("dateutil/America/New_York") raises AttributeError. Pinned to
+# what the marimo image ships.
+python-dateutil==2.9.0.post0
