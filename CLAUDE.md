@@ -66,6 +66,7 @@ Nexus-Stack/
 │       ├── teardown-snapshot.yml # Teardown that snapshots the disk first
 │       ├── destroy-all.yml     # Destroy workflow (full cleanup)
 │       ├── update-from-upstream.yml # Moves a torn-down instance to a release
+│       ├── stack-image-builds.yaml # PR check: builds changed stack images, runs image-test.sh
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
 │   ├── backend.hcl             # Shared R2 backend configuration
@@ -346,6 +347,7 @@ What that means for work in this repo:
 - **Issues about a core or `proven` stack come first.** When choosing what to fix next, or triaging, rank them above everything that only touches best-effort stacks. Label them `tier:proven`.
 - **A change to a `proven` stack is not done until it survived a teardown and spin-up** with something a user made in it, not just a healthy container. Say in the PR whether that ran.
 - **Exact pins only** for core and `proven` (see "Pin Docker image versions" above).
+- **A `proven` stack that builds its own image ships `stacks/<name>/image-test.sh`.** The pull-request check `stack-image-builds.yaml` builds every stack image a PR touches and runs that script inside it, so a pin that does not resolve fails the PR instead of a spin-up. It proves the image, not the running service: the teardown and spin-up above still applies. `tests/unit/test_stack_image_builds.py` enforces the script.
 - **Adding a stack to `proven` is a decision, not a field edit:** it adds to what every release has to test, and the set must fit on one server. `test_proven_services_are_the_documented_set` makes it explicit.
 
 ### Service Account Naming Convention

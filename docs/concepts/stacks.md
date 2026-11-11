@@ -54,7 +54,11 @@ a course were of that kind: a stack that came up healthy and empty.
 stack uses is one exact release, never a line of releases such as `17-alpine` or
 `v2.0`. For a stack built from its own `Dockerfile`, that covers the base image
 and every Python package too. `tests/unit/test_stack_conventions.py` fails CI on
-any violation, so a version only changes when someone changes it. The release
+any violation, so a version only changes when someone changes it. A pull request
+that touches a stack with its own `Dockerfile` also builds that image, and for a
+`proven` stack runs a test inside it: that the pinned versions are the installed
+ones and the tools load. That check sees the image, not the running service. The
+release
 test itself, which would block a release when a `proven` stack fails, is not
 automated yet ([#712](https://github.com/stefanko-ch/Nexus-Stack/issues/712)).
 Until it is, the check before a release is manual.
