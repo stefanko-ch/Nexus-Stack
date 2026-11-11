@@ -7,19 +7,35 @@ on:
         description: 'Type "TEARDOWN" to confirm (keeps control plane)'
         required: true
         type: string
+  # Called by release-gate.yml (#712), which tears the stack down between
+  # its two spin-ups and once more at the end.
+  workflow_call:
+    inputs:
+      confirm:
+        description: 'Must be "TEARDOWN"'
+        required: true
+        type: string
+      caller_holds_infrastructure_lock:
+        description: 'Pass true only from a workflow that already holds the infrastructure concurrency group; see spin-up.yml.'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
+# Same hand-over as spin-up.yml: a caller that holds the infrastructure
+# group would deadlock if this joined it too, so a called teardown takes a
+# group of its own and relies on the caller's lock.
 concurrency:
-  group: infrastructure
+  group: ${{ inputs.caller_holds_infrastructure_lock && format('teardown-called-{0}', github.run_id) || 'infrastructure' }}
   cancel-in-progress: false
 
 jobs:
   teardown:
     name: Teardown Hetzner Infrastructure
     runs-on: ubuntu-latest
-    if: github.event.inputs.confirm == 'TEARDOWN'
+    if: inputs.confirm == 'TEARDOWN'
     env:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -34,7 +50,7 @@ jobs:
     steps:
       - name: Validate confirmation
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "TEARDOWN" ]; then
+          if [ "${{ inputs.confirm }}" != "TEARDOWN" ]; then
             echo "❌ Teardown cancelled. You must type 'TEARDOWN' to confirm."
             exit 1
           fi

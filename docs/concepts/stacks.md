@@ -57,11 +57,15 @@ and every Python package too. `tests/unit/test_stack_conventions.py` fails CI on
 any violation, so a version only changes when someone changes it. A pull request
 that touches a stack with its own `Dockerfile` also builds that image, and for a
 `proven` stack runs a test inside it: that the pinned versions are the installed
-ones and the tools load. That check sees the image, not the running service. The
-release
-test itself, which would block a release when a `proven` stack fails, is not
-automated yet ([#712](https://github.com/stefanko-ch/Nexus-Stack/issues/712)).
-Until it is, the check before a release is manual.
+ones and the tools load. That check sees the image, not the running service.
+
+The release test is the release gate, `release-gate.yml`
+([#712](https://github.com/stefanko-ch/Nexus-Stack/issues/712)): it spins the
+stack up, has each `proven` stack's `lifecycle-probe.sh` make one artefact
+through its own interface (a file in code-server, a marimo notebook, a Kestra
+flow, a Spark table on R2), tears down, spins up again and checks every
+artefact is back. It is started by hand and is not yet a required check on the
+release PR, so running it before a release is still a manual step.
 
 The Control Plane marks `proven` stacks with a badge and can filter for them.
 `best-effort` stacks carry no badge.

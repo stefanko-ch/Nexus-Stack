@@ -1,0 +1,108 @@
+# =============================================================================
+# release-gate — the lifecycle test for the proven stacks (#712, phase 2)
+# =============================================================================
+# What `tier: proven` promises (docs/concepts/stacks.md): a stack works
+# across a teardown and the following spin-up, with what a user made in it.
+# A container answering HTTP proves nothing of the kind; the failures that
+# led here (#936 Kestra flows, #937 a skipped dump) appeared only after a
+# teardown. So this runs the cycle:
+#
+#   1. spin up, then each proven stack's lifecycle-probe.sh `create` makes one
+#      artefact through the stack's own interface (a file in code-server, a
+#      marimo notebook, a Kestra flow, a Spark table on R2)
+#   2. rebuild teardown
+#   3. spin up, then each probe's `verify` checks its artefact is back and the
+#      stack answers
+#   4. teardown, whatever happened before (`if: always()`)
+#
+# It runs against the stack this repository deploys (nexus-stack.ch is the
+# test stack), with the stacks enabled there. The proven stacks and marimo
+# (Spark's client) must be among them; a probe whose stack is not running
+# says so and fails.
+#
+# The cycle is a real teardown: the stack is down at the end, and its R2
+# snapshot is the one this run's teardown took, which holds the user's data
+# as on any other teardown.
+#
+# Takes about 30 to 40 minutes. Not yet a required check on the release PR;
+# that is the last step of #712, once a few runs have shown it is reliable.
+# =============================================================================
+
+name: "Release Gate: Lifecycle test of the proven stacks"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "TEARDOWN": this run tears the stack down twice and leaves it down'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Holds the infrastructure group for the whole cycle, so no other lifecycle
+# workflow can slip in between create and verify. The called spin-ups and
+# teardowns are told so and take groups of their own.
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse without TEARDOWN
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "TEARDOWN" ]; then
+            echo "❌ Type TEARDOWN to confirm: this run tears the stack down twice"
+            exit 1
+          fi
+          echo "✅ Confirmed; probe token: gate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+  spin-up-create:
+    name: Spin up, create artefacts
+    needs: check
+    uses: ./.github/workflows/spin-up.yml
+    secrets: inherit
+    with:
+      caller_holds_infrastructure_lock: true
+      silent_mode: true
+      lifecycle_probe: create
+      lifecycle_token: gate-${{ github.run_id }}-${{ github.run_attempt }}
+
+  teardown-between:
+    name: Teardown between
+    needs: spin-up-create
+    uses: ./.github/workflows/teardown.yml
+    secrets: inherit
+    with:
+      confirm: TEARDOWN
+      caller_holds_infrastructure_lock: true
+
+  spin-up-verify:
+    name: Spin up, verify artefacts
+    needs: teardown-between
+    uses: ./.github/workflows/spin-up.yml
+    secrets: inherit
+    with:
+      caller_holds_infrastructure_lock: true
+      silent_mode: true
+      lifecycle_probe: verify
+      lifecycle_token: gate-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # Always, so a failed probe or spin-up does not leave a server running.
+  # Skipped only when the run never got past the confirmation, since then
+  # nothing was started.
+  teardown-final:
+    name: Teardown at the end
+    needs: [check, spin-up-create, teardown-between, spin-up-verify]
+    if: always() && needs.check.result == 'success'
+    uses: ./.github/workflows/teardown.yml
+    secrets: inherit
+    with:
+      confirm: TEARDOWN
+      caller_holds_infrastructure_lock: true
