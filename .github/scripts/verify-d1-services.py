@@ -55,6 +55,11 @@ def names_in_d1(document: object) -> list[str]:
 
 
 def verify(wrangler_json: str, services_yaml: str) -> tuple[int, str]:
+    """Compare wrangler's answer with services.yaml.
+
+    Returns the exit status (OK, MISSING or UNREADABLE) and the one line to
+    print. Only OK carries the tick.
+    """
     try:
         expected = sorted(yaml.safe_load(services_yaml)["services"])
     except (yaml.YAMLError, KeyError, TypeError) as error:
@@ -79,6 +84,7 @@ def verify(wrangler_json: str, services_yaml: str) -> tuple[int, str]:
 
 
 def main(argv: list[str]) -> int:
+    """Read the two files named in ``argv``, print the verdict, return the status."""
     if len(argv) != 3:
         print(__doc__, file=sys.stderr)
         return UNREADABLE
