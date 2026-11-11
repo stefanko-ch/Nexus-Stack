@@ -223,9 +223,11 @@ import Layout from '../layouts/Layout.astro';
         const delayUntil = config.delayUntil ? new Date(config.delayUntil) : null;
 
         if (delayUntil && delayUntil > now) {
-          const diffMs = delayUntil - now;
-          const hours = Math.ceil(diffMs / 3600000);
-          const minutes = Math.ceil((diffMs % 3600000) / 60000);
+          // Whole minutes first, then split: rounding hours and minutes
+          // separately showed 3h 59m as "4h 59m", and 4h 0m as "4h 60m".
+          const totalMinutes = Math.ceil((delayUntil - now) / 60000);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
           info.innerHTML = 'Enabled - Teardown delayed until ' + esc(delayUntil.toLocaleString('de-CH')) + '<br><span style="color: var(--warning);">(' + hours + 'h ' + minutes + 'm remaining)</span>' + counterText;
           delayBtn.disabled = true;
         } else if (config.timeRemaining) {

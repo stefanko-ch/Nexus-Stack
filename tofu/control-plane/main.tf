@@ -116,6 +116,11 @@ resource "cloudflare_workers_script" "scheduled_teardown" {
     text = var.teardown_cron
   }
 
+  plain_text_binding {
+    name = "DELAY_CHECK_CRON"
+    text = var.delay_check_cron
+  }
+
   # Note: RESEND_API_KEY and GITHUB_TOKEN are set via setup-control-plane-secrets.sh
 }
 
@@ -128,6 +133,7 @@ resource "cloudflare_workers_cron_trigger" "scheduled_teardown" {
   schedules = [
     var.notification_cron,
     var.teardown_cron,
+    var.delay_check_cron,
   ]
 }
 

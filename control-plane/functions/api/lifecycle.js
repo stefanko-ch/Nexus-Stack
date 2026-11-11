@@ -7,14 +7,14 @@
 //             spin-up. Fresh OS and freshly pulled images every time, so
 //             nothing drifts and `:latest` stacks stay current. Costs a
 //             few minutes per spin-up, and anything not covered by the
-//             R2 persistence layer is gone — that layer protects Forgejo,
-//             Dify, HedgeDoc, Planka and Metabase by name, so a stack's
-//             own Postgres tables, Grafana dashboards, Kestra run
-//             history and uncommitted notebooks are not included.
+//             R2 persistence layer is gone. That layer covers a fixed
+//             list of stacks, standard_targets() in
+//             src/nexus_deploy/s3_restore.py; Grafana, for one, is not
+//             on it.
 //
 //   snapshot  Snapshot the disk before destroying the server, restore
 //             from that image on the next spin-up. Every stack's state
-//             survives, not only the five, and the boot skips apt and
+//             survives, not only the covered ones, and the boot skips apt and
 //             the Docker install. In exchange the images age: a `:latest`
 //             stack keeps whatever was pulled when the snapshot line
 //             began.
@@ -51,8 +51,8 @@ const MODE_INFO = {
   rebuild: {
     label: 'Rebuild',
     summary: 'Destroy and rebuild from a clean Ubuntu image every time.',
-    keeps: 'Only what the R2 layer backs up: Forgejo, Gitea, Dify, HedgeDoc, Planka, Metabase.',
-    loses: 'Everything else — your own Postgres tables, Grafana dashboards, Kestra run history, uncommitted notebooks.',
+    keeps: 'Only the stacks the R2 backup covers: a fixed list that includes Forgejo, Kestra, the shared Postgres and the notebook stacks.',
+    loses: 'Data in every stack that is not on that list — Grafana dashboards, for example.',
     images: 'Always freshly pulled, so `:latest` stacks stay current.',
   },
   snapshot: {
