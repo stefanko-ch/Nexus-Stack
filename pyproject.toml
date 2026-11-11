@@ -19,13 +19,12 @@ authors = [{ name = "Nexus-Stack Contributors" }]
 # Runtime dependencies. Pinned ranges reflect Python 3.13 compat as of 2026-05.
 # Lower bounds are minimums tested; upper bounds prevent silent major bumps.
 dependencies = [
-    "paramiko>=3.4,<4.0",        # SSH client for Module 3.1 (replaces `ssh nexus`)
     "requests>=2.32,<3.0",       # HTTP client for Infisical/Gitea/Kestra APIs
     "pydantic>=2.7,<3.0",        # Typed config (replaces SECRETS_JSON jq parsing)
     "structlog>=24.1,<26.0",     # Structured logging
     "click>=8.1,<9.0",           # CLI framework
     "pyyaml>=6.0,<7.0",          # services.yaml + Kestra flow templates
-    "bcrypt>=4.0,<6.0",          # Filestash admin hash (already present via paramiko)
+    "bcrypt>=4.0,<6.0",          # Filestash admin hash
 ]
 
 [project.scripts]
@@ -46,7 +45,6 @@ dev = [
     "hypothesis>=6.115,<7.0",          # Property-based tests
     "testcontainers>=4.8,<5.0",        # Phase 1+ integration tests (real Docker)
     "pre-commit>=4.0,<5.0",            # Git hook runner (`uv run pre-commit install`)
-    "types-paramiko>=3.4,<4.0",        # paramiko stubs for mypy
     "types-requests>=2.32,<3.0",       # requests stubs for mypy
     "types-pyyaml>=6.0,<7.0",          # PyYAML stubs for mypy
 ]
@@ -174,8 +172,6 @@ markers = [
 # above but no implicit filter is configured here.
 filterwarnings = [
     "error",
-    # Allow specific known warnings from deps
-    "ignore::DeprecationWarning:paramiko.*",
 ]
 asyncio_mode = "auto"
 
