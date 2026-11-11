@@ -1113,6 +1113,44 @@ def test_the_install_is_given_the_overrides_the_compile_was(overrides: Path) -> 
     assert passed, f"no `uv pip install` in the Dockerfile passes --override {in_image}"
 
 
+@pytest.mark.parametrize("name", _tiered(SERVICES))
+def test_tiered_dockerfiles_add_no_ppa(name: str) -> None:
+    """A PPA makes the build need Launchpad, and installs whatever it holds that day.
+
+    The spark image took Python 3.13 from one. When Launchpad and Ubuntu's
+    archive were unreachable the image could not be built (#1033), and the
+    patch release was never fixed. Take the tool from a pinned, checksummed
+    download instead.
+    """
+    for dockerfile in sorted((STACKS_DIR / name).glob("Dockerfile*")):
+        ppa = [i for i in _dockerfile_instructions(dockerfile) if "add-apt-repository" in i]
+        assert not ppa, (
+            f"{dockerfile.relative_to(REPO_ROOT)} adds an apt repository at build time: {ppa}"
+        )
+
+
+def test_the_spark_services_share_exactly_one_network() -> None:
+    """The master listens on the address `spark-master` resolves to first.
+
+    With a second network it has two, and which one comes first depends on
+    the order Docker attaches the networks. On 2026-11-11 it listened on
+    one while the worker and Spark Connect connected to the other: no
+    worker, every notebook hung. The settings once added against this,
+    `spark.master.bindAddress` and `spark.worker.bindAddress`, do not exist
+    in Spark and changed nothing.
+    """
+    compose = yaml.safe_load((STACKS_DIR / "spark" / "docker-compose.yml").read_text())
+    for name, service in compose["services"].items():
+        assert service.get("networks") == ["app-network"], (
+            f"spark/{name} is on {service.get('networks')}; every Spark service must be on "
+            f"app-network and nothing else, see ONE NETWORK in the compose header"
+        )
+    assert set(compose.get("networks", {})) == {"app-network"}
+    text = (STACKS_DIR / "spark" / "docker-compose.yml").read_text()
+    for not_a_setting in ("-Dspark.master.bindAddress", "-Dspark.worker.bindAddress"):
+        assert not_a_setting not in text, f"{not_a_setting} is not a Spark setting"
+
+
 def test_exactness_check_tells_releases_from_release_lines() -> None:
     """The helpers above, against the shapes they have to tell apart."""
     assert _is_exact("kestra/kestra:v2.0.8")

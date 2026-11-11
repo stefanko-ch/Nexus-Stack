@@ -30,7 +30,7 @@ Apache Spark provides a unified analytics engine for large-scale data processing
 | `spark-worker` | `nexus-spark:4.2.0-python3.13` | Task executor (connects to master on 7077) |
 | `spark-connect` | `nexus-spark:4.2.0-python3.13` | gRPC server on 15002 — driver-JVM for thin clients (Marimo, code-server). Connects to master like any other Spark application. |
 
-> **Custom image:** The official `apache/spark:4.2.0` ships Python 3.10 (Ubuntu 22.04), but our Jupyter / spark-worker setup uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs Python 3.13 via deadsnakes PPA, adds `hadoop-aws` + AWS SDK v2 JARs for S3A filesystem support, and pre-downloads the Spark Connect server JARs (`spark-connect_2.13-4.2.0.jar`, `spark-connect-common_2.13-4.2.0.jar`) into `/opt/spark/jars/` so the Connect server starts without ivy resolution at runtime.
+> **Custom image:** The official `apache/spark:4.2.0` ships Python 3.10 (Ubuntu 22.04), but our Jupyter / spark-worker setup uses Python 3.13. PySpark requires matching Python versions between driver and executors. The custom Dockerfile installs one pinned, checksum-verified Python 3.13 build (python-build-standalone; the exact version is the `PYTHON_VERSION` argument in the Dockerfile), adds `hadoop-aws` + AWS SDK v2 JARs for S3A filesystem support, and pre-downloads the Spark Connect server JARs (`spark-connect_2.13-4.2.0.jar`, `spark-connect-common_2.13-4.2.0.jar`) into `/opt/spark/jars/` so the Connect server starts without ivy resolution at runtime.
 
 ### The S3A jars track Spark's bundled Hadoop
 

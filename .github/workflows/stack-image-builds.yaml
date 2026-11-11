@@ -1,0 +1,132 @@
+# =============================================================================
+# stack-image-builds — build the stack images a pull request changes
+# =============================================================================
+# Some stacks build their own image from a Dockerfile in their folder.
+# Until this check, the first build of a changed Dockerfile or lock file
+# happened on a server during a spin-up, so a pin that does not resolve or a
+# download that 404s surfaced there, by hand.
+#
+# For every stack folder with a Dockerfile that the pull request touches:
+#   1. `docker build` the image, the way compose does (context = the folder);
+#   2. if the folder has an `image-test.sh`, run it inside the image, with
+#      the folder mounted read-only at /stack.
+#
+# The three proven stacks that build an image (code-server, marimo, spark)
+# each ship an image test; tests/unit/test_stack_conventions.py requires it.
+#
+# What this does not cover: anything that needs the running stack — other
+# containers, volumes, the tunnel, a login. A green check says the image
+# builds and holds what its test names, not that the service works.
+#
+# Runs on GitHub's runners only. It is not a lifecycle workflow and never
+# runs on the Forgejo runner, so it uses the Docker the runner image ships.
+# =============================================================================
+
+name: "CI: Stack Image Builds"
+
+on:
+  pull_request:
+    paths:
+      - "stacks/**"
+      - ".github/workflows/stack-image-builds.yaml"
+      - ".github/scripts/changed-image-stacks.py"
+
+concurrency:
+  group: stack-image-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detect — which stack images does this pull request touch?
+  # ---------------------------------------------------------------------------
+  detect:
+    name: Find changed stack images
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stacks: ${{ steps.list.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # The diff against the base needs both ends of the range.
+          fetch-depth: 0
+          # The next step runs a script from the pull request. Nothing after
+          # checkout needs an authenticated git, so the token is not left in
+          # .git/config for that script to read.
+          persist-credentials: false
+
+      - name: List stacks to build
+        id: list
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Three dots: the changes on the branch since it left the base,
+          # not everything the base gained meanwhile.
+          # --no-renames: a file moved out of a stack folder is otherwise
+          # reported under its new path only, and the stack it left would
+          # not be built. core.quotePath=false: git otherwise prints a
+          # non-ASCII path quoted and escaped, which matches no folder.
+          if ! CHANGED=$(git -c core.quotePath=false diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA"); then
+            echo "❌ Could not diff $BASE_SHA...$HEAD_SHA"
+            exit 1
+          fi
+          if ! STACKS=$(printf '%s\n' "$CHANGED" | python3 .github/scripts/changed-image-stacks.py stacks); then
+            echo "❌ Could not work out which stack images to build"
+            exit 1
+          fi
+          echo "stacks=$STACKS" >> "$GITHUB_OUTPUT"
+          echo "Stack images to build: $STACKS"
+
+  # ---------------------------------------------------------------------------
+  # Build — one job per stack, so one failure does not hide the others
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build ${{ matrix.stack }}
+    needs: detect
+    if: needs.detect.outputs.stacks != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.detect.outputs.stacks) }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # The build runs a Dockerfile and a script from the pull request.
+          persist-credentials: false
+
+      - name: Build the image
+        env:
+          STACK: ${{ matrix.stack }}
+        run: |
+          set -euo pipefail
+          if ! docker build --tag "nexus-ci-$STACK:pr" "stacks/$STACK"; then
+            echo "❌ stacks/$STACK/Dockerfile does not build"
+            exit 1
+          fi
+          echo "✅ stacks/$STACK/Dockerfile builds"
+
+      - name: Run the image test
+        env:
+          STACK: ${{ matrix.stack }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "stacks/$STACK/image-test.sh" ]; then
+            echo "stacks/$STACK has no image-test.sh; the build is all that was checked."
+            exit 0
+          fi
+          # The entrypoint is cleared so the test runs instead of the
+          # service; the user stays the one the image declares.
+          if ! docker run --rm --entrypoint "" \
+              --volume "$PWD/stacks/$STACK:/stack:ro" \
+              "nexus-ci-$STACK:pr" bash /stack/image-test.sh; then
+            echo "❌ stacks/$STACK/image-test.sh failed inside the image"
+            exit 1
+          fi
+          echo "✅ stacks/$STACK/image-test.sh passed inside the image"
