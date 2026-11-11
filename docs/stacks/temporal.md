@@ -168,7 +168,7 @@ Upstream does publish minor tags (`1.32`); exact tags are used because a moving 
 - **Exited (1) on `temporal-create-namespace`** — its log prints the last error from `temporal operator namespace create` after 30 attempts, two seconds apart.
 - **`Namespace default is not found`** from an SDK — the namespace job did not run to completion; check its log as above.
 - **An SDK cannot connect to `https://temporal.YOUR_DOMAIN`** — expected. That hostname serves the Web UI over HTTPS through Cloudflare Access. Workers use `temporal:7233` inside the stack, or the SSH forward from a laptop.
-- **The spin-up smoke check reports `temporal` on port 7233 as not an HTTP service** — expected: the check sends plain HTTP to every published port, and 7233 speaks gRPC. Measured locally, not yet on a server: the check's `curl` against it connects and exits 1, which the step files under "listening, not an HTTP service" rather than as a failure. If a server run classifies it differently, the port is still fine as long as `temporal` is healthy in `docker ps`.
+- **The spin-up smoke check reports `temporal` on port 7233 as "listening, non-HTTP protocol"** — expected: the check sends plain HTTP to every published port, and 7233 speaks gRPC. The port is on the check's list of declared non-HTTP ports (`.github/scripts/non-http-ports.py`), so it is not counted as a failure. Measured locally, not yet on a server: the check's `curl` against it connects and exits 1. If a server run classifies it differently, the port is still fine as long as `temporal` is healthy in `docker ps`.
 
 ### Related
 
