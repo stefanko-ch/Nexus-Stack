@@ -128,7 +128,7 @@ jobs:
           fi
 
           # The epoch guard. If the legacy teardown.yml ran in between, all
-          # 81 generated credentials were rotated and any older snapshot
+          # generated credentials were rotated and any older snapshot
           # holds Postgres roles and admin accounts that no longer match
           # the state this deploy will use — a stack that boots and then
           # authenticates nowhere. An absent output (a stack predating the

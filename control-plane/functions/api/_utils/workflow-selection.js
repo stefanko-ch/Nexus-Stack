@@ -15,7 +15,7 @@
  * Two independent keys were the first design and it was wrong: they can
  * drift, and a half-applied switch is actively harmful. Snapshot spin-up
  * with rebuild teardown means the nightly untargeted `tofu destroy`
- * rotates all 81 generated credentials, and the epoch guard then refuses
+ * rotates nearly every generated credential, and the epoch guard then refuses
  * the snapshot it just made. Documenting "switch both together" is not
  * the same as making it impossible to do otherwise.
  *

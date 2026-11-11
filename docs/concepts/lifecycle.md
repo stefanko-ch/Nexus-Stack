@@ -96,6 +96,23 @@ Everything else — a topic you created in Redpanda, a dashboard you built in a 
 outside the list, files written inside a container — is **gone** on teardown. Not
 corrupted, not recoverable: the disk it lived on no longer exists.
 
+**Two conditions sit under that list, and both are easy to miss.**
+
+- *The backup has to be switched on.* It is by default. With the
+  `NEXUS_S3_PERSISTENCE` secret set to anything but `true`, neither teardown
+  writes a backup and no spin-up restores one. On the rebuild lifecycle no
+  service data then survives a teardown at all. On the snapshot lifecycle the disk snapshot
+  is the only copy, and a teardown that destroys the server after a failed
+  snapshot leaves no recent copy of anything. An older backup stays in the
+  bucket; the first spin-up of a newly built server with the switch back on
+  restores it, as old as the last teardown that wrote it. A server that has
+  already spun up with the switch off is not restored over later.
+- *A stack's database is dumped only while its container exists.* Switching a
+  stack off and deploying removes its containers, and the teardown then skips
+  that stack's database dump, even if the list covers it; the directories the
+  list names for it are still copied. Switch the stack on and deploy before the teardown if that
+  database matters.
+
 **A spin-up on a server that is already running restores only what it has not
 restored yet.** A spin-up writes `/mnt/nexus-data/.nexus-restored` after both
 restore phases have finished. A later spin-up that finds the file skips the

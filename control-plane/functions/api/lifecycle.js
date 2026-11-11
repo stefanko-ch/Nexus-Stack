@@ -24,7 +24,7 @@
 //
 // WRITES ARE ADMIN-ONLY. Switching is not reversible in effect: moving
 // from snapshot to rebuild means the next teardown runs an untargeted
-// `tofu destroy` that rotates all 81 generated credentials, after which
+// `tofu destroy` that rotates nearly every generated credential, after which
 // the epoch guard permanently refuses every existing snapshot. Reading
 // is open to any Access-authenticated caller so the UI can show the
 // current state without an admin session.
@@ -238,7 +238,7 @@ export async function onRequestPost(context) {
       // at the next teardown.
       warning:
         requested === 'rebuild'
-          ? 'Switching to Rebuild rotates every generated credential on the next teardown. Existing snapshots will be refused from then on and cannot be restored.'
+          ? 'Switching to Rebuild rotates almost every generated credential on the next teardown. Existing snapshots will be refused from then on and cannot be restored.'
           : null,
     });
   } catch (error) {

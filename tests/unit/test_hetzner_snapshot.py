@@ -326,7 +326,7 @@ def test_resolve_latest_returns_newest_matching_epoch() -> None:
 def test_resolve_latest_rejects_rotated_epoch() -> None:
     """The guard against the legacy untargeted `tofu destroy`.
 
-    That path regenerates all 81 credentials, so an older snapshot's
+    That path regenerates nearly every credential, so an older snapshot's
     Postgres roles and admin accounts no longer match the state the
     pipeline will use. Restoring it yields a stack that boots and then
     fails to authenticate anywhere — returning None sends the workflow

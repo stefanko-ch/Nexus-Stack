@@ -562,7 +562,7 @@ output "infisical_admin_password" {
 # teardown keeps the random_* resources alive (it destroys only
 # hcloud_server.main), so credentials normally stay stable forever.
 # But the legacy teardown runs an untargeted `tofu destroy`, which
-# destroys all 81 random_* resources and regenerates every secret on
+# destroys nearly every random_* resource and regenerates those secrets on
 # the next spin-up. Restoring a pre-rotation snapshot against
 # post-rotation state produces a stack that boots and then fails to
 # authenticate anywhere — a confusing, hard-to-diagnose half-failure.
@@ -573,9 +573,10 @@ output "infisical_admin_password" {
 # Safe to expose: it is a hash of hashes, never a secret, so it can be
 # read with `tofu output -raw`, stored as a Hetzner label and logged.
 #
-# Five canaries rather than all 81: every generated secret shares one
-# lifecycle — they are created together and destroyed together — so any
-# rotation moves all of them. Deliberately NOT derived from the
+# Five canaries rather than all of them: the generated secrets share one
+# lifecycle — they are created together and destroyed together — so a
+# rotation moves these five with the rest. The few resources teardown.yml
+# excludes from its destroy are not among them. Deliberately NOT derived from the
 # `secrets` output, which also carries pass-through values from GitHub
 # secrets (hetzner_s3_*, dockerhub_*, r2_data_*) that can legitimately
 # change without invalidating a snapshot.

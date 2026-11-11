@@ -163,7 +163,7 @@ function canonicalMode(value) {
 // Deliberately does NOT fall back to a default when the mode cannot be
 // determined. This runs unattended every night, and the rebuild pair is
 // the destructive one: guessing it at a stack that is on snapshots would
-// run an untargeted `tofu destroy`, rotate all 81 generated credentials
+// run an untargeted `tofu destroy`, rotate nearly every generated credential
 // and orphan the snapshot. An unconfigured stack is a different case and
 // resolves successfully to the default.
 async function resolveLifecycle(db) {
