@@ -102,13 +102,14 @@ corrupted, not recoverable: the disk it lived on no longer exists.
   `NEXUS_S3_PERSISTENCE` secret set to anything but `true`, neither teardown
   writes a backup and no spin-up restores one. On the rebuild lifecycle nothing
   then survives a teardown at all. On the snapshot lifecycle the disk snapshot
-  is the only copy, and a teardown whose snapshot fails leaves no recent copy of
-  anything. Switching the backup back on later does not bring older data back:
-  the bucket holds whatever the last teardown with the backup on wrote.
+  is the only copy, and a teardown that destroys the server after a failed
+  snapshot leaves no recent copy of anything. An older backup stays in the
+  bucket; a spin-up with the switch back on restores it, as old as the last
+  teardown that wrote it.
 - *A stack's database is dumped only while its container exists.* Switching a
   stack off and deploying removes its containers, and the teardown then skips
-  that stack's database dump, even if the list covers it; its directories are
-  still copied. Switch the stack on and deploy before the teardown if that
+  that stack's database dump, even if the list covers it; the directories the
+  list names for it are still copied. Switch the stack on and deploy before the teardown if that
   database matters.
 
 **A spin-up on a server that is already running restores only what it has not

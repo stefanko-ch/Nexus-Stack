@@ -382,15 +382,9 @@ jobs:
           echo "   tell whether the power-off had already happened. See the"
           echo "   'Create Hetzner disk snapshot' step above, and the Hetzner console."
           echo ""
-          echo "   Before a re-run, power the server on and wait for the stack to come"
-          echo "   up: the run starts with the R2 backup, which needs SSH and running"
-          echo "   containers, and fails against a server that is off."
-          echo ""
-          echo "   A re-run without strict_snapshot tears down even if the snapshot"
-          echo "   fails again. The next spin-up then restores the newest usable older"
-          echo "   snapshot, losing what changed since it was taken, or the R2 backup"
-          echo "   if no snapshot is usable. spin-up-snapshot.yml with force_fresh=true"
-          echo "   chooses the R2 backup. With NEXUS_S3_PERSISTENCE off there is none."
+          echo "   What to do next, and what each choice costs, is in"
+          echo "   docs/admin-guides/snapshot-lifecycle.md under"
+          echo "   'A strict snapshot aborted the teardown'."
           exit 1
 
       - name: Mirror snapshot metadata to D1
@@ -426,6 +420,7 @@ jobs:
           " || echo "⚠️  D1 mirror write failed (not fatal)"
 
       - name: Power the server back on (skip_destroy)
+        id: poweron
         if: github.event.inputs.skip_destroy == 'true' && steps.snapshot.outputs.server_id != ''
         # The verification path: prove the snapshot mechanism end to end
         # against the real stack without destroying anything. The server
@@ -447,6 +442,7 @@ jobs:
           fi
 
       - name: Destroy the server only
+        id: destroy
         if: github.event.inputs.skip_destroy != 'true'
         # -target=hcloud_server.main destroys the server and its
         # dependents — which is only cloudflare_record.firewall_tcp.
@@ -536,11 +532,21 @@ jobs:
           else
             echo "📸 No snapshot was created"
           fi
-          if [ "${{ github.event.inputs.skip_destroy }}" = "true" ]; then
-            echo "💤 skip_destroy — nothing destroyed, server powered back on"
-          else
+          # Reported from what the steps did, not from what the inputs asked
+          # for: this step runs with always(), so it also runs after the
+          # strict_snapshot abort and after a failed destroy, where "Server
+          # destroyed" would be the opposite of what happened.
+          DESTROY="${{ steps.destroy.outcome }}"
+          POWERON="${{ steps.poweron.outcome }}"
+          if [ "$DESTROY" = "success" ]; then
             echo "💤 Server destroyed. Preserved: credentials, tunnel, DNS, Access, Control Plane"
             echo "📋 Re-deploy: https://control.${{ secrets.DOMAIN }}"
+          elif [ "$POWERON" = "success" ]; then
+            echo "💤 skip_destroy — nothing destroyed, power-on requested"
+          else
+            echo "⚠️  The server was NOT destroyed by this run"
+            echo "   (destroy step: ${DESTROY:-not run}, power-on step: ${POWERON:-not run})."
+            echo "   See the failed step above for the state it was left in."
           fi
 
       - name: Log teardown completed

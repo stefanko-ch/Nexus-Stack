@@ -190,9 +190,26 @@ This is the **designed** behaviour, not a fault. A snapshot is only used when it
 - its credential epoch no longer matches
 - its architecture or disk size cannot be satisfied by any available server type
 
-In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the R2-covered stacks keep their data — provided the R2 backup was on at the last teardown. With `NEXUS_S3_PERSISTENCE` set to `false` no backup is written, and this fallback restores nothing recent; see [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). The other stacks come back empty — the same as the rebuild path has always behaved.
+In every case the spin-up falls back to a normal `ubuntu-26.04` build **with R2 restore enabled**, so the R2-covered stacks keep their data — provided the R2 backup was on at the last teardown, and, for a stack's database, that its containers existed then. With `NEXUS_S3_PERSISTENCE` set to `false` no backup is written, and this fallback restores nothing recent; see [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). The other stacks come back empty — the same as the rebuild path has always behaved.
 
 The workflow log names the reason.
+
+### A strict snapshot aborted the teardown
+
+`teardown-snapshot.yml` run with `strict_snapshot=true` stops before the destroy when the disk snapshot fails. The run destroyed nothing, so the server's disk still holds the current data. What it cannot tell you is whether the server is on: the snapshot is taken with the server powered off, and a failure after the power-off leaves it off. Look at the *Create Hetzner disk snapshot* step in the log and at the Hetzner console. A server that is off is still billed.
+
+To try again:
+
+1. Power the server on in the Hetzner console. A re-run starts with the R2 backup, which needs SSH, and fails against a server that is off.
+2. Re-run `teardown-snapshot.yml`. The backup step starts the stacks an earlier attempt stopped, so there is nothing to restart by hand.
+
+To tear down even though the snapshot keeps failing, re-run with `strict_snapshot=false` (and `skip_destroy=false`, if the failed run used it). Know what that costs before you do:
+
+- The server and its disk are destroyed. The next spin-up restores the newest **usable older snapshot**, so everything since that snapshot is lost, on every stack.
+- If no snapshot is usable, or you run `spin-up-snapshot.yml` with `force_fresh=true`, the spin-up builds fresh and restores the R2 backup. That brings back only the stacks the backup covers; data in every other stack is gone.
+- The R2 backup is as old as the last teardown that wrote one. With `NEXUS_S3_PERSISTENCE` off, this run writes none.
+
+Do not reach for `teardown.yml`. It is the rebuild teardown: it rotates the credentials, and every existing snapshot is refused from then on.
 
 ### The credential epoch stopped matching
 
