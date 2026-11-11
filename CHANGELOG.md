@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.4](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.3...v0.91.4) (2026-11-11)
+
+
+### 📚 Documentation
+
+* Correct three claims about teardowns: rotation, the abort message, the backup switch ([#1023](https://github.com/stefanko-ch/Nexus-Stack/issues/1023)) ([a103ec7](https://github.com/stefanko-ch/Nexus-Stack/commit/a103ec734c813cc65bd74180eeddb9560d7affb9))
+
 ## [0.91.3](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.2...v0.91.3) (2026-11-11)
 
 
