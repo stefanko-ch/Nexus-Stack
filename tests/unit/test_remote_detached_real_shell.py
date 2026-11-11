@@ -108,9 +108,11 @@ def local_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
-def run(script: str, *, merge_stderr: bool = True) -> subprocess.CompletedProcess[str]:
+def run(
+    script: str, *, merge_stderr: bool = True, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     return _remote.ssh_run_script(
-        script, detached=True, poll_interval_s=0.1, merge_stderr=merge_stderr
+        script, detached=True, poll_interval_s=0.1, merge_stderr=merge_stderr, check=check
     )
 
 
@@ -216,3 +218,28 @@ def test_a_truncated_upload_starts_nothing_and_leaves_no_file(
     assert "upload incomplete" in (caught.value.output or "")
     assert not counter.exists(), "no part of a truncated script ran"
     assert [p.name for p in root.rglob("script.*")] == [], "and the partial upload is removed"
+
+
+def test_only_the_end_of_a_very_long_output_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The job directory is on tmpfs on the server. The end is what callers
+    # read their result from, so that is the part that must survive.
+    _install_ssh(tmp_path, monkeypatch, FAKE_SSH)
+    monkeypatch.setattr(_remote, "_DETACHED_OUTPUT_CAP_BYTES", 2000)
+    result = run('for i in $(seq 1 5000); do echo "line $i"; done\necho "RESULT ok=1"\n')
+    assert len(result.stdout) <= 2000
+    assert result.stdout.endswith("line 5000\nRESULT ok=1\n")
+    assert "line 1\n" not in result.stdout
+
+
+def test_the_status_is_not_reported_before_the_output_is_complete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A script whose last act is a burst of output: by the time the poll says
+    # DONE, all of it must be in the file.
+    _install_ssh(tmp_path, monkeypatch, FAKE_SSH)
+    result = run('for i in $(seq 1 20000); do echo "row $i"; done\nexit 4\n', check=False)
+    assert result.returncode == 4
+    assert result.stdout.endswith("row 20000\n")
+    assert result.stdout.count("\n") == 20000

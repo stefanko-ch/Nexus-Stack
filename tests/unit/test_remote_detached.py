@@ -251,7 +251,8 @@ def test_calls_that_hang_count_against_the_unreachable_budget(
     with pytest.raises(subprocess.CalledProcessError) as caught:
         run_detached(monkeypatch, server, max_unreachable_s=600.0, poll_interval_s=5.0)
     assert caught.value.returncode == TRANSPORT_DROP
-    assert len(server.calls) <= 7
+    # Five two-minute calls are ten minutes; the first one counts.
+    assert len(server.calls) == 5
 
 
 def test_the_timeout_bounds_a_script_that_never_finishes(monkeypatch: pytest.MonkeyPatch) -> None:

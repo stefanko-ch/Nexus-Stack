@@ -159,6 +159,9 @@ _DETACHED_CALL_TIMEOUT_S = 120.0
 # poll stops calling that "starting". The gap is two shell commands.
 _DETACHED_STARTUP_GRACE_S = 60
 
+# How much of a script's output is kept. The job directory is on tmpfs.
+_DETACHED_OUTPUT_CAP_BYTES = 16 * 1024 * 1024
+
 # What a job that vanished is reported with. Not 255: the transport worked,
 # it is the job that is missing.
 _DETACHED_VANISHED_STATUS = 1
@@ -226,6 +229,7 @@ def _run_script_detached(
         if left is not None and left <= 0:
             raise subprocess.TimeoutExpired(reported_argv, timeout or 0.0)
         cap = _DETACHED_CALL_TIMEOUT_S if left is None else min(_DETACHED_CALL_TIMEOUT_S, left)
+        call_started = clock()
         try:
             result = subprocess.run(
                 ["ssh", host, command],
@@ -243,7 +247,9 @@ def _run_script_detached(
             return result
         now = clock()
         if unreachable_since is None:
-            unreachable_since = now
+            # From when the failing call began: a call that hung for two
+            # minutes before failing was two minutes of an unreachable server.
+            unreachable_since = call_started
         if now - unreachable_since >= max_unreachable_s:
             last_output = result.stdout if result is not None else "ssh call timed out"
             raise subprocess.CalledProcessError(
@@ -268,16 +274,26 @@ def _run_script_detached(
 
     # POSIX sh on purpose: `ssh host "<cmd>"` runs in the account's login
     # shell, which need not be bash (#886). The script itself runs in bash.
-    stderr_target = "2>&1" if merge_stderr else '2> "$d/err"'
     # $1 the job directory, $2 this attempt's own copy of the script. The
     # lock is what makes "started twice" impossible: mkdir is atomic, and an
     # attempt that loses removes only its own copy.
+    #
+    # The output goes through `tail -c`, which keeps the last
+    # _DETACHED_OUTPUT_CAP_BYTES of it. The job directory is on tmpfs, and an
+    # image build can print far more than that is worth: a full /run would
+    # also stop the status from being written. The end is the part to keep,
+    # since callers read their result lines from it.
+    #
+    # The status is written inside the pipeline and renamed to `rc` after it,
+    # so `rc` appears only once `out` is complete.
+    stderr_redirect = "2>&1" if merge_stderr else '2> "$d/err"'
     job = (
         'd="$1"; f="$2"; '
         'mkdir "$d/lock" 2>/dev/null || { rm -f "$f"; exit 0; }; '
         'echo $$ > "$d/pid"; '
-        f'( rm -f "$f"; exec bash -s ) < "$f" > "$d/out" {stderr_target}; '
-        'echo $? > "$d/rc.tmp"; mv "$d/rc.tmp" "$d/rc"'
+        '{ ( rm -f "$f"; exec bash -s ) < "$f"; echo $? > "$d/rc.tmp"; } '
+        f'{stderr_redirect} | tail -c {_DETACHED_OUTPUT_CAP_BYTES} > "$d/out"; '
+        'mv "$d/rc.tmp" "$d/rc"'
     )
     launch = (
         ": nexus-detached launch; set -eu; umask 077; "
