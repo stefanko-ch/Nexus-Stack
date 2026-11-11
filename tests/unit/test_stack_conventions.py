@@ -30,6 +30,7 @@ thirteenth open port should require editing this file and saying why.
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 import shlex
@@ -932,7 +933,15 @@ def _dockerfile_instructions(dockerfile: Path) -> list[str]:
 _PIP_EXECUTABLE = re.compile(r"^(?:.*/)?pip(?:\d+(?:\.\d+)?)?$")
 
 # pip / uv options that take a value, so the next token is not a package.
-_PIP_VALUE_OPTIONS = {"--python", "-c", "--constraint", "--index-url", "--extra-index-url"}
+_PIP_VALUE_OPTIONS = {
+    "--python",
+    "-c",
+    "--constraint",
+    "--override",
+    "--overrides",
+    "--index-url",
+    "--extra-index-url",
+}
 
 
 def _unpinned_python_packages(dockerfile: Path) -> list[str]:
@@ -1052,6 +1061,56 @@ def test_tiered_dockerfiles_build_from_exact_versions(name: str) -> None:
             f"{dockerfile.relative_to(REPO_ROOT)} installs Python packages without an "
             f"exact version: {unpinned}. Pin each with ==, or install from a lock file."
         )
+
+
+def _pinned_lines(path: Path) -> dict[str, str]:
+    """`name -> version` for every `name==version` line, markers dropped."""
+    pins: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        if line.strip() and not line.startswith("#") and "==" in line:
+            name, version = line.split(";")[0].strip().split("==")
+            pins[name.lower()] = version
+    return pins
+
+
+def _override_files() -> list[Path]:
+    return sorted(STACKS_DIR.glob("*/overrides.txt"))
+
+
+@pytest.mark.parametrize("overrides", _override_files(), ids=lambda p: p.parent.name)
+def test_an_override_is_what_the_lock_file_installs(overrides: Path) -> None:
+    """An override forces a version past a dependency's declared bound.
+
+    Edited in one file only, the lock file keeps installing the old version
+    and the override does nothing.
+    """
+    locked = _pinned_lines(overrides.parent / "requirements.txt")
+    forced = _pinned_lines(overrides)
+    assert forced, f"{overrides.relative_to(REPO_ROOT)} forces nothing; delete it."
+    differing = {name: (v, locked.get(name)) for name, v in forced.items() if locked.get(name) != v}
+    assert not differing, (
+        f"{overrides.relative_to(REPO_ROOT)} and requirements.txt disagree "
+        f"(override, lock file): {differing}. Recompile requirements.txt."
+    )
+
+
+@pytest.mark.parametrize("overrides", _override_files(), ids=lambda p: p.parent.name)
+def test_the_install_is_given_the_overrides_the_compile_was(overrides: Path) -> None:
+    """Without `--override` uv rejects the lock file as unsatisfiable."""
+    in_image = ""
+    passed = False
+    for instruction in _dockerfile_instructions(overrides.parent / "Dockerfile"):
+        parts = instruction.split()
+        if parts[0] == "COPY" and parts[1] == overrides.name:
+            in_image = parts[2]
+        elif parts[0] == "RUN" and in_image:
+            tokens = shlex.split(instruction[4:])
+            passed = passed or any(
+                flag in ("--override", "--overrides") and value == in_image
+                for flag, value in itertools.pairwise(tokens)
+            )
+    assert in_image, f"the Dockerfile next to {overrides.name} never copies it into the image"
+    assert passed, f"no `uv pip install` in the Dockerfile passes --override {in_image}"
 
 
 def test_exactness_check_tells_releases_from_release_lines() -> None:

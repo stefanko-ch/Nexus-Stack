@@ -106,11 +106,18 @@ RUN ARCH="$(uname -m)" && \
 # - jupysql: SQL magic cells (%sql, %%sql) against any adapter
 # - polars / plotly: fast dataframes + visualisation
 # - duckdb: Python bindings (separate from the CLI binary above)
+#
+# overrides.txt forces the few versions a dependency's own metadata
+# forbids (each with its reason in that file). The install needs it as
+# well as the compile: without it uv refuses requirements.txt as
+# unsatisfiable.
 COPY requirements.txt /tmp/nexus-venv-requirements.txt
+COPY overrides.txt /tmp/nexus-venv-overrides.txt
 RUN uv venv /opt/nexus-venv && \
     uv pip install --python /opt/nexus-venv/bin/python --no-cache-dir \
+      --override /tmp/nexus-venv-overrides.txt \
       -r /tmp/nexus-venv-requirements.txt && \
-    rm /tmp/nexus-venv-requirements.txt && \
+    rm /tmp/nexus-venv-requirements.txt /tmp/nexus-venv-overrides.txt && \
     chown -R coder:coder /opt/nexus-venv
 
 # Nexus-venv auto-activation: handled at container-start time by the
