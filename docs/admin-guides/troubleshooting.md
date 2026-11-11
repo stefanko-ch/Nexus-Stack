@@ -570,6 +570,32 @@ second, unused implementation of this script's job, and it installed its
 dependencies with `sudo apt-get`, which no longer works on every runner this
 project targets.
 
+## A long step and a dropped SSH session
+
+Three steps run on the server for minutes: starting the stacks (`compose-up`),
+the restore from R2 during a spin-up, and the snapshot to R2 during a teardown.
+Each has lost its SSH session in the field while the server carried on, which
+used to fail the run with `rc=255` and leave the stack half set up (#972, #941).
+
+These three now run **detached**. The script is started on the server
+independently of the session, writes its output and exit status to a directory
+under `/run/nexus-deploy/`, and the pipeline polls for the result over short SSH
+calls. A dropped call is retried; the step fails with a transport error only
+when the server stays unreachable for ten minutes in a row.
+
+If a run does end that way, the script may still be running on the server. Look
+there before starting anything again:
+
+```bash
+ssh nexus 'ls -la /run/nexus-deploy/*/ 2>/dev/null'
+ssh nexus 'tail -n 50 /run/nexus-deploy/*/out'
+```
+
+A directory holding `rc` belongs to a script that has finished, and `rc` is its
+exit status. The directories are on tmpfs, so a reboot clears them, and a run
+that polled through such a reboot reports that the script ended without leaving
+an exit status.
+
 ## A rebuild teardown fails during the snapshot
 
 **Symptom.** `teardown.yml` fails in the step *Snapshot persistent state to
