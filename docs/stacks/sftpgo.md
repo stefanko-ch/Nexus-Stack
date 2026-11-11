@@ -46,7 +46,7 @@ SFTPGo is a fully-featured SFTP/SCP/WebDAV/FTPS server with a web admin UI, per-
 ### How to access
 
 **Web admin UI** (Cloudflare Access OTP on top of SFTPGo's own username/password login):
-```
+```text
 https://sftpgo.<your-domain>/web/admin/login
 ```
 Log in with `nexus-sftpgo` and the password from Infisical (folder `sftpgo`, key `SFTPGO_ADMIN_PASSWORD`).
@@ -54,13 +54,13 @@ Log in with `nexus-sftpgo` and the password from Infisical (folder `sftpgo`, key
 > ⚠️ The `/web/admin/login` path matters. SFTPGo's default landing page at `https://sftpgo.<your-domain>/` redirects to `/web/client/login`, which is the *user* web client (a separate login form backed by the `users` table). Entering admin credentials there fails with "Invalid credentials" because `nexus-sftpgo` only exists in the admin table, not the user table. Bookmark the `/web/admin/login` URL to avoid the redirect.
 
 **Web client UI** (for the default SFTP user `nexus-default` to browse R2 contents in a browser):
-```
+```text
 https://sftpgo.<your-domain>/web/client/login
 ```
 Log in with `nexus-default` and the password from Infisical (folder `sftpgo`, key `SFTPGO_USER_PASSWORD`).
 
 **SFTP**: the SFTP port (`2022`) is closed by default — SFTPGo is reachable only from inside the Docker network until you opt in. Open it via **Firewall** in the Control Plane (toggle `sftpgo` → `sftp`, restrict to your source IP or range, hit **Spin Up**). Then:
-```
+```bash
 sftp -P 2022 nexus-default@<your-server-ip>
 ```
 Password from Infisical (folder `sftpgo`, key `SFTPGO_USER_PASSWORD`).
@@ -75,7 +75,7 @@ Password from Infisical (folder `sftpgo`, key `SFTPGO_USER_PASSWORD`).
 
 The single bootstrapped user `nexus-default` lands you in a layout with one **virtual folder per cloud backend** as a subdirectory of the user's home:
 
-```
+```text
 /                          ← local FS scratch space inside the container
                              (ephemeral by design — see "Local state" callout above)
 /cloudflare_r2/            → s3://<R2_BUCKET>/   (Cloudflare R2 datalake)
@@ -86,7 +86,7 @@ The single bootstrapped user `nexus-default` lands you in a layout with one **vi
 
 Both `/cloudflare_r2` and `/hetzner_s3` mount with **empty `key_prefix`** — the SFTP user sees the entire bucket so files written by Kestra flows, Spark jobs, or anything else show up directly. Walk in with a single SFTP login, choose which backend to read or write by `cd`-ing into the corresponding directory:
 
-```
+```text
 sftp> cd /cloudflare_r2
 sftp> put report.csv          → lands in R2 at s3://<R2_BUCKET>/report.csv
 sftp> cd /hetzner_s3

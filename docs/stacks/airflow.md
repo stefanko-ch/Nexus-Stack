@@ -55,7 +55,7 @@ Tasks run inside `airflow-scheduler`, which is on `app-network`, so a task can r
 
 ### Credentials
 
-```
+```text
 Infisical → airflow → AIRFLOW_USERNAME      = ADMIN_USERNAME
                       AIRFLOW_PASSWORD      (generated)
                       AIRFLOW_DB_USERNAME   nexus-airflow

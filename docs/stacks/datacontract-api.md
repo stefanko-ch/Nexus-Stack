@@ -76,7 +76,7 @@ For a contract against the shared Postgres, the per-request header form keeps th
 
 The editor's **Tests** tab is not off, and it is not unconfigured — upstream hardcodes `tests.enabled` to `true` and ships `api.datacontract.com`, a hosted third party, as the default test server. Observed on a live deployment before this was changed:
 
-```
+```text
 Run tests via: https://api.datacontract.com
 INFO  Data Contract CLI 1.2.5 running through FastAPI at http://api.datacontract.com/test
 ```

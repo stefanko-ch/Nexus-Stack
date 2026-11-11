@@ -36,7 +36,7 @@ Prefect runs as 4 containers:
 
 Services running on the same Docker network can connect to Prefect using:
 
-```
+```text
 PREFECT_API_URL=http://prefect:4200/api
 ```
 

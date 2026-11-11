@@ -25,7 +25,7 @@ Schema tree, an editor with autocomplete, saved queries, charts over results —
 
 **2. It terminates its own supervisor at startup.** Without an init process the container exits 143 within seconds:
 
-```
+```text
 gunicorn_cleanup_utils WARNING  Found orphaned process: PID 33,
   CMD: .../python3.11 ./build/env/bin/supervisor
 Terminated
@@ -48,7 +48,7 @@ It calls any Hue process whose parent is PID 1 an orphan. Without an init, the s
 
 TLS terminates at the Cloudflare Tunnel, so Django only learns the real scheme from `X-Forwarded-Proto`. Without that it computes the expected CSRF origin as `http://hue.YOUR_DOMAIN` while the browser sends `https://…`, and **every POST is refused — the login included**. What the user meets is a bare "CSRF error" page; what Django logs is:
 
-```
+```text
 Forbidden (Origin checking failed - https://hue.example.com does not match
 any trusted origins.): /hue/accounts/login
 ```

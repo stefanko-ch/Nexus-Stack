@@ -18,7 +18,7 @@ Nginx reverse proxy that forwards Git HTTPS requests to Forgejo. Provides public
 
 ### How It Works
 
-```
+```text
 External tools ──HTTPS──> git.<domain> (PUBLIC)
                                │ (Cloudflare Tunnel)
                          Nginx (:3201)
