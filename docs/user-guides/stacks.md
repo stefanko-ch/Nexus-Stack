@@ -65,8 +65,6 @@ Click **Proven only** at the top of the Stacks page to list just these; it switc
 Once the change has been deployed:
 
 - The Docker container is stopped and removed
-- Docker volumes with data (databases, object storage) are preserved
-- DNS and Cloudflare Tunnel routes stay in place
-- The stack's Cloudflare Access application stays (authentication rules persist)
+- Its Docker volumes stay on the server for as long as that server exists
 
-Re-enabling is staged like any other change and applied by the next **Deploy Changes**, against the same volume — you get your data back.
+Re-enabling is staged like any other change and applied by the next **Deploy Changes**, against the same volume — as long as the server has not been torn down in between. A teardown removes the server and its volumes; whether a stack's data comes back after that depends on the lifecycle, see [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown).

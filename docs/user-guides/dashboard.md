@@ -93,7 +93,7 @@ Starts the spin-up workflow of your stack's lifecycle (`spin-up.yml`, or `spin-u
 - Restores what the last teardown saved — the whole disk on the snapshot lifecycle, the stacks its backup covers on the rebuild lifecycle
 - Starts all enabled services
 
-Typical runtime: 4–10 minutes, depending on how many stacks are enabled. Button stays disabled until the stack is fully torn down (can't spin up on top of a running server).
+Typical runtime: 4–10 minutes, depending on how many stacks are enabled. While the stack is running the button is greyed out, unless service changes are staged: then it reads **Deploy Changes (n)** and applies them to the running stack, with no teardown needed.
 
 ### 💤 Teardown
 
@@ -102,11 +102,11 @@ Starts the teardown workflow of your stack's lifecycle (`teardown.yml`, or `tear
 - Deletes the Hetzner server
 - Leaves this Control Plane in place, so you can spin up again from here
 
-While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. **Not everything survives a teardown.** On the rebuild lifecycle only the stacks the backup covers come back; data in any other stack is gone at the next spin-up. The list of covered stacks is in [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). On the snapshot lifecycle the whole disk comes back — unless the disk snapshot fails: a teardown started from this button destroys the server anyway, and the next spin-up then has only the backup, as on the rebuild lifecycle. [Settings](./settings.md#lifecycle) shows which lifecycle your stack is on.
+While the stack is torn down no server is billed. What remains is storage: the backup, and on the snapshot lifecycle the disk snapshots. **Not everything survives a teardown.** On the rebuild lifecycle only the stacks the backup covers come back; data in any other stack is gone at the next spin-up. The list of covered stacks is in [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). On the snapshot lifecycle the whole disk comes back — unless the disk snapshot fails: a teardown started from this button destroys the server anyway. The next spin-up then restores the newest snapshot that still exists, which can be older than your last session, and only falls back to the backup when there is no usable snapshot at all. [Settings](./settings.md#lifecycle) shows which lifecycle your stack is on.
 
 ## When buttons are disabled
 
-The Control Plane will grey out actions that don't apply right now — e.g. **Spin Up** is disabled while the stack is already running or while a teardown is in flight. Hover the disabled button to see the reason.
+The Control Plane will grey out actions that don't apply right now — e.g. **Spin Up** is disabled while the stack is already running with nothing staged, or while a teardown is in flight. Hover the disabled button to see the reason.
 
 ## Active Stacks
 
