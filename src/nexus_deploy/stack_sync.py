@@ -391,7 +391,10 @@ def cleanup_disabled_stacks(
     """
     safe_enabled = [s for s in enabled if _is_safe_name(s)]
     script = render_cleanup_script(safe_enabled, stacks_dir=remote_stacks_dir)
-    runner = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))
+    # Retried when the connection drops: the script only stops and removes
+    # folders of disabled stacks, so a second run finds less to do and
+    # lands on the same result (#972).
+    runner = script_runner or (lambda s: _remote.ssh_run_script(s, host=host, transport_retries=2))
     completed = runner(script)
 
     # Forward per-stack diagnostics ("Stopping foo...", "Removing

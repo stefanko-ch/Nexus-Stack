@@ -27,6 +27,7 @@ import secrets
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Callable
@@ -94,6 +95,7 @@ def ssh_run_script(
     detached: bool = False,
     poll_interval_s: float = 5.0,
     max_unreachable_s: float = 600.0,
+    transport_retries: int = 0,
     _sleep: Callable[[float], None] = time.sleep,
     _clock: Callable[[], float] = time.monotonic,
 ) -> subprocess.CompletedProcess[str]:
@@ -114,6 +116,12 @@ def ssh_run_script(
     ``detached=True`` is for scripts that run long enough to outlive an
     SSH session: see :func:`_run_script_detached`. The return value and
     the ``check`` contract are the same either way.
+
+    ``transport_retries`` reruns the script when ssh itself fails (exit
+    255), up to that many extra times. Only for a script that is safe to
+    run twice: a dropped session gives no way to tell whether the script
+    ran, ran halfway or never started. Ignored with ``detached=True``,
+    which already survives a drop. See :func:`_retry_transport`.
     """
     if detached:
         return _run_script_detached(
@@ -127,15 +135,81 @@ def ssh_run_script(
             sleep=_sleep,
             clock=_clock,
         )
-    return subprocess.run(
-        ["ssh", host, "bash", "-s"],
-        input=script,
-        check=check,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
-        text=True,
-        timeout=timeout,
+    return _retry_transport(
+        lambda: subprocess.run(
+            ["ssh", host, "bash", "-s"],
+            input=script,
+            check=check,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+        ),
+        retries=transport_retries,
+        transport_codes=_SSH_TRANSPORT_CODES,
+        label="ssh",
+        sleep=_sleep,
     )
+
+
+# ---------------------------------------------------------------------------
+# Retrying a dropped connection
+# ---------------------------------------------------------------------------
+
+# ssh's own status for "the connection failed", as opposed to the remote
+# command's status.
+_SSH_TRANSPORT_CODES = frozenset({255})
+
+# rsync's statuses for a broken transport (rsync(1), EXIT VALUES): 10 socket
+# I/O, 12 protocol data stream (what a connection dropped mid-transfer
+# usually gives), 30 timeout, 35 daemon connect timeout, and 255, the
+# remote shell's own failure passed through. Everything else (permission
+# denied, missing source, disk full) is not transport and is not retried.
+_RSYNC_TRANSPORT_CODES = frozenset({10, 12, 30, 35, 255})
+
+# The pause between attempts. Long enough for a dropped Cloudflare Access
+# session to be replaced, short against a spin-up.
+_TRANSPORT_RETRY_DELAY_S = 15.0
+
+# How many extra attempts an idempotent push gets.
+_PUSH_TRANSPORT_RETRIES = 2
+
+
+def _retry_transport(
+    call: Callable[[], subprocess.CompletedProcess[str]],
+    *,
+    retries: int,
+    transport_codes: frozenset[int],
+    label: str,
+    sleep: Callable[[float], None] = time.sleep,
+) -> subprocess.CompletedProcess[str]:
+    """Run ``call`` again when it fails with a transport status.
+
+    The SSH session to the server sometimes drops mid-command with
+    `Connection closed by UNKNOWN port 65535`, exit 255 (#972, #941). The
+    long steps survive it by running detached; this covers the short ones.
+    On 2026-11-11 a spin-up failed in stack-sync that way, after its
+    restore had finished, and a rerun of the same workflow passed.
+
+    Only a ``CalledProcessError`` whose status is in ``transport_codes``
+    is retried; any other failure, and the last transport failure, is
+    raised unchanged. A non-zero status the call returns without raising
+    (``check=False``) is the caller's to judge and is returned as is.
+    Callers must only pass operations that are safe to repeat.
+    """
+    attempt = 0
+    while True:
+        try:
+            return call()
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode not in transport_codes or attempt >= retries:
+                raise
+            attempt += 1
+            sys.stderr.write(
+                f"  ⚠ {label}: connection failed (exit {exc.returncode}); "
+                f"retry {attempt} of {retries} in {_TRANSPORT_RETRY_DELAY_S:.0f}s\n"
+            )
+            sleep(_TRANSPORT_RETRY_DELAY_S)
 
 
 # ---------------------------------------------------------------------------
@@ -452,10 +526,24 @@ def push_directory(
 
     Both transports raise :class:`subprocess.CalledProcessError` with
     ``stderr`` populated, because callers print that excerpt.
+
+    A push is retried when the connection drops (:func:`_retry_transport`):
+    it copies a local directory to a fixed path, so a second run lands on
+    the same result whether the first got halfway or not at all.
     """
     if shutil.which("rsync") is not None:
-        return _rsync_push(local, remote, delete=delete, timeout=timeout)
-    return _tar_push(local, remote, delete=delete, timeout=timeout)
+        return _retry_transport(
+            lambda: _rsync_push(local, remote, delete=delete, timeout=timeout),
+            retries=_PUSH_TRANSPORT_RETRIES,
+            transport_codes=_RSYNC_TRANSPORT_CODES,
+            label="rsync",
+        )
+    return _retry_transport(
+        lambda: _tar_push(local, remote, delete=delete, timeout=timeout),
+        retries=_PUSH_TRANSPORT_RETRIES,
+        transport_codes=_SSH_TRANSPORT_CODES,
+        label="tar over ssh",
+    )
 
 
 # Kept as the historical name: four call sites and their tests use it,
