@@ -127,64 +127,44 @@ runs:
         echo "✅ server_image validated: $SERVER_IMAGE"
 
     - name: Generate config.tfvars
+      # Every input this step uses arrives here, and nowhere else (#772). A
+      # GitHub expression is substituted textually before bash parses the
+      # line, so inside `run:` a value is source code: a token containing a
+      # dollar sign was silently truncated, a backtick aborted the heredoc, a
+      # quote became shell syntax. Through `env:` a value is data, and bash
+      # does not re-expand the result of expanding a variable.
+      #
+      # Defaults stay in the expression: GitHub evaluates `a || 'b'` here and
+      # the result reaches bash as a plain value.
+      #
+      # tests/unit/test_tfvars_action.py fails if an expression reappears
+      # inside a `run:` block of this action.
       env:
         CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare_api_token }}
         CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare_account_id }}
         DOMAIN: ${{ inputs.domain }}
         SERVER_IMAGE: ${{ inputs.server_image }}
         ENABLE_FORGEJO_SERVICE_TOKEN: ${{ inputs.enable_forgejo_service_token }}
+        SERVER_TYPE: ${{ inputs.server_type || 'cx43' }}
+        SERVER_LOCATION: ${{ inputs.server_location || 'hel1' }}
+        ADMIN_EMAIL: ${{ inputs.tf_var_admin_email }}
+        USER_EMAIL: ${{ inputs.tf_var_user_email }}
+        GUEST_EMAILS: ${{ inputs.tf_var_guest_emails }}
+        SUBDOMAIN_SEPARATOR: ${{ inputs.subdomain_separator || '.' }}
+        GITHUB_OWNER: ${{ github.repository_owner }}
+        GITHUB_REPO: ${{ github.event.repository.name }}
+        DOCKERHUB_USERNAME: ${{ inputs.dockerhub_username }}
+        DOCKERHUB_TOKEN: ${{ inputs.dockerhub_token }}
+        HETZNER_S3_SERVER_FALLBACK: ${{ inputs.hetzner_object_storage_server || format('{0}.your-objectstorage.com', inputs.hetzner_s3_location || 'fsn1') }}
+        HETZNER_S3_REGION_FALLBACK: ${{ inputs.hetzner_s3_location || 'fsn1' }}
+        ENABLED_SERVICES_INPUT: ${{ inputs.enabled_services }}
       shell: bash
       run: |
-        # Stack config (emails from secrets)
-        cat > tofu/stack/config.tfvars << EOF
-        server_type     = "${{ inputs.server_type || 'cx43' }}"
-        server_location = "${{ inputs.server_location || 'hel1' }}"
-        server_image    = "${SERVER_IMAGE}"
-
-        ssh_public_key_path  = "~/.ssh/id_ed25519.pub"
-        ssh_private_key_path = "~/.ssh/id_ed25519"
-
-        domain               = "${{ inputs.domain }}"
-        admin_email          = "${{ inputs.tf_var_admin_email }}"
-        user_email           = "${{ inputs.tf_var_user_email }}"
-        guest_emails         = "${{ inputs.tf_var_guest_emails }}"
-        subdomain_separator  = "${{ inputs.subdomain_separator || '.' }}"
-        github_owner         = "${{ github.repository_owner }}"
-        github_repo          = "${{ github.event.repository.name }}"
-        EOF
-
-        # Read from the environment, never interpolated into the test.
-        # A GitHub expression — the double-brace form — is substituted
-        # textually before bash parses the line, so an input containing a
-        # quote becomes shell syntax rather than a value: one conditional
-        # turns into three commands. Through `env:` it arrives as data.
-        #
-        # The double-brace form is DESCRIBED here rather than written out.
-        # An earlier version of this comment spelled it with empty braces,
-        # and GitHub evaluated it: an empty expression is a template error,
-        # so the whole action failed to load and every spin-up died at this
-        # step. A bash `#` does not hide it — expression substitution runs
-        # over the entire `run:` body before bash ever sees it.
-        #
-        # Compared against the literal 'true' rather than passed through:
-        # the variable is typed bool in OpenTofu, and an unset repo variable
-        # would otherwise write `enable_forgejo_service_token = ""`, which
-        # fails the plan instead of meaning "off".
-        if [ "$ENABLE_FORGEJO_SERVICE_TOKEN" = "true" ]; then
-          echo 'enable_forgejo_service_token = true' >> tofu/stack/config.tfvars
-        else
-          echo 'enable_forgejo_service_token = false' >> tofu/stack/config.tfvars
-        fi
-        sed -i 's/^          //' tofu/stack/config.tfvars
-
-        # Add Docker Hub credentials if provided (optional)
-        if [ -n "${{ inputs.dockerhub_username }}" ] && [ -n "${{ inputs.dockerhub_token }}" ]; then
-          cat >> tofu/stack/config.tfvars << EOF
-        dockerhub_username = "${{ inputs.dockerhub_username }}"
-        dockerhub_token    = "${{ inputs.dockerhub_token }}"
-        EOF
-          sed -i 's/^          //' tofu/stack/config.tfvars
-        fi
+        # Stack settings, the Forgejo flag and the optional Docker Hub pair.
+        # The values come from the environment above and are written as HCL
+        # string literals, so one containing a quote, a dollar sign or a
+        # backtick reaches OpenTofu unchanged.
+        bash .github/scripts/tfvars-write.sh stack tofu/stack/config.tfvars
 
         # Issue #536: SERVER_PREFERENCES is NOT written into config.tfvars
         # here. The select-capacity step below already reads it directly
@@ -219,8 +199,8 @@ runs:
           echo "   from a stack that simply has no object storage."
           exit 1
         fi
-        HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "${{ inputs.hetzner_object_storage_server || format('{0}.your-objectstorage.com', inputs.hetzner_s3_location || 'fsn1') }}")
-        HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "${{ inputs.hetzner_s3_location || 'fsn1' }}")
+        HETZNER_S3_SERVER=$(tofu output -raw hetzner_s3_server 2>/dev/null || echo "$HETZNER_S3_SERVER_FALLBACK")
+        HETZNER_S3_REGION=$(tofu output -raw hetzner_s3_region 2>/dev/null || echo "$HETZNER_S3_REGION_FALLBACK")
         HETZNER_S3_BUCKET=$(tofu output -raw hetzner_s3_bucket 2>/dev/null || echo "")
         HETZNER_S3_BUCKET_GENERAL=$(tofu output -raw hetzner_s3_bucket_general 2>/dev/null || echo "")
         HETZNER_S3_BUCKET_PGDUCKLAKE=$(tofu output -raw hetzner_s3_bucket_pgducklake 2>/dev/null || echo "")
@@ -229,14 +209,11 @@ runs:
         cd ../..
 
         # Add Hetzner Object Storage config to stack
-        cat >> tofu/stack/config.tfvars << EOF
-        hetzner_object_storage_server = "$HETZNER_S3_SERVER"
-        hetzner_object_storage_region = "$HETZNER_S3_REGION"
-        hetzner_s3_bucket             = "$HETZNER_S3_BUCKET"
-        hetzner_s3_bucket_general     = "$HETZNER_S3_BUCKET_GENERAL"
-        hetzner_s3_bucket_pgducklake  = "$HETZNER_S3_BUCKET_PGDUCKLAKE"
-        EOF
-        sed -i 's/^          //' tofu/stack/config.tfvars
+        bash .github/scripts/tfvars-write.sh set tofu/stack/config.tfvars hetzner_object_storage_server "$HETZNER_S3_SERVER"
+        bash .github/scripts/tfvars-write.sh set tofu/stack/config.tfvars hetzner_object_storage_region "$HETZNER_S3_REGION"
+        bash .github/scripts/tfvars-write.sh set tofu/stack/config.tfvars hetzner_s3_bucket "$HETZNER_S3_BUCKET"
+        bash .github/scripts/tfvars-write.sh set tofu/stack/config.tfvars hetzner_s3_bucket_general "$HETZNER_S3_BUCKET_GENERAL"
+        bash .github/scripts/tfvars-write.sh set tofu/stack/config.tfvars hetzner_s3_bucket_pgducklake "$HETZNER_S3_BUCKET_PGDUCKLAKE"
 
         if [ -n "$HETZNER_S3_BUCKET" ]; then
           echo "📦 Hetzner Object Storage configured (bucket: $HETZNER_S3_BUCKET)"
@@ -247,7 +224,7 @@ runs:
         # Generate services config from D1 (single source of truth)
         # If enabled_services input is provided (from Control Plane), use it
         # Otherwise, read from D1 database
-        ENABLED_SERVICES="${{ inputs.enabled_services }}"
+        ENABLED_SERVICES="$ENABLED_SERVICES_INPUT"
 
         if [ -n "$ENABLED_SERVICES" ]; then
           echo "📋 Using services from Control Plane: $ENABLED_SERVICES"
@@ -288,10 +265,9 @@ runs:
         D1_DATABASE_NAME="nexus-${DOMAIN//./-}-db"
         echo "🔥 Syncing firewall rules from services.yaml to D1..."
         chmod +x .github/scripts/sync-firewall-rules.sh
-        if ! CLOUDFLARE_API_TOKEN="${{ inputs.cloudflare_api_token }}" \
-          CLOUDFLARE_ACCOUNT_ID="${{ inputs.cloudflare_account_id }}" \
-          DOMAIN="${{ inputs.domain }}" \
-          bash .github/scripts/sync-firewall-rules.sh; then
+        # CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and DOMAIN are already in
+        # this step's environment, and the script inherits them.
+        if ! bash .github/scripts/sync-firewall-rules.sh; then
           echo "❌ Firewall rule sync failed — aborting to avoid stale firewall metadata"
           exit 1
         fi
