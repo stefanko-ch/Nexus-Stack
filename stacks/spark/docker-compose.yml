@@ -24,6 +24,24 @@
 # NOTE: Uses /opt/entrypoint.sh + spark-class to run processes in foreground
 # (not start-master.sh/start-worker.sh which are daemon launchers).
 #
+# ONE NETWORK: every service here is on app-network and nothing else.
+# The master runs with `--host spark-master` and listens only on the
+# address that name resolves to first INSIDE its own container. With a
+# second network (there used to be a `spark-internal` one) the master had
+# two addresses, and which one came first depended on the order Docker
+# attached the networks. On 2026-11-11 the master listened on its
+# spark-internal address while the worker and Spark Connect resolved
+# spark-master to its app-network one: "Connection refused" on 7077, no
+# worker registered, every notebook hung. The worker picks its own address
+# the same way.
+#
+# `spark.master.bindAddress` and `spark.worker.bindAddress`, which were set
+# here to prevent exactly this (d444854f), are not Spark settings: neither
+# string occurs in spark-core 4.2.0, so they did nothing. Only the driver
+# has a bind address (spark.driver.bindAddress, used by spark-connect).
+# Every service was on app-network anyway, so the second network isolated
+# nothing. Do not add one back.
+#
 # SECURITY:
 # - Protected by Cloudflare Access (email OTP authentication)
 # - No authentication on Spark itself (relies on Cloudflare Access)
@@ -43,10 +61,6 @@ services:
     container_name: spark
     hostname: spark-master
     restart: unless-stopped
-    environment:
-      # Bind to all interfaces so master is reachable on both
-      # app-network (for Jupyter) and spark-internal (for worker)
-      SPARK_MASTER_OPTS: "-Dspark.master.bindAddress=0.0.0.0"
     volumes:
       # The DIRECTORY, not the file inside it. A single-file bind mount
       # pins the inode, and the deploy's rsync replaces files rather than
@@ -88,9 +102,11 @@ services:
       - "8080"
     ports:
       - "8088:8080"
+    # One network only, on all three services. See "ONE NETWORK" in the
+    # header: with two, `--host spark-master` binds to whichever address
+    # the name resolves to first inside this container.
     networks:
       - app-network
-      - spark-internal
     deploy:
       resources:
         limits:
@@ -114,9 +130,6 @@ services:
     depends_on:
       spark-master:
         condition: service_healthy
-    environment:
-      # Bind to all interfaces (same multi-network reason as master)
-      SPARK_WORKER_OPTS: "-Dspark.worker.bindAddress=0.0.0.0"
     volumes:
       # The DIRECTORY, not the file inside it. A single-file bind mount
       # pins the inode, and the deploy's rsync replaces files rather than
@@ -165,7 +178,6 @@ services:
           memory: 512m
     networks:
       - app-network
-      - spark-internal
 
   # =========================================================================
   # Spark Connect server — gRPC endpoint on port 15002 for thin clients.
@@ -243,9 +255,9 @@ services:
       # CoarseGrainedExecutorBackend exits with code 1 immediately
       # after launch ("Command exited with code 1" in worker logs,
       # empty stderr/stdout because it dies before logging anything),
-      # crash-looping forever as Standalone keeps re-spawning. Same
-      # rationale as SPARK_MASTER_OPTS=-Dspark.master.bindAddress=0.0.0.0
-      # on spark-master above.
+      # crash-looping forever as Standalone keeps re-spawning. This one
+      # is a real Spark setting; the master and the worker have no
+      # equivalent (see "ONE NETWORK" in the header).
       - --conf
       - spark.driver.bindAddress=0.0.0.0
       - --name
@@ -264,7 +276,6 @@ services:
     # publish on 0.0.0.0.
     networks:
       - app-network
-      - spark-internal
     deploy:
       resources:
         limits:
@@ -290,5 +301,3 @@ services:
 networks:
   app-network:
     external: true
-  spark-internal:
-    driver: bridge
