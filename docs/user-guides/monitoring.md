@@ -8,7 +8,7 @@ order: 4
 
 The Monitoring page aggregates everything you'd look at when something isn't behaving: API logs, current configuration, and a full list of registered services with their state.
 
-![Monitoring page header introducing the Logs, Config, and Services diagnostic sections](./assets/monitoring-header.png)
+![Top of the Monitoring page: the navigation with Monitoring selected, above the Logs, Config and Services cards](./assets/monitoring-header.png)
 
 ## Quick stats
 
@@ -38,9 +38,9 @@ Each row shows the timestamp, source, level, message, run ID (for workflow-trigg
 
 ## Config
 
-A read-only view of the current deployment configuration stored in D1.
+A read-only view of the current deployment configuration stored in D1. The table is collapsed when the page loads; click the **Config Table** heading to open it. The same goes for **Services Table** below.
 
-![Read-only Config table listing deployment keys such as type, location, domain, subdomainSeparator, and last spin-up/teardown timestamps](./assets/monitoring-config-table.png)
+![Read-only Config table listing deployment keys such as type, location, domain, subdomainSeparator, last spin-up and teardown timestamps, os, diskGb and docker](./assets/monitoring-config-table.png)
 
 | Key | Description |
 |-----|-------------|
@@ -50,6 +50,11 @@ A read-only view of the current deployment configuration stored in D1.
 | `subdomainSeparator` | `.` or `-` |
 | `lastSpinUp` | Timestamp of last spin-up |
 | `lastTeardown` | Timestamp of last teardown |
+| `os` | Distribution running on the server, read during the last spin-up |
+| `diskGb` | Root filesystem size in GB |
+| `docker` | Docker Engine version on the server |
+
+`os`, `diskGb` and `docker` are read from the server at the end of a spin-up. If that reading fails, the previous value stays, so these three can be older than the last spin-up.
 
 ## Services
 

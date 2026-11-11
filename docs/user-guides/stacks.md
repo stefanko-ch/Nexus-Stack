@@ -12,31 +12,33 @@ Your Nexus-Stack ships with a large catalogue of Docker services, grouped into c
 
 ## Grid vs List
 
-The **Grid** view (default) groups services by category with a count of running and disabled stacks per group.
+The **Grid** view (default) shows one card per category, with the number of stacks in it and how many are running or disabled. Click a card to open the category and see its stacks as tiles.
 
-![Stacks page in Grid view with services grouped by category, each group showing a running vs. disabled count](./assets/stacks-grid-view.png)
+![Stacks page in Grid view: one card per category, each with its stack count and a running vs. disabled count](./assets/stacks-grid-view.png)
 
-The **List** view is a flat sortable table — better for searching by name or browsing all stacks at once.
+The **List** view is one flat table of every stack — better for searching by name or browsing all stacks at once.
 
-![Stacks page in List view: a flat sortable table of every service with columns for name, subdomain, port, and toggle](./assets/stacks-list-view.png)
+![Stacks page in List view: a table of every stack with a status dot, its name, category, URL and toggle](./assets/stacks-list-view.png)
 
 Toggle between the two with the **Grid / List** buttons in the top right.
 
 ## Enabling and disabling a stack
 
-Each tile has three controls:
+Each tile on a category page has three controls (the List view has the same toggle in each row):
 
-- **Toggle** — On/Off. Enabling triggers a GitHub Actions workflow that runs `docker compose up -d` for that stack. Disabling runs `docker compose down` and removes the container (volumes stay).
+- **Toggle** — On/Off. The toggle records what you want; it does not start or stop anything yet. See [Applying your changes](#applying-your-changes).
 - **Open** — Opens the service's web UI in a new tab. Links to the stack's subdomain (e.g. `https://grafana.<your-domain>`).
-- **Docs** — Per-stack documentation on nexus-stack.ch.
+- **Website link** — bottom left, the project's own website (e.g. `grafana.com`).
 
-Toggling a stack takes 10–60 seconds depending on image size. The tile spins during the operation.
+### Applying your changes
+
+A toggled stack is *staged*. The Dashboard shows a banner with the number of staged changes, and its **Spin Up** button reads **Deploy Changes (n)**. Click it to apply them: that starts the spin-up workflow, which starts the stacks you switched on and stops the ones you switched off. Until then a stack you switched off keeps running, and one you switched on does not exist yet.
 
 ## Search
 
 Press `/` (or click the search box) and type. Matches on stack name, description, and image tag. Press `Enter` to switch to the List view with the same filter applied.
 
-![Stacks search box filtering the grid to services matching the typed term across name, description, and image tag](./assets/stacks-search.png)
+![Stacks search box with a term typed in: the grid keeps only the categories that contain a match, and each count shows the matches in it](./assets/stacks-search.png)
 
 ## Core stacks
 
@@ -50,7 +52,7 @@ A small set of services are marked **core** and cannot be disabled:
 
 Core stacks are shown with a **CORE** badge and their toggle is locked.
 
-![A stack tile marked with a CORE badge and a locked toggle, showing that the service cannot be disabled](./assets/stacks-core-badge.png)
+![The Core Infrastructure category page: each tile carries a CORE badge and a locked toggle, showing that the service cannot be disabled](./assets/stacks-core-badge.png)
 
 ## Proven stacks
 
@@ -60,9 +62,9 @@ Click **Proven only** at the top of the Stacks page to list just these; it switc
 
 ## What happens when you disable a stack
 
-- The Docker container is stopped and removed
-- Docker volumes with data (databases, object storage) are preserved
-- DNS and Cloudflare Tunnel routes stay in place (so re-enabling is instant)
-- The stack's Cloudflare Access application stays (authentication rules persist)
+Once the change has been deployed:
 
-Re-enabling triggers a GitHub Actions workflow in the background that runs `docker compose up -d` against the same volume — you get your data back.
+- The Docker container is stopped and removed
+- Its Docker volumes stay on the server for as long as that server exists
+
+Re-enabling is staged like any other change and applied by the next **Deploy Changes**, against the same volume — as long as the server has not been torn down in between. A teardown removes the server and its volumes; whether a stack's data comes back after that depends on the lifecycle, see [What survives a teardown](../concepts/lifecycle.md#what-survives-a-teardown). One trap on the rebuild lifecycle: a stack's database is dumped only while its container runs. For a stack that is switched off at teardown the database dump is skipped, even if the backup normally covers it, so switch the stack back on and deploy before the teardown if you want that data kept.
