@@ -1,0 +1,9 @@
+# Python packages for the Spark workers and the Spark Connect driver.
+# requirements.txt is the full pinned set compiled from this file; the
+# Dockerfile installs that one.
+#
+# Versions match the clients (the marimo image), so a pandas_udf runs the
+# same pandas and pyarrow on both ends.
+pyarrow==19.0.1
+pandas==2.3.3
+numpy==2.4.4
