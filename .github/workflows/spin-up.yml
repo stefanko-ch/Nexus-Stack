@@ -1306,6 +1306,19 @@ jobs:
             exit 0
           fi
 
+          # Ports that legitimately do not speak HTTP (#739). A port that
+          # accepts a connection but answers no HTTP is healthy there and
+          # faulty anywhere else: Docker's proxy accepts on a published port
+          # even when nothing inside the container is listening. If the list
+          # cannot be built, every such port is reported as unknown rather
+          # than guessed either way.
+          NON_HTTP_LIST_OK=1
+          if ! NON_HTTP_PORTS=$(python3 .github/scripts/non-http-ports.py services.yaml); then
+            NON_HTTP_LIST_OK=0
+            NON_HTTP_PORTS=""
+            echo "::warning title=smoke-check::Could not build the list of non-HTTP ports; ports that answer no HTTP are reported as unknown."
+          fi
+
           healthy=0; faulty=0; quiet=0
           while IFS="$(printf '\t')" read -r name port code; do
             [ -n "$name" ] || continue
@@ -1338,12 +1351,26 @@ jobs:
                 printf '  FAIL  %-26s %-7s restart loop\n' "$name" ""
                 echo "::warning title=smoke-check: $name::Container is in a restart loop — it starts, fails, and is restarted. Check its logs for the crash reason."
                 ;;
-              # A listener that answered something other than HTTP. Healthy
-              # by every measure this step can take: the port accepted the
-              # connection. Databases, brokers and SFTP land here.
+              # Accepted the connection, answered no HTTP. Healthy only on a
+              # port that is meant to speak another protocol (databases,
+              # brokers, SFTP). Anywhere else it is usually nothing serving:
+              # the Unity Catalog UI was OOM-killed mid-compile, never bound
+              # its port, and passed as "not an HTTP service" (#739). curl's
+              # exit code is printed because it tells those apart: 52 empty
+              # reply (nothing behind the proxy), 56 reset, 1 a non-HTTP peer.
               NOHTTP:*)
-                quiet=$((quiet + 1))
-                printf '  --    %-26s :%-6s listening, not an HTTP service\n' "$name" "$port"
+                rc=${code#NOHTTP:}
+                if [ "$NON_HTTP_LIST_OK" -ne 1 ]; then
+                  quiet=$((quiet + 1))
+                  printf '  ??    %-26s :%-6s no HTTP answer (curl %s), not classified\n' "$name" "$port" "$rc"
+                elif grep -qFx -- "$port" <<< "$NON_HTTP_PORTS"; then
+                  quiet=$((quiet + 1))
+                  printf '  --    %-26s :%-6s listening, non-HTTP protocol (curl %s)\n' "$name" "$port" "$rc"
+                else
+                  faulty=$((faulty + 1))
+                  printf '  FAIL  %-26s :%-6s no HTTP answer (curl %s)\n' "$name" "$port" "$rc"
+                  echo "::warning title=smoke-check: $name::Port $port accepted the connection but answered no HTTP (curl exit $rc), and it is not a declared non-HTTP port. Usually the process inside never bound its port; check the container's logs."
+                fi
                 ;;
               # Connected, then nothing for the whole timeout. Every non-HTTP
               # service on this box answers or closes immediately, so a peer
