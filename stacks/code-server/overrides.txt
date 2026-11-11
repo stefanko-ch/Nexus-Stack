@@ -1,0 +1,24 @@
+# Versions forced past a dependency's own declared bound. Passed with
+# --override to the compile (see the header of requirements.txt) and to the
+# install in the Dockerfile. Every entry says why it is here and when it
+# can go.
+
+# oauthlib 3.x carries four open advisories (GHSA-3jp2-3mrg-2vxc,
+# GHSA-7984-qgvg-3j9c, GHSA-xpv3-w29h-x7cv, GHSA-hj66-6f7g-4r5v); 4.0.1 is
+# the first release with all four fixed.
+#
+# It is only here through databricks-sql-connector, and it cannot be
+# upgraded the normal way: dbt-databricks (up to 1.13.0) requires
+# databricks-sql-connector < 4.4.1, and connector 4.4.0 declares
+# oauthlib < 4.0.0. Connector 4.9.0 declares oauthlib < 5.0.0 with a
+# databricks/sql/auth/oauth.py that is byte-identical to 4.4.0's, the only
+# file in the connector that imports oauthlib, so the old bound is metadata
+# rather than an incompatibility.
+#
+# While it is here, `uv pip check` inside the image reports that the
+# connector wants oauthlib < 4.0.0. That is this override, not a fault.
+#
+# Remove this entry once dbt-databricks accepts a connector that allows
+# oauthlib 4 by itself; a recompile without the override then still
+# resolves oauthlib >= 4.0.1.
+oauthlib==4.0.1

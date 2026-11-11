@@ -106,7 +106,7 @@ The code-server image (`stacks/code-server/Dockerfile`) ships with a Python virt
 
 **In the `/opt/nexus-venv` Python venv** (auto-activated in every terminal):
 
-Every package is pinned, dependencies included, in `stacks/code-server/requirements.txt`, compiled from the top-level list in `requirements.in`. code-server is a `proven` stack ([what that promises](../concepts/stacks.md#what-each-tier-promises)), so a rebuild installs exactly these versions; bumping one means recompiling the file (the command is in its header).
+Every package is pinned, dependencies included, in `stacks/code-server/requirements.txt`, compiled from the top-level list in `requirements.in`. code-server is a `proven` stack ([what that promises](../concepts/stacks.md#what-each-tier-promises)), so a rebuild installs exactly these versions; bumping one means recompiling the file (the command is in its header). `overrides.txt` next to it lists the versions forced past a dependency's own declared bound, each with its reason; the compile and the image build both read it.
 
 | Tool | Version | Purpose |
 |---|---|---|
