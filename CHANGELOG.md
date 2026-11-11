@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.3](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.2...v0.91.3) (2026-11-11)
+
+
+### 🐛 Bug Fixes
+
+* **control-plane:** Call it the Control Plane everywhere, not the Control Panel ([#1016](https://github.com/stefanko-ch/Nexus-Stack/issues/1016)) ([65cedf5](https://github.com/stefanko-ch/Nexus-Stack/commit/65cedf5eb47f58e56991188d057c70fda97f5964))
+* **control-plane:** Find the last lifecycle run behind any amount of CI ([#1013](https://github.com/stefanko-ch/Nexus-Stack/issues/1013)) ([0a7a525](https://github.com/stefanko-ch/Nexus-Stack/commit/0a7a5254e72e551c9d3f9fad2e8e305470bbf979))
+* **control-plane:** Run a delayed teardown when the delay ends ([#1022](https://github.com/stefanko-ch/Nexus-Stack/issues/1022)) ([ef20d36](https://github.com/stefanko-ch/Nexus-Stack/commit/ef20d365de85bd8555609337de35b89f6553b809))
+
+
+### 📚 Documentation
+
+* Add snapshot-lifecycle diagrams for teardown order, epoch and spin-up decision ([#1018](https://github.com/stefanko-ch/Nexus-Stack/issues/1018)) ([ae0a885](https://github.com/stefanko-ch/Nexus-Stack/commit/ae0a885a367413aabfe0837fad0f5256906e5497))
+* Mark the Python migration page as history ([#1020](https://github.com/stefanko-ch/Nexus-Stack/issues/1020)) ([be5d001](https://github.com/stefanko-ch/Nexus-Stack/commit/be5d0017ace163de1f9cf794acbbbad5bdd483e4))
+* Pass the required confirmation in every documented teardown command ([#1015](https://github.com/stefanko-ch/Nexus-Stack/issues/1015)) ([6b19aef](https://github.com/stefanko-ch/Nexus-Stack/commit/6b19aef0e9a477029b68f62b67a4187ce4379135))
+* Restore the stats sections and badges in the README ([#1012](https://github.com/stefanko-ch/Nexus-Stack/issues/1012)) ([f18b7ce](https://github.com/stefanko-ch/Nexus-Stack/commit/f18b7ce26fcfcaac0aa58f599953e0c16fc0f481))
+* Retake the Control Plane screenshots and bring the user guides up to date ([#1021](https://github.com/stefanko-ch/Nexus-Stack/issues/1021)) ([a7ccd12](https://github.com/stefanko-ch/Nexus-Stack/commit/a7ccd126b38acf65031616a8297a5bc458042bed))
+* Split the setup guide into the setup path and three pages of their own ([#1019](https://github.com/stefanko-ch/Nexus-Stack/issues/1019)) ([60c96ca](https://github.com/stefanko-ch/Nexus-Stack/commit/60c96caead15f6c3beaaeb63731ae07eba3882ae))
+* Stop stating the catalogue's size as a rounded number ([#1017](https://github.com/stefanko-ch/Nexus-Stack/issues/1017)) ([cf9617a](https://github.com/stefanko-ch/Nexus-Stack/commit/cf9617a5f3aa3b40b40bb219414f6cbe93525e1b))
+
 ## [0.91.2](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.1...v0.91.2) (2026-11-10)
 
 
