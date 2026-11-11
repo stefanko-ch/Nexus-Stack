@@ -622,7 +622,9 @@ def run_compose_up(
         kestra_storage_prep=actual_kestra,
     )
 
-    run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host))
+    # Detached: compose-up builds images and pulls for minutes, and its SSH
+    # session has dropped in mid-build while the server carried on (#972).
+    run_script = script_runner or (lambda s: _remote.ssh_run_script(s, host=host, detached=True))
     completed = run_script(script)
 
     # Forward remote per-service ✓/✗ + warnings to local stderr (Modul-1.2

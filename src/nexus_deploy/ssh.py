@@ -120,6 +120,7 @@ class SSHClient:
         check: bool = True,
         timeout: float | None = None,
         merge_stderr: bool = True,
+        detached: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         """Run a bash script on the nexus server, fed over stdin.
 
@@ -131,7 +132,22 @@ class SSHClient:
 
         Use this whenever the script may contain secret values
         (Infisical tokens, generated passwords, base64-encoded payloads).
+
+        ``detached=True`` is for a script that runs for minutes: it is
+        started on the server independently of this SSH session and polled
+        for its result, so a dropped session does not fail it (#972, #941).
+        See :func:`nexus_deploy._remote.ssh_run_script`. The return value
+        and the ``check`` contract are the same.
         """
+        if detached:
+            return _remote.ssh_run_script(
+                script,
+                host=self.host,
+                check=check,
+                timeout=timeout,
+                merge_stderr=merge_stderr,
+                detached=True,
+            )
         return subprocess.run(
             ["ssh", self.host, "bash", "-s"],
             input=script,

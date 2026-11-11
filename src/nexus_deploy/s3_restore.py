@@ -848,7 +848,12 @@ def restore_from_s3(
     #    pg_restore failure, malformed latest.txt). check=True
     #    raises CalledProcessError, which is the right behavior:
     #    a partial restore must not silently let the stack come up.
-    completed = ssh.run_script(script, check=True)
+    #
+    # Detached: the rclone pull runs for minutes, and the session dropped
+    # 75 seconds into one of them while the server carried on (#972). A
+    # restore cut off there leaves the pipeline aborted over a half-restored
+    # host.
+    completed = ssh.run_script(script, check=True, detached=True)
     output = completed.stdout
     # Forward server-side log lines to local stderr so operators see
     # what the remote did. Mirrors mount_persistent_volume's pattern.
@@ -1280,7 +1285,11 @@ def snapshot_to_s3(
     # propagate up to the CLI handler / workflow so tofu destroy
     # never runs against an unverified snapshot. This is the
     # atomicity contract from RFC 0001 §"Atomicity guarantees".
-    completed = ssh.run_script(script, check=True)
+    #
+    # Detached: the rclone upload prints nothing for minutes, and the session
+    # twice dropped in such a stretch after the snapshot was complete,
+    # failing the teardown and leaving the server billing (#941).
+    completed = ssh.run_script(script, check=True, detached=True)
     output = completed.stdout
     for line in output.splitlines():
         sys.stderr.write(line + "\n")
