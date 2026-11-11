@@ -286,13 +286,22 @@ def _run_script_detached(
     #
     # The status is written inside the pipeline and renamed to `rc` after it,
     # so `rc` appears only once `out` is complete.
-    stderr_redirect = "2>&1" if merge_stderr else '2> "$d/err"'
+    run_and_record = '{ ( rm -f "$f"; exec bash -s ) < "$f"; echo $? > "$d/rc.tmp"; }'
+    keep_tail = f"tail -c {_DETACHED_OUTPUT_CAP_BYTES}"
+    if merge_stderr:
+        captured = f'{run_and_record} 2>&1 | {keep_tail} > "$d/out"'
+    else:
+        # Separate streams, each through its own `tail`. Inside, stderr takes
+        # the pipe and stdout leaves through fd 3 to the outer pipe.
+        captured = (
+            f'{{ {run_and_record} 2>&1 >&3 | {keep_tail} > "$d/err"; }} '
+            f'3>&1 | {keep_tail} > "$d/out"'
+        )
     job = (
         'd="$1"; f="$2"; '
         'mkdir "$d/lock" 2>/dev/null || { rm -f "$f"; exit 0; }; '
         'echo $$ > "$d/pid"; '
-        '{ ( rm -f "$f"; exec bash -s ) < "$f"; echo $? > "$d/rc.tmp"; } '
-        f'{stderr_redirect} | tail -c {_DETACHED_OUTPUT_CAP_BYTES} > "$d/out"; '
+        f"{captured}; "
         'mv "$d/rc.tmp" "$d/rc"'
     )
     launch = (

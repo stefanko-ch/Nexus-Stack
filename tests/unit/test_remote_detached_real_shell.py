@@ -243,3 +243,20 @@ def test_the_status_is_not_reported_before_the_output_is_complete(
     assert result.returncode == 4
     assert result.stdout.endswith("row 20000\n")
     assert result.stdout.count("\n") == 20000
+
+
+def test_separate_stderr_is_capped_too_and_the_status_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_ssh(tmp_path, monkeypatch, FAKE_SSH)
+    monkeypatch.setattr(_remote, "_DETACHED_OUTPUT_CAP_BYTES", 1500)
+    result = run(
+        'for i in $(seq 1 4000); do echo "err $i" >&2; done\necho "out line"\nexit 6\n',
+        merge_stderr=False,
+        check=False,
+    )
+    assert result.returncode == 6
+    assert result.stdout == "out line\n"
+    assert result.stderr is not None
+    assert len(result.stderr) <= 1500
+    assert result.stderr.endswith("err 4000\n")
