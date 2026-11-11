@@ -66,7 +66,7 @@ Once the change has been deployed:
 
 - The Docker container is stopped and removed
 - Docker volumes with data (databases, object storage) are preserved
-- DNS and Cloudflare Tunnel routes stay in place (so re-enabling is instant)
+- DNS and Cloudflare Tunnel routes stay in place
 - The stack's Cloudflare Access application stays (authentication rules persist)
 
 Re-enabling is staged like any other change and applied by the next **Deploy Changes**, against the same volume — you get your data back.

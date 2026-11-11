@@ -18,7 +18,7 @@ Each enabled stack that exposes TCP ports appears as a card. Each port entry has
 
 - **Toggle** — Enable or disable that specific port. Disabling a port removes the rule.
 - **Source IPs** — CIDR range of allowed sources. Use `0.0.0.0/0` only if you really mean "anyone on the internet". Prefer restricting to your own IP.
-- **Save** — Stages the change (not yet live).
+- **Save** — Stages the change (not yet live). A change to the source IPs alone shows neither **STAGED** nor **PENDING** — those marks only appear when a port is switched on or off — but it still needs **Apply & Spin Up**; until then the previous range stays in force.
 
 ![Firewall card for a single-port service, with controls for enabling the port, entering a Source IPs CIDR range, and staging the change via Save](./assets/firewall-rule-single.png)
 

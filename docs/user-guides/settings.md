@@ -51,7 +51,7 @@ If the **Shutdown Warning Email** arrives while you are still working — by def
 
 ![Scheduled Teardown block after a delay: it reads "Teardown delayed until" with the new time, and 2 of 3 daily extensions remain](./assets/settings-teardown-delayed.png)
 
-The delay applies to tonight only. Tomorrow the teardown is back at its scheduled time.
+**A delay skips tonight's teardown; it does not move it.** The teardown runs once a day at its scheduled time, and while a delay is active that run does nothing. Nothing runs again when the delay ends, whatever time the block shows: the server stays up until the next day's scheduled teardown, or until someone clicks **Teardown** on the Dashboard. If you only need a few more hours, tear the stack down yourself when you are done.
 
 ## Lifecycle
 
