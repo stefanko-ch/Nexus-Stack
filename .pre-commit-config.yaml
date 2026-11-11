@@ -113,7 +113,10 @@ repos:
         # unity-catalog/entrypoint.sh) and were unlinted while the pattern
         # named only scripts/. All three already pass at this severity, so
         # widening it cost nothing and closed the gap.
-        files: ^(scripts|stacks)/.*\.sh$
+        # .github/scripts/ too (#894): the scripts the lifecycle workflows run
+        # on every deploy, teardown and destroy. A new one there reported
+        # "no files to check".
+        files: ^(scripts|stacks|\.github/scripts)/.*\.sh$
         args:
           # `--severity=error` only blocks real bugs; the helpers carry a
           # few pre-existing style/info nits we tolerate.
