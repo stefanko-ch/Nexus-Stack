@@ -527,10 +527,10 @@ set -e
 
 if [ $VERIFY_EXIT -ne 0 ]; then
   SANITIZED_ERROR=$(sanitize_error "$(cat /tmp/d1_verify.err 2>/dev/null)")
-  echo "  ⚠️ Could not query D1, so the sync is NOT verified (wrangler exit $VERIFY_EXIT)" >&2
+  echo "  ❌ Could not query D1, so the sync is NOT verified (wrangler exit $VERIFY_EXIT)" >&2
   echo "  Error: ${SANITIZED_ERROR:-(no output)}" >&2
-  echo "⚠️ D1 sync finished, result not verified"
-  exit 0
+  echo "❌ D1 sync could not be verified — the table may be incomplete" >&2
+  exit 1
 fi
 
 set +e
@@ -549,8 +549,11 @@ case "$VERIFY_STATUS" in
     exit 1
     ;;
   *)
-    # The answer could not be read. Nothing is known, so nothing is claimed.
-    echo "⚠️ D1 sync finished, result not verified"
+    # The answer could not be read. The inserts and updates above report a
+    # failure as a warning and carry on, so this check is the only gate:
+    # unreadable means the state is unknown, not that it is fine.
+    echo "❌ D1 sync could not be verified — the table may be incomplete" >&2
+    exit 1
     ;;
 esac
 exit 0

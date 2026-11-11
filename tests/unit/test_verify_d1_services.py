@@ -223,18 +223,20 @@ def test_sync_fails_without_the_tick_when_rows_are_missing(tmp_path: Path) -> No
 
 
 @needs_gnu_userland
-def test_sync_does_not_claim_success_when_the_answer_cannot_be_read(tmp_path: Path) -> None:
+def test_sync_fails_when_the_answer_cannot_be_read(tmp_path: Path) -> None:
+    # The writes before the check only warn when they fail, so the check is
+    # the one gate. Unreadable is unknown, and unknown is not a pass.
     result = run_sync(tmp_path, '{"result": []}')
-    assert result.returncode == 0, "the rows were written; only the check is unknown"
+    assert result.returncode == 1
     assert "✅ D1 sync complete" not in result.stdout
-    assert "result not verified" in result.stdout
+    assert "could not be verified" in result.stderr
     assert "NOT verified" in result.stderr
 
 
 @needs_gnu_userland
-def test_sync_does_not_claim_success_when_the_query_fails(tmp_path: Path) -> None:
+def test_sync_fails_when_the_query_fails(tmp_path: Path) -> None:
     result = run_sync(tmp_path, "", exit_status=1, stderr="✘ [ERROR] Authentication error")
-    assert result.returncode == 0
+    assert result.returncode == 1
     assert "✅ D1 sync complete" not in result.stdout
-    assert "result not verified" in result.stdout
+    assert "could not be verified" in result.stderr
     assert "wrangler exit 1" in result.stderr

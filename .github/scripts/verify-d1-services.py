@@ -8,7 +8,8 @@ FROM services"` printed on stdout. Exit status:
 
   0  every service in services.yaml is in D1
   1  some are missing: the sync wrote fewer rows than it should have
-  2  the answer could not be read, so nothing is known either way
+  2  the answer could not be read, so nothing is known either way; the
+     sync script fails on this too, because this check is its only gate
 
 The check this replaces printed "✅ Found 0 services in D1" after a sync that
 had written every row (#943). It read `.result | length` from a document that
