@@ -151,6 +151,12 @@ def _run(
     (bin_dir / "ssh").chmod(0o755)
     (bin_dir / "sleep").write_text("#!/bin/sh\nexit 0\n")
     (bin_dir / "sleep").chmod(0o755)
+    # `timeout <s> ssh ...`: GNU timeout is not on macOS; this one just runs
+    # the command, and exits 124 when told to by the test.
+    (bin_dir / "timeout").write_text(
+        '#!/bin/sh\nshift\n[ -n "$FAKE_TIMEOUT" ] && exit 124\nexec "$@"\n'
+    )
+    (bin_dir / "timeout").chmod(0o755)
     return subprocess.run(
         ["bash", ".github/scripts/run-lifecycle-probes.sh"],
         cwd=repo,
@@ -228,3 +234,21 @@ def test_a_docker_exec_fed_a_heredoc_keeps_stdin_open(name: str) -> None:
     for line in probe.read_text().splitlines():
         if "docker exec" in line and "<<" in line:
             assert " -i " in line or " -i\t" in line, f"{probe.name}: {line.strip()}"
+
+
+def test_a_probe_that_hangs_fails_instead_of_holding_the_gate(tmp_path: Path) -> None:
+    repo = _repo(tmp_path, {"a": _OK}, ["a"])
+    result = _run(tmp_path, repo, FAKE_TIMEOUT="1")
+    assert result.returncode == 1
+    assert "no answer within" in result.stdout
+    assert "a: create failed (exit 124)" in result.stdout
+
+
+def test_every_curl_in_a_probe_is_bounded() -> None:
+    for name in PROVEN:
+        probe = REPO_ROOT / "stacks" / name / "lifecycle-probe.sh"
+        for line in probe.read_text().splitlines():
+            if line.strip().startswith("#"):
+                continue
+            if "curl " in line and "docker exec" not in line:
+                assert "--max-time" in line, f"{probe.name}: {line.strip()}"

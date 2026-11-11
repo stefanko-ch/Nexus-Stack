@@ -8,6 +8,10 @@
 # on `nexus` over ssh for each, and fails if any probe fails or is missing.
 # A probe is safe to repeat (create overwrites, verify only reads), so a
 # dropped connection (ssh exit 255) is retried once (#972).
+#
+# Each probe gets PROBE_TIMEOUT_S (default 600 s, enough for the Spark
+# round trips). A probe that hangs past it fails with exit 124 instead of
+# holding the gate's lock and keeping its final teardown from starting.
 # =============================================================================
 
 set -uo pipefail
@@ -46,8 +50,11 @@ while IFS= read -r stack; do
   echo "── $stack: $PROBE_ACTION"
   attempt=1
   while :; do
-    ssh -o BatchMode=yes nexus bash -s -- "$PROBE_ACTION" "$PROBE_TOKEN" < "$probe"
+    timeout "${PROBE_TIMEOUT_S:-600}" ssh -o BatchMode=yes nexus bash -s -- "$PROBE_ACTION" "$PROBE_TOKEN" < "$probe"
     status=$?
+    if [ "$status" -eq 124 ]; then
+      echo "   no answer within ${PROBE_TIMEOUT_S:-600}s"
+    fi
     if [ "$status" -ne 255 ] || [ "$attempt" -ge 2 ]; then
       break
     fi

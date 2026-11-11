@@ -39,13 +39,13 @@ case "$ACTION" in
   create)
     FLOW_YAML=$(printf 'id: %s\nnamespace: %s\ndescription: "release gate %s"\ntasks:\n  - id: hello\n    type: io.kestra.plugin.core.log.Log\n    message: "%s"\n' "$FLOW" "$NAMESPACE" "$TOKEN" "$TOKEN")
     # PUT replaces a flow left by an earlier run; POST creates it.
-    if ! STATUS=$(curl -sS -o /dev/null -w '%{http_code}' "${CURL_AUTH[@]}" -X PUT \
+    if ! STATUS=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "${CURL_AUTH[@]}" -X PUT \
         -H 'Content-Type: application/x-yaml' --data-binary "$FLOW_YAML" "$API/$NAMESPACE/$FLOW"); then
       echo "kestra: API not reachable"
       exit 1
     fi
     if [ "$STATUS" = "404" ]; then
-      STATUS=$(curl -sS -o /dev/null -w '%{http_code}' "${CURL_AUTH[@]}" -X POST \
+      STATUS=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "${CURL_AUTH[@]}" -X POST \
         -H 'Content-Type: application/x-yaml' --data-binary "$FLOW_YAML" "$API")
     fi
     case "$STATUS" in
@@ -54,7 +54,7 @@ case "$ACTION" in
     esac
     ;;
   verify)
-    if ! BODY=$(curl -sS -f "${CURL_AUTH[@]}" "$API/$NAMESPACE/$FLOW?source=true"); then
+    if ! BODY=$(curl -sS --max-time 30 -f "${CURL_AUTH[@]}" "$API/$NAMESPACE/$FLOW?source=true"); then
       echo "kestra: flow $NAMESPACE.$FLOW is gone after the teardown"
       exit 1
     fi
