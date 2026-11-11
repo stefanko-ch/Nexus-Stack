@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.91.5](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.4...v0.91.5) (2026-11-11)
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Make the D1 sync's final check say what it found ([#1027](https://github.com/stefanko-ch/Nexus-Stack/issues/1027)) ([a6064e1](https://github.com/stefanko-ch/Nexus-Stack/commit/a6064e19a18b1bf7639c37e2f83f5ccc341bd6cd))
+* **ci:** Write config.tfvars from data, not from expressions pasted into bash ([#1028](https://github.com/stefanko-ch/Nexus-Stack/issues/1028)) ([4f48419](https://github.com/stefanko-ch/Nexus-Stack/commit/4f484191a228ac1affbf25c90db57eda90d0c09a))
+* **deploy:** Run the three long remote steps detached, so a dropped SSH session does not fail them ([#1025](https://github.com/stefanko-ch/Nexus-Stack/issues/1025)) ([610754a](https://github.com/stefanko-ch/Nexus-Stack/commit/610754ac957bb267dbe5f6870e6d7a0bb5a58cc6))
+* **stacks:** Install oauthlib 4.0.1 in code-server, past the connector's stale bound ([#1029](https://github.com/stefanko-ch/Nexus-Stack/issues/1029)) ([df9b8b1](https://github.com/stefanko-ch/Nexus-Stack/commit/df9b8b171e15e9c043622af0dcdfbb0b5ba91184))
+* **stacks:** Install pandas and pyarrow in the Spark image so Python UDFs run ([#1035](https://github.com/stefanko-ch/Nexus-Stack/issues/1035)) ([c183abd](https://github.com/stefanko-ch/Nexus-Stack/commit/c183abdf1f12ce4811f4e89b40430792c6dde493))
+* **stacks:** Take Spark's Python from a pinned download, and put the Spark services on one network ([#1034](https://github.com/stefanko-ch/Nexus-Stack/issues/1034)) ([904bc7e](https://github.com/stefanko-ch/Nexus-Stack/commit/904bc7e98a6830f80d2ea697173590ff33cb23bb))
+
+
+### 🔧 Maintenance
+
+* **deps:** Update certifi, urllib3, filelock and virtualenv, and drop the unused paramiko ([#1030](https://github.com/stefanko-ch/Nexus-Stack/issues/1030)) ([2740e5b](https://github.com/stefanko-ch/Nexus-Stack/commit/2740e5b57500dbc02122e2edc96bd33dd7af6078))
+* **deps:** Update undici, vite, zod, source-map-js and sharp in the Control Plane lock file ([#1031](https://github.com/stefanko-ch/Nexus-Stack/issues/1031)) ([41b9e7f](https://github.com/stefanko-ch/Nexus-Stack/commit/41b9e7ff95642e82f3dd584f018be23f9f2de99d))
+
 ## [0.91.4](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.3...v0.91.4) (2026-11-11)
 
 
