@@ -425,10 +425,9 @@ async function handleDelayCheck(env) {
     return;
   }
 
-  await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
-  await deleteConfigValue(env.NEXUS_DB, 'delay_until');
-
   if (infraState === 'torn-down' || infraState === 'offline') {
+    await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
+    await deleteConfigValue(env.NEXUS_DB, 'delay_until');
     const message = `Delayed teardown is due, but the infrastructure is not deployed (state: ${infraState}); nothing to do`;
     console.log(message);
     await logToD1(env.NEXUS_DB, 'info', message, { infraState, owedSince });
@@ -436,7 +435,13 @@ async function handleDelayCheck(env) {
   }
 
   await logToD1(env.NEXUS_DB, 'warn', 'Delay ended, triggering the postponed teardown', { owedSince });
-  await triggerTeardown(env, config);
+  // The debt is paid only when the forge accepted the dispatch. A rate limit,
+  // a 5xx or a timeout leaves it standing, and the next check tries again.
+  const dispatched = await triggerTeardown(env, config);
+  if (dispatched) {
+    await deleteConfigValue(env.NEXUS_DB, TEARDOWN_OWED_KEY);
+    await deleteConfigValue(env.NEXUS_DB, 'delay_until');
+  }
 }
 
 async function handleScheduledTeardown(event, env) {
@@ -834,6 +839,10 @@ async function sendNotification(env, config) {
   }
 }
 
+/**
+ * Dispatch the teardown workflow of the stack's lifecycle.
+ * @returns {Promise<boolean>} true only when the forge accepted the dispatch.
+ */
 async function triggerTeardown(env, config) {
   if (!env.GITHUB_TOKEN || !env.GITHUB_OWNER || !env.GITHUB_REPO) {
     const missingVars = [];
@@ -844,7 +853,7 @@ async function triggerTeardown(env, config) {
     const message = `Missing required environment variables for teardown: ${missingVars.join(', ')}`;
     console.log(message);
     await logToD1(env.NEXUS_DB, 'error', message);
-    return;
+    return false;
   }
 
   try {
@@ -858,7 +867,7 @@ async function triggerTeardown(env, config) {
       const message = `Skipping scheduled teardown: cannot determine the lifecycle mode (${lifecycle.reason})`;
       console.error(message);
       await logToD1(env.NEXUS_DB, 'error', message);
-      return;
+      return false;
     }
     const url = forgeRepoUrl(env, `/actions/workflows/${lifecycle.teardown}/dispatches`);
 
@@ -880,6 +889,7 @@ async function triggerTeardown(env, config) {
         owner: env.GITHUB_OWNER,
         repo: env.GITHUB_REPO,
       });
+      return true;
     } else {
       const errorText = await response.text();
       const message = `Failed to trigger teardown workflow: HTTP ${response.status}`;
@@ -899,6 +909,7 @@ async function triggerTeardown(env, config) {
       stack: error.stack?.substring(0, 500),
     });
   }
+  return false;
 }
 
 function getTimezoneAbbr(timezone) {

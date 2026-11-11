@@ -65,12 +65,13 @@ function fakeD1(initial = {}) {
 }
 
 /** A forge stand-in: serves `runs` as the run list and records teardown dispatches. */
-function forge(runs, { listStatus = 200 } = {}) {
+function forge(runs, { listStatus = 200, dispatchStatus = 204 } = {}) {
   const dispatched = [];
   globalThis.fetch = async (input, init = {}) => {
     const url = String(input instanceof Request ? input.url : input);
     if (url.includes('/dispatches')) {
       dispatched.push({ url, body: JSON.parse(init.body) });
+      if (dispatchStatus !== 204) return new Response('nope', { status: dispatchStatus });
       return new Response(null, { status: 204 });
     }
     if (url.includes('/actions/runs?')) {
@@ -83,8 +84,8 @@ function forge(runs, { listStatus = 200 } = {}) {
   return dispatched;
 }
 
-async function fire(cron, { config = {}, runs = DEPLOYED, listStatus = 200 } = {}) {
-  const dispatched = forge(runs, { listStatus });
+async function fire(cron, { config = {}, runs = DEPLOYED, listStatus = 200, dispatchStatus = 204 } = {}) {
+  const dispatched = forge(runs, { listStatus, dispatchStatus });
   const db = fakeD1(config);
   const pending = [];
   await worker.scheduled(
@@ -183,6 +184,16 @@ test('delay check: when the state cannot be determined the teardown stays owed f
   assert.equal(dispatched.length, 0);
   assert.ok(config[OWED], 'fail closed, but do not forget');
   assert.ok(messages.some((m) => /could not be determined/.test(m)), messages.join(' | '));
+});
+
+test('delay check: when the forge refuses the dispatch the teardown stays owed', async () => {
+  const { dispatched, config } = await fire(DELAY_CHECK_CRON, {
+    config: { delay_until: hoursFromNow(-0.1), [OWED]: hoursFromNow(-4) },
+    dispatchStatus: 503,
+  });
+  assert.equal(dispatched.length, 1, 'it tried');
+  assert.ok(config[OWED], 'a failed dispatch is not a paid debt');
+  assert.ok(config.delay_until, 'and the delay record is kept with it');
 });
 
 test('delay check: while a lifecycle run is in flight it waits', async () => {
