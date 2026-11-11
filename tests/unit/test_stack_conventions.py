@@ -1113,6 +1113,22 @@ def test_the_install_is_given_the_overrides_the_compile_was(overrides: Path) -> 
     assert passed, f"no `uv pip install` in the Dockerfile passes --override {in_image}"
 
 
+@pytest.mark.parametrize("name", _tiered(SERVICES))
+def test_tiered_dockerfiles_add_no_ppa(name: str) -> None:
+    """A PPA makes the build need Launchpad, and installs whatever it holds that day.
+
+    The spark image took Python 3.13 from one. When Launchpad and Ubuntu's
+    archive were unreachable the image could not be built (#1033), and the
+    patch release was never fixed. Take the tool from a pinned, checksummed
+    download instead.
+    """
+    for dockerfile in sorted((STACKS_DIR / name).glob("Dockerfile*")):
+        ppa = [i for i in _dockerfile_instructions(dockerfile) if "add-apt-repository" in i]
+        assert not ppa, (
+            f"{dockerfile.relative_to(REPO_ROOT)} adds an apt repository at build time: {ppa}"
+        )
+
+
 def test_exactness_check_tells_releases_from_release_lines() -> None:
     """The helpers above, against the shapes they have to tell apart."""
     assert _is_exact("kestra/kestra:v2.0.8")

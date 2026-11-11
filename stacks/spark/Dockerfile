@@ -6,7 +6,7 @@
 # PySpark requires matching Python minor versions between driver and executors.
 #
 # This Dockerfile:
-# 1. Installs Python 3.13 from the deadsnakes PPA to match Jupyter.
+# 1. Installs Python 3.13, one pinned and checksummed build, to match Jupyter.
 # 2. Downloads hadoop-aws + AWS SDK v2 JARs for S3A filesystem support
 #    (required for s3a:// paths, e.g. Hetzner Object Storage).
 # 3. Downloads Spark Connect server JARs so the master can start a gRPC
@@ -19,14 +19,46 @@ FROM apache/spark:4.2.0
 
 USER root
 
-# Install Python 3.13 from deadsnakes PPA to match Jupyter's Python version.
-# The base image (Ubuntu 22.04 Jammy) only ships Python 3.10.
-RUN apt-get update && \
-    apt-get install -y software-properties-common curl && \
-    add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt-get install -y python3.13 && \
-    rm -rf /var/lib/apt/lists/*
+# Install Python 3.13 to match the Python of the clients. The base image
+# (Ubuntu 22.04 Jammy) only ships Python 3.10.
+#
+# From a python-build-standalone release, one exact build, verified against
+# the SHA-256 that release publishes in its SHA256SUMS file. It used to come
+# from the deadsnakes PPA, which made this step need Ubuntu's archive, the
+# Launchpad API and the PPA host at build time, and installed whichever
+# patch release the PPA held that day (#1033). On 2026-11-11 the image could
+# not be built for that reason. This step needs github.com only and no
+# apt-get; curl, tar and sha256sum are in the base image.
+#
+# To bump: change both ARGs and both checksums together. The checksums are
+# the lines for the two `install_only_stripped` linux-gnu archives in
+#   https://github.com/astral-sh/python-build-standalone/releases/download/<PYTHON_BUILD>/SHA256SUMS
+# stacks/spark/image-test.sh checks the installed version against the ARG.
+#
+# It lands in /opt/python and is linked to /usr/bin/python3.13, the path
+# PYSPARK_PYTHON below has always named.
+ARG PYTHON_VERSION=3.13.18
+ARG PYTHON_BUILD=20261026
+RUN set -eux; \
+    case "$(uname -m)" in \
+      x86_64) \
+        arch=x86_64; \
+        sha=df15fe60d3ff55bf9dcf25824b5572756bb8816ff93865a273d3301d7066a8b7 ;; \
+      aarch64|arm64) \
+        arch=aarch64; \
+        sha=578d9da1983463ffb0c8c98ab0da2f18177f44069328eb0af847860c1eb05c3e ;; \
+      *) \
+        echo "Unsupported arch $(uname -m) for Python"; exit 1 ;; \
+    esac; \
+    file="cpython-${PYTHON_VERSION}+${PYTHON_BUILD}-${arch}-unknown-linux-gnu-install_only_stripped.tar.gz"; \
+    curl -fSL "https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_BUILD}/${file}" \
+        -o /tmp/python.tar.gz; \
+    echo "${sha}  /tmp/python.tar.gz" | sha256sum -c -; \
+    mkdir -p /opt/python; \
+    tar -xzf /tmp/python.tar.gz -C /opt/python --strip-components=1; \
+    rm /tmp/python.tar.gz; \
+    ln -sf /opt/python/bin/python3.13 /usr/bin/python3.13; \
+    /usr/bin/python3.13 --version
 
 # Repoint /usr/bin/python3 -> python3.13, so that a process which ends up
 # resolving the bare name still gets the version the driver runs.
@@ -52,8 +84,8 @@ RUN apt-get update && \
 # re-deriving the cause rather than trusting this paragraph.
 #
 # Safety: the spark-worker container is minimal at runtime — no
-# package installs (apt-get only runs at image build time, never
-# inside the running container), no systemd, no OS scripts that
+# package installs (nothing is installed inside the running
+# container), no systemd, no OS scripts that
 # would care which python3.x is the default. The previous concern
 # about "not overwriting system python3" was theoretical; in
 # practice nothing else in this image touches python3 at runtime

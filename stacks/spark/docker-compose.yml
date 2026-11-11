@@ -15,7 +15,7 @@
 #
 # S3 access (Hetzner Object Storage) is pre-configured via Hadoop properties.
 #
-# IMAGE: Custom Dockerfile installs Python 3.13 (from deadsnakes PPA) on the
+# IMAGE: Custom Dockerfile installs Python 3.13 (one pinned build) on the
 # official apache/spark:4.2.0 base (Ubuntu 22.04 + Python 3.10) to match
 # Jupyter's Python version. PySpark requires matching minor versions.
 # Also includes hadoop-aws + AWS SDK v2 JARs for S3A filesystem support
