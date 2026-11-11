@@ -20,7 +20,7 @@ FILE=/app/notebooks/nexus_release_gate.py
 
 case "$ACTION" in
   create)
-    docker exec -u appuser marimo python3 - "$FILE" "$TOKEN" <<'PY'
+    docker exec -i -u appuser marimo python3 - "$FILE" "$TOKEN" <<'PY'
 import sys
 path, token = sys.argv[1], sys.argv[2]
 open(path, "w").write(
@@ -31,7 +31,7 @@ PY
     echo "marimo: wrote $FILE"
     ;;
   verify)
-    docker exec marimo python3 - "$FILE" "$TOKEN" <<'PY'
+    docker exec -i marimo python3 - "$FILE" "$TOKEN" <<'PY'
 import sys, urllib.request
 path, token = sys.argv[1], sys.argv[2]
 try:

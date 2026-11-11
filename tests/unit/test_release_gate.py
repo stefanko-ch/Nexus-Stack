@@ -218,3 +218,13 @@ def test_a_dropped_connection_is_retried_once(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout
     assert "retrying once" in result.stdout
     assert (tmp_path / "bin" / "calls").read_text().strip() == "2"
+
+
+@pytest.mark.parametrize("name", PROVEN)
+def test_a_docker_exec_fed_a_heredoc_keeps_stdin_open(name: str) -> None:
+    """Without -i, docker exec does not pass stdin on: the heredoc is lost and
+    `python3 -` runs nothing, which reads as a probe that passed."""
+    probe = REPO_ROOT / "stacks" / name / "lifecycle-probe.sh"
+    for line in probe.read_text().splitlines():
+        if "docker exec" in line and "<<" in line:
+            assert " -i " in line or " -i\t" in line, f"{probe.name}: {line.strip()}"

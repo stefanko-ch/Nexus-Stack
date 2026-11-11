@@ -31,7 +31,7 @@ for c in spark spark-worker spark-connect marimo; do
   fi
 done
 
-docker exec -u appuser marimo python3 - "$ACTION" "$TOKEN" <<'PY'
+docker exec -i -u appuser marimo python3 - "$ACTION" "$TOKEN" <<'PY'
 import os
 import sys
 
