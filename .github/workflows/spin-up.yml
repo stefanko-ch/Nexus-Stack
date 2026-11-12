@@ -83,6 +83,16 @@ on:
         required: false
         default: true
         type: boolean
+      lifecycle_probe:
+        description: 'Release gate only (#712): run each proven stack''s lifecycle-probe.sh with create or verify. Empty = skip.'
+        required: false
+        default: ''
+        type: string
+      lifecycle_token:
+        description: 'Release gate only: the token the create step writes and the verify step expects'
+        required: false
+        default: ''
+        type: string
       server_image:
         description: 'Hetzner image to build from. Empty = ubuntu-26.04. A numeric image id restores from that snapshot.'
         required: false
@@ -114,13 +124,14 @@ permissions:
 
 # A dispatched spin-up queues in the group every other lifecycle workflow
 # uses, so it never overlaps a teardown, an update or a second spin-up
-# (#801). Its callers, initial-setup.yaml and spin-up-snapshot.yml, already
-# hold that group while they run this one, and a called workflow joining
+# (#801). Its callers, initial-setup.yaml, spin-up-snapshot.yml and
+# release-gate.yml, already hold that group while they run this one, and a
+# called workflow joining
 # its caller's group is a deadlock, which GitHub cancels. So a call gets a
 # group of its own and relies on its caller's lock.
 #
 # The input that tells them apart exists only under workflow_call, and
-# both callers pass true. It defaults to false, so a new caller that
+# every caller passes true. It defaults to false, so a new caller that
 # forgets it joins `infrastructure`: if that caller holds the group it
 # deadlocks, which GitHub reports and cancels, rather than running
 # unlocked beside a teardown. A dispatch, where the input is absent,
@@ -1208,6 +1219,19 @@ jobs:
       # and one silent side service should not look like a broken
       # spin-up. Failures surface as annotations instead, the same way
       # degraded phases have since #688.
+      # Release gate (#712). Each proven stack's lifecycle-probe.sh runs on
+      # the server: `create` makes one artefact through the stack's own
+      # interface before a teardown, `verify` checks it is back after the
+      # next spin-up. Called only by release-gate.yml; a normal spin-up
+      # leaves the input empty and skips this. Unlike the smoke check it is
+      # not continue-on-error: a failing probe is the gate failing.
+      - name: Lifecycle probe
+        if: inputs.lifecycle_probe != ''
+        env:
+          PROBE_ACTION: ${{ inputs.lifecycle_probe }}
+          PROBE_TOKEN: ${{ inputs.lifecycle_token }}
+        run: bash .github/scripts/run-lifecycle-probes.sh
+
       - name: Check services answer
         if: inputs.smoke_check
         continue-on-error: true

@@ -31,7 +31,12 @@ LIFECYCLE = [
     "teardown-snapshot.yml",
     "destroy-all.yml",
     "update-from-upstream.yml",
+    "release-gate.yml",
 ]
+
+# Called by another lifecycle workflow as well as dispatched, so they pick
+# their group from the lock input: a call must not join its caller's group.
+CALLABLE = {SPIN_UP: "spin-up-called", "teardown.yml": "teardown-called"}
 
 
 def _load(name: str) -> dict[Any, Any]:
@@ -62,7 +67,7 @@ def _group_for(inputs: dict[str, Any], run_id: str = "42") -> str:
     return (inputs.get(LOCK_INPUT) and f"spin-up-called-{run_id}") or "infrastructure"
 
 
-@pytest.mark.parametrize("name", [n for n in LIFECYCLE if n != SPIN_UP])
+@pytest.mark.parametrize("name", [n for n in LIFECYCLE if n not in CALLABLE])
 def test_lifecycle_workflows_share_the_infrastructure_group(name: str) -> None:
     concurrency = _load(name)["concurrency"]
     assert concurrency == {"group": "infrastructure", "cancel-in-progress": False}
@@ -108,8 +113,46 @@ def _callers() -> list[tuple[str, dict[str, Any]]]:
 def test_the_callers_are_the_ones_the_comment_names() -> None:
     assert sorted({name for name, _ in _callers()}) == [
         "initial-setup.yaml",
+        "release-gate.yml",
         "spin-up-snapshot.yml",
     ]
+
+
+# ---- teardown.yml: callable by the release gate (#712), same hand-over ----
+
+
+def _teardown_callers() -> list[tuple[str, dict[str, Any]]]:
+    found = []
+    for path in sorted(WORKFLOWS.glob("*.y*ml")):
+        for job in (_load(path.name).get("jobs") or {}).values():
+            if str(job.get("uses", "")).endswith("/teardown.yml"):
+                found.append((path.name, job))
+    return found
+
+
+def test_the_teardown_takes_the_lock_unless_its_caller_holds_it() -> None:
+    teardown = _load("teardown.yml")
+    assert teardown["concurrency"] == {
+        "group": "${{ inputs." + LOCK_INPUT + " && format('teardown-called-{0}', github.run_id)"
+        " || 'infrastructure' }}",
+        "cancel-in-progress": False,
+    }
+    triggers = _triggers(teardown)
+    assert LOCK_INPUT not in triggers["workflow_dispatch"]["inputs"]
+    call_input = triggers["workflow_call"]["inputs"][LOCK_INPUT]
+    assert call_input["default"] is False, "a caller that forgets it must take the lock"
+
+
+def test_the_teardown_callers_are_the_release_gate_only() -> None:
+    assert sorted({name for name, _ in _teardown_callers()}) == ["release-gate.yml"]
+
+
+@pytest.mark.parametrize(
+    ("name", "job"), _teardown_callers(), ids=lambda v: v if isinstance(v, str) else ""
+)
+def test_every_teardown_caller_holds_the_lock_it_relies_on(name: str, job: dict[str, Any]) -> None:
+    assert _load(name)["concurrency"]["group"] == "infrastructure"
+    assert (job.get("with") or {}).get(LOCK_INPUT) is True
 
 
 @pytest.mark.parametrize(("name", "job"), _callers(), ids=lambda v: v if isinstance(v, str) else "")
