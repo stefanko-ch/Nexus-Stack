@@ -92,9 +92,13 @@ def test_the_port_list_holds_every_tcp_port_and_the_named_extras() -> None:
     ).stdout.split()
     ports = {int(p) for p in out}
     services = yaml.safe_load((REPO_ROOT / "services.yaml").read_text())["services"]
+    http = {"s3-api", "s3-gateway", "schema-registry", "api"}
     for name, entry in services.items():
-        for value in (entry.get("tcp_ports") or {}).values():
-            assert int(value) in ports, f"{name} tcp_ports {value} missing from the list"
+        for key, value in (entry.get("tcp_ports") or {}).items():
+            if key in http:
+                assert int(value) not in ports, f"{name} {key} {value} is HTTP, not excused"
+            else:
+                assert int(value) in ports, f"{name} tcp_ports {value} missing from the list"
     assert {3901, 7233, 7687, 47335} <= ports
 
 
@@ -122,3 +126,22 @@ def test_each_named_extra_is_still_published_by_a_compose_file(port: int) -> Non
                 if match:
                     published.add(int(match.group(1)))
     assert port in published
+
+
+@pytest.mark.parametrize(
+    ("name", "port"), [("garage", 3900), ("rustfs", 9003), ("redpanda-connect", 4195)]
+)
+def test_a_dead_s3_or_rest_port_is_faulty(tmp_path: Path, name: str, port: int) -> None:
+    """These are firewall ports, but they speak HTTP: silence there is a failure."""
+    out = _classify(tmp_path, f"{name}\t{port}\tNOHTTP:52\n")
+    assert f"FAIL  {name}" in out
+
+
+def test_an_unclassified_tcp_port_key_stops_the_list(tmp_path: Path) -> None:
+    services = tmp_path / "services.yaml"
+    services.write_text(yaml.safe_dump({"services": {"x": {"tcp_ports": {"mystery": 1234}}}}))
+    result = subprocess.run(
+        ["python3", str(SCRIPT), str(services)], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 2
+    assert "x.tcp_ports.mystery" in result.stderr
