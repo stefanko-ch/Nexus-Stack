@@ -99,8 +99,13 @@ def _run(
     state.write_text(json.dumps({"ps": "flowise", "init": init, **flags}))
 
     script = compose_runner.render_remote_script(parents=[], leaves=["flowise"], init_wait_s=wait_s)
+    # The stand-in docker is a Python script. Under pytest-cov the COV_CORE_*
+    # variables make every Python subprocess record coverage, and its
+    # statement-only data then cannot be combined with the run's branch data
+    # ("Can't combine statement coverage data with branch data" in CI).
+    # The stand-in is not code under test, so it runs without them.
     env = {
-        **os.environ,
+        **{k: v for k, v in os.environ.items() if not k.startswith(("COV_CORE_", "COVERAGE_"))},
         "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
         "FAKE_DOCKER_STATE": str(state),
     }
