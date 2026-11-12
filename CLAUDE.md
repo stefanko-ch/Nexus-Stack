@@ -427,6 +427,7 @@ When adding a new Docker stack, **all locations must be updated**:
      - Each service requiring a database should include its own database container in the compose file
      - Use internal networks (e.g., `<service>-internal`) to isolate service-specific resources
      - Example: Meltano has `meltano-db`, Soda has `soda-db`, each independent
+   - **A one-shot setup container is named `<service>-init`** (an admin account, a bucket, a namespace), unless the main service `depends_on` it with `condition: service_completed_successfully`. compose-up waits for every `-init` container of a stack and fails the stack when one exits non-zero, uses up its `on-failure` restarts, or is still running after 420 s (#976). Under another name a failing setup leaves the stack green and the credentials in Infisical matching no account. `tests/unit/test_compose_init_containers.py` enforces the name.
 
 5. **Register the service in services.yaml:**
    - Add to `services` map in `services.yaml` (root directory)

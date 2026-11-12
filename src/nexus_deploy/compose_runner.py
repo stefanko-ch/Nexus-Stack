@@ -244,10 +244,21 @@ def _render_data_dir_prep(path: str, owner: str) -> str:
     )
 
 
+# How long the compose-up script waits for a stack's one-shot `-init`
+# containers to finish (#976). bytebase-init polls its main service for up
+# to 300 s and on-failure:3 may restart it; the wait is shared by all
+# stacks, which start in parallel. compose-up runs detached, so a long wait
+# does not hold an SSH session open.
+_INIT_WAIT_S = 420
+_INIT_POLL_S = 5
+
+
 def render_remote_script(
     *,
     parents: list[str],
     leaves: list[str],
+    init_wait_s: int = _INIT_WAIT_S,
+    init_poll_s: int = _INIT_POLL_S,
     data_dirs: tuple[tuple[str, str], ...] = (),
     migrated_data_dirs: tuple[tuple[str, str, str], ...] = (),
     dify_storage_prep: bool = False,
@@ -446,6 +457,7 @@ STARTED=0
 FAILED=0
 PIDS=()
 NAMES=()
+UP_NAMES=()
 
 # 1. Start parent stacks (parallel — see docstring for why no barrier
 #    between parents and leaves).
@@ -502,6 +514,7 @@ for i in "${{!PIDS[@]}}"; do
         if RUNNING=$(docker ps --format '{{{{.Names}}}}') \
            && grep -qFx -- "$name" <<< "$RUNNING"; then
             STARTED=$((STARTED+1))
+            UP_NAMES+=("$name")
             echo "  ✓ $name started and running"
         else
             FAILED=$((FAILED+1))
@@ -511,6 +524,72 @@ for i in "${{!PIDS[@]}}"; do
         rc=$?
         FAILED=$((FAILED+1))
         echo "  ✗ $name compose up failed (rc=$rc)" >&2
+    fi
+done
+
+# 4. One-shot init containers (#976). A stack's `<service>-init` container
+#    does its auto-setup (an admin account, a bucket, a namespace) and exits.
+#    Where nothing `depends_on` it with service_completed_successfully, a
+#    failing init left the main container running and the stack green while
+#    the credentials in Infisical matched no account. `up -d` returns before
+#    an init has finished, so wait for each one (bounded) and count the
+#    stack as failed if it exits non-zero, gives up its restarts, or is
+#    still running at the deadline.
+INIT_DEADLINE=$((SECONDS + {init_wait_s}))
+for name in "${{UP_NAMES[@]}}"; do
+    # The services come from the stack's current compose file, so a
+    # container left behind by a renamed or removed service (an orphan,
+    # which `docker compose ps` also lists) is not taken for this stack's
+    # init. A lookup that fails counts as a failed stack: an init nobody
+    # could look at is not one that succeeded.
+    stack_failed=""
+    INIT_IDS=""
+    if ! INIT_SERVICES=$(cd "$STACKS_DIR/$name" && docker compose config --services); then
+        stack_failed="could not list its services to find init containers"
+    else
+        for svc in $INIT_SERVICES; do
+            case "$svc" in *-init) ;; *) continue ;; esac
+            if ! ids=$(cd "$STACKS_DIR/$name" && docker compose ps -a -q "$svc"); then
+                stack_failed="could not look up its $svc container"
+                break
+            fi
+            INIT_IDS="$INIT_IDS $ids"
+        done
+    fi
+    for cid in $INIT_IDS; do
+        while :; do
+            if ! INFO=$(docker inspect -f '{{{{.Name}}}} {{{{.State.Status}}}} {{{{.State.ExitCode}}}} {{{{.RestartCount}}}} {{{{.HostConfig.RestartPolicy.Name}}}} {{{{.HostConfig.RestartPolicy.MaximumRetryCount}}}}' "$cid" 2>/dev/null); then
+                stack_failed="init container $cid could not be inspected"
+                break
+            fi
+            read -r cname cstatus ccode crestarts cpolicy cmax <<< "$INFO"
+            cname=${{cname#/}}
+            if [ "$cstatus" = "exited" ] && [ "$ccode" = "0" ]; then
+                break
+            fi
+            if [ "$cstatus" = "exited" ] || [ "$cstatus" = "dead" ]; then
+                # on-failure:N restarts it; only the last exit is final.
+                # on-failure without a limit reports a maximum of 0 and
+                # restarts without end, so only the deadline settles it.
+                if [ "$cpolicy" != "on-failure" ] || {{ [ "$cmax" -gt 0 ] && [ "$crestarts" -ge "$cmax" ]; }}; then
+                    stack_failed="$cname exited with $ccode; see docker logs $cname"
+                    break
+                fi
+            fi
+            if [ "$SECONDS" -ge "$INIT_DEADLINE" ]; then
+                stack_failed="$cname still $cstatus after {init_wait_s}s; see docker logs $cname"
+                break
+            fi
+            sleep {init_poll_s}
+        done
+        if [ -n "$stack_failed" ]; then
+            break
+        fi
+    done
+    if [ -n "$stack_failed" ]; then
+        STARTED=$((STARTED-1))
+        FAILED=$((FAILED+1))
+        echo "  ✗ $name init failed: $stack_failed" >&2
     fi
 done
 
