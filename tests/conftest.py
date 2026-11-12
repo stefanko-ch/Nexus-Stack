@@ -44,3 +44,13 @@ def fake_secrets_json() -> dict[str, str]:
         # account naming rule).
         "admin_username": "nexus",
     }
+
+
+@pytest.fixture(autouse=True)
+def _no_transport_retry_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dropped connection is retried after a pause; tests do not wait for it.
+
+    Every test that simulates `ssh` exiting 255 would otherwise sleep
+    through each retry (`_remote._retry_transport`).
+    """
+    monkeypatch.setattr("nexus_deploy._remote._TRANSPORT_RETRY_DELAY_S", 0.0)
