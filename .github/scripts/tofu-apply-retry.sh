@@ -37,6 +37,9 @@ DELAY_S="${TOFU_APPLY_RETRY_DELAY_S:-20}"
 # and the S3 client word them. Matched case-insensitively.
 TRANSIENT='timeout awaiting response headers|i/o timeout|tls handshake timeout|connection reset by peer|connection refused|unexpected eof|broken pipe|no such host|temporary failure in name resolution|client\.timeout exceeded|context deadline exceeded|502 bad gateway|503 service unavailable|504 gateway time-?out|status code: 50[234]|statuscode: 50[234]'
 
+# OpenTofu's wording when the state did not reach the backend.
+STATE_NOT_SAVED='failed to (save|persist|upload) (the )?state|error saving state|errored\.tfstate'
+
 LOG=$(mktemp)
 trap 'rm -f "$LOG"' EXIT
 
@@ -46,6 +49,15 @@ while :; do
   status=${PIPESTATUS[0]}
   if [ "$status" -eq 0 ]; then
     exit 0
+  fi
+  # A failure to save the state is never retried, whatever caused it: the
+  # apply changed real resources that the backend's state does not record,
+  # and OpenTofu leaves errored.tfstate to push back first. Another apply
+  # on top would act on stale state.
+  if grep -qiE "$STATE_NOT_SAVED" "$LOG" || [ -f errored.tfstate ]; then
+    echo "❌ tofu apply failed and could not save its state (exit $status); not retrying."
+    echo "   Recover errored.tfstate with 'tofu state push errored.tfstate' before the next apply."
+    exit "$status"
   fi
   if ! grep -qiE "$TRANSIENT" "$LOG"; then
     echo "❌ tofu apply failed (exit $status), not on a network error; not retrying"

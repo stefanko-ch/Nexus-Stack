@@ -135,3 +135,19 @@ def test_both_lifecycle_workflows_apply_through_the_script() -> None:
             line.strip() for line in text.splitlines() if line.strip().startswith("tofu apply ")
         ]
         assert not bare, f"{name} still runs a bare apply: {bare}"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Failed to save state: timeout awaiting response headers",
+        "Failed to persist state to backend; net/http: timeout awaiting response headers",
+        "OpenTofu has saved the state to errored.tfstate (i/o timeout)",
+    ],
+)
+def test_a_state_that_was_not_saved_is_never_retried(tmp_path: Path, message: str) -> None:
+    """Even with a network error in the text: the next apply would act on stale state."""
+    result, bin_dir = _run(tmp_path, fails=99, message=message)
+    assert result.returncode == 1
+    assert _calls(bin_dir) == 1
+    assert "could not save its state" in result.stdout

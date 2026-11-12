@@ -99,7 +99,40 @@ def test_ssh_run_script_retries_only_when_asked(monkeypatch: pytest.MonkeyPatch)
     assert len(attempts) == 1, "the default stays one attempt"
 
 
-def test_the_stack_sync_cleanup_asks_for_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_returned_transport_status_is_retried_and_the_last_returned() -> None:
+    """check=False: ssh's 255 comes back as a result, not an exception."""
+    statuses = [255, 255, 255]
+    calls: list[int] = []
+
+    def call() -> subprocess.CompletedProcess[str]:
+        calls.append(1)
+        return subprocess.CompletedProcess(["ssh"], statuses[len(calls) - 1], "", "")
+
+    result = _remote._retry_transport(call, retries=2, transport_codes=frozenset({255}), label="t")
+    assert result.returncode == 255
+    assert len(calls) == 3
+
+
+def test_a_returned_non_transport_status_is_returned_at_once() -> None:
+    calls: list[int] = []
+
+    def call() -> subprocess.CompletedProcess[str]:
+        calls.append(1)
+        return subprocess.CompletedProcess(["ssh"], 1, "", "")
+
+    assert (
+        _remote._retry_transport(
+            call, retries=2, transport_codes=frozenset({255}), label="t"
+        ).returncode
+        == 1
+    )
+    assert len(calls) == 1
+
+
+def test_the_stack_sync_cleanup_runs_detached_and_unretried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rerun after a drop would hide a failed `compose down` (failed=0)."""
     seen: dict[str, Any] = {}
 
     def fake(script: str, **kwargs: Any) -> subprocess.CompletedProcess[str]:
@@ -108,4 +141,5 @@ def test_the_stack_sync_cleanup_asks_for_retries(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr("nexus_deploy.stack_sync._remote.ssh_run_script", fake)
     stack_sync.cleanup_disabled_stacks(["spark"])
-    assert seen.get("transport_retries", 0) >= 1
+    assert seen.get("detached") is True
+    assert seen.get("transport_retries", 0) == 0

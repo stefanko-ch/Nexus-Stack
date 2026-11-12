@@ -192,24 +192,32 @@ def _retry_transport(
     restore had finished, and a rerun of the same workflow passed.
 
     Only a ``CalledProcessError`` whose status is in ``transport_codes``
-    is retried; any other failure, and the last transport failure, is
-    raised unchanged. A non-zero status the call returns without raising
-    (``check=False``) is the caller's to judge and is returned as is.
+    is retried, and so is a returned result with such a status (a call
+    with ``check=False`` does not raise). Any other failure, and the last
+    transport failure, is raised or returned unchanged.
     Callers must only pass operations that are safe to repeat.
     """
     attempt = 0
     while True:
         try:
-            return call()
+            result = call()
         except subprocess.CalledProcessError as exc:
             if exc.returncode not in transport_codes or attempt >= retries:
                 raise
-            attempt += 1
-            sys.stderr.write(
-                f"  ⚠ {label}: connection failed (exit {exc.returncode}); "
-                f"retry {attempt} of {retries} in {_TRANSPORT_RETRY_DELAY_S:.0f}s\n"
-            )
-            sleep(_TRANSPORT_RETRY_DELAY_S)
+            status = exc.returncode
+        else:
+            # With check=False a transport failure comes back as a result
+            # rather than an exception; it is retried the same way, and the
+            # last one is returned, as check=False promises.
+            if result.returncode not in transport_codes or attempt >= retries:
+                return result
+            status = result.returncode
+        attempt += 1
+        sys.stderr.write(
+            f"  ⚠ {label}: connection failed (exit {status}); "
+            f"retry {attempt} of {retries} in {_TRANSPORT_RETRY_DELAY_S:.0f}s\n"
+        )
+        sleep(_TRANSPORT_RETRY_DELAY_S)
 
 
 # ---------------------------------------------------------------------------

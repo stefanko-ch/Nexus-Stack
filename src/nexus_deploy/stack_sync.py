@@ -391,10 +391,11 @@ def cleanup_disabled_stacks(
     """
     safe_enabled = [s for s in enabled if _is_safe_name(s)]
     script = render_cleanup_script(safe_enabled, stacks_dir=remote_stacks_dir)
-    # Retried when the connection drops: the script only stops and removes
-    # folders of disabled stacks, so a second run finds less to do and
-    # lands on the same result (#972).
-    runner = script_runner or (lambda s: _remote.ssh_run_script(s, host=host, transport_retries=2))
+    # Detached, so a dropped connection does not fail it (#972). Not
+    # retried: a rerun after a drop would find the folders already removed
+    # and report failed=0, hiding a `docker compose down` that failed in the
+    # first run. The detached path keeps that first run's output.
+    runner = script_runner or (lambda s: _remote.ssh_run_script(s, host=host, detached=True))
     completed = runner(script)
 
     # Forward per-stack diagnostics ("Stopping foo...", "Removing
