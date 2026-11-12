@@ -49,10 +49,19 @@ state = json.load(open(state_file))
 args = sys.argv[1:]
 if args[:1] == ["compose"] and "up" in args:
     sys.exit(0)
+if args[:1] == ["compose"] and "config" in args:
+    if state.get("config_fails"):
+        sys.exit(1)
+    services = {"flowise"} | {c["service"] for c in state["init"].values() if not c.get("orphan")}
+    print("\n".join(sorted(services)))
+    sys.exit(0)
 if args[:1] == ["compose"] and "ps" in args:
+    if state.get("ps_fails"):
+        sys.exit(1)
+    wanted = args[-1]
     for cid, c in state["init"].items():
-        print(f"{cid} {c['service']}")
-    print("main1 flowise")
+        if c["service"] == wanted:
+            print(cid)
     sys.exit(0)
 if args[:1] == ["ps"]:
     print(state["ps"])
@@ -71,7 +80,11 @@ sys.exit(0)
 
 
 def _run(
-    tmp_path: Path, init: dict[str, dict[str, object]], *, wait_s: int = 30
+    tmp_path: Path,
+    init: dict[str, dict[str, object]],
+    *,
+    wait_s: int = 30,
+    **flags: bool,
 ) -> subprocess.CompletedProcess[str]:
     stacks = tmp_path / "stacks"
     (stacks / "flowise").mkdir(parents=True)
@@ -83,7 +96,7 @@ def _run(
     (bin_dir / "sleep").write_text("#!/bin/sh\nexit 0\n")  # polling without waiting
     (bin_dir / "sleep").chmod(0o755)
     state = tmp_path / "state.json"
-    state.write_text(json.dumps({"ps": "flowise", "init": init}))
+    state.write_text(json.dumps({"ps": "flowise", "init": init, **flags}))
 
     script = compose_runner.render_remote_script(parents=[], leaves=["flowise"], init_wait_s=wait_s)
     env = {
@@ -193,7 +206,9 @@ def test_every_unwaited_one_shot_service_is_named_dash_init() -> None:
             if isinstance(cond, dict) and cond.get("condition") == "service_completed_successfully"
         }
         for name, svc in services.items():
-            restart = str(svc.get("restart", ""))
+            # Compose's default restart policy is "no": a service without one
+            # is one-shot as far as this rule is concerned.
+            restart = str(svc.get("restart", "no"))
             one_shot = restart in ("no", "False") or restart.startswith("on-failure")
             if one_shot and name not in waited and not name.endswith("-init"):
                 offenders.append(f"{compose_file.parent.name}/{name}")
@@ -202,3 +217,36 @@ def test_every_unwaited_one_shot_service_is_named_dash_init() -> None:
         f"Rename them, or make the main service depends_on them with "
         f"service_completed_successfully."
     )
+
+
+@needs_modern_bash
+def test_unlimited_restarts_are_waited_for_until_the_deadline(tmp_path: Path) -> None:
+    """on-failure without a limit reports a maximum of 0: not used up."""
+    states = [
+        _inspect("exited", 1, restarts=5, policy="on-failure", maximum=0),
+        _inspect("exited", 0, restarts=6, policy="on-failure", maximum=0),
+    ]
+    result = _run(tmp_path, {"i1": {"service": "flowise-init", "states": states}})
+    assert "RESULT started=1 failed=0" in result.stdout, result.stderr
+
+
+@needs_modern_bash
+def test_an_orphaned_init_container_is_not_this_stacks_init(tmp_path: Path) -> None:
+    """A container of a service no longer in the compose file is ignored."""
+    result = _run(
+        tmp_path,
+        {"old": {"service": "flowise-old-init", "orphan": True, "states": [_inspect("exited", 1)]}},
+    )
+    assert "RESULT started=1 failed=0" in result.stdout, result.stderr
+
+
+@needs_modern_bash
+@pytest.mark.parametrize("flag", ["config_fails", "ps_fails"])
+def test_a_lookup_that_fails_fails_the_stack(tmp_path: Path, flag: str) -> None:
+    result = _run(
+        tmp_path,
+        {"i1": {"service": "flowise-init", "states": [_inspect("exited", 0)]}},
+        **{flag: True},
+    )
+    assert "RESULT started=0 failed=1" in result.stdout, result.stderr
+    assert "could not" in result.stderr

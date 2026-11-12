@@ -537,10 +537,25 @@ done
 #    still running at the deadline.
 INIT_DEADLINE=$((SECONDS + {init_wait_s}))
 for name in "${{UP_NAMES[@]}}"; do
-    INIT_IDS=$(cd "$STACKS_DIR/$name" && docker compose ps -a --format '{{{{.ID}}}} {{{{.Service}}}}' 2>/dev/null \
-        | awk '$2 ~ /-init$/ {{print $1}}') || INIT_IDS=""
-    [ -n "$INIT_IDS" ] || continue
+    # The services come from the stack's current compose file, so a
+    # container left behind by a renamed or removed service (an orphan,
+    # which `docker compose ps` also lists) is not taken for this stack's
+    # init. A lookup that fails counts as a failed stack: an init nobody
+    # could look at is not one that succeeded.
     stack_failed=""
+    INIT_IDS=""
+    if ! INIT_SERVICES=$(cd "$STACKS_DIR/$name" && docker compose config --services); then
+        stack_failed="could not list its services to find init containers"
+    else
+        for svc in $INIT_SERVICES; do
+            case "$svc" in *-init) ;; *) continue ;; esac
+            if ! ids=$(cd "$STACKS_DIR/$name" && docker compose ps -a -q "$svc"); then
+                stack_failed="could not look up its $svc container"
+                break
+            fi
+            INIT_IDS="$INIT_IDS $ids"
+        done
+    fi
     for cid in $INIT_IDS; do
         while :; do
             if ! INFO=$(docker inspect -f '{{{{.Name}}}} {{{{.State.Status}}}} {{{{.State.ExitCode}}}} {{{{.RestartCount}}}} {{{{.HostConfig.RestartPolicy.Name}}}} {{{{.HostConfig.RestartPolicy.MaximumRetryCount}}}}' "$cid" 2>/dev/null); then
@@ -554,7 +569,9 @@ for name in "${{UP_NAMES[@]}}"; do
             fi
             if [ "$cstatus" = "exited" ] || [ "$cstatus" = "dead" ]; then
                 # on-failure:N restarts it; only the last exit is final.
-                if [ "$cpolicy" != "on-failure" ] || [ "$crestarts" -ge "$cmax" ]; then
+                # on-failure without a limit reports a maximum of 0 and
+                # restarts without end, so only the deadline settles it.
+                if [ "$cpolicy" != "on-failure" ] || {{ [ "$cmax" -gt 0 ] && [ "$crestarts" -ge "$cmax" ]; }}; then
                     stack_failed="$cname exited with $ccode; see docker logs $cname"
                     break
                 fi
