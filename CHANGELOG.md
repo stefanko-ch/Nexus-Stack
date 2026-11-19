@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.92.0](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.5...v0.92.0) (2026-11-19)
+
+
+### 🚀 Features
+
+* **ci:** Add the release gate, a lifecycle test of the proven stacks ([#1044](https://github.com/stefanko-ch/Nexus-Stack/issues/1044)) ([6a64f63](https://github.com/stefanko-ch/Nexus-Stack/commit/6a64f63b5a9392bb270cf7aae04230005fd78895))
+
+
+### 🐛 Bug Fixes
+
+* **ci:** Hand the Kestra probe's login to curl in the command that reads it ([#1050](https://github.com/stefanko-ch/Nexus-Stack/issues/1050)) ([3a4a789](https://github.com/stefanko-ch/Nexus-Stack/commit/3a4a789587c6380993e33445a0b0393f7e34bdac))
+* **ci:** Report a published port that answers no HTTP as faulty, unless it is meant to ([#1043](https://github.com/stefanko-ch/Nexus-Stack/issues/1043)) ([9d07ecf](https://github.com/stefanko-ch/Nexus-Stack/commit/9d07ecf0c2ef22886c6f9e7d344e86908f5ba702))
+* **control-plane:** Read the Infisical inventory in one request, so the Secrets page lists every folder ([#1037](https://github.com/stefanko-ch/Nexus-Stack/issues/1037)) ([34a0077](https://github.com/stefanko-ch/Nexus-Stack/commit/34a00778756ecce0e4bf0ff57ba2ea18ca1195c8))
+* **deploy:** Fail a stack whose one-shot init container fails ([#1042](https://github.com/stefanko-ch/Nexus-Stack/issues/1042)) ([f8c9fa8](https://github.com/stefanko-ch/Nexus-Stack/commit/f8c9fa855ed692a96555d750b9870256d0358848))
+* **deploy:** Keep the detached runner's lock and output cap on Ubuntu 26.04 ([#1047](https://github.com/stefanko-ch/Nexus-Stack/issues/1047)) ([099865a](https://github.com/stefanko-ch/Nexus-Stack/commit/099865a00e3e59db64f72ba14df8545f5e6903fd))
+* **deploy:** Retry the steps a dropped connection or a provider timeout fails, and only those ([#1041](https://github.com/stefanko-ch/Nexus-Stack/issues/1041)) ([ac07b8a](https://github.com/stefanko-ch/Nexus-Stack/commit/ac07b8a3367dfa22c054296c949319e923dd9f26))
+
+
+### 📚 Documentation
+
+* **stacks:** Tag every language-less code block under docs/stacks/ ([#1039](https://github.com/stefanko-ch/Nexus-Stack/issues/1039)) ([95e7c9a](https://github.com/stefanko-ch/Nexus-Stack/commit/95e7c9a49db797aa02b6402306a580653934f903))
+
+
+### 🔧 Maintenance
+
+* Run shellcheck on .github/scripts/, where the lifecycle scripts live ([#1038](https://github.com/stefanko-ch/Nexus-Stack/issues/1038)) ([fe645d6](https://github.com/stefanko-ch/Nexus-Stack/commit/fe645d60fc780a5c25d8d4156566df5089f7cd14))
+
 ## [0.91.5](https://github.com/stefanko-ch/Nexus-Stack/compare/v0.91.4...v0.91.5) (2026-11-11)
 
 
