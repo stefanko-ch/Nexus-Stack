@@ -49,7 +49,7 @@ The image has no `find` — `command -v find` is empty. The step fails silently,
 
 **4. S3A is in the image but not on the metastore's classpath.** `hadoop-aws-3.4.1.jar` and the AWS SDK bundle are both at `/opt/hadoop/share/hadoop/tools/lib`, but the entrypoint only adds `tools/lib` for `hiveserver2`. Creating a table with an `s3a://` location therefore fails with:
 
-```
+```text
 ClassNotFoundException: org.apache.hadoop.fs.s3a.S3AFileSystem
 ```
 
@@ -59,7 +59,7 @@ ClassNotFoundException: org.apache.hadoop.fs.s3a.S3AFileSystem
 
 The image runs as `hive` (uid 1000), and a bind mount arrives root-owned — so the warehouse directory is not writable by the user that needs it. Creating a managed table then fails:
 
-```
+```text
 MetaException: file:/opt/hive/data/warehouse/probe_db.db/local_sales
 is not a directory or unable to create one
 ```
@@ -76,7 +76,7 @@ The schema is created by the image on first start (`schematool -initOrUpgradeSch
 
 Against a real object store, end to end:
 
-```
+```text
 databases: ['default', 'probe_db']
 tables:    ['sales']
 

@@ -85,7 +85,7 @@ This is useful for distributing course material or read-only code to students.
 | `GH_MIRROR_REPOS` | Comma-separated list of GitHub HTTPS repo URLs to mirror |
 
 **Example value for `GH_MIRROR_REPOS`:**
-```
+```text
 https://github.com/my-org/course-2025.git,https://github.com/my-org/examples.git
 ```
 

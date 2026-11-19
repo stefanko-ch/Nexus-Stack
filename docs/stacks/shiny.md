@@ -43,7 +43,7 @@ The clone lands in `/srv/workspace`, outside the served directory, and only its 
 
 The existence check on that symlink is not defensive padding. A **dangling** link takes down the whole index page, not just its own entry. With a repository that has no `shiny/` directory — which is every repository until somebody adds one — the root answered:
 
-```
+```text
 An error has occurred
 Invalid application configuration.
 ENOENT: no such file or directory, stat '/srv/shiny-server/workspace'
@@ -57,7 +57,7 @@ Every `rocker/shiny` tag on Docker Hub lists a single architecture. That is fine
 
 `git`, because the base image has none and the entrypoint clones the workspace repository. And five R packages — `DBI`, `RPostgres`, `ggplot2`, `dplyr`, `DT` — from a **dated** Posit Package Manager snapshot rather than its `latest`:
 
-```
+```text
 https://p3m.dev/cran/__linux__/noble/2026-09-01
 ```
 
@@ -69,7 +69,7 @@ Not added: `curl` and `wget`. The base image has neither, so the healthcheck use
 
 `examples/warehouse_explorer` lists the tables in the shared PostgreSQL, runs a query and plots the first numeric column. Its connection is opened read-only, which stops an accident rather than an attacker:
 
-```
+```text
 cannot execute UPDATE in a read-only transaction
 ```
 

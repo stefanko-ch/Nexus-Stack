@@ -41,7 +41,7 @@ In Nexus-Stack it is a self-contained IdP to build and test SSO against. **It do
 
 ### Credentials
 
-```
+```text
 Infisical → keycloak → KEYCLOAK_ADMIN_USERNAME   same as ADMIN_USERNAME
                        KEYCLOAK_ADMIN_PASSWORD   (generated)
                        KEYCLOAK_DB_USERNAME      nexus-keycloak
@@ -102,7 +102,7 @@ All set as environment variables in `stacks/keycloak/docker-compose.yml`. Option
 
 **Why `KC_PROXY_HEADERS` is needed**, measured with a request shaped like the tunnel's (`Host: keycloak.example.com`):
 
-```
+```text
 with    X-Forwarded-Proto: https  -> token_endpoint https://keycloak.example.com/realms/master/protocol/openid-connect/token
 without                            -> token_endpoint http://keycloak.example.com/realms/master/protocol/openid-connect/token
 issuer, both cases                 -> https://keycloak.example.com/realms/master
@@ -129,7 +129,7 @@ Nothing in Nexus-Stack is connected to Keycloak yet (Lakekeeper's OIDC mode is t
 
 1. **The issuer is always the public URL.** Discovery fetched from inside `app-network` returns:
 
-   ```
+   ```text
    GET http://keycloak:8080/realms/master/.well-known/openid-configuration
    issuer                  https://keycloak.example.com/realms/master
    authorization_endpoint  https://keycloak.example.com/realms/master/protocol/openid-connect/auth

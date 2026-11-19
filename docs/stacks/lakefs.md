@@ -34,7 +34,7 @@ LakeFS provides Git-like version control for data stored in object storage. Feat
    - Generate new credentials and save the **Access Key** and **Secret Key**
 
 2. Add to **GitHub Secrets**:
-   ```
+   ```text
    HETZNER_OBJECT_STORAGE_ACCESS_KEY = <your-access-key>
    HETZNER_OBJECT_STORAGE_SECRET_KEY = <your-secret-key>
    ```

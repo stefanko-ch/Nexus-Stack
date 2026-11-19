@@ -34,7 +34,7 @@ The official image's entrypoint substitutes exactly eight keys into `cassandra.y
 
 This stack's entrypoint rewrites `authenticator` and `authorizer` before handing over, and the admin hook then does what the image cannot: it creates `nexus-cassandra` with the generated password and drops the built-in `cassandra` superuser, whose password is `cassandra`. Afterwards:
 
-```
+```text
 cqlsh -u cassandra -p cassandra
   → Provided username cassandra and/or password are incorrect
 ```
@@ -60,7 +60,7 @@ Enable this stack when you want it, not by default.
 
 **`CASSANDRA_SEEDS: "cassandra"`.** Naming the container as its own seed does not start:
 
-```
+```text
 WARN  SimpleSeedProvider - Seed provider couldn't lookup host cassandra
 Exception ... The seed provider lists no seeds.
 ```

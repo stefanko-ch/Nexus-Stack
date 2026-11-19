@@ -46,7 +46,7 @@ spark.sql("SELECT 1 as test").show()
 ```
 
 **Spark SQL magic cell:**
-```
+```sql
 %%sparksql
 SELECT 'hello spark' as greeting
 ```

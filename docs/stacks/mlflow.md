@@ -56,13 +56,13 @@ The seeded notebook `nexus_seeds/marimo/Getting_Started_MLflow.py` walks through
 
 MLflow 3.x rejects requests whose `Host` header it was not told to expect:
 
-```
+```text
 403 Invalid Host header - possible DNS rebinding attack detected
 ```
 
 There is no hint in that message about what to change. The stack therefore passes both names it must answer to:
 
-```
+```text
 --allowed-hosts "mlflow:5000,${MLFLOW_DOMAIN}"
 ```
 
@@ -77,7 +77,7 @@ If you add another client under a different name — a second tunnel hostname, a
 
 The official `ghcr.io/mlflow/mlflow` image cannot run this configuration. Measured on `v3.16.0`:
 
-```
+```text
 mlflow           3.16.0
 SQLAlchemy       2.0.52
 alembic          1.19.1

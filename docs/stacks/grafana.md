@@ -36,7 +36,7 @@ The stack comes with three ready-to-use dashboards:
 
 ### Architecture
 
-```
+```text
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │  Containers │────▶│  Promtail   │────▶│    Loki     │
 │   (logs)    │     │             │     │             │

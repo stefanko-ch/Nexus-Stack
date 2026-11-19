@@ -59,7 +59,7 @@ pandas, numpy, altair and pyarrow arrive as Streamlit's own dependencies. Instal
 
 Its connection is opened read-only, which stops an accident rather than an attacker:
 
-```
+```text
 cannot execute UPDATE in a read-only transaction
 ```
 

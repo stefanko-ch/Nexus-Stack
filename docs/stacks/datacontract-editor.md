@@ -34,7 +34,7 @@ This stack leaves `AI_ENABLED=false`. The obvious reason is the default endpoint
 
 The less obvious reason is where the configuration ends up. The image's `CMD` writes those variables into `config.json` **inside nginx's html root** (`/usr/share/nginx/html/config.json`), so the file is served like any other asset:
 
-```
+```http
 GET https://datacontract-editor.<domain>/config.json
 ```
 
@@ -58,7 +58,7 @@ Upstream hardcodes `tests.enabled` to `true` and ships `api.datacontract.com` as
 
 **What you will see, and it is not a broken stack.** The tab shows the redirected target and the browser refuses the call:
 
-```
+```text
 Run tests via: https://datacontract-api.<domain>
 Failed — Error: Load failed
 ```
