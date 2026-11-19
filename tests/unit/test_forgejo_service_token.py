@@ -416,7 +416,8 @@ def test_the_spin_up_adopts_the_token_before_it_applies() -> None:
     adopt, apply_ = _positions(
         "spin-up.yml",
         r'forgejo-service-token\.sh"? adopt',
-        r"tofu apply -var-file=config\.tfvars -auto-approve",
+        # The apply runs through the retry wrapper since #796.
+        r"tofu-apply-retry\.sh\"? -var-file=config\.tfvars -auto-approve",
     )
     assert adopt < apply_, "the apply would mint a replacement token"
 

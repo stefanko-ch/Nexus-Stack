@@ -1213,7 +1213,12 @@ jobs:
           # exists in Tofu state — persistence moved to R2.
 
           echo "🏗️  Deploying Control Plane infrastructure (Cloudflare Pages + Worker)..."
-          tofu apply -var-file=config.tfvars -auto-approve
+          # Retried on a transient network error only (#796). Without the
+          # `if`, a failure here would print the success line below.
+          if ! bash "$GITHUB_WORKSPACE/.github/scripts/tofu-apply-retry.sh" -var-file=config.tfvars -auto-approve; then
+            echo "❌ Control Plane infrastructure deploy failed; see the apply output above"
+            exit 1
+          fi
 
           echo "✅ Control Plane infrastructure deployed"
 

@@ -496,7 +496,8 @@ jobs:
           export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
           export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
           tofu init -backend-config=../backend.hcl -reconfigure >/dev/null 2>&1 || true
-          tofu apply -var-file=config.tfvars -auto-approve
+          # Retried on a transient network error only (#796).
+          bash "$GITHUB_WORKSPACE/.github/scripts/tofu-apply-retry.sh" -var-file=config.tfvars -auto-approve
 
       - name: Open SSH port temporarily
         run: |

@@ -230,6 +230,81 @@ def test_a_failing_ssh_raises_with_its_stderr(
     assert "kex_exchange_identification" in caught.value.stderr
 
 
+# `ssh` that drops the connection on its first `fails` calls, counting them
+# in a file next to it, then behaves like _FAKE_SSH.
+_FLAKY_SSH = """#!/usr/bin/env bash
+count_file="$(dirname "$0")/calls"
+calls=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))
+echo "$calls" > "$count_file"
+if [ "$calls" -le {fails} ]; then
+  echo "Connection closed by UNKNOWN port 65535" >&2
+  exit 255
+fi
+shift
+exec bash -c "$*"
+"""
+
+
+def _calls(bin_dir: Path) -> int:
+    return int((bin_dir / "calls").read_text())
+
+
+def test_a_dropped_connection_is_retried_and_the_push_lands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The drop from #972: a push is safe to repeat, so it is repeated."""
+    _no_rsync(monkeypatch)
+    bin_dir = _fake_ssh(tmp_path, monkeypatch, body=_FLAKY_SSH.replace("{fails}", "2"))
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "f").write_text("x")
+    dst = tmp_path / "dst"
+
+    _remote.push_directory(src, f"nexus:{dst}")
+
+    assert _calls(bin_dir) == 3, "two drops, then the attempt that worked"
+    assert (dst / "f").read_text() == "x"
+
+
+def test_a_connection_that_keeps_dropping_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _no_rsync(monkeypatch)
+    bin_dir = _fake_ssh(tmp_path, monkeypatch, body=_FLAKY_SSH.replace("{fails}", "99"))
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "f").write_text("x")
+
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        _remote.push_directory(src, f"nexus:{tmp_path / 'dst'}")
+
+    assert caught.value.returncode == 255
+    assert _calls(bin_dir) == 1 + _remote._PUSH_TRANSPORT_RETRIES
+
+
+def test_a_failure_that_is_not_the_connection_is_not_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remote command failing with its own status is a real error."""
+    _no_rsync(monkeypatch)
+    bin_dir = _fake_ssh(
+        tmp_path,
+        monkeypatch,
+        body='#!/usr/bin/env bash\ncount_file="$(dirname "$0")/calls"\n'
+        'echo $(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 )) > "$count_file"\n'
+        'echo "tar: Cannot open: Permission denied" >&2\nexit 2\n',
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "f").write_text("x")
+
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        _remote.push_directory(src, "nexus:/dst")
+
+    assert caught.value.returncode == 2
+    assert _calls(bin_dir) == 1
+
+
 def test_a_remote_without_a_path_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
