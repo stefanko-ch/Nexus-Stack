@@ -10,6 +10,7 @@ proven stack ships a probe.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -242,6 +243,82 @@ def test_a_probe_that_hangs_fails_instead_of_holding_the_gate(tmp_path: Path) ->
     assert result.returncode == 1
     assert "no answer within" in result.stdout
     assert "a: create failed (exit 124)" in result.stdout
+
+
+# ---- the Kestra probe, against a stand-in curl and docker -------------------------
+
+# Records the --config file curl was handed, the way curl reads it: after the
+# command that named it has started. A config that cannot be read fails with
+# curl's own exit code for that (26, read error).
+_FAKE_CURL = """#!/bin/bash
+cfg=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --config) cfg=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+cat "$cfg" > "$STUB_DIR/config" 2>/dev/null || exit 26
+printf '%s' "$STUB_OUT"
+"""
+
+
+def _run_kestra_probe(tmp_path: Path, action: str, out: str) -> subprocess.CompletedProcess[str]:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "curl").write_text(_FAKE_CURL)
+    (bin_dir / "docker").write_text("#!/bin/bash\necho kestra\n")
+    for tool in ("curl", "docker"):
+        (bin_dir / tool).chmod(0o755)
+    env_file = tmp_path / "kestra.env"
+    env_file.write_text("KESTRA_ADMIN_USER=nexus-admin\nKESTRA_ADMIN_PASSWORD=pw-from-env\n")
+    return subprocess.run(
+        ["bash", str(REPO_ROOT / "stacks" / "kestra" / "lifecycle-probe.sh"), action, "gate-7"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "KESTRA_PROBE_ENV_FILE": str(env_file),
+            "STUB_DIR": str(tmp_path),
+            "STUB_OUT": out,
+        },
+    )
+
+
+def test_the_kestra_probe_hands_curl_a_readable_login(tmp_path: Path) -> None:
+    """The first gate runs failed with "cannot read config from '/dev/fd/63'":
+    the login sat in a process substitution stored in a variable, which is
+    closed by the time a later curl reads it."""
+    result = _run_kestra_probe(tmp_path, "create", "200")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "kestra: saved flow nexus.releasegate.lifecycle_probe" in result.stdout
+    assert (tmp_path / "config").read_text() == 'user = "nexus-admin:pw-from-env"\n'
+
+
+def test_the_kestra_probe_verify_reads_the_flow_back(tmp_path: Path) -> None:
+    result = _run_kestra_probe(tmp_path, "verify", 'description: "release gate gate-7"')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "kestra: flow survived, API answers" in result.stdout
+
+
+def test_the_kestra_probe_keeps_the_password_out_of_its_output(tmp_path: Path) -> None:
+    result = _run_kestra_probe(tmp_path, "create", "200")
+    assert "pw-from-env" not in result.stdout + result.stderr
+
+
+def test_no_probe_stores_a_process_substitution() -> None:
+    """`X=(... <(...))` or `X=<(...)` keeps a /dev/fd path whose pipe is
+    closed once the assignment ends; every later reader fails."""
+    for name in PROVEN:
+        probe = REPO_ROOT / "stacks" / name / "lifecycle-probe.sh"
+        for line in probe.read_text().splitlines():
+            if line.strip().startswith("#"):
+                continue
+            assert not re.search(r"^\s*[A-Za-z_]\w*=\(?[^)]*<\(", line), (
+                f"{probe.name}: {line.strip()}"
+            )
 
 
 def test_every_curl_in_a_probe_is_bounded() -> None:
