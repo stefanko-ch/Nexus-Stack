@@ -202,7 +202,8 @@ def test_a_lock_without_a_pid_stops_reading_as_running(
     root = _install_ssh(tmp_path, monkeypatch, FAKE_SSH)
     monkeypatch.setattr("nexus_deploy._remote.secrets.token_hex", lambda _n: "deadbeefdeadbeef")
     monkeypatch.setattr(_remote, "_DETACHED_STARTUP_GRACE_S", 1)
-    (root / "deadbeefdeadbeef" / "lock").mkdir(parents=True)
+    (root / "deadbeefdeadbeef").mkdir(parents=True)
+    (root / "deadbeefdeadbeef" / "lock").touch()
     with pytest.raises(subprocess.CalledProcessError) as caught:
         run("echo never\n")
     assert "without leaving an exit status" in (caught.value.output or "")
