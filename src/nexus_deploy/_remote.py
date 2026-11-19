@@ -283,7 +283,7 @@ def _run_script_detached(
     also deliberately not a digest of the script, which can carry secret
     values and would put a hash of them on a command line. Every launch attempt uploads to a file of
     its own, so a retry cannot rewrite the file an earlier attempt is about
-    to run; a lock directory lets exactly one of them start. The job unlinks
+    to run; a lock file lets exactly one of them start. The job unlinks
     its script as soon as bash has it open.
 
     Times are wall-clock, so a call that hangs until its own cap counts in
@@ -372,6 +372,9 @@ def _run_script_detached(
     # since callers read their result lines from it. `gnutail` is preferred
     # where it exists: the Rust `tail` on Ubuntu 26.04 keeps the right end
     # but, reading a pipe, often many times more than it was asked for.
+    # A system whose `tail` is the Rust one has `gnutail`: the package that
+    # installs the Rust tools under the plain names, coreutils-from-uutils,
+    # pre-depends on gnu-coreutils, which ships it.
     #
     # The status is written inside the pipeline and renamed to `rc` after it,
     # so `rc` appears only once `out` is complete.
