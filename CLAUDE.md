@@ -66,6 +66,7 @@ Nexus-Stack/
 │       ├── teardown-snapshot.yml # Teardown that snapshots the disk first
 │       ├── destroy-all.yml     # Destroy workflow (full cleanup)
 │       ├── update-from-upstream.yml # Moves a torn-down instance to a release
+│       ├── release-gate.yml    # Lifecycle test of the proven stacks (spin-up, teardown, spin-up)
 │       ├── stack-image-builds.yaml # PR check: builds changed stack images, runs image-test.sh
 │       └── release.yml         # Release workflow
 ├── tofu/                       # OpenTofu/Terraform configuration
@@ -339,7 +340,7 @@ AWS CLI with `.github/scripts/install-tool.sh <tool>`; uv with
 Every stack is in one tier (#712, `docs/concepts/stacks.md#what-each-tier-promises`):
 
 - **core** — `core: true`. Always deployed.
-- **proven** — `tier: proven` in `services.yaml`: code-server, Kestra, Marimo, Spark, the stacks courses run on. Promised to work on every release across a teardown and restore. The automated release gate is not built yet, so before a release that check is manual.
+- **proven** — `tier: proven` in `services.yaml`: code-server, Kestra, Marimo, Spark, the stacks courses run on. Promised to work on every release across a teardown and restore. `release-gate.yml` runs that cycle with a `lifecycle-probe.sh` per proven stack (#712); it is started by hand, not yet a required check, so running it before a release is a manual step.
 - **best-effort** — no `tier` field. Everything else.
 
 What that means for work in this repo:
@@ -348,6 +349,7 @@ What that means for work in this repo:
 - **A change to a `proven` stack is not done until it survived a teardown and spin-up** with something a user made in it, not just a healthy container. Say in the PR whether that ran.
 - **Exact pins only** for core and `proven` (see "Pin Docker image versions" above).
 - **A `proven` stack that builds its own image ships `stacks/<name>/image-test.sh`.** The pull-request check `stack-image-builds.yaml` builds every stack image a PR touches and runs that script inside it, so a pin that does not resolve fails the PR instead of a spin-up. It proves the image, not the running service: the teardown and spin-up above still applies. `tests/unit/test_stack_image_builds.py` enforces the script.
+- **A `proven` stack ships `stacks/<name>/lifecycle-probe.sh`** with `create` and `verify`: one artefact made through the stack's own interface, then checked after a teardown and spin-up. `tests/unit/test_release_gate.py` fails without it.
 - **Adding a stack to `proven` is a decision, not a field edit:** it adds to what every release has to test, and the set must fit on one server. `test_proven_services_are_the_documented_set` makes it explicit.
 
 ### Service Account Naming Convention
