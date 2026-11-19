@@ -249,18 +249,26 @@ def test_a_probe_that_hangs_fails_instead_of_holding_the_gate(tmp_path: Path) ->
 
 # Records the --config file curl was handed, the way curl reads it: after the
 # command that named it has started. A config that cannot be read fails with
-# curl's own exit code for that (26, read error).
+# curl's own exit code for that (26, read error). The method and URL of each
+# request are recorded too, so a test can check what was asked for.
 _FAKE_CURL = """#!/bin/bash
 cfg=""
+method=GET
+url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --config) cfg=$2; shift 2 ;;
+    -X) method=$2; shift 2 ;;
+    -o|-w|-H|--data-binary|--max-time) shift 2 ;;
+    http*) url=$1; shift ;;
     *) shift ;;
   esac
 done
 cat "$cfg" > "$STUB_DIR/config" 2>/dev/null || exit 26
+echo "$method $url" >> "$STUB_DIR/requests"
 printf '%s' "$STUB_OUT"
 """
+_FLOW_URL = "http://localhost:8085/api/v1/flows/nexus.releasegate/lifecycle_probe"
 
 
 def _run_kestra_probe(tmp_path: Path, action: str, out: str) -> subprocess.CompletedProcess[str]:
@@ -295,12 +303,20 @@ def test_the_kestra_probe_hands_curl_a_readable_login(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert "kestra: saved flow nexus.releasegate.lifecycle_probe" in result.stdout
     assert (tmp_path / "config").read_text() == 'user = "nexus-admin:pw-from-env"\n'
+    assert (tmp_path / "requests").read_text() == f"PUT {_FLOW_URL}\n"
 
 
 def test_the_kestra_probe_verify_reads_the_flow_back(tmp_path: Path) -> None:
     result = _run_kestra_probe(tmp_path, "verify", 'description: "release gate gate-7"')
     assert result.returncode == 0, result.stdout + result.stderr
     assert "kestra: flow survived, API answers" in result.stdout
+    assert (tmp_path / "requests").read_text() == f"GET {_FLOW_URL}?source=true\n"
+
+
+def test_the_kestra_probe_verify_rejects_another_runs_flow(tmp_path: Path) -> None:
+    result = _run_kestra_probe(tmp_path, "verify", 'description: "release gate gate-6"')
+    assert result.returncode == 1
+    assert "is not the one this run saved" in result.stdout
 
 
 def test_the_kestra_probe_keeps_the_password_out_of_its_output(tmp_path: Path) -> None:
