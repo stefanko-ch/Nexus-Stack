@@ -335,6 +335,24 @@ AWS CLI with `.github/scripts/install-tool.sh <tool>`; uv with
 `tests/unit/test_job_toolchain.py` enforces it, and
 `docs/stacks/forgejo-runner.md` lists what the image contains.
 
+### Shell that runs on the server: `mkdir`, `tail` and friends are not GNU
+
+Ubuntu 26.04 ships the Rust coreutils (uutils) under the usual names; the
+GNU ones are still installed, prefixed `gnu` (`gnutail`, `gnumkdir`). Two
+differences have already broken code here, both measured in `ubuntu:26.04`
+against `ubuntu:24.04`:
+
+- **`mkdir` is not a lock.** Two racing `mkdir` calls on one path both
+  exited zero in 111 of 300 rounds; GNU never did. Take a lock with the
+  shell itself: `( set -C; : > "$lock" ) 2>/dev/null`.
+- **`tail -c N` reading a pipe keeps the right end but often far more than
+  N.** `gnutail -c N` holds the limit.
+
+The Forgejo job image (`node:22-bookworm`) is Debian with GNU coreutils, so
+a test of server shell that passes there, or on a 24.04 runner, says nothing
+about the server. `tests/unit/test_remote_detached_real_shell.py` only caught
+both once GitHub moved `ubuntu-latest` to 26.04.
+
 ### Stack Tiers: core / proven / best-effort
 
 Every stack is in one tier (#712, `docs/concepts/stacks.md#what-each-tier-promises`):
